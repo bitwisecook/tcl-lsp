@@ -93,6 +93,7 @@ pub mod profile_defaults;
 pub(crate) mod profile_queries;
 pub mod profiles;
 pub mod registry;
+pub mod relation;
 pub mod repeated;
 pub mod representation;
 pub mod resolved_invocation;
@@ -186,11 +187,15 @@ pub mod prelude {
     pub use crate::side_effects::{
         ConnectionSide, SideEffect, SideEffectTarget, SideSwitchTarget, StorageType,
     };
+    pub use crate::relation::{
+        Relation, RelationFactSource, RelationKind, RelationMode, RelationTermKind,
+        RelationVerdict, RelationViolation, TermHolds,
+    };
     pub use crate::spec::{
         BytePayloadSpec, CaseForceListShape, CaseListSpec, CommandSpec, ConstraintReport,
         ConstraintSlot, ConstraintsHook, ContextGate, DefaultFormFirstWord, InlineCaseClause,
-        ObjectClassSpec, OoContextFact, OptionPlacement, OptionRelation, OptionScope, RelationKind,
-        RelationTerm, ScriptTimingResolver, SubCommand, SubSubCommand, VersionedArgValue,
+        ObjectClassSpec, OoContextFact, OptionFacts, OptionPlacement, OptionRelation, OptionScope,
+        OptionTerm, ScriptTimingResolver, SubCommand, SubSubCommand, VersionedArgValue,
         leading_option_word_count, leading_option_word_count_with, resolve_option_prefix,
         resolve_option_prefix_with,
     };
@@ -278,12 +283,15 @@ pub use resolved_invocation::{
 pub use result_stability::ResultStability;
 pub use semantic_operation::{InlineBodyErrorContext, SemanticOperationId};
 pub use side_effects::SideSwitchTarget;
+pub use relation::{
+    Relation, RelationFactSource, RelationKind, RelationMode, RelationTermKind, RelationVerdict,
+    RelationViolation, TermHolds,
+};
 pub use spec::{
     BytePayloadSpec, CaseForceListShape, CaseListSpec, CommandSpec, ConstraintReport,
     ConstraintSlot, ConstraintsHook, ContextGate, DefaultFormFirstWord, InlineCaseClause,
-    ObjectClassSpec, OoContextFact, OptionPlacement, OptionRelation, OptionScope, RelationFacts,
-    RelationKind, RelationTerm, RelationVerdict, RelationViolation, ScriptTimingResolver,
-    SubCommand, SubSubCommand, VersionedArgValue,
+    ObjectClassSpec, OoContextFact, OptionFacts, OptionPlacement, OptionRelation, OptionScope,
+    OptionTerm, ScriptTimingResolver, SubCommand, SubSubCommand, VersionedArgValue,
 };
 pub use special_vars::{
     SPECIAL_VARS, SpecialVarKey, SpecialVarKind, SpecialVarSpec, StartupBinding, VarAccess,

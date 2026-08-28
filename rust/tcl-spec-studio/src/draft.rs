@@ -810,20 +810,20 @@ fn dialect_set_expr(set: DialectSet) -> String {
     )
 }
 
-/// The Rust expression for one [`tcl_registry::RelationTerm`].
-fn relation_term_expr(term: tcl_registry::RelationTerm) -> String {
-    use tcl_registry::RelationTerm as T;
+/// The Rust expression for one [`tcl_registry::OptionTerm`].
+fn relation_term_expr(term: tcl_registry::OptionTerm) -> String {
+    use tcl_registry::OptionTerm as T;
     match term {
-        T::Option(name) => format!("RelationTerm::Option({})", rust_string(name)),
+        T::Option(name) => format!("OptionTerm::Option({})", rust_string(name)),
         T::OptionValue(name, value) => format!(
-            "RelationTerm::OptionValue({}, {})",
+            "OptionTerm::OptionValue({}, {})",
             rust_string(name),
             rust_string(value)
         ),
-        T::Argument(index) => format!("RelationTerm::Argument({index})"),
+        T::Argument(index) => format!("OptionTerm::Argument({index})"),
         T::ArgumentValue(index, value) => {
             format!(
-                "RelationTerm::ArgumentValue({index}, {})",
+                "OptionTerm::ArgumentValue({index}, {})",
                 rust_string(value)
             )
         }

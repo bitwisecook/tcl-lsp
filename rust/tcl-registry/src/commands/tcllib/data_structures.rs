@@ -278,14 +278,14 @@ const STRUCT_TREE_WALK_OPTIONS: &[OptionSpec] = &[
 /// `if {[string equal $order "in"] && [string equal $type "bfs"]} { return
 /// -code error "unable to do a ${order}-order breadth first walk" }` — a
 /// relation between one option's *value* and another option's *value*, which
-/// is exactly [`RelationTerm::OptionValue`]'s reason to exist.  It is written
+/// is exactly [`OptionTerm::OptionValue`]'s reason to exist.  It is written
 /// directionally (`-order in` forbids `-type bfs`) because that is how the
 /// library phrases the failure, and because `-order in` is the word the
 /// author has to change.
 const STRUCT_TREE_WALK_RELATIONS: &[OptionRelation] = &[OptionRelation {
     kind: RelationKind::Forbids,
-    subject: Some(RelationTerm::OptionValue("-order", "in")),
-    terms: &[RelationTerm::OptionValue("-type", "bfs")],
+    subject: Some(OptionTerm::OptionValue("-order", "in")),
+    terms: &[OptionTerm::OptionValue("-type", "bfs")],
     message: Some("unable to do a in-order breadth first walk"),
     ..OptionRelation::DEFAULT
 }];

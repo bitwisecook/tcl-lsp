@@ -29,6 +29,9 @@ use crate::body_kind::BodyKind;
 use crate::clause_shape::ClauseShapeChecker;
 use crate::command_table::CommandTableEffect;
 use crate::dialects::DialectSet;
+use crate::relation::{
+    Relation, RelationFactSource, RelationTermKind, TermHolds,
+};
 use crate::dispatch_stability::{DispatchDependencies, DispatchDependencyDescriptor};
 use crate::events::{EventRequirementForm, ResolvedEventRequirements};
 use crate::forms::{CommandForm, SubCommandForm};
@@ -959,7 +962,7 @@ pub const DEFAULT_CREDENTIAL_OPTION_NAMES: &[&str] =
 /// the inline `text` word); `struct::tree walk` needs the second
 /// (`-order in` is illegal with `-type bfs`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RelationTerm {
+pub enum OptionTerm {
     /// The option is present, whatever value it carries (`-channel`).
     Option(&'static str),
     /// The option is present **and** its first value word is this literal
@@ -972,10 +975,12 @@ pub enum RelationTerm {
     ArgumentValue(u8, &'static str),
 }
 
-impl RelationTerm {
-    /// How the term reads in a diagnostic message.
-    #[must_use]
-    pub fn describe(self) -> String {
+impl RelationTermKind for OptionTerm {
+    fn collective_noun() -> &'static str {
+        "Options"
+    }
+
+    fn describe(self) -> String {
         match self {
             Self::Option(name) => name.to_owned(),
             Self::OptionValue(name, value) => format!("{name} {value}"),
@@ -984,13 +989,9 @@ impl RelationTerm {
         }
     }
 
-    /// The term as a `SpecTcl` author writes it — the one spelling both
-    /// loaders read and the exporter writes.
-    ///
     /// A bare `-name` is the option; a braced `{-name value}` pins its value;
     /// `{arg N}` is the positional at `N`, and `{arg N value}` pins its value.
-    #[must_use]
-    pub fn spelling(self) -> String {
+    fn spelling(self) -> String {
         match self {
             Self::Option(name) => name.to_owned(),
             Self::OptionValue(name, value) => format!("{{{name} {value}}}"),
@@ -998,7 +999,9 @@ impl RelationTerm {
             Self::ArgumentValue(index, value) => format!("{{arg {index} {value}}}"),
         }
     }
+}
 
+impl OptionTerm {
     /// The canonical option name this term names, when it names one.
     #[must_use]
     pub const fn option_name(self) -> Option<&'static str> {
@@ -1009,98 +1012,9 @@ impl RelationTerm {
     }
 }
 
-/// What an [`OptionRelation`] asserts about its subject and its terms.
-///
-/// [`Self::MutuallyExclusive`] is the whole of the retired `OptionRelation`;
-/// the other three are what E-R14 adds. Each is checked natively — no hook, no
-/// VM — by [`OptionRelation::evaluate`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RelationKind {
-    /// At most one of `terms` may hold. `subject` is unused.
-    MutuallyExclusive,
-    /// If `subject` holds, **every** term must hold
-    /// (`bibtex::parse -command` requires `-channel`).
-    Requires,
-    /// If `subject` holds, **at least one** term must hold.
-    RequiresOneOf,
-    /// If `subject` holds, **no** term may hold — directional exclusion, for
-    /// the asymmetric case a symmetric set cannot phrase
-    /// (`struct::tree walk -order in` is illegal with `-type bfs`).
-    Forbids,
-}
-
-impl RelationKind {
-    /// The DSL statement word that authors this kind.
-    #[must_use]
-    pub const fn statement_word(self) -> &'static str {
-        match self {
-            Self::MutuallyExclusive => "option_conflict",
-            Self::Requires => "option_requires",
-            Self::RequiresOneOf => "option_requires_one_of",
-            Self::Forbids => "option_forbids",
-        }
-    }
-
-    /// Whether a violation of this kind reads as "these cannot go together"
-    /// (W147) rather than "this one needs that one" (W152).
-    #[must_use]
-    pub const fn is_exclusion(self) -> bool {
-        matches!(self, Self::MutuallyExclusive | Self::Forbids)
-    }
-}
-
-/// A registry-declared relation between an invocation's options and arguments.
-///
-/// **The declarative half of E-R14** (owner ruling 2026-08-27). Every relation
-/// expressible here is evaluated natively by [`Self::evaluate`] — a few slice
-/// scans over facts the analyser's leading-option walk already collected — so
-/// the common case never enters the hook VM. The `constraints` hook
-/// ([`crate::pack_hooks::HookFamily::Constraints`]) is the escape hatch for the
-/// rest, and principle P-B makes reaching for it the exception.
-///
-/// `dialects` is an additional availability gate; `None` inherits the owning
-/// command or subcommand's dialect set. `lifecycle` gates the relation on the
-/// owning package's version axis — a relation that only exists once both of its
-/// operands do.
-#[derive(Debug, Clone, Copy)]
-pub struct OptionRelation {
-    /// What the relation asserts.
-    pub kind: RelationKind,
-    /// The term that triggers the relation. `None` makes the relation
-    /// **unconditional** — it always applies, which is what
-    /// `bibtex::parse`'s "neither `-channel` nor text specified" needs — and
-    /// is also how [`RelationKind::MutuallyExclusive`], which has no subject,
-    /// always reads.
-    pub subject: Option<RelationTerm>,
-    /// The terms the relation ranges over.
-    pub terms: &'static [RelationTerm],
-    /// Tcl dialects in which this relation applies.
-    pub dialects: Option<DialectSet>,
-    /// Introduction / deprecation / retirement releases of this relation on
-    /// the owning command's package version axis. [`Lifecycle::UNSPECIFIED`]
-    /// means it applies in every package version.
-    pub lifecycle: Lifecycle,
-    /// An author-supplied message replacing the generated one — for a library
-    /// whose own error text is worth quoting.
-    pub message: Option<&'static str>,
-}
-
-/// Whether a [`RelationTerm`] holds in one invocation.
-///
-/// `Unknown` is what keeps the checker sound: presence is always provable, but
-/// *absence* is only provable when the invocation was read to its end with
-/// every relevant word literal. A `Requires` relation over an invocation the
-/// analyser could not read to the end abstains rather than accusing a call of
-/// omitting an option that a `{*}` expansion may well be supplying.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TermHolds {
-    /// Proven present.
-    Yes,
-    /// Proven absent.
-    No,
-    /// Not statically knowable here.
-    Unknown,
-}
+/// A registry-declared relation between an invocation's options and arguments
+/// — the option domain's instance of the one relation mechanism (R11).
+pub type OptionRelation = Relation<OptionTerm>;
 
 /// One invocation as the relation checker reads it.
 ///
@@ -1108,7 +1022,7 @@ pub enum TermHolds {
 /// already performs, and borrowed by every relation on that command — the
 /// scan is not repeated per relation.
 #[derive(Debug, Clone, Copy)]
-pub struct RelationFacts<'a> {
+pub struct OptionFacts<'a> {
     /// The canonical name of each declared option the call supplied, in call
     /// order, paired with its first value word when that word is a literal.
     pub options: &'a [(&'static str, Option<&'a str>)],
@@ -1134,7 +1048,7 @@ enum OptionPresence<'a> {
     PresentWith(&'a str),
 }
 
-impl RelationFacts<'_> {
+impl OptionFacts<'_> {
     /// What the call said about `name`.
     fn option_presence(&self, name: &str) -> OptionPresence<'_> {
         match self.options.iter().find(|(option, _)| *option == name) {
@@ -1166,254 +1080,52 @@ impl RelationFacts<'_> {
     }
 }
 
-/// What a relation says about one invocation.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RelationVerdict {
-    /// The relation holds, or does not apply to this call.
-    Satisfied,
-    /// The call cannot be judged: something the relation reads is not
-    /// statically known.
-    Abstain,
-    /// The relation is violated.
-    Violated(RelationViolation),
-}
-
-/// The evidence behind a [`RelationVerdict::Violated`], for the message.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RelationViolation {
-    /// What the relation asserts.
-    pub kind: RelationKind,
-    /// The terms the call actually supplied that take part in the report.
-    pub present: Vec<RelationTerm>,
-    /// The terms the relation wanted and did not find. Empty for an
-    /// exclusion.
-    pub missing: Vec<RelationTerm>,
-    /// The author's own message, when the relation carries one.
-    pub message: Option<&'static str>,
+impl RelationFactSource<OptionTerm> for OptionFacts<'_> {
+    /// Presence is provable whatever the value is; absence needs `complete`.
+    fn holds(&self, term: OptionTerm) -> TermHolds {
+        match term {
+            OptionTerm::Option(name) => match self.option_presence(name) {
+                OptionPresence::Absent => self.absent(),
+                OptionPresence::PresentUnknownValue | OptionPresence::PresentWith(_) => {
+                    TermHolds::Yes
+                }
+            },
+            OptionTerm::OptionValue(name, wanted) => match self.option_presence(name) {
+                OptionPresence::Absent => self.absent(),
+                // Present, but its value could be anything at run time —
+                // including `wanted`.
+                OptionPresence::PresentUnknownValue => TermHolds::Unknown,
+                OptionPresence::PresentWith(actual) => {
+                    Self::matches_literal(Some(actual), wanted)
+                }
+            },
+            OptionTerm::Argument(index) => {
+                if usize::from(index) < self.positionals.len() {
+                    TermHolds::Yes
+                } else {
+                    self.absent()
+                }
+            }
+            OptionTerm::ArgumentValue(index, wanted) => {
+                match self.positionals.get(usize::from(index)) {
+                    Some(word) => Self::matches_literal(*word, wanted),
+                    None => self.absent(),
+                }
+            }
+        }
+    }
 }
 
 impl OptionRelation {
-    /// A relation with no fields set — used with `..OptionRelation::DEFAULT`.
-    ///
-    /// The default kind is [`RelationKind::MutuallyExclusive`], so a row
-    /// migrated from the retired `OptionRelation` reads exactly as it did.
-    pub const DEFAULT: Self = Self {
-        kind: RelationKind::MutuallyExclusive,
-        subject: None,
-        terms: &[],
-        dialects: None,
-        lifecycle: Lifecycle::UNSPECIFIED,
-        message: None,
-    };
-
-    /// The mutual-exclusion relation over `options` — the shape every row
-    /// authored before E-R14 had, spelled in one place so the migration is a
-    /// call rather than six fields.
-    #[must_use]
-    pub const fn conflict(terms: &'static [RelationTerm]) -> Self {
-        Self {
-            terms,
-            ..Self::DEFAULT
-        }
-    }
-
-    /// Whether this relation applies given the resolved *`package_version`*.
-    ///
-    /// *`package_version`* is the guaranteed-available floor from a
-    /// `package require` (see [`crate::version::requirement_lower_bound`]).
-    /// `None` is permissive.
-    #[must_use]
-    pub fn available_for_version(&self, package_version: Option<&str>) -> bool {
-        self.lifecycle.available_at(package_version)
-    }
-
-    /// This relation's lifecycle state at the resolved *`package_version`*.
-    #[must_use]
-    pub fn lifecycle_state(&self, package_version: Option<&str>) -> LifecycleState {
-        self.lifecycle.state_at(package_version)
-    }
-
-    /// Whether this relation is active for `dialect`, inheriting the
-    /// command/subcommand dialect set when it has no own gate.
-    #[must_use]
-    pub const fn supports_dialect(
-        &self,
-        dialect: Option<DialectSet>,
-        parent_dialects: Option<DialectSet>,
-    ) -> bool {
-        let Some(want) = dialect else {
-            return true;
-        };
-        let gate = match self.dialects {
-            Some(gate) => Some(gate),
-            None => parent_dialects,
-        };
-        match gate {
-            Some(have) => have.intersects(want),
-            None => true,
-        }
-    }
-
-    /// The relation as a `SpecTcl` author wrote it — the statement word, the
-    /// subject and the terms.
-    ///
-    /// The one spelling shared by the loader's containment notices, the
-    /// studio's row label and the export round trip, so a relation reads the
-    /// same everywhere it is named.
-    #[must_use]
-    pub fn describe(&self) -> String {
-        let terms = self
-            .terms
-            .iter()
-            .map(|term| term.spelling())
-            .collect::<Vec<_>>()
-            .join(" ");
-        match self.subject {
-            Some(subject) => format!(
-                "{} {} {{{terms}}}",
-                self.kind.statement_word(),
-                subject.spelling()
-            ),
-            None => format!("{} {{{terms}}}", self.kind.statement_word()),
-        }
-    }
-
     /// Every option name this relation mentions, subject included — what a
     /// consumer needs to decide whether the relation is worth evaluating at
     /// all.
     #[must_use]
     pub fn option_names(&self) -> Vec<&'static str> {
-        self.subject
+        self.mentioned_terms()
             .into_iter()
-            .chain(self.terms.iter().copied())
-            .filter_map(RelationTerm::option_name)
+            .filter_map(OptionTerm::option_name)
             .collect()
-    }
-
-    /// Whether `term` holds in `facts`.
-    fn holds(term: RelationTerm, facts: &RelationFacts<'_>) -> TermHolds {
-        match term {
-            RelationTerm::Option(name) => match facts.option_presence(name) {
-                OptionPresence::Absent => facts.absent(),
-                // Presence is provable whatever the value is.
-                OptionPresence::PresentUnknownValue | OptionPresence::PresentWith(_) => {
-                    TermHolds::Yes
-                }
-            },
-            RelationTerm::OptionValue(name, wanted) => match facts.option_presence(name) {
-                OptionPresence::Absent => facts.absent(),
-                // Present, but its value could be anything at run time —
-                // including `wanted`.
-                OptionPresence::PresentUnknownValue => TermHolds::Unknown,
-                OptionPresence::PresentWith(actual) => {
-                    RelationFacts::matches_literal(Some(actual), wanted)
-                }
-            },
-            RelationTerm::Argument(index) => {
-                if usize::from(index) < facts.positionals.len() {
-                    TermHolds::Yes
-                } else {
-                    facts.absent()
-                }
-            }
-            RelationTerm::ArgumentValue(index, wanted) => {
-                match facts.positionals.get(usize::from(index)) {
-                    Some(word) => RelationFacts::matches_literal(*word, wanted),
-                    None => facts.absent(),
-                }
-            }
-        }
-    }
-
-    /// Judge one invocation against this relation — **the whole declarative
-    /// checker**, and the reason the common case never enters a VM.
-    ///
-    /// Presence is always provable, so an exclusion never needs `complete`;
-    /// absence is provable only when the invocation was read to its end, so a
-    /// `Requires` / `RequiresOneOf` over a truncated call abstains.
-    #[must_use]
-    pub fn evaluate(&self, facts: &RelationFacts<'_>) -> RelationVerdict {
-        let violation = |present: Vec<RelationTerm>, missing: Vec<RelationTerm>| {
-            RelationVerdict::Violated(RelationViolation {
-                kind: self.kind,
-                present,
-                missing,
-                message: self.message,
-            })
-        };
-        if self.kind == RelationKind::MutuallyExclusive {
-            let present: Vec<RelationTerm> = self
-                .terms
-                .iter()
-                .copied()
-                .filter(|term| Self::holds(*term, facts) == TermHolds::Yes)
-                .collect();
-            return if present.len() >= 2 {
-                violation(present, Vec::new())
-            } else {
-                RelationVerdict::Satisfied
-            };
-        }
-
-        // No subject means the relation is unconditional: it applies to every
-        // call, so there is nothing to prove before checking the terms.
-        if let Some(subject) = self.subject {
-            match Self::holds(subject, facts) {
-                TermHolds::No => return RelationVerdict::Satisfied,
-                TermHolds::Unknown => return RelationVerdict::Abstain,
-                TermHolds::Yes => {}
-            }
-        }
-        let subject_terms = || self.subject.into_iter().collect::<Vec<_>>();
-
-        match self.kind {
-            RelationKind::MutuallyExclusive => unreachable!("handled above"),
-            RelationKind::Requires => {
-                let mut missing = Vec::new();
-                for term in self.terms.iter().copied() {
-                    match Self::holds(term, facts) {
-                        TermHolds::Yes => {}
-                        TermHolds::No => missing.push(term),
-                        TermHolds::Unknown => return RelationVerdict::Abstain,
-                    }
-                }
-                if missing.is_empty() {
-                    RelationVerdict::Satisfied
-                } else {
-                    violation(subject_terms(), missing)
-                }
-            }
-            RelationKind::RequiresOneOf => {
-                let mut any_unknown = false;
-                for term in self.terms.iter().copied() {
-                    match Self::holds(term, facts) {
-                        TermHolds::Yes => return RelationVerdict::Satisfied,
-                        TermHolds::No => {}
-                        TermHolds::Unknown => any_unknown = true,
-                    }
-                }
-                if any_unknown {
-                    RelationVerdict::Abstain
-                } else {
-                    violation(subject_terms(), self.terms.to_vec())
-                }
-            }
-            RelationKind::Forbids => {
-                let present: Vec<RelationTerm> = self
-                    .terms
-                    .iter()
-                    .copied()
-                    .filter(|term| Self::holds(*term, facts) == TermHolds::Yes)
-                    .collect();
-                if present.is_empty() {
-                    RelationVerdict::Satisfied
-                } else {
-                    let mut all = subject_terms();
-                    all.extend(present);
-                    violation(all, Vec::new())
-                }
-            }
-        }
     }
 }
 
@@ -1560,53 +1272,7 @@ pub fn reset_relation_check_stats() {
 ///
 /// Silence (an empty vector) means "no report", which is also what a crashed,
 /// quarantined, budget-blown or hostless pack hook answers.
-pub type ConstraintsHook = fn(&RelationFacts<'_>) -> Vec<ConstraintReport>;
-
-impl RelationViolation {
-    /// The diagnostic message for this violation — the author's own text when
-    /// the relation carries one, otherwise generated from the terms.
-    ///
-    /// `display_name` is the command (or `command subcommand`) as written.
-    #[must_use]
-    pub fn message_for(&self, display_name: &str) -> String {
-        if let Some(message) = self.message {
-            return message.to_owned();
-        }
-        let join = |terms: &[RelationTerm]| {
-            terms
-                .iter()
-                .map(|term| term.describe())
-                .collect::<Vec<_>>()
-                .join(", ")
-        };
-        match self.kind {
-            RelationKind::MutuallyExclusive => format!(
-                "Options {} cannot be used together for '{display_name}'",
-                join(&self.present)
-            ),
-            RelationKind::Forbids => format!(
-                "{} cannot be used together for '{display_name}'",
-                join(&self.present)
-            ),
-            RelationKind::Requires if self.present.is_empty() => {
-                format!("'{display_name}' requires {}", join(&self.missing))
-            }
-            RelationKind::Requires => format!(
-                "{} requires {} for '{display_name}'",
-                join(&self.present),
-                join(&self.missing)
-            ),
-            RelationKind::RequiresOneOf if self.present.is_empty() => {
-                format!("'{display_name}' requires one of {}", join(&self.missing))
-            }
-            RelationKind::RequiresOneOf => format!(
-                "{} requires one of {} for '{display_name}'",
-                join(&self.present),
-                join(&self.missing)
-            ),
-        }
-    }
-}
+pub type ConstraintsHook = fn(&OptionFacts<'_>) -> Vec<ConstraintReport>;
 
 /// Unified command metadata — the single source of truth.
 ///

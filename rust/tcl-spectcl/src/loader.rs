@@ -782,7 +782,7 @@ fn literals_valid(_args: InvocationArguments<'_>) -> LiteralArgumentValidation {
 /// The `constraints` placeholder a declared-but-unbound hook carries: no
 /// report, which is exactly what a pack with no `constraints` hook answers.
 fn no_constraint_reports(
-    _facts: &tcl_registry::spec::RelationFacts<'_>,
+    _facts: &tcl_registry::spec::OptionFacts<'_>,
 ) -> Vec<tcl_registry::spec::ConstraintReport> {
     Vec::new()
 }
@@ -5529,7 +5529,7 @@ fn side_effect_row(stmt: &Stmt, log: &mut Log) -> Option<SideEffect> {
     Some(effect)
 }
 
-/// One [`tcl_registry::RelationTerm`] as an author spells it.
+/// One [`tcl_registry::OptionTerm`] as an author spells it.
 ///
 /// A bare `-name` is the option; `{-name value}` pins its value; `{arg N}` is
 /// the positional at `N` and `{arg N value}` pins its value. The four shapes
@@ -5540,21 +5540,21 @@ fn relation_term(
     statement: &str,
     line: u32,
     log: &mut Log,
-) -> Option<tcl_registry::RelationTerm> {
+) -> Option<tcl_registry::OptionTerm> {
     let words = list_words(spelling);
     match words.as_slice() {
-        [name] if name.starts_with('-') => Some(tcl_registry::RelationTerm::Option(leak_str(name))),
-        [name, value] if name.starts_with('-') => Some(tcl_registry::RelationTerm::OptionValue(
+        [name] if name.starts_with('-') => Some(tcl_registry::OptionTerm::Option(leak_str(name))),
+        [name, value] if name.starts_with('-') => Some(tcl_registry::OptionTerm::OptionValue(
             leak_str(name),
             leak_str(value),
         )),
         [keyword, index] if keyword == "arg" => {
-            index.parse().ok().map(tcl_registry::RelationTerm::Argument)
+            index.parse().ok().map(tcl_registry::OptionTerm::Argument)
         }
         [keyword, index, value] if keyword == "arg" => index
             .parse()
             .ok()
-            .map(|index| tcl_registry::RelationTerm::ArgumentValue(index, leak_str(value))),
+            .map(|index| tcl_registry::OptionTerm::ArgumentValue(index, leak_str(value))),
         _ => None,
     }
     .or_else(|| {
@@ -5572,8 +5572,8 @@ fn relation_terms(
     statement: &str,
     line: u32,
     log: &mut Log,
-) -> &'static [tcl_registry::RelationTerm] {
-    let terms: Vec<tcl_registry::RelationTerm> = list_words(text)
+) -> &'static [tcl_registry::OptionTerm] {
+    let terms: Vec<tcl_registry::OptionTerm> = list_words(text)
         .iter()
         .filter_map(|spelling| relation_term(spelling, statement, line, log))
         .collect();

@@ -50,6 +50,8 @@ use tcl_irules::extract_irules_event_handlers;
 use tcl_lexer::LineIndex;
 use tcl_registry::base_objects::base_object_identities;
 use tcl_registry::profile_defaults::{BigipVersion, profile_field_defaults};
+use tcl_registry::profiles::ProfileFacts;
+use tcl_registry::relation::RelationVerdict;
 
 use crate::canonical::Canon;
 use crate::lint::{ModelView, resolve_name};
@@ -596,21 +598,34 @@ fn check_virtual_event_profile_graph(view: &ModelView<'_>, out: &mut Vec<ConfigD
             active.push("TCP");
         }
 
-        // Profile conflicts are graph data on ProfileSpec, not a handwritten
-        // pair table. Report each unordered pair once.
+        // Profile conflicts are relation data on ProfileSpec, judged by the
+        // one shared evaluator (R11) rather than a walker written here. A
+        // virtual server names every profile it attaches, so the stack is
+        // closed-world and the checker never has to abstain.
+        let stack: Vec<String> = active.iter().map(|name| (*name).to_owned()).collect();
+        let facts = ProfileFacts {
+            active: &stack,
+            complete: true,
+        };
         let mut conflict_pairs = BTreeSet::new();
         for profile in &active {
             let Some(spec) = profiles.get_profile(profile) else {
                 continue;
             };
-            for conflict in spec.conflicts {
-                if active.iter().any(|present| present == conflict) {
-                    let pair = if *profile < *conflict {
-                        (*profile, *conflict)
+            for relation in spec.relations {
+                let RelationVerdict::Violated(violation) = relation.evaluate(&facts) else {
+                    continue;
+                };
+                // An exclusion reports the subject first and the peers it
+                // clashes with after it; the pair is unordered, so normalise
+                // it and let the set drop a conflict declared from both ends.
+                for peer in violation.present.iter().skip(1) {
+                    let (left, right) = if violation.present[0].0 < peer.0 {
+                        (violation.present[0].0, peer.0)
                     } else {
-                        (*conflict, *profile)
+                        (peer.0, violation.present[0].0)
                     };
-                    conflict_pairs.insert(pair);
+                    conflict_pairs.insert((left, right));
                 }
             }
         }

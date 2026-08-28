@@ -215,20 +215,20 @@ pub(in crate::analyser) struct ScannedInvocation {
 /// word the violation names, or `fallback` when it names none the call
 /// actually supplied (a `requires-one-of` that found nothing).
 fn relation_span(
-    present: &[tcl_registry::RelationTerm],
+    present: &[tcl_registry::OptionTerm],
     seen_options: &[SeenOption],
     positionals: &[SeenPositional],
     fallback: tcl_lexer::Span,
 ) -> tcl_lexer::Span {
-    let span_of = |term: tcl_registry::RelationTerm| -> Option<tcl_lexer::Span> {
+    let span_of = |term: tcl_registry::OptionTerm| -> Option<tcl_lexer::Span> {
         match term {
-            tcl_registry::RelationTerm::Option(name)
-            | tcl_registry::RelationTerm::OptionValue(name, _) => seen_options
+            tcl_registry::OptionTerm::Option(name)
+            | tcl_registry::OptionTerm::OptionValue(name, _) => seen_options
                 .iter()
                 .find(|option| option.name == name)
                 .map(|option| option.span),
-            tcl_registry::RelationTerm::Argument(index)
-            | tcl_registry::RelationTerm::ArgumentValue(index, _) => {
+            tcl_registry::OptionTerm::Argument(index)
+            | tcl_registry::OptionTerm::ArgumentValue(index, _) => {
                 positionals.get(usize::from(index)).map(|word| word.span)
             }
         }
@@ -272,7 +272,7 @@ pub(in crate::analyser) fn option_relation_diagnostics(
         .iter()
         .map(|word| word.value.as_deref())
         .collect();
-    let facts = tcl_registry::RelationFacts {
+    let facts = tcl_registry::OptionFacts {
         options: &options,
         positionals: &positional_values,
         complete: call.complete,

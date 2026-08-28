@@ -896,7 +896,7 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         OPTS,
         FieldKind::RustExpr {
             hint: "&[OptionRelation { kind: RelationKind::MutuallyExclusive, subject: None, \
-                   terms: &[RelationTerm::Option(\"-a\"), RelationTerm::Option(\"-b\")], \
+                   terms: &[OptionTerm::Option(\"-a\"), OptionTerm::Option(\"-b\")], \
                    dialects: None, lifecycle: Lifecycle::UNSPECIFIED, message: None }]",
         },
         "Registry-declared relations between this command's options and arguments \
@@ -1562,7 +1562,7 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         OPTS,
         FieldKind::RustExpr {
             hint: "&[OptionRelation { kind: RelationKind::MutuallyExclusive, subject: None, \
-                   terms: &[RelationTerm::Option(\"-a\"), RelationTerm::Option(\"-b\")], \
+                   terms: &[OptionTerm::Option(\"-a\"), OptionTerm::Option(\"-b\")], \
                    dialects: None, lifecycle: Lifecycle::UNSPECIFIED, message: None }]",
         },
         "Subcommand-specific option relations (E-R14), evaluated by the same \

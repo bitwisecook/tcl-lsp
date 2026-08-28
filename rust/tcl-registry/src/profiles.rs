@@ -24,6 +24,67 @@
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::lifecycle::Lifecycle;
+use crate::relation::{
+    Relation, RelationFactSource, RelationMode, RelationTermKind, TermHolds, closure_over,
+};
+
+/// One operand of a [`ProfileRelation`] — a `BIG-IP` profile *type* name.
+///
+/// Always the registry's own spelling, which is upper case; [`ProfileFacts`]
+/// normalises the configuration side to match, so the comparison here is a
+/// plain string equality rather than a case fold per term per relation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ProfileTerm(pub &'static str);
+
+impl RelationTermKind for ProfileTerm {
+    fn collective_noun() -> &'static str {
+        "Profiles"
+    }
+
+    fn describe(self) -> String {
+        self.0.to_owned()
+    }
+
+    fn spelling(self) -> String {
+        self.0.to_owned()
+    }
+}
+
+/// A declared relation between `BIG-IP` profile types — the profile domain's
+/// instance of the one relation mechanism (R11).
+pub type ProfileRelation = Relation<ProfileTerm>;
+
+/// One virtual server's attached profile stack, as the relation checker reads
+/// it.
+///
+/// `complete` is `true` for a stack read from a parsed configuration: unlike an
+/// invocation, which a `{*}` expansion can hide words from, a virtual server
+/// names every profile it attaches, so absence is provable and a `Requires`
+/// edge over one never has to abstain.
+#[derive(Debug, Clone, Copy)]
+pub struct ProfileFacts<'a> {
+    /// The active profile type names, upper-cased, parents already inferred.
+    pub active: &'a [String],
+    /// Whether the stack was read in full. Only this licenses proving a
+    /// profile *absent*.
+    pub complete: bool,
+}
+
+impl RelationFactSource<ProfileTerm> for ProfileFacts<'_> {
+    fn holds(&self, term: ProfileTerm) -> TermHolds {
+        if self.active.iter().any(|name| name == term.0) {
+            TermHolds::Yes
+        } else if self.complete {
+            TermHolds::No
+        } else {
+            TermHolds::Unknown
+        }
+    }
+}
+
+/// The relation list of a profile the registry does not know — no edges, so a
+/// closure over it terminates immediately.
+const NO_PROFILE_RELATIONS: &[ProfileRelation] = &[];
 
 /// Metadata for an F5 profile type.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -34,10 +95,16 @@ pub struct ProfileSpec {
     pub layer: &'static str,
     /// Connection side: `"client"`, `"server"`, `"both"`, `"global"`.
     pub side: &'static str,
-    /// Required parent profiles.
-    pub requires: &'static [&'static str],
-    /// Conflicting profiles.
-    pub conflicts: &'static [&'static str],
+    /// This profile's relations to other profile types — its inference
+    /// edges to the parents `BIG-IP` attaches for it, and its assertion edges
+    /// to the profiles it cannot be stacked with.
+    ///
+    /// R11: one mechanism, not the two bare `requires` / `conflicts` slices
+    /// this replaced. The direction is on the edge
+    /// ([`RelationMode`](crate::relation::RelationMode)) because the two read
+    /// opposite ways: `HTTP` ⇒ `TCP` adds the parent, `FASTL4` ⊥ `HTTP`
+    /// reports a defect.
+    pub relations: &'static [ProfileRelation],
     /// Introduction / deprecation / retirement releases of this profile type
     /// on the `BIG-IP` release axis. An absent introducing release inherits
     /// the axis baseline (BIG-IP 15.0).
@@ -52,8 +119,7 @@ impl ProfileSpec {
         name: "",
         layer: "",
         side: "",
-        requires: &[],
-        conflicts: &[],
+        relations: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
     };
 
@@ -63,6 +129,29 @@ impl ProfileSpec {
     pub fn lifecycle(&self) -> Lifecycle {
         self.lifecycle
             .with_baseline(tcl_dialect::VersionKey::BigipVersion.baseline_version())
+    }
+
+    /// The profile types this one implies — the terms of its inference edges.
+    #[must_use]
+    pub fn inferred_parents(&self) -> Vec<&'static str> {
+        self.relation_terms(RelationMode::Infer)
+    }
+
+    /// The profile types this one cannot be stacked with — the terms of its
+    /// assertion edges.
+    #[must_use]
+    pub fn forbidden_peers(&self) -> Vec<&'static str> {
+        self.relation_terms(RelationMode::Assert)
+    }
+
+    /// The named terms of every relation in `mode`, the subject excluded: the
+    /// subject of a row-owned edge is the row itself.
+    fn relation_terms(&self, mode: RelationMode) -> Vec<&'static str> {
+        self.relations
+            .iter()
+            .filter(|relation| relation.mode == mode)
+            .flat_map(|relation| relation.terms.iter().map(|term| term.0))
+            .collect()
     }
 }
 
@@ -191,23 +280,41 @@ impl ProfileRegistry {
         self.namespaces.len()
     }
 
-    /// `profiles` plus all transitive [`ProfileSpec::requires`] parents,
-    /// uppercased.
+    /// `profiles` plus every profile reachable from them by an inference
+    /// edge, uppercased.
+    ///
+    /// The transitive walk is [`closure_over`], shared with every other
+    /// relation domain; the only thing this adds is the case fold and the
+    /// pass-through of names the registry does not know (which carry no edges
+    /// but must still appear in the expanded stack, because a configuration
+    /// naming a profile the registry has not caught up with has still attached
+    /// it).
     #[must_use]
     pub fn expand_profile_stack(&self, profiles: &[&str]) -> FxHashSet<String> {
         let mut expanded: FxHashSet<String> = profiles.iter().map(|p| p.to_uppercase()).collect();
-        let mut pending: Vec<String> = expanded.iter().cloned().collect();
-        while let Some(cur) = pending.pop() {
-            if let Some(spec) = self.get_profile(&cur) {
-                for req in spec.requires {
-                    let name = req.to_uppercase();
-                    if expanded.insert(name.clone()) {
-                        pending.push(name);
-                    }
-                }
-            }
+        let seeds: Vec<ProfileTerm> = expanded
+            .iter()
+            .filter_map(|name| self.get_profile(name).map(|spec| ProfileTerm(spec.name)))
+            .collect();
+        for term in closure_over(seeds, |term| {
+            self.get_profile(term.0)
+                .map_or(NO_PROFILE_RELATIONS, |spec| spec.relations)
+        }) {
+            expanded.insert(term.0.to_uppercase());
         }
         expanded
+    }
+
+    /// Every profile this one names as a parent — the inference edges of
+    /// [`ProfileSpec::relations`], flattened.
+    ///
+    /// The `requires` slice this replaced, reconstructed for the consumers
+    /// that publish it (the registry snapshot) rather than walk it.
+    #[must_use]
+    pub fn profile_parents(&self, profile: &str) -> Vec<&'static str> {
+        self.get_profile(profile)
+            .map(ProfileSpec::inferred_parents)
+            .unwrap_or_default()
     }
 
     /// True when `active`'s expanded profile stack satisfies any one of the
@@ -401,80 +508,110 @@ fn profile_specs_0() -> Vec<ProfileSpec> {
             name: "ACCESS",
             layer: "security",
             side: "client",
-            requires: &["TCP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("ACCESS"), &[ProfileTerm("TCP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "AIMCP",
             layer: "application",
             side: "both",
-            requires: &["HTTP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("AIMCP"), &[ProfileTerm("HTTP")]),
+                ]
+            },
             lifecycle: Lifecycle::introduced_in("21.1.0"),
         },
         ProfileSpec {
             name: "ANTIFRAUD",
             layer: "security",
             side: "client",
-            requires: &["HTTP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("ANTIFRAUD"), &[ProfileTerm("HTTP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "ASM",
             layer: "security",
             side: "both",
-            requires: &["HTTP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("ASM"), &[ProfileTerm("HTTP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "AUTH",
             layer: "security",
             side: "client",
-            requires: &["TCP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("AUTH"), &[ProfileTerm("TCP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "AVR",
             layer: "acceleration",
             side: "both",
-            requires: &["HTTP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("AVR"), &[ProfileTerm("HTTP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "BOTDEFENSE",
             layer: "security",
             side: "client",
-            requires: &["HTTP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("BOTDEFENSE"), &[ProfileTerm("HTTP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "CACHE",
             layer: "acceleration",
             side: "both",
-            requires: &["HTTP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("CACHE"), &[ProfileTerm("HTTP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "CATEGORY",
             layer: "acceleration",
             side: "both",
-            requires: &["HTTP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("CATEGORY"), &[ProfileTerm("HTTP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "CLASSIFICATION",
             layer: "acceleration",
             side: "both",
-            requires: &["TCP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("CLASSIFICATION"), &[ProfileTerm("TCP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
     ]
@@ -486,72 +623,95 @@ fn profile_specs_1() -> Vec<ProfileSpec> {
             name: "CLIENTSSL",
             layer: "tls",
             side: "client",
-            requires: &["TCP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("CLIENTSSL"), &[ProfileTerm("TCP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "CONNECTOR",
             layer: "application",
             side: "both",
-            requires: &["TCP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("CONNECTOR"), &[ProfileTerm("TCP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "DATAGRAM",
             layer: "application",
             side: "both",
-            requires: &["UDP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("DATAGRAM"), &[ProfileTerm("UDP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "DIAMETER",
             layer: "application",
             side: "both",
-            requires: &["TCP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("DIAMETER"), &[ProfileTerm("TCP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "DIAMETERSESSION",
             layer: "application",
             side: "both",
-            requires: &["DIAMETER"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("DIAMETERSESSION"), &[ProfileTerm("DIAMETER")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "DIAMETER_ENDPOINT",
             layer: "application",
             side: "both",
-            requires: &["DIAMETER"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("DIAMETER_ENDPOINT"), &[ProfileTerm("DIAMETER")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "DNS",
             layer: "application",
             side: "both",
-            requires: &[],
-            conflicts: &[],
+            relations: &[],
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "DOSL7",
             layer: "security",
             side: "both",
-            requires: &["HTTP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("DOSL7"), &[ProfileTerm("HTTP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "ECA",
             layer: "security",
             side: "client",
-            requires: &["TCP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("ECA"), &[ProfileTerm("TCP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
     ]
@@ -563,80 +723,98 @@ fn profile_specs_2() -> Vec<ProfileSpec> {
             name: "FASTHTTP",
             layer: "application",
             side: "both",
-            requires: &["TCP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("FASTHTTP"), &[ProfileTerm("TCP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "FASTL4",
             layer: "transport",
             side: "both",
-            requires: &[],
-            conflicts: &[],
+            relations: &[],
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "FIX",
             layer: "application",
             side: "both",
-            requires: &["TCP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("FIX"), &[ProfileTerm("TCP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "FLOW",
             layer: "application",
             side: "both",
-            requires: &[],
-            conflicts: &[],
+            relations: &[],
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "GENERICMSG",
             layer: "application",
             side: "both",
-            requires: &["TCP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("GENERICMSG"), &[ProfileTerm("TCP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "GTP",
             layer: "application",
             side: "both",
-            requires: &[],
-            conflicts: &[],
+            relations: &[],
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "HTML",
             layer: "acceleration",
             side: "both",
-            requires: &["HTTP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("HTML"), &[ProfileTerm("HTTP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "HTTP",
             layer: "application",
             side: "both",
-            requires: &["TCP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("HTTP"), &[ProfileTerm("TCP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "HTTP2",
             layer: "application",
             side: "both",
-            requires: &["HTTP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("HTTP2"), &[ProfileTerm("HTTP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "HTTP_PROXY_CONNECT",
             layer: "application",
             side: "both",
-            requires: &["HTTP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("HTTP_PROXY_CONNECT"), &[ProfileTerm("HTTP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
     ]
@@ -648,80 +826,106 @@ fn profile_specs_3() -> Vec<ProfileSpec> {
             name: "ICAP",
             layer: "acceleration",
             side: "both",
-            requires: &["TCP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("ICAP"), &[ProfileTerm("TCP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "IPS",
             layer: "security",
             side: "both",
-            requires: &["PROTOCOL_INSPECTION"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("IPS"), &[ProfileTerm("PROTOCOL_INSPECTION")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "IVS_ENTRY",
             layer: "application",
             side: "both",
-            requires: &["TCP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("IVS_ENTRY"), &[ProfileTerm("TCP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "JSON",
             layer: "acceleration",
             side: "both",
-            requires: &["HTTP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("JSON"), &[ProfileTerm("HTTP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "L7CHECK",
             layer: "application",
             side: "both",
-            requires: &["TCP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("L7CHECK"), &[ProfileTerm("TCP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "LSN",
             layer: "application",
             side: "client",
-            requires: &[],
-            conflicts: &[],
+            relations: &[],
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "MQTT",
             layer: "application",
             side: "both",
-            requires: &["TCP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("MQTT"), &[ProfileTerm("TCP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "MR",
             layer: "application",
             side: "both",
-            requires: &["TCP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("MR"), &[ProfileTerm("TCP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "MSSQL",
             layer: "application",
             side: "both",
-            requires: &["TDS"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("MSSQL"), &[ProfileTerm("TDS")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "NAME",
             layer: "application",
             side: "both",
-            requires: &["TCP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("NAME"), &[ProfileTerm("TCP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
     ]
@@ -733,16 +937,18 @@ fn profile_specs_4() -> Vec<ProfileSpec> {
             name: "PCP",
             layer: "application",
             side: "both",
-            requires: &[],
-            conflicts: &[],
+            relations: &[],
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "PEM",
             layer: "security",
             side: "client",
-            requires: &["TCP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("PEM"), &[ProfileTerm("TCP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
@@ -751,64 +957,84 @@ fn profile_specs_4() -> Vec<ProfileSpec> {
             // infrastructure, not an operator-selected profile.
             layer: "tls_shared",
             side: "both",
-            requires: &["TCP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("PERSIST"), &[ProfileTerm("TCP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "PROTOCOL_INSPECTION",
             layer: "security",
             side: "both",
-            requires: &["TCP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("PROTOCOL_INSPECTION"), &[ProfileTerm("TCP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "QOE",
             layer: "acceleration",
             side: "both",
-            requires: &["HTTP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("QOE"), &[ProfileTerm("HTTP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "RADIUS",
             layer: "application",
             side: "both",
-            requires: &[],
-            conflicts: &[],
+            relations: &[],
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "RADIUS_AAA",
             layer: "application",
             side: "both",
-            requires: &["RADIUS"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("RADIUS_AAA"), &[ProfileTerm("RADIUS")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "REQUESTADAPT",
             layer: "acceleration",
             side: "both",
-            requires: &["HTTP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("REQUESTADAPT"), &[ProfileTerm("HTTP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "RESPONSEADAPT",
             layer: "acceleration",
             side: "both",
-            requires: &["HTTP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("RESPONSEADAPT"), &[ProfileTerm("HTTP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "REWRITE",
             layer: "acceleration",
             side: "both",
-            requires: &["HTTP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("REWRITE"), &[ProfileTerm("HTTP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
     ]
@@ -820,64 +1046,80 @@ fn profile_specs_5() -> Vec<ProfileSpec> {
             name: "RTSP",
             layer: "application",
             side: "both",
-            requires: &["TCP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("RTSP"), &[ProfileTerm("TCP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "SCTP",
             layer: "transport",
             side: "both",
-            requires: &[],
-            conflicts: &[],
+            relations: &[],
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "SERVERSSL",
             layer: "tls",
             side: "server",
-            requires: &["TCP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("SERVERSSL"), &[ProfileTerm("TCP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "SIP",
             layer: "application",
             side: "both",
-            requires: &[],
-            conflicts: &[],
+            relations: &[],
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "SIPROUTER",
             layer: "application",
             side: "both",
-            requires: &["SIP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("SIPROUTER"), &[ProfileTerm("SIP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "SIPSESSION",
             layer: "application",
             side: "both",
-            requires: &["SIP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("SIPSESSION"), &[ProfileTerm("SIP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "SOCKS",
             layer: "application",
             side: "client",
-            requires: &["TCP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("SOCKS"), &[ProfileTerm("TCP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "SSE",
             layer: "acceleration",
             side: "both",
-            requires: &["HTTP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("SSE"), &[ProfileTerm("HTTP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
@@ -886,8 +1128,11 @@ fn profile_specs_5() -> Vec<ProfileSpec> {
             // infrastructure, not an operator-selected profile.
             layer: "tls_shared",
             side: "client",
-            requires: &["TCP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("SSL_PERSISTENCE"), &[ProfileTerm("TCP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
     ]
@@ -899,64 +1144,80 @@ fn profile_specs_6() -> Vec<ProfileSpec> {
             name: "STREAM",
             layer: "acceleration",
             side: "both",
-            requires: &["TCP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("STREAM"), &[ProfileTerm("TCP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "TAP",
             layer: "security",
             side: "client",
-            requires: &["TCP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("TAP"), &[ProfileTerm("TCP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "TCP",
             layer: "transport",
             side: "both",
-            requires: &[],
-            conflicts: &[],
+            relations: &[],
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "TDS",
             layer: "application",
             side: "both",
-            requires: &["TCP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("TDS"), &[ProfileTerm("TCP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "UDP",
             layer: "transport",
             side: "both",
-            requires: &[],
-            conflicts: &[],
+            relations: &[],
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "WEBACCELERATION",
             layer: "acceleration",
             side: "both",
-            requires: &["HTTP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("WEBACCELERATION"), &[ProfileTerm("HTTP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "WS",
             layer: "acceleration",
             side: "both",
-            requires: &["HTTP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("WS"), &[ProfileTerm("HTTP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
         ProfileSpec {
             name: "XML",
             layer: "acceleration",
             side: "both",
-            requires: &["HTTP"],
-            conflicts: &[],
+            relations: const {
+                &[
+                    ProfileRelation::implies(ProfileTerm("XML"), &[ProfileTerm("HTTP")]),
+                ]
+            },
             ..ProfileSpec::DEFAULT
         },
     ]
@@ -1862,7 +2123,7 @@ mod tests {
         let reg = ProfileRegistry::build();
         let http = reg.get_profile("HTTP").unwrap();
         assert_eq!(http.layer, "application");
-        assert!(http.requires.contains(&"TCP"));
+        assert!(http.inferred_parents().contains(&"TCP"));
     }
 
     #[test]
@@ -1870,7 +2131,7 @@ mod tests {
         let reg = ProfileRegistry::build();
         let aimcp = reg.get_profile("AIMCP").expect("AIMCP profile registered");
         assert_eq!(aimcp.layer, "application");
-        assert_eq!(aimcp.requires, &["HTTP"]);
+        assert_eq!(aimcp.inferred_parents(), vec!["HTTP"]);
         assert!(!reg.profile_available_at("AIMCP", "21.0.0"));
         assert!(reg.profile_available_at("AIMCP", "21.1.0"));
     }

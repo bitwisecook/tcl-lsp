@@ -121,8 +121,8 @@ const SIDE_EFFECTS: &[SideEffect] = &[
 const OPTION_RELATIONS: &[OptionRelation] = &[OptionRelation {
     dialects: Some(DialectSet::TCL90_PLUS),
     ..OptionRelation::conflict(&[
-        RelationTerm::Option("-encoding"),
-        RelationTerm::Option("-nopkg"),
+        OptionTerm::Option("-encoding"),
+        OptionTerm::Option("-nopkg"),
     ])
 }];
 

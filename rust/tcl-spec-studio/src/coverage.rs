@@ -998,6 +998,7 @@ pub const BYTE_PAYLOAD_SPEC: &[Field] = &[
 pub fn witness_option_constraint(constraint: &OptionRelation) {
     let OptionRelation {
         kind: _,
+        mode: _,
         subject: _,
         terms: _,
         dialects: _,
@@ -1013,6 +1014,7 @@ pub fn witness_option_constraint(constraint: &OptionRelation) {
 /// literal rather than getting a picker of its own.
 pub const OPTION_CONSTRAINT: &[Field] = &[
     f("kind", Surface::Expression("option_relations")),
+    f("mode", Surface::Expression("option_relations")),
     f("subject", Surface::Expression("option_relations")),
     f("terms", Surface::Expression("option_relations")),
     f("dialects", Surface::Expression("option_relations")),
@@ -1577,8 +1579,8 @@ mod tests {
 
     const WITNESS_CONSTRAINTS: &[OptionRelation] = &[OptionRelation {
         terms: &[
-            tcl_registry::RelationTerm::Option("-glob"),
-            tcl_registry::RelationTerm::Option("-regexp"),
+            tcl_registry::OptionTerm::Option("-glob"),
+            tcl_registry::OptionTerm::Option("-regexp"),
         ],
         ..OptionRelation::DEFAULT
     }];

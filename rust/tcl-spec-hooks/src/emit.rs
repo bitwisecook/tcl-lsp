@@ -137,7 +137,7 @@ struct ReadingView {
     /// Positional words after the option run, `None` where not statically
     /// known.
     ///
-    /// `RelationFacts::complete` deliberately has no reader verb of its own:
+    /// `OptionFacts::complete` deliberately has no reader verb of its own:
     /// it reaches a body through `ctx`'s `complete` key, so the abstention
     /// test has one spelling rather than two.
     positionals: Vec<Option<String>>,

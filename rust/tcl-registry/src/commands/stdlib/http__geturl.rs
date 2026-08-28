@@ -82,24 +82,24 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 /// the caller wants to know about rather than a runtime error.
 const OPTION_RELATIONS: &[OptionRelation] = &[
     OptionRelation::conflict(&[
-        RelationTerm::Option("-query"),
-        RelationTerm::Option("-querychannel"),
+        OptionTerm::Option("-query"),
+        OptionTerm::Option("-querychannel"),
     ]),
     OptionRelation {
         kind: RelationKind::RequiresOneOf,
-        subject: Some(RelationTerm::Option("-queryprogress")),
+        subject: Some(OptionTerm::Option("-queryprogress")),
         terms: &[
-            RelationTerm::Option("-query"),
-            RelationTerm::Option("-querychannel"),
+            OptionTerm::Option("-query"),
+            OptionTerm::Option("-querychannel"),
         ],
         ..OptionRelation::DEFAULT
     },
     OptionRelation {
         kind: RelationKind::RequiresOneOf,
-        subject: Some(RelationTerm::Option("-queryblocksize")),
+        subject: Some(OptionTerm::Option("-queryblocksize")),
         terms: &[
-            RelationTerm::Option("-query"),
-            RelationTerm::Option("-querychannel"),
+            OptionTerm::Option("-query"),
+            OptionTerm::Option("-querychannel"),
         ],
         ..OptionRelation::DEFAULT
     },

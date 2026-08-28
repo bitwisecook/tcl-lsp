@@ -1285,7 +1285,7 @@ fn repeat_rows(expr: &str) -> Option<Vec<Vec<String>>> {
     Some(rows)
 }
 
-/// One `RelationTerm::…(…)` expression as an author spells the term.
+/// One `OptionTerm::…(…)` expression as an author spells the term.
 ///
 /// The inverse of the loader's `relation_term`, so a relation round-trips
 /// through the exporter byte-identically to how it was authored.
@@ -3309,8 +3309,8 @@ mod tests {
     #[test]
     fn an_option_constraint_keeps_its_dialect_gate() {
         const EXPR: &str = "&[OptionRelation { kind: RelationKind::MutuallyExclusive, \
-                            subject: None, terms: &[RelationTerm::Option(\"-glob\"), \
-                            RelationTerm::Option(\"-regexp\")], \
+                            subject: None, terms: &[OptionTerm::Option(\"-glob\"), \
+                            OptionTerm::Option(\"-regexp\")], \
                             dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)) }]";
         // Under 2.0 the gate is written in the availability algebra …
         let rows = option_conflict_rows(EXPR, true).expect("the constraint parses");
@@ -3335,29 +3335,29 @@ mod tests {
         for (expr, expected) in [
             (
                 "&[OptionRelation { kind: RelationKind::Requires, \
-                 subject: Some(RelationTerm::Option(\"-command\")), \
-                 terms: &[RelationTerm::Option(\"-channel\")], dialects: None, \
+                 subject: Some(OptionTerm::Option(\"-command\")), \
+                 terms: &[OptionTerm::Option(\"-channel\")], dialects: None, \
                  message: None }]",
                 "option_requires -command -channel",
             ),
             (
                 "&[OptionRelation { kind: RelationKind::RequiresOneOf, subject: None, \
-                 terms: &[RelationTerm::Option(\"-channel\"), RelationTerm::Argument(0)], \
+                 terms: &[OptionTerm::Option(\"-channel\"), OptionTerm::Argument(0)], \
                  dialects: None, message: Some(\"Neither -channel nor text specified\") }]",
                 "option_requires_one_of {} {-channel {arg 0}} \
                  -message {Neither -channel nor text specified}",
             ),
             (
                 "&[OptionRelation { kind: RelationKind::Forbids, \
-                 subject: Some(RelationTerm::OptionValue(\"-order\", \"in\")), \
-                 terms: &[RelationTerm::OptionValue(\"-type\", \"bfs\")], \
+                 subject: Some(OptionTerm::OptionValue(\"-order\", \"in\")), \
+                 terms: &[OptionTerm::OptionValue(\"-type\", \"bfs\")], \
                  dialects: None, message: None }]",
                 "option_forbids {-order in} {{-type bfs}}",
             ),
             (
                 "&[OptionRelation { kind: RelationKind::Forbids, \
-                 subject: Some(RelationTerm::Option(\"-channel\")), \
-                 terms: &[RelationTerm::ArgumentValue(1, \"text\")], \
+                 subject: Some(OptionTerm::Option(\"-channel\")), \
+                 terms: &[OptionTerm::ArgumentValue(1, \"text\")], \
                  dialects: None, message: None }]",
                 "option_forbids -channel {{arg 1 text}}",
             ),

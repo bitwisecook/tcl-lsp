@@ -339,7 +339,7 @@ fn constraints_reads_the_invocation_and_reports_through_invalid() {
     };
 
     let (options, positionals) = facts("9", "2");
-    let bad = hook(&tcl_registry::RelationFacts {
+    let bad = hook(&tcl_registry::OptionFacts {
         options: &options,
         positionals: &positionals,
         complete: true,
@@ -351,7 +351,7 @@ fn constraints_reads_the_invocation_and_reports_through_invalid() {
 
     let (options, positionals) = facts("2", "9");
     assert!(
-        hook(&tcl_registry::RelationFacts {
+        hook(&tcl_registry::OptionFacts {
             options: &options,
             positionals: &positionals,
             complete: true,
@@ -364,7 +364,7 @@ fn constraints_reads_the_invocation_and_reports_through_invalid() {
     // judged by nobody, exactly as the `types` hook contract requires.
     let (options, positionals) = facts("9", "2");
     assert!(
-        hook(&tcl_registry::RelationFacts {
+        hook(&tcl_registry::OptionFacts {
             options: &options,
             positionals: &positionals,
             complete: false,
@@ -398,7 +398,7 @@ fn a_constraints_verdict_is_reused_when_the_call_site_did_not_change() {
     let judge = |min: &'static str| {
         let options = [("-min", Some(min))];
         let positionals = [Some("body")];
-        hook(&tcl_registry::RelationFacts {
+        hook(&tcl_registry::OptionFacts {
             options: &options,
             positionals: &positionals,
             complete: true,
@@ -451,7 +451,7 @@ fn an_undeclared_constraints_hook_is_not_cached() {
     let options: [(&'static str, Option<&str>); 0] = [];
     let positionals: [Option<&str>; 0] = [];
     for _ in 0..3 {
-        let reports = hook(&tcl_registry::RelationFacts {
+        let reports = hook(&tcl_registry::OptionFacts {
             options: &options,
             positionals: &positionals,
             complete: true,

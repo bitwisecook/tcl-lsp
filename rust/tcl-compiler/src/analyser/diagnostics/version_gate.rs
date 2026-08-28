@@ -2779,8 +2779,8 @@ mod tests {
 
         const CONSTRAINTS: &[tcl_registry::OptionRelation] = &[tcl_registry::OptionRelation {
             terms: &[
-                tcl_registry::RelationTerm::Option("-alpha"),
-                tcl_registry::RelationTerm::Option("-beta"),
+                tcl_registry::OptionTerm::Option("-alpha"),
+                tcl_registry::OptionTerm::Option("-beta"),
             ],
             lifecycle: tcl_registry::lifecycle::Lifecycle::introduced_in("2.0"),
             ..tcl_registry::OptionRelation::DEFAULT
@@ -2791,8 +2791,8 @@ mod tests {
         const UNGATED_CONSTRAINTS: &[tcl_registry::OptionRelation] =
             &[tcl_registry::OptionRelation {
                 terms: &[
-                    tcl_registry::RelationTerm::Option("-alpha"),
-                    tcl_registry::RelationTerm::Option("-beta"),
+                    tcl_registry::OptionTerm::Option("-alpha"),
+                    tcl_registry::OptionTerm::Option("-beta"),
                 ],
                 ..tcl_registry::OptionRelation::DEFAULT
             }];
@@ -2878,8 +2878,8 @@ mod tests {
             // Retirement is exclusive: the relationship is gone at 3.0…
             const RETIRED: &[tcl_registry::OptionRelation] = &[tcl_registry::OptionRelation {
                 terms: &[
-                    tcl_registry::RelationTerm::Option("-alpha"),
-                    tcl_registry::RelationTerm::Option("-beta"),
+                    tcl_registry::OptionTerm::Option("-alpha"),
+                    tcl_registry::OptionTerm::Option("-beta"),
                 ],
                 lifecycle: tcl_registry::lifecycle::Lifecycle::UNSPECIFIED
                     .retired_from("3.0")

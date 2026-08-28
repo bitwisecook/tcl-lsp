@@ -558,29 +558,29 @@ fn bibtex_parse_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
 ///   unconditional **requires-one-of** over an option and an argument.
 const BIBTEX_PARSE_RELATIONS: &[OptionRelation] = &[
     OptionRelation::conflict(&[
-        RelationTerm::Option("-command"),
-        RelationTerm::Option("-recordcommand"),
+        OptionTerm::Option("-command"),
+        OptionTerm::Option("-recordcommand"),
     ]),
     OptionRelation::conflict(&[
-        RelationTerm::Option("-command"),
-        RelationTerm::Option("-preamblecommand"),
+        OptionTerm::Option("-command"),
+        OptionTerm::Option("-preamblecommand"),
     ]),
     OptionRelation::conflict(&[
-        RelationTerm::Option("-command"),
-        RelationTerm::Option("-stringcommand"),
+        OptionTerm::Option("-command"),
+        OptionTerm::Option("-stringcommand"),
     ]),
     OptionRelation::conflict(&[
-        RelationTerm::Option("-command"),
-        RelationTerm::Option("-commentcommand"),
+        OptionTerm::Option("-command"),
+        OptionTerm::Option("-commentcommand"),
     ]),
     OptionRelation::conflict(&[
-        RelationTerm::Option("-command"),
-        RelationTerm::Option("-progresscommand"),
+        OptionTerm::Option("-command"),
+        OptionTerm::Option("-progresscommand"),
     ]),
     OptionRelation {
         kind: RelationKind::Requires,
-        subject: Some(RelationTerm::Option("-command")),
-        terms: &[RelationTerm::Option("-channel")],
+        subject: Some(OptionTerm::Option("-command")),
+        terms: &[OptionTerm::Option("-channel")],
         message: Some(
             "Option -command and text exclude each other: bibtex::parse -command \
              is the channel-completion callback and needs -channel",
@@ -589,15 +589,15 @@ const BIBTEX_PARSE_RELATIONS: &[OptionRelation] = &[
     },
     OptionRelation {
         kind: RelationKind::Forbids,
-        subject: Some(RelationTerm::Option("-channel")),
-        terms: &[RelationTerm::Argument(0)],
+        subject: Some(OptionTerm::Option("-channel")),
+        terms: &[OptionTerm::Argument(0)],
         message: Some("Option -channel and text exclude each other"),
         ..OptionRelation::DEFAULT
     },
     OptionRelation {
         kind: RelationKind::RequiresOneOf,
         subject: None,
-        terms: &[RelationTerm::Option("-channel"), RelationTerm::Argument(0)],
+        terms: &[OptionTerm::Option("-channel"), OptionTerm::Argument(0)],
         message: Some("Neither -channel nor text specified"),
         ..OptionRelation::DEFAULT
     },

@@ -1660,8 +1660,8 @@ mod tests {
     fn registry_owned_diagnostic_and_representation_metadata_round_trips() {
         const CONSTRAINTS: &[OptionRelation] = &[OptionRelation {
             terms: &[
-                tcl_registry::RelationTerm::Option("-encoding"),
-                tcl_registry::RelationTerm::Option("-nopkg"),
+                tcl_registry::OptionTerm::Option("-encoding"),
+                tcl_registry::OptionTerm::Option("-nopkg"),
             ],
             ..OptionRelation::DEFAULT
         }];
@@ -1688,8 +1688,8 @@ mod tests {
         assert!(
             out.contains(
                 "option_relations: &[OptionRelation { kind: RelationKind::MutuallyExclusive, \
-                 subject: None, terms: &[RelationTerm::Option(\"-encoding\"), \
-                 RelationTerm::Option(\"-nopkg\")], dialects: None, \
+                 subject: None, terms: &[OptionTerm::Option(\"-encoding\"), \
+                 OptionTerm::Option(\"-nopkg\")], dialects: None, \
                  lifecycle: Lifecycle { introduced: None, deprecated: None, \
                  retired: None, deprecation_fix: None }, message: None }],"
             ),

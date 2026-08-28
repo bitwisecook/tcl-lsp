@@ -123,8 +123,8 @@ const TYPES_VALUES: &[ArgValue] = &[
 ];
 
 const OPTION_RELATIONS: &[OptionRelation] = &[OptionRelation::conflict(&[
-    RelationTerm::Option("-directory"),
-    RelationTerm::Option("-path"),
+    OptionTerm::Option("-directory"),
+    OptionTerm::Option("-path"),
 ])];
 
 /// Locate every pattern in glob's tail after its declared option prefix.

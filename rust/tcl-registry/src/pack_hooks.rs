@@ -1222,7 +1222,7 @@ fn option_arity_thunk<const N: u16>(args: &[&str], start: usize) -> OptionValueO
 /// after the declarative relations reported nothing — so a pack that declares
 /// none never runs this, and neither does any shipped command.
 fn constraints_thunk<const N: u16>(
-    facts: &crate::spec::RelationFacts<'_>,
+    facts: &crate::spec::OptionFacts<'_>,
 ) -> Vec<crate::spec::ConstraintReport> {
     // The flattened word view is what `words` / `kinds` / `nwords` answer
     // from; the structured view beside it is what the reading verbs use.
