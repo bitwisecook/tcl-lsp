@@ -32,4 +32,4 @@ notice command oo::class / subcommand createWithNamespace 162 presentation `stat
 notice command oo::class / subcommand createWithNamespace 163 presentation `state_transitions` row `covers` is not yet loadable; dropped
 notice command oo::class / subcommand createWithNamespace 164 presentation `state_transitions` row `commit` is not yet loadable; dropped
 commands 1
-command oo::class line 29 overrides false degraded false spec 2037c42d656aa0e1 hooks c568c098585ed341 grammar 715ea0deb6f6f5f9
+command oo::class line 29 overrides false degraded false spec 7649691a07889664 hooks c568c098585ed341 grammar 715ea0deb6f6f5f9
