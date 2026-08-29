@@ -39,6 +39,7 @@
 //! Run `cargo xtask gen-zed-queries` to (re)write the files; `--check` verifies
 //! the committed files match, exiting non-zero on drift.
 
+use tcl_dialect::model::{SpecProvider};
 use tcl_dialect::model::{Family};
 use std::collections::BTreeSet;
 use std::fs;
@@ -486,6 +487,8 @@ pub fn run(check: bool) -> Result<ExitCode> {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::surface;
+    use tcl_dialect::model::{SpecSurface, Family};
     use super::*;
 
     #[test]

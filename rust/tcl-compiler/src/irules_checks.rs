@@ -37,7 +37,6 @@ use tcl_dialect::model::{Family};
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 use tcl_core_types::DiagCode;
-use tcl_dialect::DialectSet;
 
 use tcl_lexer::Span;
 use tcl_registry::events::{
@@ -53,7 +52,6 @@ use crate::lowering::lower_to_ir_with_config;
 use crate::sccp::cfg_order;
 use crate::value_shapes::parse_command_substitution;
 use tcl_dialect::model::{SurfaceQuery};
-use tcl_dialect::model::{SpecSurface};
 
 /// Process-wide iRules command registry, used to derive the HTTP-flow command
 /// sets below.  Built once (the data is static).
@@ -1702,6 +1700,7 @@ fn check_generic_static(
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SpecSurface};
     use super::*;
 
     fn registry() -> CommandRegistry {

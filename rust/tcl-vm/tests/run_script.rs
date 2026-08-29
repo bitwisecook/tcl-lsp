@@ -19,7 +19,6 @@
 //! End-to-end: compile real Tcl to bytecode (via `tcl-compiler`, dev-dep only)
 //! then run it through `tcl-vm`, asserting result + captured `puts` output.
 
-use tcl_dialect::model::{Family};
 use std::cell::RefCell;
 use std::io::Write;
 use std::rc::Rc;

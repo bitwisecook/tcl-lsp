@@ -99,7 +99,6 @@
 //! [`Traits::TAINT_SINK`] / [`Traits::EVALUATES_CODE`] plus each spec's
 //! declared output/log sink code) rather than matching command names.
 
-use tcl_dialect::model::{SurfaceLayer};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
 use tcl_core_types::{DiagCode, DiagFamily};
@@ -107,7 +106,6 @@ use tcl_core_types::{DiagCode, DiagFamily};
 use bitflags::bitflags;
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use tcl_dialect::DialectSet;
 use tcl_lexer::{Lexer, SourceMap, Span, TokenType, backslash_subst};
 use tcl_registry::{ArgRole, CommandRegistry, TaintColourAtom, Traits};
 
@@ -122,9 +120,7 @@ use crate::regex_source::regexp_pattern_index;
 use crate::rendered_properties::{RenderedProperties, RenderedValueProps};
 use crate::sccp::{SccpResult, cfg_order};
 use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey, Version};
-use tcl_dialect::model::Family;
 use tcl_dialect::model::{SurfaceQuery};
-use tcl_dialect::model::{SpecSurface};
 use crate::value_shapes::{
     is_pure_var_ref, parse_command_substitution, parse_command_substitution_with_spans,
 };
@@ -5894,6 +5890,7 @@ pub fn find_setter_constraint_warnings<S: std::hash::BuildHasher, E: std::hash::
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SurfaceLayer, Family};
     use super::*;
     use crate::sccp::SccpResult;
 

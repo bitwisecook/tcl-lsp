@@ -41,7 +41,6 @@ use tcl_runtime_api::Completion;
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 use tcl_dialect::model::{surface_admits};
-use tcl_dialect::model::{SpecSurface};
 
 pub(crate) fn register(vm: &mut Vm) {
     vm.register("trace", cmd_trace);

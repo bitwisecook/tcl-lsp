@@ -1042,6 +1042,8 @@ impl FormSpec {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SurfaceQuery, Family};
+    use tcl_dialect::model::{SpecSurface};
     use super::*;
 
     #[test]
@@ -1056,12 +1058,18 @@ mod tests {
             min_abbrev: None,
         };
         // No parent: always available.
-        assert!(opt.supports_dialect(Some(SpecSurface::TCL84), None));
+        assert!(opt.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.4")), None));
         // Parent allows everything: available.
-        assert!(opt.supports_dialect(Some(SpecSurface::TCL84), Some(SpecSurface::ALL_TCL)));
+        assert!(opt.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.4")), Some(SpecSurface::ALL_TCL)));
         // Parent restricts: inherit the restriction.
-        assert!(opt.supports_dialect(Some(SpecSurface::TCL86), Some(SpecSurface::TCL86_PLUS)));
-        assert!(!opt.supports_dialect(Some(SpecSurface::TCL85), Some(SpecSurface::TCL86_PLUS)));
+        assert!(opt.supports_dialect(
+            Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            Some(SpecSurface::TCL86_PLUS)
+        ));
+        assert!(!opt.supports_dialect(
+            Some(SurfaceQuery::core(Family::Tcl, "8.5")),
+            Some(SpecSurface::TCL86_PLUS)
+        ));
     }
 
     #[test]
@@ -1078,10 +1086,10 @@ mod tests {
             lifecycle: Lifecycle::UNSPECIFIED,
             min_abbrev: None,
         };
-        assert!(opt.supports_dialect(Some(SpecSurface::TCL86), Some(SpecSurface::ALL_TCL)));
-        assert!(opt.supports_dialect(Some(SpecSurface::TCL90), Some(SpecSurface::ALL_TCL)));
-        assert!(!opt.supports_dialect(Some(SpecSurface::TCL84), Some(SpecSurface::ALL_TCL)));
-        assert!(!opt.supports_dialect(Some(SpecSurface::TCL85), Some(SpecSurface::ALL_TCL)));
+        assert!(opt.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.6")), Some(SpecSurface::ALL_TCL)));
+        assert!(opt.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.0")), Some(SpecSurface::ALL_TCL)));
+        assert!(!opt.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.4")), Some(SpecSurface::ALL_TCL)));
+        assert!(!opt.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.5")), Some(SpecSurface::ALL_TCL)));
     }
 
     #[test]

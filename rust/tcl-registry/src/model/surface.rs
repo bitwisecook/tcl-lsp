@@ -41,13 +41,12 @@ use std::sync::{Arc, OnceLock};
 
 use smallvec::SmallVec;
 use tcl_dialect::model::{
-    SpecProvider, SpecWindow,
+    SpecProvider, SpecSurface, SpecWindow, SurfaceQuery, surface_admits,
     Family, ItemHistory, Provenance, Version, VersionAxisId, VersionSet, compiled_definitions,
 };
 
 use crate::lifecycle::Lifecycle;
 use crate::spec::CommandSpec;
-use tcl_dialect::model::{SpecSurface};
 
 /// The interned identity of one package provider (`"Tk"`, `"csv"`,
 /// `"iapps"`, `"f5-irules-cmds"`, …) — §4.1's `PackageId`.
@@ -205,6 +204,58 @@ pub fn vendor_surface_package(environment_id: &str) -> Option<&'static str> {
         .iter()
         .find(|&&(environment, _)| environment == environment_id)
         .map(|&(_, package)| package)
+}
+
+/// Whether two points answer every availability question alike.
+///
+/// The context's authoring point carries the *measured* release where the
+/// profile's carries the ladder line — the F5 trunk's fork patchlevel
+/// `8.4.6` against `8.4` — so the two are not structurally equal and must
+/// not be compared as if they were. What has to hold is that no shipped
+/// surface tells them apart.
+#[must_use]
+pub fn points_answer_alike(left: &SurfaceQuery<'_>, right: &SurfaceQuery<'_>) -> bool {
+    const PROBES: &[&[SpecSurface]] = &[
+        SpecSurface::ALL_TCL,
+        SpecSurface::TCL84,
+        SpecSurface::TCL85,
+        SpecSurface::TCL86,
+        SpecSurface::TCL90,
+        SpecSurface::TCL91,
+        SpecSurface::TCL8X,
+        SpecSurface::TCL85_PLUS,
+        SpecSurface::TCL86_PLUS,
+        SpecSurface::TCL90_PLUS,
+        SpecSurface::IRULES,
+        SpecSurface::JIM,
+        SpecSurface::IAPPS,
+        SpecSurface::TMSH,
+        SpecSurface::TK,
+        SpecSurface::EXPECT,
+        SpecSurface::SPECTCL,
+        SpecSurface::BPF,
+        SpecSurface::BIGIP,
+        SpecSurface::TK_AND_TCL,
+    ];
+    PROBES
+        .iter()
+        .all(|rows| surface_admits(rows, Some(left)) == surface_admits(rows, Some(right)))
+}
+
+/// The environment id a vendor `package` stands behind — the inverse of
+/// [`vendor_surface_package`], for a projection that names dialects rather
+/// than packages (the command snapshot).
+#[must_use]
+pub fn vendor_surface_environment(package: &str) -> Option<&'static str> {
+    // `Tk` has no vendor-shell environment: the `tk` ingress profile is a
+    // library pin, not a vendor surface, so it is named directly.
+    if package == "Tk" {
+        return Some("tk");
+    }
+    VENDOR_SURFACE_BRIDGE
+        .iter()
+        .find(|&&(_, bridged)| bridged == package)
+        .map(|&(environment, _)| environment)
 }
 
 /// Every package some compiled environment ships **ambient** — its keyed
@@ -496,13 +547,15 @@ fn window_set(axis: VersionAxisId, windows: &[SpecWindow]) -> VersionSet {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::surface;
+    use tcl_dialect::model::{SpecSurface, Family};
     use super::*;
     use crate::spec::CommandSpec;
 
     fn spec_with(surface: Option<&'static [SpecSurface]>) -> CommandSpec {
         CommandSpec {
             name: "surface-test",
-            dialects,
+            surface,
             ..CommandSpec::DEFAULT
         }
     }

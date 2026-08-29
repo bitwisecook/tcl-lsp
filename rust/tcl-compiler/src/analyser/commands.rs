@@ -39,7 +39,6 @@ use crate::signature_scan::command_prefix::CommandPrefixWords;
 
 use super::state::Analyser;
 use super::types::{CodeFix, Severity};
-use tcl_dialect::model::{SpecSurface};
 
 /// A command head collected from a `[...]` substitution / expression scan,
 /// ready to push as a `command_invocations` entry:

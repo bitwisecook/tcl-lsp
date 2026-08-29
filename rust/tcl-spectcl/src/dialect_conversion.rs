@@ -59,7 +59,6 @@
 //! See [`tcl_dialect::model::dynamic`] for the same boundary stated from
 //! the model side.
 
-use tcl_dialect::model::{Family};
 use std::sync::Arc;
 
 use tcl_dialect::model::{DynamicCore, DynamicFamily, DynamicFamilyId, DynamicRelease};
@@ -152,6 +151,7 @@ pub fn to_dynamic_core(environment: &PackEnvironment, pack: &str) -> Option<Dyna
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{Family};
     use super::*;
     use crate::evaluate_pack;
 

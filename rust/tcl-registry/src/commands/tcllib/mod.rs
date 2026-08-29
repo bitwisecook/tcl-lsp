@@ -659,6 +659,7 @@ fn tcllib_required_package(name: &str) -> Option<&'static str> {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SpecSurface, SurfaceQuery, surface_admits, Family};
     use super::*;
 
     #[test]
@@ -764,12 +765,12 @@ mod tests {
                 continue;
             };
             assert!(
-                !surface_admits(rows, &SurfaceQuery::core(Family::Tcl, "8.4")) || floor == "8.4",
+                !surface_admits(rows, Some(&SurfaceQuery::core(Family::Tcl, "8.4"))) || floor == "8.4",
                 "`{}` (package {package}) must not be offered below its declared Tcl floor",
                 spec.name,
             );
             assert!(
-                surface_admits(rows, &SurfaceQuery::core(Family::Tcl, "9.0")),
+                surface_admits(rows, Some(&SurfaceQuery::core(Family::Tcl, "9.0"))),
                 "`{}` should remain available under tcl9.0",
                 spec.name,
             );
@@ -781,12 +782,16 @@ mod tests {
             .collect();
         assert!(!gated.is_empty(), "expected report::/stooop:: commands");
         for spec in gated {
-            let dialects = spec.surface.expect("dialect set");
-            assert!(!dialects.contains(SpecSurface::TCL84), "{}", spec.name);
-            assert!(dialects.contains(SpecSurface::TCL86), "{}", spec.name);
+            let rows = spec.surface.expect("a tcllib command carries a surface");
+            let at = |release| surface_admits(rows, Some(&SurfaceQuery::core(Family::Tcl, release)));
+            assert!(!at("8.4"), "{}", spec.name);
+            assert!(at("8.6"), "{}", spec.name);
         }
         // … and so do the ones it silently missed: `csv` carries the same
         // `8.5 9` guard, and the 8.6-floor modules lose 8.5 as well.
+        let admits = |rows: &[SpecSurface], release: &str| {
+            surface_admits(rows, Some(&SurfaceQuery::core(Family::Tcl, release)))
+        };
         let floor_of = |name: &str| {
             specs
                 .iter()
@@ -794,10 +799,10 @@ mod tests {
                 .and_then(|s| s.surface)
                 .expect("spec")
         };
-        assert!(!floor_of("csv::split").contains(SpecSurface::TCL84));
-        assert!(floor_of("csv::split").contains(SpecSurface::TCL85));
-        assert!(!floor_of("defer::defer").contains(SpecSurface::TCL85));
-        assert!(floor_of("defer::defer").contains(SpecSurface::TCL86));
+        assert!(!admits(floor_of("csv::split"), "8.4"));
+        assert!(admits(floor_of("csv::split"), "8.5"));
+        assert!(!admits(floor_of("defer::defer"), "8.5"));
+        assert!(admits(floor_of("defer::defer"), "8.6"));
     }
 
     #[test]

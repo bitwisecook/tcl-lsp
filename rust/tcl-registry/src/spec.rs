@@ -3819,6 +3819,8 @@ impl SubCommand {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SurfaceQuery, Family};
+    use tcl_dialect::model::{SpecSurface};
     use super::*;
     use crate::registry::CommandRegistry;
 
@@ -3853,14 +3855,14 @@ mod tests {
         let spec = registry.get("catch").expect("catch is a registry command");
         // Tcl 8.5 onward documents `catch script ?resultVarName? ?optionsVarName?`.
         assert_eq!(
-            spec.optional_trailing_arg_names(SpecSurface::TCL90, None),
+            spec.optional_trailing_arg_names(Some(SurfaceQuery::core(Family::Tcl, "9.0")), None),
             vec!["resultVarName", "optionsVarName"]
         );
         // Tcl 8.4's `catch script ?varName?` has no options dictionary, so a
         // consumer running under that dialect never offers a word the release
         // has no argument slot for.
         assert_eq!(
-            spec.optional_trailing_arg_names(SpecSurface::TCL84, None),
+            spec.optional_trailing_arg_names(Some(SurfaceQuery::core(Family::Tcl, "8.4")), None),
             vec!["varName"]
         );
     }
@@ -3919,15 +3921,15 @@ mod tests {
         // A quick fix must not offer to append `optionsVar` to a document
         // whose Fauxpkg is 1.x: that release has no argument slot for it.
         assert_eq!(
-            spec.optional_trailing_arg_names(SpecSurface::TCL90, Some("1.0")),
+            spec.optional_trailing_arg_names(Some(SurfaceQuery::core(Family::Tcl, "9.0")), Some("1.0")),
             vec!["resultVar"]
         );
         assert_eq!(
-            spec.optional_trailing_arg_names(SpecSurface::TCL90, Some("2.0")),
+            spec.optional_trailing_arg_names(Some(SurfaceQuery::core(Family::Tcl, "9.0")), Some("2.0")),
             vec!["resultVar", "optionsVar"]
         );
         assert_eq!(
-            spec.optional_trailing_arg_names(SpecSurface::TCL90, None),
+            spec.optional_trailing_arg_names(Some(SurfaceQuery::core(Family::Tcl, "9.0")), None),
             vec!["resultVar", "optionsVar"]
         );
     }
@@ -3946,7 +3948,7 @@ mod tests {
         };
         assert!(spec.primary_synopsis(Some("3.0")).is_none());
         assert!(
-            spec.optional_trailing_arg_names(SpecSurface::TCL90, Some("3.0"))
+            spec.optional_trailing_arg_names(Some(SurfaceQuery::core(Family::Tcl, "9.0")), Some("3.0"))
                 .is_empty()
         );
         // Retirement is exclusive, so 2.9 still documents it.

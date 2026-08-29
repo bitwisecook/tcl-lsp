@@ -23,7 +23,6 @@
 //! answers are correct rather than faked — this metadata must be retained or
 //! the introspection answers cannot be computed.
 
-use tcl_dialect::model::{Family};
 use tcl_runtime_api::Completion;
 
 use crate::interp::{Vm, err, ok};

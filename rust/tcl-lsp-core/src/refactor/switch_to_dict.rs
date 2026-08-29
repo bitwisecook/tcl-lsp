@@ -18,14 +18,12 @@
 
 //! Convert a constant-mapping `switch` to a `dict` lookup.
 
-use tcl_dialect::model::{SurfaceLayer, Family};
 use tcl_compiler::segmenter::segment_commands_with_offset;
 use tcl_lexer::LineIndex;
 use tcl_registry::CommandRegistry;
 
 use super::{RefactorEdit, Refactoring, find_command_at, token_end_offset};
 use crate::code_actions::ActionKind;
-use tcl_dialect::model::{SpecSurface};
 
 /// A parsed single-command arm body.
 enum BranchBody {
@@ -222,6 +220,7 @@ fn build_dict_replacement(arms: &ParsedArms, subject: &str, indent: &str) -> Str
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SurfaceLayer, Family};
     use super::*;
 
     fn run(source: &str, cursor: u32) -> Option<Refactoring> {

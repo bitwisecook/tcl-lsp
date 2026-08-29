@@ -65,7 +65,6 @@
 
 use tcl_registry::abbrev::PrefixMatching;
 use tcl_registry::hover::OptionSpec;
-use tcl_registry::prelude::DialectSet;
 use tcl_registry::{ArgRole, CommandRegistry, CommandSpec};
 
 use super::config::{BooleanForm, FormatterConfig};
@@ -751,6 +750,7 @@ pub(crate) fn rewrites_for_command(
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SpecSurface, SurfaceQuery};
     use super::*;
 
     fn config(expand: bool, form: BooleanForm) -> FormatterConfig {

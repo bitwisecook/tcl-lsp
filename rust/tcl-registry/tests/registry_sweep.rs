@@ -53,6 +53,7 @@
 //! versions cited for those are well-known Tcl history consistent with the
 //! 8.6/9.0 probes.
 
+use tcl_dialect::model::{Family};
 use std::collections::BTreeSet;
 
 use tcl_dialect::DialectSet;
@@ -1371,7 +1372,7 @@ fn family_string_dict_list_ops() {
     // List ops: `lsort` carries the switch set tclsh reports.
     // tclsh8.6 & 9.0: `lsort -bogus` lists -ascii … -unique (8.6∩9.0 below).
     let lsort = reg.get("lsort").expect("lsort");
-    let sw = lsort.switch_names(Some(SpecSurface::TCL86));
+    let sw = lsort.switch_names(Some(SurfaceQuery::core(Family::Tcl, "8.6")));
     for opt in [
         "-ascii",
         "-decreasing",
@@ -1401,8 +1402,8 @@ fn family_string_dict_list_ops() {
 fn lsearch_stride_version_gating() {
     let reg = CommandRegistry::build_default();
     let lsearch = reg.get("lsearch").expect("lsearch");
-    let in_86 = lsearch.switch_names(Some(SpecSurface::TCL86));
-    let in_90 = lsearch.switch_names(Some(SpecSurface::TCL90));
+    let in_86 = lsearch.switch_names(Some(SurfaceQuery::core(Family::Tcl, "8.6")));
+    let in_90 = lsearch.switch_names(Some(SurfaceQuery::core(Family::Tcl, "9.0")));
     // Common options present in both (these match tclsh on 8.6 & 9.0).
     for opt in ["-exact", "-glob", "-regexp", "-all", "-inline"] {
         assert!(in_86.contains(&opt), "8.6 lsearch missing {opt}: {in_86:?}");
@@ -1430,7 +1431,7 @@ fn family_io_shapes() {
 
     // tclsh: socket -server / -myaddr.
     let socket = reg.get("socket").expect("socket");
-    let sw = socket.switch_names(Some(SpecSurface::TCL86));
+    let sw = socket.switch_names(Some(SurfaceQuery::core(Family::Tcl, "8.6")));
     assert!(sw.contains(&"-server"), "socket -server: {sw:?}");
     // socket needs host+port at minimum.
     assert_eq!(socket.arity.min, 2, "socket min arity");

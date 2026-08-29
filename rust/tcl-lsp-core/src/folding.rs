@@ -34,7 +34,6 @@
 //!
 //! [`AnalysisResult`]: tcl_compiler::analyser::AnalysisResult
 
-use tcl_dialect::model::{SurfaceLayer};
 use tcl_dialect::model::{SurfaceQuery};
 use std::collections::BTreeSet;
 
@@ -48,7 +47,6 @@ use tcl_registry::{ArgRole, CommandRegistry};
 
 use crate::oo_body::{HeadWords, is_member, member_body_indices_in, next_definition_grammar};
 use tcl_registry::definer::DefinitionBodyGrammar;
-use tcl_dialect::model::{SpecSurface};
 
 /// LSP folding-range kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -854,6 +852,7 @@ pub fn normalise_overlaps(ranges: Vec<FoldingRange>) -> Vec<FoldingRange> {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SurfaceLayer};
     use std::collections::HashSet;
 
     use super::*;

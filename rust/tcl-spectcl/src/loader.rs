@@ -91,7 +91,7 @@ use std::sync::{LazyLock, Mutex};
 use tcl_compiler::parsing::syntax::build::build_document;
 use tcl_compiler::parsing::syntax::segment::segments_from_document;
 use tcl_core_types::DiagCode;
-use tcl_dialect::{DialectSet, TclVersion};
+use tcl_dialect::TclVersion;
 use tcl_lexer::{LeadingBom, LexerConfig, SourceMap, TokenType};
 use tcl_registry::abbrev::PrefixMatching;
 use tcl_registry::arg_role::{AppendedArity, ArgRole};
@@ -147,7 +147,6 @@ use tcl_registry::{CommandPrefixArguments, InvocationArguments};
 
 use crate::catalogue;
 use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::model::Family;
 
 mod available;
 mod dialect_block;
@@ -6360,6 +6359,7 @@ fn versioned_arg_value_row(
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SpecSurface};
     use tcl_dialect::BracedVarStyle;
     use tcl_dialect::model::{BuildProfileId, Provenance, Release, WorldPolicy};
 

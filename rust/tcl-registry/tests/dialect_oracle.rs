@@ -29,6 +29,7 @@
 //! (the differential needs the boundary), so CI without a dual Tcl install is
 //! unaffected.
 
+use tcl_dialect::model::{Family};
 use std::collections::HashMap;
 use std::io::Write;
 use std::process::{Command, Stdio};
@@ -334,8 +335,8 @@ fn registry_option_dialect_gating_matches_tclsh_8_6_and_9_0() {
         // audited; an option tclsh has that the registry does not declare is a
         // completeness gap, out of scope for a gating differential.
         let declared: Vec<&'static str> = spec.switch_names(None);
-        let in86 = spec.switch_names(Some(SpecSurface::TCL86));
-        let in90 = spec.switch_names(Some(SpecSurface::TCL90));
+        let in86 = spec.switch_names(Some(SurfaceQuery::core(Family::Tcl, "8.6")));
+        let in90 = spec.switch_names(Some(SurfaceQuery::core(Family::Tcl, "9.0")));
         for opt in &declared {
             // `--` is the end-of-options marker: version-invariant and listed
             // inconsistently by tclsh across commands, so it is not a gating
@@ -395,8 +396,8 @@ fn registry_dialect_gating_matches_tclsh_8_6_and_9_0() {
         }
         let want86 = have86.get(name).copied().unwrap_or(false);
         let want90 = have90.get(name).copied().unwrap_or(false);
-        let got86 = reg.get_for_surface(name, SpecSurface::TCL86).is_some();
-        let got90 = reg.get_for_surface(name, SpecSurface::TCL90).is_some();
+        let got86 = reg.get_for_surface(name, Some(SurfaceQuery::core(Family::Tcl, "8.6"))).is_some();
+        let got90 = reg.get_for_surface(name, Some(SurfaceQuery::core(Family::Tcl, "9.0"))).is_some();
         if got86 != want86 {
             mismatches.push(format!(
                 "`{name}`: registry says available-in-8.6={got86}, tclsh8.6 says {want86}"

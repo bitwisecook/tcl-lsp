@@ -63,7 +63,6 @@ use tcl_spec_hooks::{HookOwner, HookProgram, PackPrograms, tclvm_host};
 
 use crate::loader::{HookOwner as DeclOwner, HookSource, PackCommand};
 use crate::pack::PackSet;
-use tcl_dialect::model::Family;
 
 // ---------------------------------------------------------------------------
 // The adapter: HookDecl → HookProgram

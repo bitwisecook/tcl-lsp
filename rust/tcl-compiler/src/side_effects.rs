@@ -44,7 +44,6 @@
 //! unchanged — they are what the command metadata carries; this
 //! module holds the richer inferred-by-analysis types.
 
-use tcl_dialect::model::{SurfaceLayer, Family};
 use bitflags::bitflags;
 
 use tcl_registry::prelude::StorageType as RegistryStorageType;
@@ -53,7 +52,6 @@ use tcl_registry::side_effects::{
     SideEffectTarget as RegistryTarget,
 };
 use tcl_registry::{CommandRegistry, Traits};
-use tcl_dialect::model::{SpecSurface};
 
 // StorageType — data shape of a target
 
@@ -1074,6 +1072,7 @@ fn fallback_unknown_write(dialect: Option<&tcl_dialect::DialectProfile>) -> Comm
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SurfaceLayer, Family};
     use super::*;
 
     #[test]

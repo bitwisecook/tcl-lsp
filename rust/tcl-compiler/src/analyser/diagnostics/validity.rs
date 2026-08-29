@@ -40,7 +40,6 @@ use crate::analyser::state::Analyser;
 use crate::analyser::types::{PendingUserCallArity, Severity};
 use crate::expr_ast::{ExprNode, render_expr};
 use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::model::Family;
 use tcl_dialect::model::{surface_admits};
 
 /// The argument words of one command invocation, scoped to the prefix the
@@ -1338,7 +1337,7 @@ impl Analyser {
         scope_path: &[usize],
     ) {
         use super::dispatch::CommandSignature;
-        use tcl_registry::prelude::DialectSet;
+        
 
         if self.registry.is_none() {
             return;
@@ -3373,7 +3372,7 @@ impl Analyser {
         cmd_tok: tcl_lexer::Token,
         arg_tokens: &[tcl_lexer::Token],
     ) {
-        use tcl_registry::prelude::DialectSet;
+        
 
         let Some(registry) = self.registry.as_deref() else {
             return;
@@ -4658,7 +4657,7 @@ fn is_builtin_math_function(name: &str) -> bool {
 /// dialect-*identity*-gated — both count as "built-in" here; only the nine
 /// iRules word operators are excluded).
 fn is_builtin_expr_op(name: &str) -> bool {
-    use tcl_registry::prelude::DialectSet;
+    
     tcl_syntax::expr::operators::ALL_BIN_OPS.iter().any(|op| {
         let spec = op.spec();
         spec.spelling == name && spec.surface != Some(SpecSurface::IRULES)
@@ -4672,7 +4671,7 @@ fn is_builtin_expr_op(name: &str) -> bool {
 /// `contains`, `not`, …) — see [`is_builtin_expr_op`]'s doc for the
 /// derivation and why these are excluded there.
 fn is_irules_only_expr_op(name: &str) -> bool {
-    use tcl_registry::prelude::DialectSet;
+    
     tcl_syntax::expr::operators::ALL_BIN_OPS.iter().any(|op| {
         let spec = op.spec();
         spec.spelling == name && spec.surface == Some(SpecSurface::IRULES)
@@ -4867,7 +4866,7 @@ fn w003_tip_string(spelling: &str) -> &'static str {
 fn gated_expr_ops() -> &'static [GatedExprOp] {
     static TABLE: std::sync::OnceLock<Vec<GatedExprOp>> = std::sync::OnceLock::new();
     TABLE.get_or_init(|| {
-        use tcl_registry::prelude::DialectSet;
+        
         let version_gated = tcl_syntax::expr::operators::ALL_BIN_OPS
             .iter()
             .filter_map(|op| {

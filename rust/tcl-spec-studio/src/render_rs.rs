@@ -1259,6 +1259,8 @@ pub fn suggested_path(name: &str, pack: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::surface;
+    use tcl_dialect::model::{SpecSurface, Family};
     use super::*;
 
     fn invalid_non_write_taint_draft() -> Draft {

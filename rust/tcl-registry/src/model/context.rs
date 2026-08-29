@@ -1633,6 +1633,10 @@ pub fn specificity_breadth(declarations: &[SurfaceDeclaration]) -> u32 {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{surface_breadth};
+    use tcl_dialect::model::{SurfaceQuery};
+    use tcl_dialect::surface;
+    use tcl_dialect::model::{SpecSurface, SpecProvider};
     use super::*;
     use crate::model::surface::declarations_for_spec;
     use crate::spec::CommandSpec;
@@ -1648,7 +1652,7 @@ mod tests {
     fn rows(surface: Option<&'static [SpecSurface]>) -> Vec<SurfaceDeclaration> {
         declarations_for_spec(&CommandSpec {
             name: "context-test",
-            dialects,
+            surface,
             ..CommandSpec::DEFAULT
         })
         .into_vec()
@@ -2018,7 +2022,7 @@ mod tests {
         );
 
         // The derived mask, and what it admits.
-        assert_eq!(ctx.authoring_query(), SpecSurface::TCL86);
+        assert_eq!(ctx.authoring_query(), SurfaceQuery::core(Family::Tcl, "8.6"));
         for gate in [
             SpecSurface::ALL_TCL,
             SpecSurface::TCL85_PLUS,
@@ -2161,8 +2165,11 @@ mod tests {
     }
 
     #[test]
-    fn breadth_reproduces_the_old_mask_popcount() {
-        let cases: &[(DialectSet, u32)] = &[
+    fn breadth_counts_one_per_provider_release() {
+        // The measure the retired mask's bit popcount gave: one per Tcl
+        // ladder release a core row covers, one per other core row, one per
+        // package row.
+        let cases: &[(&[SpecSurface], u32)] = &[
             (SpecSurface::TCL84, 1),
             (SpecSurface::TCL8X, 3),
             (SpecSurface::TCL85_PLUS, 4),
@@ -2173,9 +2180,9 @@ mod tests {
             (surface![SpecSurface::package("iapps"), SpecSurface::package("tmsh")], 2),
             (SpecSurface::EXPECT, 1),
         ];
-        for &(bits, expected) in cases {
-            assert_eq!(specificity_breadth(&rows(Some(bits))), expected, "{bits:?}");
-            assert_eq!(expected, bits.bits().count_ones(), "{bits:?} popcount");
+        for &(rows_of, expected) in cases {
+            assert_eq!(specificity_breadth(&rows(Some(rows_of))), expected, "{rows_of:?}");
+            assert_eq!(surface_breadth(rows_of), expected, "{rows_of:?} breadth");
         }
         // The universal translation is strictly wider than any explicit
         // gate (old rule: a catch-all loses to every scoped spec). 23 =
@@ -2206,11 +2213,15 @@ mod tests {
         for profile in DialectProfile::all() {
             let ctx = context(profile.name);
             // documented deltas (mask, ceiling, operator heads).
-            assert_eq!(
+            assert!(
+                crate::model::surface::points_answer_alike(
+                    &ctx.authoring_query(),
+                    &profile.surface_query()
+                ),
+                "{} point: {:?} vs {:?}",
+                profile.name,
                 ctx.authoring_query(),
-                profile.surface_query(),
-                "{} mask",
-                profile.name
+                profile.surface_query()
             );
             assert_eq!(
                 ctx.tcl_version_ceiling(),
@@ -2225,7 +2236,7 @@ mod tests {
                 profile.name
             );
             assert_eq!(
-                ctx.vendor_authoring_bit(),
+                ctx.vendor_authoring_provider(),
                 profile.vendor_surface,
                 "{} vendor bit",
                 profile.name
@@ -2276,7 +2287,7 @@ mod tests {
         assert_eq!(ctx.authoring_query(), plain.surface_query());
         assert_eq!(ctx.tcl_version_ceiling(), None);
         assert!(ctx.operator_heads_are_commands());
-        assert_eq!(ctx.vendor_authoring_bit(), None);
+        assert_eq!(ctx.vendor_authoring_provider(), None);
         // `tk` derives the same permissive facts **plus** the `TK` bit —
         // P3: its ambient Tk placement produces the bit the ingress used
         // to inject over this derivation (`with_authoring_mask`, deleted).
@@ -2285,11 +2296,14 @@ mod tests {
         let tk = context("tk");
         assert_eq!(
             tk.authoring_query(),
-            plain.surface_query().union(SpecSurface::TK)
+            SurfaceQuery {
+                core: plain.surface_query().core,
+                packages: &["Tk"],
+            }
         );
         assert_eq!(tk.tcl_version_ceiling(), None);
         assert!(tk.operator_heads_are_commands());
-        assert_eq!(tk.vendor_authoring_bit(), None);
+        assert_eq!(tk.vendor_authoring_provider(), None);
         assert!(tk.placement_is_ambient("Tk"));
     }
 

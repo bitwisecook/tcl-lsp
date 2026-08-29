@@ -29,7 +29,6 @@ use crate::semantic_optimisation::{SemanticOptimisationConfig, SemanticOptimisat
 use crate::ssa::{SsaBlock, SsaStatement, Symbol, ValueKey};
 use crate::types::{TypeKind, TypeLattice, TypeShape, type_join};
 use crate::var_escape::{EscapeTag, ProcEscapeSummary, analyse_var_escape_cu};
-use tcl_dialect::model::{SpecSurface};
 
 /// Stable identity of one CFG invocation, including an immediate command
 /// substitution nested in one argument of the enclosing statement.
@@ -1575,6 +1574,7 @@ fn materialisable_decision(input: &MaterialisableInputs<'_>) -> MaterialisableSl
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SpecSurface};
     use super::*;
     use tcl_registry::{IntrinsicId, TclType};
 

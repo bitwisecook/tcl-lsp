@@ -53,7 +53,6 @@ use super::command_prefix::command_prefix_invocations;
 use super::ctx::ScanCtx;
 use super::handlers;
 use super::types::SignatureCommandInvocation;
-use tcl_dialect::model::Family;
 use crate::segmenter::{
     SegmentedCommand, segment_commands_with_offset, segment_commands_with_recovery,
 };

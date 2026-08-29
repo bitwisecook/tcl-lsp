@@ -49,7 +49,6 @@ use tcl_compiler::analyser::{Analyser, AnalysisResult};
 use tcl_lsp_core::completion::{CompletionKind, completions};
 use tcl_lsp_core::workspace_index::WorkspaceIndex;
 use tcl_registry::CommandRegistry;
-use tcl_dialect::model::{SpecSurface};
 
 /// Analyse `source` under the `tcl8.6` dialect (shared harness shape).
 fn analyse(source: &str) -> AnalysisResult {

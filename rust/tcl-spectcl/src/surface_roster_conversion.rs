@@ -80,6 +80,7 @@ pub fn to_inherited_surfaces(
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{Family};
     use super::*;
     use crate::loader::{PackRosterName, PackSurfaceRoster};
 

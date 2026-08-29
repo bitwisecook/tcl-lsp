@@ -30,6 +30,8 @@
 //!
 //! See `docs/design/common-runtime-emitter-architecture.md` §4 (Family B).
 
+use tcl_dialect::model::{Family};
+
 
 // The value-less vocabulary (the completion `Code`, the generic `Completion<V>`,
 // and the opaque arena handles) lives in the dependency-free `tcl-core-types`

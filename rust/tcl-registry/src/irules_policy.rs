@@ -135,6 +135,7 @@ pub fn irules_disabled_class(command: &str) -> Option<IrulesDisabledClass> {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{Family, SpecSurface, SurfaceQuery, surface_admits};
     use super::*;
     use tcl_dialect::DialectSet;
 
@@ -220,7 +221,7 @@ mod tests {
             for spec in specs {
                 let gate = spec.surface.expect("stock builtins carry a gate");
                 assert!(
-                    !surface_admits(SpecSurface::IRULES, Some(&gate)),
+                    !surface_admits(gate, Some(&SurfaceQuery::any_release(Family::F5Irules))),
                     "{command} must not carry the IRULES bit"
                 );
             }

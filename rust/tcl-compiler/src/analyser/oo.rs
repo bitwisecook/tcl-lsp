@@ -69,7 +69,6 @@ use super::types::{
 use super::utils::{param_name_spans_for_token, parse_param_list};
 use crate::ir::{Module, Statement, SwitchMode};
 use crate::signature_scan::types::ParamDef;
-use tcl_dialect::model::Family;
 
 /// The names by which a user handler conventionally keeps the original
 /// `unknown` it displaced (`rename unknown _original_unknown`).

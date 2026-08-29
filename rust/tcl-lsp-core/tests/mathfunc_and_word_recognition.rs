@@ -41,6 +41,7 @@
 //! set t {plain $level here}              ;# prints: plain $level here
 //! ```
 
+use tcl_dialect::model::{SurfaceQuery, Family};
 use tcl_compiler::analyser::{Analyser, AnalysisResult};
 use tcl_registry::model::ingress::static_context_for;
 use tcl_dialect::model::{SpecSurface};
@@ -578,12 +579,12 @@ fn mathfunc_command_spellings_are_registered_and_gated() {
         );
     }
     assert!(
-        reg.get_for_surface("::tcl::mathfunc::isinf", SpecSurface::TCL86)
+        reg.get_for_surface("::tcl::mathfunc::isinf", Some(SurfaceQuery::core(Family::Tcl, "8.6")))
             .is_none(),
         "isinf is 9.0+"
     );
     assert!(
-        reg.get_for_surface("::tcl::mathfunc::sin", SpecSurface::TCL84)
+        reg.get_for_surface("::tcl::mathfunc::sin", Some(SurfaceQuery::core(Family::Tcl, "8.4")))
             .is_none(),
         "the command table itself is 8.5+ (TIP 232)"
     );

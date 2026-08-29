@@ -49,7 +49,6 @@ use super::types::{
     ClassDef, ClassFactory, DefinedSymbol, FactoryMember, FactoryWord, MetaclassProvenance, ProcDef,
 };
 use super::utils::{param_name_spans_for_token, parse_param_list};
-use tcl_dialect::model::Family;
 use tcl_dialect::model::{SpecSurface};
 
 /// The three per-proc facts [`Analyser::infer_proc_param_traits`] derives from

@@ -38,8 +38,6 @@
 use tcl_dialect::model::SurfaceQuery;
 use tcl_dialect::DialectProfile;
 use tcl_lexer::LexerConfig;
-use tcl_registry::prelude::DialectSet;
-use tcl_dialect::model::{SpecSurface};
 
 /// Where to place opening braces.  Only K&R is supported (the F5
 /// style-guide default); the enum exists so the field can grow.
@@ -433,6 +431,7 @@ impl FormatterConfig {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SpecSurface};
     use super::{FormatterConfig, LINE_ENDING_AUTO};
     use tcl_dialect::DialectProfile;
     use tcl_registry::prelude::DialectSet;

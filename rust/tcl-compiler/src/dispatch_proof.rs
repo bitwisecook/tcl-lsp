@@ -83,7 +83,6 @@ use crate::state_ssa::adapters::{
     WorldInterpreterScope, WorldRegion, WorldRegionKind, WorldSubjectScope,
 };
 use crate::world_state_ssa::{EdgeCompletion, edge_completion, successors_of};
-use tcl_dialect::model::{SpecSurface};
 
 /// Bound on distinct changed-subject patterns tracked per identity ledger.
 const MAX_TRACKED_SUBJECTS: usize = 16;
@@ -2163,6 +2162,8 @@ fn apply_domain_widening(
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SurfaceQuery, Family};
+    use tcl_dialect::model::{SpecSurface};
     use tcl_lexer::Span;
     use tcl_registry::model::semantic::SemanticContext;
     use tcl_registry::prelude::DialectSet;
@@ -2242,7 +2243,7 @@ mod tests {
 
     fn llength_dependencies() -> DispatchDependencies {
         registry()
-            .resolve_invocation("llength", &["a b"], SpecSurface::TCL90)
+            .resolve_invocation("llength", &["a b"], Some(SurfaceQuery::core(Family::Tcl, "9.0")))
             .expect("llength resolves")
             .facts()
             .dispatch_dependencies

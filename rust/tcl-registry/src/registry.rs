@@ -1544,21 +1544,6 @@ impl CommandRegistry {
             .map(|(_, s)| *s)
     }
 
-    /// The full availability test for a mask query on this registry: the
-    /// spec's own dialect gate, plus — when this registry was built for a
-    /// profile and the query concerns that profile's availability — the
-    /// operator-command exclusion (§9), for a profile whose math operators
-    /// are not command heads.
-    ///
-    /// There is no disable list: availability is fully explicit in each
-    /// spec's `dialects` group, so a sandbox-banned command such as `exec`
-    /// simply never carries the `IRULES` bit.
-    ///
-    /// Public because generators projecting a command surface for an
-    /// explicit mask (the Zed highlight queries project the profile's
-    /// `grammar_union`, not its `availability_mask`) need the same
-    /// exclusion semantics `get_for_surface` applies internally.
-    #[must_use]
     /// Whether `spec` is visible to any of `providers` — the coarse,
     /// version-blind twin of [`Self::spec_visible`] the static grammars use.
     ///
@@ -1566,7 +1551,7 @@ impl CommandRegistry {
     /// asks which providers the profile's language spans. The operator-head
     /// exclusion still applies: math operators are not command heads under
     /// iRules at any release.
-    
+    #[must_use]
     pub fn spec_visible_to(&self, spec: &CommandSpec, providers: &[SpecProvider]) -> bool {
         spec.surface
             .is_none_or(|rows| surface_provided_by(rows, providers))
@@ -1578,6 +1563,20 @@ impl CommandRegistry {
             })
     }
 
+    /// The full availability test for a point query on this registry: the
+    /// spec's own surface gate, plus — when this registry was built for a
+    /// profile and the query is that profile's own point — the
+    /// operator-command exclusion (§9), for a profile whose math operators
+    /// are not command heads.
+    ///
+    /// There is no disable list: availability is fully explicit in each
+    /// spec's surface rows, so a sandbox-banned command such as `exec`
+    /// simply never names the iRules family.
+    ///
+    /// Public because generators projecting a command surface for an
+    /// explicit point need the same exclusion semantics `get_for_surface`
+    /// applies internally.
+    #[must_use]
     pub fn spec_visible(&self, spec: &CommandSpec, dialect: Option<SurfaceQuery<'_>>) -> bool {
         if !spec.supports_dialect(dialect) {
             return false;
@@ -4876,6 +4875,8 @@ impl std::fmt::Debug for CommandRegistry {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::surface;
+    use tcl_dialect::model::{SpecSurface, SurfaceQuery, SurfaceLayer, Family};
     use super::CommandRegistry;
     use crate::forms::LiteralArgumentPrefix;
 
@@ -5052,16 +5053,16 @@ mod tests {
 
         // Scoped beats catch-all, tighter beats wider — even though the
         // catch-all was registered last.
-        let under_86 = reg.get_for_surface("d6_probe", SpecSurface::TCL86);
+        let under_86 = reg.get_for_surface("d6_probe", Some(SurfaceQuery::core(Family::Tcl, "8.6")));
         assert_eq!(under_86.and_then(|s| s.surface), Some(SpecSurface::TCL86));
         // Under 9.0 the tightest visible spec is the two-bit one.
-        let under_90 = reg.get_for_surface("d6_probe", SpecSurface::TCL90);
+        let under_90 = reg.get_for_surface("d6_probe", Some(SurfaceQuery::core(Family::Tcl, "9.0")));
         assert_eq!(
             under_90.and_then(|s| s.surface),
             Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.6", Some("9.1"))])])
         );
         // Where no scoped spec is visible, the catch-all still resolves.
-        let under_84 = reg.get_for_surface("d6_probe", SpecSurface::TCL84);
+        let under_84 = reg.get_for_surface("d6_probe", Some(SurfaceQuery::core(Family::Tcl, "8.4")));
         assert!(under_84.is_some_and(|s| s.surface.is_none()));
     }
 
@@ -5084,7 +5085,7 @@ mod tests {
             ..CommandSpec::DEFAULT
         });
         let won = reg
-            .get_for_surface("d6_tie", SpecSurface::TCL86)
+            .get_for_surface("d6_tie", Some(SurfaceQuery::core(Family::Tcl, "8.6")))
             .expect("d6_tie resolves");
         assert_eq!(won.arity, Arity::exact(2), "later registration wins ties");
     }
@@ -5190,7 +5191,7 @@ mod tests {
                 "VersionedClass",
                 "later",
                 Some("9.0"),
-                Some(SpecSurface::TCL91)
+                Some(SurfaceQuery::core(Family::Tcl, "9.1"))
             )
             .is_none(),
             "the explicit owning-package floor rejects a future method"
@@ -5200,7 +5201,7 @@ mod tests {
                 "VersionedClass",
                 "later",
                 Some("9.1"),
-                Some(SpecSurface::TCL90)
+                Some(SurfaceQuery::core(Family::Tcl, "9.0"))
             )
             .is_none(),
             "the method's own dialect gate remains independent of lifecycle"
@@ -5210,7 +5211,7 @@ mod tests {
                 "VersionedClass",
                 "later",
                 Some("9.1"),
-                Some(SpecSurface::TCL91)
+                Some(SurfaceQuery::core(Family::Tcl, "9.1"))
             )
             .is_some(),
             "both registry-declared availability axes admit the method"
@@ -5234,16 +5235,16 @@ mod tests {
         // tcl9.0 (TIP 114) reads leading zeros as decimal; everything else
         // (8.4/8.5/8.6 and the 8.x-derived F5 dialects) stays octal.
         let octal_cases = [
-            SpecSurface::TCL84,
-            SpecSurface::TCL85,
-            SpecSurface::TCL86,
-            SpecSurface::IRULES,
-            SpecSurface::IAPPS,
+            SurfaceLayer::Core(Family::Tcl, "8.4"),
+            SurfaceLayer::Core(Family::Tcl, "8.5"),
+            SurfaceLayer::Core(Family::Tcl, "8.6"),
+            SurfaceLayer::Core(Family::F5Irules, ""),
+            SurfaceLayer::Package("iapps"),
         ];
-        for d in octal_cases {
+        for layer in octal_cases {
             let mut reg = CommandRegistry::build_default();
-            reg.load_surface(d);
-            assert!(reg.leading_zero_is_octal(), "{d:?} should be octal");
+            reg.load_surface(layer);
+            assert!(reg.leading_zero_is_octal(), "{layer:?} should be octal");
         }
         let mut reg90 = CommandRegistry::build_default();
         reg90.load_surface(SurfaceLayer::Core(Family::Tcl, "9.0"));
@@ -5322,14 +5323,14 @@ mod tests {
         let regsub = reg.get("regsub").expect("regsub spec");
         // `-command` is Tcl 9.0+ (TIP 463); the always-available
         // switches appear in every dialect.
-        let in_86 = regsub.switch_names(Some(SpecSurface::TCL86));
+        let in_86 = regsub.switch_names(Some(SurfaceQuery::core(Family::Tcl, "8.6")));
         assert!(in_86.contains(&"-all"), "{in_86:?}");
         assert!(in_86.contains(&"-nocase"), "{in_86:?}");
         assert!(
             !in_86.contains(&"-command"),
             "9.0-only -command leaked into 8.6: {in_86:?}",
         );
-        let in_90 = regsub.switch_names(Some(SpecSurface::TCL90));
+        let in_90 = regsub.switch_names(Some(SurfaceQuery::core(Family::Tcl, "9.0")));
         assert!(
             in_90.contains(&"-command"),
             "-command missing under 9.0: {in_90:?}",
@@ -5393,10 +5394,10 @@ mod tests {
                 Some(SpecSurface::TCL90_PLUS),
                 "{name} should be Tcl 9.0+",
             );
-            assert!(spec.supports_dialect(SpecSurface::TCL90));
-            assert!(spec.supports_dialect(SpecSurface::TCL91));
-            assert!(!spec.supports_dialect(SpecSurface::TCL86));
-            assert!(!spec.supports_dialect(SpecSurface::IRULES));
+            assert!(spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.0"))));
+            assert!(spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.1"))));
+            assert!(!spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.6"))));
+            assert!(!spec.supports_dialect(Some(SurfaceQuery::any_release(Family::F5Irules))));
         }
     }
 
@@ -7981,10 +7982,10 @@ mod tests {
     #[test]
     fn dialect_filter() {
         let reg = CommandRegistry::build_default();
-        let spec = reg.get_for_surface("dict", SpecSurface::TCL86);
+        let spec = reg.get_for_surface("dict", Some(SurfaceQuery::core(Family::Tcl, "8.6")));
         assert!(spec.is_some());
         // dict is tcl8.5+ so should NOT be available in 8.4
-        let spec84 = reg.get_for_surface("dict", SpecSurface::TCL84);
+        let spec84 = reg.get_for_surface("dict", Some(SurfaceQuery::core(Family::Tcl, "8.4")));
         assert!(spec84.is_none());
     }
 
@@ -8345,8 +8346,19 @@ mod tests {
                     // until it was dropped — precisely the regression this
                     // gate exists to catch.
                     for spec in reg.specs(name) {
-                        let mask = spec.surface.unwrap_or(SpecSurface::TK_AND_TCL);
-                        let traits = reg.invocation_traits(name, &args, mask);
+                        // Probe at a point the spec actually resolves under:
+                        // its own first row, or any Tcl release when it names
+                        // no provider.
+                        let point = spec.surface.and_then(|rows| rows.first()).map_or(
+                            SurfaceQuery::any_release(Family::Tcl),
+                            |row| match row.provider {
+                                SpecProvider::Core(family) => SurfaceQuery::any_release(family),
+                                SpecProvider::Package(_) => {
+                                    SurfaceQuery::any_release(Family::Tcl)
+                                }
+                            },
+                        );
+                        let traits = reg.invocation_traits(name, &args, Some(point));
                         if spec.traits.contains(Traits::DEFERS_BODY)
                             || traits.contains(Traits::DEFERS_BODY)
                             // A `CONTROL_FLOW` command is the registry's own
@@ -8625,7 +8637,7 @@ mod tests {
         let mut reg = CommandRegistry::build_default();
         reg.load_irules();
         let spec = reg.get("HTTP::header").unwrap();
-        assert_eq!(spec.surface, Some(SurfaceQuery::any_release(Family::F5Irules)));
+        assert_eq!(spec.surface, Some(SpecSurface::IRULES));
     }
 
     #[test]
@@ -8691,7 +8703,7 @@ mod tests {
         let reg = CommandRegistry::build_default();
         let args = ["create", "key", "value"];
         let resolved = reg
-            .resolve_invocation("::dict", &args, SpecSurface::TCL86)
+            .resolve_invocation("::dict", &args, Some(SurfaceQuery::core(Family::Tcl, "8.6")))
             .expect("global dict spelling resolves through the registry");
 
         assert_eq!(resolved.words.head_literal(), Some("::dict"));
@@ -8723,7 +8735,7 @@ mod tests {
         let resolved = reg
             .resolve_structured_invocation(
                 InvocationWords::structured(crate::InvocationWord::Literal("string"), &arguments),
-                SpecSurface::TCL86,
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
             )
             .resolved()
             .expect("a literal command head is registry-known");
@@ -9150,7 +9162,7 @@ mod tests {
         let reg = CommandRegistry::build_default();
         let args = ["le", "hello"];
         let resolved = reg
-            .resolve_invocation("string", &args, SpecSurface::TCL86)
+            .resolve_invocation("string", &args, Some(SurfaceQuery::core(Family::Tcl, "8.6")))
             .expect("string is registry-known");
 
         let sub = resolved
@@ -9174,7 +9186,7 @@ mod tests {
         let reg = CommandRegistry::build_default();
         let args = ["t", "hello"];
         let resolved = reg
-            .resolve_invocation("string", &args, SpecSurface::TCL86)
+            .resolve_invocation("string", &args, Some(SurfaceQuery::core(Family::Tcl, "8.6")))
             .expect("the command head remains known");
 
         assert!(matches!(
@@ -9193,7 +9205,7 @@ mod tests {
         let reg = CommandRegistry::build_default();
         let args = ["does-not-exist"];
         let resolved = reg
-            .resolve_invocation("string", &args, SpecSurface::TCL86)
+            .resolve_invocation("string", &args, Some(SurfaceQuery::core(Family::Tcl, "8.6")))
             .expect("the command head remains known");
 
         assert!(matches!(
@@ -9241,7 +9253,7 @@ mod tests {
         let reg = CommandRegistry::build_default();
         let args = ["hello"];
         let resolved = reg
-            .resolve_invocation("puts", &args, SpecSurface::TCL86)
+            .resolve_invocation("puts", &args, Some(SurfaceQuery::core(Family::Tcl, "8.6")))
             .expect("puts resolves");
 
         assert_eq!(
@@ -9328,7 +9340,7 @@ mod tests {
         reg.load_irules();
         let args = ["insert", "x-demo", "value"];
         let resolved = reg
-            .resolve_invocation("HTTP::header", &args, SpecSurface::IRULES)
+            .resolve_invocation("HTTP::header", &args, Some(SurfaceQuery::any_release(Family::F5Irules)))
             .expect("HTTP::header insert resolves in the iRules dialect");
 
         assert!(resolved.semantics.traits.contains(Traits::PURE));
@@ -9376,7 +9388,7 @@ mod tests {
     fn resolve_call_subcommand() {
         let reg = CommandRegistry::build_default();
         let resolved = reg
-            .resolve_call("dict", &["create", "k", "v"], SpecSurface::TCL86)
+            .resolve_call("dict", &["create", "k", "v"], Some(SurfaceQuery::core(Family::Tcl, "8.6")))
             .unwrap();
         assert_eq!(resolved.spec.name, "dict");
         let sub = resolved.sub.expect("dict create resolves to a subcommand");
@@ -9388,7 +9400,7 @@ mod tests {
         let reg = CommandRegistry::build_default();
         // dict is tcl8.5+; resolving against tcl8.4 must fail.
         assert!(
-            reg.resolve_call("dict", &["create"], SpecSurface::TCL84)
+            reg.resolve_call("dict", &["create"], Some(SurfaceQuery::core(Family::Tcl, "8.4")))
                 .is_none()
         );
     }
@@ -9418,19 +9430,19 @@ mod tests {
         let reg = CommandRegistry::build_default();
         // `lset lst value` — arity 2 → replace form.
         let replace = reg
-            .resolve_call("lset", &["lst", "value"], SpecSurface::TCL86)
+            .resolve_call("lset", &["lst", "value"], Some(SurfaceQuery::core(Family::Tcl, "8.6")))
             .unwrap();
         assert_eq!(replace.form.unwrap().name, "replace");
 
         // `lset lst 0 value` — arity 3 → single_index form.
         let single = reg
-            .resolve_call("lset", &["lst", "0", "value"], SpecSurface::TCL86)
+            .resolve_call("lset", &["lst", "0", "value"], Some(SurfaceQuery::core(Family::Tcl, "8.6")))
             .unwrap();
         assert_eq!(single.form.unwrap().name, "single_index");
 
         // `lset lst 0 1 2 value` — arity 5 → flat_path form.
         let flat = reg
-            .resolve_call("lset", &["lst", "0", "1", "2", "value"], SpecSurface::TCL86)
+            .resolve_call("lset", &["lst", "0", "1", "2", "value"], Some(SurfaceQuery::core(Family::Tcl, "8.6")))
             .unwrap();
         assert_eq!(flat.form.unwrap().name, "flat_path");
     }
@@ -10132,7 +10144,7 @@ mod tests {
         use crate::spec::CaseMatchMode;
         let reg = crate::model::ingress::static_context_for("tcl9.0").commands();
         let Some((_, two_arg)) =
-            reg.case_invocation("switch", &["-glob", "default {}"], SpecSurface::TCL90)
+            reg.case_invocation("switch", &["-glob", "default {}"], Some(SurfaceQuery::core(Family::Tcl, "9.0")))
         else {
             panic!("two-argument case form must parse");
         };
@@ -10143,7 +10155,7 @@ mod tests {
         let Some((_, options)) = reg.case_invocation(
             "switch",
             &["-glob", "-nocase", "--", "subject", "p {}"],
-            SpecSurface::TCL90,
+            Some(SurfaceQuery::core(Family::Tcl, "9.0")),
         ) else {
             panic!("option-bearing case form must parse");
         };
@@ -10155,7 +10167,7 @@ mod tests {
         let Some((_, integer)) = tcl91.case_invocation(
             "switch",
             &["-integer", "--", "1", "1 {set x 1}"],
-            SpecSurface::TCL91,
+            Some(SurfaceQuery::core(Family::Tcl, "9.1")),
         ) else {
             panic!("Tcl 9.1 integer switch must retain its case-list body");
         };
@@ -10167,7 +10179,7 @@ mod tests {
         ] {
             assert!(
                 tcl91
-                    .case_invocation("switch", &args, SpecSurface::TCL91)
+                    .case_invocation("switch", &args, Some(SurfaceQuery::core(Family::Tcl, "9.1")))
                     .is_none(),
                 "integer and nocase must be incompatible: {args:?}"
             );
@@ -10185,7 +10197,7 @@ mod tests {
         ] {
             assert!(
                 tcl91
-                    .case_invocation("switch", &args, SpecSurface::TCL91)
+                    .case_invocation("switch", &args, Some(SurfaceQuery::core(Family::Tcl, "9.1")))
                     .is_none(),
                 "multiple match modes must be rejected: {args:?}"
             );
@@ -10208,7 +10220,7 @@ mod tests {
             reg.case_invocation(
                 "switch",
                 &["subject", "pattern", "body", "orphan"],
-                SpecSurface::TCL90,
+                Some(SurfaceQuery::core(Family::Tcl, "9.0")),
             )
             .is_none()
         );
@@ -10216,7 +10228,7 @@ mod tests {
             reg.case_invocation(
                 "switch",
                 &["subject", "pattern {} orphan"],
-                SpecSurface::TCL90
+                Some(SurfaceQuery::core(Family::Tcl, "9.0"))
             )
             .is_none()
         );
@@ -10228,7 +10240,7 @@ mod tests {
         ] {
             assert!(
                 tcl84
-                    .case_invocation("switch", &two_arg_switch, SpecSurface::TCL84)
+                    .case_invocation("switch", &two_arg_switch, Some(SurfaceQuery::core(Family::Tcl, "8.4")))
                     .is_none(),
                 "Tcl 8.4 scans the option-like first word and rejects the missing subject: {two_arg_switch:?}"
             );
@@ -10240,7 +10252,7 @@ mod tests {
             );
             assert_eq!(
                 tcl84
-                    .resolve_option_terminator("switch", &two_arg_switch, SpecSurface::TCL84)
+                    .resolve_option_terminator("switch", &two_arg_switch, Some(SurfaceQuery::core(Family::Tcl, "8.4")))
                     .expect("switch declares --")
                     .reserved_trailing_words,
                 0,
@@ -10254,7 +10266,7 @@ mod tests {
         ] {
             assert!(
                 tcl84
-                    .case_invocation("switch", args, SpecSurface::TCL84)
+                    .case_invocation("switch", args, Some(SurfaceQuery::core(Family::Tcl, "8.4")))
                     .is_some(),
                 "Tcl 8.4 accepts the unambiguous switch case-list form: {args:?}"
             );
@@ -10269,15 +10281,15 @@ mod tests {
                 .case_invocation(
                     "switch",
                     &["-nocase", "subject", "pattern {}"],
-                    SpecSurface::TCL84,
+                    Some(SurfaceQuery::core(Family::Tcl, "8.4")),
                 )
                 .is_none()
         );
         let tcl85 = crate::model::ingress::static_context_for("tcl8.5").commands();
         for (dialect, availability) in [
-            ("tcl8.5", SpecSurface::TCL85),
-            ("tcl8.6", SpecSurface::TCL86),
-            ("tcl9.0", SpecSurface::TCL90),
+            ("tcl8.5", Some(SurfaceQuery::core(Family::Tcl, "8.5"))),
+            ("tcl8.6", Some(SurfaceQuery::core(Family::Tcl, "8.6"))),
+            ("tcl9.0", Some(SurfaceQuery::core(Family::Tcl, "9.0"))),
         ] {
             let registry = crate::model::ingress::static_context_for(dialect).commands();
             for two_arg_switch in [
@@ -10310,14 +10322,14 @@ mod tests {
                 .case_invocation(
                     "switch",
                     &["-nocase", "subject", "pattern {}"],
-                    SpecSurface::TCL85,
+                    Some(SurfaceQuery::core(Family::Tcl, "8.5")),
                 )
                 .is_some()
         );
         let default = CommandRegistry::build_default();
         assert!(
             default
-                .case_invocation("switch", &["subject", "pattern {}"], SpecSurface::TCL90,)
+                .case_invocation("switch", &["subject", "pattern {}"], Some(SurfaceQuery::core(Family::Tcl, "9.0")),)
                 .is_some()
         );
         assert!(
@@ -10325,13 +10337,13 @@ mod tests {
                 .case_invocation(
                     "switch",
                     &["--", "-x", "-x {puts hit} default {puts miss}"],
-                    SpecSurface::TCL90,
+                    Some(SurfaceQuery::core(Family::Tcl, "9.0")),
                 )
                 .is_some(),
             "the descriptor's -- terminator keeps a hyphenated switch subject positional"
         );
         assert!(
-            reg.case_invocation("switch", &["subject", "pattern -"], SpecSurface::TCL90)
+            reg.case_invocation("switch", &["subject", "pattern -"], Some(SurfaceQuery::core(Family::Tcl, "9.0")))
                 .is_none()
         );
 
@@ -10341,20 +10353,20 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["\"password:\" {send pw} -re {ye+s} {send yes} timeout {puts slow}"],
-                    SpecSurface::EXPECT,
+                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
                 )
                 .is_some(),
             "clause-leading flags must not break valid Expect pattern/body pairs"
         );
         assert!(
             expect
-                .case_invocation("expect", &["{-re} {send literal}"], SpecSurface::EXPECT,)
+                .case_invocation("expect", &["{-re} {send literal}"], Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),)
                 .is_some(),
             "a braced flag-shaped pattern is literal text, not a clause flag"
         );
         assert!(
             expect
-                .case_invocation("expect", &["-re {ye+s}"], SpecSurface::EXPECT)
+                .case_invocation("expect", &["-re {ye+s}"], Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])))
                 .is_some(),
             "Expect permits a final pattern without an action"
         );
@@ -10363,7 +10375,7 @@ mod tests {
             ["-i", "spawn", "ready {action}"],
         ] {
             let (_, invocation) = expect
-                .case_invocation("expect", &args, SpecSurface::EXPECT)
+                .case_invocation("expect", &args, Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])))
                 .expect("outer Expect value option followed by a final pattern");
             assert_eq!(invocation.clause_list_index, None, "{args:?}");
             assert_eq!(invocation.inline_clause_start, Some(2), "{args:?}");
@@ -10382,7 +10394,7 @@ mod tests {
                         &[&format!(
                             "{pattern} {{send literal}} default {{send other}}"
                         )],
-                        SpecSurface::EXPECT,
+                        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
                     )
                     .is_some(),
                 "{pattern:?} is a literal Tcl list pattern, not script syntax"
@@ -10390,7 +10402,7 @@ mod tests {
         }
         assert!(
             expect
-                .case_invocation("expect", &["-timeout"], SpecSurface::EXPECT)
+                .case_invocation("expect", &["-timeout"], Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])))
                 .is_none(),
             "a value-taking clause flag without a value/pattern/body is invalid"
         );
@@ -10409,7 +10421,7 @@ mod tests {
             "{send slow}",
         ];
         let (_, inline) = expect
-            .case_invocation("expect", &args, SpecSurface::EXPECT)
+            .case_invocation("expect", &args, Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])))
             .expect("inline Expect flags and value flags must parse");
         let clauses = crate::CaseListSpec::EXPECT
             .inline_clauses(&args, inline.inline_clause_start.expect("inline form"))
@@ -10425,7 +10437,7 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["-not", "ready", "{send ok}"],
-                    SpecSurface::EXPECT
+                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
                 )
                 .is_some(),
             "unique Expect flag abbreviations must retain the action body"
@@ -10455,7 +10467,7 @@ mod tests {
             };
             assert!(
                 expect
-                    .case_invocation("expect", &args, SpecSurface::EXPECT)
+                    .case_invocation("expect", &args, Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])))
                     .is_some(),
                 "canonical {flag} must parse"
             );
@@ -10465,14 +10477,14 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["-timeout", "5", "pattern", "{action}"],
-                    SpecSurface::EXPECT
+                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
                 )
                 .is_some()
         );
         for flag in ["-gl", "-re", "-ex", "-not"] {
             assert!(
                 expect
-                    .case_invocation("expect", &[flag, "pattern", "{action}"], SpecSurface::EXPECT)
+                    .case_invocation("expect", &[flag, "pattern", "{action}"], Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])))
                     .is_some(),
                 "unique abbreviation {flag} must parse"
             );
@@ -10480,7 +10492,7 @@ mod tests {
         for flag in ["-g", "-r", "-e", "-noc", "-nob"] {
             assert!(
                 expect
-                    .case_invocation("expect", &[flag, "pattern", "{action}"], SpecSurface::EXPECT)
+                    .case_invocation("expect", &[flag, "pattern", "{action}"], Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])))
                     .is_some(),
                 "unique canonical-prefix {flag} must remain an inline clause flag"
             );
@@ -10488,14 +10500,14 @@ mod tests {
         for flag in ["-n", "-bogus"] {
             assert!(
                 expect
-                    .case_invocation("expect", &[flag, "pattern", "{action}"], SpecSurface::EXPECT)
+                    .case_invocation("expect", &[flag, "pattern", "{action}"], Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])))
                     .is_none(),
                 "ambiguous or unknown {flag} must invalidate the invocation"
             );
         }
         let args = ["--", "-re", "{action}"];
         let (_, invocation) = expect
-            .case_invocation("expect", &args, SpecSurface::EXPECT)
+            .case_invocation("expect", &args, Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])))
             .expect("-- makes -re a pattern");
         let clauses = crate::CaseListSpec::EXPECT
             .inline_clauses(&args, invocation.inline_clause_start.expect("inline"))
@@ -10503,7 +10515,7 @@ mod tests {
         assert_eq!(clauses[0].pattern_index, 1);
         assert_eq!(clauses[0].body_index, Some(2));
         let (_, omitted) = expect
-            .case_invocation("expect", &["-re", "pattern"], SpecSurface::EXPECT)
+            .case_invocation("expect", &["-re", "pattern"], Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])))
             .expect("omitted final action is valid");
         assert_eq!(
             crate::CaseListSpec::EXPECT
@@ -10514,7 +10526,7 @@ mod tests {
         );
         assert!(
             expect
-                .case_invocation("expect", &["-nobrace", "{pattern}"], SpecSurface::EXPECT)
+                .case_invocation("expect", &["-nobrace", "{pattern}"], Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])))
                 .is_some(),
             "-nobrace makes one braced word an action-less pattern"
         );
@@ -10522,7 +10534,7 @@ mod tests {
             .case_invocation(
                 "expect",
                 &["-brace", "{default {return FOLDED}}"],
-                SpecSurface::EXPECT,
+                Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
             )
             .expect("exact -brace selects a clause list");
         assert_eq!(brace.clause_list_index, Some(1));
@@ -10531,7 +10543,7 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["-b", "{default {return FOLDED}}"],
-                    SpecSurface::EXPECT,
+                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
                 )
                 .is_none(),
             "-brace is exact-only, so -b is not a clause flag abbreviation"
@@ -10541,7 +10553,7 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["-brac", "{default {return FOLDED}}"],
-                    SpecSurface::EXPECT,
+                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
                 )
                 .is_none(),
             "-brace must not accept a near-complete prefix either"
@@ -10553,7 +10565,7 @@ mod tests {
         ] {
             assert!(
                 expect
-                    .case_invocation("expect", args, SpecSurface::EXPECT)
+                    .case_invocation("expect", args, Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])))
                     .is_none(),
                 "force-list selector must be first and have one remainder: {args:?}"
             );
@@ -10607,7 +10619,7 @@ mod tests {
         let option_refs: Vec<&OptionSpec> = options.iter().collect();
         let args = ["-outer", "value", "-clause", "pattern", "{body}"];
         let invocation = case
-            .invocation(&args, &option_refs, SpecSurface::ALL_TCL)
+            .invocation(&args, &option_refs, Some(SurfaceQuery::any_release(Family::Tcl)))
             .expect("the outer value must precede, not consume, the clause flag");
         assert_eq!(invocation.inline_clause_start, Some(2));
         let clauses = case
@@ -10630,7 +10642,7 @@ mod tests {
         ] {
             assert!(
                 switch
-                    .case_invocation("switch", args, SpecSurface::TCL90)
+                    .case_invocation("switch", args, Some(SurfaceQuery::core(Family::Tcl, "9.0")))
                     .is_none(),
                 "truncated switch invocation must abstain: {args:?}",
             );
@@ -10647,7 +10659,7 @@ mod tests {
         ] {
             assert!(
                 expect
-                    .case_invocation("expect", args, SpecSurface::EXPECT)
+                    .case_invocation("expect", args, Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])))
                     .is_none(),
                 "truncated Expect invocation must abstain: {args:?}",
             );
@@ -10669,13 +10681,13 @@ mod tests {
             &[""][..],
         ] {
             assert!(
-                custom.invocation(args, &[], SpecSurface::ALL_TCL).is_none(),
+                custom.invocation(args, &[], Some(SurfaceQuery::any_release(Family::Tcl))).is_none(),
                 "truncated custom selector invocation must abstain: {args:?}",
             );
         }
         assert!(
             custom
-                .invocation(&["-inline", "pattern", "{body}"], &[], SpecSurface::ALL_TCL,)
+                .invocation(&["-inline", "pattern", "{body}"], &[], Some(SurfaceQuery::any_release(Family::Tcl)),)
                 .is_some(),
             "complete custom inline-selector invocation remains valid",
         );

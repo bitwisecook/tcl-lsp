@@ -96,6 +96,7 @@ pub fn forward_range(dialect: &str) -> &'static [&'static str] {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SpecSurface};
     use super::*;
 
     #[test]
@@ -123,19 +124,17 @@ mod tests {
 
     #[test]
     fn an_explicit_range_maps_to_its_packs_oldest_first() {
-        let names = core_releases_in(SpecSurface::TCL85_PLUS);
-        assert_eq!(names, vec!["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"]);
-        assert_eq!(
-            registries_over_range(SpecSurface::TCL85_PLUS).len(),
-            names.len()
-        );
-        assert!(core_releases_in(None).is_empty());
+        const FROM_85: &[&str] = &["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"];
+        let names = core_releases_in(FROM_85);
+        assert_eq!(names, FROM_85);
+        assert_eq!(registries_over_range(FROM_85).len(), names.len());
+        assert!(core_releases_in(&[]).is_empty());
     }
 
     #[test]
     fn a_mixed_range_keeps_only_the_core_releases() {
-        // A vendor bit alongside core bits contributes no pack of its own.
-        let range = SpecSurface::TCL86 | SpecSurface::TCL90 | SpecSurface::IRULES;
+        // A vendor name alongside core releases contributes no pack of its own.
+        let range: &[&str] = &["tcl8.6", "tcl9.0", "f5-irules"];
         assert_eq!(core_releases_in(range), vec!["tcl8.6", "tcl9.0"]);
     }
 }

@@ -80,7 +80,6 @@
 //!   command-substitution args and proc / method bodies but
 //!   not into string interpolation.
 
-use tcl_dialect::model::{SurfaceLayer, Family};
 use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
@@ -89,7 +88,6 @@ use tcl_registry::CommandRegistry;
 use crate::definition::LspRange;
 use crate::hover::find_word_span_at_position;
 use crate::references::{MemberSel, resolve_member_span};
-use tcl_dialect::model::{SpecSurface};
 
 /// One text edit in a rename — span plus replacement text.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2242,6 +2240,7 @@ fn dedup_edits(edits: &mut Vec<TextEdit>) {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SurfaceLayer, Family};
     use super::*;
     use tcl_compiler::analyser::Analyser;
 

@@ -39,8 +39,8 @@ use crate::side_effects::StorageType;
 use crate::snapshot::Json;
 use crate::spec::{CommandSpec, SubCommand};
 use crate::traits::Traits;
-use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::model::{SpecProvider, surface_admits};
+use tcl_dialect::model::{Family, SpecSurface};
+use tcl_dialect::model::{SpecProvider, SurfaceQuery, surface_admits};
 
 /// `sha256` of the empty string — the digest of an empty list. Every Tcl
 /// command's `valid_events` set is empty, so this constant is the only
@@ -140,31 +140,40 @@ fn surface_json(surface: Option<&'static [SpecSurface]>) -> Json {
     match surface {
         None => Json::Null,
         Some(rows) => {
-            let mut names: Vec<String> = rows.iter().map(row_name).collect();
+            let mut names: Vec<String> = rows.iter().flat_map(row_names).collect();
             names.sort_unstable();
+            names.dedup();
             Json::Array(names.into_iter().map(|name| Json::s(&name)).collect())
         }
     }
 }
 
-/// One surface row's snapshot spelling.
-fn row_name(row: &SpecSurface) -> String {
-    let who = match row.provider {
-        SpecProvider::Core(family) => family.name().to_owned(),
-        SpecProvider::Package(package) => format!("package:{package}"),
-    };
-    if row.windows.is_empty() {
-        return who;
+/// The catalogue dialect names one surface row covers.
+///
+/// The snapshot's vocabulary is dialect ids, not row spellings, because the
+/// committed artefact is read by editors and docs: a core row expands to one
+/// name per ladder release it covers, a package row to the environment that
+/// ships it.
+fn row_names(row: &SpecSurface) -> Vec<String> {
+    match row.provider {
+        SpecProvider::Core(Family::Tcl) => tcl_dialect::TclVersion::ALL
+            .iter()
+            .filter(|release| {
+                surface_admits(
+                    std::slice::from_ref(row),
+                    Some(&SurfaceQuery::core(Family::Tcl, release.version_string())),
+                )
+            })
+            .map(|release| format!("tcl{}", release.version_string()))
+            .collect(),
+        SpecProvider::Core(Family::F5Irules) => vec!["f5-irules".to_owned()],
+        SpecProvider::Core(Family::F5Tcl) => vec!["f5-tcl".to_owned()],
+        SpecProvider::Core(Family::Jim) => vec!["jim".to_owned()],
+        SpecProvider::Package(package) => {
+            crate::model::surface::vendor_surface_environment(package)
+                .map_or_else(|| vec![package.to_owned()], |id| vec![id.to_owned()])
+        }
     }
-    let windows: Vec<String> = row
-        .windows
-        .iter()
-        .map(|&(from, until)| match until {
-            Some(until) => format!("{from}-{until}"),
-            None => format!("{from}-"),
-        })
-        .collect();
-    format!("{who} {}", windows.join(","))
 }
 
 /// Whether the subcommand is available under `profile` (own gate wins;
@@ -468,10 +477,11 @@ pub fn command_registry_snapshots(registry: &CommandRegistry, dialects: &[&str])
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SpecSurface};
     use super::*;
 
     /// The rendered dialect-name strings for a set.
-    fn names(set: DialectSet) -> Vec<String> {
+    fn names(set: &'static [SpecSurface]) -> Vec<String> {
         match surface_json(Some(set)) {
             Json::Array(items) => items
                 .into_iter()

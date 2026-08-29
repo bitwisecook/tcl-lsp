@@ -202,6 +202,8 @@ pub fn spec() -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SurfaceQuery, Family};
+    use tcl_dialect::model::{SpecSurface};
     use crate::dialects::DialectSet;
     use crate::{
         CallbackKinds, CommandBindingTransition, CommandRegistry, EffectAccessMode,
@@ -216,7 +218,7 @@ mod tests {
             .resolve_invocation(
                 "oo::copy",
                 &["::source", "::target", "::private::target"],
-                SpecSurface::TCL86,
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
             )
             .expect("oo::copy must resolve");
         let transitions = invocation.state_transitions();
@@ -259,7 +261,7 @@ mod tests {
     fn omitted_copy_identities_remain_typed_fresh_values() {
         let registry = CommandRegistry::build_default();
         let transitions = registry
-            .resolve_invocation("oo::copy", &["::source"], SpecSurface::TCL86)
+            .resolve_invocation("oo::copy", &["::source"], Some(SurfaceQuery::core(Family::Tcl, "8.6")))
             .expect("oo::copy must resolve")
             .state_transitions();
         assert!(transitions.facts().iter().any(|fact| matches!(

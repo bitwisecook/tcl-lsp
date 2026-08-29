@@ -60,7 +60,6 @@ use super::semantic_plan::{
 };
 use super::{RESERVED_DATA_BASE, WasmModule, backend};
 use backend::WasmEmissionMode;
-use tcl_dialect::model::Family;
 
 /// Packaging and semantic-plan policy for [`compile_wasm`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

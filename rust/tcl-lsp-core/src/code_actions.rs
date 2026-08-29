@@ -72,7 +72,6 @@ use tcl_lexer::{LineIndex, Utf16Col};
 use tcl_registry::events::{DataCollectionAction, EventRegistry};
 
 use crate::definition::{LspRange, utf16_col_to_char_col};
-use tcl_dialect::model::{SpecSurface};
 
 /// LSP code-action kind.  Maps to the dotted strings the editor / e2e
 /// `only` filter use (`quickfix`, `refactor.extract`, …).

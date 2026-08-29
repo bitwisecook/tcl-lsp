@@ -256,6 +256,7 @@ pub fn spec() -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SpecSurface};
     use super::*;
 
     #[test]

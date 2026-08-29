@@ -264,7 +264,7 @@ mod tests {
     /// - everything else **widens**, and the enumeration lives in the
     ///   redesign's §11.2 D1 row.
     #[test]
-    fn the_re_key_never_loses_a_resolution_and_is_identical_on_the_single_bit_ladder() {
+    fn context_resolution_refines_the_point_and_agrees_on_the_single_surface_ladder() {
         const IDENTICAL: &[&str] = &[
             "tcl8.4",
             "tcl8.5",
@@ -277,23 +277,25 @@ mod tests {
         for profile in DialectProfile::all() {
             let context = SemanticContext::for_environment(profile.name);
             let commands = context.commands();
-            let retired = DialectSet::parse(profile.name).unwrap_or_else(DialectSet::empty);
+            let point = Some(profile.surface_query());
             let identical = IDENTICAL.contains(&profile.name);
             let names: Vec<&'static str> = commands.command_names().collect();
             for name in names {
-                let old = (!retired.is_empty())
-                    .then(|| commands.get_for_surface(name, retired))
-                    .flatten();
-                let new = context.context().resolve_spec(commands, name);
+                let by_point = commands.get_for_surface(name, point);
+                let in_context = context.context().resolve_spec(commands, name);
+                // The context *refines* the point: it also proves the
+                // command's package can be hosted here, so it may refuse
+                // what the point alone admits (`tk_popup` under `bpf`) but
+                // can never admit what the point refuses.
                 assert!(
-                    old.is_none() || new.is_some(),
-                    "{}: `{name}` resolved under the retired bit and not in context",
+                    in_context.is_none() || by_point.is_some(),
+                    "{}: `{name}` resolved in context but not at the environment's point",
                     profile.name
                 );
                 if identical {
                     assert_eq!(
-                        old.map(std::ptr::from_ref),
-                        new.map(std::ptr::from_ref),
+                        by_point.map(std::ptr::from_ref),
+                        in_context.map(std::ptr::from_ref),
                         "{}: `{name}` must select the same spec either way",
                         profile.name
                     );

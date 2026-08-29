@@ -45,6 +45,7 @@
 //! arg-role classification are registry-internal metadata, marked
 //! `// registry-metadata`.
 
+use tcl_dialect::model::{SurfaceQuery};
 use tcl_dialect::model::{SurfaceLayer, Family};
 use tcl_dialect::DialectSet;
 use tcl_registry::arity::Arity;
@@ -1141,24 +1142,24 @@ fn tk_commands_are_gated_to_tcl_and_tk_not_irules_or_iapps() {
         // Available in standard Tcl (a `.tcl` that loads Tk) and the `tk`
         // dialect.
         assert!(
-            spec.supports_dialect(SpecSurface::TCL86),
+            spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.6"))),
             "{name} available under tcl8.6 (wish / package require Tk)"
         );
         assert!(
-            spec.supports_dialect(SpecSurface::TCL90),
+            spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.0"))),
             "{name} available under tcl9.0"
         );
         assert!(
-            spec.supports_dialect(SpecSurface::TK),
+            spec.supports_dialect(Some(SurfaceQuery::any_release(Family::Tcl).with_packages(&["Tk"]))),
             "{name} available under the tk dialect"
         );
         // NOT available in the F5 embedded dialects.
         assert!(
-            !spec.supports_dialect(SpecSurface::IRULES),
+            !spec.supports_dialect(Some(SurfaceQuery::any_release(Family::F5Irules))),
             "{name} must NOT be offered in iRules"
         );
         assert!(
-            !spec.supports_dialect(SpecSurface::IAPPS),
+            !spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.4").with_packages(&["iapps"]))),
             "{name} must NOT be offered in iApps"
         );
     }
@@ -1624,14 +1625,14 @@ fn info_subcommands_match_tclsh() {
 fn regsub_switches_are_version_gated() {
     let reg = CommandRegistry::build_default();
     let regsub = reg.get("regsub").expect("regsub registered");
-    let in_86 = regsub.switch_names(Some(SpecSurface::TCL86));
+    let in_86 = regsub.switch_names(Some(SurfaceQuery::core(Family::Tcl, "8.6")));
     assert!(in_86.contains(&"-all"), "8.6: {in_86:?}");
     assert!(in_86.contains(&"-nocase"), "8.6: {in_86:?}");
     assert!(
         !in_86.contains(&"-command"),
         "9.0-only -command leaked into 8.6: {in_86:?}"
     );
-    let in_90 = regsub.switch_names(Some(SpecSurface::TCL90));
+    let in_90 = regsub.switch_names(Some(SurfaceQuery::core(Family::Tcl, "9.0")));
     assert!(in_90.contains(&"-command"), "9.0: {in_90:?}");
 }
 
@@ -1645,14 +1646,14 @@ fn regsub_switches_are_version_gated() {
 fn source_nopkg_is_version_gated() {
     let reg = CommandRegistry::build_default();
     let source = reg.get("source").expect("source registered");
-    let in_86 = source.switch_names(Some(SpecSurface::TCL86));
+    let in_86 = source.switch_names(Some(SurfaceQuery::core(Family::Tcl, "8.6")));
     assert!(
         !in_86.contains(&"-nopkg"),
         "Tcl 9-only -nopkg leaked into 8.6: {in_86:?}"
     );
-    let in_90 = source.switch_names(Some(SpecSurface::TCL90));
+    let in_90 = source.switch_names(Some(SurfaceQuery::core(Family::Tcl, "9.0")));
     assert!(in_90.contains(&"-nopkg"), "9.0: {in_90:?}");
-    let in_91 = source.switch_names(Some(SpecSurface::TCL91));
+    let in_91 = source.switch_names(Some(SurfaceQuery::core(Family::Tcl, "9.1")));
     assert!(in_91.contains(&"-nopkg"), "9.1: {in_91:?}");
 }
 

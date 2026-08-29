@@ -123,6 +123,7 @@ pub fn spec_ooutil_86() -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SpecSurface};
     use super::*;
 
     /// The version dimension: a bare `classvariable` in a method body is a

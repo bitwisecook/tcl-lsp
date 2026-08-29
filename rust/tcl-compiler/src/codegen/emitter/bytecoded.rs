@@ -33,7 +33,6 @@ use super::super::Op;
 use super::super::Operand;
 use super::super::values::{is_qualified, split_array_ref};
 use super::super::{INDEX_END, bytecode_imm, parse_tcl_index};
-use tcl_dialect::model::{SpecSurface};
 
 /// Try to emit specialised bytecode for `cmd args...` via a per-
 /// command hook. Returns `true` if the hook handled the command;
@@ -880,6 +879,8 @@ fn upvar_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SurfaceQuery, Family};
+    use tcl_dialect::model::{SpecSurface};
     use super::*;
     use tcl_registry::CommandRegistry;
 
@@ -1737,7 +1738,7 @@ mod tests {
         let mut registry = CommandRegistry::build_default();
         registry.load_irules();
         let resolved = registry
-            .resolve_call("HTTP::header", &["names"], SpecSurface::IRULES)
+            .resolve_call("HTTP::header", &["names"], Some(SurfaceQuery::any_release(Family::F5Irules)))
             .expect("HTTP::header resolves under iRules");
         assert_eq!(resolved.spec.name, "HTTP::header");
     }
@@ -1771,7 +1772,7 @@ mod tests {
         let mut irules = CommandRegistry::build_default();
         irules.load_irules();
         let resolved = irules
-            .resolve_call("HTTP::header", &["names"], SpecSurface::IRULES)
+            .resolve_call("HTTP::header", &["names"], Some(SurfaceQuery::any_release(Family::F5Irules)))
             .expect("HTTP::header resolves once iRules is loaded");
 
         // Wire it through CodegenCtx: the ctx's registry field is

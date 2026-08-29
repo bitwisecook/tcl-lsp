@@ -604,6 +604,7 @@ pub const ALL_UNARY_OPS: &[UnaryOp] = &[
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SpecSurface};
     use super::*;
 
     /// Adding a `BinOp` variant without extending this match is a compile

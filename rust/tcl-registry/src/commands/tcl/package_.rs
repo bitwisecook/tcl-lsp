@@ -382,6 +382,8 @@ pub fn spec() -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SurfaceQuery, Family};
+    use tcl_dialect::model::{SpecSurface};
     use crate::{CommandRegistry, dialects::DialectSet};
 
     #[test]
@@ -391,7 +393,7 @@ mod tests {
             .resolve_call(
                 "package",
                 &["vsatisfies", "8.4", "8.4", "9.0"],
-                SpecSurface::TCL84,
+                Some(SurfaceQuery::core(Family::Tcl, "8.4")),
             )
             .expect("package is in the Tcl 8.4 registry");
         assert!(legacy.form.is_none());
@@ -401,7 +403,7 @@ mod tests {
             .resolve_call(
                 "package",
                 &["vsatisfies", "8.4", "8.4", "9.0"],
-                SpecSurface::TCL85,
+                Some(SurfaceQuery::core(Family::Tcl, "8.5")),
             )
             .expect("package is in the Tcl 8.5 registry");
         assert_eq!(modern.form.map(|form| form.name), Some("tcl8.5+"));

@@ -31,6 +31,7 @@
 //! event. The authoritative source remains the command documentation linked by
 //! each registry spec.
 
+use tcl_dialect::model::{SurfaceQuery, Family};
 use tcl_compiler::analyser::Analyser;
 use tcl_core_types::{DiagCode, Severity};
 use tcl_dialect::DialectSet;
@@ -69,7 +70,7 @@ fn irules_documented_examples_do_not_violate_their_own_event_contract() {
         let Some(spec) = registry.get(name) else {
             continue;
         };
-        if !spec.supports_dialect(SpecSurface::IRULES) {
+        if !spec.supports_dialect(Some(SurfaceQuery::any_release(Family::F5Irules))) {
             continue;
         }
         let Some(example) = spec.hover.as_ref().map(|hover| hover.examples) else {

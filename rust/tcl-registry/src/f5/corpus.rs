@@ -1659,6 +1659,7 @@ pub const EVENT_CONTEXT_VECTORS: &[EventContextVector] = &[
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SpecSurface, SurfaceQuery, surface_admits};
     use super::*;
     use crate::events::EventRegistry;
     use crate::f5::evidence::{BigIpBuild, RuntimeFact, RuntimeFactKind, measured_fact};
@@ -1844,9 +1845,11 @@ mod tests {
     #[test]
     fn release_discriminators_are_absent_from_every_f5_environment() {
         let control = static_context_for("tcl8.5").commands();
-        let control_mask = resolve_environment("tcl8.5")
-            .analyser_profile()
-            .surface_query();
+        let control_point = Some(
+            resolve_environment("tcl8.5")
+                .analyser_profile()
+                .surface_query(),
+        );
         for row in RELEASE_DISCRIMINATOR_VECTORS {
             assert!(
                 !row.tcl84 && row.tcl85,
@@ -1865,16 +1868,18 @@ mod tests {
                 continue;
             };
             assert!(
-                control.get_for_surface(command, control_mask).is_some(),
+                control.get_for_surface(command, control_point).is_some(),
                 "{command}: the 8.5 control must have it"
             );
             for environment in F5_ENVIRONMENTS {
                 let registry = static_context_for(environment).commands();
-                let mask = resolve_environment(environment)
-                    .analyser_profile()
-                    .surface_query();
+                let point = Some(
+                    resolve_environment(environment)
+                        .analyser_profile()
+                        .surface_query(),
+                );
                 assert!(
-                    registry.get_for_surface(command, mask).is_none(),
+                    registry.get_for_surface(command, point).is_none(),
                     "{environment}: {command} is measured absent (§4)"
                 );
             }
@@ -2136,7 +2141,7 @@ mod tests {
             .expect("tcl_platform is modelled")
             .keys
             .iter()
-            .filter(|key| surface_admits(SpecSurface::IRULES, Some(&key.surface)))
+            .filter(|key| surface_admits(key.surface, Some(&SurfaceQuery::any_release(Family::F5Irules))))
             .count();
         assert_eq!(irules_keys, 7, "§4: TMM reports 7 fabricated keys");
     }

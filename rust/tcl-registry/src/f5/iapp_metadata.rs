@@ -282,6 +282,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{Family};
     use super::*;
 
     fn version(text: &str) -> Version {

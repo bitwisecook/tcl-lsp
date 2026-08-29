@@ -952,6 +952,8 @@ pub fn spec() -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SurfaceQuery, Family};
+    use tcl_dialect::model::{SpecSurface};
     use super::*;
     use crate::{CommandRegistry, InvocationWord, InvocationWordKind, InvocationWords};
 
@@ -1092,7 +1094,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let invocation = registry.resolve_structured_invocation(
             InvocationWords::literals("interp", &["recursionlimit", "child", "42"]),
-            SpecSurface::TCL90,
+            Some(SurfaceQuery::core(Family::Tcl, "9.0")),
         );
         let facts = invocation
             .resolved()
@@ -1138,7 +1140,7 @@ mod tests {
     fn legacy_slaves_and_alias_target_keep_their_tcl9_surface() {
         let spec = super::spec();
         let slaves = spec
-            .resolve_subcommand_for_dialect("slaves", SpecSurface::TCL90)
+            .resolve_subcommand_for_dialect("slaves", Some(SurfaceQuery::core(Family::Tcl, "9.0")))
             .expect("Tcl 9 accepts the legacy interp slaves spelling");
         assert_eq!(slaves.return_type, Some(TclType::List));
 

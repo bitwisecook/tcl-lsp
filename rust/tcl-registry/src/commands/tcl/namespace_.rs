@@ -1244,6 +1244,8 @@ pub fn spec() -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SurfaceQuery, Family};
+    use tcl_dialect::model::{SpecSurface, surface_admits};
     use super::{
         NamespaceTransition, NamespaceTransitionTarget, StateTransition, TransitionSubject,
         fold_qualifiers, fold_tail, namespace_delete_state_transitions,
@@ -1422,16 +1424,16 @@ mod tests {
             .iter()
             .find(|sub| sub.name == "upvar")
             .expect("upvar subcommand");
-        let accepts = |dialect, argc| {
+        let accepts = |dialect: Option<SurfaceQuery<'_>>, argc| {
             upvar.subcommand_forms.iter().any(|form| {
                 form.surface.is_none_or(|gate| surface_admits(gate, dialect.as_ref()))
                     && form.arity.accepts(argc)
             })
         };
 
-        assert!(!accepts(SpecSurface::TCL85, 1));
-        assert!(accepts(SpecSurface::TCL85, 3));
-        for dialect in [SpecSurface::TCL86, SpecSurface::TCL90, SpecSurface::TCL91] {
+        assert!(!accepts(Some(SurfaceQuery::core(Family::Tcl, "8.5")), 1));
+        assert!(accepts(Some(SurfaceQuery::core(Family::Tcl, "8.5")), 3));
+        for dialect in [Some(SurfaceQuery::core(Family::Tcl, "8.6")), Some(SurfaceQuery::core(Family::Tcl, "9.0")), Some(SurfaceQuery::core(Family::Tcl, "9.1"))] {
             assert!(accepts(dialect, 1));
             assert!(accepts(dialect, 3));
             assert!(!accepts(dialect, 2));
@@ -1458,19 +1460,19 @@ mod tests {
 
         assert_eq!(
             ensemble
-                .resolve_sub_subcommand_for_dialect("cre", SpecSurface::TCL90)
+                .resolve_sub_subcommand_for_dialect("cre", Some(SurfaceQuery::core(Family::Tcl, "9.0")))
                 .map(|sub| sub.name),
             Some("create")
         );
         assert_eq!(
             ensemble
-                .resolve_sub_subcommand_for_dialect("conf", SpecSurface::TCL85)
+                .resolve_sub_subcommand_for_dialect("conf", Some(SurfaceQuery::core(Family::Tcl, "8.5")))
                 .map(|sub| sub.name),
             Some("configure")
         );
         assert!(
             ensemble
-                .resolve_sub_subcommand_for_dialect("e", SpecSurface::TCL84)
+                .resolve_sub_subcommand_for_dialect("e", Some(SurfaceQuery::core(Family::Tcl, "8.4")))
                 .is_none()
         );
         assert!(ensemble.resolve_sub_subcommand("c").is_none());

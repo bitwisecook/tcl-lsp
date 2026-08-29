@@ -866,18 +866,23 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{Family};
+    use tcl_dialect::model::{SurfaceQuery};
+    use tcl_dialect::model::{SpecSurface};
     use super::*;
 
-    /// The catalogue mask the tests exercise these queries under — the
+    /// The catalogue point the tests exercise these queries under — the
     /// production callers resolve an environment once and thread the
-    /// profile's mask instead.
-    fn d(dialect: &str) -> DialectSet {
+    /// profile's point instead.
+    fn d(dialect: &str) -> Option<SurfaceQuery<'static>> {
         // The seam's sink behaviour: a non-catalogue name (`tcl`, `tk`)
-        // answers the permissive fallback's mask, as the environment
+        // answers the permissive fallback's point, as the environment
         // ingress resolves it.
-        tcl_dialect::DialectProfile::find(dialect)
-            .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl)
-            .surface_query()
+        Some(
+            tcl_dialect::DialectProfile::find(dialect)
+                .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl)
+                .surface_query(),
+        )
     }
 
     #[test]
@@ -1135,7 +1140,7 @@ mod tests {
     fn version_dialects_keep_exact_bit_for_per_key_gating() {
         // A specific Tcl version must not be widened to ALL_TCL, or per-key
         // version gating (pointerSize is 8.5+) would leak into 8.4.
-        assert_eq!(d("tcl8.4"), SpecSurface::TCL84);
+        assert_eq!(d("tcl8.4"), Some(SurfaceQuery::core(Family::Tcl, "8.4")));
         let spec = special_var("tcl_platform").unwrap();
         let keys_84: Vec<_> = spec.keys_in(d("tcl8.4")).map(|k| k.key).collect();
         assert!(!keys_84.contains(&"pointerSize"));

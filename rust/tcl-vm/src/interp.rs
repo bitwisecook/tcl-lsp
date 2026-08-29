@@ -27,7 +27,6 @@
 //! model does (issue #946).
 
 use tcl_dialect::model::{SurfaceQuery};
-use tcl_dialect::model::{Family};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::io::{self, Write};

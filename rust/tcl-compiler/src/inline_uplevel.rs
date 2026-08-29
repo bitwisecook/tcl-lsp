@@ -28,7 +28,7 @@ use std::collections::HashMap;
 use crate::ir::{Module, Procedure, Script, Statement};
 use crate::lowering::Lowerer;
 use tcl_registry::frame_effect::{FrameArgLayout, FrameLevel};
-use tcl_registry::{CommandRegistry, FRAME_REACH_TRAITS, dialects::DialectSet};
+use tcl_registry::{CommandRegistry, FRAME_REACH_TRAITS};
 
 /// Recognised passthrough proc shape used by the rewriter.
 #[derive(Debug, Clone)]

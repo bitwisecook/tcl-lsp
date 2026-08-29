@@ -38,8 +38,6 @@ use tcl_registry::{
     InvocationFacts, SemanticOperationId, StateTransitionKnowledge,
 };
 use tcl_runtime_api::guard::{GuardDomain, GuardDomains};
-use tcl_dialect::model::Family;
-use tcl_dialect::model::{SpecSurface};
 
 use crate::representation_plan::{
     BoundaryPlan, GuardCondition, GuardedPlan, OwnershipLedger, SuspensionPlan,
@@ -1150,6 +1148,8 @@ impl<Plan> BackendRegistry<Plan> {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SurfaceQuery, Family};
+    use tcl_dialect::model::{SpecSurface};
     use super::*;
     use crate::target_contract::{
         LegalisationRequirements, TargetCapabilities, TargetContract, TargetFamily, ValueFeature,
@@ -1271,7 +1271,7 @@ mod tests {
     fn closed_invocation_facts() -> InvocationFacts {
         let registry = CommandRegistry::build_default();
         let mut facts = registry
-            .resolve_invocation("incr", &["counter"], SpecSurface::TCL86)
+            .resolve_invocation("incr", &["counter"], Some(SurfaceQuery::core(Family::Tcl, "8.6")))
             .expect("core invocation resolves")
             .facts();
         facts.effects = EffectFootprint::default();

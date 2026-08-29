@@ -17,6 +17,7 @@
 //!
 //! Serialised with stock `serde_json` 2-space pretty-printing (raw UTF-8).
 
+use tcl_dialect::model::{SurfaceQuery, Family};
 use std::fs;
 use std::process::ExitCode;
 
@@ -107,7 +108,7 @@ fn tcl_commands_catalog(reg: &CommandRegistry) -> CommandsCatalog {
         .filter(|&name| name != "disabled_in_irules")
         .filter_map(|name| {
             let spec = reg.get(name)?;
-            if !spec.supports_dialect(SpecSurface::ALL_TCL) {
+            if !spec.supports_dialect(Some(SurfaceQuery::any_release(Family::Tcl))) {
                 return None;
             }
             let mut subcommands: Vec<String> =

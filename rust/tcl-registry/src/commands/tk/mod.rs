@@ -212,6 +212,8 @@ fn tk_command_specs_raw() -> Vec<CommandSpec> {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SurfaceQuery, Family};
+    use tcl_dialect::model::{SpecSurface};
     use super::tk_command_specs;
 
     fn assert_complete_prose(owner: &str, prose: &str) {
@@ -868,7 +870,7 @@ mod tests {
                 &registry,
                 "winfo",
                 args,
-                SpecSurface::TCL90
+                Some(SurfaceQuery::core(Family::Tcl, "9.0"))
             ));
         }
     }

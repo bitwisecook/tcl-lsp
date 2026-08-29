@@ -48,7 +48,6 @@
 //! [`SemanticOperationKey`] and becomes the only production map key.
 
 use std::collections::{BTreeMap, BTreeSet};
-use tcl_dialect::model::Family;
 
 /// Marker for a target-neutral operation identity from the common semantic IR.
 ///

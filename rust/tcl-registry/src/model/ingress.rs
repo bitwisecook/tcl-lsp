@@ -438,6 +438,7 @@ pub fn irules_context() -> Arc<ContextRegistry> {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SpecSurface};
     use super::*;
 
     #[test]
@@ -545,14 +546,18 @@ mod tests {
             .collect();
         for name in names {
             let environment = resolve_environment(name);
-            assert_eq!(
-                environment.document_authoring_scope().query(),
-                environment.unit_profile().surface_query(),
+            assert!(
+                crate::model::surface::points_answer_alike(
+                    &environment.document_authoring_scope().query(),
+                    &environment.unit_profile().surface_query()
+                ),
                 "{name}"
             );
-            assert_eq!(
-                environment.document_context().authoring_query(),
-                environment.unit_profile().surface_query(),
+            assert!(
+                crate::model::surface::points_answer_alike(
+                    &environment.document_context().authoring_query(),
+                    &environment.unit_profile().surface_query()
+                ),
                 "{name} context"
             );
             // One value, not two: no injected mask over the derivation.
@@ -573,7 +578,8 @@ mod tests {
             tk_context
                 .context()
                 .authoring_query()
-                .contains(SpecSurface::TK)
+                .packages
+                .contains(&"Tk")
         );
         assert!(tk_context.context().placement_is_ambient("Tk"));
         // …and no plain-Tcl environment gains it from the lenient hosted
@@ -583,9 +589,7 @@ mod tests {
             let generation = environment.default_context_registry();
             let context = generation.context();
             assert!(
-                !context
-                    .authoring_query()
-                    .contains(SpecSurface::TK),
+                !context.authoring_query().packages.contains(&"Tk"),
                 "{plain}"
             );
             assert!(context.can_host_package("Tk"), "{plain}");

@@ -2295,6 +2295,8 @@ pub const SPECTCL_GRAMMARS: &[&DefinitionBodyGrammar] = &[
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SurfaceQuery, Family};
+    use tcl_dialect::model::{SpecSurface};
     use super::{
         DeclaredMemberVisibility, MemberRetraction, MemberVisibility, SlotOp, SlotSpec,
         TCLOO_GRAMMAR,
@@ -2482,7 +2484,7 @@ mod tests {
             method
                 .indices_for_call_in(
                     &private,
-                    crate::dialects::SpecSurface::TCL86,
+                    Some(SurfaceQuery::core(Family::Tcl, "8.6")),
                     ArgRole::ParamList
                 )
                 .collect::<Vec<_>>(),
@@ -2492,7 +2494,7 @@ mod tests {
             method
                 .indices_for_call_in(
                     &private,
-                    crate::dialects::SpecSurface::TCL86,
+                    Some(SurfaceQuery::core(Family::Tcl, "8.6")),
                     ArgRole::Option
                 )
                 .next()
@@ -2500,12 +2502,12 @@ mod tests {
         );
         assert!(
             method
-                .unavailable_option_for(&private, crate::dialects::SpecSurface::TCL86)
+                .unavailable_option_for(&private, Some(SurfaceQuery::core(Family::Tcl, "8.6")))
                 .is_some()
         );
         assert_eq!(
             method
-                .indices_for_call_in(&private, crate::dialects::SpecSurface::TCL90, ArgRole::Body)
+                .indices_for_call_in(&private, Some(SurfaceQuery::core(Family::Tcl, "9.0")), ArgRole::Body)
                 .collect::<Vec<_>>(),
             vec![3]
         );

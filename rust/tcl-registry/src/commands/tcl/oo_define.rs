@@ -374,6 +374,8 @@ pub fn spec() -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SurfaceQuery, Family};
+    use tcl_dialect::model::{SpecSurface};
     use super::oo_define_arg_roles;
     use crate::arg_role::ArgRole;
     use crate::dialects::DialectSet;
@@ -426,7 +428,7 @@ mod tests {
                 .resolve_invocation(
                     command,
                     &["::Target", "method", "m", "{}", "{}"],
-                    SpecSurface::TCL86,
+                    Some(SurfaceQuery::core(Family::Tcl, "8.6")),
                 )
                 .expect("TclOO definition command must resolve");
             let transitions = invocation.state_transitions();

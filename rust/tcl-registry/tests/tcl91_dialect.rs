@@ -24,6 +24,7 @@
 //! observable over LSP; the observable completion / W003 behaviour is covered
 //! by the `lsp_e2e` suite.
 
+use tcl_dialect::model::{SurfaceQuery, Family};
 use tcl_dialect::{DialectSet, available_dialects};
 use tcl_registry::CommandRegistry;
 use tcl_dialect::model::{SpecSurface};
@@ -55,9 +56,9 @@ fn unicode_is_91_only_with_normalization_subcommands() {
     // tonfc/tonfd/tonfkc/tonfkd, each `?-profile profile?`.  Absent in 9.0.
     let r = reg();
     let spec = r.get("unicode").expect("unicode registered");
-    assert!(spec.supports_dialect(SpecSurface::TCL91));
-    assert!(!spec.supports_dialect(SpecSurface::TCL90));
-    assert!(!spec.supports_dialect(SpecSurface::TCL86));
+    assert!(spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.1"))));
+    assert!(!spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.0"))));
+    assert!(!spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.6"))));
     for name in ["tonfc", "tonfd", "tonfkc", "tonfkd"] {
         let sub = spec
             .subcommand(name)
@@ -75,8 +76,8 @@ fn timer_is_91_only_with_scheduler_side_effects() {
     // pure query.
     let r = reg();
     let spec = r.get("timer").expect("timer registered");
-    assert!(spec.supports_dialect(SpecSurface::TCL91));
-    assert!(!spec.supports_dialect(SpecSurface::TCL90));
+    assert!(spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.1"))));
+    assert!(!spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.0"))));
     for name in ["in", "at", "idle", "sleep", "cancel", "info"] {
         assert!(spec.subcommand(name).is_some(), "timer {name}");
     }
@@ -99,12 +100,12 @@ fn subst_positive_forms_are_91_only() {
     let spec = r.get("subst").expect("subst registered");
     // Negated forms: available everywhere (present in the unfiltered set and
     // under 9.0).
-    let in_90 = spec.switch_names(Some(SpecSurface::TCL90));
+    let in_90 = spec.switch_names(Some(SurfaceQuery::core(Family::Tcl, "9.0")));
     for name in ["-nobackslashes", "-nocommands", "-novariables"] {
         assert!(in_90.contains(&name), "{name} available in all dialects");
     }
     // Positive forms are gated to 9.1.
-    let in_91 = spec.switch_names(Some(SpecSurface::TCL91));
+    let in_91 = spec.switch_names(Some(SurfaceQuery::core(Family::Tcl, "9.1")));
     for name in ["-backslashes", "-commands", "-variables"] {
         assert!(in_91.contains(&name), "subst {name} in 9.1");
         assert!(!in_90.contains(&name), "subst {name} NOT in 9.0");
@@ -118,15 +119,15 @@ fn tcl90_commands_persist_in_91() {
     for name in ["lseq", "ledit", "lpop", "lremove", "readFile", "writeFile"] {
         let spec = r.get(name).unwrap_or_else(|| panic!("{name} registered"));
         assert!(
-            spec.supports_dialect(SpecSurface::TCL91),
+            spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.1"))),
             "{name} available in 9.1"
         );
         assert!(
-            spec.supports_dialect(SpecSurface::TCL90),
+            spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.0"))),
             "{name} available in 9.0"
         );
         assert!(
-            !spec.supports_dialect(SpecSurface::TCL86),
+            !spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.6"))),
             "{name} NOT in 8.6"
         );
     }
@@ -142,9 +143,9 @@ fn tcl91_math_commands_are_pure_and_91_only() {
     let r = reg();
     for name in ["divmod", "frexp", "modf", "remquo"] {
         let spec = r.get(name).unwrap_or_else(|| panic!("{name} registered"));
-        assert!(spec.supports_dialect(SpecSurface::TCL91), "{name} in 9.1");
+        assert!(spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.1"))), "{name} in 9.1");
         assert!(
-            !spec.supports_dialect(SpecSurface::TCL90),
+            !spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.0"))),
             "{name} NOT in 9.0"
         );
         assert!(spec.traits.contains(Traits::PURE), "{name} is pure");
@@ -165,8 +166,8 @@ fn lfilter_is_a_91_list_loop() {
     use tcl_registry::types::TclType;
     let r = reg();
     let spec = r.get("lfilter").expect("lfilter registered");
-    assert!(spec.supports_dialect(SpecSurface::TCL91));
-    assert!(!spec.supports_dialect(SpecSurface::TCL90));
+    assert!(spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.1"))));
+    assert!(!spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.0"))));
     assert!(spec.traits.contains(Traits::HAS_LOOP_BODY));
     assert!(spec.traits.contains(Traits::LOOP_LIST_HEADER));
     assert_eq!(spec.return_type, Some(TclType::List));

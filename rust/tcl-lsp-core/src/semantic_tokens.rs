@@ -84,7 +84,6 @@
 //! taxonomy) applies inside embedded rule bodies exactly as it does in a
 //! standalone `.irul`.
 
-use tcl_dialect::model::{SurfaceLayer};
 use tcl_dialect::model::{surface_admits};
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::types::{ProcArgTrait, ProcDef};
@@ -95,10 +94,9 @@ use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::{LineIndex, Span, Token, TokenType};
 
 use crate::definition::utf16_len;
-use tcl_dialect::{DialectSet, NumberSyntax};
+use tcl_dialect::NumberSyntax;
 use tcl_registry::definer::{DefinerFamily, DefinitionBodyGrammar, MemberKind};
 use tcl_registry::{CommandRegistry, InvocationArguments};
-use tcl_dialect::model::Family;
 use tcl_dialect::model::{SurfaceQuery};
 use tcl_dialect::model::{SpecSurface};
 
@@ -6610,6 +6608,7 @@ pub fn diff(old: &[u32], new: &[u32]) -> Option<TokenEdit> {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SurfaceLayer, Family};
     use super::*;
 
     /// The plain-Tcl profile these tests tokenise under. A named helper keeps

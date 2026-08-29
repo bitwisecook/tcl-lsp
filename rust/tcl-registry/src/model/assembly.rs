@@ -75,15 +75,16 @@ use crate::spec::CommandSpec;
 pub(crate) fn universe() -> &'static CommandRegistry {
     static CELL: OnceLock<CommandRegistry> = OnceLock::new();
     CELL.get_or_init(|| {
+        use tcl_dialect::model::{Family, SurfaceLayer};
         let mut registry = CommandRegistry::build_default();
-        for pack in [
-            SpecSurface::BPF,
-            SpecSurface::IRULES,
-            SpecSurface::IAPPS,
-            SpecSurface::EXPECT,
-            SpecSurface::SPECTCL,
+        for layer in [
+            SurfaceLayer::Package("bpf"),
+            SurfaceLayer::Core(Family::F5Irules, ""),
+            SurfaceLayer::Package("iapps"),
+            SurfaceLayer::Package("expect"),
+            SurfaceLayer::Package("spectcl"),
         ] {
-            registry.load_surface(pack);
+            registry.load_surface(layer);
         }
         registry
     })
@@ -490,6 +491,7 @@ pub fn side_effect_hints_in_context<'r>(
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use tcl_dialect::model::{SpecSurface};
     use super::*;
     use crate::cache::registry_for_profile;
     use crate::profile_queries::ProfileQueries;

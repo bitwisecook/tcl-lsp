@@ -453,6 +453,7 @@ fn expand_user(path: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SpecSurface};
     use super::resolve_dialect;
     use tcl_dialect::{DialectProfile, DialectSet};
 

@@ -679,6 +679,8 @@ pub fn setter_constraints(
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SurfaceQuery, Family};
+    use tcl_dialect::model::{SpecSurface};
     use super::*;
 
     #[test]
@@ -730,7 +732,7 @@ mod tests {
             &registry,
             "HTTP::uri",
             &[],
-            SpecSurface::IRULES
+            Some(SurfaceQuery::any_release(Family::F5Irules))
         ));
     }
 
@@ -949,7 +951,7 @@ mod tests {
     fn cookie_output_sink_is_subcommand_qualified() {
         let mut registry = CommandRegistry::build_default();
         registry.load_irules();
-        let dialect = SpecSurface::IRULES;
+        let dialect = Some(SurfaceQuery::any_release(Family::F5Irules));
         let insert = classify_taint_sinks(&registry, "HTTP::cookie", Some("insert"), dialect);
         assert_eq!(insert.output_sink, Some("IRULE3002"));
         assert!(insert.output_sink_is_subcommand_qualified);
@@ -965,7 +967,7 @@ mod tests {
     fn cookie_output_sink_matches_prefix_abbreviation() {
         let mut registry = CommandRegistry::build_default();
         registry.load_irules();
-        let dialect = SpecSurface::IRULES;
+        let dialect = Some(SurfaceQuery::any_release(Family::F5Irules));
         for abbr in ["ins", "inse", "insert", "rep", "replace"] {
             let info = classify_taint_sinks(&registry, "HTTP::cookie", Some(abbr), dialect);
             assert_eq!(

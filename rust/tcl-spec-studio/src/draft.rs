@@ -48,6 +48,7 @@
 //! superclass names, and a method table that *is* `&[SubCommand]` — so it is
 //! seeded as a JSON object whose methods are ordinary subcommand drafts.
 
+use tcl_dialect::model::{surface_admits};
 use serde_json::{Map, Value, json};
 use tcl_dialect::DialectSet;
 use tcl_registry::arg_role::{AppendedArity, ArgRole};

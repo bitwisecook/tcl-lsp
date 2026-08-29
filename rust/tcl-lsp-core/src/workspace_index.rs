@@ -84,7 +84,6 @@ use crate::workspace_symbols::{
 use tcl_compiler::analyser::class_hierarchy::{build_tail_index, resolve_class_name};
 use tcl_compiler::analyser::{AnalysisResult, MemberRetractionRecord, MemberSide};
 use tcl_lexer::Span;
-use tcl_dialect::model::Family;
 
 /// One proc definition recorded in the workspace index.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -5580,6 +5579,7 @@ impl<'a> CallSite<'a> {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{Family};
     use super::*;
     use tcl_compiler::analyser::Analyser;
 

@@ -258,6 +258,7 @@ impl std::fmt::Display for BigIpExecutionContext {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{Family};
     use super::*;
     use tcl_dialect::model::family::CapabilityAnswer;
 

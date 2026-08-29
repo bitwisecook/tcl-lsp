@@ -87,7 +87,6 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use tcl_dialect::DialectSet;
 use tcl_dialect::model::environment::Provenance;
 use tcl_spec_hooks::pack_eval::{
     self, PackEvalConfig, PackEvalCtx, PackEvalFailure, UnknownHandler, WordHandler,

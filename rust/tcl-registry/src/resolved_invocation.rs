@@ -894,6 +894,8 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SurfaceQuery, Family};
+    use tcl_dialect::model::{SpecSurface};
     use super::*;
     use crate::InvocationArguments;
     use crate::dialects::DialectSet;
@@ -1183,7 +1185,7 @@ mod tests {
     #[test]
     fn semantic_operations_keep_structural_lowering_and_precise_leaf_intrinsics_distinct() {
         let registry = CommandRegistry::build_default();
-        let dialect = SpecSurface::TCL90;
+        let dialect = Some(SurfaceQuery::core(Family::Tcl, "9.0"));
 
         for (command, arguments, lowering) in [
             ("incr", &["counter"][..], LoweringHookId::Incr),
@@ -1434,7 +1436,7 @@ mod tests {
 
         for (command, arguments) in cases {
             let facts = registry
-                .resolve_invocation(command, arguments, SpecSurface::TCL91)
+                .resolve_invocation(command, arguments, Some(SurfaceQuery::core(Family::Tcl, "9.1")))
                 .unwrap_or_else(|| panic!("{command} resolves"))
                 .facts();
 
@@ -1464,7 +1466,7 @@ mod tests {
     fn clock_result_dependencies_are_selected_by_subcommand() {
         let registry = CommandRegistry::build_default();
         let seconds = registry
-            .resolve_invocation("clock", &["seconds"], SpecSurface::TCL90)
+            .resolve_invocation("clock", &["seconds"], Some(SurfaceQuery::core(Family::Tcl, "9.0")))
             .expect("clock seconds resolves")
             .facts();
         assert_eq!(seconds.result_stability, ResultStability::Volatile);
@@ -1480,7 +1482,7 @@ mod tests {
         );
 
         let add = registry
-            .resolve_invocation("clock", &["add", "0", "1", "day"], SpecSurface::TCL90)
+            .resolve_invocation("clock", &["add", "0", "1", "day"], Some(SurfaceQuery::core(Family::Tcl, "9.0")))
             .expect("clock add resolves")
             .facts();
         assert!(matches!(
@@ -1508,7 +1510,7 @@ mod tests {
                     crate::InvocationWord::Literal("proc"),
                     &arguments,
                 ),
-                SpecSurface::TCL86,
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
             )
             .resolved()
             .expect("literal proc resolves");
@@ -1551,7 +1553,7 @@ mod tests {
                     crate::InvocationWord::Literal("proc"),
                     &arguments,
                 ),
-                SpecSurface::TCL86,
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
             )
             .resolved()
             .expect("literal proc resolves despite an expanded argument");
@@ -1585,7 +1587,7 @@ mod tests {
     fn namespace_eval_and_dynamic_delete_materialise_closed_namespace_facts() {
         let registry = CommandRegistry::build_default();
         let eval = registry
-            .resolve_invocation("namespace", &["eval", "::a", "error x"], SpecSurface::TCL86)
+            .resolve_invocation("namespace", &["eval", "::a", "error x"], Some(SurfaceQuery::core(Family::Tcl, "8.6")))
             .expect("namespace eval resolves")
             .facts();
         let [ensure] = eval
@@ -1627,7 +1629,7 @@ mod tests {
                     crate::InvocationWord::Literal("namespace"),
                     &arguments,
                 ),
-                SpecSurface::TCL86,
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
             )
             .resolved()
             .expect("literal namespace delete resolves")
@@ -1649,7 +1651,7 @@ mod tests {
     fn interp_alias_query_and_delete_do_not_claim_alias_creation() {
         let registry = CommandRegistry::build_default();
         let query = registry
-            .resolve_invocation("interp", &["alias", "", "shortcut"], SpecSurface::TCL86)
+            .resolve_invocation("interp", &["alias", "", "shortcut"], Some(SurfaceQuery::core(Family::Tcl, "8.6")))
             .expect("interp alias query resolves")
             .facts();
         assert!(
@@ -1662,7 +1664,7 @@ mod tests {
         );
 
         let delete = registry
-            .resolve_invocation("interp", &["alias", "", "shortcut", ""], SpecSurface::TCL86)
+            .resolve_invocation("interp", &["alias", "", "shortcut", ""], Some(SurfaceQuery::core(Family::Tcl, "8.6")))
             .expect("interp alias delete resolves")
             .facts();
         let [transition] = delete
@@ -1690,7 +1692,7 @@ mod tests {
     fn frame_and_namespace_alias_transitions_follow_registry_layouts() {
         let registry = CommandRegistry::build_default();
         let upvar = registry
-            .resolve_invocation("upvar", &["1", "other", "local"], SpecSurface::TCL86)
+            .resolve_invocation("upvar", &["1", "other", "local"], Some(SurfaceQuery::core(Family::Tcl, "8.6")))
             .expect("upvar resolves")
             .facts();
         assert!(matches!(
@@ -1717,7 +1719,7 @@ mod tests {
             .resolve_invocation(
                 "namespace",
                 &["upvar", "::scope", "other", "local"],
-                SpecSurface::TCL86,
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
             )
             .expect("namespace upvar resolves")
             .facts();
@@ -1895,7 +1897,7 @@ mod tests {
     fn transition_coverage_replaces_only_the_duplicate_legacy_write() {
         let registry = CommandRegistry::build_default();
         let invocation = registry
-            .resolve_invocation("rename", &["old", "new"], SpecSurface::TCL86)
+            .resolve_invocation("rename", &["old", "new"], Some(SurfaceQuery::core(Family::Tcl, "8.6")))
             .expect("core registry command resolves");
         let footprint = invocation.effect_footprint();
 
@@ -1938,7 +1940,7 @@ mod tests {
     fn transition_coverage_does_not_hide_an_uncovered_variable_value_write() {
         let registry = CommandRegistry::build_default();
         let variable = registry
-            .resolve_invocation("variable", &["name", "value"], SpecSurface::TCL86)
+            .resolve_invocation("variable", &["name", "value"], Some(SurfaceQuery::core(Family::Tcl, "8.6")))
             .expect("variable resolves")
             .facts();
         assert!(

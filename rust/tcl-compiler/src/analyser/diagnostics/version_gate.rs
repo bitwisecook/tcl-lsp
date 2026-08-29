@@ -65,7 +65,6 @@ use tcl_lexer::{Span, Token, TokenType};
 use tcl_registry::deprecation::{
     DeprecationFixContext, DeprecationFixSafety, DeprecationFixTarget, DeprecationFixWord,
 };
-use tcl_registry::dialects::DialectSet;
 use tcl_registry::lifecycle::{Lifecycle, LifecycleState};
 
 use super::super::state::Analyser;

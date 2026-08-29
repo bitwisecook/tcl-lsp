@@ -24,12 +24,11 @@
 //! as a regression check that the highlighting behaviour the semantic-tokens
 //! layer depends on is preserved.
 
-use tcl_dialect::model::{SurfaceLayer, Family};
-use tcl_dialect::model::{SpecSurface};
 pub use tcl_irules::object_ref_spans;
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SurfaceLayer, Family};
     use super::object_ref_spans;
     use tcl_registry::CommandRegistry;
 

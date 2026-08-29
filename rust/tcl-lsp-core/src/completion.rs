@@ -73,7 +73,6 @@
 //! top of this provider in `tcl-lsp-server::Backend::completion`;
 //! this module is the pure-CPU computation, no I/O, no async.
 
-use tcl_dialect::model::{SurfaceLayer, Family};
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope};
 use tcl_registry::CommandRegistry;
@@ -2379,6 +2378,7 @@ fn fuzzy_command_fallback(
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SurfaceLayer, Family};
     use super::*;
     use tcl_compiler::analyser::Analyser;
 

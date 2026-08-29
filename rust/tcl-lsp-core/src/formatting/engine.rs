@@ -32,7 +32,6 @@ use tcl_lexer::{Lexer, SourceMap, Token, TokenType};
 use tcl_registry::{ArgRole, CaseListSpec, CommandRegistry, Traits};
 
 use super::config::FormatterConfig;
-use tcl_dialect::model::{SpecSurface};
 
 /// Depth cap for [`format_body`]'s (and [`format_case_list_body`]'s) recursion
 /// over nested control-flow bodies — issue #996. Reuses their existing

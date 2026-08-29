@@ -63,10 +63,8 @@
 //! than by fixed argument roles: `self …` (a nested member) and
 //! `property … -get/-set …` (flag-keyed bodies).
 
-use tcl_dialect::model::{SurfaceLayer, Family};
 use tcl_registry::definer::{DefinitionBodyGrammar, MemberKind, MemberRefKind, MemberSpec};
 use tcl_registry::{ArgRole, CommandRegistry};
-use tcl_dialect::model::{SpecSurface};
 use tcl_dialect::model::SurfaceQuery;
 
 /// The definition-body grammar for `command`'s body when it is an *outer*
@@ -475,6 +473,7 @@ fn collect_property_body_indices(args: &[&str]) -> Vec<usize> {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SpecSurface, SurfaceLayer, Family};
     use super::*;
     use tcl_registry::definer::{SNIT_GRAMMAR, TCLOO_GRAMMAR};
 

@@ -1449,6 +1449,7 @@ pub fn core_floor_surface(package: &str) -> &'static [SpecSurface] {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{Family};
     use super::*;
     use tcl_dialect::model::Version;
 

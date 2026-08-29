@@ -69,7 +69,6 @@ use std::ops::Range;
 use tcl_compiler::parsing::syntax::build::build_document;
 use tcl_compiler::parsing::syntax::segment::segments_from_document;
 use tcl_lexer::{LexerConfig, SourceMap, TokenType};
-use tcl_dialect::model::{SpecSurface};
 
 use crate::loader::{
     KNOWN_VOCABULARY_VERSIONS, NEWEST_VOCABULARY_VERSION, evaluate_pack, list_words,

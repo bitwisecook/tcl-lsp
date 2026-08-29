@@ -30,6 +30,7 @@
 //! `operators_as_commands`). These tests pin that banned surface stays banned
 //! and the retired `NON_IRULES_OPERATORS` union never creeps back as a gate.
 
+use tcl_dialect::model::{SurfaceQuery};
 use tcl_dialect::model::{SurfaceLayer, Family};
 use tcl_dialect::{DialectProfile, DialectSet, NumberSyntax, TclVersion};
 use tcl_registry::model::ingress::{
@@ -172,7 +173,7 @@ fn irules_banned_commands_lack_the_irules_bit() {
         let specs = reg.specs(banned);
         assert!(!specs.is_empty(), "{banned}: names no registered spec");
         assert!(
-            !specs.iter().any(|s| s.supports_dialect(SpecSurface::IRULES)),
+            !specs.iter().any(|s| s.supports_dialect(Some(SurfaceQuery::any_release(Family::F5Irules)))),
             "{banned}: must NOT carry the IRULES bit — a sandbox-banned \
              command is excluded from iRules by its explicit non-IRULES \
              dialect group, not by a ban list"
@@ -217,7 +218,7 @@ fn operator_heads_carry_the_trait_and_follow_the_profile_shape() {
             "{op} must not resolve under f5-irules"
         );
         assert!(
-            ireg.get_for_surface(op, SpecSurface::IRULES).is_none(),
+            ireg.get_for_surface(op, Some(SurfaceQuery::any_release(Family::F5Irules))).is_none(),
             "{op} must not resolve via a bare mask query either (§9.2)"
         );
     }
@@ -233,7 +234,7 @@ fn operator_heads_carry_the_trait_and_follow_the_profile_shape() {
             "{op} must not resolve under tcl8.4"
         );
         assert!(
-            reg84.get_for_surface(op, SpecSurface::TCL84).is_none(),
+            reg84.get_for_surface(op, Some(SurfaceQuery::core(Family::Tcl, "8.4"))).is_none(),
             "{op} must not resolve via a bare mask query either under tcl8.4"
         );
     }
@@ -520,7 +521,7 @@ fn bare_irules_mask_queries_exclude_non_irules_commands() {
     let reg = static_context_for("f5-irules").commands();
     for banned in IRULES_BANNED {
         assert!(
-            reg.get_for_surface(banned, SpecSurface::IRULES).is_none(),
+            reg.get_for_surface(banned, Some(SurfaceQuery::any_release(Family::F5Irules))).is_none(),
             "{banned}: a bare-mask query on the f5-irules registry must not \
              admit a command that lacks the IRULES bit"
         );
@@ -528,7 +529,7 @@ fn bare_irules_mask_queries_exclude_non_irules_commands() {
     // The F5 surface and iRules-enabled core still resolve through the same path.
     for ok in ["set", "pool", "when", "HTTP::header"] {
         assert!(
-            reg.get_for_surface(ok, SpecSurface::IRULES).is_some(),
+            reg.get_for_surface(ok, Some(SurfaceQuery::any_release(Family::F5Irules))).is_some(),
             "{ok} must resolve under the bare IRULES mask"
         );
     }
@@ -538,11 +539,11 @@ fn bare_irules_mask_queries_exclude_non_irules_commands() {
     let mut raw = tcl_registry::CommandRegistry::build_default();
     raw.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
     assert!(
-        raw.get_for_surface("set", SpecSurface::IRULES).is_some(),
+        raw.get_for_surface("set", Some(SurfaceQuery::any_release(Family::F5Irules))).is_some(),
         "an IRULES-tagged command resolves on a raw registry"
     );
     assert!(
-        raw.get_for_surface("exec", SpecSurface::IRULES).is_none(),
+        raw.get_for_surface("exec", Some(SurfaceQuery::any_release(Family::F5Irules))).is_none(),
         "a non-IRULES (ALL_TCL) command is excluded even on a raw registry"
     );
 }

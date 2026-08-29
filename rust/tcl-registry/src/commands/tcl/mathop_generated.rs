@@ -162,6 +162,7 @@ fn leak_slice<T>(v: Vec<T>) -> &'static [T] {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SpecSurface};
     use super::specs;
     use crate::prelude::DialectSet;
 

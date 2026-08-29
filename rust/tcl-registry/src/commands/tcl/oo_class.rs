@@ -293,6 +293,8 @@ pub fn spec() -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SurfaceQuery, Family};
+    use tcl_dialect::model::{SpecSurface};
     use crate::dialects::DialectSet;
     use crate::{
         CallbackKinds, CommandBindingTransition, CommandRegistry, ObjectDispatchKind,
@@ -304,7 +306,7 @@ mod tests {
     fn class_create_records_command_dispatch_and_independent_private_namespace() {
         let registry = CommandRegistry::build_default();
         let invocation = registry
-            .resolve_invocation("oo::class", &["create", "::C", "{}"], SpecSurface::TCL86)
+            .resolve_invocation("oo::class", &["create", "::C", "{}"], Some(SurfaceQuery::core(Family::Tcl, "8.6")))
             .expect("oo::class create must resolve");
         let transitions = invocation.state_transitions();
         assert!(
@@ -344,7 +346,7 @@ mod tests {
             .resolve_invocation(
                 "oo::class",
                 &["createWithNamespace", "::C", "::private::C", "{}"],
-                SpecSurface::TCL86,
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
             )
             .expect("createWithNamespace must resolve")
             .state_transitions();
@@ -361,10 +363,10 @@ mod tests {
     fn every_registered_metaclass_create_uses_shared_lifecycle_data() {
         let registry = CommandRegistry::build_default();
         for (metaclass, dialect) in [
-            ("oo::class", SpecSurface::TCL86),
-            ("oo::abstract", SpecSurface::TCL90),
-            ("oo::configurable", SpecSurface::TCL90),
-            ("oo::singleton", SpecSurface::TCL90),
+            ("oo::class", Some(SurfaceQuery::core(Family::Tcl, "8.6"))),
+            ("oo::abstract", Some(SurfaceQuery::core(Family::Tcl, "9.0"))),
+            ("oo::configurable", Some(SurfaceQuery::core(Family::Tcl, "9.0"))),
+            ("oo::singleton", Some(SurfaceQuery::core(Family::Tcl, "9.0"))),
         ] {
             let transitions = registry
                 .resolve_invocation(metaclass, &["create", "::C", "{}"], dialect)

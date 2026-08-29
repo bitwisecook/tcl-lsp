@@ -217,12 +217,14 @@ pub fn classify_private_tcl_namespace_call(
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SurfaceQuery, Family};
+    use tcl_dialect::model::{SpecSurface};
     use super::*;
 use crate::dialects::DialectSet;
 
     fn classify(cmd: &str) -> Option<PrivateTclNamespaceCall> {
         let registry = crate::model::ingress::static_context_for("tcl9.0").commands();
-        classify_private_tcl_namespace_call(cmd, registry, SpecSurface::TCL90)
+        classify_private_tcl_namespace_call(cmd, registry, Some(SurfaceQuery::core(Family::Tcl, "9.0")))
     }
 
     #[test]

@@ -37,8 +37,7 @@ use crate::registry::CommandRegistry;
 use crate::spec::SubSubCommand;
 use crate::spec::{CommandSpec, SubCommand};
 use crate::traits::Traits;
-use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::model::{surface_admits};
+use tcl_dialect::model::{SpecSurface, surface_admits};
 
 /// Availability queries a resolved [`DialectProfile`] answers against
 /// registry data (design doc §5.1/§5.2). Implemented for `DialectProfile`
@@ -311,7 +310,7 @@ impl LegacyProfileOracle for DialectProfile {
     fn is_subcommand_available(&self, spec: &CommandSpec, sub: &SubCommand) -> bool {
         sub.surface
             .or(spec.surface)
-            .is_none_or(|gate| gate)
+            .is_none_or(|gate| surface_admits(gate, Some(&self.surface_query())))
     }
 
     fn is_sub_subcommand_available(
@@ -325,7 +324,7 @@ impl LegacyProfileOracle for DialectProfile {
             .surface
             .or(sub.surface)
             .or(spec.surface)
-            .is_none_or(|gate| gate)
+            .is_none_or(|gate| surface_admits(gate, Some(&self.surface_query())))
             && sub_sub.available_for_version(package_version)
     }
 
@@ -357,10 +356,12 @@ impl LegacyProfileOracle for DialectProfile {
             // gate that also spans the plain Tcl versions is shared library
             // data (tcllib's complement-shaped "everywhere but the closed
             // sandboxes" gates), not the vendor's own surface.
-            if !spec
-                .surface
-                .is_some_and(|d| d.intersects(vendor) && !surface_admits(SpecSurface::ALL_TCL, Some(&d)))
-            {
+            if !spec.surface.is_some_and(|rows| {
+                rows.iter().any(|row| row.provider == vendor)
+                    && !rows
+                        .iter()
+                        .any(|row| row.provider == SpecProvider::Core(Family::Tcl))
+            }) {
                 continue;
             }
             command_count += 1;
@@ -401,7 +402,12 @@ impl LegacyProfileOracle for DialectProfile {
         let vendor = self.vendor_surface?;
         let vendor_own = spec
             .surface
-            .is_some_and(|d| d.intersects(vendor) && !surface_admits(SpecSurface::ALL_TCL, Some(&d)));
+            .is_some_and(|rows| {
+                rows.iter().any(|row| row.provider == vendor)
+                    && !rows
+                        .iter()
+                        .any(|row| row.provider == SpecProvider::Core(Family::Tcl))
+            });
         if !vendor_own {
             return None;
         }

@@ -151,6 +151,7 @@ const QUALIFIED_SPELLING_EXCLUDED: Traits = Traits::TCLOO_METHOD_CONTEXT
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SpecSurface};
     use super::*;
 
     /// tclsh 9.0.4: `info commands ::oo::Helpers::*` lists exactly

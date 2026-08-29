@@ -181,6 +181,7 @@ pub fn tmsh_syntax_transition_for(
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{Family};
     use super::*;
     use crate::invocation_words::InvocationWord;
     use tcl_dialect::model::{Version, VersionSet};

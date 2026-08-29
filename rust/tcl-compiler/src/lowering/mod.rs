@@ -27,7 +27,6 @@ use std::collections::{HashMap, HashSet};
 use tcl_lexer::TokenType;
 use tcl_registry::events::{IrulesCommandPlacement, IrulesExecutionContext};
 use tcl_registry::hooks::LoweringHookId;
-use tcl_registry::prelude::DialectSet;
 use tcl_registry::{ArgRole, CommandRegistry};
 
 use crate::alias::{
@@ -39,7 +38,6 @@ use crate::ir::{
 use crate::lowering_hooks::{ArgTokenKind, LoweringCommand, try_lower_hook};
 use crate::naming::normalise_var_name;
 use tcl_dialect::model::{surface_admits};
-use tcl_dialect::model::{SpecSurface};
 use crate::segmenter::{
     SegmentedCommand, segment_commands, segment_commands_with_offset_and_config,
 };

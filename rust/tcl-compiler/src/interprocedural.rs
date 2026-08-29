@@ -23,7 +23,6 @@
 //! `InterproceduralAnalysis`) plus the call-target resolver, which
 //! plug into the side-effect classifier and the SCCP evaluator.
 
-use tcl_dialect::model::{SurfaceLayer, Family};
 use std::collections::{HashMap, HashSet};
 
 pub use tcl_registry::Arity;
@@ -2819,10 +2818,10 @@ fn compute_transitive_calls(root: &str, local: &HashMap<String, LocalFacts>) -> 
 }
 
 use crate::side_effects::classify_side_effects;
-use tcl_dialect::model::{SpecSurface};
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SurfaceLayer, Family};
     use super::*;
 
     fn known_set(names: &[&str]) -> HashSet<String> {
@@ -3931,6 +3930,7 @@ mod tests {
 
 #[cfg(test)]
 mod effect_propagation_tests {
+    use tcl_dialect::model::{SurfaceLayer, Family};
     use super::*;
     use crate::lowering::lower_to_ir;
     use tcl_dialect::DialectSet;

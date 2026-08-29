@@ -35,7 +35,6 @@ use crate::cfg::{BlockId, CfgModule, Function as CfgFunction, Terminator};
 use crate::ir::{NodeId, Provenance, SourceSite, Statement};
 use crate::side_effects::{EffectRegion, classify_side_effects};
 use crate::ssa::{SsaFunction, SsaStatement};
-use tcl_dialect::model::{SpecSurface};
 
 // Expression-key alias
 
@@ -2118,6 +2117,7 @@ pub fn find_loop_invariants_for_cu(
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SpecSurface};
     /// The default document's `${…}` close rule — these unit tests build no
     /// dialect profile, so they exercise the same style the lexer would use.
     const STYLE: tcl_dialect::BracedVarStyle = tcl_dialect::BracedVarStyle::Tcl9Nesting;

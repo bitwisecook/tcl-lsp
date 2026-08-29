@@ -3006,6 +3006,8 @@ pub fn render_pack_reporting_with_version(
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::surface;
+    use tcl_dialect::model::{SpecSurface, Family};
     use super::*;
     use serde_json::json;
 

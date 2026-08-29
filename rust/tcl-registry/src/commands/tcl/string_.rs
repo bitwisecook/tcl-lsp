@@ -1761,6 +1761,8 @@ pub fn spec() -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SurfaceQuery, Family};
+    use tcl_dialect::model::{SpecSurface};
     use super::fold_is;
     use crate::dialects::DialectSet;
     use crate::hooks::TclVersion;
@@ -2098,7 +2100,7 @@ mod tests {
     #[test]
     fn string_length_dispatch_uses_only_irreducible_live_domains() {
         let registry = CommandRegistry::build_default();
-        for dialect in [SpecSurface::TCL86, SpecSurface::TCL90] {
+        for dialect in [Some(SurfaceQuery::core(Family::Tcl, "8.6")), Some(SurfaceQuery::core(Family::Tcl, "9.0"))] {
             let facts = registry
                 .resolve_invocation("string", &["length", "value"], dialect)
                 .expect("string length resolves")

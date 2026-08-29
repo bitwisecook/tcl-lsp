@@ -33,7 +33,6 @@
 
 use std::sync::LazyLock;
 
-use tcl_dialect::DialectSet;
 use tcl_registry::side_effects::SideEffectTarget;
 use tcl_registry::taint::{TaintColour, TaintColourAtom};
 use tcl_registry::traits::{Trait, Traits};

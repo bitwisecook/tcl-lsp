@@ -44,7 +44,6 @@
 //! `tcl-lsp-server::Backend::hover`; this module is the pure-CPU
 //! computation, no I/O, no async.
 
-use tcl_dialect::model::{SurfaceLayer, Family};
 use tcl_dialect::model::{SurfaceQuery};
 use tcl_dialect::model::{surface_admits};
 use std::collections::HashMap;
@@ -3862,6 +3861,7 @@ fn oo_resolution_note_for_provider(
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SpecSurface, SurfaceLayer, Family};
 
     use super::*;
     use tcl_compiler::analyser::Analyser;

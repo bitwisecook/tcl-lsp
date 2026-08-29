@@ -12,6 +12,7 @@
 //! facts which do not have a Tcl callback shape at all (notably iRulesLX
 //! remote dispatch) or whose value has an intentionally ambiguous shape.
 
+use tcl_dialect::model::{surface_admits};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::fs;
