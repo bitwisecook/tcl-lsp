@@ -632,7 +632,7 @@ fn dict_get_key(body: &str, at: usize, after: usize) -> Option<String> {
 /// Resolve a name the way the **target dialect** resolves it.
 ///
 /// The mask comes from the threaded dialect name through the one ingress
-/// seam ([`crate::environment::analyser_mask_for_dialect`]) rather than
+/// seam ([`crate::environment::analyser_point_for_dialect`]) rather than
 /// being read back off the generation's profile *stamp*, so this no longer
 /// depends on the stamp surviving. Same answer: the store handed in here is
 /// the one built for that same name.
@@ -646,7 +646,10 @@ fn shipped<'r>(
     name: &str,
     dialect: &str,
 ) -> Option<&'r CommandSpec> {
-    registry.get_for_surface(name, crate::environment::analyser_mask_for_dialect(dialect))
+    registry.get_for_surface(
+        name,
+        Some(crate::environment::analyser_point_for_dialect(dialect)),
+    )
 }
 
 /// A warning when the target dialect's shipped registry already defines this

@@ -39,7 +39,7 @@
 //! Run `cargo xtask gen-zed-queries` to (re)write the files; `--check` verifies
 //! the committed files match, exiting non-zero on drift.
 
-use tcl_dialect::model::{SpecProvider};
+use tcl_dialect::model::{SpecProvider, surface_provided_by};
 use tcl_dialect::model::{Family};
 use std::collections::BTreeSet;
 use std::fs;
@@ -259,7 +259,7 @@ fn classify(
 /// bucket in this file, each already scoped per-`DialectSet` via
 /// [`classify`] — never included the iRules word operators (`contains`,
 /// `matches_regex`, …) for the `irules` target at all.
-fn operator_spellings(surface: &'static [SpecSurface]) -> BTreeSet<String> {
+fn operator_spellings(providers: &'static [SpecProvider]) -> BTreeSet<String> {
     tcl_syntax::expr::operators::ALL_BIN_OPS
         .iter()
         .map(|op| op.spec())
@@ -268,7 +268,7 @@ fn operator_spellings(surface: &'static [SpecSurface]) -> BTreeSet<String> {
                 .iter()
                 .map(|op| op.spec()),
         )
-        .filter(|spec| spec.surface.is_none_or(|d| d.intersects(dialects)))
+        .filter(|spec| spec.surface.is_none_or(|rows| surface_provided_by(rows, providers)))
         .map(|spec| spec.spelling.to_owned())
         .collect()
 }
@@ -299,9 +299,9 @@ fn render(
     context: &ResolvedContext,
     providers: &'static [SpecProvider],
 ) -> String {
-    let b = classify(reg, context, dialects);
+    let b = classify(reg, context, providers);
     let (literal_ops, word_ops): (BTreeSet<String>, BTreeSet<String>) =
-        operator_spellings(dialects)
+        operator_spellings(providers)
             .into_iter()
             .partition(|op| GRAMMAR_LITERAL_OPERATOR_TOKENS.contains(&op.as_str()));
     format!(
@@ -499,7 +499,7 @@ mod tests {
         let b = classify(
             reg,
             crate::environment::context_for_dialect("tcl"),
-            SpecSurface::TK_AND_TCL,
+            &[SpecProvider::Core(Family::Tcl), SpecProvider::Package("Tk")],
         );
         assert!(
             b.builtin.len() > 100,
@@ -519,18 +519,20 @@ mod tests {
     fn irules_surface_exceeds_plain_tcl() {
         // Loading the iRules dialect must add the F5 command surface on top of
         // core Tcl — the whole point of dialect scoping.
-        let tcl_dialects = SpecSurface::TK_AND_TCL;
-        let irules_dialects = SpecSurface::ALL_TCL_AND_IRULES;
+        let tcl_providers: &[SpecProvider] =
+            &[SpecProvider::Core(Family::Tcl), SpecProvider::Package("Tk")];
+        let irules_providers: &[SpecProvider] =
+            &[SpecProvider::Core(Family::Tcl), SpecProvider::Core(Family::F5Irules)];
         let tcl = classify(
             registry_for(crate::environment::profile_for_dialect("tcl")),
             crate::environment::context_for_dialect("tcl"),
-            tcl_dialects,
+            tcl_providers,
         )
         .total();
         let irules = classify(
             registry_for(crate::environment::profile_for_dialect("f5-irules")),
             crate::environment::context_for_dialect("f5-irules"),
-            irules_dialects,
+            irules_providers,
         )
         .total();
         assert!(
@@ -546,7 +548,7 @@ mod tests {
     /// other bucket in this file, each already scoped per-`DialectSet`.
     #[test]
     fn operator_spellings_are_dialect_scoped_and_complete() {
-        let tcl_ops = operator_spellings(SpecSurface::TK_AND_TCL);
+        let tcl_ops = operator_spellings(&[SpecProvider::Core(Family::Tcl), SpecProvider::Package("Tk")]);
         for op in ["lt", "le", "gt", "ge", "!", "~", "eq", "ne", "in", "ni"] {
             assert!(tcl_ops.contains(op), "tcl: missing {op:?}: {tcl_ops:?}");
         }
@@ -566,7 +568,7 @@ mod tests {
             );
         }
 
-        let irules_ops = operator_spellings(SpecSurface::ALL_TCL_AND_IRULES);
+        let irules_ops = operator_spellings(&[SpecProvider::Core(Family::Tcl), SpecProvider::Core(Family::F5Irules)]);
         for op in [
             "contains",
             "starts_with",

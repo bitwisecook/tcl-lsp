@@ -475,11 +475,12 @@ mod tests {
         assert!(!profile.is_fallback());
         assert!(profile.hosts_tk());
         // The retired `availability_for_name` validator's answer, taken
-        // from the resolved environment's document authoring mask.
+        // from the resolved environment's document authoring point.
         assert!(
             crate::environment::context_for_dialect("tk")
                 .authoring_query()
-                .contains(SpecSurface::TK)
+                .packages
+                .contains(&"Tk")
         );
     }
 

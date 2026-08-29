@@ -135,7 +135,7 @@ fn discover_registry_rows() -> Result<Vec<InventoryRow>> {
     Ok(rows
         .into_values()
         .map(|mut row| {
-            row.id = format!("{}@{}", row.id, row.surface.join("+"));
+            row.id = format!("{}@{}", row.id, row.dialects.join("+"));
             row
         })
         .collect())
@@ -635,12 +635,12 @@ fn insert_row(
     // separate row and remains visible in the report.
     let key = serde_json::to_string(&candidate)?;
     if let Some(existing) = rows.get_mut(&key) {
-        if !existing.surface.iter().any(|item| item == dialect) {
-            existing.surface.push(dialect.to_owned());
-            existing.surface.sort();
+        if !existing.dialects.iter().any(|item| item == dialect) {
+            existing.dialects.push(dialect.to_owned());
+            existing.dialects.sort();
         }
     } else {
-        candidate.surface.push(dialect.to_owned());
+        candidate.dialects.push(dialect.to_owned());
         rows.insert(key, candidate);
     }
     Ok(())
@@ -834,7 +834,7 @@ fn render_markdown(rows: &[InventoryRow]) -> String {
             row.id.replace('|', "\\|"),
             row.kind,
             row.timing,
-            row.surface.join(", "),
+            row.dialects.join(", "),
             row.appended_arity.as_deref().unwrap_or("—"),
             taint,
             forms,

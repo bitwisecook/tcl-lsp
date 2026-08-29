@@ -69,16 +69,14 @@ pub fn context_for_dialect(name: &str) -> &'static ResolvedContext {
 }
 
 /// The availability mask the **analyser** ingress gives a dialect name —
-/// the exact twin of the retired resolver's `availability_mask` read,
 /// resolved through the seam rather than read back off a registry
 /// generation's profile *stamp*.
 ///
-/// Deliberately not the document authoring mask: it sinks `tk` to the
-/// permissive fallback's mask instead of adding the additive `TK` bit,
-/// which is what the collision check in [`crate::spectcl`] has always
-/// compared under. Ledger C1 (post-P1-G): the mask itself is
-/// `DialectSet` plumbing and goes when the profile does.
-pub fn analyser_mask_for_dialect(name: &str) -> tcl_dialect::DialectSet {
+/// Deliberately not the document authoring point: it sinks `tk` to the
+/// permissive fallback's point instead of adding the `Tk` package, which
+/// is what the collision check in [`crate::spectcl`] has always compared
+/// under.
+pub fn analyser_point_for_dialect(name: &str) -> tcl_dialect::model::SurfaceQuery<'static> {
     tcl_registry::model::resolve_environment(name)
         .analyser_profile()
         .surface_query()

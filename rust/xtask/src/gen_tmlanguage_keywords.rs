@@ -122,6 +122,7 @@
 //! Run `cargo xtask gen-tmlanguage-keywords` to (re)write the files;
 //! `--check` verifies the committed files match, exiting non-zero on drift.
 
+use tcl_dialect::model::{SurfaceQuery, Family};
 use std::collections::BTreeSet;
 use std::fs;
 use std::process::ExitCode;
@@ -301,7 +302,7 @@ fn lexical_regexes() -> LexicalRegexes {
 /// `#any-of?` lists) assume is inherently safe to embed literally.
 fn classify(reg: &CommandRegistry) -> Buckets {
     let mut b = Buckets::default();
-    let dialects = SpecSurface::ALL_TCL;
+    let dialects = Some(SurfaceQuery::any_release(Family::Tcl));
 
     for name in reg.command_names() {
         if name == util::DISABLED_SENTINEL || CONTEXT_SENSITIVE_EXCLUDE.contains(&name) {

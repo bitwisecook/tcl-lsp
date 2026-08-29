@@ -23,6 +23,7 @@
 //! `cargo xtask registry-oracle --irules-root /path/to/bigip-extract`; pass
 //! `--check --output ...` to verify a checked-in or CI-produced report.
 
+use tcl_dialect::model::{SurfaceQuery, surface_admits, Family};
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::fs;
@@ -357,7 +358,9 @@ fn irule_command_names(registry: &tcl_registry::CommandRegistry) -> BTreeSet<&st
             registry
                 .get(name)
                 .and_then(|spec| spec.surface)
-                .is_some_and(|dialects| dialects.contains(SpecSurface::IRULES))
+                .is_some_and(|rows| {
+                    surface_admits(rows, Some(&SurfaceQuery::any_release(Family::F5Irules)))
+                })
         })
         .collect()
 }

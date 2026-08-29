@@ -48,6 +48,7 @@
 //! command that is neither backed nor classified (a genuinely new gap) or any
 //! stale classification entry (a name no longer in the registry, or now backed).
 
+use tcl_dialect::model::{SurfaceQuery, Family};
 use tcl_dialect::model::{surface_admits};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
@@ -486,8 +487,9 @@ fn core_commands() -> BTreeSet<String> {
         .iter()
         .filter(|s| s.required_package.is_none())
         .filter(|s| {
-            s.surface
-                .is_none_or(|d| surface_admits(SpecSurface::TCL90_PLUS, Some(&d)))
+            s.surface.is_none_or(|rows| {
+                surface_admits(rows, Some(&SurfaceQuery::core(Family::Tcl, "9.0")))
+            })
         })
         .map(|s| s.name.to_string())
         .collect()
