@@ -80,9 +80,10 @@
 //! source-keyed half of the dynamic state is **replaced**. A source that
 //! is no longer in the set retires with the rebuild; a source that is
 //! still there re-registers idempotently. One malformed source does not
-//! disable the rest: each is validated as it is added and a rejected one
-//! is reported by id and dropped, which is what keeps one broken
-//! workspace pack from taking every other pack's environments with it.
+//! disable the rest: the set is validated whole, the source that breaks
+//! it is reported by id and dropped, and the rest register — which is
+//! what keeps one broken workspace pack from taking every other pack's
+//! environments with it.
 //! The anonymous channel is untouched by a sync, and vice versa.
 
 use std::sync::{Arc, Mutex, OnceLock};
@@ -439,6 +440,24 @@ fn declared_ids(sources: &[EnvironmentSource]) -> Vec<String> {
         .collect()
 }
 
+/// Which source to drop from a candidate set that breaks a rule.
+///
+/// The set is what failed, but [`SyncOutcome::rejected`] must name a file,
+/// so this asks each source in turn whether the rest assemble without it.
+/// Latest first: when two sources break a rule only together — two packs
+/// claiming one name — the earlier one keeps its claim, the same
+/// first-wins order discovery already implies.
+///
+/// `None` means no single source explains the failure, and the caller
+/// stops rather than shrinking the set towards empty.
+fn culprit(state: &DynamicState, candidates: &[EnvironmentSource]) -> Option<usize> {
+    (0..candidates.len()).rev().find(|&index| {
+        let mut trial = candidates.to_vec();
+        trial.remove(index);
+        assemble(&state.definitions, &state.extensions, &trial, 0).is_ok()
+    })
+}
+
 /// Replace the source-keyed half of the live registry with `sources`.
 ///
 /// The channel a **republished set** uses: workspace pack discovery hands
@@ -447,8 +466,8 @@ fn declared_ids(sources: &[EnvironmentSource]) -> Vec<String> {
 /// re-register idempotently, and a source that has gone (a deleted pack)
 /// retires with the rebuild.
 ///
-/// Never fails as a whole. Each source is validated as it is added, and
-/// one that breaks a rule is reported in [`SyncOutcome::rejected`] and
+/// Never fails as a whole. The candidate set is validated whole and the
+/// source that breaks it is reported in [`SyncOutcome::rejected`] and
 /// dropped while the rest register: a single malformed workspace pack
 /// must not take every other pack's environments down with it. A set
 /// identical to the registered one is a no-op, generation included, so a
@@ -458,15 +477,20 @@ pub fn sync_environment_sources(sources: Vec<EnvironmentSource>) -> SyncOutcome 
     let state = STATE.get_or_init(|| Mutex::new(DynamicState::default()));
     let mut state = state.lock().expect("environment registration lock");
 
-    let mut accepted: Vec<EnvironmentSource> = Vec::new();
+    let mut accepted = sources;
     let mut rejected: Vec<RejectedSource> = Vec::new();
-    for source in sources {
-        let id = source.id.clone();
-        accepted.push(source);
-        if let Err(error) = assemble(&state.definitions, &state.extensions, &accepted, 0) {
-            accepted.pop();
-            rejected.push(RejectedSource { source: id, error });
-        }
+    // The candidate set is validated whole, never source by source: an
+    // `-extend` may name a base a *later* source declares, and which of
+    // the two pack discovery reached first must not decide whether the
+    // pair loads.
+    while let Err(error) = assemble(&state.definitions, &state.extensions, &accepted, 0) {
+        let Some(index) = culprit(&state, &accepted) else {
+            break;
+        };
+        rejected.push(RejectedSource {
+            source: accepted.remove(index).id,
+            error,
+        });
     }
 
     let before = declared_ids(&state.sources);
@@ -504,10 +528,9 @@ pub fn sync_environment_sources(sources: Vec<EnvironmentSource>) -> SyncOutcome 
             }
         }
         Err(error) => {
-            // Unreachable: every accepted source assembled cleanly above,
-            // and `generation` is the only thing that changed. Keep the
-            // live registry rather than panicking on a rule the loop
-            // already proved holds.
+            // Reachable only when the base registrations themselves break
+            // a rule, which no candidate can repair. Keep the live registry
+            // and report the rule against no source, rather than panicking.
             rejected.push(RejectedSource {
                 source: String::new(),
                 error,
@@ -685,6 +708,93 @@ mod tests {
             resolve_environment("tcl8.6").definition.provenance,
             Provenance::BuiltIn
         );
+    }
+
+    /// A reload's facts reach the `&'static` promotion: the leak map keys
+    /// on the registry generation, so a re-registered environment is not
+    /// still answered from the pre-reload assembly.
+    #[test]
+    fn a_reload_refreshes_the_promoted_static_view() {
+        let _syncing = SYNCING
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let ambient = |ambient: bool| EnvironmentSource {
+            id: "sync-reload-pack".to_owned(),
+            definitions: vec![EnvironmentDefinition {
+                expected_packages: vec![PackagePlacement {
+                    package: arc("RegistrationProbe"),
+                    version: Placement::Keyed(KeyedAxis::ToolVersion),
+                    ambient,
+                }],
+                ..definition("sync-reload-env", Provenance::User)
+            }],
+            extensions: Vec::new(),
+        };
+
+        let _ = sync_environment_sources(vec![ambient(true)]);
+        assert!(
+            crate::model::static_document_context_for("sync-reload-env")
+                .placement_is_ambient("RegistrationProbe")
+        );
+
+        let _ = sync_environment_sources(vec![ambient(false)]);
+        assert!(
+            !crate::model::static_document_context_for("sync-reload-env")
+                .placement_is_ambient("RegistrationProbe"),
+            "the promotion served the pre-reload generation"
+        );
+
+        let _ = sync_environment_sources(Vec::new());
+    }
+
+    /// A pack may extend an environment another pack declares, whichever
+    /// order discovery hands the two over in.
+    #[test]
+    fn a_cross_source_extension_does_not_depend_on_discovery_order() {
+        let _syncing = SYNCING
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let extender = EnvironmentSource {
+            id: "sync-extender-pack".to_owned(),
+            definitions: Vec::new(),
+            extensions: vec![EnvironmentExtension {
+                base: "sync-extended-env".to_owned(),
+                file_extensions: Vec::new(),
+                filenames: vec![arc("sync-cross-source.tcl")],
+                content_signatures: Vec::new(),
+                placements: Vec::new(),
+                provenance: Provenance::User,
+            }],
+        };
+        let declarer = EnvironmentSource {
+            id: "sync-declarer-pack".to_owned(),
+            definitions: vec![definition("sync-extended-env", Provenance::User)],
+            extensions: Vec::new(),
+        };
+
+        for order in [
+            vec![extender.clone(), declarer.clone()],
+            vec![declarer, extender],
+        ] {
+            let ids: Vec<String> = order.iter().map(|source| source.id.clone()).collect();
+            let outcome = sync_environment_sources(order);
+            assert!(
+                outcome.rejected.is_empty(),
+                "{ids:?} rejected {:?}",
+                outcome.rejected
+            );
+            assert!(
+                live_environments()
+                    .resolve("sync-extended-env")
+                    .is_some_and(|definition| definition
+                        .server_detection
+                        .filenames
+                        .iter()
+                        .any(|name| name.as_ref() == "sync-cross-source.tcl")),
+                "{ids:?} lost the extension"
+            );
+            let _ = sync_environment_sources(Vec::new());
+        }
     }
 
     /// An untrusted extension of a compiled base is refused; a trusted one

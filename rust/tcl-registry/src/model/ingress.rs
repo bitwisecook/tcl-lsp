@@ -348,22 +348,24 @@ pub fn context_for_profile(profile: &DialectProfile) -> Arc<ContextRegistry> {
     resolve_environment(profile.name).default_context_registry()
 }
 
-/// Every environment id whose un-overlaid generation has been promoted to
-/// a `&'static` view. The value is a leaked *clone of the generation
-/// handle*, not a second assembly, so the `&'static` and the `Arc` name one
-/// allocation and cannot drift apart.
-static LEAKED_GENERATIONS: OnceLock<Mutex<FxHashMap<String, &'static ContextRegistry>>> =
+/// Every `(environment id, registry generation)` whose un-overlaid
+/// generation has been promoted to a `&'static` view. The value is a
+/// leaked *clone of the generation handle*, not a second assembly, so the
+/// `&'static` and the `Arc` name one allocation and cannot drift apart.
+static LEAKED_GENERATIONS: OnceLock<Mutex<FxHashMap<(String, u64), &'static ContextRegistry>>> =
     OnceLock::new();
 
 /// The un-overlaid, default-keyed generation for `name` as a `&'static`.
 ///
-/// The exact analogue of [`crate::cache::registry_for_profile`]'s
-/// promotion, and sound for the same two reasons: the un-overlaid
-/// generation axis is a closed set (compiled environments), and the
-/// generation cache retains every overlay-`0` entry unconditionally, so
-/// these entries are resident for the process by design. The promotion
-/// leaks a clone of the generation's `Arc` — eight bytes per environment —
-/// never a copy of the assembly.
+/// The analogue of [`crate::cache::registry_for_profile`]'s promotion,
+/// but keyed on the environment's *registry generation* as well as its
+/// id, because the environment axis is not the closed set the profile
+/// axis was: a pack declaring an `environment` block registers, and a
+/// reload re-registers, so an id-keyed promotion would serve the
+/// pre-reload placements and detection facts until restart. The
+/// generation only moves when a sync actually changes the registry, so
+/// the promotion still leaks a clone of the generation's `Arc` — eight
+/// bytes — never a copy of the assembly, and only per real reload.
 ///
 /// This is what lets the LSP providers keep their `&'static` registry
 /// ergonomics while their *ingress* moves to the environment model: the
@@ -373,11 +375,12 @@ static LEAKED_GENERATIONS: OnceLock<Mutex<FxHashMap<String, &'static ContextRegi
 #[must_use]
 pub fn static_context_for(name: &str) -> &'static ContextRegistry {
     let environment = resolve_environment(name);
+    let key = (environment.id().to_owned(), environment.identity.generation);
     let leaked = LEAKED_GENERATIONS.get_or_init(|| Mutex::new(FxHashMap::default()));
     if let Some(view) = leaked
         .lock()
         .expect("generation leak map mutex")
-        .get(environment.id())
+        .get(&key)
         .copied()
     {
         return view;
@@ -386,11 +389,11 @@ pub fn static_context_for(name: &str) -> &'static ContextRegistry {
     // drops, exactly as the old registry promotion resolves the same race.
     let handle = environment.default_context_registry();
     let mut guard = leaked.lock().expect("generation leak map mutex");
-    if let Some(view) = guard.get(environment.id()).copied() {
+    if let Some(view) = guard.get(&key).copied() {
         return view;
     }
     let leaked_handle: &'static Arc<ContextRegistry> = Box::leak(Box::new(handle));
-    guard.insert(environment.id().to_owned(), leaked_handle);
+    guard.insert(key, leaked_handle);
     leaked_handle
 }
 
