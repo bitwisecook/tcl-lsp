@@ -187,7 +187,7 @@ What type the variables the command *writes* receive, when that is not the same 
 
 *command only* — Algorithm that types a call whose result shape moves with the call.
 
-Names the algorithm that types a call whose result *kind* depends on how the command was called — `regexp` counts matches but `regexp -inline` returns a list of the matched substrings, and `regsub` returns a replacement count until its `varName` is omitted and it returns the substituted string instead. The rule is a program rather than a table because the switches interact: `lsearch -inline` beats `-subindices`. Pick an existing hook only if it really describes this command; a new one needs an arm in `tcl_registry::return_type`. Leave it unset unless the result shape really moves — a wrong type here is worse than none.
+Names the algorithm that types a call whose result *kind* depends on how the command was called — `regexp` counts matches but `regexp -inline` returns the matched substrings instead, and `regsub` returns a replacement count until its `varName` is omitted and it returns the substituted string instead. The rule is a program rather than a table because the switches interact: `lsearch -inline` beats `-subindices`. An algorithm names a type only where the intrep is guaranteed and answers "unknown" otherwise, so some forms stay untyped even though their documented result is a list. Pick an existing hook only if it really describes this command; a new one needs an arm in `tcl_registry::return_type`. Leave it unset unless the result shape really moves — a wrong type here is worse than none.
 
 ### `return_elements` — Return elements
 
@@ -1245,7 +1245,7 @@ Whether a keyword table accepts any unique prefix (`string le` for `string lengt
 
 ### Return-type hooks
 
-Compiler internals: the algorithm that types a call whose result *kind* moves with the call (`regexp -inline` is a list where a bare `regexp` is a match count). A hook rather than a declarative table because the switches interact — `lsearch -inline` beats `-subindices`. The static `return_type` should always be tried first.
+Compiler internals: the algorithm that types a call whose result *kind* moves with the call (`regexp -inline` returns the matched substrings where a bare `regexp` returns a match count). A hook rather than a declarative table because the switches interact — `lsearch -inline` beats `-subindices`. The static `return_type` should always be tried first.
 
 | Value | Meaning |
 |---|---|

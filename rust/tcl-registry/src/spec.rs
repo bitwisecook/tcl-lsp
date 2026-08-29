@@ -1368,8 +1368,8 @@ pub struct CommandSpec {
     /// Return type of the command.
     ///
     /// One fact per command — the result of the shape the command is usually
-    /// called in. A command whose result *kind* moves with the call declares
-    /// names the algorithm in [`Self::return_type_hook`], which wins over this.
+    /// called in. A command whose result *kind* moves with the call names the
+    /// algorithm in [`Self::return_type_hook`], which wins over this.
     pub return_type: Option<TclType>,
 
     /// Names the algorithm that types a call whose result shape moves with
