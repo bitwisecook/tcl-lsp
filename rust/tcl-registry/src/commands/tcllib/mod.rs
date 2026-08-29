@@ -268,6 +268,8 @@ mod text_misc;
 mod web_asn;
 
 use crate::model::tcllib::core_floor_surface;
+#[cfg(test)]
+use crate::model::tcllib::tcllib_module;
 use crate::spec::CommandSpec;
 use tcl_dialect::model::{SpecSurface};
 

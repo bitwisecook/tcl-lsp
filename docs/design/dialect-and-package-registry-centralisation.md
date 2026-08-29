@@ -166,10 +166,10 @@ retirement rows.
   drift gate, however, is a 240-byte grep window that cannot see a second
   availability rule, a second binding table, or a hardcoded name set —
   all three exist (ledger C7, C2, C11).
-- Hook selection is dialect-blind by construction
-  (`DialectSet::empty()` → `get()`), in the analyser-hook path, lowering
-  hooks, and lsp-db's per-proc compile. *(P1a: retired — the selection
-  primitives require the environment binding proof; ledger C3/B8.)*
+- Hook selection is surface-blind by construction, in the analyser-hook
+  path, lowering hooks, and lsp-db's per-proc compile. *(P1a: retired —
+  the selection primitives require the environment binding proof; ledger
+  C3/B8.)*
 - Three "known command" oracles disagree: settlement uses the unfiltered
   registry name set, W123 uses profile-filtered resolution,
   W002's known-anywhere uses a hardcoded 11-pack list — so settlement
@@ -237,12 +237,12 @@ retirement rows.
   (document close/reopen on change) — structurally incompatible with the
   fixed contributed-identity ruling (B7); it must switch to a generic
   contributed identity with the environment tracked out of band.
-- The `spec-author` skill instructs authors to declare `speclib … 1.1` —
-  one vocabulary behind the loader, producing wrong instructions today,
-  refreshed to 2.0 in P2.
+- ~~The `spec-author` skill instructs authors to declare `speclib … 1.1`,
+  one vocabulary behind the loader.~~ **Done**: it declares 2.0 and lists
+  what 2.0 added.
 - The TMM simulator's `_registry_data.tcl` (2,086 lines) is orphaned —
   its generator was retired with Python — and encodes a frozen
-  "tcl8.4 minus f5-irules" `DialectSet` subtraction; it joins the two
+  "tcl8.4 minus f5-irules" subtraction; it joins the two
   already-generated simulator assets under `gen-irule-test-data`.
 - `ai/prompts/manifest.json` keys Tk guidance to the five Tcl releases
   because `tk` has no profile; once `tk` is an environment the manifest
@@ -276,13 +276,12 @@ user-facing change rather than a refactor (§11's D15).
 recorded rather than glossed:** "the migration is done when every ledger
 row's retired mechanism no longer exists in the tree". The mechanisms that
 still exist are exactly the rows above without a **done**. **C1's
-executable-IR half has since landed** (§11.2 D1): the `DialectSet` residue
-behind the semantic-analysis bundle, the executable IR, the world-state SSA
-and the WASM/BPF bridges is gone, and the salsa lexer-config truncation
-(§11.4 E1) went with it. What C1 still holds open is the interned
+executable-IR half landed** (§11.2 D1) and **its bitmask half is gone**
+(Q13): the type is deleted from the tree and held at zero by the
+retired-api gate, so availability is stated as `SpecSurface` rows and
+asked as a `SurfaceQuery` point. What C1 still holds open is the interned
 `DialectProfile` the *lexer* is keyed on — §11.2 D5, and with it a
-pack-declared dialect's ability to lex — plus F8's key types and T11's
-`grammar_union`, which read the surviving authoring mask.
+pack-declared dialect's ability to lex — plus F8's key types.
 
 **Status: P1-G (the deletion phase) is done.** After the P1-F waves left
 every production ingress on the seam, the remaining test-fixture call
@@ -319,10 +318,7 @@ APIs were then removed:
   ids, never user strings); the named handles `plain_tcl`/`irules`/`tk`
   (interned-statics accessors the seam itself consumes — not name
   validators); `registry_for_profile_with_overlay` (the loader door
-  only `tcl-spectcl` writes); `DialectSet::parse` (no name-ingress
-  caller left — the unit build's `semantic_dialect_set`, its last consumer
-  on the analysis path, is gone with C1's re-key; the projections that
-  remain are registry-internal mask derivations); `tcl_lsp_core::registry_for_dialect`
+  only `tcl-spectcl` writes); `tcl_lsp_core::registry_for_dialect`
   (the crate's own wave-2 seam wrapper, not the retired cache door).
 - **The zero-reference gate**: `cargo xtask retired-api-gate` (wired
   into `make xtask-check`) fails on any code-line reintroduction of the
@@ -335,7 +331,7 @@ APIs were then removed:
   the falsified `f5-iapps`/`f5-tmsh` rows now carry the `f5-tcl` trunk
   facts — `GRAMMAR_F5_TCL` (R-rules, N-rules, inert `{*}`, 8.4
   numerals; the same value `f5-irules` selects), `TCL84|vendor`
-  availability masks, 8.4 version ceiling/signature/runtime/expr bases
+  availability points, 8.4 version ceiling/signature/runtime/expr bases
   and VM pin, `operators_as_commands: false` (`::tcl::mathop` measured
   absent). The `f5_reclassified_oracle` twin the parity sweeps carried
   is deleted — the sweeps compare the corrected rows directly.
@@ -358,7 +354,7 @@ doors, the server's `Backend::registry_for_dialect`, the editor
 language-id ingress, and both configuration validators go through it too.
 Availability, option, subcommand, keyed-range and placement-floor
 questions are answered by `ResolvedContext`, not `ProfileQueries` — under
-the **document authoring mask**
+the **document authoring point**
 (`DocumentEnvironment::document_authoring_mask`), which equals the
 threaded profile's `availability_mask` for every profile an ingress can
 produce and is test-pinned to it, so the `tk` ingress keeps the additive
@@ -393,7 +389,7 @@ as `registry_for_profile_if_built` did — each generation's command store
 is the old cache's `(profile, overlay)` `Arc`, shared by handle), and
 answers command/subcommand/option availability, keyed version ranges,
 and profile-pin/pack-ambient floors through `ResolvedContext`'s query
-surface, whose derived facts (authoring mask, ceiling, operator-head
+surface, whose derived facts (authoring point, ceiling, operator-head
 rule, placements, floors) are sweep-pinned to the old profile's answers
 for every catalogue environment. `availability_for_name`'s `TK` union
 became the resolved-environment fact, and **P3 finished the move**: it is
@@ -401,8 +397,8 @@ now `ResolvedContext::ambient_package("Tk")` — a placement query on the
 walk's own generation, not the environment's name — carried on the
 analyser as `tk_ambient` (was `tk_dialect`), so any environment that
 declares Tk ambient activates the Tk checks and silences W120 without
-being spelled `tk`. The hook-path
-`DialectSet::empty()` bypasses route through the model's
+being spelled `tk`. The surface-blind hook-path
+bypasses route through the model's
 `resolve_call_in_context` / `resolve_invocation_in_context` primitives
 (context-carrying, selection unchanged — the `// P1a:` seam naming
 invariant I4), and `side_effects.rs`'s hand-rolled selection retired
@@ -442,9 +438,9 @@ as widening **zero** hint selections.
 
 | # | Retired mechanism | Replacement | Phase |
 |---|---|---|---|
-| C1 | `DialectSet` + unions, `availability_for_name`, `TK_PROFILE`/`tk()` synthesis, `DIALECT_BITS`/`BIT_ONLY_LABELS` | `VersionSet` declarations + environments; optional internal `FamilySet` fast path | P1 **executable-IR half done (C1 completion wave, §11.2 D1)** *(`availability_for_name` was deleted in P1-G and nothing synthesises `TK_PROFILE` from names. The residue P1a surveyed — `SemanticAnalysisBundle`'s `dialect: DialectSet` field, its `unavailable(DialectSet::empty())` constructors, the `semantic_dialect_set` name→bit projection `tcl-lsp-db` shared, `build_linear_executable_ir(registry, dialect, …)` and the world-state SSA it keys, and `bpf-tcl-ir`'s `semantic_bridge` — is **gone**, re-keyed in one change onto `tcl_registry::model::semantic::SemanticContext`, a `Copy` generation-bound handle on the interned `&'static ContextRegistry` for one resolved environment. A `ResolvedContext` **value** was rejected as the key: it is neither `Eq` nor `Copy`, and the bundle is a salsa-memoised field of every `FunctionUnit`, so a per-unit clone and deep compare on every keystroke would breach principle P-B; the handle's pointer equality **is** environment identity and it carries the availability view and the generation's command store together. The selection primitive is C7/I4's own — `resolve_structured_invocation_in_context` is the structured-words face of `assembly::resolve_invocation_in_context`, same binding proof — so no second selection rule was introduced. The WASM and BPF bridges, the memory SSA, the common AOT plan and the Explorer/CLI deep-analysis doors moved with it, and `DialectUnavailable { dialect }` became the payload-free `ContextUnavailable`. The selection primitives' own `DialectSet::empty()`/authoring-mask arguments are now internal to the I4 proof. **What is left of C1** is the row's other half: the interned `DialectProfile` the *lexer* is keyed on (`LexerConfig::for_dialect`), which is §11.2 D5 — the bits themselves survive only as the authoring mask a `ResolvedContext` derives and the store's internal index, which this row's target column licenses. Full record: `docs/design/lanes/c1-executable-ir-rekey.md`)* |
-| C2 | The six divergent dialect-name validators (incl. `special_vars::resolve_dialect`, raw `DialectSet::parse`) | `Environment::resolve` | P1 **done (P1-G)** *(`by_name`, `by_opt_name`, `resolve_known` and `availability_for_name` are deleted from the tree — test fixtures ported to the seam, the lower-crate compat name boundaries inline the find-then-plain-sink resolution (F8/C12 retire the boundaries themselves) — and `DialectSet::parse` has no name-ingress caller left (its remaining uses are C1 projections of canonical profile names). `special_vars::resolve_dialect` is deleted too (its production callers already threaded profiles through `dialect_set_for_profile`); the `retired-api-gate` holds the set at zero)* |
-| C3 | `resolve_call`/`resolve_legacy_call_selection`'s `dialect.is_empty() → get()` bypass and its callers (analyser hooks, lowering hooks, lsp-db) | binding-proof-gated `InvocationSpecId` selection (I4) | **done (P1a)** *(the primitives enforce the proof: with a context, the head resolves through `ResolvedContext::resolve_spec` and sub/form gating runs under the authoring mask; the analyser-hook, lowering-hook, and type-infer callers thread real contexts, `lsp-db` holds no bypass of its own, and each remaining `invocation_traits(…, empty)` reader is a documented conservative **widening** query, never hook selection)* |
+| C1 | `DialectSet` + unions, `availability_for_name`, `TK_PROFILE`/`tk()` synthesis, `DIALECT_BITS`/`BIT_ONLY_LABELS` | `VersionSet` declarations + environments | **done, in two waves.** The *executable-IR* wave (§11.2 D1) re-keyed the semantic-analysis bundle, the executable IR, the world-state and memory SSA, the common AOT plan, the WASM and BPF bridges and the Explorer/CLI deep-analysis doors onto `tcl_registry::model::semantic::SemanticContext` — a `Copy` generation-bound handle on the interned `&'static ContextRegistry` for one resolved environment, whose pointer equality *is* environment identity. (A `ResolvedContext` value was rejected as the key: neither `Eq` nor `Copy`, and the bundle is a salsa-memoised field of every `FunctionUnit`, so a per-unit clone and deep compare on every keystroke would breach principle P-B.) The *bitmask* wave (Q13) deleted the type itself: availability is stated as `SpecSurface` rows and asked as a `SurfaceQuery` point, and `retired-api-gate` holds `DialectSet` at zero. **What is left of C1** is the row's other half: the interned `DialectProfile` the *lexer* is keyed on (`LexerConfig::for_dialect`), which is §11.2 D5. Full record of the first wave: `docs/design/lanes/c1-executable-ir-rekey.md` |
+| C2 | The six divergent dialect-name validators (incl. `special_vars::resolve_dialect`, raw `DialectSet::parse`) | `Environment::resolve` | **done (P1-G)** *(`by_name`, `by_opt_name`, `resolve_known`, `availability_for_name` and `special_vars::resolve_dialect` are deleted from the tree — test fixtures ported to the seam, the lower-crate compat name boundaries inline the find-then-plain-sink resolution (F8/C12 retire the boundaries themselves). `DialectSet::parse` went with the type (Q13). The `retired-api-gate` holds the set at zero)* |
+| C3 | `resolve_call`/`resolve_legacy_call_selection`'s `dialect.is_empty() → get()` bypass and its callers (analyser hooks, lowering hooks, lsp-db) | binding-proof-gated `InvocationSpecId` selection (I4) | **done (P1a)** *(the primitives enforce the proof: with a context, the head resolves through `ResolvedContext::resolve_spec` and sub/form gating runs at the authoring point; the analyser-hook, lowering-hook, and type-infer callers thread real contexts, `lsp-db` holds no bypass of its own, and each remaining `invocation_traits(…, empty)` reader is a documented conservative **widening** query, never hook selection)* |
 | C4 | `head_identity.rs` (parallel offset-keyed binding table, 20+ consumers) | realm `BindingKnowledge` | **done (P1a)** *(module deleted; the scan and its offset-keyed facts are the realm command-binding state — `tcl_compiler::realm::CommandBindingRealm`, spec-keyed `Spec`/`TakenOver`/`Deleted` facts with a `knowledge_at` `BindingKnowledge` view composing document facts over the environment under the world policy; all 35 consumer files ported; the `retired-api-gate` holds `head_identity`/`HeadIdentityMap`/`HeadIdentity`/`command_head_identities` at zero)* |
 | C5 | `KnownPredicateCtx`'s unfiltered `builtin_command_names()` and the settlement-vs-W123 oracle split | the one `exists` oracle (R-c) | **done (P1a)** *(`builtin_command_names` is the oracle's registry tier — context-resolved names plus the §4b iRules extension — and W123's `w123_registry_known_names` reads the same cached set, so settlement, const-dispatch, W113 and W123 share one answer; the enumerated delta: settlement no longer believes in environment-disabled commands, pinned by `builtin_command_names_caches_per_dialect`)* |
 | C6 | The analyser's ad-hoc alias/rename/delete tables + `indirection.rs`'s bounded link walk as settlement inputs | `state_transition.rs`-fed realm state (which already carries the vocabulary) | P1a/one-vocabulary *(partial: the tables now feed the one oracle — `command_binding_knowledge` is their sole W123-class reader, and the realm module owns the top-level scan — and since the one-vocabulary lane they are **populated from** `CommandBindingTransition` facts rather than from a second destructuring of their own (`alias.rs`'s `detect_rename` / `detect_interp_alias` / `detect_interp_alias_delete` are deleted), so they are indexes over the one vocabulary, not a parallel derivation. What remains is the **typing**: `command_aliases`, `renamed_commands`, `deleted_commands` and the offset maps are still `AnalysisResult`-shaped values rather than `state_transition.rs`-shaped ones, and `indirection.rs` walks them in that form. Re-typing them reaches ~30 files across `tcl-lsp-core`'s navigation providers — definition, references, rename, hover, minify, workspace-index — which is a lane of its own)* |
@@ -472,14 +468,13 @@ rather than a validator: `profile_for_dialect` (`resolve_environment(…)
 constructors), `store_for_profile` / `store_for_dialect` (the generation's
 command store, replacing `registry_for_profile` /
 `registry_for_dialect`), and `surface_mask` (the resolved environment's
-**document authoring mask**, replacing the direct `availability_mask`
-reads). Both engines resolve mask *and* store once per profile pin and
-cache them on the interpreter, because the builtin-surface gate is
+**document authoring point**, replacing the direct `surface_query`
+reads). Both engines resolve the point *and* the store once per profile
+pin and cache them on the interpreter, because the builtin-surface gate is
 consulted on every command resolution and the generation lookup takes a
-lock where the retired mask read was a field read. `codegen_abi`'s three
-raw `DialectSet::parse` ingresses — the backends' last — become
-`resolve_known_environment`, keeping the fail-closed decline rather than
-falling through to the lenient environment's permissive mask.
+lock. `codegen_abi`'s three raw name ingresses — the backends' last —
+become `resolve_known_environment`, keeping the fail-closed decline rather
+than falling through to the lenient environment's permissive point.
 
 Behaviour is unchanged by construction: the only names these crates
 accept are the closed release set `TclVersion::dialect_profile_name`
@@ -487,7 +482,7 @@ spells plus the fixed `f5-irules`/`tk`/`expect`/`f5-iapps` projection
 targets, whose environments are their same-named catalogue entries; the
 generation's store is the very `Arc` the old `(profile, overlay)` cache
 owns (profile stamp included, which the Zed projection reads back); and
-the document authoring mask is test-pinned equal to the threaded
+the document authoring point is test-pinned equal to the threaded
 profile's `availability_mask` for every profile an ingress can produce.
 The generator `--check` modes are the gate. The old APIs this left for
 other crates are now deleted — see the P1-G status at the head of this
@@ -495,7 +490,7 @@ section.
 
 | # | Retired mechanism | Replacement | Phase |
 |---|---|---|---|
-| B1 | Duplicated `builtin_command_visible_for_surface`/`profile_admits_registry_builtin` in both engines | one shared availability query over declarations | P1 *(partial: both engines' gates now read a per-environment generation and its document authoring mask, resolved once at pin time through the seam — no `by_name`, `registry_for_profile` or `availability_mask` read left in either engine's dispatch path. The **duplication** is what remains: the two bodies still differ because the two engines carry different command tables and different "unknown to the registry" rules, so collapsing them onto one declaration-level query is an engine-contract change, not an ingress port)* |
+| B1 | Duplicated `builtin_command_visible_for_surface`/`profile_admits_registry_builtin` in both engines | one shared availability query over declarations | P1 *(partial: both engines' gates now read a per-environment generation and its document authoring point, resolved once at pin time through the seam — no `by_name`, `registry_for_profile` or direct profile read left in either engine's dispatch path. The **duplication** is what remains: the two bodies still differ because the two engines carry different command tables and different "unknown to the registry" rules, so collapsing them onto one declaration-level query is an engine-contract change, not an ingress port)* |
 | B2 | Both engines' hardcoded 12-name `UNSAFE` (+ platform) safe-interp lists | `Traits::SAFE_INTERP_HIDDEN` (already 14 specs) queried generically | **done** (command half) — `tcl_registry::safe_interp_hidden_commands()` is the one generic query; both `make_safe`s call it and narrow by what the interpreter carries. The `UNSAFE_PLATFORM` scrub stays a name list under `TODO(ledger B2-platform)`: `special_vars` models `tcl_platform`'s keys but has no "scrubbed when made safe" flag, so driving it needs a `SpecialVarKey` field, not a query. See the measured-evidence subsection below. |
 | B3 | VM's hand-typed 37-name mathfunc registration and 27-op `mathops!` macro | derived tables (as the runtime already does) | **done** — the VM registers `tcl_syntax::expr::mathfunc::all()` and every `mathop_shape` spelling from `expr::operators`, each behind one fn pointer that reads the op off the invoked word. This added the 21-name TIP 745 batch to the VM (listed below); the bodies already existed in `dispatch_with_backend`, only the command bindings were missing. |
 | B4 | `TCL_PATCH_LEVEL`/`"9.0.4"` literals behind `package provide Tcl` and `tcl::build-info` | the pinned core release as provider (§3.2) | **done** — `TclVersion::core_provided_packages()` and `tcl_dialect::build_info` are the single tables; both engines re-derive their pre-provided core packages on every profile pin and compose `::tcl::build-info` from `TclVersion::patchlevel()`. `patchlevel()`'s 9.1 entry is now the measured `9.1b0`. |
@@ -660,8 +655,8 @@ this section.
 | T7 | Studio's `DIALECT_BITS` editor, dialect-string APIs, `SOURCE_DIALECT_KEY`, dialect-as-language-id client | provider/`VersionSet` editing, environment ids, generic contributed LSP identity (B7) | P2 *(unchanged in substance by wave 4: the studio's `Builtins::for_dialect`, its command browser, the corpus scanner and the pack registry all resolve through the seam — `catalogue_dialect_or_default` is the `find(…).map_or("tcl9.0", …)` twin — but the DIALECT_BITS editor and the dialect-string APIs are the payload this row retires)* |
 | T8 | `render_spectcl`'s `is_dialect_set` conflation of availability with `safe_on_uninit`/`two_arg_optionless_dialects` | distinct spellings per gap ruling R4 | P2 |
 | T9 | `spec-author` skill's 1.1 instructions | 2.0 refresh (words, `dialect` blocks, `available`, upgrade workflow) | P2 |
-| T10 | `callback-surfaces` `name@dialect+dialect` row ids (and the `.chain(tk())` special case) | environment/provider-keyed ids; one-shot regeneration | P1 *(unchanged in substance by wave 3: `callback_inventory`'s ingress and registry access now go through the seam — the `tk` arm is `profile_for_dialect("tk")` and `visible_in` is the resolved environment's document authoring mask, replacing `resolve_known(…).unwrap_or(plain_tcl).availability_mask` — but the row ids and the `.chain(…)` enumeration are the payload this row retires, and re-keying them regenerates the committed JSON, so it stays open)* |
-| T11 | `gen_zed_queries`'s `grammar_union`/`TK_AND_TCL` inputs; `gen_editor_catalogs`/`gen_tmlanguage_keywords`'s `ALL_TCL` bit filters | declaration-derived fast paths | P1 *(unchanged in substance by wave 3: `gen_zed_queries`'s four targets are now `profile_for_dialect(id)` and its store is the environment's generation, but the `grammar_union` mask it projects under is `DialectSet` plumbing (row C1) and stays until P1-G. Its ambient-package filter reads the generation's profile **stamp**, the same `is_ambient_package` hold wave 2 left in the LSP, marked `// P1-G:` at the site)*. **Wave 4 cleared that hold**: each target now carries its canonical environment id, `classify` takes the target's `ResolvedContext`, and the filter asks `placement_is_ambient` — the stamp read is gone and `--check` is byte-identical. The `grammar_union` mask stays (row C1). |
+| T10 | `callback-surfaces` `name@dialect+dialect` row ids (and the `.chain(tk())` special case) | environment/provider-keyed ids; one-shot regeneration | P1 *(unchanged in substance by wave 3: `callback_inventory`'s ingress and registry access now go through the seam — the `tk` arm is `profile_for_dialect("tk")` and `visible_in` is the resolved environment's document authoring point — but the row ids and the `.chain(…)` enumeration are the payload this row retires, and re-keying them regenerates the committed JSON, so it stays open)* |
+| T11 | `gen_zed_queries`'s `grammar_union`/`TK_AND_TCL` inputs; `gen_editor_catalogs`/`gen_tmlanguage_keywords`'s `ALL_TCL` filters | declaration-derived fast paths | **done.** Each target carries its canonical environment id, `classify` takes the target's `ResolvedContext`, and the ambient-package filter asks `placement_is_ambient` rather than reading a profile stamp; `--check` is byte-identical. `grammar_union` survives as the deliberately coarse first-paint over-approximation — a list of providers now, not a mask — which §10 licenses: precise per-release correctness is the semantic-token layer's job |
 | T12 | AI manifest's release-keyed Tk fragment; prompt loader's alias-blind `dialects[]` check | environment-keyed manifest; alias-resolved loading | P1 *(partial after wave 4: the manifest's catalogue-membership gate resolves through the seam (`resolve_environment(name).catalogue_profile()`, the exact `DialectProfile::find` twin); the release-keyed Tk fragment and the runtime prompt loader are the payload and stay)* |
 | T13 | Every hand-maintained projection found (Sublime map; the orphaned simulator data) | generated + drift-gated (rule 1.1) | P1 |
 
@@ -726,9 +721,9 @@ unregenerated. Each is in the redesign's §11.
   `tclpkg.tcl` whole-file command environment is an
   environment-with-detection-facts (filename-keyed) whose surface is a
   pack, not a hardcoded Rust table.
-- **R4 — non-availability `DialectSet` fields do not translate to
+- **R4 — non-availability surface fields do not translate to
   `available`.** `safe_on_uninit` ("reading this uninitialised variable
-  is safe in these dialects") and `two_arg_optionless_dialects` are
+  is safe in these dialects") and `two_arg_optionless_surface` are
   behaviour predicates keyed by core profile; they gain their own 2.0
   spellings resolved through the environment alias table, and the
   renderer stops conflating them with availability.

@@ -92,10 +92,10 @@ packs fails closed rather than degrading silently (§6.1). There are **no
 Rust-side compatibility shims**: the tk triangle,
 `availability_for_name`'s union, `LanguageDialect::Set` and
 `registry_for_dialect_profile` are **deleted, not wrapped** — and held
-there by `cargo xtask retired-api-gate`. `TK_PROFILE` and the `DialectSet`
-bits survive, not as shims but as the interned catalogue the lexer is still
-keyed on and the authoring mask a `ResolvedContext` derives — retirement-ledger
-row **C1**'s residue. The **executable-IR half of C1 is done** (§11's D1): the
+there by `cargo xtask retired-api-gate`. `TK_PROFILE` survives, not as a
+shim but as the interned catalogue the lexer is still keyed on —
+retirement-ledger row **C1**'s residue. `DialectSet` is gone entirely
+(Q13). The **executable-IR half of C1 is done** (§11's D1): the
 semantic-analysis bundle, the executable IR, the world-state SSA and the WASM
 and BPF bridges are keyed on a resolved environment, and the lexer key with
 them (§11.4 E1). What is left of C1 is the *lexer's* interned
@@ -744,11 +744,10 @@ new native file type where the host cannot register one.
   the dynamism note above — unlike the loaded `CommandSpec`s, which stay
   leaked-static.
 - **Policy absorbs the last profile stragglers**: `has_fixed_ensembles`,
-  the iApps W108 strict-ASCII rule (today keyed on `vendor_bit ==
-  IAPPS`), the version ceiling, and closed-world resolution (§5.3). The
-  tcllib-excluded-from-iApps rule stops being a subtractive
-  `DialectSet::all().difference(IRULES | IAPPS)` on the tcllib pack and
-  becomes "the `f5-iapps` environment is closed over its ambient set".
+  the iApps W108 strict-ASCII rule, the version ceiling, and closed-world
+  resolution (§5.3). The tcllib-excluded-from-iApps rule stopped being a
+  subtraction on the tcllib pack and became "the `f5-iapps` environment is
+  closed over what it ships and what the document required" (Q7).
 
 ## 4. Availability: catalogue declarations, version sets, and binding knowledge
 
@@ -997,11 +996,10 @@ three `WorldPolicy` values exist and `ResolvedContext::package_provider_active`
 — the **carrier** question, "does something here actually provide this?" —
 distinguishes all three. `ResolvedContext::package_active` — the
 **availability** question — currently distinguishes only `Closed` from
-not-`Closed`, so `ambient-only-plus-require` resolves hosted packages as
-leniently as `open` does. The consequence is real and named in §11 (E2):
-the tcllib-excluded-from-iApps rule is *still* the subtractive
-`DialectSet::all().difference(IRULES | IAPPS)` in
-`commands/tcllib/mod.rs`, not the policy, and it retires with ledger C1.
+`Open`, so `ambient-plus-require` reads its own name: an iApp gets its
+ambient closure plus what the source required, and a hosted pack it never
+required is absent. The tcllib-excluded-from-iApps rule is that policy
+now, not a subtraction in `commands/tcllib/mod.rs` (Q7).
 The Tk pilot is what exercises the rest from one package — ambient under
 `tk`, leniently visible under every `open` plain-Tcl environment, refused
 under `closed`. The `open`
@@ -1133,7 +1131,7 @@ byte-identical to before (pinned by
   on and `primary` (every assistance answer) is untouched. Two remainder
   queries answer the checks: `targets_outside_window(axis, introduced,
   retired)` for lifecycle-spelled items and `targets_uncovered_by_gate`
-  for `DialectSet`-mask-spelled ones (via `surface::tcl_core_set`), with
+  for surface-spelled ones (via `surface::core_tcl_set`), with
   `requirement_spelling` / `ladder_releases_in` naming the failing
   targets in messages.
 - **Targets grammar** (working ruling, R6's directive half): clauses are
@@ -1294,9 +1292,9 @@ maximally.
   `option_conflict`. Providers are `tcl RANGE`, `f5-irules`, `jim RANGE`,
   and `package NAME ?RANGE?`, with `RANGE` in Tcl requirement syntax
   (`8.6-`, `8.4-9.0`, or a bare `8.5` naming that release line only).
-  Translation is **new → old**: a row is projected onto the same
-  `DialectSet` + `required_package` the legacy word feeds, so a body
-  spelled either way loads to a byte-equal `CommandSpec`
+  Translation is **new → old**: a row is projected onto the same surface
+  rows + `required_package` the legacy word feeds, so a body spelled
+  either way loads to a byte-equal `CommandSpec`
   (`available_and_dialects_load_byte_equal_specs`). `f5-bigip` in an
   `available` row is an error (Q3). Legacy `dialects` is untouched.
 - **`environment NAME { … }`** — `core`, `ambient`, `hosted`, `alias`,
@@ -1456,10 +1454,8 @@ way to it.** What actually went: `resolve_known`, `availability_for_name`,
 `registry_for_dialect_profile`, `profile_for_dialect`'s hop,
 `LanguageDialect::{Profile,Set}`, `head_identity.rs`, the six divergent
 validators, and `side_effects.rs`'s hand-rolled selection — all deleted
-and held at zero by `cargo xtask retired-api-gate`. What is still standing
-in this list: `DialectSet` itself (bits and combinators — no longer behind
-the semantic-facts bundle, which D1 re-keyed, but still the authoring mask a
-`ResolvedContext` derives and the store's internal index),
+and held at zero by `cargo xtask retired-api-gate`. `DialectSet` has since
+joined them (Q13). What is still standing in this list:
 `DialectProfile` with `PLAIN_TCL` and `TK_PROFILE`
 as interned statics the seam consumes, `KNOWN_DIALECTS` as the directive
 and CLI vocabulary, and `ProfileQueries` narrowed to `pub(crate)`. All of
@@ -1617,10 +1613,9 @@ gates on (adopted verbatim from the review):
   identity (name, label, Tk library pins) while `analyser_profile()` sinks
   to the permissive fallback — the analyser-vs-unit asymmetry P3 ruled
   **permanent and narrowed to catalogue identity alone**. It retires with
-  the interned `DialectProfile`, ledger C1. Two further things P1 did not
-  finish, both in §11: the `DialectSet` residue behind the semantic-facts
-  bundle (C1 again) and the *payload* halves of the tooling rows
-  (T1/T3/T4/T6/T7 — the user-visible enumerations and enums).
+  the interned `DialectProfile`, ledger C1. What P1 did not finish is in
+  §11: the *payload* halves of the tooling rows (T1/T3/T4/T6/T7 — the
+  user-visible enumerations and enums).
 - **P1a — realm state.** Integrate `state_transition.rs` with provider
   candidates: package transitions, safe interpreters, import/alias/rename
   effects, and the one shared name resolver produce `BindingKnowledge`;
@@ -1973,13 +1968,12 @@ gates on (adopted verbatim from the review):
     *surface* only: every lexical and expr axis is Jim's own, and the
     test asserts the two grammars differ. `provider_active` walks the
     edge, the resolved context takes an 8.6 point primary on the Tcl
-    axis, and the derived authoring mask is the 8.6 line, so `set`, `if`,
+    axis, and the derived authoring point is the 8.6 line, so `set`, `if`,
     `proc`, `lassign`, `lmap` and `dict` resolve for a jim document out
     of the shared catalogue. The generalisation paid for itself
     immediately: the registry's lineage walk lost its `if ancestor ==
-    Tcl { F5_FORK_POINT }` special case and the authoring mask lost its
-    per-family `DialectSet::TCL84` hardcode — both now read
-    `Ancestry::anchor`.
+    Tcl { F5_FORK_POINT }` special case and the authoring point lost its
+    per-family 8.4 hardcode — both now read `Ancestry::anchor`.
   - **`--minimal` is a real `BuildProfileId`, and the build axis is
     semantic twice over.** `BuildProfileId::{JimFull, JimMinimal}` carry
     measured capability records: `--minimal` compiles out `JIM_UTF8`
@@ -2106,8 +2100,8 @@ gates on (adopted verbatim from the review):
     three. `coroutine`, `trace`, `yield`, `yieldto`, `chan`, `encoding`,
     `fblocked`, `fcopy`, `unload`, `case`, `unknown`, `tclLog` and the
     five `auto_*` procs are gone from it; the 84 Jim really has still
-    resolve through the one edge. See the Q6 row in §10.1 for the half
-    that waits on Q13.
+    resolve through the one edge. Q13 has since made Jim's own additions
+    expressible too.
 - **P7 — irules surface pack-expression (optional, deferred).** Requires
   the seven words + `event_requires` draft-model fix; the dialect
   (grammar, structure) and closed-world policy stay compiled regardless.
@@ -2266,13 +2260,13 @@ is the place to look for outstanding work.
 | Q4 selection UX | **Re-ruled 2026-08-28 (§10.1): family + release pickers in editors.** The generated *names* stay flat (`tcl8.6`, `jim0.82`) — the 2026-08-27 "stick to tcl8.4/8.5/8.6/9.0/9.1" ruling settled identity, and this one is about presentation. What changes is the editor catalogues' grouping; §11 |
 | Q5 iRules pack-expression (P7) | **Ruled ▸ deferred**, and deliberately not done. See P7's status |
 | Q6 family surface composition | **Re-ruled 2026-08-28 (§10.1): `include from`, and jim's surface authored as SpecTcl** — not the ▸ multi-row-availability alternative. **Built.** `include from SOURCE into TARGET` is the word the ruling added, and `rust/tcl-spectcl/core-surfaces/jim.tclspec` is its first roster: the ancestry edge is now a carrier, not an answer, and the measured seventeen-head over-admission is closed. Jim's own additions still wait on **Q13** — see §10.1 |
-| Q7 strictness defaults | **Owner deferred to the evidence 2026-08-28 ("whatever is correct"), read as: keep the three defaults and finish the two unfinished halves.** All three `WorldPolicy` values exist and `package_provider_active` distinguishes all three, but the *availability* query `package_active` treats `AmbientPlusRequire` exactly like `Open`, and the tcllib-excluded-from-iApps rule is still the subtractive `DialectSet` difference §3.3 says it stops being — which is Q13 work too; §11 |
+| Q7 strictness defaults | **Owner deferred to the evidence 2026-08-28 ("whatever is correct"), read as: keep the three defaults and finish the two unfinished halves. Both are done.** `package_active` now answers `AmbientPlusRequire` literally — an iApp gets its ambient closure plus what it required, and nothing else — and tcllib's exclusion from the F5 shells is a positive statement plus environment membership, not a subtraction |
 | Q8 require position sensitivity | **Settled by review B2/H5** — the assistance/semantic split is typed and enforced — **and the residual UX default is now ruled (owner, 2026-08-28: on by default) and built** as `H301`; §10.2 has the restatement the ruling answered |
 | Q9 tcllib depth and shipping | **Re-ruled 2026-08-28 (§10.1): windows back to 1.17, bundled, and it stays Rust with version discrimination — not per-module packs.** The earlier ▸ ruling's numbers were also wrong: P5 read the census from tcllib 2.0 and found **200** independently versioned modules, not 135, of which seven ship genuine parallel trains. The "windows derived back to 1.17" half did **not** happen — the census is 2.0-only — and this re-ruling reinstates it; §11 |
 | Q10 jim branch sequencing | **Ruled ▸ rebase first, and that is what P6 did.** The branch `claude/jimtcl-dialect-rust-5q48z8` is still unmerged; P6 rebuilt the model's jim support from the upstream sources instead of from the branch |
 | Q11 speclib numbering | **Ruled ▸ yes and shipped.** `NEWEST_VOCABULARY_VERSION` is `2.0`, `VOCABULARY_VERSION` bumped once, `dialects`/`ambient_package` are documented-legacy spellings, and B13's fail-closed classes ride with it |
 | Q12 invocation refinement | **Ruled ▸ the declarative descriptor, and shipped** as `refine NAME { … }`; Tk's form sites round-trip |
-| Q13 `DialectSet` residue | **Confirmed 2026-08-28: delete outright**, with no `FamilySet` kept as an internal optimisation. `DialectSet::parse` has no name-ingress caller and the bits are no longer an ingress vocabulary, but the type survives behind the semantic-facts bundle (ledger C1); §11 |
+| Q13 `DialectSet` residue | **Confirmed 2026-08-28: delete outright**, with no `FamilySet` kept as an internal optimisation. **Done**: the type is gone from the tree and held at zero by the retired-api gate. Availability is *stated* as `SpecSurface` rows and *asked* as a `SurfaceQuery` point |
 | Q14 keyed version UX | **Ruled ▸ CLI/config knobs, unchanged.** `--bigip-version` / `--tool-version` still set environment placement floors; no per-package override was added |
 | Q15 primary target default | **Open.** P1b explicitly deferred explicit `primary` selection for multi-target projects — the primary is the environment's, and a declared range never moves it; §11 |
 | Q16 range diagnostics shape | **Ruled ▸ a dedicated family, and it shipped**: W150 (not available across the range) and W151 (numeral-grammar divergence) |
@@ -2300,14 +2294,14 @@ above is history. Q15–Q25 were not re-put and are unchanged.
 | Q3 | **`spectcl` and `bpf` stay compiled** — as Rust catalogue profiles, not pack-declared environments. `f5-bigip` off the Tcl axis stands | Confirms the shipped state and closes U3's "cannot yet carry membership" as *deliberate* rather than pending |
 | Q4 | **Family + release pickers in editors.** Reverses "flat per-release names everywhere" for the *picker UX* | The generated names stay flat (`tcl8.6`, `jim0.82`) — that is what the 2026-08-27 "stick to tcl8.4/8.5/8.6/9.0/9.1" ruling settled, and it is about identity, not presentation. What changes is the editor catalogues' **grouping** |
 | Q5 | **Confirmed: deferred**, and the dialect stays compiled | P7 stays not-done, deliberately |
-| Q6 | **`include from`, and jim's surface authored as SpecTcl.** Not the ▸ multi-row-availability alternative | **Shipped**, in the half that does not need Q13. The word is built and Jim's roster — 84 names, measured from a built `jimsh` at all nine tags — is authored as `SpecTcl` and compiled in, so the over-admitting `Ancestry` edge is filtered: seventeen heads a `jim` document used to be offered (`coroutine`, `trace`, `yield`, `yieldto`, `chan`, `encoding`, …) are gone, and the shared surface still resolves through the one edge rather than 76 re-authored specs. Jim's own **additions** (`loop`, `range`, `lsubst`, `alias`, …) are the half that waits: a spec cannot say `Core(jim)` while `CommandSpec.dialects` is a `DialectSet` with no Jim bit, so they are **absent rather than wrong** — the safe direction — until **Q13** deletes the type |
-| Q7 | **"Whatever is correct"** — the owner defers to the evidence | Taken as: keep the three defaults, and finish the two halves the outcome row says are unfinished — make `AmbientPlusRequire` load-bearing in `package_active`, and replace the subtractive `DialectSet` difference for tcllib-in-iApps with the environment-membership form §3.3 describes. That second half is also Q13 work |
+| Q6 | **`include from`, and jim's surface authored as SpecTcl.** Not the ▸ multi-row-availability alternative | **Shipped.** The word is built and Jim's roster — 84 names, measured from a built `jimsh` at all nine tags — is authored as `SpecTcl` and compiled in, so the over-admitting `Ancestry` edge is filtered: seventeen heads a `jim` document used to be offered (`coroutine`, `trace`, `yield`, `yieldto`, `chan`, `encoding`, …) are gone, and the shared surface still resolves through the one edge rather than 76 re-authored specs. Q13 unblocked the other half: a spec can now say `{jim 0.81-}`, so Jim's own additions are expressible from a pack |
+| Q7 | **"Whatever is correct"** — the owner defers to the evidence | **Shipped**, both halves: `package_active` reads `AmbientPlusRequire` literally, and tcllib's exclusion from the F5 shells is a positive statement plus environment membership. The require gate had two encodings — a lowering-time filter and the context's own rule — and now has one, so the declaration path and the spec path cannot drift |
 | Q8 | **Restated (§10.2) and then ruled: the hint is on by default** | Built as `H301` — a Hint-severity, default-on assistance diagnostic, disjoint from W120. Closes ledger O6 |
 | Q9 | **Windows back to tcllib 1.17; bundled; and it stays Rust with version discrimination** — *not* per-module packs | Reinstates the "windows derived back to 1.17" half that P5 did not do (its census is 2.0-only). Overrides the ▸ per-module-pack half |
 | Q10 | **Confirmed: rebase first** | Already what P6 did. With Q6 authoring jim as SpecTcl, the unmerged `claude/jimtcl-dialect-rust-5q48z8` branch is superseded rather than merged |
 | Q11 | **Confirmed: 2.0**, legacy words readable forever, one `VOCABULARY_VERSION` bump | Shipped; no work |
 | Q12 | **Confirmed: the declarative descriptor** | Shipped as `refine`; ledger D2 closed |
-| Q13 | **Confirmed: delete `DialectSet` outright** — no `FamilySet` kept as an internal optimisation | Finishes ledger C1's residue: the type survives behind the semantic-facts bundle and must go |
+| Q13 | **Confirmed: delete `DialectSet` outright** — no `FamilySet` kept as an internal optimisation | **Shipped.** A row says which provider over which windows; a point says which family at which release with which packages. Two latent bugs fell out of separating them: `available {tcl 8.5}` was lowering to an open-ended run rather than the single release, and the `tk` profile's own Tk fact had nowhere to live |
 | Q14 | **Confirmed: environment knobs**, no `--package-version NAME=V` | Shipped; no work |
 
 ### 10.2 Q8, restated
@@ -2559,7 +2553,7 @@ declined to make and named precisely rather than working around.
 | D14 | **Ledger T9 — the `spec-author` skill.** `ai/claude/skills/spec-author/SKILL.md` still instructs authors to declare `speclib <name> 1.1` and describes 1.1 as the newest vocabulary | Every pack a model or a human authors from the skill is two majors stale, and will not carry `available`, `environment`, `dialect`, `provides` or `include` | Refresh the skill for 2.0: the new words, `dialect` blocks, the `available` algebra, and the upgrade workflow |
 | D15 | **The tooling payload rows** (ledger T1, T3, T4, T6, T7, F9, F12/T13, B10, B11, T10, T12). Every *ingress* moved onto the seam; the *user-visible* payloads did not — the CLI's `--dialect` possible values, the MCP `dialect_schema` enum, the studio picker, `registry-dump --all-dialects`, `listDialects`, `callback-surfaces` row ids, the hand-written Sublime `_SYNTAX_DIALECT_MAP`, `_registry_data.tcl`, and the hardcoded `tcl8.6` defaults | Environment names becoming the user-facing vocabulary — which is also what ruling R9's KCS "Applies-to" regeneration waits on, and what defect §9.5 (`# tcl-dialect: tk`) needs | Each is a deliberate user-visible surface change: re-key the payload, regenerate the artefact, and accept the diff. They were held because a name change is not a refactor |
 | D16 | **The per-distinct-profile reference evaluator** (§5.4, review B10). P1b shipped two token-local detectors (lifecycle windows, numerals) — the only pair §5.4 licenses without the reference. The reference itself was not built | Every other range axis: escapes, `${a{b}c}`, expr comments and operators, `{*}`, the leading-BOM rule, differential constant folding at the endpoints, `package require` satisfiability per target, numerals *inside* compound `expr` bodies, and the W151 fix-its | Build the multi-profile evaluation, then admit each per-pair detector only after the differential corpus/fuzz gate proves it equivalent |
-| D17-J | **Jim's own commands cannot be declared.** Q6's roster says which of *Tcl's* names Jim has; it cannot say `loop`, `range`, `lsubst`, `alias`, `local`, `upcall`, `xtrace`, `ref`/`getref`/`setref`, `timerate`, the `os.*` and `json::*` rows, or the arithmetic command forms `+ - * /` — 74 heads measured across the ladder. `declarations_for_spec` can only reach `Provider::Core(Jim)` through the `dialects: None` translation, which means *every* family, so a Jim-only spec is unexpressible: `CommandSpec.dialects` is a `DialectSet` with no Jim bit, and one bit could not carry a `{jim 0.81-}` window anyway | Jim's additions are **absent** for a `jim` document — the safe direction (an unknown head is a hint, not a wrong answer), but assistance the model has the evidence for and cannot offer | **Q13** — deleting `DialectSet` and giving `CommandSpec` real declaration rows. The roster mechanism, the evidence and the pack are already in place; only the representation is missing. A secondary residue rides along: `binary` and `zlib` are on the roster unconditionally although `--minimal` compiles both out, because the build-capability vocabulary covers utf-8 and the math extension, not per-extension configure flags |
+| D17-J | ~~**Jim's own commands cannot be declared.**~~ **Done (Q13).** A surface row names its family, so `available {jim 0.81-}` is expressible and Jim's 74 measured additions — `loop`, `range`, `lsubst`, `alias`, `local`, `upcall`, `xtrace`, `ref`/`getref`/`setref`, `timerate`, the `os.*` and `json::*` rows, the arithmetic command forms — can be authored from a pack. | — | Done. One secondary residue stands: `binary` and `zlib` are on the roster unconditionally although `--minimal` compiles both out, because the build-capability vocabulary covers utf-8 and the math extension, not per-extension configure flags |
 | D17 | **No shipped pack declares an environment** (Q2). The `environment` block, its live registration, its retirement and its detection routing all work and are proved end to end over a workspace pack; not one of the eight bundled `specs/*.tclspec` packs uses one. **Owner ruling 2026-08-28 (Q2): confirmed — the EDA shells move into their `.tclspec`s.** This is now scheduled work rather than an option. The naming question it was asked with was answered on 2026-08-28: **`Environment` stays** — platform, target and host were considered and rejected. | The "fully centralised end-state": six EDA catalogue shells are still compiled-in | Adding `environment` blocks to the six `specs/eda_*.tclspec` packs and deleting the compiled shells, with the editor catalogues regenerated from the packs |
 | D18 | **The gap rulings that did not land as code** (companion §4). **R1** — **done (one-vocabulary lane)**: `stub_overlay.rs` is deleted and stubs ingest as provenance-tagged `SurfaceDeclaration`s through `tcl_registry::model::declaration`, read through the one `DocumentCommandSurface` door (Q22). **R2** — special variables are still `special_vars.rs`'s compiled Rust table rather than SpecTcl declarations, so Jim's `env` and picol 2's capital-initial globals have no home (Q23); the private dialect-name ingress *is* gone. **R3** — `FILE_SCOPED_ENVS` is still a hardcoded one-row Rust table (`("tclpkg.tcl", &TCLPKG_MANIFEST_ENV)`) rather than a detection-scoped environment whose surface is a pack. **R4** — `render_spectcl`'s `is_dialect_set` still matches `"dialects" \| "safe_on_uninit"` together, conflating a behaviour predicate with availability (ledger T8). **R5** — the hook `ctx` dict still carries only a `dialect` key; no `environment` key was added (Q25). **R7's other half** — `tcl spec check` was never promoted from MCP to a CLI verb; `tcl spec` has `import`, `upgrade` and `export`. **R9** — the KCS "Applies-to" controlled vocabulary is unregenerated. **R10** — **done (one-vocabulary lane)**: the one-oracle *gate* is written. Visibility narrowing where that is enough (`Analyser::builtin_command_names` and `model::declaration::DeclaredSurface::get` are `pub(crate)`, beside P1-G's cache doors and `ProfileQueries`), plus a second **owned-spelling** family in `retired-api-gate` — each centralised answer (`CommandExistenceOracle` / `command_existence_oracle` / `builtin_command_names` / `w123_registry_known_names`, `has_command_in_this_dialect` / `all_dialect_command_names`, `command_binding_transitions` / `command_table_transitions`, `DeclaredSurface`) is scoped to the file prefixes that own it, with a `// one-oracle-ok:` waiver that requires a ledger §3 row. The retired family additionally holds this lane's deletions (`StubOverlay` and friends, `command_table_effect(`, `command_table_effects`, `detect_rename`, `detect_interp_alias`, `detect_interp_alias_delete`, `is_interp_alias_shape`), and the needle matcher's boundary rule now applies only at an end the needle itself spells with an identifier character, so a needle carrying its own punctuation matches | Each blocks a different small thing; together they are why the centralisation ledger's completion criterion is unmet. R10 **is now closed**, which is what stops the retirements P1-G, P1a and this lane proved from silently un-proving themselves | Each is independently landable. R10's shape — visibility narrowing where it is enough, plus a call-site sweep with a ledger-entry escape hatch, in the shape `retired-api-gate` demonstrates — is what shipped; full `pub(crate)` on `CommandRegistry::command_names` / `get_for_dialect` was **not** attempted, because ~45 production call sites read them for spec *content* rather than as an existence answer, so the sweep carries that half |
 
@@ -2593,7 +2587,7 @@ what a reader should believe.
 | # | The claim | The code | Disposition |
 |---|---|---|---|
 | E1 | §9.1's salsa lexer-config truncation was expected to be fixed alongside the model move | `LexerCfgKey::to_config` and `lower_proc_body` closed with `..LexerConfig::default()` (`braced_var: Tcl9Nesting`, `escapes: Tcl90`, `leading_bom: Content`) while `LexerConfig::from_grammar` sets all three per dialect | **FIXED**, with D1. Not by widening the tuple — that was measured and rejected: over the 20 environments it takes the number that share one `compilation_unit` build per edit from **15/20 down to 7/20**, losing `tcl8.5`, `tcl8.6`, `expect` and the five 8.x EDA shells, i.e. two whole-unit builds per keystroke for the most common dialects (a straight P-B violation). Instead `LexerCfgKey` now interns the **resolved environment id** — the stable id D1 makes available — and `to_config` names `LexerConfig::for_dialect` itself, and all four hosts of the CFG/SSA tail's unit (`Analyser::emit_cfg_ssa_diagnostics`, `tcl_lsp_db::analyse_per_item_with`, `tcl diag`'s `collect_rows`, `xtask fp_sweep`) lex under the document's own environment instead of agreeing on `LexerConfig::default()`. Sharing goes **up**, to 20/20, and every field is the document's. `ProcBodyKey` drops the three duplicated fields (it already interned the dialect); `tcl diag`'s second unit build disappears. Measured aside: of the three truncated fields `leading_bom` was `Content` for every environment anyway, so only `braced_var` and `escapes` diverged — for 13 of 20 environments, 8 of which were silently sharing the 9.0-shaped key |
-| E2 | §3.3: "the tcllib-excluded-from-iApps rule **stops being** a subtractive `DialectSet::all().difference(IRULES \| IAPPS)` and becomes 'the `f5-iapps` environment is closed over its ambient set'" | `rust/tcl-registry/src/commands/tcllib/mod.rs:301` still computes exactly that difference | **Still open**, but **no longer gated**: D1 is done and the subtraction is now purely registry-internal `DialectSet` plumbing, which row C1 explicitly licenses as an internal fast path — so this is a local rewrite of `tcllib/mod.rs` against the ambient-set query, not a re-type. Relatedly, §5.3's "`package_active` implements exactly these three rules" over-claims: `package_provider_active` distinguishes all three `WorldPolicy` values, but the *availability* query treats `AmbientPlusRequire` identically to `Open`. §5.3 now says so |
+| E2 | ~~§3.3: the tcllib-excluded-from-iApps rule **stops being** a subtractive difference and becomes "the `f5-iapps` environment is closed over its ambient set"~~ | — | **Done (Q7).** The registration states the surface positively and the exclusion is environment membership; `package_active` reads `AmbientPlusRequire` literally, so §5.3's "these three rules" is now true of all three |
 | E3 | §6.3: the round-trip gate "gains a loader-side direction … so a ratified word without a loader arm fails CI instead of silently dropping" | No such gate exists. `bpf_op` is ratified, unread, and nothing fails | **Still open** (D3 is its live instance). The golden-snapshot gate, the static-fast-path gate and the export gates are real and strong, but none exercises a *documented-but-unimplemented* word |
 | E9 | Design E was adopted and `evaluate_pack` landed, but the CST loader was kept "as the reference" — and `tcl-mcp/src/spectcl.rs`'s header claimed `evaluate_pack` was "the same loader the LSP, the studio, and the equivalence gate use" | It was not. `pack.rs`'s workspace discovery/merge called `cache::load_pack_cached` → `loader::load_pack`; only the studio, the `tcl` CLI and the MCP server evaluated. Two live loaders split by consumer, held together by one test | **FIXED** by the `one-loader` lane (centralisation ledger row **L1**): `evaluate_pack` is the only door for every consumer, the CST front end is deleted and in the retired-api gate, the two caching layers reconciled onto one `EvalSnapshotKey` identity, and the two-loader byte-identity gate became the checked-in golden-snapshot gate (`tcl-spectcl/tests/golden_packs.rs`, regenerated by `cargo xtask pack-goldens`) plus a static-fast-path gate that still holds two same-build readings byte-identical over all 24 shipped packs. The doc comment now says what the code does |
 | E4 | The deep dive's §15.4 status block listed `render_spectcl` 2.0 emission and its pin lift as the one unlanded item | It landed one wave earlier: `DSL_VERSION` is `tcl_spectcl::NEWEST_VOCABULARY_VERSION` (`"2.0"`), `availability_rows` writes `available` / `-available` at all seven scopes, and a 1.x document keeps `dialects` | **Fixed by P8** — the status block now ticks it. This was a wave-2 lane recording a wave-1 landing it did not know about |

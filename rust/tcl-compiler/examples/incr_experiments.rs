@@ -288,8 +288,10 @@ fn e6_e7_lattice_costs(root: &Path, dialect: &str) {
         return;
     };
     let mut reg = tcl_registry::CommandRegistry::build_default();
-    if let Some(d) = tcl_dialect::DialectProfile::find(dialect).map(tcl_dialect::DialectProfile::surface_query) {
-        reg.load_surface(d);
+    if let Some(profile) = tcl_dialect::DialectProfile::find(dialect) {
+        for &layer in profile.base_layers {
+            reg.load_surface(layer);
+        }
     }
     let n = 3;
     let time = |f: &dyn Fn()| {

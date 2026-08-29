@@ -118,6 +118,48 @@ cached registry at workspace scope, **not** the per-document overlay path
 stubs use — a pack is parsed per edit of the pack, never per edit of the
 code that uses it.
 
+### Measured: what the 2.0 vocabulary costs
+
+`cargo run --release -p tcl-spectcl --example speclib_version_costs`
+loads every bundled pack three ways over the same source — as it ships
+(1.x), as `tcl spec upgrade` rewrites it (2.0), and as 2.0 with the
+static fast path off, so the pack really is executed as a Tcl program by
+`tcl-vm` rather than captured from its CST. All three register the same
+commands; the example asserts that before it times anything. Median of 15
+loads, release build:
+
+| pack | lines | commands | 1.x ms | 2.0 ms | Δ | 2.0 VM ms | 1.x KiB | 2.0 KiB | 2.0 VM KiB |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| `eda_cadence` | 1076 | 77 | 3 | 4 | +11% | 23 | 129 | 144 | 129 |
+| `eda_mentor` | 1262 | 69 | 5 | 6 | +11% | 43 | 126 | 201 | 196 |
+| `eda_microchip` | 6366 | 257 | 39 | 42 | +8% | 403 | 810 | 853 | 968 |
+| `eda_quartus` | 1110 | 77 | 5 | 5 | +9% | 35 | 0 | 0 | 0 |
+| `eda_synopsys` | 923 | 68 | 4 | 4 | +8% | 26 | 0 | 0 | 0 |
+| `eda_xilinx` | 20887 | 788 | 166 | 193 | +16% | 2773 | 3197 | 2849 | 2741 |
+| `sdc_base` | 1186 | 86 | 8 | 9 | +10% | 52 | 0 | 0 | 0 |
+| `upf` | 2191 | 67 | 26 | 25 | -2% | 142 | 0 | 0 | 0 |
+| **corpus** | | | **256** | **288** | **+12%** | **3495** | **4264** | **4048** | **4035** |
+
+Three things the numbers say:
+
+- **2.0 costs about a tenth of the load, and nothing else.** The
+  `available {tcl 8.4-}` algebra is more words to segment than
+  `dialects all-tcl`, which is the whole difference: repeated runs put
+  the corpus figure between +8% and +12%. On the 27k-line corpus that is
+  ~30 ms once, at workspace scope.
+- **Memory is unchanged**, because the two spellings lower to the same
+  rows. The column measures resident bytes a load *retains* — the loader
+  interns what it registers, so that, not a transient peak, is what a
+  pack costs the process. It is measured at page granularity, so the
+  small packs read `0`.
+- **The static fast path is what makes design E affordable.** Executing
+  the corpus as Tcl costs 3.5 s against 0.29 s: a wholly declarative pack
+  is captured from its CST instead, and `tests/eval_loader.rs` loads
+  every shipped pack both ways and asserts the snapshots are identical,
+  which is what makes the shortcut an optimisation rather than a second
+  reading of the file. A pack that templates its registrations pays the
+  interpreter for the part that needs one.
+
 ## The format: a Tcl DSL, parsed by our own toolchain
 
 We have a full Tcl compiler; the authoring format should be Tcl. The

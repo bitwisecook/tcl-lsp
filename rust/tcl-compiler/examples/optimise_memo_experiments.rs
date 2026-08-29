@@ -63,8 +63,10 @@ fn gather(dir: &Path, out: &mut Vec<PathBuf>, cap: usize) {
 
 fn registry(dialect: &str) -> CommandRegistry {
     let mut r = CommandRegistry::build_default();
-    if let Some(d) = tcl_dialect::DialectProfile::find(dialect).map(tcl_dialect::DialectProfile::surface_query) {
-        r.load_surface(d);
+    if let Some(profile) = tcl_dialect::DialectProfile::find(dialect) {
+        for &layer in profile.base_layers {
+            r.load_surface(layer);
+        }
     }
     r
 }
