@@ -137,10 +137,7 @@ const PORTS: &[Port] = &[
             PortedCommand {
                 name: "uri::geturl",
                 dialect: "tcl9.1",
-                unequal: &[(
-                    "dialects",
-                    "the port is faithful to the `.rs` (`surface: None`), but the shipped registry fills a tcllib command's dialect set at REGISTRATION time — `tcllib_command_specs` gates every tcllib command out of the F5 embedded dialects, which have no `package require`. A pack loader installing into a registry would apply the same blanket rule; the spec field itself matches",
-                )],
+                unequal: &[("surface", "the port is faithful to the `.rs` (`surface: None`), but the shipped registry states a tcllib command's surface at REGISTRATION time — `tcllib_command_specs` gives every tcllib command the Tcl core rows its modules need, since a tcllib module is a `package require` away and the F5 embedded surfaces have none. A pack loader installing into a registry would apply the same blanket rule; the spec field itself matches")],
                 unequal_subcommand: NO_SUBS,
                 subcommand_subset: ALL_SUBS,
             },
@@ -186,10 +183,7 @@ const PORTS: &[Port] = &[
         commands: &[PortedCommand {
             name: "snit::type",
             dialect: "tcl9.1",
-            unequal: &[(
-                "dialects",
-                "the port is faithful to the `.rs` (`surface: None`), but the shipped registry fills a tcllib command's dialect set at REGISTRATION time — `tcllib_command_specs` gates every tcllib command out of the F5 embedded dialects, which have no `package require`. A pack loader installing into a registry would apply the same blanket rule; the spec field itself matches",
-            )],
+            unequal: &[("surface", "the port is faithful to the `.rs` (`surface: None`), but the shipped registry states a tcllib command's surface at REGISTRATION time — `tcllib_command_specs` gives every tcllib command the Tcl core rows its modules need, since a tcllib module is a `package require` away and the F5 embedded surfaces have none. A pack loader installing into a registry would apply the same blanket rule; the spec field itself matches")],
             unequal_subcommand: NO_SUBS,
             subcommand_subset: ALL_SUBS,
         }],

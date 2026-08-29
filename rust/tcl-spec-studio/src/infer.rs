@@ -351,7 +351,7 @@ fn describe(
     let synopsis_line = synopsis(name, &proc_def.params);
     d.insert(
         "forms".into(),
-        json!([{ "kind": "Default", "synopsis": synopsis_line, "dialects": null }]),
+        json!([{ "kind": "Default", "synopsis": synopsis_line, "surface": null }]),
     );
 
     let doc = proc_def.doc.trim();

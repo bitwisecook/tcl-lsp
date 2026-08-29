@@ -655,7 +655,7 @@ fn option_expr(entry: &Value, indent: &str) -> String {
     if !detail.is_empty() {
         parts.push(format!("{inner}detail: {},", rust_string(detail)));
     }
-    if let Some(dialects) = entry["dialects"].as_array() {
+    if let Some(dialects) = entry["surface"].as_array() {
         parts.push(format!("{inner}surface: Some({}),", dialect_set(dialects)));
     }
     let aliases = as_array(&entry["aliases"]);
@@ -687,7 +687,7 @@ fn row_literal(name: &str, parts: &[String], indent: &str) -> String {
 /// `Some(<dialect set>)` for a present dialect gate, or nothing for an absent
 /// one — the field's own default.
 fn dialects_line(entry: &Value, indent: &str) -> Option<String> {
-    let dialects = entry["dialects"].as_array()?;
+    let dialects = entry["surface"].as_array()?;
     Some(format!(
         "{indent}    surface: Some({}),",
         dialect_set(dialects)

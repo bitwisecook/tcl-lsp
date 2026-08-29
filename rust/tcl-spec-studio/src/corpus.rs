@@ -228,7 +228,7 @@ fn option_row(option: &OptionShape) -> Value {
     json!({
         "name": option.name,
         "detail": option.evidence,
-        "dialects": Value::Null,
+        "surface": Value::Null,
         "aliases": [],
         "introduced_version": Value::Null,
         "deprecated_version": Value::Null,

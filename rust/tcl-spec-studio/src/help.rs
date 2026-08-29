@@ -63,7 +63,7 @@ the full list with a one-line meaning each. When no trait fits, leave them \
 all off — an empty set is always safe, it just tells the tools less.",
     ),
     (
-        "dialects",
+        "surface",
         "Which Tcl worlds the command exists in — every dialect the picker \
 lists, from the core releases through the F5, Tk, Expect, BPF and SpecTcl \
 surfaces. A command only present from 8.5 onwards ticks 8.5 and every later \

@@ -21,9 +21,9 @@ On a subcommand this is the subcommand word itself (`length` in `string length`)
 
 Where and when the command exists: which dialects ship it, which package must be required first, and the version that introduced, deprecated, or removed it. This group is what makes "unknown command", "needs Tcl 8.6", and "missing package require" accurate — for most third-party commands it is the highest-value group after the name and arity.
 
-### `dialects` — Dialects
+### `surface` — Surface
 
-*command and subcommand* — Dialects the command exists in. Unset means every dialect.
+*command and subcommand* — Where the command exists, as the dialects its surface rows cover. Unset means everywhere.
 
 Which Tcl worlds the command exists in — every dialect the picker lists, from the core releases through the F5, Tk, Expect, BPF and SpecTcl surfaces. A command only present from 8.5 onwards ticks 8.5 and every later release; one that is iRules-only ticks just F5 iRules. Leave the whole field unset for "every dialect".
 

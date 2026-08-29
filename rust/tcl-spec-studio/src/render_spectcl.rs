@@ -1612,13 +1612,20 @@ fn enum_word(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft, key: &str) {
     }
 }
 
+/// The DSL word a draft key is written as. Availability is the one key whose
+/// two names differ: the draft carries the spec field name (`surface`), the
+/// 1.x word it degrades to is `dialects`.
+fn dsl_word(key: &str) -> &str {
+    if key == "surface" { "dialects" } else { key }
+}
+
 /// Emit a flag-set property — a trait, taint-colour, or dialect set.
 fn set_word(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft, key: &str) {
     // Availability is written in the 2.0 algebra wherever it carries the
     // set; `dialects` stays for the bits it has no provider for, and for
     // `safe_on_uninit`, which holds a dialect set but is not an
     // availability question and has no `available` reader.
-    if key == "dialects"
+    if key == "surface"
         && ctx.availability
         && ctx.set(draft, key)
         && draft[key].is_array()
@@ -1634,7 +1641,7 @@ fn set_word(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft, key: &str) {
             str_list_word(&draft[key])
         };
         match spelling {
-            Some(spelling) => out.line(&format!("{key} {spelling}")),
+            Some(spelling) => out.line(&format!("{} {spelling}", dsl_word(key))),
             None => unwritable(out, key),
         }
     }
@@ -1701,7 +1708,7 @@ fn tk_geometry_row(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
 
 /// Whether a flag-set field holds dialect members, which take the shorthands.
 fn is_dialect_set(key: &str) -> bool {
-    matches!(key, "dialects" | "safe_on_uninit")
+    matches!(key, "surface" | "safe_on_uninit")
 }
 
 /// Emit a `&'static [&'static str]` property.
@@ -2129,7 +2136,7 @@ fn option_row(out: &mut Out, ctx: &mut Ctx<'_>, option: &Value) {
             str_list_word(&option["aliases"]),
         );
     }
-    if let Some(dialects) = option["dialects"].as_array() {
+    if let Some(dialects) = option["surface"].as_array() {
         push_availability_flag(
             &mut row,
             &mut lost,
@@ -2254,7 +2261,7 @@ fn hover_block(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
 #[allow(clippy::too_many_lines)]
 fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     // --- identity and availability -----------------------------------------
-    set_word(out, ctx, draft, "dialects");
+    set_word(out, ctx, draft, "surface");
     set_word(out, ctx, draft, "traits");
     arity_row(out, ctx, draft);
     arity_window_rows(out, ctx, draft);
@@ -2479,7 +2486,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
             let mut row = vec!["form".to_owned(), str_of(&form["kind"]).to_owned()];
             let mut lost = false;
             push_word(&mut row, &mut lost, braced(str_of(&form["synopsis"])));
-            if let Some(dialects) = form["dialects"].as_array() {
+            if let Some(dialects) = form["surface"].as_array() {
                 push_availability_flag(
                     &mut row,
                     &mut lost,
@@ -2562,7 +2569,7 @@ fn side_effect_rows(out: &mut Out, draft: &Draft, availability: bool) {
             row.push(side.to_owned());
         }
         let mut lost = false;
-        if let Some(dialects) = effect["dialects"].as_array() {
+        if let Some(dialects) = effect["surface"].as_array() {
             push_availability_flag(
                 &mut row,
                 &mut lost,
@@ -2700,7 +2707,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
         }
     }
     set_word(out_body, ctx, sub, "traits");
-    set_word(out_body, ctx, sub, "dialects");
+    set_word(out_body, ctx, sub, "surface");
     text(out_body, ctx, sub, "introduced_version");
     text(out_body, ctx, sub, "deprecated_version");
     text(out_body, ctx, sub, "retired_version");
@@ -2824,7 +2831,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
         if !synopsis.is_empty() {
             push_flag(&mut words, &mut lost, "-synopsis", braced(synopsis));
         }
-        if let Some(dialects) = row["dialects"].as_array() {
+        if let Some(dialects) = row["surface"].as_array() {
             push_availability_flag(
                 &mut words,
                 &mut lost,
@@ -3131,12 +3138,12 @@ mod tests {
         let pack = crate::spectcl::evaluate_pack(&text);
         let spec = pack.commands.first().expect("the command").spec;
         let reloaded = draft::from_command_spec(spec);
-        assert_eq!(reloaded["dialects"], seeded["dialects"]);
+        assert_eq!(reloaded["surface"], seeded["surface"]);
         let gate = |draft: &Draft, option: &str| -> Value {
             as_array(&draft["options"])
                 .iter()
                 .find(|o| str_of(&o["name"]) == option)
-                .map_or(Value::Null, |o| o["dialects"].clone())
+                .map_or(Value::Null, |o| o["surface"].clone())
         };
         for option in ["-nocase", "-indices", "-stride", "-ascii"] {
             assert_eq!(

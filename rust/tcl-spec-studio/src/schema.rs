@@ -390,14 +390,14 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Behavioural trait flags every consumer reads instead of naming the command.",
     ),
     f(
-        "dialects",
-        "Dialects",
+        "surface",
+        "Surface",
         AVAILABILITY,
         FieldKind::FlagSet {
             catalogue: "dialects",
             optional: true,
         },
-        "Dialects the command exists in. Unset means every dialect.",
+        "Where the command exists, as the dialects its surface rows cover. Unset means everywhere.",
     ),
     f(
         "arity",
@@ -1643,14 +1643,14 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Subcommand-specific Tcl completion and payload obligations.",
     ),
     f(
-        "dialects",
-        "Dialects",
+        "surface",
+        "Surface",
         AVAILABILITY,
         FieldKind::FlagSet {
             catalogue: "dialects",
             optional: true,
         },
-        "Dialect membership. Unset inherits the parent command's set.",
+        "Where the subcommand exists. Unset inherits the parent command's surface.",
     ),
     f(
         "introduced_version",

@@ -459,7 +459,7 @@ pub(crate) fn option_spec(opt: &OptionSpec) -> (Value, OptionDraftCompleteness) 
         json!({
             "name": opt.name,
             "detail": opt.detail,
-            "dialects": dialects(opt.surface),
+            "surface": dialects(opt.surface),
             "aliases": str_list(opt.aliases),
             "introduced_version": opt_str(opt.lifecycle.introduced),
             "deprecated_version": opt_str(opt.lifecycle.deprecated),
@@ -480,7 +480,7 @@ pub(crate) fn form_spec(form: &FormSpec) -> (Value, bool) {
     let mut d = Map::new();
     d.insert("kind".into(), json!(catalogue::variant_name(&form.kind)));
     d.insert("synopsis".into(), json!(form.synopsis));
-    d.insert("dialects".into(), dialects(form.surface));
+    d.insert("surface".into(), dialects(form.surface));
     let complete = insert_lifecycle(&mut d, form.lifecycle);
     (Value::Object(d), complete)
 }
@@ -497,7 +497,7 @@ pub(crate) fn side_effect(effect: &SideEffect) -> (Value, bool) {
         "connection_side".into(),
         json!(catalogue::variant_name(&effect.connection_side)),
     );
-    d.insert("dialects".into(), dialects(effect.surface));
+    d.insert("surface".into(), dialects(effect.surface));
     let complete = insert_lifecycle(&mut d, effect.lifecycle);
     (Value::Object(d), complete)
 }
@@ -574,7 +574,7 @@ pub(crate) fn sub_subcommand(sub: &SubSubCommand) -> (Value, bool) {
     d.insert("name".into(), json!(sub.name));
     d.insert("detail".into(), json!(sub.detail));
     d.insert("synopsis".into(), json!(sub.synopsis));
-    d.insert("dialects".into(), dialects(sub.surface));
+    d.insert("surface".into(), dialects(sub.surface));
     let mut lost = Unrecovered::default();
     // `null` — declares nothing, inherits the subcommand's table — is a
     // different draft value from `[]`, which declares that there are no
@@ -1145,7 +1145,7 @@ fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
         "subcommand_forms".into(),
         lost.expr("subcommand_forms", !sub.subcommand_forms.is_empty()),
     );
-    d.insert("dialects".into(), dialects(sub.surface));
+    d.insert("surface".into(), dialects(sub.surface));
     if !insert_lifecycle(d, sub.lifecycle) {
         lost.note("deprecation_fix");
     }
@@ -1241,7 +1241,7 @@ pub fn from_command_spec(spec: &CommandSpec) -> Draft {
 fn command_identity(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert("name".into(), json!(spec.name));
     d.insert("traits".into(), traits(spec.traits));
-    d.insert("dialects".into(), dialects(spec.surface));
+    d.insert("surface".into(), dialects(spec.surface));
     d.insert("arity".into(), arity(spec.arity));
     d.insert("arity_windows".into(), arity_windows(spec.arity_windows));
     d.insert("arg_roles".into(), role_map(spec.arg_roles));

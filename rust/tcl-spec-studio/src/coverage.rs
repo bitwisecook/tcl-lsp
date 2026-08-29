@@ -276,7 +276,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
 pub const COMMAND_SPEC: &[Field] = &[
     f("name", Surface::Key("name")),
     f("traits", Surface::Key("traits")),
-    f("dialects", Surface::Key("dialects")),
+    f("surface", Surface::Key("surface")),
     f("arity", Surface::Key("arity")),
     f("arity_windows", Surface::Key("arity_windows")),
     f("arg_roles", Surface::Key("arg_roles")),
@@ -592,7 +592,7 @@ pub const SUB_COMMAND: &[Field] = &[
     f("subcommand_forms", Surface::Key("subcommand_forms")),
     f("semantic_operation", Surface::Key("semantic_operation")),
     f("completion", Surface::Key("completion")),
-    f("dialects", Surface::Key("dialects")),
+    f("surface", Surface::Key("surface")),
     f("lifecycle", Surface::Keys(LIFECYCLE_KEYS)),
     f("safe_on_uninit", Surface::Key("safe_on_uninit")),
     f("loop_list_header", Surface::Key("loop_list_header")),
@@ -673,7 +673,7 @@ pub const SUB_SUB_COMMAND: &[Field] = &[
     f("name", Surface::Key("name")),
     f("detail", Surface::Key("detail")),
     f("synopsis", Surface::Key("synopsis")),
-    f("dialects", Surface::Key("dialects")),
+    f("surface", Surface::Key("surface")),
     f("lifecycle", Surface::Keys(LIFECYCLE_KEYS)),
     f("options", Surface::Key("options")),
 ];
@@ -696,7 +696,7 @@ pub const OPTION_SPEC: &[Field] = &[
     f("name", Surface::Key("name")),
     f("value", Surface::Key("value")),
     f("detail", Surface::Key("detail")),
-    f("dialects", Surface::Key("dialects")),
+    f("surface", Surface::Key("surface")),
     f("aliases", Surface::Key("aliases")),
     f("lifecycle", Surface::Keys(LIFECYCLE_KEYS)),
     f("min_abbrev", Surface::Key("min_abbrev")),
@@ -776,7 +776,7 @@ pub fn witness_form_spec(form: &FormSpec) {
 pub const FORM_SPEC: &[Field] = &[
     f("kind", Surface::Key("kind")),
     f("synopsis", Surface::Key("synopsis")),
-    f("dialects", Surface::Key("dialects")),
+    f("surface", Surface::Key("surface")),
     f("lifecycle", Surface::Keys(LIFECYCLE_KEYS)),
 ];
 
@@ -820,7 +820,7 @@ pub const SIDE_EFFECT: &[Field] = &[
     f("reads", Surface::Key("reads")),
     f("writes", Surface::Key("writes")),
     f("connection_side", Surface::Key("connection_side")),
-    f("dialects", Surface::Key("dialects")),
+    f("surface", Surface::Key("surface")),
     f("lifecycle", Surface::Keys(LIFECYCLE_KEYS)),
 ];
 
