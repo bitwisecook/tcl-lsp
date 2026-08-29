@@ -561,8 +561,8 @@ fn render_vscode_runtime(original: &str, langs: &[Language]) -> Result<String> {
     let body = format!("const LANGUAGE_ID_DIALECTS: Record<string, string> = {{\n{rows}}};\n");
     replace_marked_block(
         original,
-        "// @generated:language-id-surface:begin",
-        "// @generated:language-id-surface:end",
+        "// @generated:language-id-dialects:begin",
+        "// @generated:language-id-dialects:end",
         &body,
     )
 }
