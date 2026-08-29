@@ -248,7 +248,7 @@ fn gui_renders_the_wasm_tab_and_settles_the_spinner() {
     let dialects = first["dialects"].as_array().expect("dialect list");
     assert!(
         dialects.len() > 1 && dialects.iter().any(|d| d == "tcl9.0"),
-        "the dialect dropdown was not populated: {surface:?}"
+        "the dialect dropdown was not populated: {dialects:?}"
     );
     assert_eq!(first["hasCompileButton"], true, "no Compile button");
 

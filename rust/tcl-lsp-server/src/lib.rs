@@ -7898,14 +7898,14 @@ impl Backend {
     /// signal every BIG-IP-specific branch (analysis suppression,
     /// config outline) keys on.
     fn is_bigip_dialect(dialect: &str) -> bool {
-        // The resolved environment's authoring mask, not a second name
-        // validator: sweep-pinned to the old profile's `availability_mask`
-        // for every catalogue environment, and the lenient sink (every
-        // unknown name) carries no vendor bit, exactly as `find` answering
-        // `None` did.
+        // The resolved environment's authoring point, not a second name
+        // validator: sweep-pinned to the profile's own point for every
+        // catalogue environment, and the lenient sink (every unknown name)
+        // carries no vendor package, exactly as `find` answering `None` did.
         tcl_lsp_core::document_context_for_dialect(dialect)
             .authoring_query()
-            .contains(SpecSurface::BIGIP)
+            .packages
+            .contains(&"bigip")
     }
 
     /// Look up the per-folder dialect override for `uri`,
