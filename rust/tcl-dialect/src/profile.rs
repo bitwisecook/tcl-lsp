@@ -162,7 +162,7 @@ pub struct DialectFileExtension {
 ///
 /// The behaviour fields are **derived data fixed at catalog-construction
 /// time** from the §7 table of the design doc (`signature_base` /
-/// `runtime_base` / the vendor bit drive the rest); the derivation rules
+/// `runtime_base` / the vendor surface drive the rest); the derivation rules
 /// (§7.1) are enforced by this module's invariant tests so the hand-laid
 /// values can never drift from the model.
 #[derive(Debug)]
@@ -170,7 +170,7 @@ pub struct DialectProfile {
     /// The canonical dialect name (`"tcl8.6"`, `"f5-irules"`, …). Stable:
     /// this is the string that round-trips through configuration
     /// (`tclLsp.selectDialect`, `folderDialects`), the registry-dump JSON
-    /// schema, and `the retired availability mask::canonical_name`.
+    /// schema, and the editor catalogues.
     pub name: &'static str,
     /// Legacy / editor spellings that resolve to this profile
     /// (`"irules"` → `f5-irules`). Resolution through [`Self::find`] (and
@@ -233,8 +233,7 @@ pub struct DialectProfile {
     /// on via this field until the versioned-library axis models library
     /// hosting per profile (§7.2).
     pub vendor_surface: Option<SpecProvider>,
-    /// The packages this profile's **own point** carries — what the retired
-    /// availability mask held in its vendor half.
+    /// The packages this profile's **own point** carries.
     ///
     /// For a vendor shell this is its vendor package; for the `tk` ingress
     /// profile it is `Tk`, which is why the field exists at all: Tk is a
@@ -249,31 +248,31 @@ pub struct DialectProfile {
 
     // AXIS A: availability.
     /// The registry command packs `load_dialect` applies for this profile,
-    /// in order. The plain Tcl versions carry their own version bit (a
-    /// spec-less "pack" that records the version on the registry's
-    /// `loaded_dialects`); empty only for the permissive fallback profile,
-    /// which loads no pack at all.
+    /// in order. A plain Tcl version's layer carries no specs — it only
+    /// records which release the registry is — and the permissive fallback
+    /// profile loads nothing at all.
     pub base_layers: &'static [SurfaceLayer],
     /// Coarse over-approximating union for **static** grammars only
     /// (tree-sitter / tmLanguage first-paint highlighting). Deliberately
     /// wider than [`Self::surface_query`] — precise per-version
     /// correctness is the LSP semantic-token layer's job (§10). iRules is
-    /// the exception: its static grammar is scoped to the bare `IRULES`
-    /// bit (the shipped highlight fix this model preserves).
+    /// the exception: its static grammar names only its own family, which
+    /// is the shipped highlight fix this model preserves.
     pub grammar_union: &'static [SpecProvider],
     /// UPPER-BOUND version guard for option gating (design doc §5.2): the
     /// highest Tcl version whose options may appear under this profile. A
     /// version-gated option resolves only when its gate's
     /// [`core_tcl_floor`] is at or below this ceiling, so a
     /// tcl9.0-only option can never leak into an 8.5-superset profile whose
-    /// mask happens to intersect its gate. `None` = no ceiling (the
+    /// point happens to sit inside its gate. `None` = no ceiling (the
     /// permissive fallback and the interim config-only dialects).
     pub version_ceiling: Option<TclVersion>,
 
     // AXIS B: behaviour / runtime.
     /// The Tcl version whose command/subcommand/option *signatures* this
-    /// dialect exposes. Feeds the availability mask's version half. `None`
-    /// for a non-Tcl surface (`f5-bigip`) and the permissive fallback.
+    /// dialect exposes — the release half of [`Self::surface_query`].
+    /// `None` for a non-Tcl surface (`f5-bigip`) and the permissive
+    /// fallback.
     pub signature_base: Option<TclVersion>,
     /// The Tcl version whose *evaluation semantics* apply: octal, expr
     /// grammar (TIP 201/461), mathfunc ceiling, number parsing, const-fold.
@@ -306,9 +305,8 @@ pub struct DialectProfile {
     /// fact; `tk` is modelled as a library, not a profile).
     pub operators_as_commands: bool,
     /// Whether `TclOO` (`oo::*`) is part of this dialect's surface. Explicit
-    /// per profile and invariant-tested against the availability mask
-    /// (§11.2) so it can never drift from the mask-resolved `oo::*`
-    /// availability.
+    /// per profile and invariant-tested against what the profile's point
+    /// actually resolves (§11.2), so the flag cannot drift from it.
     pub tcloo: bool,
     /// Whether the dialect's ensemble commands are *fixed* — a closed
     /// subcommand set with no user-extensible ensembles — so the minifier
@@ -359,14 +357,13 @@ impl Eq for DialectProfile {}
 /// The catalog: one profile per canonical dialect, in
 /// [`KNOWN_DIALECTS`](crate::KNOWN_DIALECTS) (sorted) order.
 ///
-/// Mask and behaviour values follow the per-dialect table in
+/// Surface and behaviour values follow the per-dialect table in
 /// `docs/design/dialect-profile-model.md` §7.
 static CATALOG: [DialectProfile; 18] = [
     // bpf embeds a genuine Tcl 9.0 (design doc D7): 9.0 runtime semantics —
     // decimal leading zeros, 9.0 expr grammar, the nesting `${…}` rule —
-    // and the precise `TCL90|BPF` availability mask:
-    // 9.0-core plus the bpf surface resolve; 8.x-only relics (removed at
-    // the 9.0 boundary) are correctly unknown.
+    // and a precise point: 9.0 core plus the bpf surface resolve, while
+    // 8.x-only relics (removed at the 9.0 boundary) are correctly unknown.
     DialectProfile {
         name: "bpf",
         aliases: &[],
@@ -506,9 +503,9 @@ static CATALOG: [DialectProfile; 18] = [
     // f5-bigip is a config parser, not a Tcl surface; it has no command
     // pack, no Tcl runtime (behaviour axis inert — §11.1), and no expr
     // grammar. It is first-class as *identity only* (D8): the bare
-    // `BIGIP` bit keys the profile and its versioned schema library —
-    // BIG-IP config documents route to the tcl-bigip validator, never the
-    // Tcl analyser, so this mask is not a Tcl-availability surface.
+    // the `bigip` surface keys the profile and its versioned schema
+    // library — BIG-IP config documents route to the tcl-bigip validator,
+    // never the Tcl analyser, so this is not a Tcl-availability surface.
     DialectProfile {
         name: "f5-bigip",
         aliases: &[],
@@ -602,16 +599,15 @@ static CATALOG: [DialectProfile; 18] = [
         }],
         help_terms: &["iapps", "iapp", "f5", "big-ip"],
     },
-    // iRules is a genuine embedded Tcl 8.4.6 whose availability is fully
-    // explicit per spec: the mask stays the BARE `IRULES` bit, and a command
-    // is available iff its own `dialects` group carries that bit. The F5
-    // command surface is `IRULES`-tagged; the iRules-enabled Tcl core is
-    // `ALL_TCL | IRULES`; a K36322151 sandbox-banned command is plain
-    // `ALL_TCL` (no `IRULES` bit) and so never intersects this mask — no
-    // subtractive disable list. A version bit in the mask would add nothing
-    // and would only re-admit 8.x-only specs the TMM build never had.
-    // Signature and runtime base are both 8.4 (D3) and math operators are
-    // not command heads.
+    // iRules is a genuine embedded Tcl 8.4.6 whose availability is stated
+    // per spec: the point names the family and no release, so a command is
+    // available iff its own surface names iRules. The F5 command surface
+    // does; the iRules-enabled Tcl core names both Tcl and iRules; a
+    // K36322151 sandbox-banned command names only Tcl and so is simply
+    // absent — no subtractive disable list. Naming a release here would
+    // only re-admit 8.x-only specs the TMM build never had. Signature and
+    // runtime base are both 8.4 (D3) and math operators are not command
+    // heads.
     DialectProfile {
         name: "f5-irules",
         aliases: &["irules", "tcl-irule"],
@@ -1014,10 +1010,9 @@ static CATALOG: [DialectProfile; 18] = [
         file_extensions: &[],
         vendor_surface: None,
         surface_packages: &[],
-        // The version "pack" loads no specs, but registering the version bit
-        // on the registry preserves its `loaded_dialects` introspection
-        // (e.g. `CommandRegistry::leading_zero_is_octal`) exactly as
-        // `DialectProfile::find` + `load_dialect` always did.
+        // The version layer loads no specs; it records which release the
+        // registry is, which its own introspection reads
+        // (`CommandRegistry::leading_zero_is_octal`).
         base_layers: &[SurfaceLayer::Core(Family::Tcl, "8.4")],
         grammar_union: &[SpecProvider::Core(Family::Tcl)],
         version_ceiling: Some(TclVersion::V8_4),
@@ -1047,10 +1042,9 @@ static CATALOG: [DialectProfile; 18] = [
         file_extensions: &[],
         vendor_surface: None,
         surface_packages: &[],
-        // The version "pack" loads no specs, but registering the version bit
-        // on the registry preserves its `loaded_dialects` introspection
-        // (e.g. `CommandRegistry::leading_zero_is_octal`) exactly as
-        // `DialectProfile::find` + `load_dialect` always did.
+        // The version layer loads no specs; it records which release the
+        // registry is, which its own introspection reads
+        // (`CommandRegistry::leading_zero_is_octal`).
         base_layers: &[SurfaceLayer::Core(Family::Tcl, "8.5")],
         grammar_union: &[SpecProvider::Core(Family::Tcl)],
         version_ceiling: Some(TclVersion::V8_5),
@@ -1076,10 +1070,9 @@ static CATALOG: [DialectProfile; 18] = [
         file_extensions: &[],
         vendor_surface: None,
         surface_packages: &[],
-        // The version "pack" loads no specs, but registering the version bit
-        // on the registry preserves its `loaded_dialects` introspection
-        // (e.g. `CommandRegistry::leading_zero_is_octal`) exactly as
-        // `DialectProfile::find` + `load_dialect` always did.
+        // The version layer loads no specs; it records which release the
+        // registry is, which its own introspection reads
+        // (`CommandRegistry::leading_zero_is_octal`).
         base_layers: &[SurfaceLayer::Core(Family::Tcl, "8.6")],
         grammar_union: &[SpecProvider::Core(Family::Tcl)],
         version_ceiling: Some(TclVersion::V8_6),
@@ -1105,10 +1098,9 @@ static CATALOG: [DialectProfile; 18] = [
         file_extensions: &[],
         vendor_surface: None,
         surface_packages: &[],
-        // The version "pack" loads no specs, but registering the version bit
-        // on the registry preserves its `loaded_dialects` introspection
-        // (e.g. `CommandRegistry::leading_zero_is_octal`) exactly as
-        // `DialectProfile::find` + `load_dialect` always did.
+        // The version layer loads no specs; it records which release the
+        // registry is, which its own introspection reads
+        // (`CommandRegistry::leading_zero_is_octal`).
         base_layers: &[SurfaceLayer::Core(Family::Tcl, "9.0")],
         grammar_union: &[SpecProvider::Core(Family::Tcl)],
         version_ceiling: Some(TclVersion::V9_0),
@@ -1124,8 +1116,8 @@ static CATALOG: [DialectProfile; 18] = [
         libraries: LIBS_TCL86_PLUS,
         help_terms: &["tcl", "tk"],
     },
-    // Tag-level `TCL90_PLUS` unions already give 9.1 its 9.0 inheritance,
-    // so the exact bit keeps per-version gating precise.
+    // The 9.0-and-later windows already give 9.1 its 9.0 inheritance, so
+    // naming the exact release here keeps per-version gating precise.
     DialectProfile {
         name: "tcl9.1",
         aliases: &[],
@@ -1136,10 +1128,9 @@ static CATALOG: [DialectProfile; 18] = [
         file_extensions: &[],
         vendor_surface: None,
         surface_packages: &[],
-        // The version "pack" loads no specs, but registering the version bit
-        // on the registry preserves its `loaded_dialects` introspection
-        // (e.g. `CommandRegistry::leading_zero_is_octal`) exactly as
-        // `DialectProfile::find` + `load_dialect` always did.
+        // The version layer loads no specs; it records which release the
+        // registry is, which its own introspection reads
+        // (`CommandRegistry::leading_zero_is_octal`).
         base_layers: &[SurfaceLayer::Core(Family::Tcl, "9.1")],
         grammar_union: &[SpecProvider::Core(Family::Tcl)],
         version_ceiling: Some(TclVersion::V9_1),
@@ -1231,7 +1222,7 @@ static PLAIN_TCL: DialectProfile = DialectProfile {
     help_terms: &[],
 };
 
-/// Set-only `tk` ingress: modern Tcl behaviour plus the Tk availability bit.
+/// Set-only `tk` ingress: modern Tcl behaviour, plus Tk in the point.
 /// This is deliberately not part of [`DialectProfile::all`] or
 /// [`DialectProfile::find`].
 static TK_PROFILE: DialectProfile = DialectProfile {
@@ -1299,13 +1290,11 @@ impl DialectProfile {
     /// The point this profile asks surface questions at — which core
     /// family and release it is, and which vendor package it carries.
     ///
-    /// The replacement for the retired availability mask (Q13). The mask
-    /// composed `(signature-base version bits) | (vendor bit)`; the point
-    /// keeps the two apart, because they are answers to different
-    /// questions. A profile whose vendor surface *is* a core family —
-    /// iRules — asks as that family and carries no Tcl release, which is
-    /// what the mask expressed by being the bare vendor bit: an `ALL_TCL`
-    /// spec is not an iRules spec.
+    /// The two halves stay apart — which language, and which packages —
+    /// because they answer different questions. A profile whose vendor
+    /// surface *is* a core family — iRules — asks as that family and
+    /// carries no Tcl release: a spec available across the Tcl ladder is
+    /// not thereby an iRules spec.
     ///
     /// A family whose ladder is not keyed by version (the iRules `tmos`
     /// line) asks about its whole ladder: there is no release to name.
@@ -1319,8 +1308,7 @@ impl DialectProfile {
                 Some(version) => Some((Family::Tcl, Some(version.version_string()))),
                 // No pinned release, but still a Tcl surface: the permissive
                 // `tcl` sink and the `tk` ingress profile ask about the whole
-                // ladder, which is what their masks said by setting every
-                // line bit. A profile whose grammar names no core family
+                // ladder. A profile whose grammar names no core family
                 // (`f5-bigip`) has no Tcl surface to ask about.
                 None => self
                     .grammar_union
@@ -1335,8 +1323,8 @@ impl DialectProfile {
     ///
     /// A thin name over [`Self::runtime_base`], but the name is the point: it
     /// is the sanctioned way to get from a profile to a [`TclVersion`], so the
-    /// step reads the same everywhere and a future rule (a vendor bit that
-    /// overrides the base, say) has one place to land.
+    /// step reads the same everywhere and a future rule (a vendor surface
+    /// that overrides the base, say) has one place to land.
     #[must_use]
     pub fn runtime_version(&self) -> Option<TclVersion> {
         self.runtime_base
@@ -1402,7 +1390,7 @@ impl DialectProfile {
     /// Tk is intentionally absent from the selectable profile catalogue: it
     /// is a library surface layered onto Tcl rather than a runtime with its
     /// own release semantics. CLI/LSP compatibility inputs still need a
-    /// resolved identity, though, so this profile carries the typed `TK` bit
+    /// resolved identity, though, so this profile carries `Tk` in its point
     /// while retaining the permissive Tcl behaviour of that ingress.
     #[must_use]
     pub fn tk() -> &'static DialectProfile {
@@ -1462,9 +1450,8 @@ impl DialectProfile {
         }
     }
 
-    /// The version-aware *compile-time fold* projection — the drop-in
-    /// replacement for `TclVersion::from_dialect` and deliberately
-    /// **bit-identical** to it: `Some` only for the plain versioned-Tcl
+    /// The version-aware *compile-time fold* projection — deliberately
+    /// exact: `Some` only for the plain versioned-Tcl
     /// profiles, `None` for every vendor dialect (including iRules, whose
     /// [`Self::runtime_base`] is a real `V8_4`) so versioned const-folds
     /// keep returning the dialect-invariant subset there until the
@@ -1499,7 +1486,8 @@ impl DialectProfile {
     /// vendor shell — the F5 surfaces, the EDA shells (packaged vendors with no
     /// Tk pin), bpf — cannot (dialect-profile-model.md §7.2;
     /// eda-library-packages.md). Consumers key Tk offering/acceptance off this
-    /// rather than `vendor_surface`, since the EDA shells now carry no vendor bit.
+    /// rather than `vendor_surface`, since the EDA shells carry no vendor
+    /// surface of their own.
     #[must_use]
     pub fn hosts_tk(&self) -> bool {
         self.is_fallback() || self.library_pin("Tk").is_some()
@@ -1777,8 +1765,8 @@ mod tests {
             }
         );
         // A canonical profile and a legacy alias keep their profile-owned
-        // security mask: the iRules sandbox mask stays the bare bit under
-        // either spelling.
+        // security scope: the iRules sandbox point is the same under either
+        // spelling.
         assert_eq!(
             DialectProfile::find("f5-irules")
                 .expect("catalogue profile")
@@ -1831,29 +1819,27 @@ mod tests {
     }
 
     #[test]
-    fn irules_mask_is_the_bare_vendor_bit() {
-        // iRules is a bare-`IRULES`-bit availability surface: a command is
-        // available iff its own `dialects` explicitly carries the `IRULES`
-        // bit. Universal `surface: None` was eliminated registry-wide (every
-        // core command carries an explicit group), so there is no catch-all
-        // and no subtractive ban list — a sandbox-banned command such as
-        // `exec` simply lacks the `IRULES` bit (it is `ALL_TCL`) and falls
-        // out by plain intersection. The command-level availability checks
-        // (`exec`/`file`/`socket` unavailable, `pool`/`set` available) live
-        // in tcl-registry's `dialect_profile.rs` suite, which has the
-        // registry; here we only pin the mask shape the whole scheme rests
-        // on.
+    fn the_irules_point_names_the_family_and_no_release() {
+        // A command is available under iRules iff its own surface names the
+        // family. Every core command states a surface, so there is no
+        // catch-all and no subtractive ban list — a sandbox-banned command
+        // such as `exec` simply does not name iRules and falls out. The
+        // command-level checks (`exec`/`file`/`socket` unavailable,
+        // `pool`/`set` available) live in tcl-registry's
+        // `dialect_profile.rs` suite, which has the registry; here we pin
+        // only the point shape the scheme rests on.
         let p = DialectProfile::irules();
         assert_eq!(p.surface_query(), SurfaceQuery::any_release(Family::F5Irules));
         assert_eq!(p.vendor_surface, Some(SpecProvider::Core(Family::F5Irules)));
     }
 
     #[test]
-    fn additive_vendor_masks_compose_base_version_and_vendor_bit() {
-        // §7: an *additive* vendor profile composes (version | vendor). The EDA
-        // shells moved to the packaged model (a pure base-version mask + a
-        // `required_package` availability gate — see eda-library-packages.md),
-        // so only the F5 iApps host shell and Expect remain additive here.
+    fn an_additive_vendor_point_carries_its_base_release_and_its_package() {
+        // §7: an *additive* vendor profile is a base release plus its own
+        // package. The EDA shells moved to the packaged model (a plain base
+        // release plus a `required_package` gate — see
+        // eda-library-packages.md), so only the F5 iApps host shell and
+        // Expect remain additive here.
         // f5-iapps composes the **8.4** line: it rides the `f5-tcl` trunk
         // (fork of Tcl at 8.4.6) — measured, bigip-irule-parser-measurements.md
         // §4a; the 8.5 hypothesis is falsified.
@@ -1872,10 +1858,10 @@ mod tests {
     }
 
     #[test]
-    fn eda_shells_are_packaged_vendors_with_pure_version_masks() {
-        // The EDA-as-packages migration: each EDA shell's availability mask is
-        // its pure base Tcl version (no vendor bit) — the vendor command surface
-        // is gated by `required_package` (ambient in the profile), not the mask.
+    fn eda_shells_are_packaged_vendors_with_a_plain_release_point() {
+        // The EDA-as-packages migration: each EDA shell's point is its plain
+        // base Tcl release, with no vendor surface — the vendor command
+        // surface is gated by `required_package` (ambient in the profile).
         // Base versions follow the tools' embedded cores (owner decisions):
         // Cadence 8.4-safe, Xilinx/Quartus 8.5, Synopsys + modern Questa 8.6.
         for (name, base) in [
@@ -2117,13 +2103,12 @@ mod tests {
     }
 
     #[test]
-    fn tcloo_is_invariant_with_the_availability_mask() {
-        // §11.2: the hand-filled tcloo bool must agree with what the mask
-        // resolves for `oo::*` (gated ~TCL86_PLUS) — otherwise hover and
-        // the oo handler would contradict each other. Documented exception:
+    fn tcloo_agrees_with_what_the_point_resolves() {
+        // §11.2: the hand-filled tcloo bool must agree with what the point
+        // resolves for `oo::*` (8.6 and later) — otherwise hover and the oo
+        // handler would contradict each other. Documented exception:
         // f5-bigip has NO Tcl surface at all (tcloo false is the model
-        // truth, §7), so it is asserted directly rather than through the
-        // mask-derived invariant.
+        // truth, §7), so it is asserted directly.
         for p in all_with_fallback() {
             if p.name == "f5-bigip" {
                 assert!(!p.tcloo, "f5-bigip has no Tcl surface at all");
@@ -2425,9 +2410,8 @@ mod tests {
 /// order. This
 /// is the single source of truth for the explorer's dialect dropdown and
 /// the CLI's `--dialect` choices. Every name here resolves to its own
-/// [`DialectProfile::find`] flag (`f5-tmsh` / `f5-bigip` carry their own bits
-/// as first-class profiles, D8; `tk` parses to the grammar-layer `TK` bit
-/// but is a library pin, not a profile — §7.2).
+/// [`DialectProfile::find`] entry (`f5-tmsh` / `f5-bigip` are first-class
+/// profiles, D8; `tk` is a library pin, not a profile — §7.2).
 pub const KNOWN_DIALECTS: &[&str] = &[
     "bpf",
     "cadence-eda-tcl",

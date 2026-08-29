@@ -106,17 +106,26 @@ mod tests {
         }
     }
 
+    /// The document context a verb answers under asks the same surface
+    /// questions the threaded profile does, for every name this ingress can
+    /// produce.
+    ///
+    /// Not structural equality: the context resolves the F5 trunk to its
+    /// measured build (`8.4.6`) where the profile names the ladder line
+    /// (`8.4`), and no shipped surface tells those apart.
     #[test]
-    fn the_document_context_carries_the_threaded_masks() {
+    fn the_document_context_answers_like_the_threaded_profile() {
         let names: Vec<&str> = DialectProfile::all()
             .iter()
             .map(|profile| profile.name)
             .chain(["tk", "tcl", "", "irules", "klingon"])
             .collect();
         for name in names {
-            assert_eq!(
-                context_for_dialect(name).authoring_query(),
-                profile_for_dialect(name).surface_query(),
+            assert!(
+                tcl_registry::model::surface::points_answer_alike(
+                    &context_for_dialect(name).authoring_query(),
+                    &profile_for_dialect(name).surface_query(),
+                ),
                 "{name}"
             );
         }

@@ -126,30 +126,23 @@ fn registry_for(profile: &'static DialectProfile) -> &'static CommandRegistry {
 fn targets() -> Vec<Target> {
     vec![
         Target {
-            // The PLAIN_TCL profile: grammar_union == ALL_TCL.  Tk is
-            // filtered out by `required_package` (it needs `package
-            // require Tk`), so the ambient Tcl core is just ALL_TCL here.
+            // The plain-Tcl profile: its grammar union is the whole Tcl
+            // ladder. Tk is filtered out by `required_package` (it needs
+            // `package require Tk`), so what is left is the ambient core.
             dir: "tcl",
             id: "tcl",
             profile: crate::environment::profile_for_dialect("tcl"),
         },
         Target {
-            // iRules availability is fully explicit
-            // (dialect-profile-model.md §9): a Tcl 8.4 base plus the F5
-            // command surface — NOT the full Tcl-version union.  The
-            // profile's grammar_union is deliberately the bare `IRULES`
-            // bit: a command is projected iff `spec_visible` holds under
-            // `IRULES` — i.e. it is dialect-agnostic (`None`, e.g.
-            // `set`/`if`/`const`, which is deliberately kept valid in
-            // iRules) or carries the `IRULES` bit (the F5 surface),
-            // *minus* the math-operator heads
+            // iRules availability is stated per spec
+            // (dialect-profile-model.md §9), so the profile's grammar union
+            // names only the iRules family: a command is projected iff its
+            // own surface names iRules, minus the math-operator heads
             // (`Traits::OPERATOR_COMMAND` — operators live only inside
-            // `expr` in iRules).  A sandbox-banned command such as `exec`
-            // simply never carries the `IRULES` bit, so there is no
-            // disable list to subtract.  Post-8.4 commands gate to
-            // `TCL85_PLUS` / `TCL86_PLUS` / `TCL90_PLUS` (e.g. `dict`,
-            // `lassign`, `zipfs`), so they are excluded by the mask
-            // itself — iRules is the Tcl 8.4 base, not 8.5+.
+            // `expr` there). A sandbox-banned command such as `exec` simply
+            // does not name iRules, so there is no disable list to
+            // subtract, and post-8.4 commands (`dict`, `lassign`, `zipfs`)
+            // fall out the same way — iRules is the Tcl 8.4 base.
             dir: "irules",
             id: "f5-irules",
             profile: crate::environment::profile_for_dialect("f5-irules"),

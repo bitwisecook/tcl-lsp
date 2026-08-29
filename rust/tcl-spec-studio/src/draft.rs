@@ -53,6 +53,7 @@ use tcl_registry::arg_role::{AppendedArity, ArgRole};
 use tcl_registry::arity::Arity;
 use tcl_registry::definer::ManufacturerMethod;
 use tcl_registry::deprecation::{DeprecationFixHook, DeprecationFixSafety};
+use tcl_registry::forms::CommandForm;
 use tcl_registry::handle_binding::{
     HandleBindingSpec, HandleClassSource, HandleKeyword, HandleName,
 };
@@ -1086,6 +1087,79 @@ fn subcommand_hooks(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     );
 }
 
+/// The `command_forms` / `subcommand_forms` table as draft rows.
+fn refinement_rows(forms: &[CommandForm], key: &'static str, lost: &mut Unrecovered) -> Value {
+    Value::Array(
+        forms
+            .iter()
+            .map(|form| {
+                let (row, complete) = command_form(form, lost);
+                if !complete {
+                    lost.note(key);
+                }
+                row
+            })
+            .collect(),
+    )
+}
+
+/// One invocation refinement (`CommandForm` / `SubCommandForm`) as draft rows
+/// (design Q12/D2).
+///
+/// The overlay fields are tri-state — absent inherits, present replaces — so a
+/// `null` here is a real declaration, not a missing one. The descriptor's
+/// remaining native halves (completion, dispatch proofs, the literal-argument
+/// validator, the compiler hook ids) have no recoverable expression, exactly
+/// as they do not at command scope, so a form that carries one is noted lost
+/// rather than silently thinned.
+pub(crate) fn command_form(form: &CommandForm, lost: &mut Unrecovered) -> (Value, bool) {
+    let mut d = Map::new();
+    d.insert("name".into(), json!(form.name));
+    d.insert("arity".into(), arity(form.arity));
+    d.insert(
+        "selector".into(),
+        form.literal_argument_prefix.map_or(Value::Null, |prefix| {
+            json!({
+                "words": str_list(prefix.words),
+                "prefix_matching": catalogue::variant_name(&prefix.prefix_matching),
+            })
+        }),
+    );
+    d.insert("arg_roles".into(), role_map(form.arg_roles));
+    d.insert("options".into(), option_rows(form.options, lost));
+    d.insert(
+        "option_relations".into(),
+        if form.option_relations.is_empty() {
+            Value::Null
+        } else {
+            option_relations_expr(form.option_relations).map_or(Value::Null, |expr| json!(expr))
+        },
+    );
+    d.insert("surface".into(), dialects(form.surface));
+    d.insert("traits".into(), form.traits.map_or(Value::Null, traits));
+    d.insert(
+        "mutator".into(),
+        form.mutator.map_or(Value::Null, |flag| json!(flag)),
+    );
+    d.insert(
+        "side_effects".into(),
+        form.side_effects.map_or(Value::Null, |effects| {
+            Value::Array(effects.iter().map(|effect| side_effect(effect).0).collect())
+        }),
+    );
+    let native = form.semantic_operation.is_some()
+        || form.completion.is_some()
+        || form.result_stability.is_some()
+        || form.representation_effect.is_some()
+        || form.world_effects.is_some()
+        || form.state_transitions.is_some()
+        || form.dispatch_dependencies.is_some()
+        || form.literal_argument_validator.is_some()
+        || form.lowering_hook.is_some()
+        || form.codegen_hook.is_some();
+    (Value::Object(d), !native)
+}
+
 fn option_rows(options: &[OptionSpec], lost: &mut Unrecovered) -> Value {
     Value::Array(
         options
@@ -1143,7 +1217,7 @@ fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     d.insert("versioned_arg_values".into(), versioned_arg_values);
     d.insert(
         "subcommand_forms".into(),
-        lost.expr("subcommand_forms", !sub.subcommand_forms.is_empty()),
+        refinement_rows(sub.subcommand_forms, "subcommand_forms", lost),
     );
     d.insert("surface".into(), dialects(sub.surface));
     if !insert_lifecycle(d, sub.lifecycle) {
@@ -1358,7 +1432,7 @@ fn command_docs(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     );
     d.insert(
         "command_forms".into(),
-        lost.expr("command_forms", !spec.command_forms.is_empty()),
+        refinement_rows(spec.command_forms, "command_forms", lost),
     );
     d.insert(
         "assigns_variable_at".into(),

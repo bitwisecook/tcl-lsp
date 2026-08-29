@@ -90,6 +90,8 @@ pub enum FieldKind {
     Options,
     /// `&'static [FormSpec]`.
     Forms,
+    /// `&'static [CommandForm]` — the per-form overlays of design Q12/D2.
+    Refinements,
     /// `&'static [SideEffect]`.
     SideEffects,
     /// `&'static [SetterConstraint]`.
@@ -601,12 +603,10 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
     ),
     f(
         "command_forms",
-        "Structured command forms",
+        "Invocation refinements",
         ADVANCED,
-        FieldKind::RustExpr {
-            hint: "&[CommandForm { name: \"query\", literal_argument_prefix: Some(LiteralArgumentPrefix::unique(&[\"get\"])), traits: Some(Traits::PURE), mutator: Some(false), side_effects: Some(READS), ..CommandForm::DEFAULT }]",
-        },
-        "Opaque Rust form descriptors, including longest-static literal-prefix selection and replacement traits, mutator status, and side effects.",
+        FieldKind::Refinements,
+        "Per-form overlays: arity, literal-prefix selection, and the traits, mutator status and effects one call shape replaces.",
     ),
     f(
         "semantic_operation",
@@ -1617,12 +1617,10 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
     ),
     f(
         "subcommand_forms",
-        "Structured subcommand forms",
+        "Invocation refinements",
         ADVANCED,
-        FieldKind::RustExpr {
-            hint: "&[SubCommandForm { name: \"query\", literal_argument_prefix: Some(LiteralArgumentPrefix::unique(&[\"present\"])), traits: Some(Traits::PURE), mutator: Some(false), side_effects: Some(READS), ..SubCommandForm::DEFAULT }]",
-        },
-        "Opaque Rust form descriptors matched after the subcommand word by arity and longest-static optional literal prefix, including replacement traits, mutator status, and side effects.",
+        FieldKind::Refinements,
+        "Per-form overlays matched after the subcommand word by arity and longest-static literal prefix.",
     ),
     f(
         "semantic_operation",

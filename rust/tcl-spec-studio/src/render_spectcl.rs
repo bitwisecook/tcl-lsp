@@ -292,16 +292,6 @@ pub const GAPS: &[Gap] = &[
         spelling: "",
         kind: GapKind::Excluded,
     },
-    Gap {
-        key: "command_forms",
-        spelling: "",
-        kind: GapKind::Excluded,
-    },
-    Gap {
-        key: "subcommand_forms",
-        spelling: "",
-        kind: GapKind::Excluded,
-    },
 ];
 
 /// The [`Gap`] for `key`, if the renderer cannot carry it.
@@ -1804,26 +1794,29 @@ fn arity_row(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
     if !ctx.set(draft, "arity") {
         return;
     }
-    let value = &draft["arity"];
+    out.line(&format!("arity {}", arity_word(&draft["arity"])));
+}
+
+/// An arity draft value as the DSL's `RANGE ?-step N? ?-also N?` words.
+fn arity_word(value: &Value) -> String {
     let min = value["min"].as_u64().unwrap_or(0);
     let max = value["max"].as_u64();
     let step = value["step"].as_u64().unwrap_or(0);
     let also = value["also_exact"].as_u64();
-    let range = match (min, max) {
+    let mut row = match (min, max) {
         (m, Some(x)) if m == x && step == 0 => m.to_string(),
         (0, None) => "..".to_owned(),
         (m, None) => format!("{m}.."),
         (0, Some(x)) => format!("..{x}"),
         (m, Some(x)) => format!("{m}..{x}"),
     };
-    let mut row = format!("arity {range}");
     if step != 0 {
         let _ = write!(row, " -step {step}");
     }
     if let Some(also) = also {
         let _ = write!(row, " -also {also}");
     }
-    out.line(&row);
+    row
 }
 
 /// The shape words of one arity value, shared by the plain row and every
@@ -2389,7 +2382,6 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     gap_todo(out, ctx, draft, "completion");
     gap_todo(out, ctx, draft, "dispatch_dependencies");
     gap_todo(out, ctx, draft, "result_stability");
-    gap_todo(out, ctx, draft, "command_forms");
 
     // --- effects -----------------------------------------------------------
     out.gap();
@@ -2500,6 +2492,8 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     }
     hover_block(out, ctx, draft);
 
+    refine_blocks(out, ctx, draft, "command_forms");
+
     // --- subcommands -------------------------------------------------------
     for sub in as_array(draft.get("subcommands").unwrap_or(&Value::Null)) {
         let Some(body) = sub.as_object() else {
@@ -2552,7 +2546,16 @@ fn versioned_arg_value_rows_for(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
 }
 
 fn side_effect_rows(out: &mut Out, draft: &Draft, availability: bool) {
-    for effect in as_array(draft.get("side_effects").unwrap_or(&Value::Null)) {
+    side_effect_rows_of(
+        out,
+        draft.get("side_effects").unwrap_or(&Value::Null),
+        availability,
+    );
+}
+
+/// The `side_effect …` rows of one effect table, wherever it hangs.
+fn side_effect_rows_of(out: &mut Out, effects: &Value, availability: bool) {
+    for effect in as_array(effects) {
         let mut row = vec![
             "side_effect".to_owned(),
             str_of(&effect["target"]).to_owned(),
@@ -2579,6 +2582,96 @@ fn side_effect_rows(out: &mut Out, draft: &Draft, availability: bool) {
         }
         push_lifecycle_flags(&mut row, &mut lost, effect);
         emit_row(out, "side_effects", &row, lost, "");
+    }
+}
+
+/// The `refine NAME { … }` blocks under `key` (design Q12/D2).
+///
+/// A form states the same words its owning scope does, about one call shape.
+/// Only the overlays the row actually declares are written: an absent one
+/// inherits, and writing it back as an empty row would change its meaning.
+fn refine_blocks(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft, key: &str) {
+    for form in as_array(draft.get(key).unwrap_or(&Value::Null)).to_vec() {
+        let Some(row) = form.as_object() else {
+            continue;
+        };
+        out.gap();
+        out.line(&format!("refine {} {{", name_word(str_of(&row["name"]))));
+        let mut lost = false;
+        out.indented(|out| {
+            let arity = arity_word(&form["arity"]);
+            if arity != ".." {
+                out.line(&format!("arity {arity}"));
+            }
+            if let Some(selector) = form["selector"].as_object() {
+                let mut words = vec![
+                    "selector".to_owned(),
+                    list_word(
+                        &as_array(&selector["words"])
+                            .iter()
+                            .map(|word| str_of(word).to_owned())
+                            .collect::<Vec<_>>(),
+                    )
+                    .unwrap_or_else(|| "{}".to_owned()),
+                ];
+                if str_of(&selector["prefix_matching"]) == "Strict" {
+                    words.push("-exact".to_owned());
+                }
+                out.line(&words.join(" "));
+            }
+            for role in as_array(&form["arg_roles"]) {
+                out.line(&format!(
+                    "arg {} -role {}",
+                    role["index"],
+                    str_of(&role["role"])
+                ));
+            }
+            for option in as_array(&form["options"]).to_vec() {
+                option_row(out, ctx, &option);
+            }
+            if let Some(expr) = form["option_relations"].as_str() {
+                match option_conflict_rows(expr, ctx.availability) {
+                    Some(rows) => {
+                        for row in rows {
+                            out.row(&row, "");
+                        }
+                    }
+                    None => lost = true,
+                }
+            }
+            if let Some(rows) = form["surface"].as_array() {
+                let value = Value::Array(rows.clone());
+                match ctx
+                    .availability
+                    .then(|| available_statement(&value))
+                    .flatten()
+                {
+                    Some(spelling) => out.line(&format!("available {spelling}")),
+                    None => match dialect_set_word(&value) {
+                        Some(spelling) => out.line(&format!("dialects {spelling}")),
+                        None => lost = true,
+                    },
+                }
+            }
+            if let Some(traits) = form["traits"].as_array() {
+                match str_list_word(&Value::Array(traits.clone())) {
+                    Some(spelling) => out.line(&format!("traits {spelling}")),
+                    None => lost = true,
+                }
+            }
+            if let Some(mutator) = form["mutator"].as_bool() {
+                out.line(&format!("mutator {}", if mutator { "yes" } else { "no" }));
+            }
+            match form["side_effects"].as_array() {
+                Some(effects) if effects.is_empty() => out.line("side_effects none"),
+                Some(_) => side_effect_rows_of(out, &form["side_effects"], ctx.availability),
+                None => {}
+            }
+        });
+        if lost {
+            out.indented(|out| todo(out, "refine"));
+        }
+        out.line("}");
     }
 }
 
@@ -2803,7 +2896,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
     gap_todo(out_body, ctx, sub, "completion");
     gap_todo(out_body, ctx, sub, "dispatch_dependencies");
     gap_todo(out_body, ctx, sub, "result_stability");
-    gap_todo(out_body, ctx, sub, "subcommand_forms");
+    refine_blocks(out_body, ctx, sub, "subcommand_forms");
 
     enum_word(out_body, ctx, sub, "command_table_effect");
     side_effect_rows(out_body, sub, ctx.availability);
@@ -3122,6 +3215,53 @@ mod tests {
     /// The rendered rows, end to end, over a real shipped command: the
     /// command scope takes the statement spelling and an option takes the
     /// flag, and both load back to the very bits the draft held.
+    /// **Q12/D2's migration test.** Every Tk command that refines its
+    /// subcommand forms round-trips through the pack DSL: the rendered
+    /// `refine` blocks reload to the same form tables the compiled specs
+    /// carry. Tk's form sites are the measured blocker the descriptor
+    /// existed to unblock, so they are what proves it.
+    #[test]
+    fn tk_form_refinements_round_trip_through_the_pack_dsl() {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let mut checked = 0usize;
+        for name in registry.command_names().collect::<Vec<_>>() {
+            let Some(spec) = registry.get(name) else {
+                continue;
+            };
+            if spec.required_package != Some("Tk")
+                || spec
+                    .subcommands
+                    .iter()
+                    .all(|sub| sub.subcommand_forms.is_empty())
+            {
+                continue;
+            }
+            let seeded = draft::from_command_spec(spec);
+            let text = render_pack(std::slice::from_ref(&seeded), "tk-forms");
+            let pack = crate::spectcl::evaluate_pack(&text);
+            let reloaded = pack
+                .commands
+                .first()
+                .unwrap_or_else(|| panic!("`{name}` reloads:\n{text}"))
+                .spec;
+            for original in spec.subcommands {
+                if original.subcommand_forms.is_empty() {
+                    continue;
+                }
+                let back = reloaded
+                    .subcommand(original.name)
+                    .unwrap_or_else(|| panic!("`{name} {}` reloads", original.name));
+                assert_eq!(
+                    back.subcommand_forms, original.subcommand_forms,
+                    "`{name} {}` form table",
+                    original.name
+                );
+                checked += 1;
+            }
+        }
+        assert!(checked >= 40, "only {checked} Tk form sites round-tripped");
+    }
+
     #[test]
     fn availability_rows_reload_to_the_set_they_were_written_from() {
         let registry = tcl_registry::CommandRegistry::build_default();

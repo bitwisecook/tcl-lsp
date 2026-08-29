@@ -85,8 +85,8 @@ fn frameless_runtime_set() -> &'static HashSet<String> {
 ///
 /// Tcl 8.6 is the compiler's documented plain-Tcl baseline. Unlike an owned
 /// `build_default()` registry, this cached registry carries an explicit
-/// profile, so structured subcommand/form resolution never relies on an empty
-/// dialect mask. Production callers should pass their selected registry via
+/// profile, so structured subcommand/form resolution is never surface-blind.
+/// Production callers should pass their selected registry via
 /// the `*_with_registry` APIs instead.
 pub(crate) fn default_registry() -> &'static CommandRegistry {
     tcl_registry::model::ingress::static_context_for("tcl8.6").commands()
@@ -118,8 +118,7 @@ pub(crate) fn invocation_facts_from_tokens(
 ) -> Option<Box<InvocationFacts>> {
     // The store's own profile *is* an already-resolved environment id, so
     // this is the id-keyed context for the registry the caller handed us
-    // (ledger C1 re-key; the retired form projected the profile's
-    // `availability_mask`, which the context's authoring mask reproduces).
+    // (ledger C1 re-key).
     let context = registry
         .profile()
         .map(tcl_registry::model::semantic::SemanticContext::for_profile);

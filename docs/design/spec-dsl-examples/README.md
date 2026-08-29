@@ -84,7 +84,7 @@ Additive only, so nothing written against 1.0 has to change.
 | **1.0** | the vocabulary the eleven ports froze |
 | **1.1** | the three lifecycle flags `-introduced` / `-deprecated` / `-retired` at every level the registry can gate — `form`, `side_effect`, `option_conflict`, `sub_subcommand`, and a `values` table's `value` rows — plus `versioned_arg_value` at **command** scope (it was subcommand-only), and the option row's `-deprecation-fix {…}` data form |
 | **1.2** | versioned `arity` and `arg` rows; `ambient_package`; second-level option blocks; option-level `-taints-var-write`, `-variable-scope`, `-script-timing`, and `-callback-taint-inputs`; positional `callback_taint_inputs`; `script_timing_resolver`; `object_class -method-prefix-matching`; and `tk_geometry` |
-| **2.0** | `available {PROVIDER SPEC…}` / `-available` at every scope `dialects` is accepted; the `environment NAME { … }` and `dialect NAME { … }` pack-level blocks |
+| **2.0** | `available {PROVIDER SPEC…}` / `-available` at every scope `dialects` is accepted; the `environment NAME { … }` and `dialect NAME { … }` pack-level blocks; `refine NAME { … }`, the invocation refinement, at command and subcommand scope |
 
 Every 1.1 word is one the option row already spelled, moved outward: the
 flags are `Lifecycle`'s own three releases, on the entity's own package
@@ -426,6 +426,60 @@ the descriptor's own field names, so nothing new has to be learnt:
 `*` marks a repeatable row. `world_effects none` is the one-word
 `WorldEffectDescriptor::EMPTY`. The last two are specified under
 "Definer grammars and scoped bodies" below.
+
+### `refine` — one invocation form
+
+An eleventh block, `refine NAME { … }`, is different in kind: it does not
+have inner words of its own. A form is a **refinement** of the command or
+subcommand that owns it, so it states the owning scope's own words about
+one call shape, and the owning scope's own readers read them:
+
+```tcl
+subcommand cget {
+    arity 0..1
+    synopsis {pathName cget ?-option?}
+
+    refine query {
+        arity 0
+        traits {PURE}
+        mutator no
+        side_effect InterpState -reads
+    }
+    refine set {
+        arity 1
+        mutator yes
+        side_effect InterpState -reads -writes
+    }
+}
+```
+
+The legal words are `arity`, `selector {WORD …} ?-exact?`,
+`arg N -role ROLE`, `option …`, the four `option_*` relations,
+`available` / `dialects`, `traits`, `mutator`, `side_effect …`,
+`side_effects none`, `semantic_operation`, `result_stability`,
+`representation_effect`, `world_effects`, `state_transitions`, and the
+`-native` `lowering_hook` / `codegen_hook`. Anything else is an unknown
+property: a fact that belongs on the parent cannot be lost inside a form.
+
+Three rules matter:
+
+- **Omission inherits.** No `traits` row means the parent's traits; an
+  empty `traits {}` row replaces them with none. That difference is the
+  point — it is how a zero-argument read form drops a mutation trait its
+  conservative parent has to carry. `side_effects none` is the same
+  distinction for effects.
+- **`selector` is literal.** The words are matched statically from the
+  start of the form's own argument list; a substituted or expanded word
+  never matches, and abstains to the parent's facts while a longer
+  selector is still possible. Unique-prefix matching is the default,
+  because Tcl resolves unambiguous abbreviations; `-exact` opts out.
+- **`arg` refines roles only.** The other `arg` columns (types, values,
+  presentation) are properties of the command, shared by every form.
+
+The descriptor's native halves — `completion`, `dispatch_dependencies`,
+and `literal_argument_validator` — stay Rust-only. A shipped form that
+carries one is reported when the Studio seeds a draft from it, so the
+round trip never claims to preserve more than it does.
 
 ## Hooks
 
@@ -772,13 +826,12 @@ gate rather than pass silently.
 
 ## What a pack cannot author
 
-Four kinds of field are **excluded** outright, and two more are
+Three kinds of field are **excluded** outright, and two more are
 **reference-only**. Every one is in the coverage matrix with its reason;
 the summary is:
 
 | field(s) | why not |
 |---|---|
-| `command_forms`, `subcommand_forms` | whole structured descriptors mixing declarative arity/roles/options/effect refinements with native validators, compiler hooks, and proof metadata. Studio preserves one as an opaque Rust expression, but SpecTcl cannot author or round-trip any part without falsely claiming the rest is preserved. Plain `forms` is documentation-only and is not a semantic substitute; compiled-in Tcl/iRules routing and Tk query/mutation refinements use the structured descriptors. The boundary and a declarative split alternative are in [spec-packs.md](../spec-packs.md). |
 | `completion` | a compiler proof obligation, not a description of the command. See the rationale below. |
 | `dispatch_dependencies` | specialisation-proof machinery whose meaning is defined by the optimiser; `fields.md` itself says "leave unset". |
 | `data_collection`, `bpf_op` | shared named descriptors, referenced by name — the boundary spec-packs.md's bucket 2 draws. `data_collection`'s descriptor is paired with protocol machinery outside the registry; `bpf_op` is a closed compiler catalogue. |
@@ -1097,7 +1150,7 @@ exemplar or a shipped struct, and none blocks the freeze.
 
 | limit | evidence | why it is a limit |
 |---|---|---|
-| Per-flag-combination return typing | tarray column search: the returned representation depends on which *combination* of mode/shape flags is present | `return_type` is one value per command/subcommand, and even the excluded `command_forms` splits by form, not by flag combination |
+| Per-flag-combination return typing | tarray column search: the returned representation depends on which *combination* of mode/shape flags is present | `return_type` is one value per command/subcommand, and `refine` splits by form, not by flag combination |
 | Library-defined completion codes | `struct::tree::prune`'s `return -code 5`, meaningful only inside `struct::tree walk`'s body | `completion` is excluded, and the authorable traits name only break/continue/raise. Nothing pairs a custom code to the single command whose body accepts it, the way `HAS_LOOP_BODY` pairs with `BREAKS_LOOP` |
 | Method-scoped taint sinks | SpiceGenTcl's `Batch::runAndRead` — an `exec` inside a TclOO instance method | `taint_code_sink_args` / `taint_network_sink_args` are command-only fields; the methods that actually spawn processes are `SubCommand`-shaped and cannot declare them |
 | Embedded-language naming beyond the closed catalogues | tDOM's XPath argument; ticklecharts' JS/G6 fragments | `pattern_type` and `format_string_type` are closed catalogues (Glob/Regex; Sprintf/Clock/Binary/Regsub) a pack cannot extend |
@@ -1151,7 +1204,7 @@ schema order. "excluded" rows carry the reason.
 | `default_form_first_word` | `default_form_first_word Integer` |  |
 | `hover` | `hover { … }` | block; see the hover statements below |
 | `forms` | `form KIND {synopsis} ?-dialects {…}? ?-introduced V? ?-deprecated V? ?-retired V?` | one row per form; the three releases are `FormSpec.lifecycle` |
-| `command_forms` | **excluded** | whole-descriptor boundary: mixed declarative form facts plus native validators/compiler hooks/proof metadata. The Studio carries one opaque Rust expression; SpecTcl does not claim a partial round trip. Plain `forms` only documents synopsis/lifecycle. |
+| `command_forms` | `refine NAME { … }` | one block per invocation form (2.0, design Q12/D2); the body takes `arity`, `selector {WORD …} ?-exact?`, `arg N -role R`, `option …`, the four `option_*` relations, `available`/`dialects`, `traits`, `mutator`, `side_effect …` / `side_effects none`. An omitted overlay inherits, so `traits {}` and no `traits` row are different declarations. The descriptor's native halves (`completion`, `dispatch_dependencies`, `literal_argument_validator`) stay Rust-only and a form carrying one is reported, not thinned. Plain `forms` still only documents synopsis/lifecycle. |
 | `semantic_operation` | `semantic_operation Invoke\|{Intrinsic ID}\|{StructuredLowering ID}` | an operation identity, so it keeps the enum spelling rather than `-native` |
 | `completion` | **excluded** | `CompletionDescriptor` describes the command's *control-flow edges*, so a wrong value corrupts the CFG rather than one value — see "Why `completion` is excluded and `const_fold` is not". The traits `BREAKS_LOOP` / `CONTINUES_LOOP` / `CATCHABLE_THROW` stay authorable and cover the standard codes |
 | `assigns_variable_at` | `assigns_variable_at N` |  |
@@ -1271,7 +1324,7 @@ schema order. "excluded" rows carry the reason.
 | `prefix_matching` | `prefix_matching Enabled\|Strict` |  |
 | `arg_values` | `arg N -values {v …}` \| `arg N -values-from NAME` | `values NAME { … }` declares the shared table, whose rows carry `-min-tcl` (the Tcl axis) and the three releases (the package axis) independently |
 | `versioned_arg_values` | `versioned_arg_value N VALUE ?-introduced V? ?-deprecated V? ?-retired V?` | one row per gate; the same statement is legal in a `command` body since 1.1 |
-| `subcommand_forms` | **excluded** | the subcommand-level twin of `command_forms`; the whole descriptor is excluded for the same all-or-nothing round-trip reason |
+| `subcommand_forms` | `refine NAME { … }` | the subcommand-level twin of `command_forms`, one grammar and one reader |
 | `semantic_operation` | `semantic_operation Invoke\|{Intrinsic ID}\|{StructuredLowering ID}` | an operation identity, so it keeps the enum spelling rather than `-native` |
 | `completion` | **excluded** | `CompletionDescriptor` describes the command's *control-flow edges*, so a wrong value corrupts the CFG rather than one value — see "Why `completion` is excluded and `const_fold` is not". The traits `BREAKS_LOOP` / `CONTINUES_LOOP` / `CATCHABLE_THROW` stay authorable and cover the standard codes |
 | `dialects` | `dialects {SET …}` | absent inherits the parent command's set |

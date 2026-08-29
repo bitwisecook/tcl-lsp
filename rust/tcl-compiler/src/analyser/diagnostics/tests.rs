@@ -13201,10 +13201,9 @@ fn irules_stays_subtractive_under_the_profile() {
 
 #[test]
 fn irules_alias_dialect_string_behaves_like_canonical() {
-    // §2.4 alias canonicalisation: the legacy "irules" spelling used to fall
-    // through the retired availability mask::parse to the permissive ALL_TCL view (a silent
-    // false negative); via the profile catalog it now resolves like
-    // f5-irules.
+    // §2.4 alias canonicalisation: the legacy "irules" spelling used to
+    // fall through to the permissive plain-Tcl view (a silent false
+    // negative); via the profile catalogue it resolves like f5-irules.
     let codes = codes_for_dialect("exec /bin/true", "irules");
     assert!(
         codes.iter().any(|c| c == "W002"),

@@ -4566,6 +4566,7 @@ struct CommandAcc {
     arity_windows: Vec<ArityWindow>,
     options: Vec<OptionSpec>,
     forms: Vec<FormSpec>,
+    refinements: Vec<CommandForm>,
     side_effects: Vec<SideEffect>,
     subcommands: Vec<SubCommand>,
     manufacturers: Vec<ManufacturerMethod>,
@@ -4674,6 +4675,7 @@ fn command_from_parts(
         spec.callback_taint_inputs = leak_slice(callback_taint_inputs);
         spec.arity_windows = checked_arity_windows(acc.arity_windows, "command", line, log);
         spec.options = leak_slice(acc.options);
+        spec.command_forms = leak_slice(acc.refinements);
         spec.forms = leak_slice(acc.forms);
         spec.side_effects = leak_slice(acc.side_effects);
         spec.subcommands = leak_slice(acc.subcommands);
@@ -5138,6 +5140,12 @@ fn apply_command_stmt(
             }
         }
         "form" => acc.forms.push(form_row(stmt, log)),
+        "refine" => {
+            log.v20(stmt.line, "refine");
+            if let Some(form) = load_refinement(stmt, tables, log) {
+                acc.refinements.push(form);
+            }
+        }
 
         // --- effects ------------------------------------------------------
         "side_effect" => {
@@ -5869,6 +5877,195 @@ fn state_transitions_value(
 }
 
 // ---------------------------------------------------------------------------
+// `refine` — invocation refinement (2.0, design Q12/D2)
+// ---------------------------------------------------------------------------
+
+/// The rows a `refine` body accumulates before the form is sealed.
+#[derive(Default)]
+struct RefineAcc {
+    args: ArgRows,
+    options: Vec<OptionSpec>,
+    option_relations: Vec<tcl_registry::spec::OptionRelation>,
+    side_effects: Vec<SideEffect>,
+    /// `side_effects none` — declaring the parent's effects away is not the
+    /// same as saying nothing, so the empty slice needs a spelling of its own.
+    silenced_side_effects: bool,
+}
+
+/// Read a `refine NAME { … }` block into the invocation form it describes.
+///
+/// A form is a **refinement** of the command or subcommand that owns it:
+/// every overlay field it does not mention inherits. That makes an omitted
+/// row and an empty one different declarations — no `traits` row inherits the
+/// parent's traits, while `traits {}` replaces them with none, which is how a
+/// read form drops a mutation trait its conservative parent has to carry.
+fn load_refinement(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> Option<CommandForm> {
+    let name = stmt.word_text(1).to_owned();
+    let body = stmt.arg(2)?;
+    let line = stmt.line;
+    let outer = log.context.clone();
+    log.scoped(format!("{outer} / refine {name}"), |log| {
+        let mut form = CommandForm {
+            name: leak_str(&name),
+            ..CommandForm::DEFAULT
+        };
+        let mut acc = RefineAcc::default();
+        for stmt in block(body) {
+            apply_refine_stmt(&mut form, &mut acc, &stmt, tables, log);
+        }
+        let args = acc.args.seal();
+        if !args.types.is_empty()
+            || !args.values.is_empty()
+            || !args.closed.is_empty()
+            || !args.presentation.is_empty()
+            || !args.prefixes.is_empty()
+        {
+            log.say(
+                line,
+                "a form refines argument *roles* only; the other `arg` columns \
+                 stay on the owning command, where every form shares them",
+            );
+        }
+        form.arg_roles = leak_slice(args.roles);
+        form.options = leak_slice(acc.options);
+        form.option_relations = leak_slice(acc.option_relations);
+        if !acc.side_effects.is_empty() {
+            form.side_effects = Some(leak_slice(acc.side_effects));
+        } else if acc.silenced_side_effects {
+            form.side_effects = Some(&[]);
+        }
+        Some(form)
+    })
+}
+
+/// One statement of a `refine` body.
+///
+/// The words are the owning scope's own words, read by the owning scope's own
+/// readers — a form states the same facts a command does, about one call shape
+/// instead of all of them. Only the fields a [`CommandForm`] carries are legal
+/// here; anything else is an unknown property, so a fact that belongs on the
+/// parent cannot be quietly lost inside a form.
+fn apply_refine_stmt(
+    form: &mut CommandForm,
+    acc: &mut RefineAcc,
+    stmt: &Stmt,
+    tables: &PackTables,
+    log: &mut Log,
+) {
+    let key = stmt.word_text(0).to_owned();
+    let value = stmt.word_text(1).to_owned();
+    match key.as_str() {
+        "arity" => match parse_arity(stmt, log) {
+            (arity, None) => form.arity = arity,
+            (arity, Some(_)) => {
+                form.arity = arity;
+                log.say(
+                    stmt.line,
+                    "a form's `arity` takes no lifecycle window — gate the whole \
+                     form with `available` instead",
+                );
+            }
+        },
+        "selector" => form.literal_argument_prefix = selector_row(stmt, log),
+        "arg" => acc.args.apply(stmt, tables, log),
+        "option" => {
+            let (option, hook) = option_row(stmt, tables, log);
+            if hook.is_some() {
+                log.say(
+                    stmt.line,
+                    "a form option's Tcl hook is dropped: hooks bind at command scope",
+                );
+            }
+            acc.options.push(option);
+        }
+        "option_conflict" => acc.option_relations.push(option_relation_row(
+            stmt,
+            tcl_registry::RelationKind::MutuallyExclusive,
+            log,
+        )),
+        "option_requires" | "option_requires_one_of" | "option_forbids" => {
+            let kind = match key.as_str() {
+                "option_requires" => tcl_registry::RelationKind::Requires,
+                "option_requires_one_of" => tcl_registry::RelationKind::RequiresOneOf,
+                _ => tcl_registry::RelationKind::Forbids,
+            };
+            acc.option_relations
+                .push(option_relation_row(stmt, kind, log));
+        }
+        "dialects" => form.surface = parse_dialects(&value, stmt.line, log),
+        "available" => {
+            let availability = available::from_statement(stmt, 1, log);
+            apply_availability(&mut form.surface, availability, "form", stmt.line, log);
+        }
+        "traits" => form.traits = Some(parse_traits(&value, stmt.line, log)),
+        "mutator" => form.mutator = Some(parse_flag(stmt.tail())),
+        "side_effect" => {
+            if let Some(effect) = side_effect_row(stmt, log) {
+                acc.side_effects.push(effect);
+            }
+        }
+        "side_effects" => {
+            if value == "none" {
+                acc.silenced_side_effects = true;
+            } else {
+                log.say(
+                    stmt.line,
+                    "`side_effects` takes only `none`; write each effect as its \
+                     own `side_effect` row",
+                );
+            }
+        }
+        "semantic_operation" => {
+            form.semantic_operation = parse_semantic_operation(&value, stmt.line, log);
+        }
+        "result_stability" => {
+            if let Some(stability) = result_stability_row(stmt, log) {
+                form.result_stability = Some(stability);
+            }
+        }
+        "representation_effect" => {
+            form.representation_effect = parse_representation_effect(&value, stmt.line, log);
+        }
+        "world_effects" => form.world_effects = world_effects_value(stmt, tables, log),
+        "state_transitions" => {
+            form.state_transitions = state_transitions_value(stmt, tables, log);
+        }
+        "lowering_hook" => {
+            form.lowering_hook = native_id(stmt, LOWERING_HOOKS, "lowering hook", log);
+        }
+        "codegen_hook" => {
+            form.codegen_hook = native_id(stmt, CODEGEN_HOOKS, "codegen hook", log);
+        }
+        _ => log.unknown_property(stmt),
+    }
+}
+
+/// `selector {WORD …} ?-exact?` — the literal words that pick this form out of
+/// its siblings.
+///
+/// Tcl resolves an unambiguous abbreviation of a literal selector word, so
+/// unique-prefix matching is the default and `-exact` is the opt-out for a
+/// surface that does not.
+fn selector_row(stmt: &Stmt, log: &mut Log) -> Option<LiteralArgumentPrefix> {
+    let words = list_words(stmt.word_text(1));
+    if words.is_empty() {
+        log.say(stmt.line, "`selector` needs at least one literal word");
+        return None;
+    }
+    let mut prefix_matching = PrefixMatching::Enabled;
+    for flag in stmt.words.iter().skip(2) {
+        match flag.text.as_str() {
+            "-exact" => prefix_matching = PrefixMatching::Strict,
+            other => log.unknown_flag("selector", stmt.line, other),
+        }
+    }
+    Some(LiteralArgumentPrefix {
+        words: leak_strs(&words),
+        prefix_matching,
+    })
+}
+
+// ---------------------------------------------------------------------------
 // Subcommands
 // ---------------------------------------------------------------------------
 
@@ -5877,6 +6074,7 @@ struct SubAcc {
     args: ArgRows,
     arity_windows: Vec<ArityWindow>,
     options: Vec<OptionSpec>,
+    refinements: Vec<CommandForm>,
     side_effects: Vec<SideEffect>,
     sub_subcommands: Vec<SubSubCommand>,
     repeats: Vec<tcl_registry::repeated::RepeatedArgLayout>,
@@ -5941,6 +6139,7 @@ fn subcommand_from_parts(
         sub.callback_taint_inputs = leak_slice(callback_taint_inputs);
         sub.arity_windows = checked_arity_windows(acc.arity_windows, kind, line, log);
         sub.options = leak_slice(acc.options);
+        sub.subcommand_forms = leak_slice(acc.refinements);
         sub.side_effects = leak_slice(acc.side_effects);
         sub.sub_subcommands = leak_slice(acc.sub_subcommands);
         sub.repeated_args = leak_slice(acc.repeats);
@@ -6090,6 +6289,12 @@ fn apply_subcommand_stmt(
                 });
             }
             acc.options.push(option);
+        }
+        "refine" => {
+            log.v20(stmt.line, "refine");
+            if let Some(form) = load_refinement(stmt, tables, log) {
+                acc.refinements.push(form);
+            }
         }
         "option_conflict" => acc.option_relations.push(option_relation_row(
             stmt,
@@ -7611,6 +7816,82 @@ mod tests {
             pack.notices
                 .iter()
                 .any(|n| n.message.contains("unknown `available` provider `klingon`")),
+            "{:?}",
+            pack.notices
+        );
+    }
+
+    /// `refine` states one invocation form (Q12/D2): the words are the
+    /// owning scope's own, and every overlay it omits inherits.
+    #[test]
+    fn a_refine_block_states_one_invocation_form() {
+        let pack = evaluate_pack(
+            "speclib probe 2.0 {\n command demo {\n arity 0..2\n \
+             traits {PURE MUTATES_ARGUMENT}\n \
+             refine query {\n arity 0\n traits {PURE}\n mutator no\n \
+             side_effects none\n }\n \
+             refine set {\n arity 2\n selector {put}\n mutator yes\n \
+             side_effect InterpState -writes\n }\n }\n}",
+        );
+        let spec = pack.command("demo").expect("demo loads").spec;
+        let [query, set] = spec.command_forms else {
+            panic!("two forms, got {:?}", spec.command_forms);
+        };
+        assert_eq!(query.name, "query");
+        assert_eq!(query.arity, Arity::exact(0));
+        assert_eq!(query.traits, Some(Traits::PURE));
+        assert_eq!(query.mutator, Some(false));
+        assert_eq!(query.side_effects, Some(&[] as &[SideEffect]));
+        assert_eq!(set.name, "set");
+        assert_eq!(set.arity, Arity::exact(2));
+        // An unmentioned overlay is inherited, not blanked.
+        assert_eq!(set.traits, None);
+        assert_eq!(set.mutator, Some(true));
+        let selector = set.literal_argument_prefix.expect("a selector");
+        assert_eq!(selector.words, ["put"]);
+        assert_eq!(selector.prefix_matching, PrefixMatching::Enabled);
+        let [effect] = set.side_effects.expect("declared effects") else {
+            panic!("one effect");
+        };
+        assert_eq!(effect.target, SideEffectTarget::InterpState);
+        assert!(effect.writes);
+    }
+
+    /// A subcommand refines its own forms, through the same reader — which is
+    /// the shape Tk's widget methods need: one query arity and one mutation
+    /// arity under a single method word.
+    #[test]
+    fn a_subcommand_refines_its_own_forms() {
+        let pack = evaluate_pack(
+            "speclib probe 2.0 {\n command widget {\n arity 1..\n \
+             subcommand cget {\n arity 0..1\n \
+             refine query {\n arity 0\n traits {PURE}\n mutator no\n }\n \
+             refine set {\n arity 1\n mutator yes\n }\n }\n }\n}",
+        );
+        let spec = pack.command("widget").expect("widget loads").spec;
+        let sub = spec.subcommand("cget").expect("the cget subcommand");
+        assert_eq!(
+            sub.subcommand_forms
+                .iter()
+                .map(|form| form.name)
+                .collect::<Vec<_>>(),
+            ["query", "set"]
+        );
+        assert_eq!(sub.subcommand_forms[1].mutator, Some(true));
+    }
+
+    /// A `refine` body takes only the fields a form carries: a fact that
+    /// belongs on the parent is an unknown property here, not a silent loss.
+    #[test]
+    fn a_refine_block_refuses_a_fact_the_form_cannot_hold() {
+        let pack = evaluate_pack(
+            "speclib probe 2.0 {\n command demo {\n arity 1\n \
+             refine only {\n arity 1\n return_type List\n }\n }\n}",
+        );
+        assert!(
+            pack.notices
+                .iter()
+                .any(|n| n.message.contains("return_type")),
             "{:?}",
             pack.notices
         );

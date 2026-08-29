@@ -1102,11 +1102,11 @@ fn resolve_unit_scope(
 /// **Ledger C1 / redesign §11.2 D1 — the re-key.** This replaces the retired
 /// `semantic_dialect_set` name→`SpecSurface` projection, which selected the
 /// *exact* bit the profile's own name parsed to and therefore answered
-/// `None` (no executable facts at all) for every environment
-/// whose name owns no bit — the lenient `tcl` sink and the six EDA shells —
-/// and the bare vendor bit for the composite environments (`f5-iapps` parsed
-/// to `IAPPS` while its mask composes `TCL84|IAPPS`). The context's authoring
-/// mask is the environment's real one, which is what the deep-analysis and
+/// `None` (no executable facts at all) for every environment the old name
+/// ingress could not resolve — the lenient `tcl` sink and the six EDA
+/// shells — and a bare vendor surface for the composite environments. The
+/// context's authoring point is the environment's real one, which is what
+/// the deep-analysis and
 /// Explorer paths already passed, so the interactive path now agrees with
 /// them instead of seeing a narrower registry. It is `pub` so `tcl-lsp-db`'s
 /// per-item unit build reads the **same** projection instead of resolving the

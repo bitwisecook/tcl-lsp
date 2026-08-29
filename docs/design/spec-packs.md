@@ -73,34 +73,33 @@ TclOO/snit definers, `upvar`, `return`) and by drafting specs for
 external libraries (ticklecharts, apave, SpiceGenTcl, uncovered tcllib
 modules) rather than by inventing syntax in the abstract.
 
-**Where the migration half of that ambition stops, exactly.** The DSL
-excludes `command_forms` and `subcommand_forms`. These are not just another
-declarative row: one value bundles arity, roles and options with native
-literal validators, lowering/codegen hooks, and compiler proof descriptors.
-The Studio can preserve a hand-written value as an opaque Rust expression,
-but the runtime loader cannot construct every member and a loaded spec cannot
-recover the identity of every function pointer. Consequently the exclusion is
-**whole-descriptor and all-or-nothing**. Adding syntax for only a literal
-selector and effect overrides would make a partially authorable form look
-round-trippable when it is not.
+**Where the migration half of that ambition stops, exactly.** It used to
+stop at `command_forms` and `subcommand_forms`, which bundle arity, roles
+and options together with native literal validators, compiler hooks and
+proof descriptors: no partial syntax could be added without making a
+half-authorable form look round-trippable.
 
-The old rationale that plain `forms` covers every getter/setter split is no
-longer true. `FormSpec` documents synopsis and lifecycle only; it carries no
-semantic traits or effects. In addition to the original Tcl/iRules compiler
-routing users (`lset`, `incr`, `package vsatisfies`, `namespace upvar`,
-`HTTP::cookie`, and `HTTP2::stream`), compiled-in Tk widget methods now use
-structured subcommand forms to distinguish queries from mutations and to
-select nested literal operations. Those compiled-in specs therefore cannot
-round-trip through SpecTcl either.
+Q12 resolved that by splitting the descriptor rather than subsetting it.
+`refine NAME { … }` is the **invocation refinement** — arity, a literal
+`selector`, argument roles, options and relations, availability, and the
+replacement `traits` / `mutator` / effects one call shape states — written
+in the owning scope's own words and read by the owning scope's own readers.
+The native halves (`completion`, `dispatch_dependencies`,
+`literal_argument_validator`, and the compiler hook ids) stay Rust-only,
+and a form carrying one is *reported*, not thinned, so the round trip never
+claims more than it preserves.
 
-The tractable way to close this gap is not a four-field subset of
-`CommandForm`. Split out a fully declarative invocation-refinement descriptor
-(literal selector, arity, replacement traits/mutator/effects) with complete
-Studio, loader, emitter, help, and equivalence coverage, then let the native
-`CommandForm` layer add compiler-only routing. Alternatively, make every
-member of `CommandForm` authorable by first giving each native/proof member a
-stable closed identity. Either is a deliberate format change whose migration
-test is **all** current structured-form users, not only the historical six.
+The migration test is Tk, whose widget methods are the largest structured-form
+user: `tk_form_refinements_round_trip_through_the_pack_dsl` renders every Tk
+command that refines its subcommand forms to a pack and asserts the reloaded
+form tables equal the compiled ones. The original Tcl/iRules routing users
+(`lset`, `incr`, `package vsatisfies`, `namespace upvar`, `HTTP::cookie`,
+`HTTP2::stream`) keep their compiler hooks, which is exactly the layer that
+stays native.
+
+Plain `forms` remains documentation-only: `FormSpec` carries synopsis and
+lifecycle, never traits or effects, and is not a semantic substitute for a
+refinement.
 
 ## Performance: the format does not decide it
 

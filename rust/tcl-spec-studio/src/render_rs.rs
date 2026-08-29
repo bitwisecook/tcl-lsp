@@ -734,6 +734,72 @@ fn side_effect_expr(entry: &Value, indent: &str) -> String {
     row_literal("SideEffect", &parts, indent)
 }
 
+/// One `CommandForm` literal from an invocation-refinement draft row.
+///
+/// Only the fields the row actually declares are written; everything else
+/// rides `..CommandForm::DEFAULT`, which is what makes an omitted overlay
+/// inherit rather than blank the parent's fact.
+fn command_form_expr(entry: &Value, indent: &str) -> String {
+    let inner = format!("{indent}    ");
+    let mut parts = vec![format!(
+        "{inner}name: {},",
+        rust_string(as_str(&entry["name"]))
+    )];
+    let arity = arity_expr(&entry["arity"]);
+    if arity != "Arity::any()" {
+        parts.push(format!("{inner}arity: {arity},"));
+    }
+    if let Some(selector) = entry["selector"].as_object() {
+        let words = str_slice(as_array(&selector["words"]));
+        let constructor = if as_str(&selector["prefix_matching"]) == "Strict" {
+            "exact"
+        } else {
+            "unique"
+        };
+        parts.push(format!(
+            "{inner}literal_argument_prefix: Some(LiteralArgumentPrefix::{constructor}({words})),"
+        ));
+    }
+    let roles = as_array(&entry["arg_roles"]);
+    if !roles.is_empty() {
+        parts.push(format!("{inner}arg_roles: {},", role_map_expr(roles)));
+    }
+    let options = as_array(&entry["options"]);
+    if !options.is_empty() {
+        let opt_indent = format!("{inner}    ");
+        let rendered: Vec<String> = options
+            .iter()
+            .map(|option| option_expr(option, &opt_indent))
+            .collect();
+        parts.push(format!(
+            "{inner}options: &[\n{}\n{inner}],",
+            rendered.join("\n")
+        ));
+    }
+    if let Some(relations) = entry["option_relations"].as_str() {
+        parts.push(format!("{inner}option_relations: {relations},"));
+    }
+    if let Some(rows) = entry["surface"].as_array() {
+        parts.push(format!("{inner}surface: Some({}),", dialect_set(rows)));
+    }
+    if let Some(traits) = entry["traits"].as_array() {
+        parts.push(format!(
+            "{inner}traits: Some({}),",
+            flag_union("Traits", traits)
+        ));
+    }
+    if let Some(mutator) = entry["mutator"].as_bool() {
+        parts.push(format!("{inner}mutator: Some({mutator}),"));
+    }
+    if let Some(effects) = entry["side_effects"].as_array() {
+        parts.push(format!(
+            "{inner}side_effects: Some({}),",
+            list_expr(effects, &inner, side_effect_expr).unwrap_or_else(|| "&[]".to_owned())
+        ));
+    }
+    row_literal("CommandForm", &parts, indent)
+}
+
 fn setter_constraint_expr(entry: &Value, indent: &str) -> String {
     let inner = format!("{indent}    ");
     format!(
@@ -862,6 +928,7 @@ fn field_expr(field: &FieldSchema, value: &Value, default: &Value, indent: &str)
         FieldKind::ArgValueMap => arg_value_map_expr(as_array(value), indent),
         FieldKind::Options => "OPTIONS".to_owned(),
         FieldKind::Forms => "FORMS".to_owned(),
+        FieldKind::Refinements => list_expr(as_array(value), indent, command_form_expr)?,
         FieldKind::SubCommands => "SUBCOMMANDS".to_owned(),
         FieldKind::SideEffects => list_expr(as_array(value), indent, side_effect_expr)?,
         FieldKind::SetterConstraints => list_expr(as_array(value), indent, setter_constraint_expr)?,

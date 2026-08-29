@@ -297,19 +297,19 @@ form editor exposes availability controls.",
     ),
     (
         "command_forms",
-        "A structured, per-form Rust descriptor for commands whose forms \
-differ more deeply than a synopsis line can say. Alongside arity, roles, \
-options, and hooks, each `CommandForm` may replace the inherited `traits`, \
-`mutator`, and `side_effects` facts. Replacement lets a query form remove a \
-coarse parent mutation or callback classification instead of only adding more \
-effects. `literal_argument_prefix` selects overlapping-arity forms from known \
-literal source words, with optional unique-prefix matching. The longest static \
-selector wins when one selector extends another; substitutions and expansions \
-abstain while a longer selector remains possible and retain the conservative \
-parent facts.\n\nThis is deliberately one opaque Rust expression editor. The \
-descriptor also contains native validators, compiler hooks, and proof metadata, \
-so SpecTcl cannot author or round-trip any `command_forms` descriptor today. \
-Use plain `forms` only when the difference is documentation-only.",
+        "A per-form refinement for commands whose forms differ more deeply \
+than a synopsis line can say. Alongside arity, roles and options, each form \
+may replace the inherited `traits`, `mutator`, and `side_effects` facts. \
+Replacement lets a query form remove a coarse parent mutation or callback \
+classification instead of only adding more effects. A `selector` picks between \
+overlapping-arity forms from known literal source words, with unique-prefix \
+matching unless `-exact` says otherwise. The longest static selector wins when \
+one selector extends another; substitutions and expansions abstain while a \
+longer selector remains possible and retain the conservative parent facts.\n\n\
+SpecTcl authors these as `refine NAME { … }` blocks. The descriptor's native \
+halves — the completion contract, dispatch proofs, and the literal-argument \
+validator — stay Rust-only, and a form carrying one is reported rather than \
+thinned. Use plain `forms` only when the difference is documentation-only.",
     ),
     (
         "semantic_operation",
@@ -1042,16 +1042,13 @@ value.",
     ),
     (
         "subcommand_forms",
-        "Structured per-form routing for this subcommand — the \
-subcommand-level twin of `command_forms`. A `SubCommandForm` may replace the \
-parent row's `traits`, `mutator`, and `side_effects`, which is how one method \
-can be a read at one arity and a mutation at another. Its optional \
-`literal_argument_prefix` also separates same-arity operation words without \
-treating a computed word as literal, and the longest statically matched \
-selector wins when selectors overlap.\n\nThe studio preserves the whole value \
-as an opaque Rust expression. Because the same descriptor may carry native \
-compiler routing and proof metadata, SpecTcl cannot author or round-trip any \
-`subcommand_forms` descriptor today; no partial form DSL is claimed.",
+        "Per-form refinement for this subcommand — the subcommand-level twin \
+of `command_forms`, written the same way, as `refine NAME { … }`. A form may \
+replace the parent row's `traits`, `mutator`, and `side_effects`, which is how \
+one method can be a read at one arity and a mutation at another. Its optional \
+`selector` also separates same-arity operation words without treating a \
+computed word as literal, and the longest statically matched selector wins \
+when selectors overlap.",
     ),
     (
         "loop_list_header",

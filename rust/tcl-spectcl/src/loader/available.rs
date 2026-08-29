@@ -49,9 +49,9 @@
 //! `{package Tk 8.5-8.6}` carries the name and reports that the window is
 //! not representable yet.
 //!
-//! Jim used to be the other one: the retired `SpecSurface` had no Jim bit,
-//! so `available {jim 0.78-}` contributed nothing and the command was
-//! gated off. A row names its family directly now (Q13), so a Jim window
+//! Jim used to be the other one: the retired availability mask had no Jim
+//! member, so `available {jim 0.78-}` contributed nothing and gated the
+//! command off. A row names its family directly now (Q13), so a Jim window
 //! projects exactly as a Tcl one does.
 
 use tcl_dialect::model::{SpecWindow};
@@ -65,11 +65,11 @@ use tcl_dialect::model::{SpecSurface};
 /// What one `available` row set translates to in the 1.x fields.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub(super) struct Availability {
-    /// The projected dialect set, `None` when no row parsed (the same
+    /// The projected surface rows, `None` when no row parsed (the same
     /// "said nothing" answer [`super::parse_dialects`] gives).
     pub(super) surface: Option<&'static [SpecSurface]>,
-    /// The package a `{package NAME}` row requires, when the name is not
-    /// one the 1.x dialect bits already cover.
+    /// The package a `{package NAME}` row requires, when it is not one the
+    /// 1.x dialect words already name.
     pub(super) required_package: Option<&'static str>,
 }
 
@@ -77,8 +77,9 @@ pub(super) struct Availability {
 /// first word is an unknown provider, not a free-form name.
 const PROVIDERS: &[&str] = &["tcl", "f5-irules", "jim", "package"];
 
-/// Packages a `SpecTcl` 1.x dialect bit already names, so an `available`
-/// row spelling them lands on that bit rather than on `required_package`.
+/// Packages a `SpecTcl` 1.x dialect word already names, so an `available`
+/// row spelling one lands on that surface rather than on
+/// `required_package`.
 ///
 /// This is the exact inverse of `tcl spec upgrade`'s U2 rule `tk` →
 /// `{package Tk}`, and it is what makes the two spellings byte-equal.
@@ -86,21 +87,21 @@ const PACKAGE_DIALECT_SURFACES: &[(&str, &[SpecSurface])] = &[("Tk", SpecSurface
 
 /// The **environment-derived** half of the same table (upgrade spec U3):
 /// each compiled environment whose surface is one ambient package and
-/// whose id has a 1.x dialect bit pairs that package's name with the bit.
+/// whose id the 1.x dialect vocabulary names, paired with that package.
 ///
 /// This is what makes `available {package f5-iapps-cmds}` load byte-equal
 /// to the 1.x `dialects f5-iapps` it replaces: the environment registry
 /// answers *which package at which placement* stands behind each
 /// environment-membership token, and this projection carries the answer
-/// back onto the closed 1.x bit vocabulary. Derived, not hand-written, so
-/// a seeded environment cannot drift from its own translation.
+/// back onto the closed 1.x vocabulary. Derived, not hand-written, so a
+/// seeded environment cannot drift from its own translation.
 static ENVIRONMENT_PACKAGE_SURFACES: LazyLock<Vec<(String, &'static [SpecSurface])>> =
     LazyLock::new(|| {
     tcl_dialect::model::compiled_definitions()
         .into_iter()
         .filter(|definition| definition.core.is_some())
         .filter_map(|definition| {
-            let bit = crate::catalogue::dialect_surface(definition.id.as_str())?;
+            let surface = crate::catalogue::dialect_surface(definition.id.as_str())?;
             let ambient: Vec<_> = definition
                 .expected_packages
                 .iter()
@@ -109,22 +110,22 @@ static ENVIRONMENT_PACKAGE_SURFACES: LazyLock<Vec<(String, &'static [SpecSurface
             let [sole] = ambient.as_slice() else {
                 return None;
             };
-            Some((sole.package.as_ref().to_owned(), bit))
+            Some((sole.package.as_ref().to_owned(), surface))
         })
         .collect()
 });
 
-/// The 1.x dialect bit standing behind `package`, when one does.
+/// The 1.x dialect surface standing behind `package`, when one does.
 pub(crate) fn package_surface(package: &str) -> Option<&'static [SpecSurface]> {
     PACKAGE_DIALECT_SURFACES
         .iter()
         .find(|(name, _)| *name == package)
-        .map(|(_, bit)| *bit)
+        .map(|(_, surface)| *surface)
         .or_else(|| {
             ENVIRONMENT_PACKAGE_SURFACES
                 .iter()
                 .find(|(name, _)| name == package)
-                .map(|(_, bit)| *bit)
+                .map(|(_, surface)| *surface)
         })
 }
 

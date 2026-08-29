@@ -52,8 +52,8 @@ pub(crate) const fn test_common_analysis_provenance() -> CommonAnalysisProvenanc
 ///
 /// The context is an explicitly resolved environment handle
 /// ([`SemanticContext`]) rather than an inferred target choice — the
-/// executable-IR re-key of ledger row C1 / redesign §11.2 D1, which retired
-/// the `SpecSurface` mask this field used to carry.  A function with no
+/// executable-IR re-key of ledger row C1 / redesign §11.2 D1.  A function
+/// with no
 /// retained source IR records a typed unavailable state; a source script the
 /// linear compatibility builder cannot represent records its exact decline.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -278,9 +278,8 @@ impl MixedRegionPlanAvailability {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExecutableAnalysisAvailability {
     /// The attachment carried no resolved environment. A per-document sidecar
-    /// deliberately never invents one: the retired mask model reached this
-    /// state through an empty or combinator `SpecSurface`, and the re-key
-    /// (ledger C1) reaches it through an absent [`SemanticContext`].
+    /// deliberately never invents one; the state is an absent
+    /// [`SemanticContext`].
     ContextUnavailable,
     /// Executable IR and world-state SSA were both constructed and validated.
     Available(ExecutableSemanticFacts),

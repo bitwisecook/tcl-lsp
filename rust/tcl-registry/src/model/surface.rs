@@ -165,8 +165,8 @@ pub struct SurfaceDeclaration {
 ///
 /// This is a **documented P2 seam**: today the environments for `spectcl`
 /// and `bpf` place no packages at all and the F5/expect environments place
-/// their keyed catalogue packs under other names, so the bit-derived
-/// surface packages need an activation home until the command packs
+/// their keyed catalogue packs under other names, so these surface
+/// packages need an activation home until the command packs
 /// migrate to real pack-declared ambient placements. When they do, each
 /// row here becomes an ordinary ambient [`PackagePlacement`] on its
 /// environment and this table is deleted.
@@ -186,14 +186,15 @@ pub const VENDOR_SURFACE_BRIDGE: &[(&str, &str)] = &[
     ("f5-bigip", "bigip"),
 ];
 
-/// The package names the seven old vendor **bits** translate to, in bit
-/// order. `"Tk"` is in this set (the `TK` bit exists) even though it is a
-/// hosted library rather than a closed-world surface — the set names the
-/// *authoring* vocabulary of the translation, which
-/// [`crate::model::context::specificity_breadth`] counts to reproduce the
-/// old mask-popcount specificity exactly; activation classification is
-/// [`is_closed_world_package`]'s separate job.
-pub const VENDOR_BIT_PACKAGES: &[&str] =
+/// The packages that are part of the **authoring** vocabulary: a spec
+/// naming one of these is scoped to a vendor surface, so
+/// [`crate::model::context::specificity_breadth`] counts it.
+///
+/// `"Tk"` is in the set even though it is a hosted library rather than a
+/// closed-world surface — a Tk command really is narrowly authored.
+/// Whether such a package is *active* is [`is_closed_world_package`]'s
+/// separate job.
+pub const VENDOR_SURFACE_PACKAGES: &[&str] =
     &["iapps", "tmsh", "Tk", "expect", "spectcl", "bpf", "bigip"];
 
 /// The vendor-surface package of the environment named
@@ -381,13 +382,6 @@ fn full_axis(axis: VersionAxisId) -> VersionSet {
     VersionSet::from_requirements(axis, &["0-"]).expect("the full-axis requirement is well-formed")
 }
 
-/// The Tcl-core applicability of `bits`, or `None` when no version bit is
-/// set. Contiguous ladder runs fold to one span (`TCL8X` → `8.4-8.7`,
-/// `ALL_TCL` → `8.4-9.2`); gaps stay separate ranges (`TCL84|TCL86` →
-/// `8.4-8.5 ∪ 8.6-8.7`). A run spanning the 8.x→9.x boundary covers the
-/// unshipped interior (`8.7`, `8.8`) exactly as the environment layer's own
-/// full-ladder target does — ladder adjacency, not numeric adjacency, is
-/// what a run means.
 /// The core-Tcl coverage of a gate's rows, as a version set.
 ///
 /// `None` when the gate names no plain-Tcl line at all — the item is
@@ -460,50 +454,25 @@ fn package_row(name: &str, history: ItemHistory) -> SurfaceDeclaration {
     row(Provider::Package(id), applicable, history)
 }
 
-/// The mechanical §4.1 translation of one compiled spec's availability
-/// fields into surface declarations.
+/// Lower one spec's authored availability into the runtime declarations
+/// the context layer answers against (§4.1).
 ///
-/// Per `dialects` bit:
+/// Each authored [`SpecSurface`] row becomes one declaration: a core row
+/// carries its windows as a version set on that family's axis, a package
+/// row covers its package's whole axis.
 ///
-/// - the Tcl version bits fold to **one** [`Provider::Core`]`(Tcl)` row
-///   whose applicability unions the release lines (contiguous ladder runs
-///   become one range);
-/// - `IRULES` becomes [`Provider::Core`]`(F5Irules)` over that family's
-///   whole axis (the surface is the embedded core's, not a package's);
-/// - each vendor bit becomes a full-axis [`Provider::Package`] row named
-///   by [`VENDOR_BIT_PACKAGES`].
-///
-/// `surface: None` means what `supports_dialect` made it mean — the mask
-/// test passes for **every** profile — so it translates to one declaration
-/// per provider the old semantics would admit: `Core(Tcl)` over the full
-/// ladder, `Core(F5Irules)` and `Core(Jim)` over their full axes, and
-/// every vendor package in full. This deliberately mirrors
-/// `supports_dialect(mask) == true`-for-all rather than guessing a
-/// narrower intent; the rows get tightened to their real providers when
-/// the packs migrate (P2).
+/// A spec that states **no** surface is available wherever it is asked
+/// about, so it lowers to one row per provider there is — every core
+/// family over its full axis, and every vendor package. That is wider than
+/// any stated surface, which is what makes a catch-all lose to every
+/// scoped spec under [`crate::model::context::specificity_breadth`].
 ///
 /// `required_package`/`tcllib_package` **add** a full-axis
-/// [`Provider::Package`] row for the owning package (provider knowledge),
-/// and `required_package` on a package whose availability is a
-/// **placement** question ([`is_placement_gated_package`]) additionally
-/// **constrains** every row with
-/// [`CapabilityPredicate::RequiresPackage`] — the conjunctive gate that
-/// routes the item's availability through
-/// [`ResolvedContext::package_active`], the one placement query.
+/// [`Provider::Package`] row for the owning package — where the command
+/// comes from — and `required_package` also **constrains** every row with
+/// [`CapabilityPredicate::RequiresPackage`], the conjunct that routes the
+/// item's availability through [`ResolvedContext::package_active`].
 /// `lifecycle` populates every row's [`ItemHistory`].
-///
-/// **P3 (the Tk pilot).** Before the pilot the conjunct was applied only
-/// to *closed-world* packages, so a `Tk` command's availability came
-/// entirely off its `Core(Tcl)` row and the Tk placement was decoration.
-/// Widening it to every placed package is what makes the 68 Tk-owning
-/// specs (`required_package: Some("Tk")`) genuinely package-provided:
-/// `wish` admits
-/// them through the ambient placement, plain Tcl through the open world's
-/// lenient hosted rule, and a closed world refuses them. The surviving
-/// `Core(Tcl)` row is **specificity data, not an activation channel** —
-/// [`crate::model::context::specificity_breadth`] counts it to reproduce
-/// the coexisting `get_for_surface` mask-popcount ordering exactly, and it
-/// disappears with the mask under ledger C1.
 ///
 /// [`ResolvedContext::package_active`]: crate::model::ResolvedContext::package_active
 #[must_use]
@@ -526,7 +495,7 @@ pub fn declarations_for_spec(spec: &CommandSpec) -> SmallVec<[SurfaceDeclaration
                     history.clone(),
                 ));
             }
-            for package in VENDOR_BIT_PACKAGES {
+            for package in VENDOR_SURFACE_PACKAGES {
                 rows.push(package_row(package, history.clone()));
             }
         }
@@ -617,7 +586,7 @@ mod tests {
         }
         assert!(!core.applicable.contains(&v("8.4.19")));
         assert!(!core.applicable.contains(&v("9.2")));
-        // The 8.x-only mask keeps its exclusive top.
+        // The 8.x-only surface keeps its exclusive top.
         let tcl8x = declarations_for_spec(&spec_with(Some(SpecSurface::TCL8X)));
         let core = core_tcl_row(&tcl8x);
         assert!(core.applicable.contains(&v("8.6.16")));
@@ -686,7 +655,7 @@ mod tests {
                 "{family}"
             );
         }
-        for package in VENDOR_BIT_PACKAGES {
+        for package in VENDOR_SURFACE_PACKAGES {
             assert!(
                 rows.iter()
                     .any(|row| row.provider == Provider::Package(PackageId::new(package))),
@@ -772,7 +741,7 @@ mod tests {
 
     #[test]
     fn the_owning_package_row_is_not_duplicated() {
-        // `TK_AND_TCL` already yields a Package("Tk") row from the TK bit;
+        // `TK_AND_TCL` already yields a Package("Tk") row of its own;
         // `required_package: Some("Tk")` must merge with it, not double it.
         let spec = CommandSpec {
             name: "surface-test",
@@ -857,16 +826,16 @@ mod tests {
 
     #[test]
     fn the_bridge_and_bit_vocabularies_agree() {
-        // Every bridged surface package is also a vendor-bit package name,
-        // and the one bit name outside the bridge is the hosted Tk.
+        // Every bridged surface package is also an authoring-vocabulary
+        // name, and the one such name outside the bridge is the hosted Tk.
         for &(_, package) in VENDOR_SURFACE_BRIDGE {
-            assert!(VENDOR_BIT_PACKAGES.contains(&package), "{package}");
+            assert!(VENDOR_SURFACE_PACKAGES.contains(&package), "{package}");
         }
         let bridged: Vec<&str> = VENDOR_SURFACE_BRIDGE
             .iter()
             .map(|&(_, package)| package)
             .collect();
-        let outside: Vec<&&str> = VENDOR_BIT_PACKAGES
+        let outside: Vec<&&str> = VENDOR_SURFACE_PACKAGES
             .iter()
             .filter(|package| !bridged.contains(*package))
             .collect();

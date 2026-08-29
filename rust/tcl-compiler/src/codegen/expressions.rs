@@ -322,9 +322,9 @@ impl CodegenCtx<'_> {
     /// service passes a default-built registry beside a pinned dialect).
     ///
     /// The `None` is an abstention, not a permissive default resolved to
-    /// plain `tcl`. That fallback profile is *not* silent on the question: its
-    /// availability mask is `ALL_TCL`, which excludes the iRules bit, so
-    /// asking it would answer "this dialect has no `contains`" for a compile
+    /// plain `tcl`. That fallback profile is *not* silent on the question:
+    /// its point is the Tcl ladder, which is not iRules, so asking it would
+    /// answer "this dialect has no `contains`" for a compile
     /// that never said which dialect it was. With no dialect in hand the
     /// operator set is unknown, so nothing is gated and a dialect-less compile
     /// keeps exactly the surface it had.
@@ -1387,7 +1387,7 @@ mod tests {
         assert_refused(&plain, "$x contains $y");
 
         // TN: iRules is an 8.4 runtime, so the 8.5 membership operator is
-        // absent there too, dialect bit notwithstanding.
+        // absent there too.
         let mut membership = ctx_for(&registry, tcl_dialect::DialectProfile::irules());
         membership.emit_expr(&binary(BinOp::In));
         assert_refused(&membership, "$x in $y");

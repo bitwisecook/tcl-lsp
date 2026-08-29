@@ -53,7 +53,7 @@
 //! `::tcl::mathfunc::abs` only exists from 8.5 (TIP 232 created the table).
 //! So the [`CommandSpec`](crate::spec::CommandSpec) gate that
 //! `mathfunc_generated.rs` writes (never looser than
-//! [`SpecSurface::TCL85_PLUS`](crate::dialects::the retired availability mask)) is the right gate
+//! [`SpecSurface::TCL85_PLUS`]) is the right gate
 //! for the *qualified command* spelling and the **wrong** one for the bare
 //! in-`expr` spelling — [`CommandRegistry::math_function_spec`] exists so a
 //! consumer rendering the in-`expr` spelling gets the registry's hover data

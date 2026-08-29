@@ -943,10 +943,9 @@ impl CommandRegistry {
         self.profile
     }
 
-    /// The availability mask a consumer resolves hooks and calls against
-    /// when honouring **this registry's own** dialect: the attached
-    /// profile's [`availability_mask`](tcl_dialect::DialectProfile::availability_mask),
-    /// or the empty (dialect-blind) mask for a profile-less registry.
+    /// The point a consumer resolves hooks and calls at when honouring
+    /// **this registry's own** dialect: the attached profile's, or `None`
+    /// — surface-blind — for a profile-less registry.
     ///
     /// This is what lets a version-pinned compile pipeline (issues
     /// #1462/#1463) suppress a structured lowering or codegen hook for a
@@ -1183,10 +1182,9 @@ impl CommandRegistry {
     ///
     /// A registry built for a dialect profile additionally applies that
     /// profile's operator-head exclusion ([`Self::spec_visible`]) whenever
-    /// the queried mask concerns the profile's own availability — so a
-    /// bare `IRULES` mask query on the f5-irules registry sees exactly the
-    /// specs that carry the `IRULES` bit, no matter which consumer asks
-    /// (dialect-profile-model.md §9.2).
+    /// the query is about the profile's own surface — so an f5-irules query
+    /// on the f5-irules registry sees exactly the specs iRules ships, no
+    /// matter which consumer asks (dialect-profile-model.md §9.2).
     #[must_use]
     pub fn get_for_surface(&self, name: &str, dialect: Option<SurfaceQuery<'_>>) -> Option<&'static CommandSpec> {
         self.by_name
@@ -1244,9 +1242,9 @@ impl CommandRegistry {
     /// matched `"my" | "::my"` by hand), matching [`Self::get`].
     ///
     /// Dialect-aware through the registry instance itself: a registry built
-    /// by `registry_for_dialect` / `registry_for_profile` answers under that
-    /// profile's availability mask, so all four keywords — every one of them
-    /// `TCL86_PLUS` — return `None` from a `tcl8.4` or `tcl8.5` registry. A
+    /// by `registry_for_dialect` / `registry_for_profile` answers at that
+    /// profile's point, so all four keywords — every one of them 8.6-and-
+    /// later — return `None` from a `tcl8.4` or `tcl8.5` registry. A
     /// profile-less registry (`CommandRegistry::build_default`) answers
     /// dialect-agnostically, exactly as [`Self::get`] does.
     ///
@@ -1312,9 +1310,9 @@ impl CommandRegistry {
     /// knows *where* it is, and neither needs the other's command names.
     ///
     /// Dialect-aware exactly like [`Self::method_dispatch_keyword`]: a
-    /// registry built for a profile answers under that profile's
-    /// availability mask, so a `tcl8.4` registry — which has no `TclOO` at
-    /// all — answers `false` for every one of them.
+    /// registry built for a profile answers at that profile's point, so a
+    /// `tcl8.4` registry — which has no `TclOO` at all — answers `false`
+    /// for every one of them.
     ///
     /// A qualified spelling (`oo::Helpers::link`, `::oo::Helpers::link`) is
     /// a separate, unscoped spec, so it answers `false`: the command really
@@ -1521,8 +1519,8 @@ impl CommandRegistry {
 
     /// The single spec-selection rule (§5.3, D6): among the specs of one
     /// name visible under `dialect`, pick the **most specific** — a
-    /// dialect-scoped spec beats a catch-all (`surface: None`), a tighter
-    /// scope (fewer mask bits) beats a wider one, and among equals the
+    /// dialect-scoped spec beats a catch-all (`surface: None`), a narrower
+    /// surface beats a wider one, and among equals the
     /// *last-registered* spec wins, so curated pack overrides keep beating
     /// the data they shadow. `get_for_surface`, the iRules event
     /// cross-product, and (via `ProfileQueries::resolve_command`) the CLI
@@ -1589,11 +1587,10 @@ impl CommandRegistry {
             // profile's operator-exclusion does not apply to it.
             return true;
         }
-        // iRules availability is fully explicit in each spec's `dialects`
-        // now (a command carries the `IRULES` bit iff iRules enables it), so
-        // there is no subtractive ban list — the only remaining profile-level
-        // exclusion is the operator-command one (math operators are not
-        // command heads under iRules).
+        // iRules availability is stated positively by each spec, so there
+        // is no subtractive ban list — the only profile-level exclusion left
+        // is the operator-command one (math operators are not command heads
+        // under iRules).
         profile.operators_as_commands
             || !spec
                 .traits
@@ -1707,7 +1704,7 @@ impl CommandRegistry {
     }
 
     /// [`Self::instance_methods`] with a document-resolved floor for the
-    /// owning package and an explicit availability mask.
+    /// owning package and an explicit surface point.
     ///
     /// A request-time caller obtains `package_version` from its document's
     /// package-require facts for the class command, which can only raise the
@@ -1785,7 +1782,7 @@ impl CommandRegistry {
     }
 
     /// [`Self::instance_method`] with a document-resolved owning-package
-    /// floor and explicit availability mask. See [`Self::instance_methods_at`]
+    /// floor and explicit surface point. See [`Self::instance_methods_at`]
     /// for the two axes' composition.
     #[must_use]
     pub fn instance_method_at(
@@ -2420,14 +2417,14 @@ impl CommandRegistry {
     /// subcommand's traits are *additive* over its parent's, so a consumer
     /// asking a trait question about a compound command must compose them.
     /// `namespace eval` / `namespace inscope` / `interp eval` carry the
-    /// eval-family bits ([`Traits::EVALUATES_CODE`],
+    /// eval-family traits ([`Traits::EVALUATES_CODE`],
     /// [`Traits::SCRIPT_CONCATENATES_ARGS`]) on the **subcommand**, not on
     /// the `namespace` / `interp` spec, so a parent-only trait test silently
     /// misses them.
     ///
     /// Resolved through [`Self::resolve_call`], so the subcommand word is
-    /// honoured; pass [`the retired availability mask::empty`] to skip dialect gating (the
-    /// plain [`Self::get`] lookup) when the question is "what shape is this
+    /// honoured; pass `None` to skip dialect gating (the plain
+    /// [`Self::get`] lookup) when the question is "what shape is this
     /// command" rather than "is it available here". An unknown command
     /// carries no traits.
     #[must_use]
@@ -4441,8 +4438,8 @@ impl CommandRegistry {
     /// consumer's own `is_dynamic_word` test.
     ///
     /// Selection is the ordinary
-    /// [`Self::resolve_structured_invocation`] under **this registry's own
-    /// profile mask**: command-table mutations are executable behaviour, so
+    /// [`Self::resolve_structured_invocation`] at **this registry's own
+    /// point**: command-table mutations are executable behaviour, so
     /// they must use the profile-visible command surface. In particular,
     /// iRules intentionally has no `rename` or `interp`, even though the
     /// dialect-agnostic catalogue knows their Tcl specs. A profile-less
@@ -8336,8 +8333,8 @@ mod tests {
                     // dialect — `after` has a Tcl spec and an iRules one, and
                     // a sweep that looked at only one would let the other lose
                     // its trait unnoticed. Iterating the specs (rather than a
-                    // list of masks) also keeps every probe on a mask the
-                    // command actually resolves under: an unresolvable call
+                    // list of points) also keeps every probe at a point the
+                    // command actually resolves at: an unresolvable call
                     // answers with an empty trait set, which is indistinguish-
                     // able from a spec whose only trait was `DEFERS_BODY`
                     // until it was dropped — precisely the regression this

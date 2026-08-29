@@ -75,8 +75,8 @@ const FORMS: &[FormSpec] = &[
     // `f5-irules` profile in `tcl-dialect/src/profile.rs` pins
     // signature_base/runtime_base/version_ceiling all to 8.4), so
     // -level/-options/-errorstack can never resolve there regardless of
-    // context — their the retired availability mask gates can't intersect the bare IRULES
-    // availability mask (`ProfileQueries::is_option_available`). This
+    // context — their Tcl-version gates cannot admit the iRules point
+    // (`ResolvedContext::option_available`). This
     // entry narrows the *form*, not the command's own Tcl-version gating
     // — return itself stays universal (`surface: None` below).
     FormSpec {

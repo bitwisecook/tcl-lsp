@@ -1415,8 +1415,8 @@ impl<'r> Lowerer<'r> {
     ) -> Option<Statement> {
         let args = seg.args();
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        // Resolved under the registry's own availability mask (issues
-        // #1462/#1463): a profile-built registry suppresses the structured
+        // Resolved at the registry's own point (issues #1462/#1463): a
+        // profile-built registry suppresses the structured
         // lowering of a command its release does not have (`lmap` at 8.4),
         // so the call flows to `lower_default` and reaches the runtime's
         // availability gate as a generic dispatch. A profile-less registry

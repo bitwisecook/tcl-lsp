@@ -57,7 +57,7 @@ pub fn try_bytecoded(
         return false;
     }
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    // The registry's own availability mask (issues #1462/#1463): a
+    // The registry's own point (issues #1462/#1463): a
     // profile-built registry suppresses the specialised emission of a
     // command its release does not have, keeping it on the generic invoke
     // where the runtime's availability gate can reject it.

@@ -281,11 +281,10 @@ fn requirement(from: &str, until: Option<&str>) -> String {
     }
 }
 
-/// Whether any row admits `query` — the replacement for the retired
-/// `the retired availability mask::intersects`.
+/// Whether any row admits `query`.
 ///
-/// An empty row list admits nothing, exactly as the empty mask matched
-/// nothing. "Available everywhere" is the *absent* gate — a `None` on an
+/// An empty row list admits nothing. "Available everywhere" is the
+/// *absent* gate — a `None` on an
 /// `Option<&[SpecSurface]>` field — not an empty one.
 ///
 /// An absent `query` is the caller asking surface-blind, as the plain

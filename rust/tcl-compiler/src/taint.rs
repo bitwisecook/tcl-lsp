@@ -895,10 +895,10 @@ pub fn is_irules_dialect(dialect: Option<&tcl_dialect::DialectProfile>) -> bool 
 }
 
 fn dialect_to_point(dialect: Option<&tcl_dialect::DialectProfile>) -> Option<SurfaceQuery<'_>> {
-    // The profile's availability mask: bare IRULES for iRules (aliases
-    // canonicalise), the composed (version|vendor) mask for the additive
-    // vendor shells — so version-gated taint/side-effect hints reach a
-    // vendor dialect's embedded Tcl core. An unknown / unset dialect stays
+    // The profile's own point: the family alone for iRules (aliases
+    // canonicalise), a release plus its package for the additive vendor
+    // shells — so version-gated taint/side-effect hints reach a vendor
+    // dialect's embedded Tcl core. An unknown / unset dialect stays
     // EMPTY (not the permissive fallback): taint hints gated to a specific
     // dialect must not fire when the dialect is unknown.
     dialect.map(tcl_dialect::DialectProfile::surface_query)
@@ -1976,8 +1976,8 @@ fn propagate_statement_taints(
 ///
 /// `classify_taint_sinks` is asked with an empty dialect (no
 /// `supports_dialect` filtering) so a sink the active profile *bans*
-/// (`exec` under f5-irules — excluded by the §9 disable list, not by any
-/// mask) keeps its
+/// (`exec` under f5-irules — excluded by the §9 disable list, not by its
+/// surface) keeps its
 /// T100 classification: a banned command that appears in source anyway is
 /// still a code-execution sink. The iRules-only sink codes (`IRULE…`, from
 /// `taint_output_sink` / `taint_log_sink` on iRules specs) are instead
@@ -7300,9 +7300,9 @@ mod tests {
 
     #[test]
     fn classify_sink_exec_stays_t100_under_irules_dialect() {
-        // `exec` is universal spec data (`surface: None` since the
-        // spec); under f5-irules it is *banned* by the
-        // profile's §9 disable list, not by any dialect mask. T100
+        // `exec` is universal spec data (`surface: None`); under f5-irules
+        // it is *banned* by the profile's §9 disable list, not by its own
+        // surface. T100
         // classification must not route through profile availability —
         // it's a plain trait fact, independent of the active document
         // dialect — or `exec` would lose its T100 sink status in exactly

@@ -55,7 +55,7 @@ use tcl_dialect::{LibraryVersionOverrides, TclVersion};
 use crate::hover::OptionSpec;
 use tcl_dialect::model::{SurfaceQuery, surface_admits};
 use crate::model::surface::{
-    BuildCapability, CapabilityPredicate, Provider, SurfaceDeclaration, VENDOR_BIT_PACKAGES,
+    BuildCapability, CapabilityPredicate, Provider, SurfaceDeclaration, VENDOR_SURFACE_PACKAGES,
     is_closed_world_package, is_placement_gated_package,
     vendor_surface_package,
 };
@@ -237,11 +237,9 @@ pub struct ResolvedContext {
     /// read this. Empty for every undeclared document, which is what
     /// pins the no-range behaviour byte-identical.
     declared_targets: Vec<VersionSet>,
-    /// The **authoring mask** this context admits — the old model's
-    /// `availability_mask`, re-derived from the environment (core primary ×
-    /// ladder lines, active vendor surfaces). Cached at resolution; the
-    /// parity sweep pins it to the old profile's mask for every catalogue
-    /// environment.
+    /// The point this context asks surface questions at: the core family
+    /// and release the environment resolves to, plus its active packages.
+    /// Cached at resolution — every availability answer reads it.
     authoring_scope: AuthoringScope,
 }
 
@@ -495,8 +493,7 @@ impl ResolvedContext {
     /// resolution** (`f5-irules`, measurements §4a/§4b): its embedded
     /// ancestor surface is explicit per spec — a command exists there iff
     /// its own declaration says so — so the fork-lineage channel is
-    /// deliberately not open, exactly as the old bare-`IRULES` mask never
-    /// admitted a plain Tcl-version gate.
+    /// deliberately not open.
     #[must_use]
     pub fn provider_active(&self, provider: &Provider) -> bool {
         match provider {
@@ -596,11 +593,11 @@ impl ResolvedContext {
     }
 
     /// Whether `declaration` holds here apart from any
-    /// [`CapabilityPredicate::RequiresPackage`] conjunct — the analog of
-    /// the old `spec_visible` (mask + profile exclusions, no package
-    /// gate), used as the selection stage of most-specific-wins so the
-    /// package conjunct filters the *winner*, exactly as the old
-    /// `get_for_surface → is_available` layering did.
+    /// [`CapabilityPredicate::RequiresPackage`] conjunct.
+    ///
+    /// This is the selection stage of most-specific-wins, so the package
+    /// conjunct filters the *winner* rather than the candidates, which is
+    /// the layering `get_for_surface` → `is_available` performs.
     #[must_use]
     pub fn admits_for_selection(&self, declaration: &SurfaceDeclaration) -> bool {
         self.provider_active(&declaration.provider)
@@ -611,34 +608,19 @@ impl ResolvedContext {
             }
     }
 
-    // --- the transitional spec-query surface (P1-F, compiler port) -----
+    // --- the spec-query surface -----------------------------------------
     //
-    // The methods below are the context-keyed replacements for the old
-    // `ProfileQueries` availability surface: same registry data types, the
-    // context's derived facts (authoring mask, ceiling, placements) in
-    // place of the `DialectProfile` fields. Each derived fact is pinned to
-    // the old profile's value by the parity sweeps in this module's tests,
-    // so the bodies can mirror the old rules verbatim — behaviour is held
-    // exactly while the *inputs* come from the centralised environment
-    // model. The `SpecSurface`-typed vocabulary they still speak retires
-    // with the rest of the mask model under ledger C1 (post-P1-G).
+    // Availability questions the compiler and analyser ask, answered from
+    // the environment's own derived facts (the authoring point, the version
+    // ceiling, the placements). The parity sweeps in this module's tests
+    // pin each answer to the catalogue profile's, which is what makes the
+    // centralised inputs a refactor rather than a behaviour change.
 
-    /// The authoring mask this context admits — the environment-derived
-    /// mirror of the old `availability_mask` (sweep-pinned per catalogue
-    /// environment). The lenient `tcl` fallback derives the permissive
-    /// full-ladder mask, exactly as the old fallback profile answered;
-    /// `tk` derives that ladder **plus** the `TK` bit, off its ambient
-    /// placement.
+    /// The point this context asks surface questions at.
     ///
-    /// **P3 (the Tk pilot).** Until the pilot this field had a second,
-    /// injected value: `DocumentEnvironment::document_context` overrode
-    /// the derivation with the threaded profile's mask, because a `tk`
-    /// document has always been answered under the additive `TK` bit and
-    /// the derivation could not produce it. That door
-    /// (`with_authoring_mask`) is deleted — the ambient Tk placement
-    /// derives the package — so the field now has exactly one source,
-    /// [`compute_authoring_scope`], for every environment, and the
-    /// analyser-vs-unit `tk` asymmetry waves 1-2 carried is gone.
+    /// It has exactly one source — [`compute_authoring_scope`] — for every
+    /// environment, including `tk`, whose Tk package the ambient placement
+    /// derives rather than an injected override.
     #[must_use]
     pub fn authoring_query(&self) -> SurfaceQuery<'_> {
         self.authoring_scope.query()
@@ -769,9 +751,9 @@ impl ResolvedContext {
         self.pack_ambient.push((Arc::from(package), version));
     }
 
-    /// Whether `spec` is available in this context — the old
-    /// `ProfileQueries::is_available` trio (mask membership, operator-head
-    /// exclusion, required-package gate) over context-derived facts.
+    /// Whether `spec` is available in this context: its surface admits
+    /// the point, its head is not an operator this environment keeps inside
+    /// `expr`, and its required package is in this document's world.
     #[must_use]
     pub fn spec_available(&self, spec: &CommandSpec) -> bool {
         spec.supports_dialect(Some(self.authoring_query()))
@@ -781,9 +763,8 @@ impl ResolvedContext {
     }
 
     /// Resolve `name` to its command spec in this context over `registry`
-    /// — the old `ProfileQueries::resolve_command` (mask query + the full
-    /// availability filter), for call sites holding a command store that
-    /// is not this context's own generation.
+    /// — the point query plus the full availability filter, for call sites
+    /// holding a command store that is not this context's own generation.
     #[must_use]
     pub fn resolve_spec(
         &self,
@@ -847,9 +828,9 @@ impl ResolvedContext {
             .collect()
     }
 
-    /// Whether `opt` is available here given its inherited `parent_gate` —
-    /// the old `is_option_available` §5.2 semantics: mask membership plus
-    /// the gate's version floor against the environment's ceiling.
+    /// Whether `opt` is available here given its inherited `parent_gate`
+    /// (§5.2): the gate admits the point, and its version floor is at or
+    /// below the environment's ceiling.
     #[must_use]
     pub fn option_available(&self, opt: &OptionSpec, parent_gate: Option<&'static [SpecSurface]>) -> bool {
         let Some(gate) = opt.surface.or(parent_gate) else {
@@ -965,11 +946,10 @@ impl ResolvedContext {
         })
     }
 
-    /// The environment's own vendor **authoring bit**, when its surface is
-    /// authored under one (the F5/expect/spectcl/bpf vendor vocabularies) —
-    /// the old `DialectProfile::vendor_surface`, derived from the environment:
-    /// the iRules core family authors under `IRULES`; the bridge surfaces
-    /// author under their bridge package's bit.
+    /// The provider this environment's own commands are authored under,
+    /// when it has a vendor vocabulary of its own (F5, expect, spectcl,
+    /// bpf). The iRules core authors under its family; every other vendor
+    /// surface authors under its package.
     #[must_use]
     pub fn vendor_authoring_provider(&self) -> Option<SpecProvider> {
         if self
@@ -982,20 +962,15 @@ impl ResolvedContext {
         vendor_surface_package(self.environment.id.as_str()).map(SpecProvider::Package)
     }
 
-    /// This environment's **own vendor command surface** over `registry`,
-    /// summarised from registry data — the old
-    /// `ProfileQueries::vendor_surface`, derived from the resolved context:
-    /// the commands available here that carry the environment's vendor
-    /// authoring bit, grouped by `NS::` namespace prefix (bare names group
-    /// under `""`), sorted by descending size then name.
+    /// This environment's **own** command surface over `registry`: the
+    /// commands available here authored under its vendor provider, grouped
+    /// by `NS::` namespace prefix (bare names group under `""`), sorted by
+    /// descending size then name.
     ///
     /// `None` for an environment with no vendor surface of its own, and for
     /// one whose surface resolves to nothing in `registry`. Feeds the
     /// generated consumers (the AI prompt's F5-surface summary) so prose can
     /// never drift from the data.
-    ///
-    /// Pinned equal to the retired profile query for every catalogue profile
-    /// over its own generation (`vendor_surface_matches_the_profile_query`).
     #[must_use]
     pub fn vendor_command_surface(&self, registry: &CommandRegistry) -> Option<VendorSurface> {
         let vendor = self.vendor_authoring_provider()?;
@@ -1024,11 +999,10 @@ impl ResolvedContext {
         })
     }
 
-    /// The ambient **keyed** placement `spec` sits on here, if any — the
-    /// old `keyed_pin_for`: the owning package's placement (only when
-    /// keyed and ambient), or — for a vendor-own spec (gate carries the
-    /// vendor authoring bit and no plain-Tcl version) — the environment's
-    /// single ambient keyed placement.
+    /// The ambient **keyed** placement `spec` sits on here, if any: the
+    /// owning package's placement when that is keyed and ambient, or — for
+    /// a spec the environment's own vendor provider carries — the
+    /// environment's single ambient keyed placement.
     #[must_use]
     pub fn keyed_ambient_placement(&self, spec: &CommandSpec) -> Option<&PackagePlacement> {
         let keyed_ambient = |placement: &&PackagePlacement| {
@@ -1134,14 +1108,12 @@ impl ResolvedContext {
         (!outside.is_empty()).then_some(outside)
     }
 
-    /// The subset of the declared **core-Tcl** targets a `SpecSurface`
-    /// availability gate does not cover — the §5.4 range check for the
-    /// mask-gated items (commands, subcommands, options) whose
-    /// introduction is spelled as ladder-line bits rather than a
-    /// lifecycle. `None` when no core targets are declared, the gate is
-    /// absent (unrestricted), the gate names no plain-Tcl line at all
-    /// (the item is another provider's — its own axis governs it), or
-    /// every declared target is covered.
+    /// The subset of the declared **core-Tcl** targets a surface gate does
+    /// not cover — the §5.4 range check for items whose introduction is
+    /// spelled as ladder rows rather than a lifecycle. `None` when no core
+    /// targets are declared, the gate is absent (unrestricted), the gate
+    /// names no plain-Tcl line at all (the item is another provider's — its
+    /// own axis governs it), or every declared target is covered.
     #[must_use]
     pub fn targets_uncovered_by_gate(&self, gate: Option<&'static [SpecSurface]>) -> Option<VersionSet> {
         let axis = VersionAxisId::core(Family::Tcl);
@@ -1198,32 +1170,24 @@ fn release_line(
     VersionSet::from_requirements(VersionAxisId::core(family), &[requirement]).ok()
 }
 
-/// Derive the context's authoring mask (see
-/// [`ResolvedContext::authoring_query`]): each Tcl ladder line bit is
-/// admitted exactly when the core axis's point primary sits inside the
-/// line (no point primary — the lenient environments — admits the whole
-/// ladder); the iRules core admits the bare `IRULES` bit; each vendor bit
-/// is admitted when this context's own runtime carries its surface
-/// package — the environment's vendor surface, or a package it places
-/// **ambient**.
+/// Derive the point this context asks at (see
+/// [`ResolvedContext::authoring_query`]): the core family at the core
+/// axis's point primary — no primary, in the lenient environments, means
+/// the family's whole ladder — plus every package this environment's own
+/// runtime carries.
 ///
-/// The vendor conjunct is deliberately narrower than
-/// [`ResolvedContext::package_active`]: the mask is the old model's
-/// "which profile does this document thread?" vocabulary, and a *hosted*
-/// library that merely resolves leniently (Tk under `tclsh`, every
-/// tcllib package) never set a bit. Reading `package_active` here would
-/// hand `tcl8.6` the `TK` bit the moment P3 routed Tk through the
-/// placement model. The pinned consequence is the one the pilot wants:
-/// `tk` earns the `TK` bit from its **ambient** placement, which is
-/// exactly the promotion `DocumentEnvironment::document_context` used to
-/// apply by hand.
+/// "Carries" is deliberately narrower than
+/// [`ResolvedContext::package_active`]: only the environment's vendor
+/// surface and its **ambient** placements. A *hosted* library that merely
+/// resolves leniently (Tk under `tclsh`, every tcllib package) is not part
+/// of the point, or every plain-Tcl document would author against Tk.
+/// `tk` earns Tk here because it places it ambient.
 fn compute_authoring_scope(context: &ResolvedContext) -> AuthoringScope {
     let mut scope = AuthoringScope::default();
     if let Some(core) = context.environment.core {
         scope.core = Some(match core.family {
             // The primary pins the release; without one the question is
-            // about the family's whole ladder, which is what the mask said
-            // by setting every line bit.
+            // about the family's whole ladder.
             Family::Tcl => (
                 Family::Tcl,
                 context.floors.primary(&VersionAxisId::core(Family::Tcl)).cloned(),
@@ -1253,7 +1217,7 @@ fn compute_authoring_scope(context: &ResolvedContext) -> AuthoringScope {
             ),
         });
     }
-    for package in VENDOR_BIT_PACKAGES {
+    for package in VENDOR_SURFACE_PACKAGES {
         if vendor_surface_package(context.environment.id.as_str()) == Some(*package)
             || context.placement_is_ambient(package)
         {
@@ -1379,11 +1343,10 @@ pub fn ladder_releases_in(set: &VersionSet) -> Vec<&'static str> {
         if Version::parse(release.as_str()).is_err() {
             continue;
         }
-        // The **narrow** line `[R, R+ε)` — one minor, the same width
-        // [`crate::model::surface::TCL_LINES`] gives each availability
-        // bit — so the unshipped ladder interior (8.7, 8.8) a coverage
-        // span deliberately includes never makes a release's name appear
-        // in a remainder it is not actually part of.
+        // The **narrow** line `[R, R+ε)` — one minor — so the unshipped
+        // ladder interior (8.7, 8.8) a coverage span deliberately includes
+        // never makes a release's name appear in a remainder it is not
+        // actually part of.
         let requirement = match bumped_spelling(release.as_str()) {
             Some(bound) => format!("{}-{bound}", release.as_str()),
             None => continue,
@@ -1572,11 +1535,10 @@ impl ContextQueries for ResolvedContext {
 }
 
 /// Whether `spec` is one of an environment's **own vendor** commands: its
-/// gate carries that environment's vendor authoring bit and no plain-Tcl
-/// version, so the vendor bit is the discriminating tag rather than shared
-/// library data (tcllib's "everywhere but the closed sandboxes" complement
-/// gates). The membership rule
-/// [`ResolvedContext::vendor_command_surface`] and
+/// surface names that environment's vendor provider and no plain-Tcl row,
+/// so the provider is what identifies it rather than shared library data
+/// (tcllib's "everywhere but the closed sandboxes" rows name Tcl too). The
+/// membership rule [`ResolvedContext::vendor_command_surface`] and
 /// [`ResolvedContext::keyed_ambient_placement`] share.
 fn is_vendor_own(spec: &CommandSpec, vendor: SpecProvider) -> bool {
     spec.surface.is_some_and(|rows| {
@@ -1592,22 +1554,17 @@ fn is_vendor_own(spec: &CommandSpec, vendor: SpecProvider) -> bool {
 /// applicability beats widest; authoring precedence, never binding
 /// resolution — B4).
 ///
-/// Counted so that a mechanically translated spec's breadth equals the old
-/// mask's popcount exactly, which is what lets
-/// [`crate::model::assembly::ContextRegistry::resolve_command`] reproduce
-/// `best_visible`'s answers:
+/// Counted per row so that narrower authoring beats wider:
 ///
-/// - a core row counts the ladder releases its set covers (one per old
-///   version bit; the iRules ladder's non-version spellings count one for
-///   a non-empty set);
-/// - a package row counts **one** when it is part of the vendor-bit
-///   authoring vocabulary ([`VENDOR_BIT_PACKAGES`]) and zero otherwise —
-///   a hosted owning-package attribution row mirrors the old
-///   `required_package`, which never participated in specificity;
-/// - the `surface: None` translation therefore counts 22 (5 Tcl + 1
-///   iRules + 9 Jim + 7 vendor packages), strictly wider than any
-///   explicit gate's maximum of 13, reproducing the old rule that a
-///   catch-all loses to every scoped spec.
+/// - a core row counts the ladder releases its set covers (a family whose
+///   ladder carries no version spellings counts one for a non-empty set);
+/// - a package row counts **one** when it is part of the vendor authoring
+///   vocabulary ([`VENDOR_SURFACE_PACKAGES`]) and zero otherwise — a hosted
+///   owning-package attribution row states where a command comes from, not
+///   how narrowly it is authored, so it must not tighten specificity;
+/// - a spec that states no surface at all therefore counts 22 (5 Tcl + 1
+///   iRules + 9 Jim + 7 vendor packages), strictly wider than any explicit
+///   gate's maximum of 13, so a catch-all loses to every scoped spec.
 #[must_use]
 pub fn specificity_breadth(declarations: &[SurfaceDeclaration]) -> u32 {
     let mut breadth = 0u32;
@@ -1630,7 +1587,7 @@ pub fn specificity_breadth(declarations: &[SurfaceDeclaration]) -> u32 {
                 breadth += covered;
             }
             Provider::Package(package) => {
-                if VENDOR_BIT_PACKAGES.contains(&package.as_str()) {
+                if VENDOR_SURFACE_PACKAGES.contains(&package.as_str()) {
                     breadth += 1;
                 }
             }
@@ -1824,7 +1781,7 @@ mod tests {
         let declarations = declarations_for_spec(&spec);
         assert!(context("f5-irules").is_available(&declarations));
         assert!(!context("tcl8.4").is_available(&declarations));
-        // Selection admits it (mask analog); the package conjunct is the
+        // Selection admits it; the package conjunct is the
         // winner filter, mirroring `get_for_surface → is_available`.
         assert!(
             declarations
@@ -1847,7 +1804,7 @@ mod tests {
             ("tk", true, true, true),
             // A release-pinned `tclsh`: hosted. Visible under the open
             // world (§5.3's lenient default), but not shipped, so W120 nags
-            // and the `TK` authoring bit stays off.
+            // and Tk stays out of the authoring point.
             ("tcl8.6", true, false, true),
             ("tcl9.0", true, false, true),
             // The lenient sink declares the same hosted placement.
@@ -1904,7 +1861,7 @@ mod tests {
     /// conjunct, so the Tk surface resolves through
     /// [`ResolvedContext::package_active`] rather than off its
     /// `Core(Tcl)` row. The surviving core row is specificity data — the
-    /// breadth the coexisting `get_for_surface` popcount ordering needs —
+    /// breadth `get_for_surface`'s specificity ordering needs —
     /// which is why it is asserted here rather than deleted.
     #[test]
     fn tk_declarations_are_gated_on_the_package_provider() {
@@ -1929,7 +1886,7 @@ mod tests {
                 .any(|row| row.provider == Provider::Package(PackageId::new("Tk")))
         );
         // Specificity is unchanged: five Tcl ladder releases + the Tk
-        // vendor-bit package = the old `TK_AND_TCL` mask popcount of 6.
+        // vendor package = the 6 `TK_AND_TCL` states.
         assert_eq!(specificity_breadth(&declarations), 6);
         // …and availability follows the placement query exactly: open
         // worlds resolve the hosted rows, an ambient-plus-require shell
@@ -1948,7 +1905,7 @@ mod tests {
     /// is not open stops resolving the Tk surface on its own. `package
     /// require` is not part of the `bpf`, `spectcl` or `f5-irules`
     /// language, and an iApp gets only what it requires, so `wm` was never
-    /// callable in any of them; the old profile mask admitted it only
+    /// callable in any of them; the retired profile mask admitted it only
     /// because `TK_AND_TCL` unions the whole Tcl ladder.
     ///
     /// The two policies part company on the require: it cannot open a
@@ -2015,7 +1972,7 @@ mod tests {
     /// **P6.** A `jim` context resolves the shared core surface through
     /// its ancestry edge instead of through 76 re-authored specs: the
     /// `Core(Tcl)` provider is active, the Tcl-axis primary is the 8.6
-    /// anchor, and the derived authoring mask is the 8.6 line — so
+    /// anchor, and the derived point is the 8.6 line — so
     /// `lassign` (8.5+) and `lmap` (8.6+) both resolve while an
     /// 8.4-only shape does not.
     #[test]
@@ -2045,7 +2002,7 @@ mod tests {
                 .contains(&Version::parse("0.76").expect("version"))
         );
 
-        // The derived mask, and what it admits.
+        // The derived point, and what it admits.
         assert_eq!(ctx.authoring_query(), SurfaceQuery::core(Family::Tcl, "8.6"));
         for gate in [
             SpecSurface::ALL_TCL,
@@ -2190,7 +2147,7 @@ mod tests {
 
     #[test]
     fn breadth_counts_one_per_provider_release() {
-        // The measure the retired mask's bit popcount gave: one per Tcl
+        // One per Tcl
         // ladder release a core row covers, one per other core row, one per
         // package row.
         let cases: &[(&[SpecSurface], u32)] = &[
@@ -2215,7 +2172,7 @@ mod tests {
         // its row in the F5 reclassification.
         assert_eq!(specificity_breadth(&rows(None)), 23);
         // A hosted attribution row adds no specificity, mirroring the old
-        // popcount which never counted `required_package`.
+        // specificity, which never counted `required_package`.
         let hosted = declarations_for_spec(&CommandSpec {
             name: "context-test",
             surface: Some(SpecSurface::ALL_TCL),
@@ -2226,8 +2183,8 @@ mod tests {
     }
 
     /// **P1-F parity sweep 1**: every context-derived authoring fact —
-    /// the mask, the option ceiling, the operator-head rule, the vendor
-    /// authoring bit, and every placement's ambience and static floor —
+    /// the point, the option ceiling, the operator-head rule, the vendor
+    /// provider, and every placement's ambience and static floor —
     /// reproduces the old profile's value for every catalogue profile,
     /// and the lenient `tcl`/`tk` environments reproduce the permissive
     /// fallback profile the analyser resolved those names to.
@@ -2236,7 +2193,7 @@ mod tests {
         use tcl_dialect::DialectProfile;
         for profile in DialectProfile::all() {
             let ctx = context(profile.name);
-            // documented deltas (mask, ceiling, operator heads).
+            // documented deltas (point, ceiling, operator heads).
             assert!(
                 crate::model::surface::points_answer_alike(
                     &ctx.authoring_query(),
@@ -2312,11 +2269,9 @@ mod tests {
         assert_eq!(ctx.tcl_version_ceiling(), None);
         assert!(ctx.operator_heads_are_commands());
         assert_eq!(ctx.vendor_authoring_provider(), None);
-        // `tk` derives the same permissive facts **plus** the `TK` bit —
-        // P3: its ambient Tk placement produces the bit the ingress used
-        // to inject over this derivation (`with_authoring_mask`, deleted).
-        // It is still not a *vendor* environment: `TK` is a library bit,
-        // so no vendor authoring bit and no ceiling.
+        // `tk` derives the same permissive facts **plus** Tk itself, off
+        // its ambient placement. It is still not a *vendor* environment —
+        // Tk is a library — so no vendor provider and no ceiling.
         let tk = context("tk");
         assert_eq!(
             tk.authoring_query(),
@@ -2455,7 +2410,7 @@ mod tests {
             "no catalogue profile has a vendor surface — the sweep is vacuous"
         );
         // The lenient sink and the additive `tk` ingress author under no
-        // vendor bit, so neither has a surface of its own.
+        // vendor provider, so neither has a surface of its own.
         for lenient in ["tcl", "tk"] {
             let store = crate::model::ingress::static_context_for(lenient).commands();
             assert!(

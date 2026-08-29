@@ -48,12 +48,12 @@ the compiler's own inference — never guesswork from names.
    built-in needs the user's attention, not a silent overwrite.
 6. Write the output — **SpecTcl in both cases**:
    - **private** — one `<library>.tclspec` pack at the library root,
-     declaring the current vocabulary — `speclib <name> 1.1` — and
+     declaring the current vocabulary — `speclib <name> 2.0` — and
      written strictly to the frozen syntax (schema keys as property
      words, catalogue spellings verbatim, hook bodies only where the
      evidence demands one and always with their family's calling
-     convention). Until the pack loader ships, also emit the stub
-     sidecar as the working fallback and say so.
+     convention). The pack loader ships: workspace discovery picks the
+     file up, so no stub sidecar is needed.
    - **contribution** — the same `.tclspec` pack plus an issue body per
      the how-to; the Spec Studio renders the final `.rs` from it.
    Validate the pack with `mcp__tcl-lsp__spectcl_check` — pass the pack
@@ -80,14 +80,16 @@ the compiler's own inference — never guesswork from names.
 ## Vocabulary versions
 
 Every SpecTcl loader reads **all** known vocabulary versions (`1`, `1.0`,
-`1.1`) in full — a pack is never refused for its version word, and the
-studio, compiler, LSP and CLI all speak every version. Declare the newest
-(`speclib <name> 1.1`) in anything you write: the declaration is what
-entitles the pack to the 1.1-only words (row-level `-introduced` /
-`-deprecated` / `-retired`, command-scope `versioned_arg_value`, an
-option's `-deprecation-fix`), and the loader now flags each 1.1 word used
-under an older declaration. `tcl spec upgrade <pack.tclspec>` rewrites an
-older declaration in place (`--check` to only report).
+`1.1`, `1.2`, `2.0`) in full — a pack is never refused for a version word
+it understands, and the studio, compiler, LSP and CLI all speak every
+version. Declare the newest (`speclib <name> 2.0`) in anything you write:
+the declaration is what entitles the pack to the newer words, and the
+loader flags each one used under an older declaration. What each version
+added is in the DSL memo's version table; 2.0's are
+`available {PROVIDER SPEC…}` (the algebra that replaces `dialects`), the
+pack-level `environment` and `dialect` blocks, and `refine NAME { … }`,
+the per-form invocation refinement. `tcl spec upgrade <pack.tclspec>`
+rewrites an older declaration in place (`--check` to only report).
 
 ## Deriving version ranges from release history
 

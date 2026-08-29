@@ -4151,7 +4151,7 @@ impl Analyser {
     /// therefore names a method on the enclosing object.
     ///
     /// Registry-first and dialect-aware: `method_dispatch_keyword` answers
-    /// under the active profile's availability mask, so a `tcl8.4` /
+    /// at the active profile's point, so a `tcl8.4` /
     /// `tcl8.5` document — with no `TclOO` at all — answers `false` for
     /// every spelling, and it resolves the `::`-qualified form itself.
     ///

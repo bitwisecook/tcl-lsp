@@ -1658,8 +1658,8 @@ fn sweep_dialect_catalogue() {
         let reg = registry_for_dialect(d);
         assert!(!reg.is_empty(), "{d}: empty registry");
         assert!(reg.get("set").is_some(), "{d}: missing core `set`");
-        // The name either parses to a the retired availability mask bit, or is a config-only name
-        // that collapses to plain Tcl (still a usable registry).
+        // The name either names a catalogue profile, or is a config-only
+        // name that collapses to plain Tcl (still a usable registry).
         let _ = tcl_dialect::DialectProfile::find(d).map(tcl_dialect::DialectProfile::surface_query);
     }
     // An unparseable dialect collapses to a plain-Tcl registry.

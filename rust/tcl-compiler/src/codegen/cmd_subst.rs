@@ -741,7 +741,7 @@ impl CodegenCtx<'_> {
             return None;
         }
         let arg_refs: Vec<&str> = args.iter().map(|(a, _)| a.as_str()).collect();
-        // The registry's own availability mask — see
+        // The registry's own point — see
         // `emitter::bytecoded::try_bytecoded` (issues #1462/#1463).
         let resolved =
             self.registry

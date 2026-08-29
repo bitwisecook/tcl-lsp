@@ -83,14 +83,13 @@ pub(crate) fn store_for_profile(profile: &'static DialectProfile) -> &'static Co
     tcl_registry::model::static_context_for_profile(profile).commands()
 }
 
-/// The availability mask the builtin command-surface gate answers under
-/// for `profile` — the **document authoring mask** of the profile's
-/// environment, replacing the direct `profile.surface_query()` read.
+/// The point the builtin command-surface gate answers at for `profile` —
+/// the **document authoring point** of the profile's environment, rather
+/// than a direct `profile.surface_query()` read.
 ///
 /// Equal to `profile.surface_query()` for every profile an ingress can
 /// produce, pinned by `tcl_registry::model::ingress`'s
-/// `the_document_mask_is_the_threaded_profiles_mask`, so the gate admits
-/// and hides exactly what it did.
+/// `the_document_point_matches_the_threaded_profile`.
 pub(crate) fn surface_point(profile: &'static DialectProfile) -> SurfaceQuery<'static> {
     tcl_registry::model::static_document_context_for_profile(profile).authoring_query()
 }

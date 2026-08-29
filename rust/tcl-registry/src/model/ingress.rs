@@ -26,8 +26,8 @@
 //! [`EnvironmentRegistry`] resolver, and derives everything downstream
 //! from the resolved environment: the per-context registry generation
 //! ([`ContextRegistry`], carrying the [`ResolvedContext`] availability
-//! view and the generation's command store), the Tk-environment fact that
-//! used to ride `availability_for_name`'s `TK`-bit union, and — as the
+//! view and the generation's command store), the Tk-environment fact, and
+//! — as the
 //! documented wave-1 interop — the old interned [`DialectProfile`] the
 //! rest of the pipeline still threads for grammar, versions, and
 //! diagnostic labels. The interop mapping goes through the **resolved
@@ -64,17 +64,14 @@
 //!    environment. Every shipped caller already mapped editor ids to
 //!    canonical names before the ingress (the LSP's
 //!    `dialect_from_language_id`), so no shipped path changes answer.
-//! 2. **`tk` resolves as an environment, not a parsed bit.** The old
-//!    ingress recognised `tk` by `DialectProfile::find` and synthesised
+//! 2. **`tk` resolves as an environment, not a synthesised profile.** The
+//!    old ingress recognised `tk` by `DialectProfile::find` and built
 //!    `TK_PROFILE`; here it is the `tk` environment, which places the `Tk`
-//!    package **ambient** (P3), so every Tk fact — availability, the `TK`
-//!    authoring bit, the Tk-checks activation, W120's silence — is one
+//!    package **ambient** (P3), so every Tk fact — availability, the
+//!    authoring point, the Tk-checks activation, W120's silence — is one
 //!    placement query on the resolved context, and
 //!    [`DocumentEnvironment::unit_profile`] still hands back the same
-//!    typed additive profile for the identity interop. Other `SpecSurface` spellings that happened
-//!    to parse (`tcl8.5|tcl8.6` unions) were never valid dialect names and
-//!    now sink to the lenient environment rather than a synthesised
-//!    profile.
+//!    typed additive profile for the identity interop.
 //! 3. **A malformed library-version override drops to the axis default**
 //!    rather than being carried verbatim ([`KeyedVersions::from_overrides`]
 //!    is `Result`, and this seam takes the default on error). The old
@@ -189,9 +186,9 @@ impl DocumentEnvironment {
     /// them.
     ///
     /// **The `tk` asymmetry against [`Self::unit_profile`] is permanent**
-    /// (P3 ruling). It is not an availability split any more — P3 moved
-    /// the mask onto the derived context, so both faces now answer the
-    /// same availability question — but a *catalogue* one, and the
+    /// (P3 ruling). It is not an availability split any more — the
+    /// context derives the point, so both faces answer the same
+    /// availability question — but a *catalogue* one, and the
     /// classification rule (§2) is what fixes it: `tk` is a package plus
     /// an environment, never a dialect, so `DialectProfile::find("tk")`
     /// must keep answering `None` and this face must keep sinking to the
@@ -213,12 +210,11 @@ impl DocumentEnvironment {
     /// display label, and Tk library pins) rather than the anonymous
     /// fallback's.
     ///
-    /// P3 note: the promotion is no longer what carries Tk's
-    /// *availability*. The `tk` environment's own derived authoring mask
-    /// now contains the `TK` bit (its ambient Tk placement produces it),
-    /// so `unit_profile().surface_query()` and
+    /// The promotion is not what carries Tk's *availability*: the `tk`
+    /// environment's ambient placement puts Tk in its own derived point, so
+    /// `unit_profile().surface_query()` and
     /// [`Self::document_authoring_scope`] agree by derivation rather than
-    /// by injection — pinned by `the_document_mask_is_the_threaded_profiles_mask`.
+    /// by injection.
     #[must_use]
     pub fn unit_profile(&self) -> &'static DialectProfile {
         if self.is_tk() {
@@ -292,13 +288,10 @@ impl DocumentEnvironment {
     /// The **document** authoring mask: the mask of the un-overlaid
     /// generation's [`ResolvedContext`].
     ///
-    /// P3: this is now a plain read of the derived mask for **every**
-    /// environment, `tk` included. It used to be the threaded profile's
-    /// mask instead, because the derivation could not produce `tk`'s
-    /// additive `TK` bit; the ambient Tk placement produces it now, so
-    /// the injected copy is gone and the sweep
-    /// (`the_document_mask_is_the_threaded_profiles_mask`) pins the two
-    /// equal by derivation.
+    /// A plain read of the derived point for **every** environment, `tk`
+    /// included: the ambient Tk placement puts Tk in `tk`'s own derivation,
+    /// so there is no injected copy and
+    /// `the_document_point_matches_the_threaded_profile` pins the two equal.
     ///
     /// [`ResolvedContext::authoring_query`]: crate::model::ResolvedContext::authoring_query
     #[must_use]
@@ -531,14 +524,13 @@ mod tests {
     ///
     /// **P3**: this now holds *by derivation* for every environment, `tk`
     /// included. Waves 1-2 could only hold it by injection — the document
-    /// context replaced the derived mask with the threaded profile's,
-    /// because `tk`'s derivation had no way to produce the additive `TK`
-    /// bit. The ambient Tk placement produces it, so the injection door
-    /// (`ResolvedContext::with_authoring_mask`) and the second leaked
+    /// context replaced the derived point with the threaded profile's,
+    /// because `tk`'s derivation had no way to produce Tk. The ambient Tk
+    /// placement produces it, so the injection door and the second leaked
     /// document-context value are both deleted, and the generation's own
     /// context *is* the document context.
     #[test]
-    fn the_document_mask_is_the_threaded_profiles_mask() {
+    fn the_document_point_matches_the_threaded_profile() {
         let names: Vec<&str> = DialectProfile::all()
             .iter()
             .map(|profile| profile.name)

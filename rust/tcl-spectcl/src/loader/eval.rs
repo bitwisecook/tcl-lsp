@@ -247,6 +247,7 @@ const ROW_WORDS: &[&str] = &[
     "setter_constraint",
     "hover",
     "form",
+    "refine",
     "side_effect",
     "command_table_effect",
     "frame_effect",

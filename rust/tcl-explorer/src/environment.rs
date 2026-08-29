@@ -108,7 +108,7 @@ pub fn known_profile_for_dialect(name: &str) -> Option<&'static DialectProfile> 
 ///
 /// `serialise_meta`'s per-dialect label lookup and `serialise_bounds`'s
 /// character-model lookup (fed a unit's own semantic dialect, which *can*
-/// name `tk` via `the retired availability mask::canonical_name`) both need the pre-promotion
+/// name `tk`) both need the pre-promotion
 /// answer: `None` for `tk`, exactly as `DialectProfile::find("tk")` always
 /// has.
 #[must_use]

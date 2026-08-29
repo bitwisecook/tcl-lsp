@@ -887,7 +887,7 @@ Nothing about the struct forces those two to agree, and a profile whose
 `tcloo` contradicted its mask would give contradictory `oo` behaviour and
 hover text.
 
-`tcloo_is_invariant_with_the_availability_mask` in `profile.rs` enforces it
+`tcloo_agrees_with_what_the_point_resolves` in `profile.rs` enforces it
 over every catalog profile plus the fallback:
 `p.tcloo == p.availability_mask.intersects(TCL86_PLUS)`. `f5-bigip` is the one
 documented exception — it has no Tcl surface at all, so `!p.tcloo` is asserted
