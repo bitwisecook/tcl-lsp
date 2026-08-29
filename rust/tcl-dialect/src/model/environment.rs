@@ -1310,7 +1310,7 @@ pub fn compiled_definitions() -> Vec<EnvironmentDefinition> {
 mod tests {
     use super::*;
     use crate::DialectProfile;
-    use crate::dialect_set::KNOWN_DIALECTS;
+    use crate::KNOWN_DIALECTS;
 
     #[test]
     fn every_old_name_and_alias_resolves() {

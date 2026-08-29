@@ -1562,7 +1562,7 @@ impl DialectProfile {
 #[cfg(test)]
 mod tests {
     use super::DialectProfile;
-    use crate::dialect_set::KNOWN_DIALECTS;
+    use super::KNOWN_DIALECTS;
     use crate::model::{Family, SpecProvider, SpecSurface, SurfaceQuery, surface_admits};
     use crate::grammar::{BracedVarStyle, EscapeSyntax, ExprCommentStyle, NumberSyntax};
     use crate::library::{LibraryVersion, LibraryVersionOverrides, VersionKey};

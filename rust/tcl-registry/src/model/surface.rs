@@ -540,9 +540,10 @@ pub fn declarations_for_spec(spec: &CommandSpec) -> SmallVec<[SurfaceDeclaration
             rows.push(package_row(package, history));
         }
     }
-    if let Some(package) = spec.required_package
-        && is_placement_gated_package(package)
-    {
+    // The require is stated on every row unconditionally; how strictly it
+    // is read — leniently in an open world, literally in one where a pack
+    // is absent until required — is the context's call, not the lowering's.
+    if let Some(package) = spec.required_package {
         let id = PackageId::new(package);
         for declaration in &mut rows {
             declaration.predicate = CapabilityPredicate::RequiresPackage(id.clone());
@@ -695,7 +696,7 @@ mod tests {
     }
 
     #[test]
-    fn a_hosted_owning_package_adds_an_unconditional_row() {
+    fn a_hosted_owning_package_adds_a_row_and_states_the_require() {
         let spec = CommandSpec {
             name: "surface-test",
             surface: Some(SpecSurface::ALL_TCL),
@@ -709,11 +710,10 @@ mod tests {
             rows.iter()
                 .any(|row| row.provider == Provider::Package(PackageId::new("csv")))
         );
-        // Hosted (never ambient anywhere): no conjunctive predicate.
-        assert!(
-            rows.iter()
-                .all(|row| row.predicate == CapabilityPredicate::None)
-        );
+        // Every row carries the require; a lenient world reads it
+        // leniently, an ambient-plus-require world literally.
+        assert!(rows.iter().all(|row| row.predicate
+            == CapabilityPredicate::RequiresPackage(PackageId::new("csv"))));
     }
 
     /// **P5.** A tcllib module's package row is applicable over the

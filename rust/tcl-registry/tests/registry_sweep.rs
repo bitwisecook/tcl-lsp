@@ -576,7 +576,7 @@ fn check_registry_queries(
 
     // --- resolve_call: nullary and a small arg list ---
     // Must never panic; when it resolves, the spec name is preserved.
-    let active = ds.unwrap_or(SpecSurface::TCL86);
+    let active = Some(ds.unwrap_or(SurfaceQuery::core(Family::Tcl, "8.6")));
     if let Some(rc) = reg.resolve_call(name, &[], active) {
         assert_eq!(
             rc.spec.name, spec.name,
@@ -737,10 +737,10 @@ fn sweep_trait_membership_is_self_consistent() {
 #[test]
 fn sweep_dialect_resolution_is_consistent() {
     for (dname, bit) in [
-        ("tcl8.4", SpecSurface::TCL84),
-        ("tcl8.5", SpecSurface::TCL85),
-        ("tcl8.6", SpecSurface::TCL86),
-        ("tcl9.0", SpecSurface::TCL90),
+        ("tcl8.4", Some(SurfaceQuery::core(Family::Tcl, "8.4"))),
+        ("tcl8.5", Some(SurfaceQuery::core(Family::Tcl, "8.5"))),
+        ("tcl8.6", Some(SurfaceQuery::core(Family::Tcl, "8.6"))),
+        ("tcl9.0", Some(SurfaceQuery::core(Family::Tcl, "9.0"))),
     ] {
         let reg = registry_for_dialect(dname);
         let names: Vec<String> = reg.command_names().map(ToOwned::to_owned).collect();
@@ -790,7 +790,7 @@ fn assert_dialects_nest(parent: Option<&'static [SpecSurface]>, child: Option<&'
     for profile in tcl_dialect::DialectProfile::all() {
         let mask = Some(profile.surface_query());
         assert!(
-            !surface_admits(child, &mask) || surface_admits(parent, &mask),
+            !surface_admits(child, mask.as_ref()) || surface_admits(parent, mask.as_ref()),
             "{context}: child dialects {child:?} resolve under {} (mask \
              {mask:?}) but the parent's {parent:?} do not — the child would be \
              reachable where its parent command is not",
@@ -1303,7 +1303,7 @@ fn family_control_flow_shapes() {
     );
     // tclsh: `switch --` terminator is real — `switch -- abc {abc {...}}` runs.
     // The registry models the terminator via resolve_option_terminator.
-    let term = reg.resolve_option_terminator("switch", &["--", "abc"], SpecSurface::TCL86);
+    let term = reg.resolve_option_terminator("switch", &["--", "abc"], Some(SurfaceQuery::core(Family::Tcl, "8.6")));
     if let Some(t) = term {
         assert!(
             t.options.iter().any(|o| o.name == "--"),
@@ -1320,14 +1320,14 @@ fn terminator_resolves_subcommand_prefix() {
     let reg = registry_for_dialect("f5-irules");
     // `class match` (F5 iRules) declares a subcommand-scoped `--` terminator.
     let exact = reg
-        .resolve_option_terminator("class", &["match", "-nocase", "--"], SpecSurface::IRULES)
+        .resolve_option_terminator("class", &["match", "-nocase", "--"], Some(SurfaceQuery::any_release(Family::F5Irules)))
         .expect("class match declares a -- terminator");
     assert_eq!(exact.subcommand, Some("match"));
     assert!(exact.options.iter().any(|o| o.name == "--"));
 
     // The unique prefix `ma` must resolve to the same `match` profile.
     let abbrev = reg
-        .resolve_option_terminator("class", &["ma", "-nocase", "--"], SpecSurface::IRULES)
+        .resolve_option_terminator("class", &["ma", "-nocase", "--"], Some(SurfaceQuery::any_release(Family::F5Irules)))
         .expect("abbreviated `class ma` must keep the -- terminator");
     assert_eq!(abbrev.subcommand, Some("match"));
     assert_eq!(abbrev.scan_start, exact.scan_start);
@@ -1582,7 +1582,7 @@ fn family_array_clock_subcommands() {
 #[test]
 fn family_f5_irules_shapes() {
     let reg = registry_for_dialect("f5-irules");
-    let ds = SpecSurface::IRULES;
+    let ds = Some(SurfaceQuery::any_release(Family::F5Irules));
 
     // when is the event handler with a structural body.
     let when = reg.get_for_surface("when", ds).expect("when");

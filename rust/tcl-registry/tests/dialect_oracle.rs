@@ -225,8 +225,8 @@ fn registry_subcommand_dialect_gating_matches_tclsh_8_6_and_9_0() {
             // Only audit subcommands the registry models; a name it doesn't know
             // is a completeness gap (out of scope for this gating differential).
             let (Some(got86), Some(got90)) = (
-                sub_available(ens, sub, SpecSurface::TCL86),
-                sub_available(ens, sub, SpecSurface::TCL90),
+                sub_available(ens, sub, Some(SurfaceQuery::core(Family::Tcl, "8.6"))),
+                sub_available(ens, sub, Some(SurfaceQuery::core(Family::Tcl, "9.0"))),
             ) else {
                 continue;
             };

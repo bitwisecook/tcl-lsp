@@ -24,6 +24,7 @@
 //! observable over LSP; the observable completion / W003 behaviour is covered
 //! by the `lsp_e2e` suite.
 
+use tcl_dialect::model::surface_admits;
 use tcl_dialect::model::{SurfaceQuery, Family};
 use tcl_dialect::{available_dialects};
 use tcl_registry::CommandRegistry;
@@ -34,20 +35,25 @@ fn reg() -> CommandRegistry {
 }
 
 #[test]
-fn tcl91_is_a_known_parseable_dialect() {
-    assert_eq!(tcl_dialect::DialectProfile::find("tcl9.1").map(tcl_dialect::DialectProfile::surface_query), Some(SpecSurface::TCL91));
+fn tcl91_is_a_known_catalogued_dialect() {
+    assert_eq!(
+        tcl_dialect::DialectProfile::find("tcl9.1")
+            .map(tcl_dialect::DialectProfile::surface_query),
+        Some(SurfaceQuery::core(Family::Tcl, "9.1"))
+    );
     assert!(available_dialects().contains(&"tcl9.1"));
 }
 
 #[test]
-fn tcl90_plus_includes_91_and_90_but_not_86() {
+fn tcl90_plus_admits_91_and_90_but_not_86() {
+    let at = |release| SurfaceQuery::core(Family::Tcl, release);
     // A `.1` release is additive: 9.0 features persist in 9.1.
-    assert!(SpecSurface::TCL90_PLUS.contains(SpecSurface::TCL90));
-    assert!(SpecSurface::TCL90_PLUS.contains(SpecSurface::TCL91));
-    assert!(!SpecSurface::TCL90_PLUS.contains(SpecSurface::TCL86));
-    // The 8.x "and later" sets absorb 9.1 too.
-    assert!(SpecSurface::TCL86_PLUS.contains(SpecSurface::TCL91));
-    assert!(SpecSurface::ALL_TCL.contains(SpecSurface::TCL91));
+    assert!(surface_admits(SpecSurface::TCL90_PLUS, Some(&at("9.0"))));
+    assert!(surface_admits(SpecSurface::TCL90_PLUS, Some(&at("9.1"))));
+    assert!(!surface_admits(SpecSurface::TCL90_PLUS, Some(&at("8.6"))));
+    // The 8.x "and later" windows absorb 9.1 too.
+    assert!(surface_admits(SpecSurface::TCL86_PLUS, Some(&at("9.1"))));
+    assert!(surface_admits(SpecSurface::ALL_TCL, Some(&at("9.1"))));
 }
 
 #[test]

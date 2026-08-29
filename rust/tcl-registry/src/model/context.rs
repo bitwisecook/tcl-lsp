@@ -439,9 +439,12 @@ impl ResolvedContext {
     ///
     /// - everything [`Self::package_provider_active`] admits (the ambient
     ///   closure, the vendor surface, an explicit require);
-    /// - plus, outside a **closed** world, any package no environment owns
-    ///   as its closed-world runtime — §5.3's lenient `open` default,
+    /// - plus, under an **open** world only, any package no environment
+    ///   owns as its closed-world runtime — §5.3's lenient `open` default,
     ///   "hosted packs visible, W120 advisory";
+    /// - nothing further under `AmbientPlusRequire`, where a hosted pack
+    ///   joins the world only by being required (Q7): an iApp that never
+    ///   says `package require Tk` cannot call `wm`;
     /// - and nothing at all under `Closed`, where `package require` is not
     ///   part of the language.
     ///
@@ -457,7 +460,7 @@ impl ResolvedContext {
     #[must_use]
     pub fn package_active(&self, package: &str) -> bool {
         self.package_provider_active(package)
-            || (self.environment.policy_defaults.closed_world != WorldPolicy::Closed
+            || (self.environment.policy_defaults.closed_world == WorldPolicy::Open
                 && !is_closed_world_package(package))
     }
 
@@ -586,7 +589,9 @@ impl ResolvedContext {
                 };
                 answer == CapabilityAnswer::Yes
             }
-            CapabilityPredicate::RequiresPackage(package) => self.package_active(package.as_str()),
+            CapabilityPredicate::RequiresPackage(package) => {
+                self.required_package_available(Some(package.as_str()))
+            }
         }
     }
 
@@ -689,10 +694,17 @@ impl ResolvedContext {
     /// [`is_placement_gated_package`]: crate::model::surface::is_placement_gated_package
     #[must_use]
     pub fn required_package_available(&self, required: Option<&str>) -> bool {
-        match required {
-            None => true,
-            Some(package) => !is_placement_gated_package(package) || self.package_active(package),
+        let Some(package) = required else {
+            return true;
+        };
+        // An ambient-plus-require world answers the gate outright (Q7):
+        // its whole point is that a hosted pack is absent until the source
+        // requires it, so the lenient "unplaced libraries are assumed
+        // present, W120 nags" rule does not apply there.
+        if self.environment.policy_defaults.closed_world == WorldPolicy::AmbientPlusRequire {
+            return self.package_active(package);
         }
+        !is_placement_gated_package(package) || self.package_active(package)
     }
 
     /// Whether the environment ships `package` ambient (a placement or a
@@ -1846,9 +1858,10 @@ mod tests {
             ("f5-irules", false, false, false),
             ("bpf", false, false, false),
             ("spectcl", false, false, false),
-            // Ambient-plus-require shells host nothing they did not place.
-            ("f5-iapps", true, false, false),
-            ("f5-tmsh", true, false, false),
+            // Ambient-plus-require shells host nothing they did not place,
+            // and only what they required joins the world (Q7).
+            ("f5-iapps", false, false, false),
+            ("f5-tmsh", false, false, false),
             // An EDA shell is open, so the lenient hosted rule applies —
             // but it declares no Tk placement, so it cannot host one.
             ("xilinx-eda-tcl", true, false, false),
@@ -1918,23 +1931,31 @@ mod tests {
         // Specificity is unchanged: five Tcl ladder releases + the Tk
         // vendor-bit package = the old `TK_AND_TCL` mask popcount of 6.
         assert_eq!(specificity_breadth(&declarations), 6);
-        // …and availability follows the placement query exactly.
-        for environment in ["tk", "tcl8.6", "tcl", "f5-iapps"] {
+        // …and availability follows the placement query exactly: open
+        // worlds resolve the hosted rows, an ambient-plus-require shell
+        // that never required Tk does not.
+        for environment in ["tk", "tcl8.6", "tcl"] {
             assert!(
                 context(environment).is_available(&declarations),
                 "{environment}"
             );
         }
+        assert!(!context("f5-iapps").is_available(&declarations));
     }
 
-    /// The **one enumerated P3 delta** from the old model, pinned
-    /// directly rather than only as an allowlist in the P1-E sweeps: a
-    /// closed world stops resolving the Tk surface. `package require` is
-    /// not part of the `bpf` or `spectcl` language, so `wm` was never
-    /// callable there; the old profile mask admitted it only because
-    /// `TK_AND_TCL` unions the whole Tcl ladder.
+    /// The **one enumerated delta** from the old model, pinned directly
+    /// rather than only as an allowlist in the P1-E sweeps: a world that
+    /// is not open stops resolving the Tk surface on its own. `package
+    /// require` is not part of the `bpf`, `spectcl` or `f5-irules`
+    /// language, and an iApp gets only what it requires, so `wm` was never
+    /// callable in any of them; the old profile mask admitted it only
+    /// because `TK_AND_TCL` unions the whole Tcl ladder.
+    ///
+    /// The two policies part company on the require: it cannot open a
+    /// closed world, but it is exactly how a package joins an
+    /// ambient-plus-require one (Q7).
     #[test]
-    fn tk_is_closed_out_of_closed_worlds() {
+    fn tk_needs_an_open_world_or_an_explicit_require() {
         let spec = CommandSpec {
             name: "context-test",
             surface: Some(SpecSurface::TK_AND_TCL),
@@ -1942,17 +1963,21 @@ mod tests {
             ..CommandSpec::DEFAULT
         };
         let declarations = declarations_for_spec(&spec);
-        for closed in ["bpf", "spectcl", "f5-irules"] {
-            assert!(!context(closed).is_available(&declarations), "{closed}");
+        for shut in ["bpf", "spectcl", "f5-irules", "f5-iapps", "f5-tmsh"] {
+            assert!(!context(shut).is_available(&declarations), "{shut}");
             assert!(
-                !context(closed).required_package_available(Some("Tk")),
-                "{closed}"
+                !context(shut).required_package_available(Some("Tk")),
+                "{shut}"
             );
         }
-        // An explicit require cannot open a closed world either.
+        // An explicit require cannot open a closed world…
         let mut required = context("spectcl");
         required.require_package("Tk", None);
         assert!(!required.is_available(&declarations));
+        // …but it is the whole point of an ambient-plus-require one.
+        let mut required = context("f5-iapps");
+        required.require_package("Tk", None);
+        assert!(required.is_available(&declarations));
         // Nothing else moves: an unplaced library keeps the old lenient
         // answer under the same closed worlds.
         for closed in ["bpf", "spectcl"] {

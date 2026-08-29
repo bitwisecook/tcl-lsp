@@ -506,34 +506,53 @@ pub(crate) mod tests {
         registry_for_environment(&definition, &identity, &KeyedVersions::default())
     }
 
-    /// The old model's availability answer, **minus the one enumerated P3
-    /// delta**: `Tk` is a placement-gated package now (the `tk`
-    /// environment runs it ambiently), so a **closed** world no longer
-    /// resolves the Tk surface. `package require` is not part of the
-    /// language in `bpf` or `spectcl`, so a Tk command was never callable
-    /// there — the old profile mask admitted it because `TK_AND_TCL`
-    /// unions the whole Tcl ladder and the old package gate only
-    /// subtracted *other* environments' ambient surfaces.
+    /// The old model's availability answer, **minus the enumerated
+    /// package-gate delta**: a world that is not **open** no longer
+    /// resolves a package-gated spec the environment neither ships nor
+    /// requires. The old profile mask admitted such specs because the
+    /// spec's Tcl surface unions the whole ladder and the old package gate
+    /// only subtracted *other* environments' ambient surfaces.
     ///
-    /// This is the only divergence in the P1-E acceptance sweeps after
-    /// P3; every open world (the five plain-Tcl releases, the lenient
-    /// sink, the F5 shells, the EDA shells, `expect`) answers exactly as
-    /// before. `tk_is_closed_out_of_closed_worlds` pins the new answer
+    /// Two policies land in the delta, for two reasons. `package require`
+    /// is not part of the language in `bpf`, `spectcl` or `f5-irules`, so
+    /// a *placed* package (Tk, P3) is unreachable there. An iApp or tmsh
+    /// script gets only what it requires (Q7), so every hosted pack is
+    /// unreachable there until the source asks for it — and the sweeps
+    /// analyse no source, so nothing is ever required.
+    ///
+    /// This is the only divergence in the P1-E acceptance sweeps; every
+    /// open world (the five plain-Tcl releases, the lenient sink, the EDA
+    /// shells, `expect`) answers exactly as before.
+    /// `tk_needs_an_open_world_or_an_explicit_require` pins the new answer
     /// directly.
     pub(crate) fn old_available_after_p3(profile: &DialectProfile, spec: &CommandSpec) -> bool {
-        profile.is_available(spec) && !closed_world_tk_delta(profile.name, spec)
+        profile.is_available(spec) && !unrequired_package_delta(profile.name, spec)
     }
 
-    /// Whether `(environment, spec)` is one of the enumerated P3 rows:
-    /// a `Tk`-gated spec under a [`WorldPolicy::Closed`] environment.
-    fn closed_world_tk_delta(environment: &str, spec: &CommandSpec) -> bool {
-        if spec.required_package != Some("Tk") {
+    /// Whether `(environment, spec)` is one of the enumerated rows: a
+    /// package-gated spec whose package the environment does not ship
+    /// ambient, under a world that is not [`WorldPolicy::Open`].
+    fn unrequired_package_delta(environment: &str, spec: &CommandSpec) -> bool {
+        use tcl_dialect::model::WorldPolicy;
+        let Some(package) = spec.required_package else {
             return false;
-        }
+        };
         EnvironmentRegistry::compiled()
             .resolve(environment)
             .is_some_and(|definition| {
-                definition.policy_defaults.closed_world == tcl_dialect::model::WorldPolicy::Closed
+                let shipped = crate::model::surface::vendor_surface_package(environment)
+                    == Some(package)
+                    || definition.expected_packages.iter().any(|placement| {
+                        placement.ambient && placement.package.as_ref() == package
+                    });
+                !shipped
+                    && match definition.policy_defaults.closed_world {
+                        WorldPolicy::Open => false,
+                        WorldPolicy::AmbientPlusRequire => true,
+                        WorldPolicy::Closed => {
+                            crate::model::surface::is_placement_gated_package(package)
+                        }
+                    }
             })
     }
 
@@ -614,7 +633,7 @@ pub(crate) mod tests {
                 .filter(|name| {
                     profile
                         .resolve_command(old_registry, name)
-                        .is_some_and(|spec| !closed_world_tk_delta(profile.name, spec))
+                        .is_some_and(|spec| !unrequired_package_delta(profile.name, spec))
                 })
                 .collect();
             let new_registry = new_registry_for(profile.name);
@@ -987,3 +1006,4 @@ pub(crate) mod tests {
         assert!(spectcl.resolve_command("option").is_some(), "spectcl word");
     }
 }
+

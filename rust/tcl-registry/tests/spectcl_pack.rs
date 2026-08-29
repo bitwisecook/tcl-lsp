@@ -67,9 +67,11 @@ fn the_pack_loads_for_the_spectcl_profile_and_nowhere_else() {
 #[test]
 fn generic_statement_words_do_not_collide_across_dialects() {
     let spectcl = static_context_for("spectcl").commands();
-    let mask = tcl_registry::model::ingress::resolve_environment("spectcl")
-        .analyser_profile()
-        .surface_query();
+    let mask = Some(
+        tcl_registry::model::ingress::resolve_environment("spectcl")
+            .analyser_profile()
+            .surface_query(),
+    );
     for word in ["command", "option", "arg", "hover", "values", "hook"] {
         let spec = spectcl
             .get_for_surface(word, mask)

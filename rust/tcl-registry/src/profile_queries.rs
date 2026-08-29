@@ -37,7 +37,7 @@ use crate::registry::CommandRegistry;
 use crate::spec::SubSubCommand;
 use crate::spec::{CommandSpec, SubCommand};
 use crate::traits::Traits;
-use tcl_dialect::model::{SpecSurface, surface_admits};
+use tcl_dialect::model::{Family, SpecProvider, SpecSurface, surface_admits};
 
 /// Availability queries a resolved [`DialectProfile`] answers against
 /// registry data (design doc §5.1/§5.2). Implemented for `DialectProfile`

@@ -30,6 +30,7 @@
 //! `operators_as_commands`). These tests pin that banned surface stays banned
 //! and the retired `NON_IRULES_OPERATORS` union never creeps back as a gate.
 
+use tcl_dialect::surface;
 use tcl_dialect::model::{SurfaceQuery};
 use tcl_dialect::model::{SurfaceLayer, Family};
 use tcl_dialect::{DialectProfile, NumberSyntax, TclVersion};
@@ -59,10 +60,14 @@ fn is_mathop_spelling(name: &str) -> bool {
 /// the complement of the excluded dialects.
 #[test]
 fn retired_non_irules_operators_union_never_reappears_as_a_gate() {
-    // Reconstructed from the non-iRules/Tk/BPF dialect bits that still exist;
-    // the 5 EDA vendor bits that were also part of this union were retired by
-    // the EDA-as-packages migration (eda-library-packages.md).
-    let retired = surface![SpecSurface::ALL_TCL, SpecSurface::IAPPS, SpecSurface::EXPECT];
+    // Reconstructed from the non-iRules/Tk/BPF providers that still exist;
+    // the 5 EDA vendor surfaces that were also part of this union were
+    // retired by the EDA-as-packages migration (eda-library-packages.md).
+    let retired: &[SpecSurface] = surface![
+        SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]),
+        SpecSurface::package("iapps"),
+        SpecSurface::package("expect"),
+    ];
     let check = |gate: Option<&'static [SpecSurface]>, what: &str| {
         assert_ne!(
             gate,
@@ -358,7 +363,7 @@ fn bpf_registry_is_stamped_with_its_tcl90_embedding() {
     assert_eq!(registry.profile(), Some(profile));
     assert_eq!(
         profile.surface_query(),
-        surface![SpecSurface::TCL90, SpecSurface::BPF]
+        SurfaceQuery::core(Family::Tcl, "9.0").with_packages(&["bpf"])
     );
     assert_eq!(registry.runtime_version(), Some(TclVersion::V9_0));
     assert_eq!(registry.numbers(), NumberSyntax::Tcl90);
@@ -454,7 +459,10 @@ fn option_gating_blocks_later_version_leaks_into_supersets() {
         .find(|o| o.name == "-command")
         .expect("regsub -command is declared (9.0+)");
     let gate = command_opt.surface.expect("-command is version-gated");
-    assert_eq!(gate.min_version(), Some(tcl_dialect::TclVersion::V9_0));
+    assert_eq!(
+        tcl_registry::model::core_tcl_floor(gate),
+        Some(tcl_dialect::TclVersion::V9_0)
+    );
 
     // TN: 9.0-only options stay hidden under every 8.x profile — plain and
     // composed vendor alike.

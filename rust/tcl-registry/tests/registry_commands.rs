@@ -49,9 +49,8 @@ use tcl_dialect::model::{SurfaceQuery};
 use tcl_dialect::model::{SurfaceLayer, Family};
 use tcl_registry::arity::Arity;
 use tcl_registry::events::EventRegistry;
-use tcl_registry::model::ingress::static_context_for;
+use tcl_registry::model::ingress::{static_context_for, static_document_context_for};
 use tcl_registry::profiles::ProfileRegistry;
-use tcl_dialect::model::{SpecSurface};
 use tcl_registry::{
     ArgRole, CommandRegistry, DataCollectionAction, KNOWN_DIALECTS, MethodDispatchKind,
     PayloadCollectionRequirement, SideSwitchTarget, Traits, available_dialects,
@@ -73,9 +72,11 @@ fn reg_and_set(dialect: &str) -> (&'static CommandRegistry, Option<SurfaceQuery<
     // vendor dialect.
     (
         static_context_for(dialect).commands(),
-        tcl_registry::model::ingress::resolve_environment(dialect)
-            .analyser_profile()
-            .surface_query(),
+        Some(
+            tcl_registry::model::ingress::resolve_environment(dialect)
+                .analyser_profile()
+                .surface_query(),
+        ),
     )
 }
 
@@ -100,7 +101,7 @@ fn socket_is_registered_with_switches() {
     let socket = reg
         .get_for_surface("socket", ds)
         .expect("socket registered");
-    let switches = socket.switch_names(Some(ds));
+    let switches = socket.switch_names(ds);
     assert!(switches.contains(&"-server"), "switches={switches:?}");
     assert!(switches.contains(&"-myaddr"), "switches={switches:?}");
 }
@@ -1126,12 +1127,11 @@ fn default_registry_has_core_but_not_irules() {
     );
 }
 
-/// Tk widget/window commands are dialect-gated to standard Tcl + the `tk`
-/// dialect (`SpecSurface::TK_AND_TCL`) — they must resolve in a `wish` /
-/// `package require Tk` `.tcl` file but never in the restricted embedded
-/// dialects (F5 iRules / iApps), where Tk does not exist.  (The *loaded*
-/// gating — only offered once `package require Tk` ran — is layered on in
-/// the LSP completion path, not here.)
+/// Tk widget/window commands state `SpecSurface::TK_AND_TCL` — they must
+/// resolve in a `wish` / `package require Tk` `.tcl` file but never in the
+/// restricted embedded environments (F5 iRules / iApps), where Tk cannot be
+/// loaded at all.  (The *loaded* gating — only offered once `package require
+/// Tk` ran — is layered on in the LSP completion path, not here.)
 #[test]
 fn tk_commands_are_gated_to_tcl_and_tk_not_irules_or_iapps() {
     let reg = CommandRegistry::build_default();
@@ -1152,15 +1152,16 @@ fn tk_commands_are_gated_to_tcl_and_tk_not_irules_or_iapps() {
             spec.supports_dialect(Some(SurfaceQuery::any_release(Family::Tcl).with_packages(&["Tk"]))),
             "{name} available under the tk dialect"
         );
-        // NOT available in the F5 embedded dialects.
-        assert!(
-            !spec.supports_dialect(Some(SurfaceQuery::any_release(Family::F5Irules))),
-            "{name} must NOT be offered in iRules"
-        );
-        assert!(
-            !spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.4").with_packages(&["iapps"]))),
-            "{name} must NOT be offered in iApps"
-        );
+        // NOT available in the F5 embedded environments.  Tk's rows admit
+        // core Tcl, and iApps *is* an 8.4 core — so the exclusion is a fact
+        // about the environment (Tk cannot be loaded there), not about the
+        // point.  Asking the context is asking the honest question.
+        for environment in ["f5-irules", "f5-iapps"] {
+            assert!(
+                !static_document_context_for(environment).spec_available(spec),
+                "{name} must NOT be offered in {environment}"
+            );
+        }
     }
 }
 
@@ -1482,11 +1483,11 @@ fn available_dialects_is_sorted_and_complete() {
 ///
 /// registry-metadata.
 #[test]
-fn dialect_parse_roundtrip() {
-    assert_eq!(tcl_dialect::DialectProfile::find("tcl8.6").map(tcl_dialect::DialectProfile::surface_query), Some(SpecSurface::TCL86));
-    assert_eq!(tcl_dialect::DialectProfile::find("tcl9.0").map(tcl_dialect::DialectProfile::surface_query), Some(SpecSurface::TCL90));
-    assert_eq!(tcl_dialect::DialectProfile::find("f5-irules").map(tcl_dialect::DialectProfile::surface_query), Some(SpecSurface::IRULES));
-    assert_eq!(tcl_dialect::DialectProfile::find("expect").map(tcl_dialect::DialectProfile::surface_query), Some(SpecSurface::EXPECT));
+fn dialect_name_resolves_to_its_point() {
+    assert_eq!(tcl_dialect::DialectProfile::find("tcl8.6").map(tcl_dialect::DialectProfile::surface_query), Some(SurfaceQuery::core(Family::Tcl, "8.6")));
+    assert_eq!(tcl_dialect::DialectProfile::find("tcl9.0").map(tcl_dialect::DialectProfile::surface_query), Some(SurfaceQuery::core(Family::Tcl, "9.0")));
+    assert_eq!(tcl_dialect::DialectProfile::find("f5-irules").map(tcl_dialect::DialectProfile::surface_query), Some(SurfaceQuery::any_release(Family::F5Irules)));
+    assert_eq!(tcl_dialect::DialectProfile::find("expect").map(tcl_dialect::DialectProfile::surface_query), Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])));
     assert_eq!(tcl_dialect::DialectProfile::find("definitely-not-a-dialect").map(tcl_dialect::DialectProfile::surface_query), None);
 }
 
@@ -2395,6 +2396,7 @@ fn qualified_oo_helpers_spellings_track_their_bare_twin_per_dialect() {
             .profile()
             .expect("built for a dialect")
             .surface_query();
+        let mask = Some(mask);
         for bare in ["link", "next", "nextto", "self", "classvariable"] {
             let qualified = format!("oo::Helpers::{bare}");
             let bare_spec = reg.get_for_surface(bare, mask);

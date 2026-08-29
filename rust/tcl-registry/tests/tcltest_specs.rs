@@ -23,6 +23,7 @@
 //! `test` / `configure`.
 
 use tcl_dialect::model::{SurfaceQuery, Family};
+use tcl_registry::model::ingress::static_document_context_for;
 use tcl_registry::CommandRegistry;
 use tcl_dialect::model::{SpecSurface};
 
@@ -64,9 +65,14 @@ fn public_tcltest_commands_are_registered() {
 
 #[test]
 fn tcltest_and_harness_commands_are_never_in_irules_or_iapps() {
-    // tcltest and the C test-harness commands are Tcl-only; they must not leak
-    // into the restricted F5 iRules / iApps dialects.
+    // These are test-harness commands; they must not leak into the restricted
+    // F5 environments.  The exclusion is an *environment* fact — iApps rides a
+    // real Tcl 8.4 core, so the Tcl surface rows admit it — so the question is
+    // asked of the context, not the point.
     let r = reg();
+    // The `tcltest` package's own commands are gated by their require, which
+    // an ambient-plus-require world (iApps) answers "not loaded" (Q7) and a
+    // closed world (iRules) answers "unloadable".
     for name in [
         "tcltest::test",
         "tcltest::configure",
@@ -74,6 +80,23 @@ fn tcltest_and_harness_commands_are_never_in_irules_or_iapps() {
         "tcltest::testConstraint",
         "tcltest::makeFile",
         "tcltest::bytestring",
+    ] {
+        let spec = r.get(name).unwrap_or_else(|| panic!("{name} registered"));
+        for environment in ["f5-irules", "f5-iapps"] {
+            assert!(
+                !static_document_context_for(environment).spec_available(spec),
+                "{name} must not be available in {environment}"
+            );
+        }
+        assert!(
+            spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.6"))),
+            "{name} must stay available under a real Tcl version"
+        );
+    }
+    // The C harness commands carry no package gate — they are compiled into
+    // the `tcltest` binary rather than loaded — so only a closed world, whose
+    // surface is explicit per spec, excludes them.
+    for name in [
         "testchannel",
         "testobj",
         "teststringobj",
@@ -82,14 +105,9 @@ fn tcltest_and_harness_commands_are_never_in_irules_or_iapps() {
     ] {
         let spec = r.get(name).unwrap_or_else(|| panic!("{name} registered"));
         assert!(
-            !spec.supports_dialect(Some(SurfaceQuery::any_release(Family::F5Irules))),
+            !static_document_context_for("f5-irules").spec_available(spec),
             "{name} must not be available in f5-irules"
         );
-        assert!(
-            !spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.4").with_packages(&["iapps"]))),
-            "{name} must not be available in f5-iapps"
-        );
-        // …but must remain available under a real Tcl core version.
         assert!(
             spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.4")))
                 || spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.6")))
@@ -348,12 +366,12 @@ fn test_error_code_option_needs_tcltest_2_5() {
     // the option is gated by Tcl core dialect instead: hidden under 8.5,
     // offered under 8.6+ (which bundles tcltest 2.5).
     assert!(
-        spec.find_option("-errorCode", Some(SpecSurface::TCL85), None)
+        spec.find_option("-errorCode", Some(SurfaceQuery::core(Family::Tcl, "8.5")), None)
             .is_none(),
         "-errorCode hidden under Tcl 8.5 with no package floor"
     );
     assert!(
-        spec.find_option("-errorCode", Some(SpecSurface::TCL86), None)
+        spec.find_option("-errorCode", Some(SurfaceQuery::core(Family::Tcl, "8.6")), None)
             .is_some(),
         "-errorCode offered under Tcl 8.6"
     );
@@ -379,19 +397,19 @@ fn configure_iterations_option_needs_tcltest_2_6() {
     );
     // No package floor: gated by core dialect — offered only under 9.1.
     assert!(
-        spec.find_option("-iterations", Some(SpecSurface::TCL91), None)
+        spec.find_option("-iterations", Some(SurfaceQuery::core(Family::Tcl, "9.1")), None)
             .is_some(),
         "-iterations offered under Tcl 9.1"
     );
     assert!(
-        spec.find_option("-iterations", Some(SpecSurface::TCL90), None)
+        spec.find_option("-iterations", Some(SurfaceQuery::core(Family::Tcl, "9.0")), None)
             .is_none(),
         "-iterations hidden under Tcl 9.0 (bundles tcltest 2.5.10)"
     );
     // The 18 pre-2.6 options stay available everywhere.
     for opt in ["-verbose", "-match", "-debug", "-singleproc", "-loadfile"] {
         assert!(
-            spec.find_option(opt, Some(SpecSurface::TCL84), None)
+            spec.find_option(opt, Some(SurfaceQuery::core(Family::Tcl, "8.4")), None)
                 .is_some(),
             "{opt} should be available under Tcl 8.4"
         );

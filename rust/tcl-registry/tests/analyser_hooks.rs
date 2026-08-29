@@ -65,8 +65,10 @@ fn bundled_packs() -> tcl_spectcl::PackSet {
 fn full_registry() -> CommandRegistry {
     let mut reg = CommandRegistry::build_default();
     for name in LOADABLE_DIALECTS {
-        let dialect = tcl_dialect::DialectProfile::find(name).map(tcl_dialect::DialectProfile::surface_query).expect("a compiled-in dialect name");
-        reg.load_surface(dialect);
+        let profile = tcl_dialect::DialectProfile::find(name).expect("a compiled-in dialect name");
+        for &layer in profile.base_layers {
+            reg.load_surface(layer);
+        }
     }
     let packs = bundled_packs();
     assert!(

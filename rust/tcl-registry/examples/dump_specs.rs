@@ -586,7 +586,8 @@ fn main() {
         let mut fields: Vec<String> = Vec::new();
         fields.push(format!("\"name\":{}", json_str(spec.name)));
         fields.push(format!("\"dialects_all\":{dialects_all}"));
-        fields.push(format!("\"dialects\":{}", json_str_list(&dialects)));
+        let dialect_refs: Vec<&str> = dialects.iter().map(String::as_str).collect();
+        fields.push(format!("\"dialects\":{}", json_str_list(&dialect_refs)));
         fields.push(format!("\"arity_min\":{arity_min}"));
         fields.push(format!("\"arity_max\":{arity_max}"));
         fields.push(format!("\"hover\":{hover}"));
