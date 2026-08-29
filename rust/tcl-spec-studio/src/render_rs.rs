@@ -797,6 +797,17 @@ fn command_form_expr(entry: &Value, indent: &str) -> String {
             list_expr(effects, &inner, side_effect_expr).unwrap_or_else(|| "&[]".to_owned())
         ));
     }
+    if let Some(expr) = entry["representation_effect"].as_str() {
+        parts.push(format!("{inner}representation_effect: Some({expr}),"));
+    }
+    for (key, ty) in [
+        ("lowering_hook", "LoweringHookId"),
+        ("codegen_hook", "CodegenHookId"),
+    ] {
+        if let Some(id) = entry[key].as_str() {
+            parts.push(format!("{inner}{key}: Some({ty}::{id}),"));
+        }
+    }
     row_literal("CommandForm", &parts, indent)
 }
 

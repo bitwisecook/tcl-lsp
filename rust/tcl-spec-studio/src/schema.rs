@@ -146,6 +146,7 @@ impl FieldKind {
             Self::ArgValueMap => "argValueMap",
             Self::Options => "options",
             Self::Forms => "forms",
+            Self::Refinements => "refinements",
             Self::SideEffects => "sideEffects",
             Self::SetterConstraints => "setterConstraints",
             Self::ManufacturerMethods => "manufacturerMethods",

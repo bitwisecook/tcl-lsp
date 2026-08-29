@@ -32,60 +32,38 @@
 //!     captured from its CST. This is the honest upper bound on what design
 //!     E's "a pack is a Tcl program" costs when nothing short-circuits it.
 //!
-//! Wall time is the median of `--runs` loads; memory is the peak live bytes
-//! one load holds, measured by the counting allocator below (a process RSS
-//! high-water mark cannot separate one load from the last one's arena).
+//! Wall time is the median of `--runs` loads; memory is the resident bytes
+//! one load **retains** — the loader interns what it registers, so that is
+//! what a pack costs the process for as long as it runs.
 //!
 //! Run: `cargo run --release -p tcl-spectcl --example speclib_version_costs`
 
-use std::alloc::{GlobalAlloc, Layout, System};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 use tcl_spectcl::{
     EvalOptions, UpgradeOptions, UpgradeStatus, evaluate_pack_with, upgrade_source,
 };
 
-/// Live bytes now, and the high-water mark since it was last reset.
+/// Resident bytes, from `/proc/self/statm`.
 ///
-/// Peak *live* bytes is the number that matters here: a loader that allocates
-/// and frees a megabyte per command costs the editor nothing, while one that
-/// retains it is the reason a big pack makes the server fat.
-struct Counting;
-
-static LIVE: AtomicUsize = AtomicUsize::new(0);
-static PEAK: AtomicUsize = AtomicUsize::new(0);
-
-unsafe impl GlobalAlloc for Counting {
-    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        let ptr = unsafe { System.alloc(layout) };
-        if !ptr.is_null() {
-            let live = LIVE.fetch_add(layout.size(), Ordering::Relaxed) + layout.size();
-            PEAK.fetch_max(live, Ordering::Relaxed);
-        }
-        ptr
-    }
-
-    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        LIVE.fetch_sub(layout.size(), Ordering::Relaxed);
-        unsafe { System.dealloc(ptr, layout) };
-    }
-}
-
-#[global_allocator]
-static ALLOCATOR: Counting = Counting;
-
-fn peak_of(body: impl FnOnce()) -> usize {
-    let before = LIVE.load(Ordering::Relaxed);
-    PEAK.store(before, Ordering::Relaxed);
-    body();
-    PEAK.load(Ordering::Relaxed).saturating_sub(before)
+/// The loader interns every spec it builds into `&'static` storage, so a load
+/// **retains** what it registers: resident growth across N loads, divided by
+/// N, is the memory one pack costs the process for as long as it runs. That
+/// is the number an editor pays; a transient allocation peak is not.
+fn resident_bytes() -> usize {
+    let statm = std::fs::read_to_string("/proc/self/statm").unwrap_or_default();
+    let pages: usize = statm
+        .split_whitespace()
+        .nth(1)
+        .and_then(|field| field.parse().ok())
+        .unwrap_or(0);
+    pages * 4096
 }
 
 /// One measured way of loading one pack.
 struct Measured {
     median: Duration,
-    peak: usize,
+    retained: usize,
     commands: usize,
 }
 
@@ -94,11 +72,10 @@ fn measure(source: &str, fast_path: bool, runs: usize) -> Measured {
         static_fast_path: fast_path,
         ..EvalOptions::default()
     };
-    let mut commands = 0;
-    let peak = peak_of(|| {
-        let pack = evaluate_pack_with(source, &options);
-        commands = pack.commands.len();
-    });
+    // One warm load first: it pays the one-off costs (lazy statics, the
+    // interner's first pages) that would otherwise land on run 1.
+    let commands = evaluate_pack_with(source, &options).commands.len();
+    let before = resident_bytes();
     let mut times: Vec<Duration> = (0..runs)
         .map(|_| {
             let start = Instant::now();
@@ -108,16 +85,17 @@ fn measure(source: &str, fast_path: bool, runs: usize) -> Measured {
             elapsed
         })
         .collect();
+    let retained = resident_bytes().saturating_sub(before) / runs;
     times.sort_unstable();
     Measured {
         median: times[times.len() / 2],
-        peak,
+        retained,
         commands,
     }
 }
 
-fn mib(bytes: usize) -> String {
-    format!("{:.1}", bytes as f64 / (1024.0 * 1024.0))
+fn kib(bytes: usize) -> String {
+    format!("{}", bytes / 1024)
 }
 
 fn ms(duration: Duration) -> String {
@@ -151,10 +129,10 @@ fn main() {
         .collect();
     packs.sort();
 
-    println!("| pack | lines | commands | 1.x ms | 2.0 ms | Δ | 2.0 VM ms | 1.x MiB | 2.0 MiB | 2.0 VM MiB |");
+    println!("| pack | lines | commands | 1.x ms | 2.0 ms | Δ | 2.0 VM ms | 1.x KiB | 2.0 KiB | 2.0 VM KiB |");
     println!("|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|");
     let mut totals = [Duration::ZERO; 3];
-    let mut peaks = [0usize; 3];
+    let mut retained = [0usize; 3];
     for path in &packs {
         let name = path.file_stem().unwrap_or_default().to_string_lossy();
         let legacy = std::fs::read_to_string(path).expect("a readable pack");
@@ -184,15 +162,15 @@ fn main() {
             ms(new.median),
             delta(old.median, new.median),
             ms(vm.median),
-            mib(old.peak),
-            mib(new.peak),
-            mib(vm.peak),
+            kib(old.retained),
+            kib(new.retained),
+            kib(vm.retained),
         );
         for (total, measured) in totals.iter_mut().zip([&old, &new, &vm]) {
             *total += measured.median;
         }
-        for (peak, measured) in peaks.iter_mut().zip([&old, &new, &vm]) {
-            *peak += measured.peak;
+        for (total, measured) in retained.iter_mut().zip([&old, &new, &vm]) {
+            *total += measured.retained;
         }
     }
     println!(
@@ -201,8 +179,8 @@ fn main() {
         ms(totals[1]),
         delta(totals[0], totals[1]),
         ms(totals[2]),
-        mib(peaks[0]),
-        mib(peaks[1]),
-        mib(peaks[2]),
+        kib(retained[0]),
+        kib(retained[1]),
+        kib(retained[2]),
     );
 }

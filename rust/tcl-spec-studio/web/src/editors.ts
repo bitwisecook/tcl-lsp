@@ -942,7 +942,7 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
         () => ({
           name: "-flag",
           detail: "",
-          dialects: null,
+          surface: null,
           aliases: [],
           introduced_version: null,
           deprecated_version: null,
@@ -959,7 +959,7 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
     forms: (_kind, value, set) =>
       rowList<Json>(
         asArray(value),
-        () => ({ kind: "Default", synopsis: "", dialects: null }),
+        () => ({ kind: "Default", synopsis: "", surface: null }),
         (item, _i, update, remove) => {
           const row = asRecord(item);
           const synopsis = textInput(
@@ -991,7 +991,7 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
           reads: false,
           writes: false,
           connection_side: "None",
-          dialects: null,
+          surface: null,
         }),
         (item, _i, update, remove) => {
           const row = asRecord(item);
@@ -1110,10 +1110,63 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
         "manufacturer method",
       ),
 
+    refinements: (_kind, value, set) =>
+      rowList<Json>(
+        asArray(value),
+        () => ({
+          name: "",
+          arity: { min: 0, max: null, step: 0, also_exact: null },
+          selector: null,
+          arg_roles: [],
+          options: [],
+          option_relations: null,
+          surface: null,
+          traits: null,
+          mutator: null,
+          side_effects: null,
+        }),
+        (item, _i, update, remove) => {
+          const row = asRecord(item);
+          const patch = (next: Record<string, Json>): void => {
+            update({ ...clone(row), ...next });
+          };
+          const arity = asRecord(row.arity);
+          const bound = (key: string, placeholder?: string): HTMLElement =>
+            numberInput(
+              asNumber(arity[key]),
+              (n) => patch({ arity: { ...clone(arity), [key]: n } }),
+              placeholder === undefined ? {} : { placeholder },
+            );
+          // An overlay left unset inherits the parent's fact, so the
+          // tri-states here are meaningful: "— unset —" is a declaration.
+          const mutator = el("select", {}, [
+            el("option", { value: "", text: "— inherit —" }),
+            el("option", { value: "true", text: "mutates" }),
+            el("option", { value: "false", text: "reads" }),
+          ]) as HTMLSelectElement;
+          mutator.value = row.mutator === null ? "" : String(row.mutator);
+          mutator.addEventListener("change", () =>
+            patch({ mutator: mutator.value === "" ? null : mutator.value === "true" }),
+          );
+          return el("div", { class: "row" }, [
+            labelled(
+              "name",
+              textInput(asString(row.name), (t) => patch({ name: t }), { size: 12 }),
+            ),
+            labelled("min", bound("min")),
+            labelled("max", bound("max", "∞")),
+            labelled("mutator", mutator),
+            removeButton(remove),
+          ]);
+        },
+        set,
+        "refinement",
+      ),
+
     subSubCommands: (_kind, value, set) =>
       rowList<Json>(
         asArray(value),
-        () => ({ name: "", detail: "", synopsis: "", dialects: null }),
+        () => ({ name: "", detail: "", synopsis: "", surface: null }),
         (item, _i, update, remove) => {
           const row = asRecord(item);
           const patch = (next: Record<string, Json>): void => {

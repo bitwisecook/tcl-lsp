@@ -267,7 +267,7 @@ mod term_text;
 mod text_misc;
 mod web_asn;
 
-use crate::model::tcllib::{core_floor_surface, tcllib_module};
+use crate::model::tcllib::core_floor_surface;
 use crate::spec::CommandSpec;
 use tcl_dialect::model::{SpecSurface};
 

@@ -737,13 +737,13 @@ The dynamic sibling of the command-prefix positions: a hook for when *which* wor
 
 The dynamic sibling of per-option `script_timing`: use it when the same executable position runs now in one invocation shape but is stored in another, as with `send -async`. It emits an exact index plus `SameInvocation`, `Deferred`, or `ReferenceOnly`; the index must already be a `Body`, `LambdaLiteral`, or `CommandPrefix`. Silence leaves the option timing or command-level compatibility fallback in force. In SpecTcl the body calls `timing IDX SameInvocation|Deferred|ReferenceOnly`.
 
-### `command_forms` — Structured command forms
+### `command_forms` — Invocation refinements
 
-*command only* — Opaque Rust form descriptors, including longest-static literal-prefix selection and replacement traits, mutator status, and side effects.
+*command only* — Per-form overlays: arity, literal-prefix selection, and the traits, mutator status and effects one call shape replaces.
 
-A structured, per-form Rust descriptor for commands whose forms differ more deeply than a synopsis line can say. Alongside arity, roles, options, and hooks, each `CommandForm` may replace the inherited `traits`, `mutator`, and `side_effects` facts. Replacement lets a query form remove a coarse parent mutation or callback classification instead of only adding more effects. `literal_argument_prefix` selects overlapping-arity forms from known literal source words, with optional unique-prefix matching. The longest static selector wins when one selector extends another; substitutions and expansions abstain while a longer selector remains possible and retain the conservative parent facts.
+A per-form refinement for commands whose forms differ more deeply than a synopsis line can say. Alongside arity, roles and options, each form may replace the inherited `traits`, `mutator`, and `side_effects` facts. Replacement lets a query form remove a coarse parent mutation or callback classification instead of only adding more effects. A `selector` picks between overlapping-arity forms from known literal source words, with unique-prefix matching unless `-exact` says otherwise. The longest static selector wins when one selector extends another; substitutions and expansions abstain while a longer selector remains possible and retain the conservative parent facts.
 
-This is deliberately one opaque Rust expression editor. The descriptor also contains native validators, compiler hooks, and proof metadata, so SpecTcl cannot author or round-trip any `command_forms` descriptor today. Use plain `forms` only when the difference is documentation-only.
+SpecTcl authors these as `refine NAME { … }` blocks. The descriptor's native halves — the completion contract, dispatch proofs, and the literal-argument validator — stay Rust-only, and a form carrying one is reported rather than thinned. Use plain `forms` only when the difference is documentation-only.
 
 ### `const_fold` — Constant folder
 
@@ -875,13 +875,11 @@ Declares that a call makes a *variable* hold an object handle, and which word sa
 
 A validity rule keyed on *where* the call sits rather than what its arguments are — `return -code` spellings only valid inside a procedure, iRules commands only valid at the top level of an event. Code, carried by reference; describe the context rule in the issue notes.
 
-### `subcommand_forms` — Structured subcommand forms
+### `subcommand_forms` — Invocation refinements
 
-*subcommand only* — Opaque Rust form descriptors matched after the subcommand word by arity and longest-static optional literal prefix, including replacement traits, mutator status, and side effects.
+*subcommand only* — Per-form overlays matched after the subcommand word by arity and longest-static literal prefix.
 
-Structured per-form routing for this subcommand — the subcommand-level twin of `command_forms`. A `SubCommandForm` may replace the parent row's `traits`, `mutator`, and `side_effects`, which is how one method can be a read at one arity and a mutation at another. Its optional `literal_argument_prefix` also separates same-arity operation words without treating a computed word as literal, and the longest statically matched selector wins when selectors overlap.
-
-The studio preserves the whole value as an opaque Rust expression. Because the same descriptor may carry native compiler routing and proof metadata, SpecTcl cannot author or round-trip any `subcommand_forms` descriptor today; no partial form DSL is claimed.
+Per-form refinement for this subcommand — the subcommand-level twin of `command_forms`, written the same way, as `refine NAME { … }`. A form may replace the parent row's `traits`, `mutator`, and `side_effects`, which is how one method can be a read at one arity and a mutation at another. Its optional `selector` also separates same-arity operation words without treating a computed word as literal, and the longest statically matched selector wins when selectors overlap.
 
 ### `ObjectClassSpec.method_prefix_matching` — Method prefix matching
 

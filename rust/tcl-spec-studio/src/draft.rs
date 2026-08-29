@@ -1147,16 +1147,30 @@ pub(crate) fn command_form(form: &CommandForm, lost: &mut Unrecovered) -> (Value
             Value::Array(effects.iter().map(|effect| side_effect(effect).0).collect())
         }),
     );
+    d.insert(
+        "representation_effect".into(),
+        form.representation_effect
+            .map_or(Value::Null, |e| json!(representation_effect_expr(e))),
+    );
+    d.insert(
+        "lowering_hook".into(),
+        form.lowering_hook
+            .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
+    );
+    d.insert(
+        "codegen_hook".into(),
+        form.codegen_hook
+            .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
+    );
+    // What is left of the descriptor is native: a compiler proof or a
+    // function pointer, with no expression to recover.
     let native = form.semantic_operation.is_some()
         || form.completion.is_some()
         || form.result_stability.is_some()
-        || form.representation_effect.is_some()
         || form.world_effects.is_some()
         || form.state_transitions.is_some()
         || form.dispatch_dependencies.is_some()
-        || form.literal_argument_validator.is_some()
-        || form.lowering_hook.is_some()
-        || form.codegen_hook.is_some();
+        || form.literal_argument_validator.is_some();
     (Value::Object(d), !native)
 }
 

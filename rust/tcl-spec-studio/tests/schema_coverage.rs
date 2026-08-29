@@ -225,9 +225,13 @@ fn every_field_kind_has_a_front_end_editor() {
     );
 }
 
+/// The invocation refinement is a structured editor and a `refine` block,
+/// not one opaque Rust expression (design Q12/D2). What stays native — the
+/// completion contract, dispatch proofs, the literal-argument validator — is
+/// not authorable here, and the help must say which overlays are.
 #[test]
-fn structured_forms_expose_effect_refinements_only_through_the_opaque_rust_surface() {
-    use tcl_spec_studio::render_spectcl::{GapKind, gap};
+fn invocation_refinements_are_structured_not_an_opaque_rust_expression() {
+    use tcl_spec_studio::render_spectcl::gap;
     use tcl_spec_studio::schema::FieldKind;
 
     for (key, fields) in [
@@ -238,31 +242,25 @@ fn structured_forms_expose_effect_refinements_only_through_the_opaque_rust_surfa
             .iter()
             .find(|field| field.key == key)
             .unwrap_or_else(|| panic!("{key} remains in the Studio schema"));
-        let FieldKind::RustExpr { hint } = field.kind else {
-            panic!("{key} must remain one opaque Rust expression")
-        };
+        assert_eq!(
+            field.kind,
+            FieldKind::Refinements,
+            "{key} is edited as rows, not as one Rust expression"
+        );
         let help = tcl_spec_studio::help::field_help(key).expect("form help");
-        for refinement in [
-            "literal_argument_prefix",
-            "traits",
-            "mutator",
-            "side_effects",
-        ] {
-            assert!(
-                hint.contains(refinement),
-                "{key}'s Rust example must expose {refinement}"
-            );
+        for refinement in ["selector", "traits", "mutator", "side_effects"] {
             assert!(
                 help.contains(refinement),
                 "{key}'s help must explain {refinement}"
             );
         }
-        assert!(help.contains("opaque Rust expression"));
-        assert!(help.contains("SpecTcl cannot"));
-        assert_eq!(
-            gap(key).map(|gap| gap.kind),
-            Some(GapKind::Excluded),
-            "the Studio must not claim a partial SpecTcl round trip for {key}"
+        assert!(
+            help.contains("refine"),
+            "{key}'s help must name the SpecTcl spelling"
+        );
+        assert!(
+            gap(key).is_none(),
+            "the renderer writes {key}, so it declares no gap for it"
         );
         let example = tcl_spec_studio::examples::field_example(key, field.label, field.group)
             .unwrap_or_else(|| panic!("{key} must have an annotated form-selection example"));

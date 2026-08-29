@@ -37,7 +37,9 @@ use crate::registry::CommandRegistry;
 use crate::spec::SubSubCommand;
 use crate::spec::{CommandSpec, SubCommand};
 use crate::traits::Traits;
-use tcl_dialect::model::{Family, SpecProvider, SpecSurface, surface_admits};
+#[cfg(test)]
+use tcl_dialect::model::{Family, SpecProvider};
+use tcl_dialect::model::{SpecSurface, surface_admits};
 
 /// Availability queries a resolved [`DialectProfile`] answers against
 /// registry data (design doc §5.1/§5.2). Implemented for `DialectProfile`
@@ -352,10 +354,10 @@ impl LegacyProfileOracle for DialectProfile {
             let Some(spec) = self.resolve_command(registry, name) else {
                 continue;
             };
-            // Vendor-OWN means the vendor bit is the discriminating tag: a
-            // gate that also spans the plain Tcl versions is shared library
-            // data (tcllib's complement-shaped "everywhere but the closed
-            // sandboxes" gates), not the vendor's own surface.
+            // Vendor-OWN means the vendor provider identifies it: a surface
+            // that also names the plain Tcl versions is shared library data
+            // (tcllib's "everywhere but the closed sandboxes" rows), not the
+            // vendor's own.
             if !spec.surface.is_some_and(|rows| {
                 rows.iter().any(|row| row.provider == vendor)
                     && !rows

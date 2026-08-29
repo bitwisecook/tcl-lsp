@@ -2667,6 +2667,17 @@ fn refine_blocks(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft, key: &str) {
                 Some(_) => side_effect_rows_of(out, &form["side_effects"], ctx.availability),
                 None => {}
             }
+            if let Some(expr) = form["representation_effect"].as_str() {
+                match representation_effect_word(expr) {
+                    Some(spelling) => out.line(&format!("representation_effect {spelling}")),
+                    None => lost = true,
+                }
+            }
+            for hook in ["lowering_hook", "codegen_hook"] {
+                if let Some(id) = form[hook].as_str() {
+                    out.line(&format!("{hook} -native {id}"));
+                }
+            }
         });
         if lost {
             out.indented(|out| todo(out, "refine"));
@@ -3252,7 +3263,8 @@ mod tests {
                     .subcommand(original.name)
                     .unwrap_or_else(|| panic!("`{name} {}` reloads", original.name));
                 assert_eq!(
-                    back.subcommand_forms, original.subcommand_forms,
+                    format!("{:?}", back.subcommand_forms),
+                    format!("{:?}", original.subcommand_forms),
                     "`{name} {}` form table",
                     original.name
                 );

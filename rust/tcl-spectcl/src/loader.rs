@@ -109,6 +109,7 @@ use tcl_registry::deprecation::{DeprecationFixHook, DeprecationFixSafety};
 use tcl_registry::events::{
     DataCollectionOperation, EventHandlerPriority, EventRequirementForm, EventRequires,
 };
+use tcl_registry::forms::{CommandForm, LiteralArgumentPrefix};
 use tcl_registry::frame_effect::{FrameArgLayout, FrameEffectSpec, FrameLevelWord};
 use tcl_registry::handle_binding::{
     HandleBindingSpec, HandleClassSource, HandleKeyword, HandleName,

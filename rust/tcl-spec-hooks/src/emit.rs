@@ -44,7 +44,6 @@ use tcl_registry::pack_hooks::{HookAnswer, HookFamily};
 use tcl_registry::spec::{ConstraintReport, ConstraintSlot};
 
 use crate::intern::{intern, intern_words};
-use tcl_dialect::model::Family;
 
 /// One thing a body emitted, before the family folds them into an answer.
 #[derive(Debug, Clone, PartialEq, Eq)]
