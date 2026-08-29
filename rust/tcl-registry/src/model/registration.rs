@@ -80,7 +80,7 @@
 //! source-keyed half of the dynamic state is **replaced**. A source that
 //! is no longer in the set retires with the rebuild; a source that is
 //! still there re-registers idempotently. One malformed source does not
-//! disable the rest: the set is validated whole, the source that breaks
+//! disable the rest: the set is validated whole, each source that breaks
 //! it is reported by id and dropped, and the rest register — which is
 //! what keeps one broken workspace pack from taking every other pack's
 //! environments with it.
@@ -440,22 +440,72 @@ fn declared_ids(sources: &[EnvironmentSource]) -> Vec<String> {
         .collect()
 }
 
-/// Which source to drop from a candidate set that breaks a rule.
+/// Assemble the live members of `sources` over the anonymous half.
+fn assemble_live(
+    state: &DynamicState,
+    sources: &[EnvironmentSource],
+    live: &[bool],
+    generation: u64,
+) -> Result<EnvironmentRegistry, EnvironmentRegistrationError> {
+    let candidates: Vec<EnvironmentSource> = sources
+        .iter()
+        .zip(live)
+        .filter(|&(_, &live)| live)
+        .map(|(source, _)| source.clone())
+        .collect();
+    assemble(
+        &state.definitions,
+        &state.extensions,
+        &candidates,
+        generation,
+    )
+}
+
+/// Which of `sources` a broken sync can keep, and why each of the rest
+/// was refused.
 ///
-/// The set is what failed, but [`SyncOutcome::rejected`] must name a file,
-/// so this asks each source in turn whether the rest assemble without it.
-/// Latest first: when two sources break a rule only together — two packs
-/// claiming one name — the earlier one keeps its claim, the same
-/// first-wins order discovery already implies.
-///
-/// `None` means no single source explains the failure, and the caller
-/// stops rather than shrinking the set towards empty.
-fn culprit(state: &DynamicState, candidates: &[EnvironmentSource]) -> Option<usize> {
-    (0..candidates.len()).rev().find(|&index| {
-        let mut trial = candidates.to_vec();
-        trial.remove(index);
-        assemble(&state.definitions, &state.extensions, &trial, 0).is_ok()
-    })
+/// The set is what failed — a rule can be broken several ways over, and
+/// by pairs rather than by any one source — but [`SyncOutcome::rejected`]
+/// must name files. So: peel latest-first until the survivors assemble,
+/// which always terminates and lets the earlier of two sources claiming
+/// one name keep its claim; then re-admit, earliest first, every peeled
+/// source the survivors accept, repeating while any goes back, since an
+/// `-extend` only becomes admissible once its declarer is among them.
+/// What a source cannot rejoin is its own rule broken, and that is the
+/// error reported against it.
+fn triage(state: &DynamicState, sources: &[EnvironmentSource]) -> (Vec<bool>, Vec<RejectedSource>) {
+    let mut live = vec![true; sources.len()];
+    for index in (0..sources.len()).rev() {
+        if assemble_live(state, sources, &live, 0).is_ok() {
+            break;
+        }
+        live[index] = false;
+    }
+
+    let mut rejected = Vec::new();
+    loop {
+        let mut readmitted = false;
+        rejected.clear();
+        for index in 0..sources.len() {
+            if live[index] {
+                continue;
+            }
+            live[index] = true;
+            match assemble_live(state, sources, &live, 0) {
+                Ok(_) => readmitted = true,
+                Err(error) => {
+                    live[index] = false;
+                    rejected.push(RejectedSource {
+                        source: sources[index].id.clone(),
+                        error,
+                    });
+                }
+            }
+        }
+        if !readmitted {
+            return (live, rejected);
+        }
+    }
 }
 
 /// Replace the source-keyed half of the live registry with `sources`.
@@ -466,10 +516,10 @@ fn culprit(state: &DynamicState, candidates: &[EnvironmentSource]) -> Option<usi
 /// re-register idempotently, and a source that has gone (a deleted pack)
 /// retires with the rebuild.
 ///
-/// Never fails as a whole. The candidate set is validated whole and the
+/// Never fails as a whole. The candidate set is validated whole and each
 /// source that breaks it is reported in [`SyncOutcome::rejected`] and
-/// dropped while the rest register: a single malformed workspace pack
-/// must not take every other pack's environments down with it. A set
+/// dropped while the rest register: a malformed workspace pack must not
+/// take every other pack's environments down with it. A set
 /// identical to the registered one is a no-op, generation included, so a
 /// reload that found nothing new does not invalidate downstream caches.
 #[must_use]
@@ -477,21 +527,22 @@ pub fn sync_environment_sources(sources: Vec<EnvironmentSource>) -> SyncOutcome 
     let state = STATE.get_or_init(|| Mutex::new(DynamicState::default()));
     let mut state = state.lock().expect("environment registration lock");
 
-    let mut accepted = sources;
-    let mut rejected: Vec<RejectedSource> = Vec::new();
     // The candidate set is validated whole, never source by source: an
     // `-extend` may name a base a *later* source declares, and which of
     // the two pack discovery reached first must not decide whether the
     // pair loads.
-    while let Err(error) = assemble(&state.definitions, &state.extensions, &accepted, 0) {
-        let Some(index) = culprit(&state, &accepted) else {
-            break;
+    let (accepted, mut rejected) =
+        if assemble(&state.definitions, &state.extensions, &sources, 0).is_ok() {
+            (sources, Vec::new())
+        } else {
+            let (live, rejected) = triage(&state, &sources);
+            let accepted = sources
+                .into_iter()
+                .zip(live)
+                .filter_map(|(source, live)| live.then_some(source))
+                .collect();
+            (accepted, rejected)
         };
-        rejected.push(RejectedSource {
-            source: accepted.remove(index).id,
-            error,
-        });
-    }
 
     let before = declared_ids(&state.sources);
     let after = declared_ids(&accepted);
@@ -795,6 +846,52 @@ mod tests {
             );
             let _ = sync_environment_sources(Vec::new());
         }
+    }
+
+    /// Two independently broken sources are both refused by name, and
+    /// neither takes a valid source with it — the case a single-culprit
+    /// search cannot resolve, because removing either still leaves the
+    /// other breaking the rule.
+    #[test]
+    fn two_broken_sources_are_isolated_from_the_valid_ones() {
+        let _syncing = SYNCING
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let source = |id: &str, environment: &str| EnvironmentSource {
+            id: id.to_owned(),
+            definitions: vec![definition(environment, Provenance::WorkspaceTrusted)],
+            extensions: Vec::new(),
+        };
+        let outcome = sync_environment_sources(vec![
+            source("sync-first-good", "sync-first-good-env"),
+            source("sync-first-bad", "tcl8.6"),
+            source("sync-second-good", "sync-second-good-env"),
+            source("sync-second-bad", "tcl9.0"),
+        ]);
+
+        let refused: Vec<&str> = outcome
+            .rejected
+            .iter()
+            .map(|rejected| rejected.source.as_str())
+            .collect();
+        assert_eq!(refused, ["sync-first-bad", "sync-second-bad"]);
+        assert!(
+            outcome.rejected.iter().all(|rejected| matches!(
+                rejected.error,
+                EnvironmentRegistrationError::Reserved { .. }
+            )),
+            "each source is refused for its own rule: {:?}",
+            outcome.rejected
+        );
+        assert_eq!(outcome.declared, 2);
+        assert!(is_known_environment_name("sync-first-good-env"));
+        assert!(is_known_environment_name("sync-second-good-env"));
+        assert_eq!(
+            resolve_environment("tcl8.6").definition.provenance,
+            Provenance::BuiltIn
+        );
+
+        let _ = sync_environment_sources(Vec::new());
     }
 
     /// An untrusted extension of a compiled base is refused; a trusted one

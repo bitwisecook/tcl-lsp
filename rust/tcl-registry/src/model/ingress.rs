@@ -348,24 +348,32 @@ pub fn context_for_profile(profile: &DialectProfile) -> Arc<ContextRegistry> {
     resolve_environment(profile.name).default_context_registry()
 }
 
-/// Every `(environment id, registry generation)` whose un-overlaid
-/// generation has been promoted to a `&'static` view. The value is a
-/// leaked *clone of the generation handle*, not a second assembly, so the
-/// `&'static` and the `Arc` name one allocation and cannot drift apart.
-static LEAKED_GENERATIONS: OnceLock<Mutex<FxHashMap<(String, u64), &'static ContextRegistry>>> =
+/// The promotion key: the environment's canonical id and both generation
+/// axes an un-overlaid assembly answers under.
+type PromotionKey = (String, u64, u64);
+
+/// Every [`PromotionKey`] whose un-overlaid generation has been promoted
+/// to a `&'static` view. The value is a leaked *clone of the generation
+/// handle*, not a second assembly, so the `&'static` and the `Arc` name
+/// one allocation and cannot drift apart.
+static LEAKED_GENERATIONS: OnceLock<Mutex<FxHashMap<PromotionKey, &'static ContextRegistry>>> =
     OnceLock::new();
 
 /// The un-overlaid, default-keyed generation for `name` as a `&'static`.
 ///
 /// The analogue of [`crate::cache::registry_for_profile`]'s promotion,
-/// but keyed on the environment's *registry generation* as well as its
-/// id, because the environment axis is not the closed set the profile
-/// axis was: a pack declaring an `environment` block registers, and a
-/// reload re-registers, so an id-keyed promotion would serve the
-/// pre-reload placements and detection facts until restart. The
-/// generation only moves when a sync actually changes the registry, so
-/// the promotion still leaks a clone of the generation's `Arc` — eight
-/// bytes — never a copy of the assembly, and only per real reload.
+/// but not id-keyed the way that one is: the environment axis is not the
+/// closed set the profile axis was. A pack declaring an `environment`
+/// block registers, a reload re-registers, and an `include from` roster
+/// moves on its own axis without touching any environment — so an
+/// id-keyed promotion would serve pre-reload placements, detection facts
+/// and inherited availability until restart.
+///
+/// The key is therefore the whole of what an un-overlaid assembly
+/// answers under: [`crate::model::assembly`]'s generation key minus the
+/// keyed versions and the overlay, which are fixed here. Both axes only
+/// move on a real change, so the promotion still leaks a clone of the
+/// generation's `Arc` — eight bytes — never a copy of the assembly.
 ///
 /// This is what lets the LSP providers keep their `&'static` registry
 /// ergonomics while their *ingress* moves to the environment model: the
@@ -375,7 +383,11 @@ static LEAKED_GENERATIONS: OnceLock<Mutex<FxHashMap<(String, u64), &'static Cont
 #[must_use]
 pub fn static_context_for(name: &str) -> &'static ContextRegistry {
     let environment = resolve_environment(name);
-    let key = (environment.id().to_owned(), environment.identity.generation);
+    let key: PromotionKey = (
+        environment.id().to_owned(),
+        environment.identity.generation,
+        tcl_dialect::model::inherited_surface_generation(),
+    );
     let leaked = LEAKED_GENERATIONS.get_or_init(|| Mutex::new(FxHashMap::default()));
     if let Some(view) = leaked
         .lock()
