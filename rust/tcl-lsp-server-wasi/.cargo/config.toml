@@ -1,0 +1,15 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# `cargo test --target wasm32-wasip1` runs the unit tests inside the same host
+# the shipped module runs in, rather than not running them at all: a wasm test
+# binary is a WASI command like any other, so cargo only needs to be told what
+# to hand it to.
+#
+# Scoped to this crate. The rest of the repo's wasm builds are cdylibs with no
+# test binary to run, which is why this lives here and not in the root
+# .cargo/config.toml.
+[target.wasm32-wasip1]
+runner = "wasmtime"

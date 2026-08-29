@@ -23,10 +23,14 @@
 //! runtime-agnostic, but the handler bodies are not: they offload CPU-bound
 //! analysis with `spawn_blocking`, detach background work with `spawn`, and
 //! race passes against deadlines with `sleep_until`/`timeout`. Every one of
-//! those calls means something different in a browser, where there is exactly
-//! one thread and no thread pool to offload to. This module is the single
-//! place that difference is expressed, so no call site has to know which
-//! target it is being compiled for.
+//! those calls means something different where there is exactly one thread and
+//! no thread pool to offload to. This module is the single place that
+//! difference is expressed, so no call site has to know which target it is
+//! being compiled for.
+//!
+//! There are three arms, and `target_family = "wasm"` does **not** pick one:
+//! both wasm32-unknown-unknown and wasm32-wasip1 answer to it, and they need
+//! opposite things. The gates below are keyed on `target_os` for that reason.
 //!
 //! **The native contract is "nothing changed".** On every non-wasm target the
 //! items below are plain re-exports of the Tokio ones the call sites used
@@ -37,34 +41,60 @@
 //! behavioural tweak on the native arm defeats the point of the seam: the
 //! native server must not be able to regress because of a browser port.
 //!
-//! **The wasm contract is "same shapes, single thread".**
+//! **The browser contract is "same shapes, single thread".** A browser worker
+//! has no threads *and* no OS beneath it: no clock to read, and nothing for a
+//! timer driver to wait on, so every scheduling primitive is rebuilt on the
+//! host's.
 //!
 //! * [`spawn_blocking`] runs the closure *inline*, right there on the calling
 //!   task, and hands back an already-finished [`JoinHandle`]. There is no
 //!   worker pool to move it to, and blocking the one thread is what a browser
 //!   worker is for. The return type is still `JoinHandle<R>` awaiting to
-//!   `Result<R, JoinError>`, so the ~95 call sites are unchanged — a wasm
+//!   `Result<R, JoinError>`, so every call site is unchanged — a browser
 //!   `spawn_blocking` simply never yields and never fails.
 //! * [`spawn`] becomes `wasm_bindgen_futures::spawn_local`, with the task's
 //!   output routed back through a oneshot channel so the handle still awaits
 //!   to `Result<T, JoinError>`. A task dropped before it completes surfaces as
 //!   a cancelled [`JoinError`], matching Tokio.
-//! * [`JoinSet`] becomes an ordered-arrival `FuturesUnordered`. Tokio's
-//!   `JoinSet` makes progress in the background; ours only advances while
-//!   `join_next` is awaited. Every call site in this crate is
-//!   spawn-all-then-drain, so the observable result is the same set of
-//!   outputs.
-//! * [`Instant`] reads `performance.now()` (monotonic, sub-millisecond) and
-//!   falls back to `Date.now()` outside a browser context. `std::time::Instant`
-//!   compiles on wasm32-unknown-unknown but panics when called, which is why
-//!   the two `std::time::Instant::now()` timing sites route through here.
+//! * [`JoinSet`] detaches each task with [`spawn`] and drains their results
+//!   through a `FuturesUnordered`, so — as with Tokio's — a task makes
+//!   progress from the moment it is added, not only while `join_next` is
+//!   awaited. It has to. The workspace scan bounds its concurrency by taking a
+//!   semaphore permit *before* spawning and releasing it *inside* the task, so
+//!   a set whose tasks were inert until drained deadlocked the moment a
+//!   workspace held more files than permits: the loop waited for a permit only
+//!   a task could release, and nothing was polling the tasks.
+//! * [`Instant`] reads the host clock. `std::time::Instant` compiles on
+//!   wasm32-unknown-unknown but panics when called, which is why the two
+//!   `std::time::Instant::now()` timing sites route through here.
 //! * [`sleep`]/[`sleep_until`]/[`timeout`] use `gloo_timers`' `setTimeout`
 //!   futures; Tokio's timer wheel needs a driver that nothing spins in a
 //!   worker.
 //! * [`available_parallelism`] is `1`. It is a browser worker; there is one
 //!   thread, and the call sites use it to size concurrency limits.
 //!
-//! What deliberately stays on Tokio for both targets: `tokio::sync::*`
+//! **The wasi contract is "Tokio, minus the thread pool".** wasip1 has no
+//! threads either, but it does have an OS: a real monotonic clock, and a timer
+//! wheel that runs. So [`spawn`], [`JoinSet`], [`yield_now`], [`Instant`],
+//! [`sleep`], [`sleep_until`] and [`timeout`] are Tokio's own, unchanged, and
+//! [`available_parallelism`] keeps the native expression (wasip1 answers `1`).
+//! [`spawn_blocking`] is the single exception: there is no thread-spawn
+//! syscall, so Tokio's own fails at run time rather than at compile time, and
+//! the closure runs inline as it does in the browser.
+//!
+//! Two things a wasi host owes this arm. The runtime has to be
+//! `Builder::new_current_thread().enable_time()` — `rt-multi-thread` cannot
+//! start a worker (`os error 58`) — and it must always have a task or a timer
+//! pending, because wasip1's `std` has no condvar and a runtime that parks
+//! with nothing to wake it aborts ("condvar wait not supported") rather than
+//! blocking.
+//!
+//! Reaching for the browser arm on wasi is what the `target_os` split exists
+//! to prevent: wasm-bindgen binds JS only under `not(target_os = "wasi")`, so
+//! elsewhere its imported statics compile to `panic!`, and a wasi build that
+//! took the browser arm linked cleanly and then aborted on its first timer.
+//!
+//! What deliberately stays on Tokio for every target: `tokio::sync::*`
 //! (`Mutex`, `Notify`, `Semaphore`, `oneshot` — pure futures-based sync with
 //! no runtime dependency) and the `tokio::select!` / `join!` / `pin!` macros,
 //! which are compile-time future combinators. Those work unchanged in a
@@ -76,8 +106,14 @@ pub use native::{
     sleep_until, spawn, spawn_blocking, timeout, yield_now,
 };
 
-#[cfg(target_family = "wasm")]
-pub use wasm::{
+#[cfg(all(target_family = "wasm", target_os = "unknown"))]
+pub use browser::{
+    AbortHandle, Instant, JoinError, JoinHandle, JoinSet, available_parallelism, sleep,
+    sleep_until, spawn, spawn_blocking, timeout, yield_now,
+};
+
+#[cfg(all(target_family = "wasm", target_os = "wasi"))]
+pub use wasi::{
     AbortHandle, Instant, JoinError, JoinHandle, JoinSet, available_parallelism, sleep,
     sleep_until, spawn, spawn_blocking, timeout, yield_now,
 };
@@ -99,9 +135,9 @@ mod native {
     }
 }
 
-/// Wasm arm: single-threaded stand-ins with the same shapes.
-#[cfg(target_family = "wasm")]
-mod wasm {
+/// Browser arm: single-threaded stand-ins with the same shapes.
+#[cfg(all(target_family = "wasm", target_os = "unknown"))]
+mod browser {
     use std::future::Future;
     use std::pin::Pin;
     use std::task::{Context, Poll};
@@ -116,8 +152,8 @@ mod wasm {
 
     /// Why a task did not produce a value.
     ///
-    /// A browser worker has no unwinding task boundary, so unlike Tokio's the
-    /// wasm `JoinError` is only ever a cancellation — a task whose future was
+    /// A browser worker has no unwinding task boundary, so unlike Tokio's this
+    /// `JoinError` is only ever a cancellation — a task whose future was
     /// dropped before it resolved. [`Self::is_panic`] therefore always reports
     /// `false`; the panic hook surfaces a real panic on the console instead.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -130,14 +166,14 @@ mod wasm {
             Self { _private: () }
         }
 
-        /// Whether the task ended by panicking. Always `false` on wasm.
+        /// Whether the task ended by panicking. Always `false` in the browser.
         #[must_use]
         pub const fn is_panic(&self) -> bool {
             false
         }
 
-        /// Whether the task was cancelled. Always `true` on wasm, since
-        /// cancellation is the only way a wasm task fails to yield a value.
+        /// Whether the task was cancelled. Always `true` in the browser, since
+        /// cancellation is the only way a task there fails to yield a value.
         #[must_use]
         pub const fn is_cancelled(&self) -> bool {
             true
@@ -186,6 +222,25 @@ mod wasm {
                 aborted: Arc::clone(&self.aborted),
             }
         }
+
+        /// This handle as a boxed future, for [`JoinSet`]'s collector.
+        ///
+        /// Boxing here rather than at the `JoinSet` call site is what keeps
+        /// `T: Unpin` (which `JoinHandle`'s own `Future` impl needs) off
+        /// `JoinSet`'s bounds, so its shape still matches Tokio's.
+        fn into_result_future(self) -> BoxFuture<'static, Result<T, JoinError>>
+        where
+            T: Send + 'static,
+        {
+            match self.state {
+                HandleState::Ready(value) => {
+                    async move { value.ok_or_else(JoinError::cancelled) }.boxed()
+                }
+                HandleState::Pending(rx) => {
+                    async move { rx.await.map_err(|_| JoinError::cancelled()) }.boxed()
+                }
+            }
+        }
     }
 
     impl<T: Unpin> Future for JoinHandle<T> {
@@ -219,7 +274,8 @@ mod wasm {
         }
     }
 
-    /// Run a blocking closure. On wasm it runs inline, on the calling task.
+    /// Run a blocking closure. In the browser it runs inline, on the calling
+    /// task.
     ///
     /// The bounds match Tokio's so no call site needs to change, even though
     /// `Send` is meaningless on a single-threaded target.
@@ -279,11 +335,18 @@ mod wasm {
 
     /// A set of tasks drained by [`JoinSet::join_next`].
     ///
-    /// Unlike Tokio's, these futures advance only while `join_next` is being
-    /// awaited. Every call site in this crate spawns the whole batch and then
-    /// drains it, so the outputs are the same.
+    /// Each task is detached onto the worker's microtask queue as it is added
+    /// and its result is collected here, so — as with Tokio's — a task runs
+    /// whether or not `join_next` is currently being awaited. See this
+    /// module's browser contract for the deadlock that made that mandatory.
     pub struct JoinSet<T> {
-        tasks: FuturesUnordered<BoxFuture<'static, T>>,
+        tasks: FuturesUnordered<BoxFuture<'static, Result<T, JoinError>>>,
+        /// One handle per task ever added, so [`JoinSet::abort_all`] and `Drop`
+        /// can reach a detached task. Not pruned as tasks drain — a completed
+        /// task's flag is read by nothing — and every call site is
+        /// spawn-then-drain over one batch, so the vec is that batch's length
+        /// and dies with the set.
+        aborts: Vec<AbortHandle>,
     }
 
     impl<T: Send + 'static> Default for JoinSet<T> {
@@ -298,19 +361,22 @@ mod wasm {
         pub fn new() -> Self {
             Self {
                 tasks: FuturesUnordered::new(),
+                aborts: Vec::new(),
             }
         }
 
-        /// Add a future to the set.
+        /// Add a future to the set, detaching it immediately.
         ///
-        /// Tokio's returns an `AbortHandle`; nothing in this crate uses it,
-        /// and a handle that could not really cancel an un-detached future
-        /// would only mislead, so this returns nothing.
+        /// Tokio's returns an `AbortHandle`; nothing in this crate uses it, so
+        /// this returns nothing and the set keeps the handles itself for
+        /// [`Self::abort_all`].
         pub fn spawn<F>(&mut self, future: F)
         where
             F: Future<Output = T> + Send + 'static,
         {
-            self.tasks.push(future.boxed());
+            let handle = super::browser::spawn(future);
+            self.aborts.push(handle.abort_handle());
+            self.tasks.push(handle.into_result_future());
         }
 
         /// How many tasks have not yet been drained.
@@ -327,12 +393,35 @@ mod wasm {
 
         /// Await the next task to finish, or `None` once the set is drained.
         pub async fn join_next(&mut self) -> Option<Result<T, JoinError>> {
-            self.tasks.next().await.map(Ok)
+            self.tasks.next().await
         }
 
-        /// Drop every task that has not yet been drained.
+        /// Stop every task that has not yet been drained.
+        ///
+        /// The tasks are detached, so dropping the collectors is not enough —
+        /// each one's abort flag is raised, which stops it at its next await
+        /// point exactly as [`JoinHandle::abort`] does.
         pub fn abort_all(&mut self) {
+            for abort in self.aborts.drain(..) {
+                abort.abort();
+            }
             self.tasks = FuturesUnordered::new();
+        }
+    }
+
+    /// Dropping the set stops its tasks, as Tokio's does.
+    ///
+    /// Necessary only because the tasks are *detached*: before that they lived
+    /// in the set's own `FuturesUnordered` and died with it, so `Drop` had
+    /// nothing to do. Now a set dropped mid-drain — a cancelled scan, an early
+    /// `return` out of a drain loop, a panic unwinding past one — would
+    /// otherwise leave every undrained task running on the microtask queue with
+    /// nothing left to collect it.
+    impl<T> Drop for JoinSet<T> {
+        fn drop(&mut self) {
+            for abort in self.aborts.drain(..) {
+                abort.abort();
+            }
         }
     }
 
@@ -485,6 +574,58 @@ mod wasm {
     #[must_use]
     pub const fn available_parallelism() -> usize {
         1
+    }
+}
+
+/// Wasi arm: Tokio re-exports, minus the thread pool.
+///
+/// A caveat for transport authors beyond the host requirements above: the
+/// server's cancellation machinery leans on unwinding (salsa's `Cancelled`)
+/// and on condvar blocking (`set_text` waiting out live snapshots), and both
+/// are fatal on wasip1 — panics abort the process and an idle condvar wait
+/// traps. It is sound today only because the inline [`spawn_blocking`] means
+/// no analysis snapshot ever survives across an await; a transport that
+/// reintroduces real concurrency there turns cancellations into aborts.
+#[cfg(all(target_family = "wasm", target_os = "wasi"))]
+mod wasi {
+    pub use tokio::task::{AbortHandle, JoinError, JoinHandle, JoinSet, spawn, yield_now};
+    pub use tokio::time::{Instant, sleep, sleep_until, timeout};
+
+    /// Run a blocking closure inline, on the calling task, and hand back a
+    /// Tokio [`JoinHandle`] already carrying its value.
+    ///
+    /// This is the one item wasip1 cannot take straight from Tokio. It has no
+    /// thread-spawn syscall, so `tokio::task::spawn_blocking` compiles and
+    /// then fails at run time (`os error 58`) the first time the pool tries to
+    /// grow — the closure has to run here instead, as it does in the browser.
+    /// Handing the finished value to `spawn` rather than fabricating a handle
+    /// is what keeps the return type Tokio's own, so every call site and its
+    /// `abort`/[`JoinError`] handling compiles untouched; the task resolves
+    /// on its first poll. Two semantic edges follow from running inline:
+    /// `abort()` cannot cancel work that has already run, and a panicking
+    /// closure is fatal — wasip1 is panic=abort, so the native
+    /// [`JoinError::is_panic`] recovery paths never see it; the process dies
+    /// instead. The browser arm shares the panic property (its hook takes
+    /// over), so neither wasm arm can settle a document after a worker panic.
+    ///
+    /// Like Tokio's, this must be called from within the runtime.
+    pub fn spawn_blocking<F, R>(f: F) -> JoinHandle<R>
+    where
+        F: FnOnce() -> R + Send + 'static,
+        R: Send + 'static,
+    {
+        let value = f();
+        spawn(async move { value })
+    }
+
+    /// The host's usable parallelism, defaulting to 4 where the platform
+    /// cannot report it.
+    ///
+    /// Kept as the native expression rather than a hardcoded `1`: wasip1
+    /// answers it truthfully (one thread), and a future threaded WASI target
+    /// should be believed rather than second-guessed here.
+    pub fn available_parallelism() -> usize {
+        std::thread::available_parallelism().map_or(4, std::num::NonZeroUsize::get)
     }
 }
 

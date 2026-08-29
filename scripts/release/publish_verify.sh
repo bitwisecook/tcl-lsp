@@ -38,9 +38,11 @@ NODE_BIN="$EXT_DIR/node_modules/.bin"
 JB_DIR="$ROOT/editors/jetbrains"
 
 VSCE="$NODE_BIN/vsce"
+OVSX="$NODE_BIN/ovsx"
 
 VSCE_PUBLISHER="bitwisecook"
-SUBLIME_MIRROR_REPO="${TCL_LSP_SUBLIME_MIRROR_REPO:-bitwisecook/tcl-lsp-sublime-text}"
+OVSX_NAMESPACE="bitwisecook"
+REPO="bitwisecook/tcl-lsp"
 ZED_UPSTREAM="zed-industries/extensions"
 
 RC=0
@@ -73,6 +75,47 @@ elif [ -x "$VSCE" ]; then
         warn "  - run 'cd $EXT_DIR && ./node_modules/.bin/vsce login $VSCE_PUBLISHER'"
     fi
 fi
+
+# ---------------------------------------------------------------- Open VSX
+
+hdr "Open VSX (publish-openvsx)"
+
+if [ -x "$OVSX" ]; then
+    OVSX_VERSION="$("$OVSX" --version 2>/dev/null || echo unknown)"
+    ok "ovsx installed (version $OVSX_VERSION)"
+else
+    err "ovsx not installed — run 'make npm-env' (or 'cd $EXT_DIR && npm install')"
+fi
+
+if [ -n "${OVSX_PAT:-}" ]; then
+    ok "OVSX_PAT env var is set (non-interactive publish ready)"
+    if [ -x "$OVSX" ]; then
+        # Cheap namespace sanity check: one GET against open-vsx.org's
+        # verify-pat endpoint (ovsx reads OVSX_PAT from the environment
+        # natively — see scripts/release/ovsx_publish.sh). Network failure
+        # here is a [warn], not a [fail]: this machine may simply have no
+        # route to open-vsx.org right now, which doesn't block the CI job.
+        if OVSX_VERIFY_OUT="$("$OVSX" verify-pat "$OVSX_NAMESPACE" 2>&1)"; then
+            ok "OVSX_PAT verified against namespace '$OVSX_NAMESPACE'"
+        else
+            warn "OVSX_PAT did not verify against namespace '$OVSX_NAMESPACE':"
+            warn "  $(printf '%s' "$OVSX_VERIFY_OUT" | tail -1)"
+            warn "  (token may be expired/wrong-scope, the '$OVSX_NAMESPACE'"
+            warn "  namespace may not exist yet, or open-vsx.org is"
+            warn "  unreachable from here)"
+        fi
+        unset OVSX_VERIFY_OUT
+    fi
+else
+    warn "OVSX_PAT is not set. Generate an account-wide token at"
+    warn "  https://open-vsx.org/user-settings/tokens — that account must"
+    warn "  be a member/owner of the '$OVSX_NAMESPACE' namespace to"
+    warn "  publish there (create it first with"
+    warn "  'ovsx create-namespace $OVSX_NAMESPACE' if this is the first"
+    warn "  publish) — then export OVSX_PAT."
+fi
+
+ok "extension page: https://open-vsx.org/extension/$OVSX_NAMESPACE/tcl-lsp"
 
 # ---------------------------------------------------------------- JetBrains
 
@@ -132,32 +175,33 @@ ok "plugin page: https://plugins.jetbrains.com/plugin/31801-tcl-language-support
 
 # ---------------------------------------------------------------- Sublime
 
-hdr "Sublime Text (publish-sublime)"
+hdr "Sublime Text (Package Control)"
 
-# gh is used by publish_sublime.sh for the canonical-release asset check;
-# it is best-effort there, but worth flagging here.
-if command -v gh >/dev/null 2>&1; then
-    if gh auth status >/dev/null 2>&1; then
-        ok "gh CLI authenticated"
+# Nothing to publish by hand: Package Control's channel entry points at the
+# `TclLsp.sublime-package` asset on each GitHub Release, so a tagged CI run
+# is the whole publish step.  What is worth checking is that the asset the
+# channel resolves actually exists on the most recent stable release.
+if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+    LATEST_STABLE="$(gh release list --repo "$REPO" --exclude-drafts --limit 20 \
+        --json tagName,isPrerelease \
+        --jq 'map(select(.isPrerelease | not)) | .[0].tagName' 2>/dev/null || true)"
+    if [ -n "$LATEST_STABLE" ] && [ "$LATEST_STABLE" != "null" ]; then
+        if gh release view "$LATEST_STABLE" --repo "$REPO" --json assets \
+            --jq '.assets[].name' 2>/dev/null | grep -qx "TclLsp.sublime-package"; then
+            ok "release $LATEST_STABLE carries TclLsp.sublime-package (what Package Control fetches)"
+        else
+            warn "release $LATEST_STABLE has no TclLsp.sublime-package asset."
+            warn "  Package Control serves the newest stable release that has one;"
+            warn "  check the build-sublime job on that tag."
+        fi
     else
-        warn "gh CLI installed but not authenticated. Run 'gh auth login'."
+        warn "could not determine the latest stable release from $REPO."
     fi
 else
-    warn "gh CLI not installed. The release-asset sanity check in"
-    warn "  publish_sublime.sh will be skipped; the mirror push still works."
+    warn "gh CLI missing or unauthenticated — skipping the Package Control asset check."
 fi
 
-# Mirror repo must exist (one-time bootstrap step).
-if command -v gh >/dev/null 2>&1; then
-    if gh repo view "$SUBLIME_MIRROR_REPO" >/dev/null 2>&1; then
-        ok "Package Control mirror repo $SUBLIME_MIRROR_REPO is reachable"
-    else
-        warn "Package Control mirror repo $SUBLIME_MIRROR_REPO is not reachable."
-        warn "  Create it once with:"
-        warn "    gh repo create $SUBLIME_MIRROR_REPO --public \\"
-        warn "        --description \"Sublime Text mirror of tcl-lsp for Package Control\""
-    fi
-fi
+ok "channel entry: editors/sublime-text/SUBMITTING.md"
 
 # ----------------------------------------------------------------- Zed
 

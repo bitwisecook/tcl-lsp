@@ -128,6 +128,13 @@ exclude = [
     # wasm-bindgen's generated glue needs `unsafe`, which the workspace
     # `unsafe_code = "forbid"` lint bans. Built via `make lsp-server-wasm`.
     "rust/tcl-lsp-server-wasm",
+    # The WASI transport for the real LSP server — a wasm32-wasip1 command that
+    # drives the same `LspService<Backend>` over Content-Length-framed stdio,
+    # for hosts like `@vscode/wasm-wasi-lsp`. Excluded for the same reasons as
+    # the browser transport: its `poll_oneoff` readiness wait needs one `unsafe`
+    # call, which the workspace `unsafe_code = "forbid"` lint bans, and it
+    # targets wasm32 with its own lockfile. Built via `make lsp-server-wasi`.
+    "rust/tcl-lsp-server-wasi",
     # The Rust runtime port (runtime/rust/) is a standalone crate: it requires
     # raw-pointer `unsafe` over the shared linear memory (c-extension-abi.md §9),
     # so it cannot inherit the workspace `unsafe_code = "forbid"` lint, and it

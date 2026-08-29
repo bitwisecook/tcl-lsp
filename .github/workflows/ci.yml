@@ -86,10 +86,12 @@ jobs:
   #                    compare, or a tag ref → everything counts as changed),
   #                    so jobs whose input surface didn't change stop
   #                    re-testing it on every PR.
-  #   lsp_wasm_changed — the browser LSP server or one of its transitive local
-  #                    dependencies changed.  This keeps the expensive real
-  #                    wasm-bindgen build and scripted LSP session targeted,
-  #                    while failing safe when path detection is ambiguous.
+  #   lsp_wasm_changed — a wasm LSP transport (browser or WASI) or one of the
+  #                    transitive local dependencies they share changed.  This
+  #                    keeps the two expensive real wasm builds and their
+  #                    scripted LSP sessions targeted, while failing safe when
+  #                    path detection is ambiguous.  Both transports sit on the
+  #                    same `tcl-lsp-server` closure, so one flag gates both.
   channel:
     runs-on: ubuntu-24.04
     permissions:
@@ -189,7 +191,7 @@ jobs:
                   ext_changed=true ;;
               esac
               case "$f" in
-                rust/f5-xc/* | rust/tcl-bigip/* | rust/tcl-bytecode/* | rust/tcl-cmd-core/* | rust/tcl-compiler/* | rust/tcl-core-types/* | rust/tcl-diagram/* | rust/tcl-dialect/* | rust/tcl-engine-api/* | rust/tcl-engine-tclvm/* | rust/tcl-explorer/* | rust/tcl-host-native/* | rust/tcl-irules/* | rust/tcl-lexer/* | rust/tcl-lsp-core/* | rust/tcl-lsp-db/* | rust/tcl-lsp-server/* | rust/tcl-lsp-server-wasm/* | rust/tcl-platform/* | rust/tcl-regex/* | rust/tcl-registry/* | rust/tcl-runtime-api/* | rust/tcl-spec-hooks/* | rust/tcl-spectcl/* | rust/tcl-sslictcl/* | rust/tcl-syntax/* | rust/tcl-userdirs/* | rust/tcl-version/* | rust/tcl-vm/* | .cargo/config.toml | scripts/verify-wasm-externref.mjs | Cargo.toml | Cargo.lock | rust-toolchain.toml | Makefile | .github/workflows/ci.yml)
+                rust/f5-xc/* | rust/tcl-bigip/* | rust/tcl-bytecode/* | rust/tcl-cmd-core/* | rust/tcl-compiler/* | rust/tcl-core-types/* | rust/tcl-diagram/* | rust/tcl-dialect/* | rust/tcl-engine-api/* | rust/tcl-engine-tclvm/* | rust/tcl-explorer/* | rust/tcl-host-native/* | rust/tcl-irules/* | rust/tcl-lexer/* | rust/tcl-lsp-core/* | rust/tcl-lsp-db/* | rust/tcl-lsp-server/* | rust/tcl-lsp-server-wasm/* | rust/tcl-lsp-server-wasi/* | rust/tcl-platform/* | rust/tcl-regex/* | rust/tcl-registry/* | rust/tcl-runtime-api/* | rust/tcl-spec-hooks/* | rust/tcl-spectcl/* | rust/tcl-sslictcl/* | rust/tcl-syntax/* | rust/tcl-userdirs/* | rust/tcl-version/* | rust/tcl-vm/* | .cargo/config.toml | scripts/verify-wasm-externref.mjs | Cargo.toml | Cargo.lock | rust-toolchain.toml | Makefile | .github/workflows/ci.yml)
                   lsp_wasm_changed=true ;;
               esac
               case "$f" in
@@ -479,6 +481,136 @@ jobs:
           TCL_LSP_SERVER_BIN: ${{ github.workspace }}/target/release/tcl-lsp-server
         run: make test-ext
 
+  # The same extension in a BROWSER extension host — vscode.dev / github.dev.
+  #
+  # `test-ext` above cannot cover this: it runs the `main` entry point against
+  # the native binary, while the web host loads the `browser` entry point and
+  # the wasm language server in a Web Worker.  Everything that only exists on
+  # that path — the manifest's `browser` field, the staged `dist/web` worker
+  # assets, the worker's own asset resolution under a cross-origin blob shim,
+  # the JSON-RPC string/object adapter, the document selector's scheme filter —
+  # is invisible to the desktop suite, and each of those failed silently rather
+  # than loudly when it was wrong.
+  #
+  # Gated on BOTH path facts because it consumes both surfaces: the extension
+  # (`ext_changed`) and the browser language server (`lsp_wasm_changed`).  Step-
+  # level like every other skip here, so the job still reports success and the
+  # release `needs:` graph stays intact.
+  test-ext-web:
+    needs: [channel]
+    runs-on: ubuntu-26.04
+    env:
+      RUN_EXT_WEB: ${{ (needs.channel.outputs.ext_changed == 'true' || needs.channel.outputs.lsp_wasm_changed == 'true' || startsWith(github.ref, 'refs/tags/')) && needs.channel.outputs.already_green != 'true' && needs.channel.outputs.prerelease != 'true' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+      # The browser server is built here rather than fetched from the
+      # `lsp-server-wasm` job: that job step-skips on its own narrower path
+      # filter, so depending on its artefact would make this suite skip
+      # whenever only `editors/vscode/**` changed — exactly when it is most
+      # worth running.  Its own cache key keeps the release/LTO link warm.
+      - name: Set up Rust
+        if: env.RUN_EXT_WEB == 'true'
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        with:
+          toolchain: stable
+          target: wasm32-unknown-unknown
+          cache-key: test-ext-web
+          cache-workspaces: rust/tcl-lsp-server-wasm
+
+      - name: Install wasm-bindgen CLI
+        if: env.RUN_EXT_WEB == 'true'
+        uses: taiki-e/install-action@b20dedce73af6905cdc30d6611090c9b67557c8d # v2.85.12
+        with:
+          tool: wasm-bindgen-cli@0.2.127
+
+      - name: Set up Node.js
+        if: env.RUN_EXT_WEB == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+
+      - name: Enable Corepack (pin npm via packageManager)
+        if: env.RUN_EXT_WEB == 'true'
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+        run: |
+          corepack enable npm
+          cd editors/vscode
+          active="$(npm --version)"
+          echo "Active npm: $active (pinned via packageManager)"
+          case "$active" in
+            12.*) ;;
+            *) echo "::error::expected npm 12 from packageManager pin, got $active"; exit 1 ;;
+          esac
+
+      - name: Cache npm registry
+        if: env.RUN_EXT_WEB == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('editors/vscode/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      # `@vscode/test-web` depends on `@playwright/browser-chromium`, so `npm
+      # ci` installs the browser it drives; there is no separate download step.
+      # (A sandbox with Playwright pre-installed elsewhere sets
+      # PLAYWRIGHT_BROWSERS_PATH instead — see INSTALL-editors.md.)
+      - name: Install npm dependencies
+        if: env.RUN_EXT_WEB == 'true'
+        run: cd editors/vscode && npm ci
+
+      # `@vscode/test-web` downloads a VS Code *web* build on every run, the way
+      # `@vscode/test-electron` downloads a desktop one in `test-ext`. Key on
+      # the resolved commit from the same endpoint test-web itself uses: a
+      # coarser key (a date window) is actively broken, because cache entries
+      # are immutable, so a build that ships mid-window is downloaded but never
+      # saved and every remaining run re-downloads. Falling back to a date stamp
+      # when the endpoint is unreachable only costs a download.
+      - name: Resolve the VS Code web build
+        if: env.RUN_EXT_WEB == 'true'
+        id: vscode-web-version
+        run: |
+          set -uo pipefail
+          ver=$(curl -fsSL --max-time 20 \
+            https://update.code.visualstudio.com/api/update/web-standalone/insider/latest \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])' 2>/dev/null || true)
+          if [ -z "$ver" ]; then
+            ver="unresolved-$(date -u +%Y-%m-%d)"
+            echo "::warning::could not resolve the VS Code web build; using $ver"
+          fi
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+          echo "VS Code web (insider) resolves to: $ver"
+
+      - name: Cache the VS Code web download
+        if: env.RUN_EXT_WEB == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: editors/vscode/.vscode-test-web
+          key: vscode-test-web-${{ runner.os }}-${{ steps.vscode-web-version.outputs.version }}
+
+      - name: Build the browser language server
+        if: env.RUN_EXT_WEB == 'true'
+        run: make lsp-server-wasm
+
+      # `npm run compile` stages `dist/web` best-effort, so a build that never
+      # produced the worker assets would reach the browser as a runtime error
+      # instead of a build failure. Here they must exist: `--require` says so.
+      - name: Stage the browser assets (must exist)
+        if: env.RUN_EXT_WEB == 'true'
+        run: cd editors/vscode && node scripts/copy-web-assets.cjs --require
+
+      # `pretest:web` runs `npm run compile` (both bundles + the staged
+      # `dist/web` assets) and bundles the web test module for the browser.
+      # Headless Chromium needs no X server, so no xvfb here.
+      - name: Run the web extension-host smoke test
+        if: env.RUN_EXT_WEB == 'true'
+        run: cd editors/vscode && npm run test:web
+
   # Rust product gate.  ci.yml triggers on both `main` and `rust`, so one
   # pipeline covers them.  Runs on every PR and push, because nothing else
   # exercises the Rust product on a PR.
@@ -520,6 +652,18 @@ jobs:
   #   lsp-server-wasm   the real wasm-bindgen LSP server, driven through a
   #                     scripted JSON-RPC session under Node.  Path-filtered
   #                     to the browser server's local dependency closure.
+  #   lsp-server-wasi   the real wasm32-wasip1 LSP server, driven through
+  #                     scripted Content-Length-framed sessions under the
+  #                     wasmtime CLI.  Same path filter — the two transports
+  #                     share their whole dependency closure — but its own job,
+  #                     because it is the only place the wasip1 arm of
+  #                     `tcl_lsp_server::rt` is actually EXECUTED rather than
+  #                     type-checked.  On a v* tag it is ALSO a release
+  #                     producer: it builds the module unconditionally and hands
+  #                     `build-vsix` the `wasi-module` artifact, which that job
+  #                     stages into the universal VSIX and signs onto the
+  #                     Release — the same producer/attacher split
+  #                     `build-server-matrix` uses.
   #
   # nextest runs every test binary's tests in ONE global parallel pool, so the
   # VM-sim suites overlap instead of running one binary at a time — a large
@@ -731,6 +875,16 @@ jobs:
           TCL_REQUIRE_WASM_LINK: '1'
         run: cargo test -p tcl-compiler --test wasm_real_link -- --test-threads=1
 
+      # The language server's wasip1 arm (rt.rs `mod wasi`) has no in-tree
+      # consumer until the WASI transport crate lands, so nothing else in CI
+      # would catch a lib.rs/rt.rs change breaking it.  This job already
+      # carries the wasm32-wasip1 toolchain and cache, making the check ~free
+      # here; it is a compile gate only — the transport crate brings the
+      # run-time coverage.
+      - name: cargo check -p tcl-lsp-server (wasm32-wasip1)
+        if: needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
+        run: cargo check -p tcl-lsp-server --lib --target wasm32-wasip1
+
   # The real browser LSP server: release-link the wasm-bindgen facade, verify
   # the produced module, then drive a scripted JSON-RPC session under Node.
   # This is intentionally distinct from `wasm-real-link`, which exercises the
@@ -774,6 +928,115 @@ jobs:
       - name: Build and exercise the browser LSP server
         if: env.RUN_LSP_WASM == 'true'
         run: make lsp-server-wasm-test
+
+  # The real WASI LSP server: release-link the wasm32-wasip1 command, optimise
+  # it, then drive scripted JSON-RPC sessions against it under the wasmtime CLI.
+  # Sibling of `lsp-server-wasm` and gated by the same path filter — the two
+  # transports share the whole `tcl-lsp-server` dependency closure — but a
+  # separate job so a browser regression and a WASI regression are separately
+  # attributable, and because this one needs a different toolchain (wasip1
+  # target + wasmtime, no wasm-bindgen).
+  #
+  # It is also the only thing in CI that RUNS the wasip1 arm of
+  # `tcl_lsp_server::rt`.  The `wasm-real-link` job's `cargo check
+  # --target wasm32-wasip1` step is a compile gate; the driver properties that
+  # arm's doc comments describe — never parking the runtime empty, keeping
+  # timers alive while blocked on stdin — only fail at run time, and only here.
+  #
+  # On a `v*` tag this job is ALSO the release's producer of the module, and it
+  # follows `build-server-matrix`'s pattern exactly: build, upload a plain
+  # workflow artifact, and let a job that depends on `create-release` attach it
+  # to the Release.  `build-vsix` is that job — it downloads `wasi-module` to
+  # stage into the universal package, and signs the bare module onto the
+  # Release while it is there.  Doing the `gh release upload` here instead
+  # would race `create-release`, which this job deliberately does not depend on
+  # (a skipped `needs` ancestor skips its dependants, and `create-release` is
+  # tag-only — depending on it would kill this job's PR coverage).
+  #
+  # Hence `RELEASE_WASI` below, independent of the path/already-green gate: a
+  # tag whose SHA already went green step-skips the *test*, but the release
+  # still needs the artefact.
+  #
+  # Still not in `create-release`'s `needs`, and now for a better reason than
+  # the old carve-out's: `build-vsix` depends on it directly, which is where the
+  # module is consumed, while `create-release` only opens the Release.  The
+  # wasmtime download that carve-out worried about is gated on `RUN_LSP_WASI`
+  # alone — the release path needs only the wasip1 target and binaryen, so a
+  # transient wasmtime 404 still cannot fail a tag build.
+  lsp-server-wasi:
+    needs: [channel]
+    runs-on: ubuntu-26.04
+    env:
+      # Same gate as `lsp-server-wasm`: keep the expensive release/LTO link
+      # targeted to the dependency closure the two transports share.  An
+      # ambiguous path classification is true; already-green merge pushes and
+      # tags carry forward their PR/push result.
+      RUN_LSP_WASI: ${{ needs.channel.outputs.lsp_wasm_changed == 'true' && needs.channel.outputs.already_green != 'true' }}
+      # A tag must produce the module whatever the test gate decided.
+      RELEASE_WASI: ${{ startsWith(github.ref, 'refs/tags/v') }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Set up Rust
+        if: env.RUN_LSP_WASI == 'true' || env.RELEASE_WASI == 'true'
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        with:
+          toolchain: stable
+          target: wasm32-wasip1
+          cache-key: lsp-server-wasi
+          cache-workspaces: rust/tcl-lsp-server-wasi
+
+      # Pinned to the same exact version `wasm-real-link` uses: the driver's
+      # readiness wait depends on the host honouring a `poll_oneoff` `fd_read`
+      # subscription on stdin, so the runtime under test must not drift without
+      # a commit.  Only the scripted sessions need it, so the release path
+      # (RELEASE_WASI without RUN_LSP_WASI) never downloads it.
+      - name: Install the wasmtime CLI
+        if: env.RUN_LSP_WASI == 'true'
+        uses: taiki-e/install-action@b20dedce73af6905cdc30d6611090c9b67557c8d # v2.85.12
+        with:
+          tool: wasmtime@47.0.3
+
+      # binaryen supplies `wasm-opt`, which build-wasi.sh runs (safely — this
+      # module has no wasm-bindgen externref table to mis-rebind).  The script
+      # degrades with a note when it is missing, so installing it here is what
+      # keeps the optimised module the thing CI actually exercises — and, on a
+      # tag, the thing it ships.
+      - name: Install binaryen
+        if: env.RUN_LSP_WASI == 'true' || env.RELEASE_WASI == 'true'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends binaryen
+
+      - name: Set up Node.js
+        if: env.RUN_LSP_WASI == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+
+      - name: Build and exercise the WASI LSP server
+        if: env.RUN_LSP_WASI == 'true'
+        run: make lsp-server-wasi-test
+
+      # The link only, for a tag whose test surface step-skipped as already
+      # green.  `lsp-server-wasi-test` above already produced `dist/` when it
+      # ran, so this is the else-branch, not a second build.
+      - name: Build the WASI LSP server (release artefact)
+        if: env.RELEASE_WASI == 'true' && env.RUN_LSP_WASI != 'true'
+        run: make lsp-server-wasi
+
+      # Same handoff shape as `build-server-matrix`'s `server-bins-*`: a plain,
+      # short-lived workflow artifact for the downstream packaging job.  The
+      # Release asset (attested + SBOM'd) is attached by `build-vsix`, which is
+      # the one that can be sure `create-release` has already run.
+      - name: Upload the WASI module
+        if: env.RELEASE_WASI == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wasi-module
+          path: rust/tcl-lsp-server-wasi/dist/tcl-lsp-server-wasi.wasm
+          if-no-files-found: error
+          retention-days: 1
 
   # Native-server lsp_e2e suite.  Its own job (hence its own status check)
   # because it is a distinct, heavier surface: it builds the `tcl-lsp-server`
@@ -1161,9 +1424,22 @@ jobs:
   # platform, so the Marketplace serves each client only its own binary.
   build-vsix:
     if: startsWith(github.ref, 'refs/tags/v')
-    # test-ext runs as a no-op-success for pre-release tags (its test step is
-    # step-skipped), so it never skips this job's needs.
-    needs: [create-release, test-ext, build-server-matrix]
+    # test-ext / test-ext-web run as no-op-successes for pre-release tags
+    # (their test steps are step-skipped), so they never skip this job's needs.
+    #
+    # `test-ext-web` is in this list because every VSIX flavour now carries the
+    # browser language server (`dist/web`) and a manifest that declares
+    # `browser` — which is what makes the Marketplace advertise web support. It
+    # is the only job that proves that half works, so a VSIX must not be built
+    # and signed without it.
+    #
+    # `lsp-server-wasi` is in it because the UNIVERSAL package carries the WASI
+    # language server (`server/wasm/`) — the fallback rung for an architecture
+    # none of the seven cross-compiled triples covers. That job builds and signs
+    # the module; this one downloads its `wasi-module` artifact rather than
+    # re-linking wasm32-wasip1 here, the same way it takes the native binaries
+    # from `build-server-matrix` instead of cross-compiling them itself.
+    needs: [create-release, test-ext, test-ext-web, build-server-matrix, lsp-server-wasi]
     runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload
@@ -1205,6 +1481,18 @@ jobs:
           pattern: server-bins-*
           path: target
           merge-multiple: true
+
+      # Restored to the path the Makefile's `$(LSP_SERVER_WASI_MODULE)` names.
+      # That rule is a FILE target whose prerequisites are the crate's own
+      # sources, and this download runs after the checkout — `download-artifact`
+      # extracts with `unzip-stream`, which does not restore the zip's stored
+      # mtimes, so the module lands newer than every prerequisite.  It is used
+      # as-is and nothing here re-links wasm32-wasip1.
+      - name: Download the WASI language server module
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: wasi-module
+          path: rust/tcl-lsp-server-wasi/dist
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -1249,7 +1537,9 @@ jobs:
       # VSIX — the Marketplace's fallback for any client with no dedicated
       # targeted package below (namely riscv64 Linux — vsce has no --target
       # string for it), and the artefact for a manual "Install from VSIX"
-      # side-load.
+      # side-load.  It also stages the WASI module downloaded above, which is
+      # what makes the universal package work on an architecture with no native
+      # binary at all; `verify-vsix` asserts both halves.
       - name: Build and verify universal VSIX
         run: make package-vsix BUNDLED_TARGETS="$(make -s print-server-targets-all)"
 
@@ -1257,6 +1547,17 @@ jobs:
         with:
           artefact-glob: "build/tcl-lsp-vscode-*-universal.vsix"
           artefact-name: vsix-universal
+
+      # The bare module as a Release asset too, so an editor that is not VS Code
+      # can fetch it and run it under wasmtime (INSTALL-editors.md).  Attached
+      # from here rather than from the job that built it: this one depends on
+      # `create-release`, so the Release object provably exists.  The artefact
+      # name differs from the `wasi-module` upload above only because two
+      # workflow artifacts in one run may not share a name.
+      - uses: ./.github/actions/sign-and-upload
+        with:
+          artefact-glob: "rust/tcl-lsp-server-wasi/dist/tcl-lsp-server-wasi.wasm"
+          artefact-name: wasi-module-signed
 
       # Six small, single-binary VSIXes, one per vsce --target platform
       # (win32/linux/darwin x x64/arm64), so the Marketplace serves each
@@ -1403,7 +1704,12 @@ jobs:
   # Build: Sublime Text package
   build-sublime:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [create-release]
+    # build-server-matrix is needed for its *digests*, not its binaries: the
+    # package ships no server, but it pins the SHA-256 of each one this
+    # release will carry so plugin.py verifies its download against a digest
+    # that travelled inside the package rather than one served from the same
+    # release as the binary.
+    needs: [create-release, build-server-matrix]
     runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload
@@ -1418,35 +1724,74 @@ jobs:
           fetch-depth: 1
           fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
-      # `make build-editor-sublime` bundles the native tcl-lsp-server binary,
-      # so the Rust toolchain is required (no Python).  The zip smoke-test below
-      # uses the runner's preinstalled python3 stdlib only.
-      - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+      # Restores `<triple>/release/tcl-lsp-server[.exe]` — the same bytes
+      # publish-native-binaries attaches to the release, so hashing them here
+      # pins exactly what the plugin will later download.
+      - name: Download server-matrix binaries (for their digests)
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          toolchain: stable
+          pattern: server-bins-*
+          path: server-bins
+          merge-multiple: true
 
+      # The Sublime package is pure resources — no Rust toolchain, no Python
+      # beyond the runner's preinstalled stdlib for the zip smoke-test.  It
+      # ships one artefact for every platform and `plugin.py` downloads the
+      # `tcl-lsp-server-<triple>` asset published by publish-native-binaries
+      # for the host, so the server MUST stay out of this package.
       - name: Build Sublime Text package
-        run: make build-editor-sublime
+        run: make build-editor-sublime SERVER_BINS_DIR=server-bins
 
       - name: Smoke-test Sublime package
         run: |
           python3 -c "
-          import zipfile, glob
-          path = glob.glob('build/tcl-lsp-sublime-*.sublime-package')[0]
-          zf = zipfile.ZipFile(path)
+          import zipfile, json
+          zf = zipfile.ZipFile('build/TclLsp.sublime-package')
           names = zf.namelist()
-          assert any(n.startswith('server/') for n in names), 'missing server directory'
+          assert not any(n.startswith('server/') for n in names), 'bundles a server'
           assert 'Tcl.sublime-syntax' in names, 'missing Tcl syntax'
           assert 'iRule.sublime-syntax' in names, 'missing iRule syntax'
           assert 'plugin.py' in names, 'missing plugin'
           assert 'LSP-Tcl.sublime-settings' in names, 'missing LSP settings'
-          print(f'OK: {len(names)} entries')
+          assert '.python-version' in names, 'missing plugin_host selector'
+          assert any(n.startswith('specs/') for n in names), 'missing spec packs'
+          manifest = json.loads(zf.read('server_version.json'))
+          version = manifest['version']
+          tag = '${{ github.ref_name }}'
+          assert version == tag[1:], f'server_version {version} != tag {tag}'
+          # A released package must pin the digest of every server it can
+          # download; without the pins plugin.py silently degrades to the
+          # release's own SHA256SUMS, which is integrity only.
+          pins = manifest.get('servers') or {}
+          for triple in ('x86_64-unknown-linux-gnu', 'aarch64-unknown-linux-gnu',
+                         'x86_64-apple-darwin', 'aarch64-apple-darwin',
+                         'x86_64-pc-windows-msvc', 'aarch64-pc-windows-msvc'):
+              assert len(pins.get(triple, '')) == 64, f'no server pin for {triple}'
+          print(f'OK: {len(names)} entries, server version {version}, {len(pins)} pins')
           "
+
+      # Package Control has no pre-release channel, and — unlike the VS Code
+      # Marketplace — it ignores GitHub's `prerelease` flag: its GitHub client
+      # skips only *drafts*, then takes the newest release carrying an asset
+      # that matches the channel entry's exact name.  So the odd-minor
+      # pre-release line is kept off the channel by NAME: only a stable tag
+      # publishes `TclLsp.sublime-package`.  Pre-release testers still get a
+      # package, under a name the channel never resolves (rename it to
+      # `TclLsp.sublime-package` to install it by hand).
+      - name: Name the package for its release channel
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF#refs/tags/}"
+          if [ "$(bash scripts/release/prerelease.sh "$tag")" = "true" ]; then
+            mv build/TclLsp.sublime-package build/TclLsp-prerelease.sublime-package
+            echo "pre-release tag $tag -> TclLsp-prerelease.sublime-package (off the Package Control channel)"
+          else
+            echo "stable tag $tag -> TclLsp.sublime-package (what Package Control resolves)"
+          fi
 
       - uses: ./.github/actions/sign-and-upload
         with:
-          artefact-glob: "build/tcl-lsp-sublime-*.sublime-package"
+          artefact-glob: "build/TclLsp*.sublime-package"
           artefact-name: sublime-package
 
   # Build: Zed extension
@@ -1668,6 +2013,93 @@ jobs:
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: bash scripts/release/vsce_publish.sh
+
+  # Open VSX (open-vsx.org) publish — what code-server / openvscode-server /
+  # Gitpod / Theia installs use.  Mirrors publish-vsix-marketplace exactly:
+  # the publish token (OVSX_PAT) is an Environment secret on the protected
+  # `marketplace-openvsx` Environment (required reviewer + a v*-tag-only
+  # deployment policy).  Per the AGENTS.md invariant, a publish secret may
+  # live in CI only when it is stored this way: reachable solely by a job
+  # that targets the protected Environment, which PAUSES for manual approval
+  # and can never run on a non-tag ref.  Hardening carried over from the
+  # VS Code job:
+  #   * OVSX_PAT is scoped to the publish step's `env:` only, so the
+  #     freshly-fetched npm code in `npm ci` never runs with the token in
+  #     its environment.
+  #   * the .vsix is pulled from the GitHub Release (which persists) and
+  #     checksum-verified against the cosign-signed SHA256SUMS — not from a
+  #     workflow artifact, which cleanup-*-artifacts could delete while this
+  #     job sits waiting for approval.
+  #
+  # Gated off until PUBLISH_VSIX_OPENVSX is set (a non-secret flag
+  # variable), so forks/clones without the secret never reach the gate.
+  # Nothing depends on this job, so its approval wait never blocks cleanup.
+  publish-vsix-openvsx:
+    if: startsWith(github.ref, 'refs/tags/v') && vars.PUBLISH_VSIX_OPENVSX == 'true'
+    needs: [build-vsix, publish-checksums]
+    runs-on: ubuntu-24.04
+    environment: marketplace-openvsx
+    permissions:
+      contents: read # gh release download
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+
+      - name: Enable Corepack (pin npm via packageManager)
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+        run: corepack enable npm
+
+      - name: Install ovsx from the committed lockfile
+        run: cd editors/vscode && npm ci
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: 'v2.6.3'
+
+      - name: Download the released VSIX and verify against the signed SHA256SUMS
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF#refs/tags/}"
+          mkdir -p dist && cd dist
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
+            --pattern '*.vsix' --pattern 'SHA256SUMS' \
+            --pattern 'SHA256SUMS.cosign.bundle' --clobber
+          # Verify SHA256SUMS is the manifest publish-checksums actually signed
+          # (keyless OIDC) BEFORE trusting any hash in it.  The Release stays
+          # mutable while this job waits for approval, so an actor with
+          # release-write could otherwise swap the .vsix AND SHA256SUMS as a
+          # self-consistent pair and pass a bare `sha256sum -c`.  Pinning the
+          # cosign identity to this repo's ci.yml on a v* tag makes that swap
+          # detectable.
+          cosign verify-blob \
+            --bundle SHA256SUMS.cosign.bundle \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            --certificate-identity-regexp '^https://github\.com/bitwisecook/tcl-lsp/\.github/workflows/ci\.yml@refs/tags/v' \
+            SHA256SUMS
+          # --ignore-missing: SHA256SUMS lists every release asset; we only
+          # fetched the .vsix, so verify just that one (others are skipped).
+          sha256sum -c --ignore-missing SHA256SUMS
+
+      - name: Publish to Open VSX
+        # Body lives in scripts/release/ovsx_publish.sh: runs only the local
+        # ovsx binary.  The channel isn't chosen here — ovsx ignores
+        # --pre-release for an already-packaged VSIX, so it rides in the
+        # VSIX manifest instead, baked in by `vsce package` at build time
+        # (scripts/release/prerelease.sh is still the single source of
+        # truth for that manifest flag).
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: bash scripts/release/ovsx_publish.sh
 
   # JetBrains Marketplace publish.  Mirrors publish-vsix-marketplace exactly:
   # the publish token (JETBRAINS_TOKEN) is an Environment secret on the

@@ -426,7 +426,16 @@ change another file's answer retains the necessary whole-workspace cost.
    `didRename` filter all come from the one `TCL_SOURCE_EXTENSIONS` list —
    a file the scan indexes but the watcher ignores goes stale on the next
    external edit.
-7. Search-path and package facts follow real Tcl arity and version rules, not
+7. **Nothing in the scan or the package database reads `std::fs` directly.**
+   Both walk the server's closed-file store
+   (`tcl_lsp_core::vfs::SourceStore` — `NativeStore` is a literal `std::fs`
+   delegation, a browser worker supplies a host-filled `MemoryStore`), so a
+   host that hands the server bytes gets the same index and the same package
+   database it would get from a real tree. `scan_path` / `scan_tree` remain as
+   `NativeStore` wrappers over `scan_path_in` / `scan_tree_in` so native
+   callers and their tests did not move. See
+   [lsp-source-store.md](lsp-source-store.md).
+8. Search-path and package facts follow real Tcl arity and version rules, not
    convenient approximations. `set auto_path` assigns a **list** (each element
    one directory, a braced element with spaces still one) while `lappend`
    appends one directory per argument word; path arithmetic runs in Tcl's
@@ -438,7 +447,9 @@ change another file's answer retains the necessary whole-workspace cost.
 
 - `rust/tcl-lsp-core/src/workspace_index.rs`
 - `rust/tcl-lsp-core/src/package_resolver.rs`
+- `rust/tcl-lsp-core/src/vfs.rs` (`SourceStore`, `NativeStore`, `MemoryStore`)
 - `rust/tcl-lsp-server/src/lib.rs` (`scan_workspace_folders`,
+  `build_package_db_and_candidates`, `collect_tcl_files`,
   `is_tcl_source` / `TCL_SOURCE_EXTENSIONS`, `build_package_resolver`,
   `extend_resolver_with_document_auto_paths`, `ensure_library_indexed`)
 - `rust/tcl-compiler/src/analyser/scope.rs` (`namespace_variables`,

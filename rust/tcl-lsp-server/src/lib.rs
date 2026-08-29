@@ -2508,6 +2508,9 @@ struct DeliveryCtx<'a> {
     client: &'a Client,
     diagnostic_publisher: &'a Arc<DiagnosticPublisher>,
     documents: &'a Arc<DocumentStore>,
+    /// Where the APL sibling-`implementation` read gets its bytes — see
+    /// [`crate::vfs`].
+    store: &'a Arc<dyn vfs::SourceStore>,
     diag_slots: &'a Arc<Mutex<HashMap<Uri, DiagSlot>>>,
     pull_diag_cache: &'a Arc<Mutex<HashMap<Uri, PullDiagEntry>>>,
     /// The closed-file generation map, consulted by the currency guard for a
@@ -2717,6 +2720,7 @@ async fn run_diagnostics_f5_dialect(
             language_id,
             inputs.disabled,
             delivery.documents,
+            delivery.store.as_ref(),
         )
         .await
         .unwrap_or_default()
@@ -4252,6 +4256,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
         client: &inputs.client,
         diagnostic_publisher: &inputs.diagnostic_publisher,
         documents: &inputs.documents,
+        store: &inputs.store,
         diag_slots: &inputs.diag_slots,
         pull_diag_cache: &inputs.pull_diag_cache,
         closed_diag_gen: &inputs.closed_diag_gen,
@@ -4588,6 +4593,7 @@ async fn run_deep_diagnostics(
         &RefinementInputs {
             inheritance: &inheritance,
             package_resolver: inputs.package_resolver,
+            store: inputs.store,
             registry: &inputs.registry,
             workspace_known_names,
             settled_calls,
@@ -4698,6 +4704,9 @@ struct LiftInputs<'a> {
 struct RefinementInputs<'a> {
     inheritance: &'a SourceInheritance,
     package_resolver: &'a Arc<RwLock<PackageResolver>>,
+    /// Where the W120 transitive scan reads a resolved package's
+    /// implementation files from — see [`crate::vfs`].
+    store: &'a Arc<dyn vfs::SourceStore>,
     registry: &'a CommandRegistry,
     /// The workspace index's memoised command names — read whenever this
     /// document has a W123 to refine, because
@@ -4743,6 +4752,7 @@ async fn refine_and_lift_diagnostics(
         analysis.as_ref(),
         refinement.inheritance,
         refinement.package_resolver,
+        refinement.store.as_ref(),
         refinement.registry,
     )
     .await;
@@ -4754,6 +4764,7 @@ async fn refine_and_lift_diagnostics(
         analysis.as_ref(),
         refinement.inheritance,
         refinement.package_resolver,
+        refinement.store.as_ref(),
         inputs.dialect,
     )
     .await;
@@ -9874,7 +9885,7 @@ impl Backend {
             if !dirs.is_empty() {
                 let mut resolver = self.package_resolver.write().await;
                 for dir in &dirs {
-                    resolver.scan_path(dir);
+                    resolver.scan_path_in(self.store.as_ref(), dir);
                 }
             }
         }
@@ -14380,11 +14391,12 @@ impl Backend {
             .iter()
             .filter_map(|f| f.to_file_path().map(std::borrow::Cow::into_owned))
             .collect();
+        let store = Arc::clone(&self.store);
         crate::rt::spawn_blocking(move || {
             let installs = discovered.get_or_init(|| {
                 core_tcl_install::discover(&core_tcl_install::default_search_bases())
             });
-            let active = effective_auto_path(&roots, &editor_paths, installs);
+            let active = effective_auto_path(store.as_ref(), &roots, &editor_paths, installs);
             serde_json::json!({
                 "installations": installs
                     .iter()
@@ -15228,6 +15240,7 @@ impl Backend {
                     language_id,
                     &disabled,
                     &self.documents,
+                    self.store.as_ref(),
                 )
                 .await
                 .unwrap_or_default()
@@ -15350,6 +15363,7 @@ impl Backend {
             analysis,
             &inheritance,
             &self.package_resolver,
+            self.store.as_ref(),
             inputs.registry,
         )
         .await;
@@ -15358,6 +15372,7 @@ impl Backend {
             analysis,
             &inheritance,
             &self.package_resolver,
+            self.store.as_ref(),
             inputs.dialect,
         )
         .await;
@@ -15751,6 +15766,34 @@ impl Backend {
     /// `trigger` says which event asked, and is used for exactly one thing:
     /// the startup reload honours [`STARTUP_RELOAD_HOLD_ENV`], the test-only
     /// hold that lets the e2e suite force the two-reload interleaving.
+    /// Wait for [`Self::reload_spec_packs`]'s loader to signal that it has read
+    /// the disk, and say so on the client's log channel.
+    ///
+    /// The log line is the one ordering signal an e2e client can actually wait
+    /// on: it means "this reload's view of the disk is now fixed", which is the
+    /// instant the test has to write its pack file at. `held_rx` is `None` in
+    /// every real session (see [`STARTUP_RELOAD_HOLD_ENV`]), and then this
+    /// returns without awaiting anything.
+    async fn announce_pack_snapshot_hold(
+        &self,
+        hold: std::time::Duration,
+        held_rx: Option<tokio::sync::oneshot::Receiver<()>>,
+    ) {
+        let Some(rx) = held_rx else { return };
+        if rx.await.is_err() {
+            return;
+        }
+        self.client
+            .log_message(
+                MessageType::INFO,
+                format!(
+                    "{STARTUP_RELOAD_HELD_LOG} for {}ms ({STARTUP_RELOAD_HOLD_ENV})",
+                    hold.as_millis()
+                ),
+            )
+            .await;
+    }
+
     async fn reload_spec_packs(&self, trigger: ReloadTrigger) -> bool {
         // One reload at a time — see `spec_pack_reload`. The guard spans
         // discovery *and* the publish below, because it is the gap between
@@ -15780,15 +15823,16 @@ impl Backend {
             }
             _ => (std::time::Duration::ZERO, None, None),
         };
+        let pack_store = Arc::clone(&self.store);
         let load = crate::rt::spawn_blocking(move || {
-            let files = tcl_spectcl::discover(&options);
+            let files = tcl_spectcl::discovery::discover_in(pack_store.as_ref(), &options);
             // `load_discovered`, not `pack::load`: a bare `tcl-lsp-server`
             // release binary (Zed, the standalone-editor instructions) has no
             // `specs/` directory beside it, so discovery finds no bundled tier
             // and the shipped EDA loadables have to come from the embedded
             // copy. A plain load would leave every EDA command unknown in
             // exactly those clients.
-            let loaded = tcl_spectcl::bundled::load_discovered(&files);
+            let loaded = tcl_spectcl::bundled::load_discovered_in(pack_store.as_ref(), &files);
             // The test seam, and the only place it can go: the snapshot is
             // taken, the publish has not happened, so the world is free to
             // change underneath a view that is already stale. The signal goes
@@ -15800,23 +15844,7 @@ impl Backend {
             }
             loaded
         });
-        if let Some(rx) = held_rx
-            && rx.await.is_ok()
-        {
-            // Announced on the client's log channel because that is the one
-            // ordering signal an e2e client can actually wait on: it means
-            // "this reload's view of the disk is now fixed", which is the
-            // instant the test has to write its pack file at.
-            self.client
-                .log_message(
-                    MessageType::INFO,
-                    format!(
-                        "{STARTUP_RELOAD_HELD_LOG} for {}ms ({STARTUP_RELOAD_HOLD_ENV})",
-                        hold.as_millis()
-                    ),
-                )
-                .await;
-        }
+        self.announce_pack_snapshot_hold(hold, held_rx).await;
         let loaded = load.await;
         let Ok(loaded) = loaded else {
             // A panic in the loader must not take the session with it: the
@@ -16728,52 +16756,7 @@ impl Backend {
             .collect();
         let folder_dialects = self.folder_dialect_overrides().await;
         let default_dialect = self.session_dialect().await;
-        // Inputs for the package-database `auto_path`: the editor's
-        // `tclLsp.libraryPaths` (config.ini / .tcl-lsp.ini layers are read from
-        // disk in the worker) and the discovered-installation cache.  Per-folder
-        // `libraryPaths` overrides are unioned in so a folder's configured
-        // package directories contribute to the shared package database (the
-        // database is additive — more known packages only refines W120).
-        let mut editor_library_paths = self.editor_library_paths.lock().await.clone();
-        {
-            let folder_configs = self.folder_configs.lock().await;
-            for (_, fc) in folder_configs.iter() {
-                if let Some(paths) = &fc.library_paths {
-                    for p in paths {
-                        if !editor_library_paths.contains(p) {
-                            editor_library_paths.push(p.clone());
-                        }
-                    }
-                }
-            }
-        }
-        let discovered_cell = Arc::clone(&self.discovered_tcl);
-
-        // Stage 1: build the package database and walk the workspace trees for
-        // candidate paths. Cheap directory-metadata work, so it stays a single
-        // blocking call; the expensive per-file parse-and-analyse is stage 2,
-        // parallelised below (#1151 — this loop used to also run every file's
-        // `Analyser::analyse` here, serially, one root cause of the 38.7s/883-file
-        // startup cost).
-        let resolver_roots = roots.clone();
-        let (resolver, files) = crate::rt::spawn_blocking(move || {
-            let discovered = discovered_cell.get_or_init(|| {
-                core_tcl_install::discover(&core_tcl_install::default_search_bases())
-            });
-            let resolver = build_package_resolver(
-                &resolver_roots,
-                &editor_library_paths,
-                discovered,
-                WORKSPACE_SCAN_DIR_CAP,
-            );
-            let mut files: Vec<PathBuf> = Vec::new();
-            for root in &roots {
-                collect_tcl_files(root, WORKSPACE_SCAN_FILE_CAP, &mut files);
-            }
-            (resolver, files)
-        })
-        .await
-        .unwrap_or_else(|_| (PackageResolver::new(), Vec::new()));
+        let (resolver, files) = self.build_package_db_and_candidates(roots).await;
 
         // Drop the library files the autoload tier (M8) merged under the
         // *previous* package database before this scan's own batches add their
@@ -16866,6 +16849,71 @@ impl Backend {
             .await;
     }
 
+    /// Stage 1 of [`Self::scan_workspace_folders`]: build the package database
+    /// and walk the workspace trees for candidate paths.
+    ///
+    /// Cheap directory-metadata work, so it stays a single blocking call; the
+    /// expensive per-file parse-and-analyse is stage 2
+    /// ([`Self::analyse_and_merge_scanned_files`]), parallelised (#1151 — this
+    /// walk used to also run every file's `Analyser::analyse` here, serially,
+    /// one root cause of the 38.7s/883-file startup cost).
+    ///
+    /// Both halves read through the [`vfs::SourceStore`], so a host that
+    /// supplies bytes rather than a filesystem gets the same database and the
+    /// same candidate set. A failure folds to an empty pair, exactly as the
+    /// individual `.ok()`s did before the store existed.
+    async fn build_package_db_and_candidates(
+        &self,
+        roots: Vec<PathBuf>,
+    ) -> (PackageResolver, Vec<PathBuf>) {
+        // Inputs for the package-database `auto_path`: the editor's
+        // `tclLsp.libraryPaths` (config.ini / .tcl-lsp.ini layers are read from
+        // the store in the worker) and the discovered-installation cache.
+        // Per-folder `libraryPaths` overrides are unioned in so a folder's
+        // configured package directories contribute to the shared package
+        // database (the database is additive — more known packages only refines
+        // W120).
+        let mut editor_library_paths = self.editor_library_paths.lock().await.clone();
+        {
+            let folder_configs = self.folder_configs.lock().await;
+            for (_, fc) in folder_configs.iter() {
+                if let Some(paths) = &fc.library_paths {
+                    for p in paths {
+                        if !editor_library_paths.contains(p) {
+                            editor_library_paths.push(p.clone());
+                        }
+                    }
+                }
+            }
+        }
+        let discovered_cell = Arc::clone(&self.discovered_tcl);
+        let scan_store = Arc::clone(&self.store);
+        crate::rt::spawn_blocking(move || {
+            let discovered = discovered_cell.get_or_init(|| {
+                core_tcl_install::discover(&core_tcl_install::default_search_bases())
+            });
+            let resolver = build_package_resolver(
+                scan_store.as_ref(),
+                &roots,
+                &editor_library_paths,
+                discovered,
+                WORKSPACE_SCAN_DIR_CAP,
+            );
+            let mut files: Vec<PathBuf> = Vec::new();
+            for root in &roots {
+                collect_tcl_files(
+                    scan_store.as_ref(),
+                    root,
+                    WORKSPACE_SCAN_FILE_CAP,
+                    &mut files,
+                );
+            }
+            (resolver, files)
+        })
+        .await
+        .unwrap_or_else(|_| (PackageResolver::new(), Vec::new()))
+    }
+
     /// Stage 2 of [`Self::scan_workspace_folders`] (#1151): read + analyse
     /// `files` across a bounded worker pool (the `spawn_workspace_warm`
     /// semaphore pattern — acquire a permit before spawning, so at most
@@ -16900,6 +16948,7 @@ impl Backend {
             let open = Arc::clone(&open);
             let folder_dialects = Arc::clone(&folder_dialects);
             let default_dialect = default_dialect.clone();
+            let store = Arc::clone(&self.store);
             tasks.spawn(async move {
                 let _permit = permit;
                 crate::rt::spawn_blocking(move || {
@@ -16911,7 +16960,7 @@ impl Backend {
                     // Shared decoder, for the same reason `scan_disk_file`
                     // uses it: an ill-formed byte must not silently remove the
                     // file from the workspace index (issue #1326).
-                    let (raw, _) = tcl_lsp_core::source_decode::read_source_file(&path).ok()?;
+                    let (raw, _) = store.read_source(&path).ok()?;
                     let text = tcl_lexer::normalise_lone_cr(&raw).into_owned();
                     let dialect = folder_dialect_for(&uri, &folder_dialects)
                         .unwrap_or_else(|| default_dialect.clone());
@@ -16937,14 +16986,16 @@ impl Backend {
                 // install (`lappend auto_path [file dirname …]`) before
                 // merging, so the package database sees them as soon as
                 // their batch lands rather than only at the end of the scan.
-                resolver = extend_resolver_with_document_auto_paths(resolver, &batch);
+                resolver =
+                    extend_resolver_with_document_auto_paths(self.store.as_ref(), resolver, &batch);
                 self.merge_workspace_scan_results(&batch).await;
                 batch.clear();
             }
         }
         if !batch.is_empty() {
             files_count += batch.len();
-            resolver = extend_resolver_with_document_auto_paths(resolver, &batch);
+            resolver =
+                extend_resolver_with_document_auto_paths(self.store.as_ref(), resolver, &batch);
             self.merge_workspace_scan_results(&batch).await;
         }
         (resolver, files_count)
@@ -22449,6 +22500,7 @@ fn is_apl_source(uri: &Uri, language_id: &str) -> bool {
 async fn find_sibling_impl_vars(
     uri: &Uri,
     documents: &DocumentStore,
+    store: &dyn vfs::SourceStore,
 ) -> Option<Vec<tcl_bigip::apl::IappVarRef>> {
     let path = uri.to_file_path()?;
     let dir = path.parent()?.to_path_buf();
@@ -22489,15 +22541,16 @@ async fn find_sibling_impl_vars(
     //    first, then any `.iapp` / `.iappimpl` / `.impl` file (sorted for a
     //    deterministic pick).
     let impl_path = dir.join("implementation");
-    if impl_path.is_file()
-        && let Ok(content) = std::fs::read_to_string(&impl_path)
+    if store.is_file(&impl_path)
+        && let Ok(content) = store.read_to_string(&impl_path)
     {
         return Some(tcl_bigip::apl::extract_iapp_var_refs(&content));
     }
-    let mut ext_candidates: Vec<PathBuf> = std::fs::read_dir(&dir)
+    let mut ext_candidates: Vec<PathBuf> = store
+        .read_dir(&dir)
         .ok()?
-        .flatten()
-        .map(|e| e.path())
+        .into_iter()
+        .map(|e| e.path)
         .filter(|p| {
             *p != path
                 && p.extension().and_then(|s| s.to_str()).is_some_and(|ext| {
@@ -22510,7 +22563,7 @@ async fn find_sibling_impl_vars(
         .collect();
     ext_candidates.sort();
     for cand in ext_candidates {
-        if let Ok(content) = std::fs::read_to_string(&cand) {
+        if let Ok(content) = store.read_to_string(&cand) {
             return Some(tcl_bigip::apl::extract_iapp_var_refs(&content));
         }
     }
@@ -22530,6 +22583,7 @@ async fn f5_dialect_diagnostics(
     language_id: &str,
     disabled: &HashSet<String>,
     documents: &DocumentStore,
+    store: &dyn vfs::SourceStore,
 ) -> Option<Vec<tower_lsp_server::ls_types::Diagnostic>> {
     if Backend::is_bigip_dialect(dialect.name) {
         let (t, dis) = (text.to_owned(), disabled.clone());
@@ -22539,7 +22593,7 @@ async fn f5_dialect_diagnostics(
         return Some(diags);
     }
     if is_apl_source(uri, language_id) {
-        let impl_refs = find_sibling_impl_vars(uri, documents).await;
+        let impl_refs = find_sibling_impl_vars(uri, documents, store).await;
         let (t, dis) = (text.to_owned(), disabled.clone());
         let diags = crate::rt::spawn_blocking(move || {
             apl_presentation_diagnostics(&t, impl_refs.as_deref(), &dis)
@@ -22577,9 +22631,10 @@ fn refine_w120_diagnostics(
     diags: Vec<tcl_compiler::analyser::Diagnostic>,
     package_requires: &[String],
     resolver: &PackageResolver,
+    store: &dyn vfs::SourceStore,
     registry: &CommandRegistry,
 ) -> Vec<tcl_compiler::analyser::Diagnostic> {
-    let availability = W120Availability::resolve(package_requires, resolver, registry);
+    let availability = W120Availability::resolve(package_requires, resolver, store, registry);
     diags
         .into_iter()
         .filter(|d| !availability.suppresses(d))
@@ -22605,6 +22660,7 @@ impl W120Availability {
     fn resolve(
         package_requires: &[String],
         resolver: &PackageResolver,
+        store: &dyn vfs::SourceStore,
         registry: &CommandRegistry,
     ) -> Self {
         let unknowable = package_requires
@@ -22619,9 +22675,7 @@ impl W120Availability {
         Self {
             unknowable,
             available: resolver
-                .transitive_available_packages(package_requires, &|p| {
-                    std::fs::read_to_string(p).ok()
-                })
+                .transitive_available_packages(package_requires, &|p| store.read_to_string(p).ok())
                 .into_iter()
                 .collect(),
         }
@@ -22727,6 +22781,7 @@ async fn refine_workspace_w120(
     analysis: &AnalysisResult,
     inheritance: &SourceInheritance,
     package_resolver: &Arc<RwLock<PackageResolver>>,
+    store: &dyn vfs::SourceStore,
     registry: &CommandRegistry,
 ) -> Vec<tcl_compiler::analyser::Diagnostic> {
     if !analyser_diags.iter().any(|d| d.code == DiagCode::W120) {
@@ -22754,7 +22809,7 @@ async fn refine_workspace_w120(
     if inheritance.placed.is_empty() {
         let mut available = own;
         available.extend(inheritance.ambient.iter().cloned());
-        return refine_w120_diagnostics(analyser_diags, &available, &resolver, registry);
+        return refine_w120_diagnostics(analyser_diags, &available, &resolver, store, registry);
     }
     // One transitive scan per distinct availability set, keyed by its sorted
     // contents — so the overwhelmingly common "every W120 sees the same
@@ -22774,7 +22829,7 @@ async fn refine_workspace_w120(
         available.dedup();
         let scan = scans
             .entry(available.clone())
-            .or_insert_with(|| W120Availability::resolve(&available, &resolver, registry));
+            .or_insert_with(|| W120Availability::resolve(&available, &resolver, store, registry));
         if !scan.suppresses(&diag) {
             out.push(diag);
         }
@@ -22852,6 +22907,7 @@ fn refine_w123_diagnostics(
     diags: Vec<tcl_compiler::analyser::Diagnostic>,
     available: &[String],
     resolver: &PackageResolver,
+    store: &dyn vfs::SourceStore,
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> Vec<tcl_compiler::analyser::Diagnostic> {
     // Command names the document's available packages define via their
@@ -22864,7 +22920,8 @@ fn refine_w123_diagnostics(
         resolver.package_defined_commands(available, target, &|path| {
             // Shared decoder: a package implementation file with a stray high
             // byte should still contribute its command names.
-            tcl_lsp_core::source_decode::read_source_file(path)
+            store
+                .read_source(path)
                 .map(|(text, _)| defined_command_tails(&text, dialect))
                 .unwrap_or_default()
         })
@@ -23338,6 +23395,7 @@ async fn refine_workspace_w123(
     analysis: &AnalysisResult,
     inheritance: &SourceInheritance,
     package_resolver: &Arc<RwLock<PackageResolver>>,
+    store: &dyn vfs::SourceStore,
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> Vec<tcl_compiler::analyser::Diagnostic> {
     if !analyser_diags.iter().any(|d| d.code == DiagCode::W123) {
@@ -23370,7 +23428,7 @@ async fn refine_workspace_w123(
     available.extend(inheritance.ambient.iter().cloned());
     available.extend(inheritance.placed.iter().map(|p| p.name.clone()));
     let resolver = package_resolver.read().await;
-    refine_w123_diagnostics(analyser_diags, &available, &resolver, dialect)
+    refine_w123_diagnostics(analyser_diags, &available, &resolver, store, dialect)
 }
 
 /// The extra `package require` names available to `uri` for the #804 W120
@@ -23578,7 +23636,17 @@ fn whole_line_range(
 /// uses on every platform.
 #[must_use]
 pub fn canonical_file_uri<P: AsRef<Path>>(path: P) -> Option<Uri> {
-    let raw = Uri::from_file_path(path)?;
+    let path = path.as_ref();
+    let raw = match Uri::from_file_path(path) {
+        Some(raw) => raw,
+        // wasm32-unknown-unknown only; `cfg!` rather than `#[cfg]` so the
+        // branch is type-checked on every host, and `rooted_file_uri` is unit
+        // -tested natively.
+        None if cfg!(all(target_family = "wasm", target_os = "unknown")) => {
+            uri_norm::rooted_file_uri(path)?
+        }
+        None => return None,
+    };
     // `cfg!` keeps both branches type-checked on every host; unlike `#[cfg]`,
     // a macOS/Linux gate therefore catches Windows repair-path regressions.
     let raw = match uri_norm::repair_file_uri_from_path(raw.as_str(), cfg!(windows)) {
@@ -24236,6 +24304,7 @@ const WORKSPACE_SCAN_DIR_CAP: usize = 4000;
 /// with C Tcl's immediate-subdir rule. Pure filesystem work, so it runs on the
 /// scan worker.
 fn build_package_resolver(
+    store: &dyn vfs::SourceStore,
     roots: &[PathBuf],
     editor_library_paths: &[String],
     discovered: &[core_tcl_install::TclInstallation],
@@ -24243,10 +24312,10 @@ fn build_package_resolver(
 ) -> PackageResolver {
     let mut resolver = PackageResolver::new();
     for root in roots {
-        resolver.scan_tree(root, dir_cap);
+        resolver.scan_tree_in(store, root, dir_cap);
     }
-    for dir in effective_auto_path(roots, editor_library_paths, discovered) {
-        resolver.scan_path(&dir);
+    for dir in effective_auto_path(store, roots, editor_library_paths, discovered) {
+        resolver.scan_path_in(store, &dir);
     }
     resolver
 }
@@ -24293,6 +24362,7 @@ const DOCUMENT_AUTO_PATH_DIR_CAP: usize = 64;
 /// [`DOCUMENT_AUTO_PATH_DIR_CAP`] directories; it runs once per workspace
 /// scan, never per request.
 fn extend_resolver_with_document_auto_paths(
+    store: &dyn vfs::SourceStore,
     mut resolver: PackageResolver,
     analysed: &[(Uri, String, String, AnalysisResult)],
 ) -> PackageResolver {
@@ -24308,7 +24378,7 @@ fn extend_resolver_with_document_auto_paths(
         }
     }
     for dir in &dirs {
-        resolver.scan_path(dir);
+        resolver.scan_path_in(store, dir);
     }
     resolver
 }
@@ -24382,6 +24452,7 @@ fn document_auto_path_dirs(uri: &Uri, analysis: &AnalysisResult) -> Vec<PathBuf>
 /// 4. discovered Tcl installations' `auto_path`,
 /// 5. `TCLLIBPATH`.
 fn effective_auto_path(
+    store: &dyn vfs::SourceStore,
     roots: &[PathBuf],
     editor_library_paths: &[String],
     discovered: &[core_tcl_install::TclInstallation],
@@ -24396,7 +24467,7 @@ fn effective_auto_path(
         push(PathBuf::from(p), &mut out);
     }
     if let Some(cfg) = core_tcl_install::user_config_path()
-        && let Ok(content) = std::fs::read_to_string(&cfg)
+        && let Ok(content) = store.read_to_string(&cfg)
     {
         for p in core_tcl_install::library_paths_from_ini(&content, "global") {
             push(PathBuf::from(p), &mut out);
@@ -24404,7 +24475,7 @@ fn effective_auto_path(
     }
     for root in roots {
         let proj = core_tcl_install::project_config_path(root);
-        if let Ok(content) = std::fs::read_to_string(&proj) {
+        if let Ok(content) = store.read_to_string(&proj) {
             for p in core_tcl_install::library_paths_from_ini(&content, "project") {
                 push(PathBuf::from(p), &mut out);
             }
@@ -24533,29 +24604,30 @@ fn tcl_source_watch_glob() -> String {
 /// ignores unreadable directories so a single permission error
 /// doesn't abort the whole scan.  Iterative (explicit stack) to
 /// avoid unbounded recursion on deep trees.
-fn collect_tcl_files(root: &Path, cap: usize, out: &mut Vec<PathBuf>) {
+fn collect_tcl_files(
+    store: &dyn vfs::SourceStore,
+    root: &Path,
+    cap: usize,
+    out: &mut Vec<PathBuf>,
+) {
     let mut stack: Vec<PathBuf> = vec![root.to_path_buf()];
     while let Some(dir) = stack.pop() {
         if out.len() >= cap {
             return;
         }
-        let Ok(entries) = std::fs::read_dir(&dir) else {
+        let Ok(entries) = store.read_dir(&dir) else {
             continue;
         };
-        for entry in entries.flatten() {
-            let Ok(file_type) = entry.file_type() else {
-                continue;
-            };
-            let path = entry.path();
-            if file_type.is_dir() {
-                if !is_skipped_scan_dir(&path) {
-                    stack.push(path);
+        for entry in entries {
+            if entry.is_dir {
+                if !is_skipped_scan_dir(&entry.path) {
+                    stack.push(entry.path);
                 }
-            } else if file_type.is_file() && is_tcl_source(&path) {
+            } else if entry.is_file && is_tcl_source(&entry.path) {
                 if out.len() >= cap {
                     return;
                 }
-                out.push(path);
+                out.push(entry.path);
             }
         }
     }
@@ -25451,7 +25523,12 @@ mod tests {
             tcl_library: PathBuf::from("/sys/lib/tcl8.6"),
             auto_path: vec![PathBuf::from("/sys/lib"), PathBuf::from("/sys/lib/tcl8.6")],
         }];
-        let ap = effective_auto_path(std::slice::from_ref(&ws.0), &editor, &discovered);
+        let ap = effective_auto_path(
+            &vfs::NativeStore,
+            std::slice::from_ref(&ws.0),
+            &editor,
+            &discovered,
+        );
         assert!(ap.contains(&PathBuf::from("/editor/lib")));
         assert!(ap.contains(&PathBuf::from("/proj/lib")));
         assert!(ap.contains(&PathBuf::from("/sys/lib")));
@@ -25479,7 +25556,7 @@ mod tests {
             tcl_library: lib_root.join("tcl8.6"),
             auto_path: vec![lib_root.clone()],
         }];
-        let resolver = build_package_resolver(&[], &[], &discovered, 100);
+        let resolver = build_package_resolver(&vfs::NativeStore, &[], &[], &discovered, 100);
         assert!(
             resolver.provides("Tk"),
             "discovered install's Tk package should be in the database"
@@ -25496,6 +25573,7 @@ mod tests {
             vec![w120_diag("Tk")],
             &["myTkPackage".to_owned()],
             &resolver,
+            &vfs::NativeStore,
             &registry,
         );
         assert!(
@@ -25525,6 +25603,7 @@ mod tests {
             vec![w120_diag("Tk")],
             &["myTkPackage".to_owned()],
             &resolver,
+            &vfs::NativeStore,
             &registry,
         );
         assert!(
@@ -25553,6 +25632,7 @@ mod tests {
             vec![w120_diag("Tk")],
             &["plain".to_owned()],
             &resolver,
+            &vfs::NativeStore,
             &registry,
         );
         assert!(
@@ -29406,6 +29486,7 @@ mod tests {
             vec![w120_diag("http")],
             &["testpix".to_owned()],
             &resolver,
+            &vfs::NativeStore,
             registry,
         );
         assert_eq!(
@@ -29420,6 +29501,7 @@ mod tests {
             vec![w120_diag("http")],
             &["neverheardof".to_owned()],
             &resolver,
+            &vfs::NativeStore,
             registry,
         );
         assert!(
@@ -30847,6 +30929,7 @@ mod tests {
             client: &backend.client,
             diagnostic_publisher: &backend.diagnostic_publisher,
             documents: &backend.documents,
+            store: &backend.store,
             diag_slots: &backend.diag_slots,
             pull_diag_cache: &backend.pull_diag_cache,
             closed_diag_gen: &backend.closed_diag_gen,
@@ -33920,7 +34003,7 @@ mod tests {
         std::fs::write(root.join(".git/hook.tcl"), "set w 5\n").unwrap();
 
         let mut out = Vec::new();
-        collect_tcl_files(&root, 100, &mut out);
+        collect_tcl_files(&vfs::NativeStore, &root, 100, &mut out);
         let mut names: Vec<String> = out
             .iter()
             .map(|p| p.file_name().unwrap().to_string_lossy().into_owned())
@@ -33946,7 +34029,7 @@ mod tests {
         std::fs::write(root.join("test/argparse.test"), "plain\n").unwrap();
 
         let mut out = Vec::new();
-        collect_tcl_files(&root, 100, &mut out);
+        collect_tcl_files(&vfs::NativeStore, &root, 100, &mut out);
         let mut names: Vec<String> = out
             .iter()
             .map(|p| p.file_name().unwrap().to_string_lossy().into_owned())
@@ -33959,13 +34042,30 @@ mod tests {
     }
 
     #[test]
+    fn collect_tcl_files_reads_a_memory_store_workspace() {
+        let store = vfs::MemoryStore::new();
+        store.upsert("/ws/main.tcl", b"".to_vec());
+        store.upsert("/ws/lib/helpers.tcl", b"".to_vec());
+        store.upsert("/ws/tmp/mypkg/impl.tcl", b"".to_vec());
+        let mut out = Vec::new();
+        collect_tcl_files(&store, Path::new("/ws"), 100, &mut out);
+        let mut names: Vec<String> = out
+            .iter()
+            .map(|p| p.to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        // `tmp/` is a skipped scan directory, exactly as on disk.
+        assert_eq!(names, vec!["/ws/lib/helpers.tcl", "/ws/main.tcl"]);
+    }
+
+    #[test]
     fn collect_tcl_files_respects_cap() {
         let root = unique_scratch_dir("cap");
         for i in 0..10 {
             std::fs::write(root.join(format!("f{i}.tcl")), "set x 1\n").unwrap();
         }
         let mut out = Vec::new();
-        collect_tcl_files(&root, 3, &mut out);
+        collect_tcl_files(&vfs::NativeStore, &root, 3, &mut out);
         let got = out.len();
         std::fs::remove_dir_all(&root).ok();
         assert_eq!(got, 3);
@@ -35042,6 +35142,7 @@ mod tests {
                 client: &publishing_backend.client,
                 diagnostic_publisher: &publishing_backend.diagnostic_publisher,
                 documents: &publishing_backend.documents,
+                store: &publishing_backend.store,
                 diag_slots: &publishing_backend.diag_slots,
                 pull_diag_cache: &publishing_backend.pull_diag_cache,
                 closed_diag_gen: &publishing_backend.closed_diag_gen,
@@ -36599,6 +36700,7 @@ mod tests {
         )
         .unwrap();
         *backend.package_resolver.write().await = build_package_resolver(
+            &vfs::NativeStore,
             &[],
             &[libdir.display().to_string()],
             &[],
@@ -37199,6 +37301,7 @@ mod tests {
                 client: &publisher_backend.client,
                 diagnostic_publisher: &publisher_backend.diagnostic_publisher,
                 documents: &publisher_backend.documents,
+                store: &publisher_backend.store,
                 diag_slots: &publisher_backend.diag_slots,
                 pull_diag_cache: &publisher_backend.pull_diag_cache,
                 closed_diag_gen: &publisher_backend.closed_diag_gen,

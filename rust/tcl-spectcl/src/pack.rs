@@ -249,7 +249,7 @@ pub fn load_in_memory(sources: Vec<(PackFile, String)>) -> PackSet {
 /// `speclib` name.
 #[must_use]
 pub fn load(files: &[PackFile]) -> PackSet {
-    let (sources, notices) = read_sources(files);
+    let (sources, notices) = read_sources(&tcl_lsp_core::vfs::NativeStore, files);
     load_sources(sources, notices)
 }
 
@@ -259,12 +259,15 @@ pub fn load(files: &[PackFile]) -> PackSet {
 /// Split out of [`load`] so [`crate::bundled::load_discovered`] can add the
 /// embedded bundled sources to the same vec before the merge, instead of
 /// merging twice and reconciling two content keys.
-pub(crate) fn read_sources(files: &[PackFile]) -> (Vec<(PackFile, String)>, Vec<PackNotice>) {
+pub(crate) fn read_sources(
+    store: &dyn tcl_lsp_core::vfs::SourceStore,
+    files: &[PackFile],
+) -> (Vec<(PackFile, String)>, Vec<PackNotice>) {
     let mut sources: Vec<(PackFile, String)> = Vec::with_capacity(files.len());
     let mut notices: Vec<PackNotice> = Vec::new();
 
     for file in files {
-        match std::fs::read_to_string(&file.path) {
+        match store.read_to_string(&file.path) {
             Ok(source) => sources.push((file.clone(), source)),
             Err(err) => notices.push(PackNotice::whole_file(
                 &file.path,

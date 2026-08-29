@@ -47,10 +47,20 @@
 //!
 //! The worker's [`vfs::MemoryStore`] is where every *closed* file comes from —
 //! the host fills it in with [`LspWorker::vfs_upsert`]. Open documents never
-//! touch it; they arrive as `didOpen`/`didChange` like anywhere else. M1 is a
-//! single-document session, so the store is groundwork: the whole-workspace
-//! paths (folder scan, package database, spec-pack discovery) still look for a
-//! real filesystem and quietly find nothing, which is M2's job to fix.
+//! touch it; they arrive as `didOpen`/`didChange` like anywhere else.
+//!
+//! The whole-workspace paths read the same store, so a filled one gives a real
+//! workspace session rather than an empty one: the folder scan indexes every
+//! upserted file under a declared workspace folder, the package database is
+//! built from upserted `pkgIndex.tcl` / `tclIndex` files, and `.tclspec` packs
+//! the host registers with [`LspWorker::vfs_upsert_spec_pack`] load as the
+//! bundled tier. See [`tcl_lsp_core::vfs`] for the seam itself.
+//!
+//! Ordering is the host's job and the protocol already says it: upsert before
+//! `initialize`, because `initialized` is what loads the packs and runs the
+//! scan. Files that appear later need no new message either — post them as an
+//! ordinary `workspace/didChangeWatchedFiles`, exactly as an editor would for a
+//! file that changed outside it.
 
 use std::sync::Arc;
 
@@ -174,6 +184,57 @@ impl LspWorker {
     /// Returns whether anything was stored under that URI.
     pub fn vfs_delete(&self, uri: &str) -> bool {
         self.store.remove_uri(uri)
+    }
+
+    /// Register a `.tclspec` pack for the bundled tier.
+    ///
+    /// `name` is a file name, optionally with directories
+    /// (`vendor.tclspec`, `eda/xilinx.tclspec`); it is placed under
+    /// [`vfs::VIRTUAL_PACK_MOUNT`], which is where discovery looks when there
+    /// is no executable to sit beside. Separate from [`Self::vfs_upsert`]
+    /// because that one keys on a `file:` URI, and the mount deliberately is
+    /// not one a URI can spell.
+    ///
+    /// Call it before `initialize`: `initialized` loads the pack set once, and
+    /// a pack registered afterwards reaches the session only on the next
+    /// reload (a `didChangeConfiguration`, or a
+    /// `workspace/didChangeWatchedFiles` naming a `.tclspec`).
+    ///
+    /// `name` must stay **inside** the mount, so a rooted one and any `..`
+    /// component are refused: `Path::join` lets a rooted name replace the mount
+    /// outright and `..` walks out of it, either of which would let a pack
+    /// upsert shadow an arbitrary store path — a document the editor is about
+    /// to open, a `pkgIndex.tcl`. The host is trusted; the contract is still
+    /// worth stating in code rather than in prose. Returns whether the pack was
+    /// stored, matching [`Self::vfs_delete`]'s plain-bool style.
+    ///
+    /// The test is `has_root`, not `is_absolute`: `std` answers `false` to
+    /// `is_absolute` for *every* path on this target (see
+    /// `tcl_lsp_server::uri_norm::rooted_file_uri`), so a guard written that
+    /// way would admit exactly the names it exists to refuse.
+    pub fn vfs_upsert_spec_pack(&self, name: &str, text: &str) -> bool {
+        let name = std::path::Path::new(name);
+        let escapes = name.has_root()
+            || name
+                .components()
+                .any(|part| matches!(part, std::path::Component::ParentDir));
+        if escapes {
+            web_log(&format!(
+                "tcl-lsp: refused a spec-pack name that leaves the mount: {}",
+                name.display()
+            ));
+            return false;
+        }
+        let path = std::path::Path::new(vfs::VIRTUAL_PACK_MOUNT).join(name);
+        self.store.upsert(path, text.as_bytes().to_vec());
+        true
+    }
+
+    /// The store path prefix [`Self::vfs_upsert_spec_pack`] writes under, for a
+    /// host that would rather build the paths itself.
+    #[must_use]
+    pub fn spec_pack_mount() -> String {
+        vfs::VIRTUAL_PACK_MOUNT.to_owned()
     }
 
     /// How many closed files the worker currently holds.

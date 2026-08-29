@@ -223,7 +223,7 @@ The project uses GNU Make. Key targets:
 | `make fuzz`        | tcl-fuzz differential campaign (manual-only; see the fuzz-findings skill). |
 | `make test`        | **The CI-mirror test gate** — everything except Emacs: `test-rust` + `test-ext` + `runtime-rust-test` + `zed-query-check`. Use to reproduce CI locally; not required before a PR. |
 | `make test-rust`   | `cargo test --workspace --all-features` — includes the native lsp_e2e suite (`rust/tcl-lsp-server/tests/*_e2e.rs`); skip with `SKIP_TEST_RUST=1` |
-| `make test-ext`    | VS Code extension integration tests — the single-root suite **and** the multi-root (`test:multi-folder`) suite (xvfb on headless Linux) |
+| `make test-ext`    | VS Code extension integration tests — the single-root suite **and** the multi-root (`test:multi-folder`) suite (xvfb on headless Linux).  The **browser** extension host is a separate suite: `make lsp-server-wasm` then `cd editors/vscode && npm run test:web` (headless Chromium via `@vscode/test-web`; CI's `test-ext-web` job) |
 | `make lint-py`     | `ruff format --check` + `ruff check` over every tracked `.py` (versions pinned in the Makefile) |
 | `make format-py`   | `ruff format` over every tracked `.py` |
 | `make typecheck-py`| `ty` + `pyright` over every tracked `.py`.  Builds `.venv-typecheck`, which installs `f5report` (maturin-compiling the native `_engine`) plus pytest, so both checkers resolve every import for real.  Sublime host APIs are declared by stubs under `typings/`. |
@@ -235,7 +235,7 @@ The project uses GNU Make. Key targets:
 | `make rust-mcp`    | Build the `tcl-mcp` MCP server (`cargo build -p tcl-mcp`) |
 | `make rust-clis`   | Build the `tcl` + `f5-query` CLIs (`rust-tcl rust-f5`) |
 | `make compile`     | Compile the TypeScript extension         |
-| `make build-editor-vsix`        | Build the .vsix VS Code extension (bundles the native `tcl-lsp-server` binaries) |
+| `make build-editor-vsix`        | Build the .vsix VS Code extension (bundles the native `tcl-lsp-server` binaries; the untargeted *universal* package also carries the WASI module under `server/wasm/`, the fallback rung for an architecture none of the seven triples covers — see [`docs/design/rust/lsp-runtime-and-transports.md`](docs/design/rust/lsp-runtime-and-transports.md) Part 6) |
 | `make codegen`     | Regenerate all generated files (editor catalogs + settings + AI prompts) via `cargo xtask` |
 | make update-source-data | Explicitly refresh the embedded SslicTcl trust-store/TLS source bundle (network-capable; run only when intentionally updating provenance) |
 | make check-source-data | Offline verification of the embedded SslicTcl source bundle, provenance, hashes, licences, and deterministic generated output |
@@ -253,9 +253,11 @@ for the full contract:
 2. **Helpers** — `scripts/{build,codegen,check,capture,release,install,dev}/*`.
 3. **CI** — `.github/workflows/*.yml` (PR gate + tag-triggered
    artefact build → sign → attach to GitHub Release).
-4. **Publishing** — VS Code and JetBrains publish *from CI* behind
-   manually-approved Environments; Package Control (Sublime) and Zed
-   publish from the maintainer's laptop (they need no token).
+4. **Publishing** — VS Code, Open VSX, and JetBrains publish *from CI*
+   behind manually-approved Environments; Zed publishes from the
+   maintainer's laptop (no token).  Sublime Text has no publish step:
+   Package Control resolves the `TclLsp.sublime-package` asset the tagged
+   CI run attaches to the GitHub Release.
 
 **Invariant: a publish secret used in a workflow must be an Environment
 secret on a protected, manually-approved Environment.**  A marketplace
@@ -272,13 +274,24 @@ approval and cannot run on a non-tag ref.  Concretely:
   so freshly-fetched npm code never runs with it in the environment.
   `make publish-vsix` stays as a laptop fallback (keyless `az login`, or
   `VSCE_PAT`).
+- **Open VSX** (open-vsx.org — what code-server / openvscode-server /
+  Gitpod / Theia installs use) publishes from CI with `secrets.OVSX_PAT`,
+  an Environment secret on `marketplace-openvsx` (same protections).  It
+  ships the same VSIXes `vsce` publishes (the untargeted universal package
+  plus six platform-targeted ones) via the local, committed-lockfile `ovsx`
+  binary; the `publish-vsix-openvsx` job is gated on `vars.PUBLISH_VSIX_OPENVSX`
+  and never runs `--target` at publish time, same as the VS Code job.
+  `make publish-openvsx` stays as a laptop fallback (no keyless path —
+  `OVSX_PAT` only).
 - **JetBrains Marketplace** publishes from CI with `secrets.JETBRAINS_TOKEN`,
   an Environment secret on `marketplace-jetbrains` (same protections),
   uploading the released, checksum-verified `.zip` via the Marketplace REST
   API.  `make publish-jetbrains` stays as a laptop fallback.
-- **Package Control (Sublime)** and **zed-industries/extensions** need no
-  token — they publish by pushing to a maintainer-owned mirror / opening a
-  PR — so they stay laptop-only and never enter CI.
+- **Package Control (Sublime)** needs no token and no publish step at
+  all: its channel entry points at the release asset, so the tagged CI
+  build is the publish (`editors/sublime-text/SUBMITTING.md`).
+  **zed-industries/extensions** needs no token either — it publishes by
+  opening a PR — so it stays laptop-only and never enters CI.
 - CI otherwise uses only GitHub's built-in `github.token` + sigstore OIDC
   for attestations.
 
@@ -430,7 +443,7 @@ CI, and a manual-only exhaustive tier that never runs automatically.
 | Tier | When it runs | What runs |
 |---|---|---|
 | **smoke** (`make smoke`, `make smoke-p P=<crate>`) | locally, right after every compile; part of `make prep-pr` | the `smoke_*` / `*_smoke.rs` subset — one fast per-module sanity check per crate, seconds warm.  Reuses the dev-profile default-features build you just made (never `--all-features`), so it never forces a recompile |
-| **deep** (CI: `rust-tests`, `rust-tests-heavy`, `lsp-e2e`, `test-ext`, `cargo-deny`, `python`) | every PR and every push to `rust`/`main`, automatically | the full workspace suite (native lsp_e2e included), the VM-sim heavies, the VS Code extension, supply-chain audit, Python lint/typecheck.  CI skips work only when its inputs demonstrably didn't change (see "CI redundancy contract" below) |
+| **deep** (CI: `rust-tests`, `rust-tests-heavy`, `lsp-e2e`, `test-ext`, `test-ext-web`, `cargo-deny`, `python`) | every PR and every push to `rust`/`main`, automatically | the full workspace suite (native lsp_e2e included), the VM-sim heavies, the VS Code extension on the desktop **and** in a browser extension host, supply-chain audit, Python lint/typecheck.  CI skips work only when its inputs demonstrably didn't change (see "CI redundancy contract" below) |
 | **exhaustive / manual-only** (`make test-exhaustive`, `make fuzz`, `make tcltest-sweep[-check]`) | only when a human (or a deliberate scheduled job) invokes it by name | every `#[ignore]`d corpus sweep over `tmp/tcl*`/tcllib, differential-fuzz gates, privileged bpf/kernel tests, fuzz campaigns.  NEVER wire these into `prep-pr`, `test`, `check-all`, or CI |
 
 **Fuzzing is always manual.**  This covers campaigns (`make fuzz` /
@@ -479,9 +492,9 @@ skipped this step.
 Rebase off the branch you are targeting (`rust` for 2.x work, `main` for
 1.x stable), fix conflicts, run `make prep-pr`, and open the PR.  **Do not
 block on running the full suite locally** — CI runs the deep tier
-(`rust-tests` + `rust-tests-heavy` + `lsp-e2e` + `test-ext` + `cargo-deny`
-+ `python`) on every PR, in parallel, in a few minutes.  Subscribe to the
-PR's activity and fix forward when a deep suite fails.
+(`rust-tests` + `rust-tests-heavy` + `lsp-e2e` + `test-ext` + `test-ext-web`
++ `cargo-deny` + `python`) on every PR, in parallel, in a few minutes.
+Subscribe to the PR's activity and fix forward when a deep suite fails.
 
 `make test` (workspace + extension + runtime port + Zed query check) and
 `make test-emacs` remain available for reproducing a CI failure locally or
@@ -510,8 +523,10 @@ CI avoids re-testing what demonstrably didn't change, and the rules live in
   step-skips the test surface (the release graph still runs);
 - a **merge push** whose tree is byte-identical to its already-green PR head
   downgrades tests to a cache-warming build (`--no-run`);
-- **docs-only changes** skip the cargo test steps; the `python` and
-  `test-ext` suites run only when their input paths changed;
+- **docs-only changes** skip the cargo test steps; the `python`,
+  `test-ext`, and `test-ext-web` suites run only when their input paths
+  changed (`test-ext-web` on either `ext_changed` or `lsp_wasm_changed`,
+  because it consumes both the extension and the browser language server);
 - `cargo-deny` never skips (new advisories arrive against unchanged trees);
 - every skip fails safe: API error or ambiguity → run everything.
 

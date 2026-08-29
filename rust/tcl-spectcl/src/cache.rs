@@ -519,6 +519,45 @@ fn put_stmts(buf: &mut Vec<u8>, stmts: &[Stmt]) {
     }
 }
 
+/// The unique component of [`write_atomically`]'s temporary filename.
+///
+/// Natively this is the process id, which is what every other scratch path in
+/// this workspace uses, and the temp name keeps exactly the shape it always
+/// had.
+///
+/// WASI has no pids. `std::process::id()` there is `unsupported::process::id`,
+/// which **panics** ("no pids on this platform"), and the WASI language server
+/// is built `panic = "abort"` — so the first spec-pack load of any session
+/// whose cache directory happened to be writable killed the process outright
+/// (`wasmtime run --dir <project> --env XDG_CACHE_HOME=…` aborted with status
+/// 134 moments after `initialized`, having just created `spectcl/`). The
+/// embedded packs alone are enough to reach it; nothing user-supplied is
+/// needed. A realtime-clock reading plus a process-local sequence stands in —
+/// the same pattern `tcl_cli_support::spec_import`'s scratch directories use —
+/// and keeps the cross-process uniqueness [`write_atomically`]'s rename
+/// depends on.
+///
+/// `wasm32-unknown-unknown` (the browser server) deliberately keeps the pid
+/// spelling. It has no filesystem at all, so [`write_atomically`]'s
+/// `create_dir_all` fails before reaching this; `SystemTime::now()` panics
+/// there too, so trading one unreachable panic for another would buy nothing.
+fn temp_name_tag() -> String {
+    #[cfg(target_os = "wasi")]
+    {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |elapsed| elapsed.as_nanos());
+        let seq = COUNTER.fetch_add(1, Ordering::Relaxed);
+        format!("{nanos}-{seq}")
+    }
+    #[cfg(not(target_os = "wasi"))]
+    {
+        std::process::id().to_string()
+    }
+}
+
 /// Write via a uniquely-named sibling and rename, so a reader never sees a
 /// half-written entry and two servers writing the same pack cannot interleave.
 fn write_atomically(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
@@ -528,7 +567,7 @@ fn write_atomically(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
         ".{}.{}.tmp",
         path.file_name()
             .map_or_else(String::new, |n| n.to_string_lossy().into_owned()),
-        std::process::id()
+        temp_name_tag()
     ));
     {
         let mut file = std::fs::File::create(&temp)?;
@@ -851,6 +890,31 @@ speclib mylib 1 {
         let loaded = evaluate_pack_cached(SOURCE, Tier::Bundled);
         assert_eq!(shape(&loaded), shape(&crate::loader::evaluate_pack(SOURCE)));
         let _ = std::fs::remove_file(&cache.0);
+    }
+
+    /// The temp-name tag has to be a plain filename component on every target,
+    /// because [`write_atomically`] interpolates it into a sibling filename.
+    /// Natively it is still the pid; on WASI it is a clock reading plus a
+    /// sequence, because `std::process::id()` panics there and the WASI server
+    /// aborts on panic.
+    #[test]
+    fn the_temp_name_tag_is_a_usable_filename_component() {
+        let tag = temp_name_tag();
+        assert!(!tag.is_empty(), "empty tag would collide across writers");
+        assert!(
+            !tag.contains(std::path::MAIN_SEPARATOR) && !tag.contains('/'),
+            "{tag} is not a single path component"
+        );
+        assert!(
+            tag.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'),
+            "{tag} is not portable across filesystems"
+        );
+        #[cfg(not(target_os = "wasi"))]
+        assert_eq!(
+            tag,
+            std::process::id().to_string(),
+            "native shape unchanged"
+        );
     }
 
     #[test]

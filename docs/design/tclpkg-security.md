@@ -247,3 +247,9 @@ reasoning about a threat:
   is registry-side infrastructure, outside the client's reach; the client
   offers integrity hashes, lockfile pinning, and provenance hooks
   instead.
+- **Spec-pack hooks are a different sandbox.** A `.tclspec` pack's analysis
+  hooks run in the language server, not in `tcl pkg`, under their own
+  closed-whitelist VM and budgets. That model — and why the workspace pack
+  tier loads in an untrusted workspace while `tclLsp.specPacks` does not —
+  is in [`spec-packs.md`](spec-packs.md), "Covering the hooks" and
+  "Workspace trust".

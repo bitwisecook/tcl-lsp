@@ -47,8 +47,8 @@ There are two, and they are cut from **different branches**:
 
 | Line | Branch | Channel | GitHub release |
 | --- | --- | --- | --- |
-| **1.x — stable** | `main` | VS Code stable / JetBrains stable | latest |
-| **2.x — pre-release** (the Python → Rust rewrite) | `rust` | VS Code pre-release / JetBrains eap | pre-release, never "latest" |
+| **1.x — stable** | `main` | VS Code stable / Open VSX stable / JetBrains stable | latest |
+| **2.x — pre-release** (the Python → Rust rewrite) | `rust` | VS Code pre-release / Open VSX pre-release / JetBrains eap | pre-release, never "latest" |
 
 Nothing declares which line you are on except the version: `scripts/release/prerelease.sh`
 is the single source of truth, and it says a tag is a pre-release when
@@ -340,18 +340,20 @@ step 9.
 
 ### 9. Editor publishing
 
-**VS Code and JetBrains are published by CI, not here.** When the tag's CI
-run reaches the `publish-vsix-marketplace` and `publish-jetbrains-marketplace`
-jobs, each pauses on its protected Environment (`marketplace-vscode` /
+**VS Code, Open VSX, and JetBrains are published by CI, not here.** When the
+tag's CI run reaches the `publish-vsix-marketplace`, `publish-vsix-openvsx`,
+and `publish-jetbrains-marketplace` jobs, each pauses on its protected
+Environment (`marketplace-vscode` / `marketplace-openvsx` /
 `marketplace-jetbrains`) waiting for a reviewer. CI then publishes the
 released, checksum-verified `.vsix` / plugin `.zip` using the Environment
-secret (`secrets.VSCE_PAT` / `secrets.JETBRAINS_TOKEN`) — no publish token
-ever leaves the laptop, and the channel (stable vs pre-release/eap) is derived
-from the tag by `scripts/release/prerelease.sh`, not passed by hand.
+secret (`secrets.VSCE_PAT` / `secrets.OVSX_PAT` / `secrets.JETBRAINS_TOKEN`) —
+no publish token ever leaves the laptop, and the channel (stable vs
+pre-release/eap) is derived from the tag by `scripts/release/prerelease.sh`,
+not passed by hand.
 
-**Approve both deployments with `gh`, from the release laptop, as part of this
-flow** — there is no need to open the Actions UI. Only do this once step 8 has
-passed: approving is what actually ships to the marketplaces.
+**Approve all three deployments with `gh`, from the release laptop, as part of
+this flow** — there is no need to open the Actions UI. Only do this once step
+8 has passed: approving is what actually ships to the marketplaces.
 
 ```bash
 tag="vX.Y.Z"
@@ -362,11 +364,11 @@ run=$(gh run list --workflow ci.yml --limit 20 \
         --json databaseId,headBranch,event \
         --jq "[.[] | select(.headBranch==\"$tag\" and .event==\"push\")][0].databaseId")
 
-# Both environments wait at once. Check `can_approve` before trying.
+# All three environments wait at once. Check `can_approve` before trying.
 gh api "repos/bitwisecook/tcl-lsp/actions/runs/$run/pending_deployments" \
   --jq '.[] | "\(.environment.id)  \(.environment.name)  can_approve=\(.current_user_can_approve)"'
 
-# Approve both in a single call, feeding the ids straight from the query above.
+# Approve all three in a single call, feeding the ids straight from the query above.
 ids=$(gh api "repos/bitwisecook/tcl-lsp/actions/runs/$run/pending_deployments" \
         --jq '.[].environment.id')
 gh api "repos/bitwisecook/tcl-lsp/actions/runs/$run/pending_deployments" \
@@ -386,10 +388,18 @@ not a reviewer on that Environment — report that rather than working around it
 
 If `current_user_can_approve` is `false`, the account `gh` is authenticated as
 is not a reviewer on that Environment — report that rather than trying to work
-around it. The laptop targets `make publish-vsix` / `make publish-jetbrains`
-remain only as fallbacks if a CI job itself fails.
+around it. The laptop targets `make publish-vsix` / `make publish-openvsx` /
+`make publish-jetbrains` remain only as fallbacks if a CI job itself fails.
 
-This step's own remaining work is just **Sublime and Zed**.
+This step's own remaining work is just **Zed** (Open VSX is published by
+CI alongside the VS Code Marketplace — see the note above).
+
+Sublime Text has no publish step: Package Control's channel entry resolves
+the `TclLsp.sublime-package` asset that the tagged CI run attaches to the
+GitHub Release, so a stable release ships to Package Control users on its
+own. `make publish-verify` checks that the asset is actually on the latest
+stable release. (Registering the package on the channel is a one-time PR
+the user raises — see `editors/sublime-text/SUBMITTING.md`.)
 
 Before asking which editors to publish, run a readiness check so any
 missing token or unclaimed namespace surfaces *before* the user picks
@@ -405,18 +415,18 @@ exits non-zero only on `[fail]` (tool missing or remote unreachable).
 
 Then ask which editors to publish to using `AskUserQuestion`:
 
-> Which editors should be published? (All / None / comma-separated list of: sublime, zed)
+> Which editors should be published? (All / None / comma-separated list of: zed)
 > Default: None
 
-(VS Code and JetBrains are excluded — CI publishes both via the approval
-gates above. Only add `vscode` / `jetbrains` here if you are deliberately
-invoking the laptop fallback because a CI job failed.)
+(VS Code, Open VSX, and JetBrains are excluded — CI publishes all three via
+the approval gates above. Only add `vscode` / `openvsx` / `jetbrains` here if
+you are deliberately invoking the laptop fallback because a CI job failed.)
 
 Based on the response:
 
 - **None** (default): Skip publishing entirely.
-- **All**: Run `make publish-sublime publish-zed`. Do **not** run
-  `make publish-all`: it includes `publish-vsix` and `publish-jetbrains`,
+- **All**: Run `make publish-zed`. Do **not** run `make publish-all`: it
+  includes `publish-vsix`, `publish-openvsx`, and `publish-jetbrains`,
   which would try to re-publish the versions CI already shipped.
 - **Specific editors**: Run the corresponding `make publish-<editor>` targets.
 
@@ -427,24 +437,16 @@ Available targets:
   and runs `vsce publish --azure-credential`. Set `VSCE_PAT` only to force
   the legacy stored-PAT path (discouraged; Azure DevOps global PATs retire
   2026-12-01).
+- `make publish-openvsx` — Open VSX **laptop fallback only** (normally CI
+  publishes it; see the note at the top of this step). No keyless path —
+  requires `OVSX_PAT` (an account-wide token from
+  <https://open-vsx.org/user-settings/tokens> — that account must be a
+  member/owner of the `bitwisecook` namespace to publish there).
 - `make publish-jetbrains` — JetBrains Marketplace **laptop fallback only**
   (normally CI publishes it). Runs `./gradlew publishPlugin`. Requires
   `JETBRAINS_TOKEN` env var. The first-ever publish must be done
   interactively via the JetBrains web UI; `publishPlugin` only updates an
   already-listed plugin.
-- `make publish-sublime` — Sublime Text / Package Control. Pushes the
-  built `build/sublime-stage/` tree (the same contents that go into the
-  `.sublime-package`) to the dedicated mirror repo
-  `bitwisecook/tcl-lsp-sublime-text` at the current tag. Package Control
-  scrapes the mirror's tags and serves the package source archive
-  directly — no marketplace API call, no per-release channel PR. The
-  mirror exists because Package Control needs the package contents at
-  the root of a git tag, which our monorepo can't satisfy directly.
-  One-time setup: the empty mirror repo must exist on GitHub
-  (`gh repo create bitwisecook/tcl-lsp-sublime-text --public ...`).
-  Override the mirror destination with `TCL_LSP_SUBLIME_MIRROR_REPO`
-  and `TCL_LSP_SUBLIME_MIRROR_DIR`; set `TCL_LSP_SUBLIME_DRY_RUN=1` to
-  stage the commit + tag locally without pushing.
 - `make publish-zed` — Zed extensions registry. Prepares a local
   checkout of `zed-industries/extensions` with the tcl submodule advanced
   to the new tag and the version bumped in `extensions.toml`, then
@@ -457,8 +459,7 @@ PRs that the user raises by hand; there is no per-release publish step
 or `make publish-*` target for them.
 
 The make targets in this repository **only push to repositories owned
-by the maintainer** (the canonical repo, the
-`tcl-lsp-sublime-text` mirror). They never push to or open PRs against
+by the maintainer** (the canonical repo). They never push to or open PRs against
 external repositories — any external-repo PR (JetBrains first-time
 upload, Package Control channel submission, Zed extensions registry,
 nvim-lspconfig, Helix) is raised by the user.

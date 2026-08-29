@@ -47,6 +47,8 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
+use tcl_lsp_core::vfs::{NativeStore, SourceStore};
+
 use crate::PACK_EXTENSION;
 
 /// Which discovery tier a file came from. `Ord` is the precedence order —
@@ -93,6 +95,9 @@ pub enum Origin {
     UserDir,
     /// Shipped with the server.
     Bundled,
+    /// Supplied by the host under [`VIRTUAL_PACK_MOUNT`], because there is no
+    /// executable to sit beside.
+    HostMount,
 }
 
 impl Origin {
@@ -106,6 +111,7 @@ impl Origin {
             Origin::BesideManifest => "beside tclpkg.tcl",
             Origin::UserDir => "user config dir",
             Origin::Bundled => "bundled",
+            Origin::HostMount => "host spec-pack mount",
         }
     }
 }
@@ -138,6 +144,28 @@ pub const USER_PACK_SUBDIR: &str = "specs";
 /// that installs the loadables somewhere unusual — and every test — can point
 /// the bundled tier at a known place without a rebuild.
 pub const BUNDLED_DIR_ENV: &str = "TCL_LSP_SPEC_PACK_DIR";
+
+/// The directory the bundled tier is read from when there is no executable to
+/// sit beside — the contract between a host that has `.tclspec` bytes and the
+/// server that loads them.
+///
+/// [`bundled_dir`] answers "the `specs/` directory next to the running
+/// binary", which is meaningless in a browser worker: there is no executable,
+/// no `specs/`, and no filesystem to hold either. A host that wants its own
+/// packs loaded instead upserts them into the server's
+/// [`SourceStore`](tcl_lsp_core::vfs::SourceStore) under this prefix before
+/// (or during) the session — `<mount>/vendor.tclspec`,
+/// `<mount>/eda/xilinx.tclspec`, any depth — and [`discover_in`] walks it as
+/// the bundled tier.
+///
+/// The leading `\0` is what makes it safe to consult unconditionally: no real
+/// filesystem can name a path containing a NUL byte, so a native session's
+/// [`NativeStore`](tcl_lsp_core::vfs::NativeStore) can only ever answer "not
+/// found" here, and the mount cannot collide with, shadow, or be shadowed by
+/// anything a user actually has on disk. The `.tcl-lsp` component keeps it
+/// self-describing in the one place it *is* visible: a pack notice naming a
+/// file the host supplied.
+pub const VIRTUAL_PACK_MOUNT: &str = "/\0.tcl-lsp/specs";
 
 /// Ceiling on directories visited while hunting for `tclpkg.tcl` manifests.
 ///
@@ -253,11 +281,24 @@ pub fn is_pack_file(path: &Path) -> bool {
 /// pass keeps the first entry per path.
 #[must_use]
 pub fn discover(options: &DiscoveryOptions) -> Vec<PackFile> {
+    discover_in(&NativeStore, options)
+}
+
+/// [`discover`] against `store` rather than `std::fs`, plus the
+/// [`VIRTUAL_PACK_MOUNT`] bundled tier.
+///
+/// The store is the LSP server's closed-file seam
+/// ([`tcl_lsp_core::vfs`]) — natively a literal `std::fs` delegation, so
+/// `discover` is exactly this function; in a browser worker a byte map the host
+/// filled in, so a page's `.tclspec` files are discovered from memory.
+#[must_use]
+pub fn discover_in(store: &dyn SourceStore, options: &DiscoveryOptions) -> Vec<PackFile> {
     let mut found: BTreeSet<PackFile> = BTreeSet::new();
 
     // --- workspace tier -----------------------------------------------------
     for root in &options.workspace_roots {
         collect_dir(
+            store,
             &root.join(WORKSPACE_PACK_DIR).join(STUDIO_OVERRIDE_DIR),
             Tier::StudioOverride,
             Origin::StudioOverride,
@@ -269,16 +310,23 @@ pub fn discover(options: &DiscoveryOptions) -> Vec<PackFile> {
             } else {
                 root.join(configured)
             };
-            collect_path(&path, Tier::Workspace, Origin::Setting, &mut found);
+            collect_path(store, &path, Tier::Workspace, Origin::Setting, &mut found);
         }
         collect_dir(
+            store,
             &root.join(WORKSPACE_PACK_DIR),
             Tier::Workspace,
             Origin::DotDir,
             &mut found,
         );
-        for dir in manifest_dirs(root) {
-            collect_dir(&dir, Tier::Workspace, Origin::BesideManifest, &mut found);
+        for dir in manifest_dirs(store, root) {
+            collect_dir(
+                store,
+                &dir,
+                Tier::Workspace,
+                Origin::BesideManifest,
+                &mut found,
+            );
         }
     }
     // Folder-scoped `tclLsp.specPacks`. Resolved against its own folder and no
@@ -292,7 +340,7 @@ pub fn discover(options: &DiscoveryOptions) -> Vec<PackFile> {
             } else {
                 folder.join(configured)
             };
-            collect_path(&path, Tier::Workspace, Origin::Setting, &mut found);
+            collect_path(store, &path, Tier::Workspace, Origin::Setting, &mut found);
         }
     }
     // An absolute `tclLsp.specPacks` entry is meaningful even with no folder
@@ -301,7 +349,13 @@ pub fn discover(options: &DiscoveryOptions) -> Vec<PackFile> {
     if options.workspace_roots.is_empty() {
         for configured in &options.configured {
             if configured.is_absolute() {
-                collect_path(configured, Tier::Workspace, Origin::Setting, &mut found);
+                collect_path(
+                    store,
+                    configured,
+                    Tier::Workspace,
+                    Origin::Setting,
+                    &mut found,
+                );
             }
         }
     }
@@ -309,12 +363,27 @@ pub fn discover(options: &DiscoveryOptions) -> Vec<PackFile> {
     // --- user tier ----------------------------------------------------------
     if !options.skip_user_tier {
         let dir = options.user_dir.clone().unwrap_or_else(user_dir);
-        collect_dir(&dir, Tier::User, Origin::UserDir, &mut found);
+        collect_dir(store, &dir, Tier::User, Origin::UserDir, &mut found);
     }
 
     // --- bundled tier -------------------------------------------------------
     if let Some(dir) = options.bundled_dir.clone().or_else(bundled_dir) {
-        collect_dir(&dir, Tier::Bundled, Origin::Bundled, &mut found);
+        collect_dir(store, &dir, Tier::Bundled, Origin::Bundled, &mut found);
+    }
+    // The store's virtual mount, consulted only when the directory beside the
+    // executable produced nothing — the same "a real `specs/` stays
+    // authoritative when it has anything in it" rule
+    // `bundled::load_discovered` applies to its embedded fallback. Natively
+    // the mount cannot exist (see [`VIRTUAL_PACK_MOUNT`]), so this is a
+    // no-op there whether or not a `specs/` directory was found.
+    if !found.iter().any(|file| file.tier == Tier::Bundled) {
+        collect_dir(
+            store,
+            Path::new(VIRTUAL_PACK_MOUNT),
+            Tier::Bundled,
+            Origin::HostMount,
+            &mut found,
+        );
     }
 
     // One entry per path: the set is already ordered by (tier, path, origin),
@@ -327,10 +396,16 @@ pub fn discover(options: &DiscoveryOptions) -> Vec<PackFile> {
 }
 
 /// Add `path` — a `.tclspec` file, or a directory to scan for them.
-fn collect_path(path: &Path, tier: Tier, origin: Origin, out: &mut BTreeSet<PackFile>) {
-    if path.is_dir() {
-        collect_dir(path, tier, origin, out);
-    } else if path.is_file() && is_pack_file(path) {
+fn collect_path(
+    store: &dyn SourceStore,
+    path: &Path,
+    tier: Tier,
+    origin: Origin,
+    out: &mut BTreeSet<PackFile>,
+) {
+    if store.is_dir(path) {
+        collect_dir(store, path, tier, origin, out);
+    } else if store.is_file(path) && is_pack_file(path) {
         out.insert(PackFile {
             tier,
             path: normalise(path),
@@ -344,25 +419,27 @@ fn collect_path(path: &Path, tier: Tier, origin: Origin, out: &mut BTreeSet<Pack
 /// Recursive because a pack is a logical unit an author groups however they
 /// like (`docs/design/spec-packs.md`, "Loading and tooling") — one file per
 /// namespace in subdirectories is a shape the design explicitly invites.
-fn collect_dir(dir: &Path, tier: Tier, origin: Origin, out: &mut BTreeSet<PackFile>) {
+fn collect_dir(
+    store: &dyn SourceStore,
+    dir: &Path,
+    tier: Tier,
+    origin: Origin,
+    out: &mut BTreeSet<PackFile>,
+) {
     let mut stack = vec![dir.to_path_buf()];
     while let Some(current) = stack.pop() {
-        let Ok(entries) = std::fs::read_dir(&current) else {
+        let Ok(entries) = store.read_dir(&current) else {
             continue;
         };
-        for entry in entries.flatten() {
-            let Ok(kind) = entry.file_type() else {
-                continue;
-            };
-            let path = entry.path();
-            if kind.is_dir() {
-                if !is_skipped_dir(&path) {
-                    stack.push(path);
+        for entry in entries {
+            if entry.is_dir {
+                if !is_skipped_dir(&entry.path) {
+                    stack.push(entry.path);
                 }
-            } else if kind.is_file() && is_pack_file(&path) {
+            } else if entry.is_file && is_pack_file(&entry.path) {
                 out.insert(PackFile {
                     tier,
-                    path: normalise(&path),
+                    path: normalise(&entry.path),
                     origin,
                 });
             }
@@ -371,7 +448,7 @@ fn collect_dir(dir: &Path, tier: Tier, origin: Origin, out: &mut BTreeSet<PackFi
 }
 
 /// The directories under `root` that hold a `tclpkg.tcl` manifest.
-fn manifest_dirs(root: &Path) -> Vec<PathBuf> {
+fn manifest_dirs(store: &dyn SourceStore, root: &Path) -> Vec<PathBuf> {
     let mut dirs = Vec::new();
     let mut visited = 0usize;
     let mut stack = vec![root.to_path_buf()];
@@ -380,22 +457,19 @@ fn manifest_dirs(root: &Path) -> Vec<PathBuf> {
             break;
         }
         visited += 1;
-        let Ok(entries) = std::fs::read_dir(&current) else {
+        let Ok(entries) = store.read_dir(&current) else {
             continue;
         };
         let mut has_manifest = false;
         let mut children: Vec<PathBuf> = Vec::new();
-        for entry in entries.flatten() {
-            let Ok(kind) = entry.file_type() else {
-                continue;
-            };
-            let path = entry.path();
-            if kind.is_dir() {
-                if !is_skipped_dir(&path) {
-                    children.push(path);
+        for entry in entries {
+            if entry.is_dir {
+                if !is_skipped_dir(&entry.path) {
+                    children.push(entry.path);
                 }
-            } else if kind.is_file()
-                && path
+            } else if entry.is_file
+                && entry
+                    .path
                     .file_name()
                     .and_then(|n| n.to_str())
                     .is_some_and(|n| n.eq_ignore_ascii_case(PACKAGE_MANIFEST))
@@ -445,6 +519,12 @@ fn is_skipped_dir(path: &Path) -> bool {
 /// scan) deduplicates. Falls back to the path as given — an unreadable path is
 /// still worth reporting, and a notice naming a symlink the user wrote is
 /// friendlier than one naming its target.
+///
+/// Deliberately **not** routed through the [`SourceStore`]: resolving `..`,
+/// symlinks, and a relative path against the process's working directory is a
+/// capability a byte map genuinely does not have, and the fallback is already
+/// the right answer for a store-supplied path — its spelling is the only one
+/// it has.
 fn normalise(path: &Path) -> PathBuf {
     std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
@@ -667,5 +747,116 @@ mod tests {
         });
         assert!(found.is_empty());
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_host_filled_store_supplies_the_bundled_tier_at_the_virtual_mount() {
+        let store = tcl_lsp_core::vfs::MemoryStore::new();
+        let mount = PathBuf::from(VIRTUAL_PACK_MOUNT);
+        // Nested, to prove the mount is walked recursively like any other
+        // bundled directory and that MemoryStore's implied ancestors list.
+        store.upsert(
+            mount.join("vendor.tclspec"),
+            b"speclib vendor 1 {}\n".to_vec(),
+        );
+        store.upsert(
+            mount.join("eda/xilinx.tclspec"),
+            b"speclib xil 1 {}\n".to_vec(),
+        );
+
+        let found = discover_in(
+            &store,
+            &DiscoveryOptions {
+                skip_user_tier: true,
+                ..DiscoveryOptions::default()
+            },
+        );
+        let names: Vec<String> = found
+            .iter()
+            .map(|f| f.path.file_name().unwrap().to_string_lossy().into_owned())
+            .collect();
+        // Sorted by full path, so the `eda/` subdirectory sorts before the
+        // file sitting directly in the mount.
+        assert_eq!(
+            names,
+            vec!["xilinx.tclspec", "vendor.tclspec"],
+            "{found:#?}"
+        );
+        assert!(
+            found
+                .iter()
+                .all(|f| f.tier == Tier::Bundled && f.origin == Origin::HostMount)
+        );
+    }
+
+    #[test]
+    fn an_on_disk_bundled_directory_still_wins_over_the_virtual_mount() {
+        let root = tmpdir("mount-vs-disk");
+        write(&root.join("bundled/b.tclspec"), "speclib b 1 {}\n");
+        let store = tcl_lsp_core::vfs::MemoryStore::new();
+        store.upsert(
+            PathBuf::from(VIRTUAL_PACK_MOUNT).join("ignored.tclspec"),
+            b"speclib ignored 1 {}\n".to_vec(),
+        );
+        // The store here answers for *both* halves, so the on-disk directory is
+        // modelled as store content under its real path — the point under test
+        // is the precedence rule, not which backend served it.
+        store.upsert(root.join("bundled/b.tclspec"), b"speclib b 1 {}\n".to_vec());
+
+        let found = discover_in(
+            &store,
+            &DiscoveryOptions {
+                bundled_dir: Some(root.join("bundled")),
+                skip_user_tier: true,
+                ..DiscoveryOptions::default()
+            },
+        );
+        let names: Vec<String> = found
+            .iter()
+            .map(|f| f.path.file_name().unwrap().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(names, vec!["b.tclspec"], "{found:#?}");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_host_mount_pack_does_not_displace_the_shipped_loadables() {
+        // `load_discovered_in`'s embedded fallback keys on a *shipped
+        // directory*, not on the bundled tier being empty, so a host that
+        // upserts one vendor pack still gets the EDA libraries.
+        let store = tcl_lsp_core::vfs::MemoryStore::new();
+        store.upsert(
+            PathBuf::from(VIRTUAL_PACK_MOUNT).join("vendor.tclspec"),
+            b"speclib hostvendor 1 {}\n".to_vec(),
+        );
+        let found = discover_in(
+            &store,
+            &DiscoveryOptions {
+                skip_user_tier: true,
+                ..DiscoveryOptions::default()
+            },
+        );
+        let loaded = crate::bundled::load_discovered_in(&store, &found);
+        let names: Vec<&str> = loaded.packs.iter().map(|p| p.name.as_str()).collect();
+        assert!(names.contains(&"hostvendor"), "{names:?}");
+        assert!(
+            names.len() > 1,
+            "the shipped loadables must survive: {names:?}"
+        );
+    }
+
+    #[test]
+    fn the_virtual_mount_cannot_name_a_real_file() {
+        // The NUL is what makes the mount safe to consult on every native
+        // session: `std::fs` refuses the path outright rather than reading
+        // whatever happens to be there.
+        assert!(VIRTUAL_PACK_MOUNT.contains('\0'));
+        assert!(std::fs::read_dir(VIRTUAL_PACK_MOUNT).is_err());
+        let found = discover(&DiscoveryOptions {
+            skip_user_tier: true,
+            bundled_dir: Some(PathBuf::from("/no-such-bundled-dir")),
+            ..DiscoveryOptions::default()
+        });
+        assert!(found.is_empty(), "{found:#?}");
     }
 }

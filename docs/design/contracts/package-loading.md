@@ -87,6 +87,11 @@ per-dialect spec packs, never as name-matching in a consumer (see
 9. `PackageResolver::scan_tree(root, max_dirs)` walks a workspace tree (each
    directory and its immediate subdirectories, bounded by `max_dirs`) and
    `scan_path(dir)` scans one directory, mirroring C Tcl's `tclPkgUnknown`.
+   Both read through the server's closed-file store rather than `std::fs`:
+   `scan_tree_in` / `scan_path_in` take a `tcl_lsp_core::vfs::SourceStore`,
+   and the two-argument forms are `NativeStore` wrappers over them, so a
+   browser host that supplies `pkgIndex.tcl` / `tclIndex` bytes builds the
+   same database. See [lsp-source-store.md](lsp-source-store.md).
 10. `parse_pkg_index` extracts `package ifneeded <name> <version> <script>`
     entries and the source targets the script would `source` / `load`;
     `parse_tcl_index` extracts the `auto_index` proc → file mappings from a

@@ -165,6 +165,10 @@ symptom with several possible causes worth telling apart. See rule 13 in
 - [kcs-howto-build-multiplatform-vsix.md](kcs-howto-build-multiplatform-vsix.md)
   — build the universal VS Code `.vsix` that bundles a native server per
   platform, and add a new platform.
+- [kcs-howto-use-tcl-lsp-in-the-browser.md](kcs-howto-use-tcl-lsp-in-the-browser.md)
+  — run the extension on vscode.dev / github.dev with no binary to install:
+  what works there, what stays desktop-only, and the limits on cross-file
+  results in a virtual workspace.
 - [kcs-howto-add-compiler-pass.md](kcs-howto-add-compiler-pass.md) — add
   a new pass to the compiler pipeline.
 - [kcs-howto-array-element-ssa-typing.md](kcs-howto-array-element-ssa-typing.md)

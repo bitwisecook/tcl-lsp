@@ -1,4 +1,4 @@
-# Sublime Text — Tcl Language Support
+# TclLsp — Tcl Language Support for Sublime Text
 
 Full Tcl and iRules language support for Sublime Text, powered by
 [tcl-lsp](https://github.com/bitwisecook/tcl-lsp).
@@ -9,13 +9,13 @@ with a superset of its features across all Tcl dialects.
 ## Requirements
 
 - **Sublime Text** 4 (build 4107+)
-- Nothing else — the `.sublime-package` bundles the self-contained native
-  `tcl-lsp-server` binary. No Python, runtime, or interpreter is needed for
-  the server.
-- The **[LSP](https://packagecontrol.io/packages/LSP)** package — install
-  it **first**, before this package, for full language-server features
-  (diagnostics, completions, hover, formatting, code actions, and more).
-  Syntax highlighting, snippets, and settings work without it.
+- The **[LSP](https://packagecontrol.io/packages/LSP)** package, for
+  language-server features (diagnostics, completions, hover, formatting,
+  code actions, and more). Syntax highlighting, snippets, symbol
+  indexing and editor defaults work without it.
+- Nothing else. With LSP installed, the `tcl-lsp-server` build for your
+  platform is downloaded on first use — no Python, runtime, or
+  interpreter is needed for the server.
 
 Install LSP from Package Control:
 
@@ -23,78 +23,97 @@ Install LSP from Package Control:
 
 ## Installation
 
-### Via Package Control (recommended, once tcl-lsp is on the channel)
+### Via Package Control (recommended)
 
 1. Open the Command Palette → **Package Control: Install Package**
-2. Search for **Tcl-LSP** and install it
-3. Restart Sublime Text and install the **LSP** package for full
-   language-server features
-
-Maintainer note: Package Control fetches the package source archive from
-the `bitwisecook/tcl-lsp-sublime-text` mirror repo (a flat-layout sibling
-of this monorepo that exists because Package Control's `tags: true`
-discovery downloads the git tarball at each tag and expects the package
-contents at the root). The mirror is repopulated and tagged from
-`build/sublime-stage/` by `make publish-sublime` on every release; no
-edit to that repo is ever needed by hand.
+2. Search for **TclLsp** and install it
+3. Install the **LSP** package the same way, for full language-server
+   features
 
 ### Manual install
 
-1. Download `Tcl.sublime-package` from the
+1. Download `TclLsp.sublime-package` from the
    [latest release](https://github.com/bitwisecook/tcl-lsp/releases/latest)
-2. Copy it to your Sublime Text **Installed Packages** directory:
+2. Copy it, filename unchanged, into your Sublime Text
+   **Installed Packages** directory:
 
    ```bash
    # macOS
-   cp Tcl.sublime-package ~/Library/Application\ Support/Sublime\ Text/Installed\ Packages/
+   cp TclLsp.sublime-package ~/Library/Application\ Support/Sublime\ Text/Installed\ Packages/
 
    # Linux
-   cp Tcl.sublime-package ~/.config/sublime-text/Installed\ Packages/
+   cp TclLsp.sublime-package ~/.config/sublime-text/Installed\ Packages/
 
    # Windows (PowerShell)
-   Copy-Item Tcl.sublime-package "$env:APPDATA\Sublime Text\Installed Packages\"
+   Copy-Item TclLsp.sublime-package "$env:APPDATA\Sublime Text\Installed Packages\"
    ```
-
-   > **Important:** The file **must** be named `Tcl.sublime-package`.
-   > If you downloaded the versioned filename (`tcl-lsp-sublime-*.sublime-package`),
-   > rename it to `Tcl.sublime-package` before copying.
 
 3. Restart Sublime Text
 4. Install the [LSP](https://packagecontrol.io/packages/LSP) package from
-   Package Control for full language-server features
+   Package Control for language-server features
 
-The `.sublime-package` bundles the native `tcl-lsp-server` binary for each
-platform, so there is nothing further to install for LSP features. The
-bundled server is extracted to the Sublime Text cache on first load and
-marked executable there.
-
-To point the package at a different build, set `server_path` in
-**Preferences > Package Settings > LSP-Tcl > Settings**.
-
-See the [Installation Guide](../../INSTALL-editors.md) for the full
-per-editor matrix.
+See the
+[Installation Guide](https://github.com/bitwisecook/tcl-lsp/blob/rust/INSTALL-editors.md)
+for the full per-editor matrix.
 
 ### Development install (from source)
 
 1. Clone the repository
 2. Symlink `editors/sublime-text` into your Sublime Text `Packages`
-   directory as `Tcl`:
+   directory as `TclLsp`:
 
    ```bash
    # macOS
    ln -s /path/to/tcl-lsp/editors/sublime-text \
-       ~/Library/Application\ Support/Sublime\ Text/Packages/Tcl
+       ~/Library/Application\ Support/Sublime\ Text/Packages/TclLsp
 
    # Linux
    ln -s /path/to/tcl-lsp/editors/sublime-text \
-       ~/.config/sublime-text/Packages/Tcl
+       ~/.config/sublime-text/Packages/TclLsp
    ```
 
 3. Install the **LSP** package from Package Control
 
-The plugin itself needs no build step. Language-server features additionally
-need the `tcl-lsp-server` binary on `PATH` (see
-[`INSTALL-editors.md`](../../INSTALL-editors.md)).
+The plugin itself needs no build step. A checkout has no release version
+stamped into it, so the plugin resolves the newest published release
+instead; a `tcl-lsp-server` binary staged at `server/tcl-lsp-server`
+inside the package directory takes precedence over any download, which is
+how you point Sublime Text at a local `cargo build`.
+
+## The language server
+
+The package ships no binary — one `.sublime-package` serves every
+platform, so a bundled server would be right for one platform and wrong
+for the rest. Instead, the first time you open a Tcl file with the LSP
+package installed, the plugin downloads
+`tcl-lsp-server-<target-triple>` for your platform from the tcl-lsp
+release matching this package, and stores it under LSP's package storage.
+Older versions are pruned on upgrade.
+
+The download is accepted only if it matches the SHA-256 **pinned inside
+this package**, which CI computed from the very binaries it attached to
+that release. That digest reaches you through Package Control rather than
+from the release the binary comes from, so a swapped release asset is
+rejected even though an attacker could publish a matching `SHA256SUMS`
+beside it. A package built from a source checkout has no pins and falls
+back to the release's `SHA256SUMS` — an integrity check on the transfer,
+not proof of origin — and says so in the console when it does.
+
+The `.tclspec` packs for the EDA dialects ship *inside* the package (they
+are plain data, identical everywhere) and are staged beside the server.
+
+To use a server you built or installed yourself, set `server_path` — the
+download is then skipped entirely:
+
+```json
+{
+    "server_path": "/path/to/tcl-lsp-server"
+}
+```
+
+Supported download platforms are macOS, Linux and Windows on x64 and
+arm64. On anything else (Linux riscv64, say), install the server yourself
+and set `server_path`.
 
 ## What the plugin provides
 
@@ -114,14 +133,12 @@ These features work out of the box with no additional dependencies:
 - **Symbol indexing** — `Goto Symbol` (`Ctrl+R`) for proc definitions
   and iRules event handlers
 - **Editor defaults** — tab size 4, spaces, 120-character ruler
-- **Built-in TCL package disabled** automatically to avoid duplicate
-  syntax entries in the language menu
 
 ### With LSP (full language server)
 
 When the [LSP](https://packagecontrol.io/packages/LSP) package is
-installed, the plugin automatically registers the bundled tcl-lsp server
-and enables:
+installed, the plugin automatically registers the tcl-lsp server and
+enables:
 
 - **Diagnostics** — errors, warnings, security, taint-tracking, and
   style hints with squiggly underlines
@@ -148,6 +165,23 @@ and enables:
 Selecting a dialect-specific syntax from **View > Syntax** (e.g.
 "iRule", "Tcl 8.4", "Tcl 9.0") automatically updates the LSP server's
 dialect setting so diagnostics and completions match the chosen dialect.
+
+## Recommended setup
+
+Two settings live outside this package, so it asks before touching them —
+once after installation, and on demand from the Command Palette via
+**Tcl: Recommended Setup**:
+
+- **Disable Sublime Text's built-in `TCL` package.** It ships its own Tcl
+  syntax, so without this each Tcl syntax appears twice in the language
+  menu. Disabling it adds `TCL` to `ignored_packages` in your
+  preferences.
+- **Turn on LSP's `semantic_highlighting`.** It is off by default in the
+  LSP package, and without it tcl-lsp's semantic tokens never reach the
+  buffer.
+
+Decline and everything else still works; both are ordinary preferences
+you can change at any time.
 
 ## Supported dialects
 
@@ -180,7 +214,7 @@ Select a dialect from the Command Palette: **Tcl: Select Dialect**.
 
 ### LSP settings
 
-**Preferences > Package Settings > Tcl > LSP Settings**
+**Preferences > Package Settings > TclLsp > LSP Settings**
 
 ```json
 {
@@ -196,59 +230,62 @@ Select a dialect from the Command Palette: **Tcl: Select Dialect**.
 }
 ```
 
-### Custom server path
+### Editor settings
 
-If the bundled server is not found or you want to use a different version:
+**Preferences > Package Settings > TclLsp > Editor Settings** — tab size,
+rulers, and the other per-syntax editor defaults.
+
+## Key bindings
+
+This package ships **no** key bindings, so a fresh install can never take
+a chord you already use. Bind any command yourself in
+**Preferences > Key Bindings**:
 
 ```json
-{
-    "server_path": "/path/to/tcl-lsp-server"
-}
+[
+	{"keys": ["ctrl+alt+f"], "command": "lsp_format_document"},
+	{"keys": ["ctrl+alt+d"], "command": "tcl_select_dialect"}
+]
 ```
 
-### Key bindings
+The bindable command names are the `command` column of the
+[Command Palette](#command-palette) table below, plus LSP's own commands
+(`lsp_format_document` and friends). For a step-by-step walkthrough,
+including scoping a binding to Tcl buffers only, see
+[How do I bind keys to the Tcl commands in Sublime Text?](https://github.com/bitwisecook/tcl-lsp/blob/rust/docs/kcs/kcs-howto-bind-sublime-tcl-commands.md).
 
-This package ships **no** key bindings by default, to avoid clashing with
-your own. Example bindings for every command live in
-**Preferences > Package Settings > Tcl > Key Bindings**, which opens the
-commented-out example keymap on the left and your own user keymap on the
-right. Copy any binding you want into the right-hand pane and uncomment it.
+## Command Palette
 
-For a step-by-step walkthrough and the full list of bindable commands,
-see [How do I bind keys to the Tcl commands in Sublime Text?](https://github.com/bitwisecook/tcl-lsp/blob/main/docs/kcs/kcs-howto-bind-sublime-tcl-commands.md).
+| Command | `command` | Description |
+|---------|-----------|-------------|
+| **Tcl: Select Dialect** | `tcl_select_dialect` | Choose the active Tcl dialect |
+| **Tcl: Restart Language Server** | `tcl_restart_server` | Restart the LSP server |
+| **Tcl: Format Document** | `tcl_format_document` | Format the current document |
+| **Tcl: Minify Document** | `tcl_minify_document` | Minify the current document |
+| **Tcl: Unminify Error** | `tcl_unminify_error` | Translate minified error messages using a symbol map |
+| **Tcl: Apply Safe Quick Fixes** | `tcl_fix_all_safe_issues` | Apply all safe automatic fixes |
+| **Tcl: Apply All Optimisations** | `tcl_optimise_document` | Apply optimisation suggestions |
+| **Tcl: Recommended Setup** | `tcl_recommended_setup` | Re-offer the two recommended settings |
+| **Preferences: Tcl LSP Settings** | `edit_settings` | Open LSP settings |
+| **Preferences: Tcl Editor Settings** | `edit_settings` | Open editor settings |
 
-## Disabling the context menu
+## Context menu
 
 The package adds a few entries (Format Document, Minify Document, Unminify
 Error, Apply Safe Quick Fixes) to the editor right-click menu. They only
 appear in Tcl and iRules files — each command's `is_visible` check hides
 it in other file types.
 
-If you'd rather not have them at all, you can override the menu: create the
-file `Packages/Tcl/Context.sublime-menu` (use **Browse Packages…** from the
-menu to find your `Packages` directory) and put an empty list in it to
-remove every entry:
+To remove them, override the menu: create the file
+`Packages/TclLsp/Context.sublime-menu` (use **Browse Packages…** from the
+menu to find your `Packages` directory) containing an empty list:
 
 ```json
 []
 ```
 
-Anything you put in that file replaces the bundled context menu, so you can
-also keep only the entries you want.
-
-## Command Palette
-
-| Command | Description |
-|---------|-------------|
-| **Tcl: Select Dialect** | Choose the active Tcl dialect |
-| **Tcl: Restart Language Server** | Restart the LSP server |
-| **Tcl: Format Document** | Format the current document |
-| **Tcl: Minify Document** | Minify the current document |
-| **Tcl: Unminify Error** | Translate minified error messages using a symbol map |
-| **Tcl: Apply Safe Quick Fixes** | Apply all safe automatic fixes |
-| **Tcl: Apply All Optimisations** | Apply optimisation suggestions |
-| **Preferences: Tcl LSP Settings** | Open LSP settings |
-| **Preferences: Tcl Editor Settings** | Open editor settings |
+Anything in that file replaces the bundled context menu, so you can also
+keep only the entries you want.
 
 ## Snippets
 
@@ -291,9 +328,14 @@ This package is a drop-in replacement for
 4. The built-in formatter is now powered by the LSP server and supports
    all Tcl dialects, not just iRules
 
-## Licence
+## Migrating from a hand-installed `Tcl.sublime-package`
 
-AGPL-3.0-or-later — see [LICENSE](../../LICENSE) for details.
+Before this package reached Package Control it was installed by hand as
+`Tcl.sublime-package`. Delete that file from your **Installed Packages**
+directory after installing **TclLsp** — left in place, every syntax and
+the language server are registered twice. The plugin says so once if it
+finds one. Settings you saved in `Packages/User/LSP-Tcl.sublime-settings`
+carry over unchanged.
 
 ## Configuration File
 
@@ -309,13 +351,20 @@ defaults (diagnostics, optimiser, shimmer, features, formatting):
 
 `$XDG_CONFIG_HOME` overrides the default on every platform.
 
-Settings from the config file are applied as baseline defaults.  Sublime
-Text LSP settings (`Preferences > Package Settings > Tcl > LSP Settings`)
-override the config file — so you can set shared defaults in the config
-file and per-project overrides in Sublime Text.
+Settings from the config file are applied as baseline defaults. Sublime
+Text LSP settings (`Preferences > Package Settings > TclLsp > LSP
+Settings`) override the config file — so you can set shared defaults in
+the config file and per-project overrides in Sublime Text.
 
 Use the `tcl-lsp.exportConfig` command via `workspace/executeCommand` to
 write current settings to the config file.
 
-See [docs/design/contracts/xdg-config.md](../../docs/design/contracts/xdg-config.md) for
-the full reference.
+See
+[docs/design/contracts/xdg-config.md](https://github.com/bitwisecook/tcl-lsp/blob/rust/docs/design/contracts/xdg-config.md)
+for the full reference.
+
+## Licence
+
+AGPL-3.0-or-later — see
+[LICENSE](https://github.com/bitwisecook/tcl-lsp/blob/rust/LICENSE) for
+details.

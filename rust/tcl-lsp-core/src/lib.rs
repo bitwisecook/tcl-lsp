@@ -89,6 +89,7 @@ pub mod tcl_install;
 pub mod tk_preview;
 pub mod type_definition;
 pub mod type_hierarchy;
+pub mod vfs;
 pub mod workspace_index;
 pub mod workspace_symbols;
 
