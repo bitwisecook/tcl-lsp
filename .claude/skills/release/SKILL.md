@@ -1,8 +1,8 @@
 ---
 name: release
 description: >
-  Run the full release workflow: validate the release branch (2.x pre-releases
-  are cut from `rust`, 1.x stable from `main`), test, benchmark the release and
+  Run the full release workflow: validate the active `rust` release branch,
+  test, benchmark the release and
   regenerate the release-notes performance graphs, generate the changelog, tag,
   push, then let CI build and publish — approving the marketplace Environments
   with `gh` from the release laptop. Asks for patch/minor/major if not
@@ -41,14 +41,14 @@ scripts/release/rust_release.sh tag X.Y.Z       # re-verifies, then tag.sh
 than pushing — read the diff first. The steps below give the detail and the
 reasoning; do not substitute a hand-rolled sequence for the script.
 
-## Two release lines
+## One active release branch, two channels
 
-There are two, and they are cut from **different branches**:
+All active releases are cut from `rust`; the tag selects the channel:
 
 | Line | Branch | Channel | GitHub release |
 | --- | --- | --- | --- |
-| **1.x — stable** | `main` | VS Code stable / Open VSX stable / JetBrains stable | latest |
-| **2.x — pre-release** (the Python → Rust rewrite) | `rust` | VS Code pre-release / Open VSX pre-release / JetBrains eap | pre-release, never "latest" |
+| **2.x — stable** (even minor) | `rust` | VS Code stable / Open VSX stable / JetBrains stable | latest |
+| **2.x — pre-release** (odd minor) | `rust` | VS Code pre-release / Open VSX pre-release / JetBrains eap | pre-release, never "latest" |
 
 Nothing declares which line you are on except the version: `scripts/release/prerelease.sh`
 is the single source of truth, and it says a tag is a pre-release when
@@ -56,25 +56,20 @@ is the single source of truth, and it says a tag is a pre-release when
 be). CI reads that same script to decide the GitHub release's prerelease flag and
 the marketplace channel — you never pass a flag by hand.
 
-The rewrite is where the work is, so in practice a release is usually a **2.1.x
-pre-release cut from `rust`**. Do not "fix" this by tagging `main`: `main` does
-not contain the 2.x work, and tagging it would ship a stale tree under a new
-version.
+The former Python 1.x line is preserved as the locked `legacy-py` archive.
+Never branch, merge, or tag from it.
 
 ## Workflow
 
 Follow these steps **in order**. Stop and report on failure at any step.
 
-### 1. Pick the line, then guard the branch
+### 1. Guard the branch
 
-Work out the line from the version being cut, and require the matching branch:
+Require the active release branch:
 
 ```bash
-# The branch this line releases from: 2.x odd-minor => `rust`, otherwise `main`.
 branch=$(git branch --show-current)
-prev_tag=$(git describe --tags --abbrev=0)
-release_branch=$(git branch -r --contains "$prev_tag" \
-                   | grep -qE 'origin/(rust)$' && echo rust || echo main)
+release_branch=rust
 
 if [ "$branch" != "$release_branch" ]; then
   echo "ERROR: $release_branch is the release branch for this line (on '$branch')"
@@ -82,8 +77,7 @@ if [ "$branch" != "$release_branch" ]; then
 fi
 ```
 
-If the user asks for a release from the other branch, confirm with them before
-proceeding — do not silently switch lines.
+Do not release from `legacy-py`; it is a locked archive.
 
 ### 2. Pull latest
 
@@ -94,8 +88,8 @@ git pull origin "$release_branch"
 ### 3. Pre-release validation
 
 Every feature PR is expected to have passed `make check-all` before merge
-(the pre-push gate; see AGENTS.md). If you have any doubt that `main` is
-green at this tip, run the full suite once against `main` before tagging:
+(the pre-push gate; see AGENTS.md). If you have any doubt that `rust` is
+green at this tip, run the full suite once against `rust` before tagging:
 
 ```bash
 make check-all             # lint + typecheck, all languages
@@ -200,7 +194,7 @@ Two things to watch and report to the user rather than paper over:
 
 The release branch is protected, so the release-notes commit lands via a PR
 **against that branch** (`--base "$release_branch"` — a notes PR opened against
-`main` for a 2.x pre-release would land the notes on the wrong line). Step 5a
+another branch would land the notes on the wrong line). Step 5a
 already made the branch and the commit; push it and open the PR:
 
 ```bash
@@ -234,15 +228,14 @@ scripts/release/rust_release.sh tag X.Y.Z     # or: make release-rust-tag V=X.Y.
 `make release-tag V=X.Y.Z` is the bare primitive underneath — it handles
 validation (clean tree, correct branch, no existing tag) and pushes only the
 tag, with no source-file edits and no commit on the release branch. It is the
-entry point for the stable line cut from `main`:
+entry point for a stable-channel tag cut from `rust`:
 
 ```bash
 make release-tag V=X.Y.Z
 ```
 
-`tag.sh` derives the channel itself and enforces the branch that goes with it
-(pre-release → `rust`, stable → `main`), so it will refuse a tag cut from the
-wrong line.
+`tag.sh` derives the channel itself and requires `rust` for both stable and
+pre-release tags, so it will refuse a tag cut from the wrong branch.
 
 The tag push triggers `.github/workflows/ci.yml` to build artefacts, run
 `publish-checksums`, and publish the GitHub release — as a pre-release, with the

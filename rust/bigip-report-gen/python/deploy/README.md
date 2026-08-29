@@ -36,7 +36,7 @@ is installed from it and the two are kept byte-identical.
    browser, "Request desktop site" if needed): repo **Settings → Pages → Build
    and deployment → Source → "GitHub Actions"**.
 
-3. **Run it** — it runs automatically on pushes to `main` that touch the report,
+3. **Run it** — it runs automatically on pushes to `rust` that touch the report,
    or trigger it manually from the **Actions** tab → *Publish BIG-IP example
    report to GitHub Pages* → **Run workflow**.
 
@@ -52,7 +52,7 @@ The report is then served at `https://<owner>.github.io/<repo>/`.
   (they share the `pages` concurrency group / `github-pages` environment, so the
   most recent run wins). The old manual-only `pages.yml` it superseded is gone.
 - **Environment branch policy.** The `github-pages` environment may restrict
-  deployments to the default branch. Once this branch is merged to `main`, the
+  deployments to the default branch. Once this branch is merged to `rust`, the
   push trigger deploys automatically; to deploy from a feature branch first,
   allow it under Settings → Environments → github-pages.
 - **No wasm toolchain needed.** The Mermaid library and the wasm query engine

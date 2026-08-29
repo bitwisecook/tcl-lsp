@@ -337,15 +337,18 @@ worktree (`--check` shows what it would set and warns if the current
 `CARGO_TARGET_DIR` points elsewhere).  Agent instructions should reference
 that helper rather than repeating the env-var incantations.
 
-**Stable vs pre-release channels (odd/even-minor).**  Two lines run in
-parallel and the tag alone decides which:
+**Stable vs pre-release channels (odd/even-minor).**  `rust` is the sole
+active development and release branch; the former Python `main` line is
+preserved as the locked `legacy-py` archive.  The tag alone selects the
+publication channel:
 
-- **Stable / default** — `v1.x` and even-minor `v2.x` (`v2.2.0`), cut from
-  `main`.  Normal GitHub Release (`latest`) and normal Marketplace channel.
+- **Stable / default** — even-minor `v2.x` (`v2.2.0`), cut from `rust`.
+  Normal GitHub Release (`latest`) and normal Marketplace channel.
 - **Pre-release / "for the brave"** — odd-minor `v2.x` (`v2.1.0`,
-  `v2.1.1`, …), cut from `rust`.  Published as a GitHub `--prerelease`
-  (never `latest`) and to the Marketplace `--pre-release` channel, so 1.x
-  stays the default install until a user opts into pre-releases.
+  `v2.1.1`, …), also cut from `rust`.  Published as a GitHub `--prerelease`
+  (never `latest`) and to the Marketplace `--pre-release` channel.
+
+The 1.x Python line is frozen; do not branch, merge, or tag from `legacy-py`.
 
 The 2.x rewrite ships its alphas on `2.1.x` and promotes to the stable
 `2.2.0` when ready.  `scripts/release/prerelease.sh X.Y.Z` is the single
@@ -443,7 +446,7 @@ CI, and a manual-only exhaustive tier that never runs automatically.
 | Tier | When it runs | What runs |
 |---|---|---|
 | **smoke** (`make smoke`, `make smoke-p P=<crate>`) | locally, right after every compile; part of `make prep-pr` | the `smoke_*` / `*_smoke.rs` subset — one fast per-module sanity check per crate, seconds warm.  Reuses the dev-profile default-features build you just made (never `--all-features`), so it never forces a recompile |
-| **deep** (CI: `rust-tests`, `rust-tests-heavy`, `lsp-e2e`, `test-ext`, `test-ext-web`, `cargo-deny`, `python`) | every PR and every push to `rust`/`main`, automatically | the full workspace suite (native lsp_e2e included), the VM-sim heavies, the VS Code extension on the desktop **and** in a browser extension host, supply-chain audit, Python lint/typecheck.  CI skips work only when its inputs demonstrably didn't change (see "CI redundancy contract" below) |
+| **deep** (CI: `rust-tests`, `rust-tests-heavy`, `lsp-e2e`, `test-ext`, `test-ext-web`, `cargo-deny`, `python`) | every PR and every push to `rust`, automatically | the full workspace suite (native lsp_e2e included), the VM-sim heavies, the VS Code extension on the desktop **and** in a browser extension host, supply-chain audit, Python lint/typecheck.  CI skips work only when its inputs demonstrably didn't change (see "CI redundancy contract" below) |
 | **exhaustive / manual-only** (`make test-exhaustive`, `make fuzz`, `make tcltest-sweep[-check]`) | only when a human (or a deliberate scheduled job) invokes it by name | every `#[ignore]`d corpus sweep over `tmp/tcl*`/tcllib, differential-fuzz gates, privileged bpf/kernel tests, fuzz campaigns.  NEVER wire these into `prep-pr`, `test`, `check-all`, or CI |
 
 **Fuzzing is always manual.**  This covers campaigns (`make fuzz` /
@@ -489,8 +492,7 @@ skipped this step.
 
 ### Opening a PR: CI carries the deep suites
 
-Rebase off the branch you are targeting (`rust` for 2.x work, `main` for
-1.x stable), fix conflicts, run `make prep-pr`, and open the PR.  **Do not
+Rebase off `rust`, fix conflicts, run `make prep-pr`, and open the PR.  **Do not
 block on running the full suite locally** — CI runs the deep tier
 (`rust-tests` + `rust-tests-heavy` + `lsp-e2e` + `test-ext` + `test-ext-web`
 + `cargo-deny` + `python`) on every PR, in parallel, in a few minutes.
@@ -519,7 +521,7 @@ evidence.
 CI avoids re-testing what demonstrably didn't change, and the rules live in
 `ci.yml`'s `channel` job (read its header comment before touching them):
 
-- a **tag** whose SHA already went green on a `rust`/`main` push within 24 h
+- a **tag** whose SHA already went green on a `rust` push within 24 h
   step-skips the test surface (the release graph still runs);
 - a **merge push** whose tree is byte-identical to its already-green PR head
   downgrades tests to a cache-warming build (`--no-run`);

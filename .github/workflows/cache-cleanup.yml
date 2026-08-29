@@ -2,7 +2,7 @@
 # ceiling.  Cache *keys* in ci.yml are all stable (lockfile/version hashes),
 # so the bloat is not key churn — it's stale caches scoped to PR branches
 # that nothing ever deletes.  GitHub auto-evicts LRU over 10 GiB, which
-# silently guts hit rates; pruning proactively keeps main's caches warm.
+# silently guts hit rates; pruning proactively keeps rust's caches warm.
 #
 # Two triggers:
 #   * pull_request closed — delete the caches scoped to that PR's merge ref
@@ -67,18 +67,18 @@ jobs:
         run: |
           # Protect the caches of the long-lived branches that have
           # push-triggered blocking workflows. ci.yml runs on `push:
-          # branches: [main, rust]`, so its rust-cache entries live on both
-          # refs; purging refs/heads/rust every week forces cold rebuilds on
-          # the gate. Keep this in sync with ci.yml's push triggers.
-          echo "Sweeping caches not on a protected ref (main, rust)"
+          # branches: [rust]`, so its rust-cache entries live on that ref;
+          # purging refs/heads/rust every week forces cold rebuilds on the
+          # gate. Keep this in sync with ci.yml's push triggers.
+          echo "Sweeping caches not on the protected ref (rust)"
           # Single pass (limit 100); a residual >100 is caught next week.
           ids=$(gh cache list --repo "$REPO" --limit 100 --json id,ref \
-            --jq '.[] | select(.ref != "refs/heads/main" and .ref != "refs/heads/rust") | .id')
+            --jq '.[] | select(.ref != "refs/heads/rust") | .id')
           if [ -z "$ids" ]; then
             echo "  nothing to sweep"
           else
             for id in $ids; do
-              echo "  deleting non-main cache $id"
+              echo "  deleting non-rust cache $id"
               gh cache delete "$id" --repo "$REPO" || true
             done
           fi

@@ -209,7 +209,7 @@ mod tests {
             "Pages workflow no longer runs for release tags"
         );
         assert!(
-            text.contains("    branches: [rust, main]") && text.contains("    paths:"),
+            text.contains("    branches: [rust]") && text.contains("    paths:"),
             "Pages workflow lost its path-filtered development deployments"
         );
         assert!(

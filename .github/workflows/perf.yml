@@ -19,14 +19,14 @@ name: Performance
 
 on:
   push:
-    # `rust` and `main` give the running trend — every merge is a data point,
+    # `rust` gives the running trend — every merge is a data point,
     # which is what makes a release number interpretable rather than a lone
     # figure. `v*` gives the release record: those runs publish the graphs
     # that go into the release notes and READMEs.
-    branches: [main, rust]
+    branches: [rust]
     tags: ["v*"]
   pull_request:
-    branches: [main, rust]
+    branches: [rust]
   # The `benchmark` job stays off PRs — it is NOT GATING YET (see above), so a
   # PR-time run produced a number nothing consumed before merge, and the same
   # commit's numbers were then recomputed on the push and again on the tag.

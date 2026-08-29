@@ -10,7 +10,7 @@ on:
   schedule:
     - cron: "23 4 * * 2"
   push:
-    branches: [main]
+    branches: [rust]
 
 permissions:
   contents: read
