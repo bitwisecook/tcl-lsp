@@ -75,9 +75,6 @@ use std::fmt::Write as _;
 use serde_json::Value;
 
 use crate::draft::{self, Draft, OPTION_DEPRECATION_FIX_HOOK_KEY, SOURCE_DIALECT_KEY};
-use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::surface;
-use tcl_dialect::model::Family;
 
 /// The DSL **vocabulary** version a rendered pack declares — the word after
 /// the pack name in `speclib <pack> <version> { … }`.
@@ -3008,8 +3005,8 @@ pub fn render_pack_reporting_with_version(
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::surface;
-    use tcl_dialect::model::{SpecSurface, Family};
+    
+    
     use super::*;
     use serde_json::json;
 

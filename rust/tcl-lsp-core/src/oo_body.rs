@@ -473,7 +473,8 @@ fn collect_property_body_indices(args: &[&str]) -> Vec<usize> {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SpecSurface, SurfaceLayer, Family};
+    use tcl_dialect::model::{SurfaceQuery};
+    use tcl_dialect::model::{SurfaceLayer, Family};
     use super::*;
     use tcl_registry::definer::{SNIT_GRAMMAR, TCLOO_GRAMMAR};
 
@@ -656,10 +657,10 @@ mod tests {
         let g = &TCLOO_GRAMMAR;
         let args = ["m", "-private", "{x}", "body"];
         assert!(
-            member_body_indices_in(g, "method", &args, SpecSurface::TCL86,).is_empty()
+            member_body_indices_in(g, "method", &args, Some(SurfaceQuery::core(Family::Tcl, "8.6")),).is_empty()
         );
         assert_eq!(
-            member_body_indices_in(g, "method", &args, SpecSurface::TCL90,),
+            member_body_indices_in(g, "method", &args, Some(SurfaceQuery::core(Family::Tcl, "9.0")),),
             vec![3]
         );
     }

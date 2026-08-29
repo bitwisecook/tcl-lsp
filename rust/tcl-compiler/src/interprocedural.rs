@@ -2821,7 +2821,7 @@ use crate::side_effects::classify_side_effects;
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SurfaceLayer, Family};
+    
     use super::*;
 
     fn known_set(names: &[&str]) -> HashSet<String> {
@@ -3933,7 +3933,7 @@ mod effect_propagation_tests {
     use tcl_dialect::model::{SurfaceLayer, Family};
     use super::*;
     use crate::lowering::lower_to_ir;
-    use tcl_dialect::DialectSet;
+    
     use tcl_registry::CommandRegistry;
 
     fn irules_registry() -> CommandRegistry {

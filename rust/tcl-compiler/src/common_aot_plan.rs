@@ -1574,7 +1574,7 @@ fn materialisable_decision(input: &MaterialisableInputs<'_>) -> MaterialisableSl
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SpecSurface};
+    
     use super::*;
     use tcl_registry::{IntrinsicId, TclType};
 

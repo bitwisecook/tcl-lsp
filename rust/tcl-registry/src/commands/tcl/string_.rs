@@ -206,8 +206,6 @@ fn fold_totitle(args: &[&str]) -> Option<String> {
 
 use crate::const_fold::{clamp_range, parse_index};
 use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::surface;
-use tcl_dialect::model::Family;
 
 /// Fold `string match` for literal arguments.  The glob implementation is
 /// shared with the runtime-facing command core, so this callback is command

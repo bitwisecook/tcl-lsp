@@ -2163,10 +2163,10 @@ fn apply_domain_widening(
 #[cfg(test)]
 mod tests {
     use tcl_dialect::model::{SurfaceQuery, Family};
-    use tcl_dialect::model::{SpecSurface};
+    
     use tcl_lexer::Span;
     use tcl_registry::model::semantic::SemanticContext;
-    use tcl_registry::prelude::DialectSet;
+    
     use tcl_registry::{CommandRegistry, DispatchDependencies};
 
     use super::*;

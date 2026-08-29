@@ -21,8 +21,6 @@
 use crate::hooks::InlineCodegenHookId;
 use crate::prelude::*;
 use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::surface;
-use tcl_dialect::model::Family;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "info option ?arg arg ...?",

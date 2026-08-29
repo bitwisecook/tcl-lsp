@@ -69,10 +69,8 @@ use tcl_compiler::side_effects::{
     CommandSideEffects, ConnectionSide, EffectRegion, SideEffect, SideEffectTarget, StorageScope,
     StorageType, classify_side_effects,
 };
-use tcl_dialect::DialectSet;
 use tcl_registry::CommandRegistry;
 use tcl_registry::model::ingress::static_context_for;
-use tcl_dialect::model::{SpecSurface};
 
 // ---------------------------------------------------------------------------
 // Helpers

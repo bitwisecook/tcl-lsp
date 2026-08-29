@@ -40,7 +40,6 @@ use crate::analyser::state::Analyser;
 use crate::analyser::types::{PendingUserCallArity, Severity};
 use crate::expr_ast::{ExprNode, render_expr};
 use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::model::{surface_admits};
 
 /// The argument words of one command invocation, scoped to the prefix the
 /// caller has already consumed: `args` / `arg_tokens` / `arg_expand` are the
@@ -774,12 +773,14 @@ fn dialect_availability_suffix(surface: Option<&'static [SpecSurface]>) -> Strin
     let Some(rows) = surface else {
         return String::new();
     };
-    // The catalogue profiles a row list admits, in catalogue order: the
-    // reader wants the releases they can select, not the row spelling.
-    let labels: Vec<&str> = tcl_dialect::DialectProfile::all()
-        .iter()
-        .filter(|profile| surface_admits(rows, Some(&profile.surface_query())))
-        .map(|profile| profile.short_name)
+    // The dialect ids the rows name, in the registry's own projection —
+    // the reader wants the dialects they can select, not the row spelling.
+    let labels: Vec<String> = tcl_registry::model::surface::dialect_names_for_rows(rows)
+        .into_iter()
+        .map(|name| {
+            tcl_dialect::DialectProfile::find(&name)
+                .map_or(name.clone(), |profile| profile.short_name.to_owned())
+        })
         .collect();
     if labels.is_empty() {
         return String::new();

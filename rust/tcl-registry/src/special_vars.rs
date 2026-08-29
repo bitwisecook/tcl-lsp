@@ -49,12 +49,10 @@
 //! namespace. Consumers resolve the active dialect once and query this table;
 //! no consumer hardcodes a name list.
 
-use tcl_dialect::model::{Family};
 use crate::side_effects::SideEffectTarget;
 use crate::taint::TaintColour;
 use tcl_dialect::model::{SurfaceQuery, surface_admits};
 use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::surface;
 
 /// The value shape a special variable holds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

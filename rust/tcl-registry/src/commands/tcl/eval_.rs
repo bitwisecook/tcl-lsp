@@ -20,8 +20,6 @@
 
 use crate::prelude::*;
 use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::surface;
-use tcl_dialect::model::Family;
 
 /// `eval`'s script body can do literally anything once evaluated — set
 /// variables, open files, spawn processes — none of which the compiler

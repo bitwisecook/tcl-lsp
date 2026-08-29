@@ -44,7 +44,6 @@
 use tcl_dialect::model::{SurfaceQuery, Family};
 use tcl_compiler::analyser::{Analyser, AnalysisResult};
 use tcl_registry::model::ingress::static_context_for;
-use tcl_dialect::model::{SpecSurface};
 
 fn analyse(source: &str) -> AnalysisResult {
     Analyser::new().analyse(source, "tcl8.6").clone()

@@ -880,7 +880,7 @@ fn upvar_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
 #[cfg(test)]
 mod tests {
     use tcl_dialect::model::{SurfaceQuery, Family};
-    use tcl_dialect::model::{SpecSurface};
+    
     use super::*;
     use tcl_registry::CommandRegistry;
 
@@ -1718,7 +1718,7 @@ mod tests {
             .resolve_call(
                 "dict",
                 &["set", "d", "k", "v"],
-                SpecSurface::TCL86,
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
             )
             .expect("dict set resolves");
         assert_eq!(resolved.codegen_hook, Some(CodegenHookId::Dict));
@@ -1759,7 +1759,7 @@ mod tests {
         let default = CommandRegistry::build_default();
         assert!(
             default
-                .resolve_call("HTTP::header", &["names"], SpecSurface::IRULES,)
+                .resolve_call("HTTP::header", &["names"], Some(SurfaceQuery::any_release(Family::F5Irules)),)
                 .is_none()
         );
 

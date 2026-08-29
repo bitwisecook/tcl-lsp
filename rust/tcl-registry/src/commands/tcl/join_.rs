@@ -19,8 +19,6 @@
 //! `join` — join list elements into a string.
 use crate::prelude::*;
 use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::surface;
-use tcl_dialect::model::Family;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "join list ?joinString?",
     ..FormSpec::DEFAULT

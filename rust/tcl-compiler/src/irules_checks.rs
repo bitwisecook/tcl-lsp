@@ -337,7 +337,7 @@ pub fn find_unnormalised_getter_warnings(
     dialect: Option<SurfaceQuery<'_>>,
 ) -> Vec<IrulesCheckWarning> {
     let mut out: Vec<IrulesCheckWarning> = Vec::new();
-    if !dialect.is_some_and(|q| q.core == Some((Family::F5Irules, None))) {
+    if !dialect.is_some_and(|q| q.core.is_some_and(|(family, _)| family == Family::F5Irules)) {
         return out;
     }
 
@@ -521,7 +521,7 @@ pub fn find_unguarded_drop_warnings(
     dialect: Option<SurfaceQuery<'_>>,
 ) -> Vec<IrulesCheckWarning> {
     let mut out: Vec<IrulesCheckWarning> = Vec::new();
-    if !dialect.is_some_and(|q| q.core == Some((Family::F5Irules, None))) {
+    if !dialect.is_some_and(|q| q.core.is_some_and(|(family, _)| family == Family::F5Irules)) {
         return out;
     }
     let leaf = |st: &DropFlowState, stmt: &Statement, _out: &mut Vec<IrulesCheckWarning>| {
@@ -856,7 +856,7 @@ pub fn find_collect_flow_warnings(
     registry: &CommandRegistry,
     dialect: Option<SurfaceQuery<'_>>,
 ) -> Vec<IrulesCheckWarning> {
-    if !dialect.is_some_and(|q| q.core == Some((Family::F5Irules, None))) {
+    if !dialect.is_some_and(|q| q.core.is_some_and(|(family, _)| family == Family::F5Irules)) {
         return Vec::new();
     }
     let (state, events_seen) = collect_flow_state(cu, registry);
@@ -1104,7 +1104,7 @@ pub fn find_http_flow_warnings(
     dialect: Option<SurfaceQuery<'_>>,
 ) -> Vec<IrulesCheckWarning> {
     let mut out = Vec::new();
-    if !dialect.is_some_and(|q| q.core == Some((Family::F5Irules, None))) {
+    if !dialect.is_some_and(|q| q.core.is_some_and(|(family, _)| family == Family::F5Irules)) {
         return out;
     }
     let events = EventRegistry::build();
@@ -1475,7 +1475,7 @@ pub fn find_hoistable_set_warnings(
     dialect: Option<SurfaceQuery<'_>>,
 ) -> Vec<IrulesCheckWarning> {
     let mut out = Vec::new();
-    if !dialect.is_some_and(|q| q.core == Some((Family::F5Irules, None))) {
+    if !dialect.is_some_and(|q| q.core.is_some_and(|(family, _)| family == Family::F5Irules)) {
         return out;
     }
     let events = EventRegistry::build();
@@ -1628,7 +1628,7 @@ pub fn find_generic_static_name_warnings(
     generic_patterns: Option<&[String]>,
 ) -> Vec<IrulesCheckWarning> {
     let mut out = Vec::new();
-    if !dialect.is_some_and(|q| q.core == Some((Family::F5Irules, None))) {
+    if !dialect.is_some_and(|q| q.core.is_some_and(|(family, _)| family == Family::F5Irules)) {
         return out;
     }
     let compiled = compile_generic_patterns(generic_patterns);
@@ -1700,7 +1700,8 @@ fn check_generic_static(
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SpecSurface};
+    use tcl_dialect::model::{SurfaceQuery, Family};
+    
     use super::*;
 
     fn registry() -> CommandRegistry {
@@ -1711,7 +1712,7 @@ mod tests {
 
     fn warnings_for_irules(source: &str) -> Vec<IrulesCheckWarning> {
         let cu = CompilationUnit::build_for(source, &registry(), false);
-        find_unnormalised_getter_warnings(&cu, &registry(), SpecSurface::IRULES)
+        find_unnormalised_getter_warnings(&cu, &registry(), Some(SurfaceQuery::any_release(Family::F5Irules)))
     }
 
     #[test]
@@ -1773,7 +1774,7 @@ mod tests {
             find_unnormalised_getter_warnings(&cu, &registry(), None).is_empty()
         );
         assert!(
-            find_unnormalised_getter_warnings(&cu, &registry(), SpecSurface::ALL_TCL).is_empty()
+            find_unnormalised_getter_warnings(&cu, &registry(), Some(SurfaceQuery::any_release(Family::Tcl))).is_empty()
         );
     }
 
@@ -1845,7 +1846,7 @@ mod tests {
 
     fn drop_warnings(source: &str) -> Vec<IrulesCheckWarning> {
         let cu = CompilationUnit::build_for(source, &registry(), false);
-        find_unguarded_drop_warnings(&cu, SpecSurface::IRULES)
+        find_unguarded_drop_warnings(&cu, Some(SurfaceQuery::any_release(Family::F5Irules)))
     }
 
     #[test]
@@ -1889,7 +1890,7 @@ mod tests {
         let cu = CompilationUnit::build_for("when CLIENT_ACCEPTED { drop }", &registry(), false);
         let none_dialect = find_unguarded_drop_warnings(&cu, None);
         assert!(none_dialect.is_empty(), "got {none_dialect:?}");
-        let tcl_dialect = find_unguarded_drop_warnings(&cu, SpecSurface::ALL_TCL);
+        let tcl_dialect = find_unguarded_drop_warnings(&cu, Some(SurfaceQuery::any_release(Family::Tcl)));
         assert!(tcl_dialect.is_empty(), "got {tcl_dialect:?}");
     }
 
@@ -2064,7 +2065,7 @@ mod tests {
     fn flow_warnings(source: &str) -> Vec<IrulesCheckWarning> {
         let reg = registry();
         let cu = CompilationUnit::build_for(source, &reg, false);
-        find_collect_flow_warnings(&cu, &reg, SpecSurface::IRULES)
+        find_collect_flow_warnings(&cu, &reg, Some(SurfaceQuery::any_release(Family::F5Irules)))
     }
 
     #[test]
@@ -2398,7 +2399,7 @@ mod tests {
 
     fn http_warnings(source: &str) -> Vec<IrulesCheckWarning> {
         let cu = CompilationUnit::build_for(source, &registry(), false);
-        find_http_flow_warnings(&cu, SpecSurface::IRULES)
+        find_http_flow_warnings(&cu, Some(SurfaceQuery::any_release(Family::F5Irules)))
     }
 
     #[test]
@@ -2642,7 +2643,7 @@ mod tests {
 
     fn hoist_warnings(source: &str) -> Vec<IrulesCheckWarning> {
         let cu = CompilationUnit::build_for(source, &registry(), false);
-        find_hoistable_set_warnings(&cu, SpecSurface::IRULES)
+        find_hoistable_set_warnings(&cu, Some(SurfaceQuery::any_release(Family::F5Irules)))
     }
 
     #[test]
@@ -2735,7 +2736,7 @@ mod tests {
             "the control event must be guarded"
         );
 
-        let ws = find_hoistable_set_warnings(&cu, SpecSurface::IRULES);
+        let ws = find_hoistable_set_warnings(&cu, Some(SurfaceQuery::any_release(Family::F5Irules)));
         assert!(
             !ws.iter().any(|w| w.code == DiagCode::Irule4004),
             "a guarded event's second write must suppress the hoist warning, got {ws:?}",
@@ -2790,12 +2791,12 @@ mod tests {
 
     fn generic_warnings(source: &str) -> Vec<IrulesCheckWarning> {
         let cu = CompilationUnit::build_for(source, &registry(), false);
-        find_generic_static_name_warnings(&cu, SpecSurface::IRULES, None)
+        find_generic_static_name_warnings(&cu, Some(SurfaceQuery::any_release(Family::F5Irules)), None)
     }
 
     fn generic_warnings_with(source: &str, patterns: &[String]) -> Vec<IrulesCheckWarning> {
         let cu = CompilationUnit::build_for(source, &registry(), false);
-        find_generic_static_name_warnings(&cu, SpecSurface::IRULES, Some(patterns))
+        find_generic_static_name_warnings(&cu, Some(SurfaceQuery::any_release(Family::F5Irules)), Some(patterns))
     }
 
     #[test]

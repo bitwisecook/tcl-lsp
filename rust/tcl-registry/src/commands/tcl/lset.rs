@@ -47,8 +47,6 @@ use crate::forms::CommandForm;
 use crate::hooks::CodegenHookId;
 use crate::prelude::*;
 use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::surface;
-use tcl_dialect::model::Family;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::Variable,

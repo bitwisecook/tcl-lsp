@@ -20,8 +20,6 @@
 
 use crate::prelude::*;
 use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::surface;
-use tcl_dialect::model::Family;
 
 /// Result of one pass over an `if` invocation's argument words: the
 /// per-word [`ArgRole`] assignments [`if_arg_roles`] returns, and — for

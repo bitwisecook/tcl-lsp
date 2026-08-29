@@ -19,8 +19,6 @@
 //! `lsort` — sort a list.
 use crate::prelude::*;
 use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::surface;
-use tcl_dialect::model::Family;
 
 /// Option table for `lsort` (all 12 documented switches). Cross-checked
 /// against the TclCmd/lsort manpages for Tcl 8.4, 8.5, 8.6, 9.0, and 9.1

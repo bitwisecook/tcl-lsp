@@ -31,9 +31,6 @@ use serde_json::Value;
 
 use crate::draft::{self, Draft, UNRENDERABLE_KEY};
 use crate::schema::{self, FieldKind, FieldSchema};
-use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::surface;
-use tcl_dialect::model::Family;
 
 /// The project's AGPL-3.0 copyright banner, as it appears at the top of every
 /// original Rust source file in the repository.
@@ -1259,8 +1256,8 @@ pub fn suggested_path(name: &str, pack: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::surface;
-    use tcl_dialect::model::{SpecSurface, Family};
+    
+    use tcl_dialect::model::SpecSurface;
     use super::*;
 
     fn invalid_non_write_taint_draft() -> Draft {

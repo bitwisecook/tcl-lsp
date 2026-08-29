@@ -750,6 +750,7 @@ pub(crate) fn rewrites_for_command(
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{Family};
     use tcl_dialect::model::{SpecSurface, SurfaceQuery};
     use super::*;
 
@@ -767,7 +768,7 @@ mod tests {
         let dynamic = vec![false; owned.len()];
         rewrites_for_command(
             registry,
-            DialectSet::parse("tcl8.6"),
+            Some(SurfaceQuery::core(Family::Tcl, "8.6")),
             config,
             cmd,
             &owned,
@@ -822,7 +823,7 @@ mod tests {
         // Marked dynamic by the caller (a `{*}`-expanded word).
         let out = rewrites_for_command(
             registry,
-            DialectSet::parse("tcl8.6"),
+            Some(SurfaceQuery::core(Family::Tcl, "8.6")),
             &cfg,
             "string",
             &args,
@@ -1106,9 +1107,9 @@ mod tests {
         let mut registry = CommandRegistry::build_default();
         registry.insert(spec);
 
-        let run = |dialect: Option<SurfaceQuery<'_>>, target_range: Option<SurfaceQuery<'_>>| {
+        let run = |dialect: Option<SurfaceQuery<'_>>, target_range: Option<&'static [&'static str]>| {
             let cfg = FormatterConfig {
-                target_range_override: Some(target_range),
+                target_range_override: target_range,
                 ..config(false, BooleanForm::TrueFalse)
             };
             let owned = vec!["flag".to_owned(), "yes".to_owned()];
@@ -1122,13 +1123,13 @@ mod tests {
         // TP: the document's own release carries the subcommand, and no range
         // was declared (the empty default) — the target's own verdict stands.
         assert_eq!(
-            run(Some(SpecSurface::TCL90), None),
+            run(Some(SurfaceQuery::core(Family::Tcl, "9.0")), None),
             vec![(1, "true".to_owned())]
         );
         // FN guard (dialect): a document targeting a release that does not
         // carry the subcommand never reaches the positional pass at all — the
         // subcommand scan itself abstains, same as an ambiguous/unknown word.
-        assert!(run(Some(SpecSurface::TCL86), None).is_empty());
+        assert!(run(Some(SurfaceQuery::core(Family::Tcl, "8.6")), None).is_empty());
 
         // The range-agreement half (#1257), exercised directly: a range
         // spanning a release that drops the subcommand drags the verdict to

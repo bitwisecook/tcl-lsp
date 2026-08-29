@@ -35,7 +35,6 @@ use std::rc::Rc;
 
 use tcl_compiler::optimiser::manager::optimise_raw;
 use tcl_registry::CommandRegistry;
-use tcl_registry::dialects::DialectSet;
 use tcl_registry::hover::ScriptTiming;
 use tcl_registry::pack_hooks::{self, HookInputs};
 use tcl_spec_hooks::tclvm_host;

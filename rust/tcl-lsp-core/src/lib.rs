@@ -265,7 +265,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg(test)]
 mod dialect_ingress_tests {
-    use tcl_dialect::model::{SpecSurface};
+    
     /// Regression for the `tk` leg of issue #1405.
     ///
     /// A `wish` document typically carries no `package require Tk`, so the Tk
@@ -284,9 +284,7 @@ mod dialect_ingress_tests {
         let profile = super::profile_for_dialect("tk");
         assert_eq!(profile.name, "tk", "the ingress must keep the spelling");
         assert!(
-            profile
-                .surface_query()
-                .contains(SpecSurface::TK),
+            profile.surface_query().packages.contains(&"Tk"),
             "the ingress must keep the TK availability bit"
         );
 

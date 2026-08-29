@@ -2117,7 +2117,8 @@ pub fn find_loop_invariants_for_cu(
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SpecSurface};
+    use tcl_dialect::model::{SurfaceQuery, Family};
+    
     /// The default document's `${…}` close rule — these unit tests build no
     /// dialect profile, so they exercise the same style the lexer would use.
     const STYLE: tcl_dialect::BracedVarStyle = tcl_dialect::BracedVarStyle::Tcl9Nesting;
@@ -2285,7 +2286,7 @@ mod tests {
             .resolve_invocation(
                 "llength",
                 &["a b"],
-                tcl_registry::prelude::SpecSurface::TCL90,
+                Some(SurfaceQuery::core(Family::Tcl, "9.0")),
             )
             .expect("llength resolves")
             .facts();
@@ -4540,7 +4541,7 @@ mod tests {
             .resolve_invocation(
                 "test::versioned",
                 &["x"],
-                tcl_registry::prelude::SpecSurface::TCL90,
+                Some(SurfaceQuery::core(Family::Tcl, "9.0")),
             )
             .expect("the synthetic spec resolves")
             .facts();
@@ -4553,7 +4554,7 @@ mod tests {
             .resolve_invocation(
                 "llength",
                 &["a b"],
-                tcl_registry::prelude::SpecSurface::TCL90,
+                Some(SurfaceQuery::core(Family::Tcl, "9.0")),
             )
             .expect("llength resolves")
             .facts();

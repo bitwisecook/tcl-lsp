@@ -362,7 +362,7 @@ mod tests {
             source,
             config,
             registry,
-            profile.surface_query(),
+            Some(profile.surface_query()),
             &identities,
             &mut |command, identity, _context| {
                 if command.name() == "format" || command.name() == "fmt" {

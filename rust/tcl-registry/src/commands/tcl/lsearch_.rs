@@ -19,8 +19,6 @@
 //! `lsearch` — search a list for an element that matches a pattern.
 use crate::prelude::*;
 use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::surface;
-use tcl_dialect::model::Family;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "lsearch ?options? list pattern",

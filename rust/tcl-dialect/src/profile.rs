@@ -1287,14 +1287,11 @@ impl DialectProfile {
     /// spec is not an iRules spec.
     ///
     /// A family whose ladder is not keyed by version (the iRules `tmos`
-    /// line) yields an empty release spelling. Every compiled row for such
-    /// a family is unwindowed, so this is only reachable by a row that
-    /// windows a version-less ladder — which no release can satisfy, the
-    /// safe direction.
+    /// line) asks about its whole ladder: there is no release to name.
     #[must_use]
     pub fn surface_query(&self) -> SurfaceQuery<'static> {
         if let Some(SpecProvider::Core(family)) = self.vendor_surface {
-            return SurfaceQuery::core(family, "");
+            return SurfaceQuery::any_release(family);
         }
         SurfaceQuery {
             core: match self.signature_base {
@@ -1765,13 +1762,13 @@ mod tests {
             DialectProfile::find("f5-irules")
                 .expect("catalogue profile")
                 .surface_query(),
-            SurfaceQuery::core(Family::F5Irules, "")
+            SurfaceQuery::any_release(Family::F5Irules)
         );
         assert_eq!(
             DialectProfile::find("irules")
                 .expect("registered alias")
                 .surface_query(),
-            SurfaceQuery::core(Family::F5Irules, "")
+            SurfaceQuery::any_release(Family::F5Irules)
         );
     }
 
@@ -1826,7 +1823,7 @@ mod tests {
         // registry; here we only pin the mask shape the whole scheme rests
         // on.
         let p = DialectProfile::irules();
-        assert_eq!(p.surface_query(), SurfaceQuery::core(Family::F5Irules, ""));
+        assert_eq!(p.surface_query(), SurfaceQuery::any_release(Family::F5Irules));
         assert_eq!(p.vendor_surface, Some(SpecProvider::Core(Family::F5Irules)));
     }
 
@@ -2004,7 +2001,7 @@ mod tests {
                 Some(SpecProvider::Core(family)) => {
                     assert_eq!(
                         query,
-                        SurfaceQuery::core(family, ""),
+                        SurfaceQuery::any_release(family),
                         "{}: a core vendor surface asks as that family alone (§9)",
                         p.name
                     );

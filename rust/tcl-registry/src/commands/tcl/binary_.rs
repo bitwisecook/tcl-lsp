@@ -19,8 +19,6 @@
 //! `binary` — manipulate binary data.
 use crate::prelude::*;
 use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::surface;
-use tcl_dialect::model::Family;
 
 // Only `binary scan` ever reaches this: `format`/`encode`/`decode` are
 // `pure: true` on their `SubCommand` entries, so the compiler's side-effect

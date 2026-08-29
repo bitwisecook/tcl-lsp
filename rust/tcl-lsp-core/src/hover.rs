@@ -3861,13 +3861,15 @@ fn oo_resolution_note_for_provider(
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SpecSurface, SurfaceLayer, Family};
+    use tcl_dialect::model::{SurfaceQuery};
+    use tcl_dialect::model::{SurfaceLayer, Family};
 
     use super::*;
     use tcl_compiler::analyser::Analyser;
 
     /// Dialect-agnostic default for the subcommand-hover helper tests.
-    const ALL: tcl_dialect::DialectSet = SpecSurface::ALL_TCL;
+    /// The point these hover probes ask at: any Tcl release.
+    const ALL: Option<SurfaceQuery<'static>> = Some(SurfaceQuery::any_release(Family::Tcl));
 
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
@@ -4639,7 +4641,7 @@ mod tests {
 
     #[test]
     fn special_var_hover_is_dialect_aware() {
-        use tcl_dialect::DialectSet;
+        
         let analysis = analyse("puts $auto_path\n");
         let mut registry = CommandRegistry::build_default();
         registry.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
@@ -5485,25 +5487,25 @@ mod tests {
 
     #[test]
     fn subcommand_hover_prefix_is_dialect_aware() {
-        use tcl_dialect::DialectSet;
+        
         let registry = tcl_registry::CommandRegistry::build_default();
         // `info class def` is `definition` in 8.6 (unique) but ambiguous with
         // `definitionnamespace` in 9.0 (verified against tclsh).
         let src = "info class def ::C\n";
-        let t86 = sub_subcommand_hover_text(src, 0, 11, &registry, "def", SpecSurface::TCL86);
+        let t86 = sub_subcommand_hover_text(src, 0, 11, &registry, "def", Some(SurfaceQuery::core(Family::Tcl, "8.6")));
         assert!(
             t86.is_some_and(|t| t.contains("`info class definition`")),
             "8.6 should resolve `def` to definition",
         );
         assert!(
-            sub_subcommand_hover_text(src, 0, 11, &registry, "def", SpecSurface::TCL90).is_none(),
+            sub_subcommand_hover_text(src, 0, 11, &registry, "def", Some(SurfaceQuery::core(Family::Tcl, "9.0"))).is_none(),
             "9.0 `def` is ambiguous — no hover",
         );
         // `string rev` (reverse, 8.5+) hovers in 8.6 but not in 8.4.
         let src = "string rev abc\n";
-        assert!(subcommand_hover_text(src, 0, 8, &registry, "rev", SpecSurface::TCL86).is_some(),);
+        assert!(subcommand_hover_text(src, 0, 8, &registry, "rev", Some(SurfaceQuery::core(Family::Tcl, "8.6"))).is_some(),);
         assert!(
-            subcommand_hover_text(src, 0, 8, &registry, "rev", SpecSurface::TCL84).is_none(),
+            subcommand_hover_text(src, 0, 8, &registry, "rev", Some(SurfaceQuery::core(Family::Tcl, "8.4"))).is_none(),
             "`string rev` is unknown in 8.4",
         );
     }

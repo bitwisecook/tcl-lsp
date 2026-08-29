@@ -53,7 +53,6 @@ use std::path::PathBuf;
 use serde_json::Value;
 use tcl_spec_studio::spectcl;
 use tcl_spec_studio::{draft, load_command, schema};
-use tcl_dialect::model::Family;
 
 /// One command inside a ported pack.
 struct PortedCommand {

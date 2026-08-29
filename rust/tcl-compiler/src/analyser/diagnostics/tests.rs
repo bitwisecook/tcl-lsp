@@ -20,7 +20,6 @@ use super::*;
 use crate::analyser::types::Diagnostic;
 use tcl_core_types::DiagCode;
 use tcl_lexer::Span;
-use tcl_dialect::model::{SpecSurface};
 
 fn w114_codes(src: &str) -> usize {
     let mut a = crate::analyser::Analyser::new();
@@ -4639,10 +4638,8 @@ fn memoized_compilation_unit_diagnostics_match_whole_file() {
         "oo::class create K {\n  method m {} { return 1 }\n}\nproc top {} { set o [K new]; $o gone }\n",
     ];
     for src in snippets {
-        let mut registry = tcl_registry::CommandRegistry::build_default();
-        if let Some(d) = tcl_registry::prelude::DialectSet::parse("tcl") {
-            registry.load_surface(d);
-        }
+        // The permissive `tcl` profile loads no pack of its own.
+        let registry = tcl_registry::CommandRegistry::build_default();
         // Whole-file reference.
         let mut whole = Analyser::new();
         let want = whole.analyse(src, "tcl");
@@ -4762,10 +4759,8 @@ fn memoized_compilation_unit_shift_correctness() {
     let base = base.as_str();
     let shifted = shifted.as_str();
 
-    let mut registry = tcl_registry::CommandRegistry::build_default();
-    if let Some(d) = tcl_registry::prelude::DialectSet::parse("tcl") {
-        registry.load_surface(d);
-    }
+    // The permissive `tcl` profile loads no pack of its own.
+    let registry = tcl_registry::CommandRegistry::build_default();
     let mut cache: HashMap<String, FunctionUnit> = HashMap::new();
     let build = |s: &str, cache: &mut HashMap<String, FunctionUnit>| {
         let cu = CompilationUnit::build_for_memoized(
@@ -6125,16 +6120,16 @@ fn w210_uses_registry_owned_startup_lifecycle_facts() {
     // exact fixture guards the audited release-by-release inventory.
     for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let source: String = tcl_registry::special_vars::special_vars_for_dialect(
-            tcl_registry::special_vars::surface_query_for_profile(Some(
+            Some(tcl_registry::special_vars::surface_query_for_profile(Some(
                 tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
-            )),
+            ))),
         )
         .filter(|spec| {
             tcl_registry::special_vars::is_readable_at_startup(
                 spec.name,
-                tcl_registry::special_vars::surface_query_for_profile(Some(
+                Some(tcl_registry::special_vars::surface_query_for_profile(Some(
                     tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
-                )),
+                ))),
             )
         })
         .filter_map(|spec| match spec.kind {
@@ -6257,7 +6252,9 @@ fn i230_existence_fold_abstains_on_interpreter_globals_at_top_level() {
     // automatically.
     for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let source: String = tcl_registry::special_vars::special_vars_for_dialect(
-            tcl_registry::special_vars::surface_query_for_profile(Some(tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile())),
+            Some(tcl_registry::special_vars::surface_query_for_profile(Some(
+            tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+        ))),
         )
             .filter_map(|spec| match spec.kind {
                 tcl_registry::special_vars::SpecialVarKind::Scalar => {

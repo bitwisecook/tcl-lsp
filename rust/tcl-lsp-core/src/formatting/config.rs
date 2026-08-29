@@ -431,11 +431,12 @@ impl FormatterConfig {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::surface;
-    use tcl_dialect::model::{SpecSurface};
+    use tcl_dialect::model::{SurfaceQuery, Family};
+    
+    
     use super::{FormatterConfig, LINE_ENDING_AUTO};
     use tcl_dialect::DialectProfile;
-    use tcl_registry::prelude::DialectSet;
+    
 
     #[test]
     fn every_dialect_fact_follows_from_the_one_profile() {
@@ -448,7 +449,7 @@ mod tests {
         // — `{*}` expansion off, so `{*}` stays a literal braced word.
         assert!(cfg.lexer_config().irules_brace_separator);
         assert!(!cfg.lexer_config().expand_syntax);
-        assert_eq!(cfg.dialect_query(), Some(SpecSurface::IRULES));
+        assert_eq!(cfg.dialect_query(), Some(SurfaceQuery::any_release(Family::F5Irules)));
         // `f5-irules` names its own runtime, not a core release: no forward
         // range to widen an abbreviation over.
         assert!(cfg.target_range().is_empty());
@@ -472,7 +473,7 @@ mod tests {
         let cfg = FormatterConfig::for_profile(
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
-        assert_eq!(cfg.dialect_query(), Some(SpecSurface::TCL86));
+        assert_eq!(cfg.dialect_query(), Some(SurfaceQuery::core(Family::Tcl, "8.6")));
         assert_eq!(
             tcl_registry::version_range::core_releases_in(cfg.target_range()),
             vec!["tcl8.6", "tcl9.0", "tcl9.1"]
@@ -500,7 +501,7 @@ mod tests {
         // A document that must also keep working on an *older* release than
         // its own names a range no profile implies.
         let cfg = FormatterConfig {
-            target_range_override: Some(surface![SpecSurface::TCL86, SpecSurface::TCL90]),
+            target_range_override: Some(&["tcl8.6", "tcl9.0"]),
             ..FormatterConfig::for_profile(
                 tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             )
@@ -510,7 +511,7 @@ mod tests {
             vec!["tcl8.6", "tcl9.0"]
         );
         // The rest of the dialect still follows the profile.
-        assert_eq!(cfg.dialect_query(), Some(SpecSurface::TCL90));
+        assert_eq!(cfg.dialect_query(), Some(SurfaceQuery::core(Family::Tcl, "9.0")));
     }
 
     #[test]

@@ -39,8 +39,8 @@ use crate::side_effects::StorageType;
 use crate::snapshot::Json;
 use crate::spec::{CommandSpec, SubCommand};
 use crate::traits::Traits;
-use tcl_dialect::model::{Family, SpecSurface};
-use tcl_dialect::model::{SpecProvider, SurfaceQuery, surface_admits};
+use tcl_dialect::model::SpecSurface;
+use tcl_dialect::model::surface_admits;
 
 /// `sha256` of the empty string — the digest of an empty list. Every Tcl
 /// command's `valid_events` set is empty, so this constant is the only

@@ -1149,13 +1149,13 @@ impl<Plan> BackendRegistry<Plan> {
 #[cfg(test)]
 mod tests {
     use tcl_dialect::model::{SurfaceQuery, Family};
-    use tcl_dialect::model::{SpecSurface};
+    
     use super::*;
     use crate::target_contract::{
         LegalisationRequirements, TargetCapabilities, TargetContract, TargetFamily, ValueFeature,
     };
     use tcl_registry::{
-        CommandRegistry, StateTransitionKnowledge, StateTransitions, dialects::DialectSet,
+        CommandRegistry, StateTransitionKnowledge, StateTransitions,
         hooks::LoweringHookId,
     };
 
