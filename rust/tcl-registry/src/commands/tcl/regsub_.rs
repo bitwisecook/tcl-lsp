@@ -206,8 +206,13 @@ pub fn spec() -> CommandSpec {
         // same way `scan`'s inline (no-`varName`) form is (see
         // `commands/tcl/scan_.rs`). True in every fetched release from 8.4
         // through 9.1 alike — the manpage's "returns *string* if *varName*
-        // is not present" sentence is unchanged across all five.
+        // is not present" sentence is unchanged across all five.  The
+        // hook below is that deferred per-form refinement.
         return_type: Some(TclType::Int),
+        // Three positionals (`exp string subSpec`) is the `varName`-omitted
+        // form, which returns the substituted string; four is the counting
+        // form already typed by `return_type`.
+        return_type_hook: Some(ReturnTypeHookId::Regsub),
         // The `varName` form writes the substituted *string* to its target
         // while returning the replacement *count*.  The result is always a
         // string (not a format-/element-dependent piece like `scan`/`lassign`),

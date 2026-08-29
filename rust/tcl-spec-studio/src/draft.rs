@@ -1269,6 +1269,11 @@ fn command_types(d: &mut Draft, spec: &CommandSpec, _lost: &mut Unrecovered) {
         json!(var_write_typing_expr(spec.var_write_typing)),
     );
     d.insert(
+        "return_type_hook".into(),
+        spec.return_type_hook
+            .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
+    );
+    d.insert(
         "return_elements".into(),
         spec.return_elements
             .map_or(Value::Null, |e| json!(return_elements_expr(e))),

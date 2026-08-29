@@ -2130,6 +2130,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     catalogue_hook(out, ctx, draft, "codegen_hook");
     catalogue_hook(out, ctx, draft, "inline_codegen_hook");
     catalogue_hook(out, ctx, draft, "analyser_hook");
+    catalogue_hook(out, ctx, draft, "return_type_hook");
     gap_todo(out, ctx, draft, "semantic_operation");
     gap_todo(out, ctx, draft, "bpf_op");
     gap_todo(out, ctx, draft, "completion");

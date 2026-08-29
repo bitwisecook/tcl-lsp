@@ -170,6 +170,15 @@ pub fn spec() -> CommandSpec {
         // Tcl_GetIndexFromObj tables, `-sta` is an error rather than -start.
         prefix_matching: PrefixMatching::Strict,
         return_type: Some(TclType::Int),
+        // `-inline` returns the match data instead of writing match
+        // variables, and `-about` a two-element {subexpressionCount
+        // propertyList}.  `-about` is a guaranteed list in every release 8.4
+        // through 9.1; `-inline` is one only once something matches, so the
+        // hook types it as unknown.  Either way it is not the int this
+        // `return_type` names — without that, iterating a `regexp -all
+        // -inline` result drew a shimmer warning claiming the list "has int
+        // intrep" (issue #1720).
+        return_type_hook: Some(ReturnTypeHookId::Regexp),
         // `regexp` writes matched substrings to its capture variables while
         // returning the match *count* (or 0/1).  The captures are strings, not
         // the count, so they must not be typed `Int` (issue #867).

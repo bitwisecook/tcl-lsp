@@ -102,12 +102,16 @@ pub fn spec() -> CommandSpec {
         arity: Arity::new(0, 1),
         arg_roles: &[(0, ArgRole::Channel)],
         // Documented return is the current process's identifier (an
-        // int) for the bare form. `pid fileId` actually yields a
-        // *list* of decimal-string process identifiers (empty if
-        // fileId is not a pipeline) — a per-form refinement deferred
-        // to per-form return typing, the same Int/List split already
-        // documented on `scan` (`commands/tcl/scan_.rs`).
+        // int) for the bare form. `pid fileId` instead yields the
+        // pipeline's decimal-string process identifiers — a list, except
+        // on a channel that is not a pipeline, where tclsh answers a pure
+        // string. The hook below is that per-form refinement, the same
+        // split already documented on `scan` (`commands/tcl/scan_.rs`).
         return_type: Some(TclType::Int),
+        // One positional (`fileId`) is the pipeline form, whose result is the
+        // pipeline's decimal-string pids rather than this process's id — and
+        // not a guaranteed list either, so it types as unknown.
+        return_type_hook: Some(ReturnTypeHookId::Pid),
         hover: Some(HoverSnippet {
             summary: "Return the process identifier of the current process, or of a command pipeline's processes.",
             synopsis: &["pid ?fileId?"],

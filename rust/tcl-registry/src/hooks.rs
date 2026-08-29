@@ -483,6 +483,59 @@ pub use tcl_dialect::TclVersion;
 /// version (`string is`, `format`, `scan`).
 pub type VersionedConstFoldFn = fn(args: &[&str], version: Option<TclVersion>) -> Option<String>;
 
+/// Typed identifier for a command whose return type depends on the call.
+///
+/// [`crate::CommandSpec::return_type`] is one fact per command, which is right
+/// only while the result shape holds still. Several core commands hand back a
+/// different *kind* of value depending on how they were called: `regexp`
+/// counts matches but `regexp -inline` returns the matched substrings
+/// instead, `regsub` returns a replacement count until its `varName` is
+/// omitted and it returns the substituted string instead. Typing every call by the
+/// command's usual result makes the compiler confidently wrong about the
+/// others — issue #1720, where iterating a `regexp -all -inline` result drew a
+/// shimmer warning saying the list "has int intrep".
+///
+/// The spec names the algorithm; [`crate::return_type`] keeps it. That split
+/// is what lets the rule be a real program — `lsearch` has to know that
+/// `-inline` dominates `-subindices`, which no table of switch/type pairs
+/// expresses — while the spec stays declarative data a `.tclspec` pack can
+/// author by name. A new variant gives the dispatcher a deliberate
+/// match-exhaustion error until its arm is written.
+///
+/// An algorithm names a type only where the intrep is *guaranteed* and
+/// answers "unknown" otherwise, so several forms below type as unknown even
+/// though their documented result is a list — [`crate::return_type`] has the
+/// three reasons and the tclsh evidence for each.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ReturnTypeHookId {
+    /// `regexp ?switches? exp string ?matchVar ...?` — `-about` skips matching
+    /// altogether and returns a guaranteed two-element
+    /// `{subexpressionCount propertyList}`. `-inline` returns the matched
+    /// substrings, which is a list only once something matches, so it types as
+    /// unknown rather than as the flag. Otherwise the 0/1 match flag, or the
+    /// match count under `-all`.
+    Regexp,
+    /// `lsearch ?options? list pattern` — `-all` and `-inline` both type as
+    /// unknown, for different reasons: `-all` builds a list only once it
+    /// matches, and a bare `-inline` returns one element straight out of the
+    /// source list, so its intrep is the caller's. `-subindices` turns a plain
+    /// index into the full index path, which *is* a guaranteed list (the
+    /// no-match answer is `-1 0`); otherwise an index.
+    Lsearch,
+    /// `regsub ?switches? exp string subSpec ?varName?` — the substituted
+    /// string when `varName` is omitted, the replacement count when it is not.
+    Regsub,
+    /// `scan string format ?varName ...?` — the variable-writing form returns
+    /// the conversion count. The inline (no-`varName`) form yields the
+    /// converted values, a list only once something converts, so it types as
+    /// unknown.
+    Scan,
+    /// `pid ?fileId?` — bare `pid` is this process's id. The `fileId` form
+    /// yields the pipeline's process ids, but answers a pure string on a
+    /// channel that is not a pipeline, so it types as unknown.
+    Pid,
+}
+
 /// Argument type hint for a specific argument position.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ArgTypeHint {

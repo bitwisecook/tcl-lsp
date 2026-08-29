@@ -183,6 +183,12 @@ What type the variables the command *writes* receive, when that is not the same 
 
 `ReturnValue` (the default) says the written variable holds the return value. `Fixed` names one type for the written variable regardless of the return. `Destructured` says the pieces cannot be typed statically. Getting this right avoids false "wrong type" warnings on the written variables.
 
+### `return_type_hook` — Return-type hook
+
+*command only* — Algorithm that types a call whose result shape moves with the call.
+
+Names the algorithm that types a call whose result *kind* depends on how the command was called — `regexp` counts matches but `regexp -inline` returns the matched substrings instead, and `regsub` returns a replacement count until its `varName` is omitted and it returns the substituted string instead. The rule is a program rather than a table because the switches interact: `lsearch -inline` beats `-subindices`. An algorithm names a type only where the intrep is guaranteed and answers "unknown" otherwise, so some forms stay untyped even though their documented result is a list. Pick an existing hook only if it really describes this command; a new one needs an arm in `tcl_registry::return_type`. Leave it unset unless the result shape really moves — a wrong type here is worse than none.
+
 ### `return_elements` — Return elements
 
 *command and subcommand* — How the result relates to container element structure.
@@ -1236,6 +1242,18 @@ Whether a keyword table accepts any unique prefix (`string le` for `string lengt
 |---|---|
 | `Enabled` | any unique prefix resolves (Tcl_GetIndexFromObj) |
 | `Strict` | only the exact spelling resolves (TCL_INDEX_STRICT) |
+
+### Return-type hooks
+
+Compiler internals: the algorithm that types a call whose result *kind* moves with the call (`regexp -inline` returns the matched substrings where a bare `regexp` returns a match count). A hook rather than a declarative table because the switches interact — `lsearch -inline` beats `-subindices`. The static `return_type` should always be tried first.
+
+| Value | Meaning |
+|---|---|
+| `Regexp` | regexp -inline / -about |
+| `Lsearch` | lsearch -all / -inline / -subindices |
+| `Regsub` | regsub with or without varName |
+| `Scan` | scan inline or variable-writing |
+| `Pid` | pid with or without fileId |
 
 ### Script timing
 

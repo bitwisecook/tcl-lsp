@@ -33,6 +33,7 @@ use crate::dispatch_stability::{DispatchDependencies, DispatchDependencyDescript
 use crate::events::{EventRequirementForm, ResolvedEventRequirements};
 use crate::forms::{CommandForm, SubCommandForm};
 use crate::frame_effect::FrameEffectSpec;
+use crate::hooks::ReturnTypeHookId;
 use crate::hooks::{
     AnalyserHookId, ArgTypeHint, CodegenHookId, ConstFoldFn, InlineCodegenHookId, LoweringHookId,
     TclVersion, VersionedConstFoldFn,
@@ -1365,7 +1366,20 @@ pub struct CommandSpec {
     pub callback_taint_inputs: &'static [(u8, &'static [CallbackTaintInput])],
 
     /// Return type of the command.
+    ///
+    /// One fact per command — the result of the shape the command is usually
+    /// called in. A command whose result *kind* moves with the call names the
+    /// algorithm in [`Self::return_type_hook`], which wins over this.
     pub return_type: Option<TclType>,
+
+    /// Names the algorithm that types a call whose result shape moves with
+    /// the call, when [`Self::return_type`] alone cannot describe it.
+    ///
+    /// `None` for almost every command. `Some` for the few whose switches or
+    /// positional count change what they hand back (`regexp -inline`,
+    /// `regsub` without a `varName`); [`crate::return_type`] keeps the
+    /// algorithms and [`Self::return_type_for_call`] dispatches to them.
+    pub return_type_hook: Option<ReturnTypeHookId>,
 
     /// How the command types the variable(s) it writes as a side effect —
     /// distinct from [`Self::return_type`], which types the value `[cmd …]`
@@ -2163,6 +2177,7 @@ impl CommandSpec {
         script_timing_resolver: None,
         callback_taint_inputs: &[],
         return_type: None,
+        return_type_hook: None,
         var_write_typing: VarWriteTyping::ReturnValue,
         return_elements: None,
         var_elements_effect: None,
@@ -2492,6 +2507,76 @@ impl CommandSpec {
     ) -> KeywordMatch<'static> {
         self.subcommand_table(dialect, package_version, prefix_override)
             .resolve(word)
+    }
+
+    /// The type `[<this command> args…]` produces for *this* call.
+    ///
+    /// The single entry point for "what does this call return" — SSA type
+    /// propagation, the taint sanitiser test, and the shimmer byte-array
+    /// check all resolve a call through here rather than reading
+    /// [`Self::return_type`] raw, so none of them can disagree about a
+    /// per-form result.
+    ///
+    /// `args` excludes the command name. `None` means the result's intrep is
+    /// unknown for this call — the honest answer for an untypeable form, and
+    /// one every caller already handles; a confidently wrong type is what
+    /// issue #1720 was.
+    ///
+    /// A [`Self::return_type_hook`] wins over `return_type`. Subcommands
+    /// resolve to their own static `return_type`: no subcommand needs a hook
+    /// yet, so [`SubCommand`] carries none, keeping the authoring surface (and
+    /// the `SpecTcl` grammar) no wider than the facts require.
+    #[must_use]
+    pub fn return_type_for_call(&self, args: &[&str]) -> Option<TclType> {
+        if !self.subcommands.is_empty() {
+            return args
+                .first()
+                .and_then(|word| self.resolve_subcommand(word))
+                .and_then(|sub| sub.return_type);
+        }
+        // The hook's answer stands, including when it is "unknown" —
+        // falling back to `return_type` there would reinstate exactly the
+        // confidently-wrong typing the hook exists to prevent.
+        match self.return_type_hook {
+            Some(hook) => crate::return_type::resolve(hook, self, args),
+            None => self.return_type,
+        }
+    }
+
+    /// The canonical names of the switches in front of this call's first
+    /// positional argument.
+    ///
+    /// Words resolve through the command's own option table, so an
+    /// abbreviation counts exactly when the real command accepts one
+    /// (`lsearch -al` is `-all`; `regexp -inl` is an error, because
+    /// `Tcl_RegexpObjCmd` reads its table with `TCL_EXACT`), and a value word
+    /// is consumed by the switch that takes it. The scan also stops short of
+    /// the operands C Tcl reserves ([`Self::reserved_trailing_words`]), so a
+    /// mandatory word is never read as a switch: `Tcl_LsearchObjCmd` scans
+    /// `i < objc - 2`, which makes `lsearch -all foo` a search for `foo` in
+    /// the one-element list `-all` — it returns -1, an int, not the list
+    /// `-all` would otherwise select (verified on tclsh 9.0.4).
+    #[must_use]
+    pub fn leading_switch_names(&self, args: &[&str]) -> Vec<&'static str> {
+        args[..self.switch_word_count(args)]
+            .iter()
+            .filter_map(|word| resolve_option_prefix_with(self.options, word, self.prefix_matching))
+            .map(|option| option.name)
+            .collect()
+    }
+
+    /// How many positional words this call supplies — every word that is not
+    /// a leading switch or one of their values. The optional-trailing-argument
+    /// split (`regsub`'s `varName`, `pid`'s `fileId`) reads this.
+    #[must_use]
+    pub fn positional_word_count(&self, args: &[&str]) -> usize {
+        args.len() - self.switch_word_count(args)
+    }
+
+    /// Words consumed by the leading switch run, values included.
+    pub(crate) fn switch_word_count(&self, args: &[&str]) -> usize {
+        let option_scan_end = args.len().saturating_sub(self.reserved_trailing_words);
+        leading_option_word_count_with(self.options, &args[..option_scan_end], self.prefix_matching)
     }
 
     /// Resolve an option word against this command's option table.

@@ -91,6 +91,7 @@ use tcl_registry::handle_binding::{
 };
 use tcl_registry::hooks::{
     AnalyserHookId, ArgTypeHint, CodegenHookId, InlineCodegenHookId, LoweringHookId,
+    ReturnTypeHookId,
 };
 use tcl_registry::hover::{
     ArgValue, CallbackTaintInput, FormKind, FormSpec, HoverSnippet, IntegerDomain, OptionArg,
@@ -1640,6 +1641,14 @@ const INLINE_CODEGEN_HOOKS: &[InlineCodegenHookId] = &[
     InlineCodegenHookId::Break,
     InlineCodegenHookId::Continue,
     InlineCodegenHookId::Try,
+];
+
+const RETURN_TYPE_HOOKS: &[ReturnTypeHookId] = &[
+    ReturnTypeHookId::Regexp,
+    ReturnTypeHookId::Lsearch,
+    ReturnTypeHookId::Regsub,
+    ReturnTypeHookId::Scan,
+    ReturnTypeHookId::Pid,
 ];
 
 const ANALYSER_HOOKS: &[AnalyserHookId] = &[
@@ -4075,6 +4084,9 @@ fn apply_command_stmt(
             spec.format_string_type =
                 enum_by_name(FORMAT_TYPES, &value, "format string type", stmt.line, log);
         }
+        "return_type_hook" => {
+            spec.return_type_hook = native_id(stmt, RETURN_TYPE_HOOKS, "return-type hook", log);
+        }
         "return_elements" => {
             spec.return_elements = parse_return_elements(&value, stmt.line, log);
         }
@@ -5175,6 +5187,11 @@ mod tests {
                 catalogue::INLINE_CODEGEN_HOOKS,
             ),
             ("analyser", names(ANALYSER_HOOKS), catalogue::ANALYSER_HOOKS),
+            (
+                "return type",
+                names(RETURN_TYPE_HOOKS),
+                catalogue::RETURN_TYPE_HOOKS,
+            ),
         ] {
             let mut expected: Vec<&str> = catalogue.iter().map(|variant| variant.key).collect();
             let mut mine: Vec<&str> = mine.iter().map(String::as_str).collect();
