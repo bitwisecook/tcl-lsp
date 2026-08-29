@@ -297,6 +297,24 @@ pub fn surface_admits(rows: &[SpecSurface], query: Option<&SurfaceQuery<'_>>) ->
     }
 }
 
+/// Whether any row admits `family` at `release` **or at any later release on
+/// its ladder**.
+///
+/// A different question from [`surface_admits`], which asks about one exact
+/// point. "Compatible with 9.0 or later" must not be spelled as "available at
+/// 9.0": a surface introduced *in* 9.1 is not available at 9.0, and asking the
+/// exact question silently drops it.
+#[must_use]
+pub fn surface_admits_from(rows: &[SpecSurface], family: Family, release: &str) -> bool {
+    let ladder = family.releases();
+    let Some(first) = ladder.iter().position(|r| r.as_str() == release) else {
+        return false;
+    };
+    ladder[first..].iter().any(|later| {
+        surface_admits(rows, Some(&SurfaceQuery::core(family, later.as_str())))
+    })
+}
+
 /// One command surface a registry can have loaded.
 ///
 /// The replacement for the retired "dialect bit" a registry recorded in its

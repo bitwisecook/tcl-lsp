@@ -1112,7 +1112,7 @@ fn refinement_rows(forms: &[CommandForm], key: &'static str, lost: &mut Unrecove
 /// validator, the compiler hook ids) have no recoverable expression, exactly
 /// as they do not at command scope, so a form that carries one is noted lost
 /// rather than silently thinned.
-pub(crate) fn command_form(form: &CommandForm, lost: &mut Unrecovered) -> (Value, bool) {
+fn command_form(form: &CommandForm, lost: &mut Unrecovered) -> (Value, bool) {
     let mut d = Map::new();
     d.insert("name".into(), json!(form.name));
     d.insert("arity".into(), arity(form.arity));

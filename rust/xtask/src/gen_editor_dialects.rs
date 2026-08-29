@@ -186,8 +186,8 @@ fn render_sublime_plugin(original: &str, ds: &[EditorDialect]) -> Result<String>
     }
     replace_marked_block(
         original,
-        "# @generated:surface:begin",
-        "# @generated:surface:end",
+        "# @generated:dialects:begin",
+        "# @generated:dialects:end",
         &rows,
     )
 }
@@ -200,8 +200,8 @@ fn render_sublime_readme(original: &str, ds: &[EditorDialect]) -> Result<String>
     }
     replace_marked_block(
         original,
-        "<!-- @generated:surface:begin -->",
-        "<!-- @generated:surface:end -->",
+        "<!-- @generated:dialects:begin -->",
+        "<!-- @generated:dialects:end -->",
         &rows,
     )
 }

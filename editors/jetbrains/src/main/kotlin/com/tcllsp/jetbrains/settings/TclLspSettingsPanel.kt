@@ -193,6 +193,7 @@ class TclLspSettingsPanel {
 
     // Diagnostics — Hints
     private val diagH300 = JBCheckBox("H300: Possible paste error")
+    private val diagH301 = JBCheckBox("H301: Command used above the package require that provides it")
     private val diagI230 = JBCheckBox("I230: Constant branch condition")
     private val diagI231 = JBCheckBox("I231: Constant switch arm condition")
     private val diagW123 = JBCheckBox("W123: Unresolved command")
@@ -437,7 +438,7 @@ class TclLspSettingsPanel {
         builder.addComponent(TitledSeparator("Diagnostics — Hints"))
         val diagHintPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
         listOf(
-            diagH300, diagI230, diagI231, diagW123, diagW242,
+            diagH300, diagH301, diagI230, diagI231, diagW123, diagW242,
         ).forEach { diagHintPanel.add(it) }
         builder.addComponent(diagHintPanel)
 
@@ -682,6 +683,7 @@ class TclLspSettingsPanel {
             diagW309.isSelected != s.diagnosticW309 ||
             diagW313.isSelected != s.diagnosticW313 ||
             diagH300.isSelected != s.diagnosticH300 ||
+            diagH301.isSelected != s.diagnosticH301 ||
             diagI230.isSelected != s.diagnosticI230 ||
             diagI231.isSelected != s.diagnosticI231 ||
             diagW123.isSelected != s.diagnosticW123 ||
@@ -953,6 +955,7 @@ class TclLspSettingsPanel {
         s.diagnosticW309 = diagW309.isSelected
         s.diagnosticW313 = diagW313.isSelected
         s.diagnosticH300 = diagH300.isSelected
+        s.diagnosticH301 = diagH301.isSelected
         s.diagnosticI230 = diagI230.isSelected
         s.diagnosticI231 = diagI231.isSelected
         s.diagnosticW123 = diagW123.isSelected
@@ -1241,6 +1244,7 @@ class TclLspSettingsPanel {
         diagW309.isSelected = s.diagnosticW309
         diagW313.isSelected = s.diagnosticW313
         diagH300.isSelected = s.diagnosticH300
+        diagH301.isSelected = s.diagnosticH301
         diagI230.isSelected = s.diagnosticI230
         diagI231.isSelected = s.diagnosticI231
         diagW123.isSelected = s.diagnosticW123

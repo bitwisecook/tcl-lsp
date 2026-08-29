@@ -2117,7 +2117,7 @@ mod tests {
             assert_eq!(
                 p.tcloo,
                 surface_admits(SpecSurface::TCL86_PLUS, Some(&p.surface_query())),
-                "{}: tcloo must match the mask-resolved oo::* availability",
+                "{}: tcloo must match what the point resolves for oo::*",
                 p.name
             );
         }
