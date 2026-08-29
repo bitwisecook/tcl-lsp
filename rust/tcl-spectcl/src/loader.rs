@@ -7747,6 +7747,48 @@ mod tests {
         );
     }
 
+    /// A package-only `available` row gates, it does not narrow.
+    ///
+    /// `available {package Foo}` is 2.0's spelling of 1.x's bare
+    /// `required_package Foo`, which never said *where* a command lives. If
+    /// the row counted towards the surface it would leave an empty
+    /// disjunction — a command available nowhere, with nothing logged — so
+    /// the surface stays open and the requirement alone gates it.
+    #[test]
+    fn a_package_only_available_row_leaves_the_surface_open() {
+        let pack = evaluate_pack(
+            "speclib probe 2.0 {\n ambient_package Foo 1.0\n \
+             command demo {\n arity 0\n available {package Foo}\n }\n}",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        let spec = pack.command("demo").expect("demo loads").spec;
+        assert_eq!(spec.surface, None, "the row states no provider surface");
+        assert_eq!(spec.required_package, Some("Foo"));
+
+        let context = tcl_registry::model::ingress::static_document_context_for("tcl9.0");
+        assert!(
+            context.spec_available(spec),
+            "an open world admits a command gated on an installable package"
+        );
+
+        // A core row alongside it still narrows, and the package still gates.
+        let pack = evaluate_pack(
+            "speclib probe 2.0 {\n command demo {\n arity 0\n \
+             available {tcl 8.6-} {package Foo}\n }\n}",
+        );
+        let spec = pack.command("demo").expect("demo loads").spec;
+        assert!(spec.surface.is_some(), "the core row is the surface");
+        assert_eq!(spec.required_package, Some("Foo"));
+        assert!(
+            !context_for("tcl8.4").spec_available(spec),
+            "8.4 is below the declared floor"
+        );
+    }
+
+    fn context_for(environment: &str) -> &'static tcl_registry::model::ResolvedContext {
+        tcl_registry::model::ingress::static_document_context_for(environment)
+    }
+
     /// Q3: `f5-bigip` leaves the Tcl axis, so it is never an `available`
     /// provider — and an unknown provider is reported, not guessed at.
     #[test]

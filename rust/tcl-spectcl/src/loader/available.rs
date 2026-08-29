@@ -160,7 +160,13 @@ pub(super) fn from_texts(words: &[String], line: u32, log: &mut Log) -> Availabi
         let Some(row) = parse_row(&row, line, log) else {
             continue;
         };
-        parsed_any = true;
+        // A row that names only a package the model has no compiled surface
+        // for (`available {package Foo}`) constrains the *conjunct*, not the
+        // surface: it is 1.x's bare `required_package Foo`, which never
+        // narrowed where a command lives. Counting it here would leave the
+        // surface an empty disjunction — a command available nowhere, and
+        // silently, which is the one answer the author cannot have meant.
+        parsed_any |= !row.surface.is_empty();
         rows.extend(row.surface);
         if let Some(name) = row.package {
             match required_package {
