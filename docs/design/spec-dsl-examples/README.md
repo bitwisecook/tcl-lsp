@@ -501,7 +501,8 @@ or a reference to a shipped implementation:
 `-native ID` is the spelling for **every field whose value names engine
 code**: the function-pointer fields above and the closed compiler-hook
 catalogues (`lowering_hook`, `codegen_hook`, `inline_codegen_hook`,
-`analyser_hook`, `bpf_op`). They share a spelling because they share a
+`analyser_hook`, `return_type_hook`, `bpf_op`). They share a spelling
+because they share a
 meaning — "the engine, by name" — and a load policy. IDs are
 `command::hook` for a per-command implementation (`string::is`,
 `oo::class::create`) and the bare catalogue variant for a shared one
@@ -817,7 +818,8 @@ gate rather than pass silently.
   degrades.
 - A pack may **name** any of the closed native-hook catalogues
   (`lowering_hook`, `codegen_hook`, `inline_codegen_hook`,
-  `analyser_hook`, `semantic_operation`, `bpf_op`) — bucket 2 of
+  `analyser_hook`, `return_type_hook`, `semantic_operation`, `bpf_op`) —
+  bucket 2 of
   spec-packs.md's hook plan: a pack reuses named hooks, it cannot add to
   them. Naming a *lowering* or *codegen* hook is reported at load, since
   it changes how the compiler translates the command rather than what the
@@ -1151,7 +1153,7 @@ exemplar or a shipped struct, and none blocks the freeze.
 
 | limit | evidence | why it is a limit |
 |---|---|---|
-| Per-flag-combination return typing | tarray column search: the returned representation depends on which *combination* of mode/shape flags is present | `return_type` is one value per command/subcommand, and `refine` splits by form, not by flag combination |
+| Per-flag-combination return typing | tarray column search: the returned representation depends on which *combination* of mode/shape flags is present | `return_type` is one value per command/subcommand and `refine` splits by form, not by flag combination. `return_type_hook` answers exactly this shape for the core commands that need it (`lsearch`'s three interacting switches), but a pack can only *name* a catalogue hook, not add one — so a library's own flag algebra still has no spelling |
 | Library-defined completion codes | `struct::tree::prune`'s `return -code 5`, meaningful only inside `struct::tree walk`'s body | `completion` is excluded, and the authorable traits name only break/continue/raise. Nothing pairs a custom code to the single command whose body accepts it, the way `HAS_LOOP_BODY` pairs with `BREAKS_LOOP` |
 | Method-scoped taint sinks | SpiceGenTcl's `Batch::runAndRead` — an `exec` inside a TclOO instance method | `taint_code_sink_args` / `taint_network_sink_args` are command-only fields; the methods that actually spawn processes are `SubCommand`-shaped and cannot declare them |
 | Embedded-language naming beyond the closed catalogues | tDOM's XPath argument; ticklecharts' JS/G6 fragments | `pattern_type` and `format_string_type` are closed catalogues (Glob/Regex; Sprintf/Clock/Binary/Regsub) a pack cannot extend |
@@ -1217,6 +1219,7 @@ schema order. "excluded" rows carry the reason.
 | `inline_codegen_hook` | `inline_codegen_hook -native ID` | closed catalogue |
 | `bpf_op` | `bpf_op -native ID` | BPF dialect only; reference-only |
 | `analyser_hook` | `analyser_hook -native ID` | closed catalogue |
+| `return_type_hook` | `return_type_hook -native ID` | closed catalogue; names the algorithm that types a call whose result shape moves with the call (`lsearch -inline`, `regsub`'s positional count). `return_type` stays the one-value-per-command answer and the hook wins over it |
 | `command_table_effect` | `command_table_effect DefinesProcedure\|RenamesCommands\|CreatesAliases` |  |
 | `side_effects` | `side_effect TARGET ?-reads? ?-writes? ?-side S? ?-dialects {…}? ?-introduced V? ?-deprecated V? ?-retired V?` | one row per effect; the three releases are `SideEffect.lifecycle` |
 | `world_effects` | `world_effects none\|NAME\|{ … }` | block carries composition / access / callback / dynamic_fallback; `resolver` is reference-only |
@@ -1317,6 +1320,7 @@ schema order. "excluded" rows carry the reason.
 | `codegen_hook` | `codegen_hook -native ID` | closed catalogue |
 | `inline_codegen_hook` | `inline_codegen_hook -native ID` | closed catalogue |
 | `analyser_hook` | `analyser_hook -native ID` | closed catalogue |
+| `return_type_hook` | `return_type_hook -native ID` | closed catalogue; names the algorithm that types a call whose result shape moves with the call (`lsearch -inline`, `regsub`'s positional count). `return_type` stays the one-value-per-command answer and the hook wins over it |
 | `command_table_effect` | `command_table_effect DefinesProcedure\|RenamesCommands\|CreatesAliases` |  |
 | `options` | `option NAME ?-flag value? …` | one row per option; see the option flag table |
 | `option_relations` | `option_conflict {TERM …}` / `option_requires SUBJECT {TERM …}` / `option_requires_one_of SUBJECT {TERM …}` / `option_forbids SUBJECT {TERM …}`, each `?-dialects {…}? ?-message {…}? ?-introduced V? ?-deprecated V? ?-retired V?` | one row per relation; a relation only exists once both its operands do, which is what its own three releases say. A term is `-name`, `{-name value}`, `{arg N}` or `{arg N value}`; an empty subject (`{}`) makes the relation unconditional |
