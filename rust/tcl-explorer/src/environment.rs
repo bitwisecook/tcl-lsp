@@ -89,9 +89,9 @@ pub fn analyser_profile_for_dialect(name: &str) -> &'static DialectProfile {
 /// (a registered environment id, for the editor-identity and lenient-sink
 /// roles), where the retired `DialectProfile::resolve_known("tcl")` —
 /// `find("tcl").or_else(|| tcl_dialect::DialectProfile::find("tcl").map(tcl_dialect::DialectProfile::surface_query)…)`, and `"tcl"` is
-/// neither a catalog profile name nor a `DialectSet::parse` spelling —
+/// neither a catalog profile name nor a `DialectProfile::find` spelling —
 /// answered `None`. Composed from [`catalogue_profile_for_dialect`] (the
-/// exact `find` twin) plus the one `DialectSet::parse` promotion the old
+/// exact `find` twin) plus the one `DialectProfile::find` promotion the old
 /// function ever took (`"tk"`) instead, so this answers `None` for `"tcl"`
 /// exactly as the retired ingress did. Confirmed by a direct probe against
 /// both APIs, not merely by re-reading the source.
@@ -108,7 +108,7 @@ pub fn known_profile_for_dialect(name: &str) -> Option<&'static DialectProfile> 
 ///
 /// `serialise_meta`'s per-dialect label lookup and `serialise_bounds`'s
 /// character-model lookup (fed a unit's own semantic dialect, which *can*
-/// name `tk` via `DialectSet::canonical_name`) both need the pre-promotion
+/// name `tk` via `the retired availability mask::canonical_name`) both need the pre-promotion
 /// answer: `None` for `tk`, exactly as `DialectProfile::find("tk")` always
 /// has.
 #[must_use]

@@ -18,7 +18,7 @@
 
 //! Dialect detection heuristics (and re-exports of the dialect vocabulary).
 //!
-//! The dialect *types* — [`DialectSet`], [`KNOWN_DIALECTS`], the
+//! The dialect *types* — `SpecSurface`, [`KNOWN_DIALECTS`], the
 //! `DialectProfile` catalog — live in the foundational `tcl-dialect` crate
 //! (dialect-profile-model.md §3) so layers below the registry (tcl-lexer,
 //! tcl-syntax) consume the same source of truth. They are re-exported here

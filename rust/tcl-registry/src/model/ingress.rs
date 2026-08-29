@@ -33,7 +33,7 @@
 //! diagnostic labels. The interop mapping goes through the **resolved
 //! canonical id**, never back through the raw string, so the retired name
 //! validators (`by_name` at ingress, `resolve_known`,
-//! `availability_for_name`, raw `DialectSet::parse`) have no remaining
+//! `availability_for_name`, raw `DialectProfile::find`) have no remaining
 //! caller outside the projections documented at their sites.
 //!
 //! # Why this lives in `tcl-registry`
@@ -65,13 +65,13 @@
 //!    canonical names before the ingress (the LSP's
 //!    `dialect_from_language_id`), so no shipped path changes answer.
 //! 2. **`tk` resolves as an environment, not a parsed bit.** The old
-//!    ingress recognised `tk` by `DialectSet::parse` and synthesised
+//!    ingress recognised `tk` by `DialectProfile::find` and synthesised
 //!    `TK_PROFILE`; here it is the `tk` environment, which places the `Tk`
 //!    package **ambient** (P3), so every Tk fact — availability, the `TK`
 //!    authoring bit, the Tk-checks activation, W120's silence — is one
 //!    placement query on the resolved context, and
 //!    [`DocumentEnvironment::unit_profile`] still hands back the same
-//!    typed additive profile for the identity interop. Other `DialectSet` spellings that happened
+//!    typed additive profile for the identity interop. Other `SpecSurface` spellings that happened
 //!    to parse (`tcl8.5|tcl8.6` unions) were never valid dialect names and
 //!    now sink to the lenient environment rather than a synthesised
 //!    profile.
@@ -599,7 +599,7 @@ mod tests {
 
     /// Every name the retired validators accepted still resolves — the union
     /// of `DialectProfile::find` (catalogue names and aliases) and
-    /// `DialectSet::parse`'s ingress spellings, which the LSP's
+    /// `DialectProfile::find`'s ingress spellings, which the LSP's
     /// `is_known_dialect_name` took as its acceptance set.
     #[test]
     fn the_validator_accepts_every_retired_validators_name() {

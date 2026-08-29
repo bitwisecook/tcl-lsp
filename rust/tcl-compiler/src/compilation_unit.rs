@@ -1100,7 +1100,7 @@ fn resolve_unit_scope(
 /// its `ContextUnavailable` decline rather than inventing one.
 ///
 /// **Ledger C1 / redesign §11.2 D1 — the re-key.** This replaces the retired
-/// `semantic_dialect_set` name→`DialectSet` projection, which selected the
+/// `semantic_dialect_set` name→`SpecSurface` projection, which selected the
 /// *exact* bit the profile's own name parsed to and therefore answered
 /// `None` (no executable facts at all) for every environment
 /// whose name owns no bit — the lenient `tcl` sink and the six EDA shells —

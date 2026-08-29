@@ -55,7 +55,7 @@
 // to a variable in a non-existent namespace" error case): `unset` shares
 // `set`'s TIP 278 namespace/global-variable lookup (`tclVar.c`'s
 // `TclLookupSimpleVar`, also used by `incr` / `info exists` — see
-// `DialectSet::namespace_var_global_fallback`). Outside a procedure, an
+// `DialectProfile::namespace_var_global_fallback`). Outside a procedure, an
 // unqualified name not found in the current namespace falls back to a
 // same-named variable in the global namespace through Tcl 8.6; Tcl 9.0
 // removed that fallback, requiring an exact match in the current

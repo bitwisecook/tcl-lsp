@@ -23,7 +23,7 @@
 //! The same three helpers `tcl-vm`'s `crate::environment` carries, for the
 //! same reason: both engines used to resolve a dialect *name* with
 //! `DialectProfile::by_name` (or, in `codegen_abi`, with a raw
-//! `DialectSet::parse`), reach the registry with `registry_for_profile`,
+//! `DialectProfile::find`), reach the registry with `registry_for_profile`,
 //! and read `profile.availability_mask` at each availability question.
 //! All three now go through the resolved environment.
 //!
@@ -43,7 +43,8 @@
 //!
 //! [`TclVersion::dialect_profile_name`]: tcl_dialect::TclVersion::dialect_profile_name
 
-use tcl_dialect::{DialectProfile, DialectSet};
+use tcl_dialect::DialectProfile;
+use tcl_dialect::model::SurfaceQuery;
 use tcl_registry::CommandRegistry;
 
 /// Resolve a dialect **name** to the profile this interpreter pins.
@@ -78,28 +79,26 @@ pub(crate) fn store_for_profile(profile: &'static DialectProfile) -> &'static Co
 /// **document authoring mask**, replacing the direct
 /// `profile.availability_mask` read.
 ///
-/// Equal to `profile.availability_mask` for every profile an ingress can
+/// Equal to `profile.surface_query()` for every profile an ingress can
 /// produce, pinned by `tcl_registry::model::ingress`'s
 /// `the_document_mask_is_the_threaded_profiles_mask`.
-pub(crate) fn surface_mask(profile: &'static DialectProfile) -> DialectSet {
-    tcl_registry::model::static_document_context_for_profile(profile).authoring_mask()
+pub(crate) fn surface_point(profile: &'static DialectProfile) -> SurfaceQuery<'static> {
+    tcl_registry::model::static_document_context_for_profile(profile).authoring_query()
 }
 
-/// The mask a dialect **name** is gated under, `None` when the name is
-/// not a declared environment — the fail-closed form, replacing
-/// `codegen_abi`'s raw `DialectSet::parse` ingress (ledger row C2's last
-/// backend caller).
+/// The point a dialect **name** is gated under, `None` when the name is not
+/// a declared environment — the fail-closed form.
 ///
-/// The decline arm is kept rather than collapsed onto the lenient
-/// fallback [`surface_mask`] would give: an intrinsic whose dialect
-/// cannot be established must not enter the guarded fast path under the
-/// permissive mask. The acceptance set is unchanged for every name that
-/// reaches here — the closed release set
-/// [`tcl_dialect::TclVersion::dialect_profile_name`] spells, whose
-/// environments' authoring masks are the single release bits `parse`
-/// returned — and the seam's `the_validator_accepts_every_retired_validators_name`
-/// pins that no spelling `DialectSet::parse` accepted is rejected here.
-pub(crate) fn known_surface_mask_for_dialect(name: &str) -> Option<DialectSet> {
+/// The decline arm is kept rather than collapsed onto the lenient fallback
+/// [`surface_point`] would give: an intrinsic whose dialect cannot be
+/// established must not enter the guarded fast path under the permissive
+/// point. The acceptance set is the closed release set
+/// [`tcl_dialect::TclVersion::dialect_profile_name`] spells, and the seam's
+/// `the_validator_accepts_every_retired_validators_name` pins that nothing
+/// the retired name validator accepted is rejected here.
+pub(crate) fn known_surface_point_for_dialect(
+    name: &str,
+) -> Option<tcl_registry::model::AuthoringScope> {
     tcl_registry::model::resolve_known_environment(name)
-        .map(|environment| environment.document_authoring_mask())
+        .map(|environment| environment.document_authoring_scope())
 }

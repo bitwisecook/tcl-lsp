@@ -54,7 +54,7 @@ fn is_mathop_spelling(name: &str) -> bool {
 /// option, form option, subcommand option) in any profile's registry is the
 /// retired `NON_IRULES_OPERATORS` union — "every dialect except
 /// iRules/Tk/BPF", reconstructed here because the constant itself was
-/// deleted from `DialectSet`. Exclusion from iRules is modelled on the
+/// deleted from `SpecSurface`. Exclusion from iRules is modelled on the
 /// profile (spec `dialects` group / operator trait), never by enumerating
 /// the complement of the excluded dialects.
 #[test]

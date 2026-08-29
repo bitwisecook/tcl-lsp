@@ -157,7 +157,7 @@ fn snapshot_dialect_serialisation_covers_every_primitive_bit() {
     // missed the TMSH/BIGIP bits, so `registry-dump` reported
     // the shared tmsh:: specs (tagged IAPPS|TMSH) as f5-iapps-only — the
     // shape again. The serialisation now derives from
-    // `DialectSet::member_names`, so a spec's entry must name every
+    // `dialect_names_for_rows`, so a spec's entry must name every
     // canonical dialect its gate carries.
     let reg = static_context_for("f5-tmsh").commands();
     let entry = command_entry_json(reg, "f5-tmsh", "tmsh::create")

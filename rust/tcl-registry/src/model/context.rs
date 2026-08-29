@@ -615,7 +615,7 @@ impl ResolvedContext {
     // the old profile's value by the parity sweeps in this module's tests,
     // so the bodies can mirror the old rules verbatim — behaviour is held
     // exactly while the *inputs* come from the centralised environment
-    // model. The `DialectSet`-typed vocabulary they still speak retires
+    // model. The `SpecSurface`-typed vocabulary they still speak retires
     // with the rest of the mask model under ledger C1 (post-P1-G).
 
     /// The authoring mask this context admits — the environment-derived
@@ -1122,7 +1122,7 @@ impl ResolvedContext {
         (!outside.is_empty()).then_some(outside)
     }
 
-    /// The subset of the declared **core-Tcl** targets a `DialectSet`
+    /// The subset of the declared **core-Tcl** targets a `SpecSurface`
     /// availability gate does not cover — the §5.4 range check for the
     /// mask-gated items (commands, subcommands, options) whose
     /// introduction is spelled as ladder-line bits rather than a

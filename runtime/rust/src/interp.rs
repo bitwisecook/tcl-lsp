@@ -36,6 +36,7 @@
 //! and releasing argv can never free a still-referenced result. Immediate free
 //! + retain-into-result is the whole discipline.
 
+use tcl_dialect::model::SurfaceQuery;
 use core::ffi::c_char;
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
@@ -826,13 +827,13 @@ pub struct InterpState {
     profile_registry: Cell<Option<&'static tcl_registry::CommandRegistry>>,
     /// The availability mask `dialect_profile`'s environment answers the
     /// builtin-surface gate under — its **document authoring mask**
-    /// ([`crate::environment::surface_mask`]), resolved at pin time for the
+    /// ([`crate::environment::surface_point`]), resolved at pin time for the
     /// same reason `profile_registry` is: the generation lookup takes a
     /// lock and this is read on every command dispatch, where the retired
     /// `profile.availability_mask` was a field read. Equal to that mask for
     /// every profile an ingress can produce, pinned by the seam's own
     /// sweep.
-    dialect_mask: Cell<tcl_dialect::DialectSet>,
+    dialect_point: Cell<Option<tcl_dialect::model::SurfaceQuery<'static>>>,
     /// The `Command::OoObject` entries the engine installs on the registry's
     /// behalf (the TclOO roots `::oo::object`, `::oo::class`,
     /// `::oo::configurable`, `::oo::abstract`, `::oo::singleton`) rather than
@@ -1137,9 +1138,9 @@ impl Interp {
             // nothing. `set_dialect_profile` replaces all three together.
             dialect_profile: Cell::new(crate::environment::profile_for_dialect("")),
             profile_registry: Cell::new(None),
-            dialect_mask: Cell::new(crate::environment::surface_mask(
+            dialect_point: Cell::new(Some(crate::environment::surface_point(
                 crate::environment::profile_for_dialect(""),
-            )),
+            ))),
             registry_object_roots: RefCell::new(std::collections::HashSet::new()),
         }));
         // The numeric grammar is thread-ambient and may have been left on
@@ -1230,8 +1231,8 @@ impl Interp {
             .profile_registry
             .set((!profile.is_fallback()).then(|| crate::environment::store_for_profile(profile)));
         self.0
-            .dialect_mask
-            .set(crate::environment::surface_mask(profile));
+            .dialect_point
+            .set(Some(crate::environment::surface_point(profile)));
         self.0.runtime_version.set(version);
         self.namespaces.borrow_mut().ns_var_global_fallback =
             version.namespace_var_global_fallback();
@@ -1321,7 +1322,7 @@ impl Interp {
         };
         registry.get(name).is_none()
             || registry
-                .get_for_dialect(name, self.0.dialect_mask.get())
+                .get_for_surface(name, self.0.dialect_point.get())
                 .is_some()
     }
 

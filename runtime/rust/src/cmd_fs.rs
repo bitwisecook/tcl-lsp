@@ -29,6 +29,7 @@
 //! Path handling is `/`-separated (Tcl's portable convention); fine on Unix /
 //! WASI.
 
+use tcl_dialect::model::{SurfaceQuery, surface_admits};
 use tcl_platform::{Filesystem, HostError};
 
 use crate::interp::{new_string, obj_bytes, Code, Interp};
@@ -143,11 +144,11 @@ fn file_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // on its document authoring mask (ledger row B1).
     let profile =
         crate::environment::profile_for_dialect(interp.runtime_version().dialect_profile_name());
-    let dialect = crate::environment::surface_mask(profile);
+    let dialect = Some(crate::environment::surface_point(profile));
     let file_spec = crate::environment::store_for_profile(profile)
         .get("file")
         .expect("the Tcl registry contains file");
-    let sub = match file_spec.resolve_subcommand_word(as_str(&raw), Some(dialect), None, None) {
+    let sub = match file_spec.resolve_subcommand_word(as_str(&raw), dialect, None, None) {
         tcl_registry::abbrev::KeywordMatch::Unique(name) => name.as_bytes().to_vec(),
         tcl_registry::abbrev::KeywordMatch::Ambiguous(_)
         | tcl_registry::abbrev::KeywordMatch::Unknown => {
@@ -335,15 +336,15 @@ fn file_unknown_subcommand(
     interp: &mut Interp,
     raw: &[u8],
     spec: &tcl_registry::CommandSpec,
-    dialect: tcl_dialect::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) -> Code {
     let visible: Vec<&str> = spec
         .subcommands
         .iter()
         .filter(|sub| {
-            sub.dialects
-                .or(spec.dialects)
-                .is_none_or(|gate| gate.intersects(dialect))
+            sub.surface
+                .or(spec.surface)
+                .is_none_or(|gate| surface_admits(gate, dialect.as_ref()))
         })
         .map(|sub| sub.name)
         .collect();

@@ -24,7 +24,7 @@
 //! `const` can build. Lowering happens once per spec, in the registry's
 //! `declarations_for_spec`.
 //!
-//! This replaces the retired `DialectSet` bitmask (Q13). The bits could name
+//! This replaces the retired `SpecSurface` bitmask (Q13). The bits could name
 //! only whole Tcl lines and a fixed vendor list, which is why Jim's own
 //! commands were unexpressible: there was no Jim bit, and one bit could not
 //! have carried `{jim 0.81-}` anyway. A row names its provider and its window
@@ -99,7 +99,7 @@ impl SpecSurface {
 
 /// Ladder and vendor shorthands.
 ///
-/// Each names exactly the rows the retired `DialectSet` bit or union
+/// Each names exactly the rows the retired `SpecSurface` bit or union
 /// lowered to, so a spec that said `surface: Some(SpecSurface::TCL85_PLUS)`
 /// now says `surface: Some(SpecSurface::TCL85_PLUS)` and gets the same
 /// answer. They exist because ~1,800 compiled specs spell one of a dozen
@@ -282,7 +282,7 @@ fn requirement(from: &str, until: Option<&str>) -> String {
 }
 
 /// Whether any row admits `query` — the replacement for the retired
-/// `DialectSet::intersects`.
+/// `the retired availability mask::intersects`.
 ///
 /// An empty row list admits nothing, exactly as the empty mask matched
 /// nothing. "Available everywhere" is the *absent* gate — a `None` on an

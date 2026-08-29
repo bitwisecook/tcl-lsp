@@ -220,7 +220,7 @@ impl VersionGateAxis {
 }
 
 /// A §5.4 **mask-gated** range site (W150): an item whose availability is
-/// spelled as `DialectSet` ladder bits rather than a lifecycle, admitted
+/// spelled as `SpecSurface` ladder bits rather than a lifecycle, admitted
 /// at the primary target but missing from part of the declared target
 /// set. Buffered during the walk and decided post-walk beside the
 /// lifecycle sites so one word still draws one diagnostic.
@@ -933,7 +933,7 @@ impl Analyser {
     }
 
     /// Buffer a §5.4 mask-gated range site: `gate` is the item's
-    /// effective `DialectSet` availability gate (own or inherited). A
+    /// effective `SpecSurface` availability gate (own or inherited). A
     /// walk with no declared core targets records nothing.
     pub(in crate::analyser) fn record_range_gate_site(
         &mut self,

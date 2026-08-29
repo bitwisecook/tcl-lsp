@@ -185,7 +185,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[
 /// documented 8.4-safe core), so it does not — the same way `lmap`
 /// (8.6) is unavailable there. Tk and incr Tcl have no `DialectProfile` of their
 /// own (`tk` is a library pin layered on a host Tcl version; `itcl` is
-/// not a `DialectSet` bit at all), so both simply inherit whatever host
+/// not a `SpecSurface` bit at all), so both simply inherit whatever host
 /// Tcl version they run under, exactly like plain Tcl.
 pub fn spec() -> CommandSpec {
     CommandSpec {

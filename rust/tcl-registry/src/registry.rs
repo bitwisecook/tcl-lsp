@@ -2426,7 +2426,7 @@ impl CommandRegistry {
     /// misses them.
     ///
     /// Resolved through [`Self::resolve_call`], so the subcommand word is
-    /// honoured; pass [`DialectSet::empty`] to skip dialect gating (the
+    /// honoured; pass [`the retired availability mask::empty`] to skip dialect gating (the
     /// plain [`Self::get`] lookup) when the question is "what shape is this
     /// command" rather than "is it available here". An unknown command
     /// carries no traits.
@@ -8668,7 +8668,7 @@ mod tests {
         assert_eq!(
             reg2.len(),
             base_count,
-            "load_dialect(TK) is a no-op after default load"
+            "loading the Tk surface is a no-op after the default load"
         );
     }
 

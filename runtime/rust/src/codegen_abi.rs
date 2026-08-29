@@ -97,7 +97,7 @@ use core::sync::atomic::{AtomicUsize, Ordering};
 use std::alloc::{alloc, dealloc, handle_alloc_error, Layout};
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
-use tcl_dialect::DialectSet;
+use tcl_dialect::model::SurfaceQuery;
 use tcl_registry::{CommandRegistry, IntrinsicId, SemanticOperationId};
 use tcl_runtime_api::guard::{GuardDomains, GuardIdentity, GuardToken};
 
@@ -1011,7 +1011,7 @@ fn intrinsic_registry() -> &'static CommandRegistry {
 /// replays substitutions, and a non-text Tcl word is conservatively declined.
 fn resolve_intrinsic_argv(
     words: &[*mut TclObj],
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) -> Option<ResolvedIntrinsicArgv> {
     let spellings: Vec<String> = words
         .iter()
@@ -1035,7 +1035,7 @@ fn guarded_intrinsic_request(
     words: &[*mut TclObj],
     expected: GuardIdentity,
     runtime_version: tcl_dialect::TclVersion,
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) -> Option<ResolvedIntrinsicArgv> {
     let intrinsic = IntrinsicId::from_stable_id(intrinsic_id)?;
     if expected
@@ -1098,18 +1098,22 @@ pub unsafe extern "C" fn tcl_codegen_guard_prepare(
     // while resolving against the live environment prevents a version-gated
     // form from entering the fast path in the first place. The release name
     // resolves through the one ingress seam (ledger row C2 — this file held
-    // the backends' last raw `DialectSet::parse` ingresses), fail-closed: an
+    // the backends' last raw `DialectProfile::find` ingresses), fail-closed: an
     // undeclared name declines rather than entering the guarded path under
     // the lenient environment's permissive mask.
     let runtime_version = unsafe { (*interp).runtime_version() };
     let Some(dialect) =
-        crate::environment::known_surface_mask_for_dialect(runtime_version.dialect_profile_name())
+        crate::environment::known_surface_point_for_dialect(runtime_version.dialect_profile_name())
     else {
         return 0;
     };
-    let Some(resolved) =
-        guarded_intrinsic_request(intrinsic_id, words, expected, runtime_version, dialect)
-    else {
+    let Some(resolved) = guarded_intrinsic_request(
+        intrinsic_id,
+        words,
+        expected,
+        runtime_version,
+        Some(dialect.query()),
+    ) else {
         return 0;
     };
     // SAFETY: every word was validated non-null and is caller-owned.
@@ -1162,13 +1166,17 @@ pub unsafe extern "C" fn tcl_codegen_guard_check(
         intrinsic.guard_semantics_key(runtime_version),
     );
     let Some(dialect) =
-        crate::environment::known_surface_mask_for_dialect(runtime_version.dialect_profile_name())
+        crate::environment::known_surface_point_for_dialect(runtime_version.dialect_profile_name())
     else {
         return 0;
     };
-    let Some(resolved) =
-        guarded_intrinsic_request(intrinsic_id, words, expected, runtime_version, dialect)
-    else {
+    let Some(resolved) = guarded_intrinsic_request(
+        intrinsic_id,
+        words,
+        expected,
+        runtime_version,
+        Some(dialect.query()),
+    ) else {
         return 0;
     };
     // SAFETY: every word was validated non-null and is caller-owned.
@@ -1243,12 +1251,12 @@ pub unsafe extern "C" fn tcl_intrinsic_invoke_argv(
     let Some(intrinsic) = IntrinsicId::from_stable_id(intrinsic_id) else {
         return TCL_INTRINSIC_ABI_DECLINED;
     };
-    let Some(dialect) = crate::environment::known_surface_mask_for_dialect(unsafe {
+    let Some(dialect) = crate::environment::known_surface_point_for_dialect(unsafe {
         (*interp).runtime_version().dialect_profile_name()
     }) else {
         return TCL_INTRINSIC_ABI_DECLINED;
     };
-    let Some(resolved) = resolve_intrinsic_argv(words, dialect) else {
+    let Some(resolved) = resolve_intrinsic_argv(words, Some(dialect.query())) else {
         return TCL_INTRINSIC_ABI_DECLINED;
     };
     if resolved.intrinsic != intrinsic {

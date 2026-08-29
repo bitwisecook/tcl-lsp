@@ -20,7 +20,7 @@
 //!
 //! This crate is the single owner of what a *dialect* means:
 //!
-//! - [`DialectSet`] — the compact membership bitflags commands and options
+//! - `SpecSurface` — the compact membership bitflags commands and options
 //!   are tagged with (the availability atom).
 //! - [`TclVersion`] — the ordered Tcl release enum behaviour/const-fold
 //!   semantics key off.
@@ -43,7 +43,6 @@
 #![deny(missing_docs)]
 
 pub mod build_info;
-mod dialect_set;
 mod expr_number;
 mod grammar;
 mod library;
@@ -51,7 +50,7 @@ pub mod model;
 mod profile;
 mod version;
 
-pub use dialect_set::{KNOWN_DIALECTS, available_dialects};
+pub use profile::{KNOWN_DIALECTS, available_dialects};
 pub use expr_number::{
     ExprNumberLexeme, NanPayloadLexeme, expr_binary_word_operator_at,
     expr_word_operator_boundary_ok, expr_word_operator_right_boundary_ok, is_expr_bareword_byte,

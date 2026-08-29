@@ -134,7 +134,6 @@ use tcl_registry::traits::{CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC, Traits};
 use tcl_syntax::naming::textmate_variable_name_body;
 
 use crate::util::{self, repo_root};
-use tcl_dialect::model::{SpecSurface};
 
 /// The iRules block keyword `when`, added alongside
 /// [`CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC`] (see module docs for why it

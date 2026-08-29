@@ -41,7 +41,7 @@
 //! attacker-influenced external-input variables (`env`, `argv`, `argv0`) as
 //! taint sources so a flow like `exec $env(CMD)` is seen as tainted.
 //!
-//! The set is **dialect-versioned**: it is a [`DialectSet`] membership table
+//! The set is **dialect-versioned**: it is a `SpecSurface` membership table
 //! exactly like [`crate::spec::CommandSpec`]. Standard Tcl, F5 iRules, and (in
 //! future) Tk / EDA shells each provide a slightly different set — iRules has
 //! no `argv`/`env`/`auto_path`, keeps its own BIG-IP `tcl_platform` keys, and
@@ -198,7 +198,7 @@ pub struct SpecialVarSpec {
 
 impl SpecialVarSpec {
     /// Whether this variable is available in `dialect` (a resolved
-    /// [`DialectSet`] flag for the active dialect).
+    /// `SpecSurface` flag for the active dialect).
     #[must_use]
     pub fn available_in(&self, dialect: Option<SurfaceQuery<'_>>) -> bool {
         surface_admits(self.surface, dialect.as_ref())

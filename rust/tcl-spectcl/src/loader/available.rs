@@ -49,7 +49,7 @@
 //! `{package Tk 8.5-8.6}` carries the name and reports that the window is
 //! not representable yet.
 //!
-//! Jim used to be the other one: the retired `DialectSet` had no Jim bit,
+//! Jim used to be the other one: the retired `SpecSurface` had no Jim bit,
 //! so `available {jim 0.78-}` contributed nothing and the command was
 //! gated off. A row names its family directly now (Q13), so a Jim window
 //! projects exactly as a Tcl one does.

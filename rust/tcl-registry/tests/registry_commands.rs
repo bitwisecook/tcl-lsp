@@ -32,7 +32,7 @@
 //! it is implemented in `tcl-compiler` / `tcl-lsp-core`, which are out of
 //! scope for this crate's tests. The
 //! dialect-name surface that *is* in `tcl-registry` (`KNOWN_DIALECTS`,
-//! `available_dialects()`, `DialectSet::parse`, `tcl_dialect::DialectProfile::name_is_irules`)
+//! `available_dialects()`, `DialectProfile::find`, `tcl_dialect::DialectProfile::name_is_irules`)
 //! is covered below instead.
 //!
 //! ## C-Tcl proof
@@ -62,8 +62,8 @@ use tcl_registry::{
 // ---------------------------------------------------------------------------
 
 /// `static_context_for(name).commands()` returns a registry with that dialect loaded;
-/// pair it with the parsed `DialectSet` for `get_for_surface`.
-fn reg_and_set(dialect: &str) -> (&'static CommandRegistry, DialectSet) {
+/// pair it with the parsed `SpecSurface` for `get_for_surface`.
+fn reg_and_set(dialect: &str) -> (&'static CommandRegistry, Option<SurfaceQuery<'static>>) {
     // "Available under dialect D" is membership in D's *profile availability
     // mask*, not the bare single dialect bit. For the additive vendor
     // dialects the mask is `(base Tcl version | vendor bit)` — e.g. expect is
@@ -1477,7 +1477,7 @@ fn available_dialects_is_sorted_and_complete() {
     assert!(dialects.contains(&"tcl9.0"));
 }
 
-/// `DialectSet::parse` round-trips the canonical names and rejects junk —
+/// `DialectProfile::find` round-trips the canonical names and rejects junk —
 /// underpinning the cache key normalisation a typo'd dialect collapses to.
 ///
 /// registry-metadata.

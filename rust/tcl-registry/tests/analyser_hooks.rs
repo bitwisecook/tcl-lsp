@@ -60,7 +60,7 @@ fn bundled_packs() -> tcl_spectcl::PackSet {
 }
 
 /// A registry with every loadable dialect pack merged in — compiled-in
-/// dialects by their `DialectSet` bit, the EDA vendor libraries through the
+/// dialects by their `SpecSurface` bit, the EDA vendor libraries through the
 /// `SpecTcl` loader.
 fn full_registry() -> CommandRegistry {
     let mut reg = CommandRegistry::build_default();

@@ -51,7 +51,7 @@ const FORMS: &[FormSpec] = &[
     },
     FormSpec {
         // `TCL84 | IRULES`, not bare `TCL84`: these are separate
-        // `DialectSet` bits (iRules' own embedded-8.4.6 base doesn't
+        // `SpecSurface` bits (iRules' own embedded-8.4.6 base doesn't
         // imply the `TCL84` bit), and this form — return used inside a
         // `proc`, not directly in a `when EVENT { … }` body — is exactly
         // what an iRules-defined proc uses: the full Tcl 8.4
@@ -75,7 +75,7 @@ const FORMS: &[FormSpec] = &[
     // `f5-irules` profile in `tcl-dialect/src/profile.rs` pins
     // signature_base/runtime_base/version_ceiling all to 8.4), so
     // -level/-options/-errorstack can never resolve there regardless of
-    // context — their DialectSet gates can't intersect the bare IRULES
+    // context — their the retired availability mask gates can't intersect the bare IRULES
     // availability mask (`ProfileQueries::is_option_available`). This
     // entry narrows the *form*, not the command's own Tcl-version gating
     // — return itself stays universal (`surface: None` below).

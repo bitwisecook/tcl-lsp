@@ -211,7 +211,7 @@ fn release_table(
     // The release's own authoring bits, derived from its environment
     // rather than re-parsed from the name (ledger C1/C2): for the five
     // core ladder names this is exactly the single release bit
-    // `DialectSet::parse` produced, sweep-pinned in the registry model.
+    // `DialectProfile::find` produced, sweep-pinned in the registry model.
     let bits = Some(crate::document_context_for_dialect(release).authoring_query());
     let empty =
         || tcl_registry::abbrev::KeywordTable::new(std::iter::empty(), PrefixMatching::Enabled);

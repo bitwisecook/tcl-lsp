@@ -5946,7 +5946,7 @@ pub struct Backend {
 /// through the one environment seam.
 ///
 /// **Ledger row F3, retired here**: this used to be a two-armed enum because
-/// `tk` was a bare [`DialectSet`] bit rather than a catalogue profile. `tk`
+/// `tk` was a bare `SpecSurface` bit rather than a catalogue profile. `tk`
 /// is now an environment like any other, so the ingress has one arm — the
 /// resolved environment's
 /// [`unit_profile`](tcl_registry::model::DocumentEnvironment::unit_profile),
@@ -24185,7 +24185,7 @@ fn empty_diagnostic_report() -> DocumentDiagnosticReportResult {
 /// `setDialect` / `setSessionDialectOverride` commands.
 ///
 /// **Ledger row F9**: the validators this replaced (`DialectProfile::find` ∪
-/// `DialectSet::parse` here, and `available_dialects()`'s
+/// `DialectProfile::find` here, and `available_dialects()`'s
 /// canonical-names-only membership in the two commands) are now one
 /// `Environment::resolve` — so every configuration path accepts exactly the
 /// declared names: canonical environment ids, their aliases, and the
@@ -32366,7 +32366,7 @@ mod tests {
         let fc = parse_folder_config(&serde_json::json!({ "dialect": "f5-irules" }))
             .expect("folder config");
         assert_eq!(fc.dialect.as_deref(), Some("f5-irules"));
-        // A config-only profile (not a `DialectSet`-parseable Tcl dialect) is
+        // A config-only profile (not a `SpecSurface`-parseable Tcl dialect) is
         // accepted, matching what `initializationOptions.folderDialects` takes.
         let bigip =
             parse_folder_config(&serde_json::json!({ "dialect": "f5-bigip" })).expect("folder cfg");

@@ -60,7 +60,6 @@ use anyhow::{Context, Result};
 use regex::Regex;
 
 use crate::util::repo_root;
-use tcl_dialect::model::{SpecSurface};
 
 /// The generated per-command backing report (committed, drift-checked).
 const REPORT_PATH: &str = "docs/generated/wasm-command-backing.md";

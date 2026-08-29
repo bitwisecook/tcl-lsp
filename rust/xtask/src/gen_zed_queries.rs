@@ -25,7 +25,7 @@
 //!
 //! ## Dialect awareness — and its hard limit
 //!
-//! Each editor language directory maps to a [`DialectSet`], and we emit a query
+//! Each editor language directory maps to a `SpecSurface`, and we emit a query
 //! scoped to it (Tcl+Tk, iRules, iApps, Expect). But a tree-sitter query is
 //! *static per file type*: it cannot know whether a given `.tcl` file targets
 //! 8.4 or 9.0, and Zed cannot swap queries by a runtime dialect setting. So the
@@ -40,7 +40,6 @@
 //! the committed files match, exiting non-zero on drift.
 
 use tcl_dialect::model::{SpecProvider, surface_provided_by};
-use tcl_dialect::model::{Family};
 use std::collections::BTreeSet;
 use std::fs;
 use std::process::ExitCode;
@@ -52,8 +51,6 @@ use tcl_registry::model::ResolvedContext;
 use tcl_registry::traits::Traits;
 
 use crate::util::{self, repo_root};
-use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::surface;
 
 /// A language directory we emit a query for, and the dialect profile whose
 /// static-grammar surface it covers.
@@ -256,7 +253,7 @@ fn classify(
 /// (issue #983's unification) rather than the dialect-blind static list this
 /// replaces, which was missing the TIP 461 string-ordering four (`lt`/`le`/
 /// `gt`/`ge`) and the unary `!`/`~` entirely, and — unlike every other
-/// bucket in this file, each already scoped per-`DialectSet` via
+/// bucket in this file, each already scoped per-`SpecSurface` via
 /// [`classify`] — never included the iRules word operators (`contains`,
 /// `matches_regex`, …) for the `irules` target at all.
 fn operator_spellings(providers: &'static [SpecProvider]) -> BTreeSet<String> {
@@ -545,7 +542,7 @@ mod tests {
     /// static list missing the TIP 461 string-ordering four (`lt`/`le`/
     /// `gt`/`ge`) and the unary `!`/`~` entirely, and never included the
     /// iRules word operators for the `irules` target at all — unlike every
-    /// other bucket in this file, each already scoped per-`DialectSet`.
+    /// other bucket in this file, each already scoped per-`SpecSurface`.
     #[test]
     fn operator_spellings_are_dialect_scoped_and_complete() {
         let tcl_ops = operator_spellings(&[SpecProvider::Core(Family::Tcl), SpecProvider::Package("Tk")]);

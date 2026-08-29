@@ -24,7 +24,7 @@
 //! analyses all resolve exactly the same structured [`WordExpr`] facts under
 //! an explicitly supplied [`SemanticContext`] — the resolved environment the
 //! document is assisted under (ledger C1 / redesign §11.2 D1; the retired
-//! `DialectSet` mask argument is gone).
+//! `SpecSurface` mask argument is gone).
 
 use tcl_dialect::EscapeSyntax;
 use tcl_registry::model::semantic::{SemanticContext, resolve_structured_invocation_in_context};

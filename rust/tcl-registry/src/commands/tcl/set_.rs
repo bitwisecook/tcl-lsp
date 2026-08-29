@@ -37,7 +37,7 @@
 // to a same-named variable in the global namespace when the current
 // namespace has none, through Tcl 8.6; Tcl 9.0 removed that fallback
 // (`tclVar.c`'s `TclLookupSimpleVar` now forces `TCL_NAMESPACE_ONLY`).
-// See `DialectSet::namespace_var_global_fallback` for the dialect-keyed
+// See `DialectProfile::namespace_var_global_fallback` for the dialect-keyed
 // version of this same fact, and the hover snippet below for the
 // developer-facing wording.
 

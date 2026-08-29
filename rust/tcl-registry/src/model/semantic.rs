@@ -21,7 +21,7 @@
 //! row C1, redesign §11.2 D1).
 //!
 //! Before this module the semantic-analysis and executable-IR path spoke
-//! `DialectSet`: `SemanticAnalysisBundle` carried a `dialect: Option<SurfaceQuery<'_>>`
+//! `SpecSurface`: `SemanticAnalysisBundle` carried a `dialect: Option<SurfaceQuery<'_>>`
 //! field, `build_linear_executable_ir` took a mask, and a bundle whose mask
 //! did not name exactly one profile recorded a `DialectUnavailable` decline.
 //! That was the last dialect vocabulary in the tree beside
@@ -48,7 +48,7 @@
 //! resolution needs — the [`ResolvedContext`] availability view and the
 //! generation's command store — without a second lookup. Resolving one costs
 //! a name ingress; the compiler resolves it **once per module build** and
-//! threads the handle, where the retired `DialectSet` projection ran per
+//! threads the handle, where the retired `SpecSurface` projection ran per
 //! function unit.
 //!
 //! # The selection rule is C7/I4's, not a second one
@@ -77,7 +77,7 @@ use crate::resolved_invocation::{InvocationResolutionUnresolved, StructuredInvoc
 /// generation-bound handle on the environment's un-overlaid registry
 /// generation.
 ///
-/// Replaces the `DialectSet` the semantic-analysis path carried. Where the
+/// Replaces the `SpecSurface` the semantic-analysis path carried. Where the
 /// mask could be empty, a combinator, or a bit whose name no profile owned,
 /// this either names exactly one resolved environment or is absent
 /// (`Option<SemanticContext>`), so the "no one explicit dialect profile"

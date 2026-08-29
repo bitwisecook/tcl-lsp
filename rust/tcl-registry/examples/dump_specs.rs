@@ -55,23 +55,9 @@ fn group_specs(group: &str) -> Vec<CommandSpec> {
     }
 }
 
-const DIALECT_TAGS: &[(DialectSet, &str)] = &[
-    (SpecSurface::TCL84, "tcl8.4"),
-    (SpecSurface::TCL85, "tcl8.5"),
-    (SpecSurface::TCL86, "tcl8.6"),
-    (SpecSurface::TCL90, "tcl9.0"),
-    (SpecSurface::IRULES, "f5-irules"),
-    (SpecSurface::IAPPS, "f5-iapps"),
-    (SpecSurface::TK, "tk"),
-    (SpecSurface::EXPECT, "expect"),
-];
-
-fn dialect_tags(d: DialectSet) -> Vec<&'static str> {
-    DIALECT_TAGS
-        .iter()
-        .filter(|(flag, _)| d.contains(*flag))
-        .map(|(_, tag)| *tag)
-        .collect()
+/// The catalogue dialect names a spec's surface covers.
+fn dialect_tags(surface: &[SpecSurface]) -> Vec<String> {
+    tcl_registry::model::surface::dialect_names_for_rows(surface)
 }
 
 fn esc(s: &str) -> String {

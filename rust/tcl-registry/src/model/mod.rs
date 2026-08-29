@@ -60,7 +60,7 @@
 //!   and the [`assembly`] selection primitives enforce the binding-proof
 //!   rule (I4) over the carried context.
 //!
-//! Everything here lands **alongside** the old `DialectSet`-mask registry:
+//! Everything here lands **alongside** the old `SpecSurface`-mask registry:
 //! nothing existing is wrapped or shimmed, and the equivalence sweeps in
 //! [`assembly`] pin new-model visibility to the old model's answers for
 //! every compiled spec under every catalogue profile.

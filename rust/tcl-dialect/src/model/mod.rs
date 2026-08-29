@@ -37,7 +37,7 @@
 //!   [`Lineage::Reimplementation`](family::Lineage) edge admits everything
 //!   its ancestor has rather than the subset it implements.
 //!
-//! This model lands **alongside** the old `DialectSet`/`DialectProfile`
+//! This model lands **alongside** the old `SpecSurface`/`DialectProfile`
 //! types, which stay untouched until their consumers migrate; nothing
 //! here wraps or shims them — old names are first-class data rows in the
 //! new registry.

@@ -170,7 +170,7 @@ pub struct DialectProfile {
     /// The canonical dialect name (`"tcl8.6"`, `"f5-irules"`, …). Stable:
     /// this is the string that round-trips through configuration
     /// (`tclLsp.selectDialect`, `folderDialects`), the registry-dump JSON
-    /// schema, and `DialectSet::canonical_name`.
+    /// schema, and `the retired availability mask::canonical_name`.
     pub name: &'static str,
     /// Legacy / editor spellings that resolve to this profile
     /// (`"irules"` → `f5-irules`). Resolution through [`Self::find`] (and
@@ -264,7 +264,7 @@ pub struct DialectProfile {
     /// UPPER-BOUND version guard for option gating (design doc §5.2): the
     /// highest Tcl version whose options may appear under this profile. A
     /// version-gated option resolves only when its gate's
-    /// [`DialectSet::min_version`] is at or below this ceiling, so a
+    /// [`core_tcl_floor`] is at or below this ceiling, so a
     /// tcl9.0-only option can never leak into an 8.5-superset profile whose
     /// mask happens to intersect its gate. `None` = no ceiling (the
     /// permissive fallback and the interim config-only dialects).
@@ -1017,7 +1017,7 @@ static CATALOG: [DialectProfile; 18] = [
         // The version "pack" loads no specs, but registering the version bit
         // on the registry preserves its `loaded_dialects` introspection
         // (e.g. `CommandRegistry::leading_zero_is_octal`) exactly as
-        // `DialectSet::parse` + `load_dialect` always did.
+        // `DialectProfile::find` + `load_dialect` always did.
         base_layers: &[SurfaceLayer::Core(Family::Tcl, "8.4")],
         grammar_union: &[SpecProvider::Core(Family::Tcl)],
         version_ceiling: Some(TclVersion::V8_4),
@@ -1050,7 +1050,7 @@ static CATALOG: [DialectProfile; 18] = [
         // The version "pack" loads no specs, but registering the version bit
         // on the registry preserves its `loaded_dialects` introspection
         // (e.g. `CommandRegistry::leading_zero_is_octal`) exactly as
-        // `DialectSet::parse` + `load_dialect` always did.
+        // `DialectProfile::find` + `load_dialect` always did.
         base_layers: &[SurfaceLayer::Core(Family::Tcl, "8.5")],
         grammar_union: &[SpecProvider::Core(Family::Tcl)],
         version_ceiling: Some(TclVersion::V8_5),
@@ -1079,7 +1079,7 @@ static CATALOG: [DialectProfile; 18] = [
         // The version "pack" loads no specs, but registering the version bit
         // on the registry preserves its `loaded_dialects` introspection
         // (e.g. `CommandRegistry::leading_zero_is_octal`) exactly as
-        // `DialectSet::parse` + `load_dialect` always did.
+        // `DialectProfile::find` + `load_dialect` always did.
         base_layers: &[SurfaceLayer::Core(Family::Tcl, "8.6")],
         grammar_union: &[SpecProvider::Core(Family::Tcl)],
         version_ceiling: Some(TclVersion::V8_6),
@@ -1108,7 +1108,7 @@ static CATALOG: [DialectProfile; 18] = [
         // The version "pack" loads no specs, but registering the version bit
         // on the registry preserves its `loaded_dialects` introspection
         // (e.g. `CommandRegistry::leading_zero_is_octal`) exactly as
-        // `DialectSet::parse` + `load_dialect` always did.
+        // `DialectProfile::find` + `load_dialect` always did.
         base_layers: &[SurfaceLayer::Core(Family::Tcl, "9.0")],
         grammar_union: &[SpecProvider::Core(Family::Tcl)],
         version_ceiling: Some(TclVersion::V9_0),
@@ -1139,7 +1139,7 @@ static CATALOG: [DialectProfile; 18] = [
         // The version "pack" loads no specs, but registering the version bit
         // on the registry preserves its `loaded_dialects` introspection
         // (e.g. `CommandRegistry::leading_zero_is_octal`) exactly as
-        // `DialectSet::parse` + `load_dialect` always did.
+        // `DialectProfile::find` + `load_dialect` always did.
         base_layers: &[SurfaceLayer::Core(Family::Tcl, "9.1")],
         grammar_union: &[SpecProvider::Core(Family::Tcl)],
         version_ceiling: Some(TclVersion::V9_1),
@@ -2419,3 +2419,38 @@ mod tests {
     }
 }
 
+/// Canonical dialect profile names, in sorted order.
+///
+/// Kept pre-sorted so [`available_dialects`] returns them in sorted
+/// order. This
+/// is the single source of truth for the explorer's dialect dropdown and
+/// the CLI's `--dialect` choices. Every name here resolves to its own
+/// [`DialectProfile::find`] flag (`f5-tmsh` / `f5-bigip` carry their own bits
+/// as first-class profiles, D8; `tk` parses to the grammar-layer `TK` bit
+/// but is a library pin, not a profile — §7.2).
+pub const KNOWN_DIALECTS: &[&str] = &[
+    "bpf",
+    "cadence-eda-tcl",
+    "expect",
+    "f5-bigip",
+    "f5-iapps",
+    "f5-irules",
+    "f5-tmsh",
+    "intel-quartus-eda-tcl",
+    "mentor-eda-tcl",
+    "microchip-libero-eda-tcl",
+    "spectcl",
+    "synopsys-eda-tcl",
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "xilinx-eda-tcl",
+];
+
+/// Return the canonical dialect profile names in sorted order.
+#[must_use]
+pub fn available_dialects() -> &'static [&'static str] {
+    KNOWN_DIALECTS
+}

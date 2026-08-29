@@ -739,7 +739,7 @@ pub fn completions(
         // that, a plain `.tcl` script must not be offered `button`/`pack`/… .
         // P3 (ledger F4): both halves are placement facts now — the
         // environment ships Tk ambient (`wish`), or this document required
-        // it. No `DialectSet` bit and no environment *name* is consulted.
+        // it. No `SpecSurface` bit and no environment *name* is consulted.
         let tk_loaded = crate::document_context_for_dialect(dialect.name).ambient_package("Tk")
             || analysis.package_requires.iter().any(|req| req.name == "Tk");
         let oo_frame = oo_frame_at(analysis, source, line, character, &line_index);
@@ -2350,7 +2350,7 @@ fn fuzzy_command_fallback(
     if let Some(registry) = registry {
         // P3 (ledger F4): both halves are placement facts now — the
         // environment ships Tk ambient (`wish`), or this document required
-        // it. No `DialectSet` bit and no environment *name* is consulted.
+        // it. No `SpecSurface` bit and no environment *name* is consulted.
         let tk_loaded = crate::document_context_for_dialect(dialect.name).ambient_package("Tk")
             || analysis.package_requires.iter().any(|req| req.name == "Tk");
         let oo_frame = oo_frame_at(analysis, source, line, character, line_index);

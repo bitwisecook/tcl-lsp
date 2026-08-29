@@ -113,7 +113,7 @@ fn registry_for_dialect(dialect: &str) -> std::sync::Arc<CommandRegistry> {
 }
 
 /// Every dialect name that loads a non-trivial command pack — a compiled-in
-/// one by its `DialectSet` bit, or the EDA vendor libraries through the
+/// one by its `SpecSurface` bit, or the EDA vendor libraries through the
 /// bundled loadables [`registry_for_dialect`] installs. (The config-only
 /// `f5-bigip` / `f5-tmsh` names in `KNOWN_DIALECTS` collapse to plain Tcl, so
 /// they are covered via the catalogue sweep rather than as load targets.)
@@ -893,7 +893,7 @@ fn check_command_dialect_nesting(dname: &str, name: &str, spec: &tcl_registry::C
 /// actually be reached, since the parent itself is never selected outside
 /// its own dialects, so the child would silently dead-code instead of
 /// failing loudly. This is the whole-registry backstop for the
-/// `DialectSet::is_valid_nested_dialects` invariant: a single command file
+/// `nested surfaces nest` invariant: a single command file
 /// *can* self-check at compile time with a `const { assert!(...) }` (see
 /// `tcl-dialect`'s `dialect_set` module for the pattern), but nothing
 /// forces every command file to opt in — this sweep covers all of them,
@@ -1658,7 +1658,7 @@ fn sweep_dialect_catalogue() {
         let reg = registry_for_dialect(d);
         assert!(!reg.is_empty(), "{d}: empty registry");
         assert!(reg.get("set").is_some(), "{d}: missing core `set`");
-        // The name either parses to a DialectSet bit, or is a config-only name
+        // The name either parses to a the retired availability mask bit, or is a config-only name
         // that collapses to plain Tcl (still a usable registry).
         let _ = tcl_dialect::DialectProfile::find(d).map(tcl_dialect::DialectProfile::surface_query);
     }

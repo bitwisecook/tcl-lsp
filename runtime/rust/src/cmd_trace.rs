@@ -43,6 +43,7 @@
 //! dropped them, so the option word is resolved against the option set the
 //! registry declares for the emulated release rather than a fixed list.
 
+use tcl_dialect::model::surface_admits;
 use tcl_cmd_core::trace as core_trace;
 
 use crate::frame::{split_array_ref, VarError};
@@ -206,7 +207,7 @@ pub fn install(interp: &mut Interp) {
 /// The `trace` option words the emulated release carries, in the registry's
 /// declaration order — which is C's `traceOptions[]` order, so the `bad
 /// option` / `ambiguous option` enumeration matches byte for byte. The three
-/// legacy forms are gated to `DialectSet::TCL8X`, so 9.0+ sees only
+/// legacy forms are gated to `the retired availability mask::TCL8X`, so 9.0+ sees only
 /// `add`/`info`/`remove` (C drops them behind `TCL_REMOVE_OBSOLETE_TRACES`).
 fn visible_options(interp: &Interp) -> Vec<&'static str> {
     // The emulated release's name is a dialect *name*: one resolution
@@ -215,16 +216,16 @@ fn visible_options(interp: &Interp) -> Vec<&'static str> {
     // is gated on (ledger row B1).
     let profile =
         crate::environment::profile_for_dialect(interp.runtime_version().dialect_profile_name());
-    let dialect = crate::environment::surface_mask(profile);
+    let dialect = Some(crate::environment::surface_point(profile));
     let Some(spec) = crate::environment::store_for_profile(profile).get("trace") else {
         return Vec::new();
     };
     spec.subcommands
         .iter()
         .filter(|sub| {
-            sub.dialects
-                .or(spec.dialects)
-                .is_none_or(|gate| gate.intersects(dialect))
+            sub.surface
+                .or(spec.surface)
+                .is_none_or(|gate| surface_admits(gate, dialect.as_ref()))
         })
         .map(|sub| sub.name)
         .collect()

@@ -75,7 +75,7 @@ pub trait ProfileQueries {
     ///   option inherited from a vendor command resolves under that
     ///   vendor's composed profile (the old `contains` silently dropped
     ///   every inherited option on every vendor command), and
-    /// - **upper bound** — the gate's [`DialectSet::min_version`] must not
+    /// - **upper bound** — the gate's [`core_tcl_floor`] must not
     ///   exceed [`DialectProfile::version_ceiling`], so a tcl9.0-only
     ///   option cannot leak into an 8.5-superset profile whose mask
     ///   happens to intersect its gate.

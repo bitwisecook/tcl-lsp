@@ -4187,7 +4187,7 @@ fn w003_eda_vendor_dialect_does_not_over_fire_on_in() {
 
 #[test]
 fn w003_f5_tmsh_flags_string_relational_operators() {
-    // Regression: `f5-tmsh` used to have no `DialectSet` bit at all, so
+    // Regression: `f5-tmsh` used to have no `SpecSurface` bit at all, so
     // W003 silently never fired for it.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");

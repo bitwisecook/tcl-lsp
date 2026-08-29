@@ -25,7 +25,7 @@
 //! keyword (`string cat` arrived in 8.6.2 and shortened what `string c…`
 //! could mean).
 //!
-//! [`DialectSet`] is already the project's range type — a set of core-Tcl
+//! `SpecSurface` is already the project's range type — a set of core-Tcl
 //! version bits — so this module is the small bridge from a range to the
 //! **registry packs** it spans, plus the one rule that turns a single target
 //! dialect into its forward-compatibility range.
@@ -40,8 +40,8 @@ use crate::CommandRegistry;
 
 /// Every core-Tcl release the registry ships a pack for, oldest first.
 ///
-/// The single source of truth for release *order*. `DialectSet`'s bit order
-/// agrees with it by construction (see [`DialectSet::member_names`]); this
+/// The single source of truth for release *order*. `SpecSurface`'s bit order
+/// agrees with it by construction (see [`dialect_names_for_rows`]); this
 /// list is what maps those bits back to loadable pack names.
 pub const CORE_TCL_RELEASES: &[&str] = &["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"];
 

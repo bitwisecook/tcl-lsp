@@ -29,7 +29,7 @@
 //! though it is missing its own numbered `#M` anchor and so is absent
 //! from the 8.6 page's auto-generated outline, unlike 9.0/9.1's, which
 //! number it `#M62`; the content itself, not just the anchor, is what
-//! matters for a `DialectSet` gate, and that content is present in all
+//! matters for a `SpecSurface` gate, and that content is present in all
 //! three) — so no per-fact version split exists below beyond the
 //! whole-command Tcl-8.6-floor gate.
 //!

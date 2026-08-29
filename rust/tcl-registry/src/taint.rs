@@ -539,7 +539,7 @@ pub fn is_sanitiser(registry: &CommandRegistry, command: &str, args: &[&str]) ->
 /// sink flag the `_sinks._classify_sink` pass needs in one struct so
 /// callers do a single registry lookup.
 ///
-/// `dialect`-filtered: pass the active [`DialectSet`]; specs that don't
+/// `dialect`-filtered: pass the active `SpecSurface`; specs that don't
 /// support it are ignored.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TaintSinkInfo {

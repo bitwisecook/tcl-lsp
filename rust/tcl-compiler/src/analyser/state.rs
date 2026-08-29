@@ -535,7 +535,7 @@ pub struct Analyser {
     /// the W151 walk is off). Derived beside [`Self::range_context`].
     pub(super) range_numeral_grammars: Vec<tcl_dialect::NumberSyntax>,
     /// §5.4 mask-gated range sites (W150): availability gates whose
-    /// spelling is `DialectSet` ladder bits rather than a lifecycle,
+    /// spelling is `SpecSurface` ladder bits rather than a lifecycle,
     /// buffered during the walk and decided post-walk beside the
     /// lifecycle sites so one word still draws one diagnostic.
     pub(super) range_gate_sites: Vec<super::diagnostics::version_gate::RangeGateSite>,

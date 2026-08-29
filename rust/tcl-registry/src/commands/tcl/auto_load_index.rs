@@ -38,7 +38,7 @@ pub fn spec() -> CommandSpec {
         // spec's own `dialects` group rather than any list. `ALL_TCL`
         // spans every core Tcl version but not the `IRULES` bit, so none
         // of these specs intersect iRules' bare `IRULES` availability mask
-        // — narrowing one to a `DialectSet` that *did* carry `IRULES`
+        // — narrowing one to a `SpecSurface` that *did* carry `IRULES`
         // would re-admit exactly what the ban excludes (same rationale
         // documented on `auto_load`'s spec). Under the old subtractive
         // disable list `auto_load_index` was conspicuously absent even

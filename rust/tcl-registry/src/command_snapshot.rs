@@ -112,7 +112,7 @@ const TRAIT_FLAGS: &[(&str, Traits)] = &[
 ];
 
 // `CommandSpec.surface` serialisation derives from
-// `DialectSet::member_names` — the same canonical-name table `parse`
+// `dialect_names_for_rows` — the same canonical-name table `parse`
 // inverts — rather than a parallel hand-list. A hand-list here missed
 // `tcl9.1`/`bpf` once (a `TCL90_PLUS` spec dropped its 9.1
 // membership and a BPF-only spec serialised `[]`, indistinguishable from

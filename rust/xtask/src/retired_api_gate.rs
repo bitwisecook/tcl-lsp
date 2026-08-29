@@ -94,6 +94,25 @@ struct RetiredPattern {
 /// static_document_context_for, static_document_context_for_profile}` and
 /// `ResolvedContext`'s query surface.
 const RETIRED: &[RetiredPattern] = &[
+    // Q13: the availability bitmask, and every projection that only made
+    // sense as bits. Availability is stated as `SpecSurface` rows and asked
+    // as a `SurfaceQuery` point.
+    RetiredPattern {
+        needle: "DialectSet",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "availability_mask",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "get_for_dialect(",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "load_dialect(",
+        outside_registry_only: false,
+    },
     RetiredPattern {
         needle: "DialectProfile::by_name",
         outside_registry_only: false,

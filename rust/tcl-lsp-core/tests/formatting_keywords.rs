@@ -26,7 +26,6 @@
 
 use tcl_lsp_core::formatting::config::{BooleanForm, FormatterConfig};
 use tcl_lsp_core::formatting::engine::format_tcl;
-use tcl_registry::prelude::DialectSet;
 use tcl_dialect::model::{SpecSurface};
 
 fn fmt(src: &str, config: &FormatterConfig) -> String {
@@ -451,7 +450,7 @@ fn an_option_prefix_is_checked_over_the_range_too() {
 
 /// Format `src` against `dialect`'s registry with an explicit range — what a
 /// document that must keep working on more than one release declares.
-fn fmt_in_range(src: &str, dialect: &str, range: DialectSet) -> String {
+fn fmt_in_range(src: &str, dialect: &str, range: &'static [&'static str]) -> String {
     let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
     let config = FormatterConfig {
         target_range_override: Some(range),
