@@ -524,13 +524,14 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "How the command types the variables it writes, when that differs from its return value.",
     ),
     f(
-        "return_forms",
-        "Return forms",
+        "return_type_hook",
+        "Return-type hook",
         TYPES,
-        FieldKind::RustExpr {
-            hint: "&[ReturnForm::WhenSwitch { switch: \"-inline\", then: Some(TclType::List) }]",
+        FieldKind::Enum {
+            catalogue: "returnTypeHook",
+            optional: true,
         },
-        "Per-call refinements of the return type, first match winning.",
+        "Algorithm that types a call whose result shape moves with the call.",
     ),
     f(
         "return_elements",
@@ -2007,7 +2008,7 @@ fn custom_catalogues() -> [(&'static str, Value); 4] {
 /// The variant catalogues the form's pickers read, keyed by catalogue id.
 #[must_use]
 pub fn catalogues() -> Value {
-    let standard: [(&str, &[catalogue::Variant]); 22] = [
+    let standard: [(&str, &[catalogue::Variant]); 23] = [
         ("argRole", catalogue::ARG_ROLES),
         ("tclType", catalogue::TCL_TYPES),
         ("bodyKind", catalogue::BODY_KINDS),
@@ -2027,6 +2028,7 @@ pub fn catalogues() -> Value {
         ("codegenHook", catalogue::CODEGEN_HOOKS),
         ("inlineCodegenHook", catalogue::INLINE_CODEGEN_HOOKS),
         ("analyserHook", catalogue::ANALYSER_HOOKS),
+        ("returnTypeHook", catalogue::RETURN_TYPE_HOOKS),
         ("traits", &catalogue::TRAITS),
         ("taintColour", &catalogue::TAINT_COLOURS),
         ("dialects", &catalogue::DIALECTS),

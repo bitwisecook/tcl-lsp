@@ -323,6 +323,16 @@ pub const INLINE_CODEGEN_HOOKS: &[Variant] = &[
     v("Try", "try"),
 ];
 
+/// [`ReturnTypeHookId`] — the algorithm that types a call whose result shape
+/// moves with the call.
+pub const RETURN_TYPE_HOOKS: &[Variant] = &[
+    v("Regexp", "regexp -inline / -about"),
+    v("Lsearch", "lsearch -all / -inline / -subindices"),
+    v("Regsub", "regsub with or without varName"),
+    v("Scan", "scan inline or variable-writing"),
+    v("Pid", "pid with or without fileId"),
+];
+
 /// [`AnalyserHookId`] — the per-command analyser handler family.
 pub const ANALYSER_HOOKS: &[Variant] = &[
     v("Set", "set"),

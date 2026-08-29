@@ -483,6 +483,48 @@ pub use tcl_dialect::TclVersion;
 /// version (`string is`, `format`, `scan`).
 pub type VersionedConstFoldFn = fn(args: &[&str], version: Option<TclVersion>) -> Option<String>;
 
+/// Typed identifier for a command whose return type depends on the call.
+///
+/// [`crate::CommandSpec::return_type`] is one fact per command, which is right
+/// only while the result shape holds still. Several core commands hand back a
+/// different *kind* of value depending on how they were called: `regexp`
+/// counts matches but `regexp -inline` returns the matched substrings as a
+/// list, `regsub` returns a replacement count until its `varName` is omitted
+/// and it returns the substituted string instead. Typing every call by the
+/// command's usual result makes the compiler confidently wrong about the
+/// others — issue #1720, where iterating a `regexp -all -inline` result drew a
+/// shimmer warning saying the list "has int intrep".
+///
+/// The spec names the algorithm; [`crate::return_type`] keeps it. That split
+/// is what lets the rule be a real program — `lsearch` has to know that
+/// `-inline` dominates `-subindices`, which no table of switch/type pairs
+/// expresses — while the spec stays declarative data a `.tclspec` pack can
+/// author by name. A new variant gives the dispatcher a deliberate
+/// match-exhaustion error until its arm is written.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ReturnTypeHookId {
+    /// `regexp ?switches? exp string ?matchVar ...?` — `-inline` returns the
+    /// matched substrings as a list (the empty list when nothing matched) and
+    /// `-about` a two-element `{subexpressionCount propertyList}`; otherwise
+    /// the 0/1 match flag, or the match count under `-all`.
+    Regexp,
+    /// `lsearch ?options? list pattern` — `-all` returns a list (of indices,
+    /// or of elements alongside `-inline`); a bare `-inline` returns one
+    /// element straight out of the source list, so its intrep is the
+    /// caller's; `-subindices` turns a plain index into the full index path.
+    Lsearch,
+    /// `regsub ?switches? exp string subSpec ?varName?` — the substituted
+    /// string when `varName` is omitted, the replacement count when it is not.
+    Regsub,
+    /// `scan string format ?varName ...?` — the inline (no-`varName`) form
+    /// yields the list of converted values; otherwise the conversion count.
+    Scan,
+    /// `pid ?fileId?` — the pipeline form yields the list of process ids
+    /// (empty when the channel is not a pipeline); bare `pid` this process's
+    /// id.
+    Pid,
+}
+
 /// Argument type hint for a specific argument position.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ArgTypeHint {

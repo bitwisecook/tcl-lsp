@@ -214,11 +214,11 @@ execution trace is absent.
 | `literal_argument_validator` | `Option<LiteralArgumentValidator>` | `None` | Registry callback for literal argument relationships or collection members whose legal domain depends on surrounding words. It returns Valid, Invalid with an optional replacement Tcl value, or a typed Abstain. |
 | `arg_types` | `&'static [(u8, ArgTypeHint)]` | `&[]` | Per-argument type expectations (e.g. `Int`, `List`).  Drives shimmer detection |
 | `return_type` | `Option<TclType>` | `None` | Return type of the command — one fact, right for the shape the command is usually called in |
-| `return_forms` | `&'static [ReturnForm]` | `&[]` | Per-call refinements of `return_type`, first match winning. See below |
+| `return_type_hook` | `Option<ReturnTypeHookId>` | `None` | Names the algorithm that types a call whose result shape moves with the call. See below |
 | `completion` | `Option<CompletionDescriptor>` | `None` | Tcl *completion-code* semantics: which return codes (`CompletionCodeDomain::Exact` / `Any`) the call can complete with, and its result / return-options payload obligations.  A resolved subcommand or invocation form may supply a more specific descriptor; `None` stays conservative |
 | `body_kind` | `BodyKind` | `Plain` | Whether body arguments run in the caller's frame or a separate definition context |
 
-#### Per-form return typing
+#### Per-call return typing
 
 `return_type` is one fact per command, which is right only while the result
 shape holds still.  Several core commands hand back a different *kind* of
@@ -227,34 +227,44 @@ result makes the compiler confidently wrong about the others — issue #1720,
 where iterating a `regexp -all -inline` result drew a shimmer warning saying
 the list "has int intrep".
 
-`return_forms` declares the exceptions.  Entries are tried in order and the
-first match wins, so the more specific shape goes first:
+`return_type_hook` names the algorithm for those commands, the same way
+`lowering_hook` / `analyser_hook` do: the spec keeps the catalogue entry and
+[`tcl_registry::return_type`](../../../rust/tcl-registry/src/return_type.rs)
+keeps the implementations, dispatched by one exhaustive `match`.  A new
+variant is a compile error until its arm is written.
 
 ```rust
-// lsearch: -all is a list of indices, or of elements with -inline; a bare
-// -inline is one element lifted out of the source list.
-return_forms: &[
-    ReturnForm::WhenSwitch { switch: "-all",    then: Some(TclType::List) },
-    ReturnForm::WhenSwitch { switch: "-inline", then: None },
-],
+return_type_hook: Some(ReturnTypeHookId::Lsearch),
 ```
 
-| Variant | Matches when | Declared by |
+| Hook | Command | What moves |
 |---|---|---|
-| `WhenSwitch { switch, then }` | `switch` is among the call's leading switches, resolved through the command's own option table — so a legal abbreviation counts (`lsearch -al` is `-all`) and a word past `--` does not | `regexp` (`-inline`, `-about`), `lsearch` (`-all`, `-inline`) |
-| `WhenPositionals { count, then }` | the call supplies exactly `count` positional words after its switches — the optional-trailing-argument split | `regsub` (no `varName`), `scan` (inline form), `pid` (`fileId`) |
+| `Regexp` | `regexp` | `-inline` returns the matched substrings as a list, `-about` a two-element `{subexpressionCount propertyList}` |
+| `Lsearch` | `lsearch` | `-all` a list; a bare `-inline` one element out of the source list; `-subindices` the full index path |
+| `Regsub` | `regsub` | the substituted string until a `varName` makes it a replacement count |
+| `Scan` | `scan` | the inline (no-`varName`) form yields the converted values as a list |
+| `Pid` | `pid` | the `fileId` form yields the pipeline's process ids as a list |
 
-`then: None` means the result's intrep is unknown for that form, which is the
-honest answer when a command hands back a value the caller supplied
-(`lsearch -inline` returns an element whose intrep is whatever was put in the
-list).  Every consumer already handles an unknown type; a confidently wrong
-one is the bug this fact exists to prevent.
+It is a hook rather than a table of switch/type pairs because the rules are
+programs: `lsearch` has to know that `-inline` beats `-subindices` (the former
+yields an *element*, the latter only reshapes an *index*), which no pair list
+expresses without smuggling the precedence into its ordering.
 
-Read it through `CommandSpec::return_type_for_call`, never off the field: that
-one entry point resolves subcommands, applies the forms, and is what SSA type
-propagation, the taint sanitiser test (`tcl_registry::taint::is_sanitiser`),
-and the shimmer byte-array check all call, so none of them can disagree about
-a per-form result.
+An algorithm may answer `None`, meaning the result's intrep is unknown for
+that call.  That is the honest answer when a command hands back a value the
+caller supplied — `lsearch -inline` returns an element whose intrep is
+whatever was put in the list — and every consumer already handles it.  A
+confidently wrong type is the bug this fact exists to prevent.
+
+Read the answer through `CommandSpec::return_type_for_call`, never off the
+field: that one entry point resolves subcommands, dispatches the hook, and is
+what SSA type propagation, the taint sanitiser test
+(`tcl_registry::taint::is_sanitiser`) and the shimmer byte-array check all
+call, so none of them can disagree.  Two helpers on `CommandSpec` give the
+algorithms their view of the call — `leading_switch_names` (resolved through
+the command's own option table, so a legal abbreviation counts, and capped at
+`reserved_trailing_words` so a mandatory operand is never read as a switch)
+and `positional_word_count`.
 
 #### Variable assignment
 

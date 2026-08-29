@@ -91,6 +91,7 @@ use tcl_registry::handle_binding::{
 };
 use tcl_registry::hooks::{
     AnalyserHookId, ArgTypeHint, CodegenHookId, InlineCodegenHookId, LoweringHookId,
+    ReturnTypeHookId,
 };
 use tcl_registry::hover::{
     ArgValue, CallbackTaintInput, FormKind, FormSpec, HoverSnippet, IntegerDomain, OptionArg,
@@ -112,7 +113,7 @@ use tcl_registry::spec::{
 use tcl_registry::symbol_def::{DefinedSymbolKind, SymbolDef};
 use tcl_registry::taint::SetterConstraint;
 use tcl_registry::traits::Traits;
-use tcl_registry::types::{ReturnElements, ReturnForm, TclType, VarElementsEffect, VarWriteTyping};
+use tcl_registry::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 use tcl_registry::world_effect::WorldEffectDescriptor;
 use tcl_registry::{CommandPrefixArguments, InvocationArguments};
 
@@ -1642,6 +1643,14 @@ const INLINE_CODEGEN_HOOKS: &[InlineCodegenHookId] = &[
     InlineCodegenHookId::Try,
 ];
 
+const RETURN_TYPE_HOOKS: &[ReturnTypeHookId] = &[
+    ReturnTypeHookId::Regexp,
+    ReturnTypeHookId::Lsearch,
+    ReturnTypeHookId::Regsub,
+    ReturnTypeHookId::Scan,
+    ReturnTypeHookId::Pid,
+];
+
 const ANALYSER_HOOKS: &[AnalyserHookId] = &[
     AnalyserHookId::Set,
     AnalyserHookId::Variable,
@@ -1860,43 +1869,6 @@ fn parse_var_write_typing(text: &str, line: u32, log: &mut Log) -> Option<VarWri
 
 /// `{ListOfArgs N}` / `{DictOfPairs N}` / `{ElementOf N}` / `{SubListOf N}`.
 ///
-/// `{{WhenSwitch -inline List} {WhenPositionals 3 String}}` — a brace group
-/// per [`ReturnForm`], in the declaration order that decides which form wins.
-///
-/// A form's answer is a `TclType` name, or the bare word `Unknown` for the
-/// "matches, but the result still can't be typed" case (`lsearch -inline`).
-fn parse_return_forms(text: &str, line: u32, log: &mut Log) -> Vec<ReturnForm> {
-    let mut forms = Vec::new();
-    for group in list_words(text) {
-        let parts = list_words(&group);
-        let then = |word: &str| -> Option<Option<TclType>> {
-            if word == "Unknown" {
-                return Some(None);
-            }
-            by_name(TCL_TYPES, word).map(Some)
-        };
-        let form = match parts.split_first() {
-            Some((head, rest)) if head == "WhenSwitch" && rest.len() == 2 => {
-                then(&rest[1]).map(|then| ReturnForm::WhenSwitch {
-                    switch: String::leak(rest[0].clone()),
-                    then,
-                })
-            }
-            Some((head, rest)) if head == "WhenPositionals" && rest.len() == 2 => rest[0]
-                .parse()
-                .ok()
-                .zip(then(&rest[1]))
-                .map(|(count, then)| ReturnForm::WhenPositionals { count, then }),
-            _ => None,
-        };
-        match form {
-            Some(form) => forms.push(form),
-            None => log.say(line, format!("unreadable return_form `{group}` dropped")),
-        }
-    }
-    forms
-}
-
 /// The `{VARIANT payload …}` rule `README.md` gives for `var_write_typing`,
 /// applied to the three element-structure facts that follow it in the coverage
 /// matrix: a variant word, then its fields in declaration order.
@@ -4112,8 +4084,8 @@ fn apply_command_stmt(
             spec.format_string_type =
                 enum_by_name(FORMAT_TYPES, &value, "format string type", stmt.line, log);
         }
-        "return_forms" => {
-            spec.return_forms = leak_slice(parse_return_forms(&value, stmt.line, log));
+        "return_type_hook" => {
+            spec.return_type_hook = native_id(stmt, RETURN_TYPE_HOOKS, "return-type hook", log);
         }
         "return_elements" => {
             spec.return_elements = parse_return_elements(&value, stmt.line, log);
@@ -5215,6 +5187,11 @@ mod tests {
                 catalogue::INLINE_CODEGEN_HOOKS,
             ),
             ("analyser", names(ANALYSER_HOOKS), catalogue::ANALYSER_HOOKS),
+            (
+                "return type",
+                names(RETURN_TYPE_HOOKS),
+                catalogue::RETURN_TYPE_HOOKS,
+            ),
         ] {
             let mut expected: Vec<&str> = catalogue.iter().map(|variant| variant.key).collect();
             let mut mine: Vec<&str> = mine.iter().map(String::as_str).collect();

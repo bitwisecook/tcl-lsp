@@ -361,7 +361,7 @@ fn field_template(key: &str, group: &str) -> Option<Example> {
     match key {
         "traits" => Some(FIELD_TRAITS),
         "arg_roles" | "arg_role_resolver" | "repeated_args" => Some(FIELD_ARG_ROLES),
-        "return_type" | "return_forms" | "return_elements" | "var_write_typing" => {
+        "return_type" | "return_type_hook" | "return_elements" | "var_write_typing" => {
             Some(FIELD_RETURN_TYPE)
         }
         "command_prefixes" | "command_prefix_resolver" | "start_cmd_arg" => {
@@ -471,9 +471,8 @@ fn catalogue_template(id: &str) -> Option<Example> {
         "patternType" | "formatType" | "defaultFormFirstWord" | "prefixMatching" => {
             Some(CATALOGUE_ARG_ROLE)
         }
-        "loweringHook" | "codegenHook" | "inlineCodegenHook" | "analyserHook" => {
-            Some(CATALOGUE_HOOK)
-        }
+        "loweringHook" | "codegenHook" | "inlineCodegenHook" | "analyserHook"
+        | "returnTypeHook" => Some(CATALOGUE_HOOK),
         "traits" => Some(FIELD_TRAITS),
         "taintColour" => Some(CATALOGUE_TAINT),
         "dialects" => Some(CATALOGUE_DIALECT),

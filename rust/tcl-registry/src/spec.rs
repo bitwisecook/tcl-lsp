@@ -33,6 +33,7 @@ use crate::dispatch_stability::{DispatchDependencies, DispatchDependencyDescript
 use crate::events::{EventRequirementForm, ResolvedEventRequirements};
 use crate::forms::{CommandForm, SubCommandForm};
 use crate::frame_effect::FrameEffectSpec;
+use crate::hooks::ReturnTypeHookId;
 use crate::hooks::{
     AnalyserHookId, ArgTypeHint, CodegenHookId, ConstFoldFn, InlineCodegenHookId, LoweringHookId,
     TclVersion, VersionedConstFoldFn,
@@ -52,7 +53,7 @@ use crate::state_transition::StateTransitionDescriptor;
 use crate::symbol_def::SymbolDef;
 use crate::taint::{SetterConstraint, TaintColour};
 use crate::traits::Traits;
-use crate::types::{ReturnElements, ReturnForm, TclType, VarElementsEffect, VarWriteTyping};
+use crate::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 use crate::world_effect::WorldEffectDescriptor;
 
 /// Dynamic argument role resolver.
@@ -1368,17 +1369,17 @@ pub struct CommandSpec {
     ///
     /// One fact per command — the result of the shape the command is usually
     /// called in. A command whose result *kind* moves with the call declares
-    /// the exceptions in [`Self::return_forms`], which win over this.
+    /// names the algorithm in [`Self::return_type_hook`], which wins over this.
     pub return_type: Option<TclType>,
 
-    /// Per-call refinements of [`Self::return_type`], first match winning.
+    /// Names the algorithm that types a call whose result shape moves with
+    /// the call, when [`Self::return_type`] alone cannot describe it.
     ///
-    /// Empty for almost every command: a result shape that never moves needs
-    /// no forms, and `return_type` alone describes it. Non-empty for the few
-    /// whose switches or positional count change what they hand back
-    /// (`regexp -inline`, `regsub` without a `varName`). Resolved by
-    /// [`Self::return_type_for_call`]; see [`ReturnForm`].
-    pub return_forms: &'static [ReturnForm],
+    /// `None` for almost every command. `Some` for the few whose switches or
+    /// positional count change what they hand back (`regexp -inline`,
+    /// `regsub` without a `varName`); [`crate::return_type`] keeps the
+    /// algorithms and [`Self::return_type_for_call`] dispatches to them.
+    pub return_type_hook: Option<ReturnTypeHookId>,
 
     /// How the command types the variable(s) it writes as a side effect —
     /// distinct from [`Self::return_type`], which types the value `[cmd …]`
@@ -2176,7 +2177,7 @@ impl CommandSpec {
         script_timing_resolver: None,
         callback_taint_inputs: &[],
         return_type: None,
-        return_forms: &[],
+        return_type_hook: None,
         var_write_typing: VarWriteTyping::ReturnValue,
         return_elements: None,
         var_elements_effect: None,
@@ -2521,11 +2522,10 @@ impl CommandSpec {
     /// one every caller already handles; a confidently wrong type is what
     /// issue #1720 was.
     ///
-    /// A [`Self::return_forms`] entry wins over `return_type`, first match in
-    /// declaration order. Subcommands resolve to their own static
-    /// `return_type`: no subcommand needs per-form typing yet, so
-    /// [`SubCommand`] carries no `return_forms` to keep the authoring surface
-    /// (and the `SpecTcl` grammar) no wider than the facts require.
+    /// A [`Self::return_type_hook`] wins over `return_type`. Subcommands
+    /// resolve to their own static `return_type`: no subcommand needs a hook
+    /// yet, so [`SubCommand`] carries none, keeping the authoring surface (and
+    /// the `SpecTcl` grammar) no wider than the facts require.
     #[must_use]
     pub fn return_type_for_call(&self, args: &[&str]) -> Option<TclType> {
         if !self.subcommands.is_empty() {
@@ -2534,47 +2534,49 @@ impl CommandSpec {
                 .and_then(|word| self.resolve_subcommand(word))
                 .and_then(|sub| sub.return_type);
         }
-        // A matched form wins outright, including when it answers "unknown"
-        // — falling back to `return_type` there would reinstate exactly the
-        // confidently-wrong typing the form exists to prevent.
-        if let Some(form) = self.matching_return_form(args) {
-            return form.then();
+        // The hook's answer stands, including when it is "unknown" —
+        // falling back to `return_type` there would reinstate exactly the
+        // confidently-wrong typing the hook exists to prevent.
+        match self.return_type_hook {
+            Some(hook) => crate::return_type::resolve(hook, self, args),
+            None => self.return_type,
         }
-        self.return_type
     }
 
-    /// The first [`ReturnForm`] this call matches, or `None` when it matches
-    /// none.
-    fn matching_return_form(&self, args: &[&str]) -> Option<ReturnForm> {
-        // Switch words are resolved through the command's own option table,
-        // so an abbreviation counts exactly when the real command accepts one
-        // (`lsearch -al` is `-all`; `regexp -inl` is an error, because
-        // `Tcl_RegexpObjCmd` reads its table with `TCL_EXACT`).
-        if self.return_forms.is_empty() {
-            return None;
-        }
-        // …and the scan stops short of the operands C Tcl reserves, so a
-        // mandatory word is never read as a switch.  `Tcl_LsearchObjCmd`
-        // scans `i < objc - 2`, which makes `lsearch -all foo` a search for
-        // `foo` in the one-element list `-all` — it returns -1, an int, not
-        // the list `-all` would otherwise select (verified on tclsh 9.0.4).
+    /// The canonical names of the switches in front of this call's first
+    /// positional argument.
+    ///
+    /// Words resolve through the command's own option table, so an
+    /// abbreviation counts exactly when the real command accepts one
+    /// (`lsearch -al` is `-all`; `regexp -inl` is an error, because
+    /// `Tcl_RegexpObjCmd` reads its table with `TCL_EXACT`), and a value word
+    /// is consumed by the switch that takes it. The scan also stops short of
+    /// the operands C Tcl reserves ([`Self::reserved_trailing_words`]), so a
+    /// mandatory word is never read as a switch: `Tcl_LsearchObjCmd` scans
+    /// `i < objc - 2`, which makes `lsearch -all foo` a search for `foo` in
+    /// the one-element list `-all` — it returns -1, an int, not the list
+    /// `-all` would otherwise select (verified on tclsh 9.0.4).
+    #[must_use]
+    pub fn leading_switch_names(&self, args: &[&str]) -> Vec<&'static str> {
+        args[..self.switch_word_count(args)]
+            .iter()
+            .filter_map(|word| resolve_option_prefix_with(self.options, word, self.prefix_matching))
+            .map(|option| option.name)
+            .collect()
+    }
+
+    /// How many positional words this call supplies — every word that is not
+    /// a leading switch or one of their values. The optional-trailing-argument
+    /// split (`regsub`'s `varName`, `pid`'s `fileId`) reads this.
+    #[must_use]
+    pub fn positional_word_count(&self, args: &[&str]) -> usize {
+        args.len() - self.switch_word_count(args)
+    }
+
+    /// Words consumed by the leading switch run, values included.
+    fn switch_word_count(&self, args: &[&str]) -> usize {
         let option_scan_end = args.len().saturating_sub(self.reserved_trailing_words);
-        let switch_count = leading_option_word_count_with(
-            self.options,
-            &args[..option_scan_end],
-            self.prefix_matching,
-        );
-        self.return_forms.iter().copied().find(|form| match *form {
-            ReturnForm::WhenSwitch { switch, .. } => args[..switch_count]
-                .iter()
-                .filter_map(|word| {
-                    resolve_option_prefix_with(self.options, word, self.prefix_matching)
-                })
-                .any(|option| option.name == switch),
-            ReturnForm::WhenPositionals { count, .. } => {
-                args.len().saturating_sub(switch_count) == usize::from(count)
-            }
-        })
+        leading_option_word_count_with(self.options, &args[..option_scan_end], self.prefix_matching)
     }
 
     /// Resolve an option word against this command's option table.

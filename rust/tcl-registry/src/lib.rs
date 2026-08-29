@@ -94,6 +94,7 @@ pub mod repeated;
 pub mod representation;
 pub mod resolved_invocation;
 pub mod result_stability;
+pub mod return_type;
 pub mod scoped;
 pub mod semantic_operation;
 pub mod side_effects;
@@ -159,7 +160,7 @@ pub mod prelude {
         BoundHandle, HandleBindingSpec, HandleClassSource, HandleKeyword, HandleName,
     };
     pub use crate::hooks::{
-        AnalyserHookId, ArgTypeHint, CodegenHookId, LoweringHookId, TclVersion,
+        AnalyserHookId, ArgTypeHint, CodegenHookId, LoweringHookId, ReturnTypeHookId, TclVersion,
         VersionedConstFoldFn,
     };
     pub use crate::hover::{
@@ -209,9 +210,7 @@ pub mod prelude {
         TkGeometryManagerSpec, is_widget_path, is_widget_path_or_root, widget_path_is_within,
     };
     pub use crate::traits::Traits;
-    pub use crate::types::{
-        ReturnElements, ReturnForm, TclType, VarElementsEffect, VarWriteTyping,
-    };
+    pub use crate::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
     pub use crate::world_effect::{
         CallbackEffect, CallbackKinds, EffectAccessMode, Reentrancy, StaticEffectAccess,
         StaticEffectFootprint, StaticInterpreterScope, StaticNamespaceScope, StaticSubjectScope,
@@ -306,7 +305,7 @@ pub use state_transition::{
 pub use symbol_def::{DefinedSymbolKind, SymbolDef};
 pub use taint::{SetterConstraint, TaintColour, TaintColourAtom};
 pub use traits::{FRAME_REACH_TRAITS, Traits, UNIT_LINKAGE_TRAITS};
-pub use types::{ReturnElements, ReturnForm, TclType, VarElementsEffect, VarWriteTyping};
+pub use types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 pub use world_effect::{
     CallbackEffect, CallbackKinds, EffectAccess, EffectAccessMode, EffectFootprint,
     InterpreterScope, LegacyEffectBridge, NamespaceScope, Reentrancy, ResolvedWorldEffects,

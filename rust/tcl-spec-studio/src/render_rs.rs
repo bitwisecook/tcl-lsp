@@ -906,6 +906,7 @@ fn enum_type_name(catalogue: &str) -> &'static str {
         "codegenHook" => "CodegenHookId",
         "inlineCodegenHook" => "InlineCodegenHookId",
         "analyserHook" => "AnalyserHookId",
+        "returnTypeHook" => "ReturnTypeHookId",
         "traits" => "Traits",
         "taintColour" => "TaintColour",
         "dialects" => "DialectSet",

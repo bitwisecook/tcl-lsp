@@ -222,15 +222,12 @@ pub fn spec() -> CommandSpec {
         arity: Arity::at_least(2),
         // Documented return is the int conversion count (`scan str fmt
         // var ...`). The inline `scan str fmt` form (folded by `fold_scan`)
-        // actually yields the *list* of converted values — the `return_forms`
-        // entry below is that per-form refinement.
+        // actually yields the *list* of converted values — the hook below is
+        // that per-form refinement.
         return_type: Some(TclType::Int),
         // Two positionals (`string format`) is the inline form: no variables
         // to write, so the converted values come back as a list.
-        return_forms: &[ReturnForm::WhenPositionals {
-            count: 2,
-            then: Some(TclType::List),
-        }],
+        return_type_hook: Some(ReturnTypeHookId::Scan),
         // `scan` writes format-dependent conversions (`%d` → int, `%s` →
         // string, `%f` → double) to its targets while returning the *count*.
         // Without parsing the format the target intreps are unknown, so they
@@ -258,8 +255,7 @@ pub fn spec() -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
-    use super::{fold_scan, spec};
-    use crate::TclType;
+    use super::fold_scan;
 
     #[test]
     fn scan_folds_dialect_invariant_subset() {
@@ -316,22 +312,5 @@ mod tests {
         // A `%s` run needing list-quoting, and non-ASCII input, bail.
         assert_eq!(fold_scan(&["a;b", "%s"]), None);
         assert_eq!(fold_scan(&["caf\u{e9}", "%s"]), None);
-    }
-
-    /// The inline (no-`varName`) form yields the list of converted values —
-    /// the per-form refinement `return_type`'s comment defers to.  tclsh
-    /// 9.0.4: `llength [scan "12 34" {%d %d}]` is 2.
-    #[test]
-    fn the_inline_form_returns_the_converted_values_as_a_list() {
-        let s = spec();
-        assert_eq!(
-            s.return_type_for_call(&["$s", "{%d %d}"]),
-            Some(TclType::List)
-        );
-        assert_eq!(
-            s.return_type_for_call(&["$s", "{%d %d}", "a", "b"]),
-            Some(TclType::Int),
-            "the variable-writing form counts conversions"
-        );
     }
 }

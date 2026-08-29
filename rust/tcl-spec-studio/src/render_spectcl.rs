@@ -915,41 +915,6 @@ fn var_write_typing_word(expr: &str) -> Option<String> {
     })
 }
 
-/// `{{WhenSwitch -inline List} {WhenPositionals 3 String}}` from a rendered
-/// `return_forms` slice.
-///
-/// Same `{VARIANT payload …}` rule the element-structure facts use, one brace
-/// group per form so declaration order — which decides which form wins —
-/// survives the round trip.  A form's answer is the `TclType` name, or the
-/// bare word `Unknown` for `then: None`.
-fn return_forms_word(expr: &str) -> Option<String> {
-    let items = slice_items(expr)?;
-    if items.is_empty() {
-        return Some("{}".to_owned());
-    }
-    let forms: Option<Vec<String>> = items
-        .iter()
-        .map(|item| {
-            let variant = variant_of(item.split(['(', '{']).next()?);
-            let fields = struct_fields(item)?;
-            let then = match fields.get("then")? {
-                &"None" => "Unknown".to_owned(),
-                some => variant_of(unwrap_some(some)?).to_owned(),
-            };
-            Some(match variant {
-                "WhenSwitch" => {
-                    format!("{{WhenSwitch {} {then}}}", rust_str(fields.get("switch")?)?)
-                }
-                "WhenPositionals" => {
-                    format!("{{WhenPositionals {} {then}}}", fields.get("count")?)
-                }
-                _ => return None,
-            })
-        })
-        .collect();
-    Some(format!("{{{}}}", forms?.join(" ")))
-}
-
 /// `{ListOfArgs N}` … from a rendered `Option<ReturnElements>`.
 ///
 /// The `{VARIANT payload …}` rule the coverage matrix gives for the three
@@ -2071,7 +2036,6 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
             None => todo(out, "var_write_typing"),
         }
     }
-    expr_word(out, ctx, draft, "return_forms", return_forms_word);
     expr_word(out, ctx, draft, "return_elements", return_elements_word);
     expr_word(
         out,
@@ -2166,6 +2130,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     catalogue_hook(out, ctx, draft, "codegen_hook");
     catalogue_hook(out, ctx, draft, "inline_codegen_hook");
     catalogue_hook(out, ctx, draft, "analyser_hook");
+    catalogue_hook(out, ctx, draft, "return_type_hook");
     gap_todo(out, ctx, draft, "semantic_operation");
     gap_todo(out, ctx, draft, "bpf_op");
     gap_todo(out, ctx, draft, "completion");
