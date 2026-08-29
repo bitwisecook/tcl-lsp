@@ -1606,6 +1606,20 @@ pub fn specificity_breadth(declarations: &[SurfaceDeclaration]) -> u32 {
     breadth
 }
 
+/// The lowest Tcl release a gate's core-Tcl rows name — the floor the §5.2
+/// option-gating ceiling compares against.
+///
+/// `None` for a gate that names no plain-Tcl line at all: a pure vendor gate
+/// has no version floor, so no ceiling can exclude it.
+#[must_use]
+pub fn core_tcl_floor(gate: &[SpecSurface]) -> Option<TclVersion> {
+    gate.iter()
+        .filter(|row| row.provider == SpecProvider::Core(Family::Tcl))
+        .flat_map(|row| row.windows.iter())
+        .filter_map(|&(from, _)| TclVersion::from_version_string(from))
+        .min()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2560,17 +2574,4 @@ mod tests {
         // No core ⇒ no build to answer ⇒ fail, never silently pass.
         assert!(!context("f5-bigip").predicate_passes(&declaration.predicate));
     }
-}
-
-/// The lowest Tcl release a gate's core-Tcl rows name — the floor the §5.2
-/// option-gating ceiling compares against.
-///
-/// `None` for a gate that names no plain-Tcl line at all: a pure vendor gate
-/// has no version floor, so no ceiling can exclude it.
-pub fn core_tcl_floor(gate: &[SpecSurface]) -> Option<TclVersion> {
-    gate.iter()
-        .filter(|row| row.provider == SpecProvider::Core(Family::Tcl))
-        .flat_map(|row| row.windows.iter())
-        .filter_map(|&(from, _)| TclVersion::from_version_string(from))
-        .min()
 }

@@ -1562,6 +1562,41 @@ impl DialectProfile {
     }
 }
 
+/// Canonical dialect profile names, in sorted order.
+///
+/// Kept pre-sorted so [`available_dialects`] returns them in sorted
+/// order. This
+/// is the single source of truth for the explorer's dialect dropdown and
+/// the CLI's `--dialect` choices. Every name here resolves to its own
+/// [`DialectProfile::find`] entry (`f5-tmsh` / `f5-bigip` are first-class
+/// profiles, D8; `tk` is a library pin, not a profile — §7.2).
+pub const KNOWN_DIALECTS: &[&str] = &[
+    "bpf",
+    "cadence-eda-tcl",
+    "expect",
+    "f5-bigip",
+    "f5-iapps",
+    "f5-irules",
+    "f5-tmsh",
+    "intel-quartus-eda-tcl",
+    "mentor-eda-tcl",
+    "microchip-libero-eda-tcl",
+    "spectcl",
+    "synopsys-eda-tcl",
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "xilinx-eda-tcl",
+];
+
+/// Return the canonical dialect profile names in sorted order.
+#[must_use]
+pub fn available_dialects() -> &'static [&'static str] {
+    KNOWN_DIALECTS
+}
+
 #[cfg(test)]
 mod tests {
     use super::DialectProfile;
@@ -2420,39 +2455,4 @@ mod tests {
             "the BIG-IP config basenames must be catalogued"
         );
     }
-}
-
-/// Canonical dialect profile names, in sorted order.
-///
-/// Kept pre-sorted so [`available_dialects`] returns them in sorted
-/// order. This
-/// is the single source of truth for the explorer's dialect dropdown and
-/// the CLI's `--dialect` choices. Every name here resolves to its own
-/// [`DialectProfile::find`] entry (`f5-tmsh` / `f5-bigip` are first-class
-/// profiles, D8; `tk` is a library pin, not a profile — §7.2).
-pub const KNOWN_DIALECTS: &[&str] = &[
-    "bpf",
-    "cadence-eda-tcl",
-    "expect",
-    "f5-bigip",
-    "f5-iapps",
-    "f5-irules",
-    "f5-tmsh",
-    "intel-quartus-eda-tcl",
-    "mentor-eda-tcl",
-    "microchip-libero-eda-tcl",
-    "spectcl",
-    "synopsys-eda-tcl",
-    "tcl8.4",
-    "tcl8.5",
-    "tcl8.6",
-    "tcl9.0",
-    "tcl9.1",
-    "xilinx-eda-tcl",
-];
-
-/// Return the canonical dialect profile names in sorted order.
-#[must_use]
-pub fn available_dialects() -> &'static [&'static str] {
-    KNOWN_DIALECTS
 }

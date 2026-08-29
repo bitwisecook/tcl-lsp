@@ -36,10 +36,10 @@
 //! and releasing argv can never free a still-referenced result. Immediate free
 //! + retain-into-result is the whole discipline.
 
-use tcl_dialect::model::SurfaceQuery;
 use core::ffi::c_char;
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
+use tcl_dialect::model::SurfaceQuery;
 
 use tcl_core_types::RecursionLimit;
 use tcl_runtime_api::guard::{

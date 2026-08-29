@@ -317,10 +317,19 @@ pub(crate) fn is_unnormalised_getter(
     is_getter_form(args)
 }
 
+/// Whether this point stands on the iRules surface.
+///
+/// Every check in this module is iRules-only and asked the question inline;
+/// naming it once keeps the five gates reading the same way and keeps the
+/// family comparison in one place.
+fn is_irules(dialect: Option<SurfaceQuery<'_>>) -> bool {
+    dialect.is_some_and(|q| q.core.is_some_and(|(family, _)| family == Family::F5Irules))
+}
+
 /// Find IRULE3102 warnings across every function in `cu`.
 ///
-/// Dialect-gated: returns an empty vector unless `dialect` is
-/// `"f5-irules"` / `"irules"`.
+/// Gated: returns an empty vector unless the point stands on the iRules
+/// surface.
 ///
 /// Scan targets:
 ///
@@ -337,7 +346,7 @@ pub fn find_unnormalised_getter_warnings(
     dialect: Option<SurfaceQuery<'_>>,
 ) -> Vec<IrulesCheckWarning> {
     let mut out: Vec<IrulesCheckWarning> = Vec::new();
-    if !dialect.is_some_and(|q| q.core.is_some_and(|(family, _)| family == Family::F5Irules)) {
+    if !is_irules(dialect) {
         return out;
     }
 
@@ -521,7 +530,7 @@ pub fn find_unguarded_drop_warnings(
     dialect: Option<SurfaceQuery<'_>>,
 ) -> Vec<IrulesCheckWarning> {
     let mut out: Vec<IrulesCheckWarning> = Vec::new();
-    if !dialect.is_some_and(|q| q.core.is_some_and(|(family, _)| family == Family::F5Irules)) {
+    if !is_irules(dialect) {
         return out;
     }
     let leaf = |st: &DropFlowState, stmt: &Statement, _out: &mut Vec<IrulesCheckWarning>| {
@@ -856,7 +865,7 @@ pub fn find_collect_flow_warnings(
     registry: &CommandRegistry,
     dialect: Option<SurfaceQuery<'_>>,
 ) -> Vec<IrulesCheckWarning> {
-    if !dialect.is_some_and(|q| q.core.is_some_and(|(family, _)| family == Family::F5Irules)) {
+    if !is_irules(dialect) {
         return Vec::new();
     }
     let (state, events_seen) = collect_flow_state(cu, registry);
@@ -1104,7 +1113,7 @@ pub fn find_http_flow_warnings(
     dialect: Option<SurfaceQuery<'_>>,
 ) -> Vec<IrulesCheckWarning> {
     let mut out = Vec::new();
-    if !dialect.is_some_and(|q| q.core.is_some_and(|(family, _)| family == Family::F5Irules)) {
+    if !is_irules(dialect) {
         return out;
     }
     let events = EventRegistry::build();
@@ -1475,7 +1484,7 @@ pub fn find_hoistable_set_warnings(
     dialect: Option<SurfaceQuery<'_>>,
 ) -> Vec<IrulesCheckWarning> {
     let mut out = Vec::new();
-    if !dialect.is_some_and(|q| q.core.is_some_and(|(family, _)| family == Family::F5Irules)) {
+    if !is_irules(dialect) {
         return out;
     }
     let events = EventRegistry::build();
@@ -1628,7 +1637,7 @@ pub fn find_generic_static_name_warnings(
     generic_patterns: Option<&[String]>,
 ) -> Vec<IrulesCheckWarning> {
     let mut out = Vec::new();
-    if !dialect.is_some_and(|q| q.core.is_some_and(|(family, _)| family == Family::F5Irules)) {
+    if !is_irules(dialect) {
         return out;
     }
     let compiled = compile_generic_patterns(generic_patterns);

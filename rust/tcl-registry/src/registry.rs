@@ -1703,7 +1703,7 @@ impl CommandRegistry {
         self.instance_methods_at(
             class_name,
             None,
-            self.profile.map(|profile| profile.surface_query()),
+            self.profile.map(tcl_dialect::DialectProfile::surface_query),
         )
     }
 
@@ -1781,7 +1781,7 @@ impl CommandRegistry {
             class_name,
             method,
             None,
-            self.profile.map(|profile| profile.surface_query()),
+            self.profile.map(tcl_dialect::DialectProfile::surface_query),
         )
     }
 
@@ -4734,7 +4734,7 @@ fn pick_form<'r>(
 ) -> Option<&'r CommandForm> {
     let argument_count = arguments.exact_argv_len()?.checked_sub(argument_offset)?;
     let n = u16::try_from(argument_count).unwrap_or(u16::MAX);
-    let admits_dialect = |form: &CommandForm| !matches!(form.surface, Some(d) if !dialect.is_none() && !surface_admits(d, dialect.as_ref()));
+    let admits_dialect = |form: &CommandForm| !matches!(form.surface, Some(d) if dialect.is_some() && !surface_admits(d, dialect.as_ref()));
     // Resolve each selector word as its own Tcl keyword table. This matters
     // for nested operations: `tag c ...` is ambiguous between `cell` and
     // `configure` before a later word can be inspected, while `tag cell h`

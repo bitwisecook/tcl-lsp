@@ -43,8 +43,8 @@
 //!
 //! [`TclVersion::dialect_profile_name`]: tcl_dialect::TclVersion::dialect_profile_name
 
-use tcl_dialect::DialectProfile;
 use tcl_dialect::model::SurfaceQuery;
+use tcl_dialect::DialectProfile;
 use tcl_registry::CommandRegistry;
 
 /// Resolve a dialect **name** to the profile this interpreter pins.

@@ -43,8 +43,8 @@
 //! dropped them, so the option word is resolved against the option set the
 //! registry declares for the emulated release rather than a fixed list.
 
-use tcl_dialect::model::surface_admits;
 use tcl_cmd_core::trace as core_trace;
+use tcl_dialect::model::surface_admits;
 
 use crate::frame::{split_array_ref, VarError};
 use crate::interp::{new_string, obj_bytes, Code, Interp};

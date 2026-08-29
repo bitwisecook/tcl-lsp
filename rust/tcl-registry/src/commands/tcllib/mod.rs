@@ -650,15 +650,6 @@ fn tcllib_required_package(name: &str) -> Option<&'static str> {
     }
 }
 
-/// Dialects a tcllib package must be gated *out* of because its
-/// `package require Tcl` line raises the Tcl floor above the registry's
-/// oldest supported release.
-///
-/// The blanket tcllib gate offers every command in all standard Tcl
-/// dialects (8.4–9.1).  A package that requires a newer Tcl core is not
-/// installable on the excluded dialect, so its commands must drop that
-/// membership.  Returns the dialect bits to remove, or `None` when the
-
 #[cfg(test)]
 mod tests {
     use super::*;

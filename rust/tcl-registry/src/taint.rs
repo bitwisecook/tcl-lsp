@@ -582,7 +582,7 @@ pub fn classify_taint_sinks(
     // An empty `dialect` means "no dialect filter" — a `None`-like
     // short-circuit. Only a
     // concrete dialect set gates dialect-specific specs.
-    if !dialect.is_none() && !spec.supports_dialect(dialect) {
+    if dialect.is_some() && !spec.supports_dialect(dialect) {
         return TaintSinkInfo::default();
     }
 

@@ -479,25 +479,22 @@ fn package_row(name: &str, history: ItemHistory) -> SurfaceDeclaration {
 pub fn declarations_for_spec(spec: &CommandSpec) -> SmallVec<[SurfaceDeclaration; 2]> {
     let history = item_history(&spec.lifecycle);
     let mut rows: SmallVec<[SurfaceDeclaration; 2]> = SmallVec::new();
-    match spec.surface {
-        Some(authored) => {
-            for authored_row in authored {
-                rows.push(lower(authored_row, history.clone()));
-            }
+    if let Some(authored) = spec.surface {
+        for authored_row in authored {
+            rows.push(lower(authored_row, history.clone()));
         }
+    } else {
         // A spec that names no provider is available wherever it is asked
         // about, which is one row per provider there is.
-        None => {
-            for family in Family::ALL {
-                rows.push(row(
-                    Provider::Core(family),
-                    full_axis(VersionAxisId::core(family)),
-                    history.clone(),
-                ));
-            }
-            for package in VENDOR_SURFACE_PACKAGES {
-                rows.push(package_row(package, history.clone()));
-            }
+        for family in Family::ALL {
+            rows.push(row(
+                Provider::Core(family),
+                full_axis(VersionAxisId::core(family)),
+                history.clone(),
+            ));
+        }
+        for package in VENDOR_SURFACE_PACKAGES {
+            rows.push(package_row(package, history.clone()));
         }
     }
     if let Some(package) = spec.owning_package() {

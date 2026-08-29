@@ -29,7 +29,7 @@
 //! Path handling is `/`-separated (Tcl's portable convention); fine on Unix /
 //! WASI.
 
-use tcl_dialect::model::{SurfaceQuery, surface_admits};
+use tcl_dialect::model::{surface_admits, SurfaceQuery};
 use tcl_platform::{Filesystem, HostError};
 
 use crate::interp::{new_string, obj_bytes, Code, Interp};

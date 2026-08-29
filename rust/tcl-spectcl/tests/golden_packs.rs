@@ -157,7 +157,7 @@ fn mask_after(line: &str, key: &str) -> String {
 /// that environment's own `-extend` claim when it did.
 fn the_extension_claims_moved(legacy: &tcl_spectcl::Pack, modern: &tcl_spectcl::Pack) {
     for claim in &legacy.file_extensions {
-        let Some(dialect) = claim.dialect.as_deref() else {
+        let Some(dialect) = claim.dialect else {
             assert!(
                 modern
                     .file_extensions
