@@ -98,7 +98,7 @@ Usage: scripts/release/rust_release.sh <command> [args]
   prepare X.Y.Z [--push]    preflight + perf + notes + verify + commit
   tag X.Y.Z                 check the notes landed, then create + push the tag
 
-The 2.1.x pre-release line only; stable releases are cut from main by tag.sh.
+The 2.1.x pre-release line only; stable releases are also cut from rust by tag.sh.
 See the header of this file, and docs/design/contracts/release-and-publish.md.
 EOF
 }
@@ -113,12 +113,12 @@ need_version() {
 }
 
 # The 2.1.x line only. An even-minor or 1.x version is a stable release cut
-# from `main`, which this script knows nothing about — and quietly doing the
+# which this script knows nothing about — and quietly doing the
 # rust-line thing to it would put pre-release graphs in stable notes.
 require_prerelease_line() {
     local v="$1"
     [ "$(bash "$HERE/prerelease.sh" "$v")" = "true" ] ||
-        die "v$v is a stable release (cut from main). This script drives the
+        die "v$v is a stable release (cut from rust via tag.sh). This script drives the
        $RELEASE_BRANCH pre-release line only — see scripts/release/tag.sh."
 }
 
@@ -164,10 +164,10 @@ cmd_preflight() {
     # branch its own previous run left you on.
     local branch; branch="$(git -C "$ROOT" branch --show-current)"
     if [ "$branch" != "$RELEASE_BRANCH" ] && [ "$branch" != "release/v$v" ] &&
-       [ "${ALLOW_NON_MAIN_RELEASE:-0}" != "1" ]; then
+       [ "${ALLOW_NON_RUST_RELEASE:-0}" != "1" ]; then
         die "on branch '$branch'; 2.x pre-releases are cut from '$RELEASE_BRANCH'
        (or its 'release/v$v' preparation branch).
-       Set ALLOW_NON_MAIN_RELEASE=1 to override."
+       Set ALLOW_NON_RUST_RELEASE=1 to override."
     fi
     echo "    branch:   $branch"
 
@@ -331,7 +331,7 @@ cmd_tag() {
     # after: CI reads RELEASE_NOTES.md from the tagged commit, and perf.yml
     # attaches the graphs to the release the tag creates.
     local branch; branch="$(git -C "$ROOT" branch --show-current)"
-    [ "$branch" = "$RELEASE_BRANCH" ] || [ "${ALLOW_NON_MAIN_RELEASE:-0}" = "1" ] ||
+    [ "$branch" = "$RELEASE_BRANCH" ] || [ "${ALLOW_NON_RUST_RELEASE:-0}" = "1" ] ||
         die "on '$branch' — tag from '$RELEASE_BRANCH' so the tag carries the merged notes"
 
     head -1 "$ROOT/RELEASE_NOTES.md" | grep -qx "# v$v" ||

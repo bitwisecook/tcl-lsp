@@ -215,9 +215,79 @@ execution trace is absent.
 | `constraints` | `Option<ConstraintsHook>` | `None` | E-R14's escape hatch, consulted only when every declarative relation reported nothing. |
 | `literal_argument_validator` | `Option<LiteralArgumentValidator>` | `None` | Registry callback for literal argument relationships or collection members whose legal domain depends on surrounding words. It returns Valid, Invalid with an optional replacement Tcl value, or a typed Abstain. |
 | `arg_types` | `&'static [(u8, ArgTypeHint)]` | `&[]` | Per-argument type expectations (e.g. `Int`, `List`).  Drives shimmer detection |
-| `return_type` | `Option<TclType>` | `None` | Return type of the command |
+| `return_type` | `Option<TclType>` | `None` | Return type of the command — one fact, right for the shape the command is usually called in |
+| `return_type_hook` | `Option<ReturnTypeHookId>` | `None` | Names the algorithm that types a call whose result shape moves with the call. See below |
 | `completion` | `Option<CompletionDescriptor>` | `None` | Tcl *completion-code* semantics: which return codes (`CompletionCodeDomain::Exact` / `Any`) the call can complete with, and its result / return-options payload obligations.  A resolved subcommand or invocation form may supply a more specific descriptor; `None` stays conservative |
 | `body_kind` | `BodyKind` | `Plain` | Whether body arguments run in the caller's frame or a separate definition context |
+
+#### Per-call return typing
+
+`return_type` is one fact per command, which is right only while the result
+shape holds still.  Several core commands hand back a different *kind* of
+value depending on how they were called, and typing every call by the usual
+result makes the compiler confidently wrong about the others — issue #1720,
+where iterating a `regexp -all -inline` result drew a shimmer warning saying
+the list "has int intrep".
+
+`return_type_hook` names the algorithm for those commands, the same way
+`lowering_hook` / `analyser_hook` do: the spec keeps the catalogue entry and
+[`tcl_registry::return_type`](../../../rust/tcl-registry/src/return_type.rs)
+keeps the implementations, dispatched by one exhaustive `match`.  A new
+variant is a compile error until its arm is written.
+
+```rust
+return_type_hook: Some(ReturnTypeHookId::Lsearch),
+```
+
+| Hook | Command | What moves |
+|---|---|---|
+| `Regexp` | `regexp` | `-about` is a guaranteed two-element list; `-inline` is *not* the match count, but not a guaranteed list either |
+| `Lsearch` | `lsearch` | `-all` and `-inline` leave the result untypeable; `-subindices` is a guaranteed index path; otherwise an index |
+| `Regsub` | `regsub` | the substituted string until a `varName` makes it a replacement count |
+| `Scan` | `scan` | the variable-writing form is a conversion count; the inline form is untypeable |
+| `Pid` | `pid` | bare `pid` is this process's id; the `fileId` form is untypeable |
+
+It is a hook rather than a table of switch/type pairs because the rules are
+programs: `lsearch` has to know that `-inline` beats `-subindices` (the former
+yields an *element*, the latter only reshapes an *index*), which no pair list
+expresses without smuggling the precedence into its ordering.
+
+An algorithm names a type only where the intrep is **guaranteed**; otherwise
+it answers `None`, "unknown for this call", which every consumer already
+handles.  A confidently wrong type is the bug this fact exists to prevent, and
+three things stop a type being guaranteed:
+
+* **The value is the caller's.** `lsearch -inline` hands back an element out
+  of the source list, whose intrep is whatever was put there.
+* **The empty result is a pure string.** Several list-returning forms build a
+  list object only when they find something.  Checked with
+  `tcl::unsupported::representation` on tclsh 9.0.4: `regexp -inline z a`,
+  `lsearch -all {a b} z`, `scan "" {%d %d}` and `pid` on a non-pipeline
+  channel are each a *pure string*, while their matching counterparts are
+  lists.  Typing those `List` would hide a real string→list conversion *and*
+  invent list→string ones.  (`regexp -about` and `lsearch -subindices` are
+  guaranteed — `-about` never matches at all, and `-subindices` answers
+  `-1 0` rather than a bare `-1`.)
+* **A switch could be hiding in a substitution.** Tcl parses options after
+  substitution, so `set mode -inline; regexp $mode {.+} $x` really does return
+  the matched text.  A dynamic word where a switch could still go makes the
+  call unknown — unless a `--` has already closed the switch run, which is
+  exactly what W304 tells authors to write.  A switch the scan *did* resolve
+  stays authoritative, since substitution adds words but never removes them.
+
+Note that "unknown" is enough to fix #1720: the false positive came from
+*claiming int*, and declining to answer removes it just as a correct `List`
+would, without asserting an intrep only a successful match produces.
+
+Read the answer through `CommandSpec::return_type_for_call`, never off the
+field: that one entry point resolves subcommands, dispatches the hook, and is
+what SSA type propagation, the taint sanitiser test
+(`tcl_registry::taint::is_sanitiser`) and the shimmer byte-array check all
+call, so none of them can disagree.  Two helpers on `CommandSpec` give the
+algorithms their view of the call — `leading_switch_names` (resolved through
+the command's own option table, so a legal abbreviation counts, and capped at
+`reserved_trailing_words` so a mandatory operand is never read as a switch)
+and `positional_word_count`.
 
 #### Variable assignment
 

@@ -223,9 +223,13 @@ pub fn spec() -> CommandSpec {
         arity: Arity::at_least(2),
         // Documented return is the int conversion count (`scan str fmt
         // var ...`). The inline `scan str fmt` form (folded by `fold_scan`)
-        // actually yields the *list* of converted values — a per-form
-        // refinement deferred to per-form return typing.
+        // instead yields the converted values — a list once something
+        // converts, and a pure string when nothing does, so the hook below
+        // refines this to "not the count" rather than to `List`.
         return_type: Some(TclType::Int),
+        // Two positionals (`string format`) is the inline form: no variables
+        // to write, so the result is the converted values, not a count.
+        return_type_hook: Some(ReturnTypeHookId::Scan),
         // `scan` writes format-dependent conversions (`%d` → int, `%s` →
         // string, `%f` → double) to its targets while returning the *count*.
         // Without parsing the format the target intreps are unknown, so they

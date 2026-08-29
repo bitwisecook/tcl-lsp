@@ -98,6 +98,7 @@ pub mod repeated;
 pub mod representation;
 pub mod resolved_invocation;
 pub mod result_stability;
+pub mod return_type;
 pub mod scoped;
 pub mod security_floor;
 pub mod semantic_operation;
@@ -162,7 +163,7 @@ pub mod prelude {
         BoundHandle, HandleBindingSpec, HandleClassSource, HandleKeyword, HandleName,
     };
     pub use crate::hooks::{
-        AnalyserHookId, ArgTypeHint, CodegenHookId, LoweringHookId, TclVersion,
+        AnalyserHookId, ArgTypeHint, CodegenHookId, LoweringHookId, ReturnTypeHookId, TclVersion,
         VersionedConstFoldFn,
     };
     pub use crate::hover::{

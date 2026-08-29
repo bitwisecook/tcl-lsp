@@ -36,7 +36,7 @@
 #
 #   * `gh release create --prerelease`  (GitHub Release — keeps it off "latest")
 #   * `vsce package/publish --pre-release`  (VS Code Marketplace pre-release channel)
-#   * the branch tag.sh expects the tag to be cut from (rust vs main)
+#   * the publication channel; tag.sh always requires the active rust branch
 #
 # Keeping the rule here honours the release-and-publish contract: CI and
 # the Makefile *invoke* this script rather than re-deriving the parity.

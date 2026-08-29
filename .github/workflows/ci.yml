@@ -2,10 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [main, rust]
+    branches: [rust]
     tags: ["v*"]
   pull_request:
-    branches: [main, rust]
+    branches: [rust]
   # Manual escape hatch: if a PR's initial `pull_request: opened` webhook
   # is ever dropped by GitHub (rare, but has happened — no runs show up
   # for the branch at all, not even a queued/pending one), this lets a
@@ -59,12 +59,12 @@ jobs:
   #                    match, or a match older than 24 h → false → full run.
   #                    True in exactly two shapes:
   #                      * a v* tag whose commit has a green push run on
-  #                        rust/main — the release flow (make release-tag) tags
+  #                        rust — the release flow (make release-tag) tags
   #                        an already-green tip, so the tag-time re-test was
   #                        pure repetition (measured: v2.1.18 re-ran the
   #                        identical 20-job surface on the same SHA 74 minutes
   #                        after it went green);
-  #                      * a push to rust/main of a merge commit whose tree is
+  #                      * a push to rust of a merge commit whose tree is
   #                        byte-identical to a PR head with a green PR run —
   #                        what the merge button produces when the PR was up to
   #                        date with the base.  Tree equality is the guarantee
@@ -131,9 +131,9 @@ jobs:
           cutoff="$(date -u -d '24 hours ago' '+%Y-%m-%dT%H:%M:%SZ')"
           api="repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs"
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            # Tag: does this exact SHA have a green push run on rust/main?
+            # Tag: does this exact SHA have a green push run on rust?
             n="$(gh api "$api?head_sha=$GITHUB_SHA&event=push&status=success&per_page=20" \
-                  --jq "[.workflow_runs[] | select((.head_branch==\"rust\" or .head_branch==\"main\") and .updated_at > \"$cutoff\")] | length" \
+                  --jq "[.workflow_runs[] | select(.head_branch==\"rust\" and .updated_at > \"$cutoff\")] | length" \
                   2>/dev/null || echo 0)"
             [ "${n:-0}" -gt 0 ] && already=true
           elif [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
@@ -227,7 +227,7 @@ jobs:
     # deliberate: skipping the whole job would transitively skip create-release
     # and every build/publish job (GitHub's success() propagates a skipped
     # ancestor through the needs graph).  Those tags are cut from `rust` and
-    # gated by the cargo jobs instead.  Runs in full for PRs, main pushes,
+    # gated by the cargo jobs instead.  Runs in full for PRs, rust pushes,
     # stable tags.
     needs: [channel]
     runs-on: ubuntu-26.04
@@ -250,7 +250,7 @@ jobs:
         # already green; job still succeeds so the release graph stays
         # unbroken.  Deliberately NOT skipped on already-green merge pushes:
         # this job's clippy cache is the base-branch fallback every PR run
-        # restores from, so pushes to rust/main keep it warm.
+        # restores from, so pushes to rust keep it warm.
         if: needs.channel.outputs.prerelease != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
         run: |
           cargo fmt --all --check
@@ -611,7 +611,7 @@ jobs:
         if: env.RUN_EXT_WEB == 'true'
         run: cd editors/vscode && npm run test:web
 
-  # Rust product gate.  ci.yml triggers on both `main` and `rust`, so one
+  # Rust product gate.  ci.yml triggers on `rust`, so one
   # pipeline covers them.  Runs on every PR and push, because nothing else
   # exercises the Rust product on a PR.
   #
@@ -1188,7 +1188,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     # Gated on the fast gate (pr-gate) AND the whole cargo test surface.  Any
     # of those jobs may have step-skipped its work when the channel job proved
-    # this exact SHA already went green on rust/main within 24 h (see the
+    # this exact SHA already went green on rust within 24 h (see the
     # channel job header) — the jobs still report success, so the graph holds,
     # and the verdict they carry forward is the prior run's real one.  A tag
     # whose SHA was never tested (or whose green is stale) runs everything
@@ -1219,7 +1219,7 @@ jobs:
           sha="$(git rev-parse --short HEAD)"
           # Replace the @@INSTALLER_VERSION_*@@ placeholders so a user
           # running --version on the published asset sees the actual
-          # release. The in-tree script on main stays unstamped so
+          # release. The in-tree script on rust stays unstamped so
           # contributors don't see misleading version strings locally.
           tmp="$(mktemp)"
           sed \
@@ -1937,7 +1937,7 @@ jobs:
   # Environment, which PAUSES for manual approval and can never run on a
   # non-tag ref.  (The keyless OIDC -> Azure Entra path was rolled back
   # after it proved unreliable against the VS Code Marketplace; the PAT is
-  # the supported mechanism, matching the stable line on `main`.)  Hardening
+  # the supported mechanism, matching the stable channel from `rust`.)  Hardening
   # choices preserved from the keyless design:
   #   * VSCE_PAT is scoped to the publish step's `env:` only, so the
   #     freshly-fetched npm code in `npm ci` never runs with the token in

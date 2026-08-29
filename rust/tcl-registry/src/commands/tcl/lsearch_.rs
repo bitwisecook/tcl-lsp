@@ -295,6 +295,10 @@ pub fn spec() -> CommandSpec {
             | Traits::CSE_CANDIDATE,
         arity: Arity::at_least(2),
         return_type: Some(TclType::Int),
+        // `-all`, `-inline` and `-subindices` each move the result shape, and
+        // they interact (`-inline` beats `-subindices`), so the rule is a
+        // program rather than a table — see `return_type::lsearch`.
+        return_type_hook: Some(ReturnTypeHookId::Lsearch),
         // Default matching style is glob (`-glob`) in every version;
         // `PatternType::Glob`'s own doc comment names `lsearch` as the
         // canonical example. `-exact`/`-regexp` can select a different

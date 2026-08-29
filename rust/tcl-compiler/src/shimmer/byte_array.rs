@@ -157,10 +157,18 @@ fn resolve_cmd_effect(registry: &CommandRegistry, cmd: &str, args: &[String]) ->
     let Some(spec) = registry.get(cmd) else {
         return CmdEffect::inert(cmd);
     };
+    // Ask the registry what *this* call returns rather than reading
+    // `return_type` raw, so a per-form result can never be classified here
+    // differently from how SSA type propagation and the taint sanitiser
+    // classify it (issue #1720).  No byte-array command declares a
+    // return-type hook today; this keeps that entry point honest if one
+    // ever does.
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let returns_byte_array = spec.return_type_for_call(&arg_refs) == Some(TclType::ByteArray);
     if spec.subcommands.is_empty() {
         return CmdEffect {
             effect: spec.byte_array_effect,
-            returns_byte_array: spec.return_type == Some(TclType::ByteArray),
+            returns_byte_array,
             operand_start: 0,
             label: cmd.to_owned(),
         };
@@ -168,7 +176,7 @@ fn resolve_cmd_effect(registry: &CommandRegistry, cmd: &str, args: &[String]) ->
     match args.first().and_then(|w| spec.resolve_subcommand(w)) {
         Some(sub) => CmdEffect {
             effect: sub.byte_array_effect,
-            returns_byte_array: sub.return_type == Some(TclType::ByteArray),
+            returns_byte_array,
             operand_start: 1,
             label: format!("{cmd} {}", sub.name),
         },

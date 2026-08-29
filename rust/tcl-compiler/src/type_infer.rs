@@ -267,21 +267,12 @@ pub(crate) fn return_type_for_command<S: std::hash::BuildHasher>(
         return constructor_object_type(registry, command, args, known_classes, namespace);
     };
 
-    // Subcommand commands: check sub's return_type.
-    if !spec.subcommands.is_empty() {
-        if let Some(sub_name) = args.first()
-            && let Some(sub) = spec.resolve_subcommand(sub_name)
-        {
-            return match sub.return_type {
-                Some(t) => TypeLattice::of(t),
-                None => TypeLattice::overdefined(),
-            };
-        }
-        // Unknown subcommand.
-        return TypeLattice::overdefined();
-    }
-
-    match spec.return_type {
+    // Resolved against this call, not just the command: `regexp -inline`
+    // returns the matched substrings as a list where a bare `regexp` returns
+    // a match count (issue #1720).  Subcommand dispatch and the per-form
+    // refinement both live in `return_type_for_call`, so the taint sanitiser
+    // test and the shimmer byte-array check cannot disagree with this.
+    match spec.return_type_for_call(args) {
         Some(t) => TypeLattice::of(t),
         None => TypeLattice::overdefined(),
     }

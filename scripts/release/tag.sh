@@ -25,7 +25,7 @@
 # All version literals in the repo derive from the latest annotated tag
 # (via hatch-vcs for the Python wheel, via the Makefile + ``git describe``
 # for every editor build). A release therefore needs no source-file edits
-# and no commit on ``main``; this script just validates state, tags HEAD,
+# and no commit on ``rust``; this script just validates state, tags HEAD,
 # and pushes the tag. The push triggers ``.github/workflows/ci.yml``,
 # which builds + publishes the release artefacts.
 set -euo pipefail
@@ -51,27 +51,25 @@ if git rev-parse "v$V" >/dev/null 2>&1; then
     exit 1
 fi
 
-# Channel for this version (odd/even-minor convention — see prerelease.sh):
-# pre-release (2.1.x) is cut from ``rust``; stable (1.x, 2.2.0, …) is cut
-# from ``main``.  CI marks the GitHub Release and the VS Code publish
-# accordingly off the very same parity, so the tag alone fully determines
-# the channel.
+# Channel for this version (odd/even-minor convention — see prerelease.sh).
+# Every active release is cut from ``rust``; parity controls only the GitHub
+# Release and Marketplace channel. The locked ``legacy-py`` branch is an
+# archive and is never a release source.
 prerelease="$(bash "$(dirname "$0")/prerelease.sh" "$V")"
 if [[ "$prerelease" == "true" ]]; then
     channel="pre-release"
-    expected_branch="rust"
 else
     channel="stable"
-    expected_branch="main"
 fi
+expected_branch="rust"
 echo "==> v$V is a $channel release (expected branch: $expected_branch)"
 
-# Sanity-check the branch. Override by setting ALLOW_NON_MAIN_RELEASE=1 if
+# Sanity-check the branch. Override by setting ALLOW_NON_RUST_RELEASE=1 if
 # you need to tag from elsewhere (RC branches, hot-fix branches, etc.).
 branch="$(git branch --show-current)"
-if [[ -n "$branch" && "$branch" != "$expected_branch" && "${ALLOW_NON_MAIN_RELEASE:-0}" != "1" ]]; then
+if [[ -n "$branch" && "$branch" != "$expected_branch" && "${ALLOW_NON_RUST_RELEASE:-0}" != "1" ]]; then
     echo "error: refusing to tag $channel release v$V from branch '$branch' (expected '$expected_branch')."
-    echo "       set ALLOW_NON_MAIN_RELEASE=1 to override."
+    echo "       set ALLOW_NON_RUST_RELEASE=1 to override."
     exit 1
 fi
 

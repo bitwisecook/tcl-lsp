@@ -508,27 +508,24 @@ pub fn is_irules_data_getter(command: &str) -> bool {
 /// is a sanitiser — its return value is a fixed numeric type that
 /// cannot carry taint through it.
 ///
-/// Subcommand specs are checked first so `string length` and
-/// `string is integer` register as sanitisers even though the
-/// top-level `string` command has no return type.
+/// Resolved against the actual call
+/// ([`CommandSpec::return_type_for_call`](crate::CommandSpec::return_type_for_call)),
+/// which is prefix-aware for subcommands (`string le` ⇒ `length`, so a legal
+/// abbreviation of a sanitiser is still recognised rather than drawing a
+/// spurious T101) and applies per-form return typing. A call shape that hands
+/// back attacker-derived text rather than a fixed-width number therefore keeps
+/// its taint instead of being laundered by the command's usual int result:
+/// `regexp -inline` returns substrings *of the tainted input*, and `regsub`
+/// without a `varName` the substituted string.
 #[must_use]
 pub fn is_sanitiser(registry: &CommandRegistry, command: &str, args: &[&str]) -> bool {
-    fn is_fixed_numeric(t: Option<TclType>) -> bool {
-        matches!(t, Some(TclType::Int | TclType::Boolean))
-    }
     let Some(spec) = registry.get(command) else {
         return false;
     };
-    // Prefix-aware (`string le` ⇒ `length`) so a legal abbreviation of a
-    // sanitiser is still recognised — otherwise a spurious T101 fires where the
-    // full spelling is correctly suppressed.
-    if let Some(sub_name) = args.first().copied()
-        && let Some(sub) = spec.resolve_subcommand(sub_name)
-        && is_fixed_numeric(sub.return_type)
-    {
-        return true;
-    }
-    is_fixed_numeric(spec.return_type)
+    matches!(
+        spec.return_type_for_call(args),
+        Some(TclType::Int | TclType::Boolean)
+    )
 }
 
 /// Single-pass taint-sink classification for a `(command, subcommand)`
@@ -780,6 +777,35 @@ mod tests {
     fn string_length_is_a_sanitiser() {
         let registry = CommandRegistry::build_default();
         assert!(is_sanitiser(&registry, "string", &["length", "$x"]));
+    }
+
+    /// A call shape that hands back attacker-derived text is not a sanitiser,
+    /// even though the command's usual result is an int (issue #1720).
+    /// `regexp -inline` returns substrings *of the tainted input*, and
+    /// `regsub` without a `varName` the substituted string; treating either as
+    /// a fixed numeric result laundered the taint out of the flow.
+    #[test]
+    fn per_form_results_that_carry_text_are_not_sanitisers() {
+        let registry = CommandRegistry::build_default();
+        assert!(
+            is_sanitiser(&registry, "regexp", &["{a}", "$x"]),
+            "a bare regexp really does return a 0/1 match flag"
+        );
+        assert!(!is_sanitiser(
+            &registry,
+            "regexp",
+            &["-inline", "{a}", "$x"]
+        ));
+        assert!(!is_sanitiser(&registry, "lsearch", &["-inline", "$l", "a"]));
+        assert!(!is_sanitiser(
+            &registry,
+            "regsub",
+            &["-all", "a", "$x", "b"]
+        ));
+        assert!(
+            is_sanitiser(&registry, "regsub", &["-all", "a", "$x", "b", "out"]),
+            "the varName form really does return a replacement count"
+        );
     }
 
     /// `encoding convertfrom` is now driven by a `Traits::TAINT_SOURCE`

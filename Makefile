@@ -2128,7 +2128,7 @@ release-tag: ## Create + push the annotated release tag (V=x.y.z)
 # re-runs release-verify and checks the notes actually merged before handing
 # off to tag.sh, so it is the entry point to prefer over release-tag for a
 # pre-release; release-tag stays the bare tagging primitive (and the only
-# entry point for the stable line cut from main).
+# entry point for stable releases cut from rust).
 release-perf: ## Benchmark V=x.y.z and regenerate the release-notes graphs
 	@bash $(ROOT)scripts/release/perf_release.sh $(V) $(PERF_ARGS)
 
@@ -2159,10 +2159,10 @@ publish-flow: ## Print the release + marketplace publish cheat-sheet
 	@echo "    # SSLICTCL_SOURCE_DATA_WAIVER for release preflight."
 	@echo ""
 	@echo "  Channels (the tag decides — scripts/release/prerelease.sh):"
-	@echo "    stable / default   v1.x, v2.2.0 (even 2.x minor)  cut from main"
+	@echo "    stable / default   v2.2.0 (even 2.x minor)         cut from rust"
 	@echo "    pre-release/brave  v2.1.x (odd 2.x minor)         cut from rust"
 	@echo "    # odd-minor 2.x -> GitHub --prerelease + VS Code --pre-release channel;"
-	@echo "    # 1.x stays the default install until a user opts into pre-releases."
+	@echo "    # the 1.x Python line is frozen on the locked legacy-py archive."
 	@echo ""
 	@echo "  For the 2.1.x pre-release line, steps 1-2 are one program:"
 	@echo "    make release-prepare V=X.Y.Z     # preflight, benchmark, graphs, notes, verify, commit"

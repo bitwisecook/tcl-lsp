@@ -37,7 +37,7 @@ outside collaborators**
       collaborators` if release cadence allows.  This is the gate that
       stops a one-line malicious PR from running CI under your token.
 
-**Settings → Branches → Branch protection for `main`**
+**Settings → Rules → Rulesets → Branch protection for `rust`**
 
 - [x] `Require a pull request before merging` — on
 - [x] `Require approvals` — at least 1
