@@ -183,6 +183,12 @@ What type the variables the command *writes* receive, when that is not the same 
 
 `ReturnValue` (the default) says the written variable holds the return value. `Fixed` names one type for the written variable regardless of the return. `Destructured` says the pieces cannot be typed statically. Getting this right avoids false "wrong type" warnings on the written variables.
 
+### `return_forms` — Return forms
+
+*command only* — Per-call refinements of the return type, first match winning.
+
+Exceptions to `return_type`, for a command that hands back a different *kind* of value depending on how it was called — `regexp` counts matches but `regexp -inline` returns a list of the matched substrings, and `regsub` returns a replacement count until its `varName` is omitted and it returns the substituted string instead. `WhenSwitch` keys on a switch word (resolved through the command's own option table, so a legal abbreviation counts); `WhenPositionals` keys on how many positional words follow the switches. Forms are tried in order and the first match wins, so declare the more specific shape first. Leave it empty unless the result shape really moves — a wrong type here is worse than none.
+
 ### `return_elements` — Return elements
 
 *command and subcommand* — How the result relates to container element structure.
