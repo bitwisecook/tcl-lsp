@@ -233,6 +233,19 @@ pub struct DialectProfile {
     /// on via this field until the versioned-library axis models library
     /// hosting per profile (§7.2).
     pub vendor_surface: Option<SpecProvider>,
+    /// The packages this profile's **own point** carries — what the retired
+    /// availability mask held in its vendor half.
+    ///
+    /// For a vendor shell this is its vendor package; for the `tk` ingress
+    /// profile it is `Tk`, which is why the field exists at all: Tk is a
+    /// library, not a closed-world vendor surface, so
+    /// [`Self::vendor_surface`] cannot carry it without making `tk` a closed
+    /// world. Empty for every plain Tcl version — Tk there needs a
+    /// `package require`.
+    ///
+    /// Pinned against [`Self::vendor_surface`] by
+    /// `surface_packages_carry_the_vendor_surface`, so the two cannot drift.
+    pub surface_packages: &'static [&'static str],
 
     // AXIS A: availability.
     /// The registry command packs `load_dialect` applies for this profile,
@@ -363,6 +376,7 @@ static CATALOG: [DialectProfile; 18] = [
         filenames: &[],
         file_extensions: &[],
         vendor_surface: Some(SpecProvider::Package("bpf")),
+        surface_packages: &["bpf"],
         base_layers: &[SurfaceLayer::Package("bpf")],
         grammar_union: &[SpecProvider::Core(Family::Tcl), SpecProvider::Package("bpf")],
         version_ceiling: Some(TclVersion::V9_0),
@@ -390,6 +404,7 @@ static CATALOG: [DialectProfile; 18] = [
             display_name: "Innovus/Genus Globals",
         }],
         vendor_surface: None,
+        surface_packages: &[],
         // Innovus/Genus embed an 8.4-safe Tcl core: real Cadence scripts
         // systematically avoid dict/lassign/`{*}` (the 8.5 additions), and no
         // public source pins a newer interpreter (owner decision; the July-2026
@@ -468,6 +483,7 @@ static CATALOG: [DialectProfile; 18] = [
             },
         ],
         vendor_surface: Some(SpecProvider::Package("expect")),
+        surface_packages: &["expect"],
         base_layers: &[SurfaceLayer::Package("expect")],
         grammar_union: &[SpecProvider::Core(Family::Tcl), SpecProvider::Package("expect")],
         version_ceiling: Some(TclVersion::V8_6),
@@ -514,6 +530,7 @@ static CATALOG: [DialectProfile; 18] = [
             display_name: "BIG-IP Single Configuration File",
         }],
         vendor_surface: Some(SpecProvider::Package("bigip")),
+        surface_packages: &["bigip"],
         base_layers: &[SurfaceLayer::Package("bigip")],
         grammar_union: &[SpecProvider::Package("bigip")],
         version_ceiling: None,
@@ -565,6 +582,7 @@ static CATALOG: [DialectProfile; 18] = [
             },
         ],
         vendor_surface: Some(SpecProvider::Package("iapps")),
+        surface_packages: &["iapps"],
         base_layers: &[SurfaceLayer::Package("iapps")],
         grammar_union: &[SpecProvider::Core(Family::Tcl), SpecProvider::Package("iapps")],
         version_ceiling: Some(TclVersion::V8_4),
@@ -616,6 +634,7 @@ static CATALOG: [DialectProfile; 18] = [
             },
         ],
         vendor_surface: Some(SpecProvider::Core(Family::F5Irules)),
+        surface_packages: &[],
         base_layers: &[SurfaceLayer::Core(Family::F5Irules, "")],
         grammar_union: &[SpecProvider::Core(Family::F5Irules)],
         version_ceiling: Some(TclVersion::V8_4),
@@ -658,6 +677,7 @@ static CATALOG: [DialectProfile; 18] = [
             display_name: "F5 tmsh Script",
         }],
         vendor_surface: Some(SpecProvider::Package("tmsh")),
+        surface_packages: &["tmsh"],
         base_layers: &[SurfaceLayer::Package("tmsh")],
         grammar_union: &[SpecProvider::Core(Family::Tcl), SpecProvider::Package("tmsh")],
         version_ceiling: Some(TclVersion::V8_4),
@@ -699,6 +719,7 @@ static CATALOG: [DialectProfile; 18] = [
             },
         ],
         vendor_surface: None,
+        surface_packages: &[],
         base_layers: &[SurfaceLayer::Core(Family::Tcl, "8.5")],
         grammar_union: &[SpecProvider::Core(Family::Tcl)],
         version_ceiling: Some(TclVersion::V8_5),
@@ -772,6 +793,7 @@ static CATALOG: [DialectProfile; 18] = [
             display_name: "ModelSim/Questa Do Script",
         }],
         vendor_surface: None,
+        surface_packages: &[],
         // Modern Questa/ModelSim embeds Tcl 8.6 (owner decision; the July-2026
         // EDA study — bundled `tcl8.6` library paths). Older ModelSim shipped
         // 8.4/8.5, but the current-tool default is 8.6: TclOO + the 8.6 core.
@@ -825,6 +847,7 @@ static CATALOG: [DialectProfile; 18] = [
         filenames: &[],
         file_extensions: &[],
         vendor_surface: None,
+        surface_packages: &[],
         // Libero SoC's embedded interpreter is an 8.5-era core (the v11.x
         // reference documents plain-8.5 idiom and none of the 8.6 additions;
         // no public source pins a newer interpreter). Judgement call pending
@@ -888,6 +911,7 @@ static CATALOG: [DialectProfile; 18] = [
             display_name: "SpecTcl Command Pack",
         }],
         vendor_surface: Some(SpecProvider::Package("spectcl")),
+        surface_packages: &["spectcl"],
         base_layers: &[SurfaceLayer::Package("spectcl")],
         grammar_union: &[SpecProvider::Core(Family::Tcl), SpecProvider::Package("spectcl")],
         version_ceiling: Some(TclVersion::V9_0),
@@ -921,6 +945,7 @@ static CATALOG: [DialectProfile; 18] = [
             },
         ],
         vendor_surface: None,
+        surface_packages: &[],
         base_layers: &[SurfaceLayer::Core(Family::Tcl, "8.6")],
         grammar_union: &[SpecProvider::Core(Family::Tcl)],
         version_ceiling: Some(TclVersion::V8_6),
@@ -988,6 +1013,7 @@ static CATALOG: [DialectProfile; 18] = [
         filenames: &[],
         file_extensions: &[],
         vendor_surface: None,
+        surface_packages: &[],
         // The version "pack" loads no specs, but registering the version bit
         // on the registry preserves its `loaded_dialects` introspection
         // (e.g. `CommandRegistry::leading_zero_is_octal`) exactly as
@@ -1020,6 +1046,7 @@ static CATALOG: [DialectProfile; 18] = [
         filenames: &[],
         file_extensions: &[],
         vendor_surface: None,
+        surface_packages: &[],
         // The version "pack" loads no specs, but registering the version bit
         // on the registry preserves its `loaded_dialects` introspection
         // (e.g. `CommandRegistry::leading_zero_is_octal`) exactly as
@@ -1048,6 +1075,7 @@ static CATALOG: [DialectProfile; 18] = [
         filenames: &[],
         file_extensions: &[],
         vendor_surface: None,
+        surface_packages: &[],
         // The version "pack" loads no specs, but registering the version bit
         // on the registry preserves its `loaded_dialects` introspection
         // (e.g. `CommandRegistry::leading_zero_is_octal`) exactly as
@@ -1076,6 +1104,7 @@ static CATALOG: [DialectProfile; 18] = [
         filenames: &[],
         file_extensions: &[],
         vendor_surface: None,
+        surface_packages: &[],
         // The version "pack" loads no specs, but registering the version bit
         // on the registry preserves its `loaded_dialects` introspection
         // (e.g. `CommandRegistry::leading_zero_is_octal`) exactly as
@@ -1106,6 +1135,7 @@ static CATALOG: [DialectProfile; 18] = [
         filenames: &[],
         file_extensions: &[],
         vendor_surface: None,
+        surface_packages: &[],
         // The version "pack" loads no specs, but registering the version bit
         // on the registry preserves its `loaded_dialects` introspection
         // (e.g. `CommandRegistry::leading_zero_is_octal`) exactly as
@@ -1137,6 +1167,7 @@ static CATALOG: [DialectProfile; 18] = [
             display_name: "Xilinx Design Constraints",
         }],
         vendor_surface: None,
+        surface_packages: &[],
         base_layers: &[SurfaceLayer::Core(Family::Tcl, "8.5")],
         grammar_union: &[SpecProvider::Core(Family::Tcl)],
         version_ceiling: Some(TclVersion::V8_5),
@@ -1183,6 +1214,7 @@ static PLAIN_TCL: DialectProfile = DialectProfile {
     filenames: &[],
     file_extensions: &[],
     vendor_surface: None,
+    surface_packages: &[],
     base_layers: &[],
     grammar_union: &[SpecProvider::Core(Family::Tcl)],
     version_ceiling: None,
@@ -1211,6 +1243,7 @@ static TK_PROFILE: DialectProfile = DialectProfile {
     filenames: &[],
     file_extensions: &[],
     vendor_surface: None,
+    surface_packages: &["Tk"],
     base_layers: &[],
     grammar_union: &[SpecProvider::Core(Family::Tcl), SpecProvider::Package("Tk")],
     version_ceiling: None,
@@ -1260,19 +1293,23 @@ impl DialectProfile {
     /// safe direction.
     #[must_use]
     pub fn surface_query(&self) -> SurfaceQuery<'static> {
-        match self.vendor_surface {
-            Some(SpecProvider::Core(family)) => SurfaceQuery::core(family, ""),
-            vendor => SurfaceQuery {
-                core: self
-                    .signature_base
-                    .map(|version| (Family::Tcl, Some(version.version_string()))),
-                packages: match vendor {
-                    Some(SpecProvider::Package(package)) => {
-                        std::slice::from_ref(vendor_package_slot(package))
-                    }
-                    _ => &[],
-                },
+        if let Some(SpecProvider::Core(family)) = self.vendor_surface {
+            return SurfaceQuery::core(family, "");
+        }
+        SurfaceQuery {
+            core: match self.signature_base {
+                Some(version) => Some((Family::Tcl, Some(version.version_string()))),
+                // No pinned release, but still a Tcl surface: the permissive
+                // `tcl` sink and the `tk` ingress profile ask about the whole
+                // ladder, which is what their masks said by setting every
+                // line bit. A profile whose grammar names no core family
+                // (`f5-bigip`) has no Tcl surface to ask about.
+                None => self
+                    .grammar_union
+                    .contains(&SpecProvider::Core(Family::Tcl))
+                    .then_some((Family::Tcl, None)),
             },
+            packages: self.surface_packages,
         }
     }
 
@@ -1507,7 +1544,8 @@ impl DialectProfile {
 #[cfg(test)]
 mod tests {
     use super::DialectProfile;
-    use crate::dialect_set::{DialectSet, KNOWN_DIALECTS};
+    use crate::dialect_set::KNOWN_DIALECTS;
+    use crate::model::{Family, SpecProvider, SpecSurface, SurfaceQuery, surface_admits};
     use crate::grammar::{BracedVarStyle, EscapeSyntax, ExprCommentStyle, NumberSyntax};
     use crate::library::{LibraryVersion, LibraryVersionOverrides, VersionKey};
     use crate::version::{TclVersion, Ternary};
@@ -1715,9 +1753,10 @@ mod tests {
         assert_eq!(DialectProfile::tk().name, "tk");
         assert_eq!(
             DialectProfile::tk().surface_query(),
-            DialectProfile::plain_tcl()
-                .surface_query()
-                .union(SpecSurface::TK)
+            SurfaceQuery {
+                core: DialectProfile::plain_tcl().surface_query().core,
+                packages: &["Tk"],
+            }
         );
         // A canonical profile and a legacy alias keep their profile-owned
         // security mask: the iRules sandbox mask stays the bare bit under
@@ -1726,13 +1765,13 @@ mod tests {
             DialectProfile::find("f5-irules")
                 .expect("catalogue profile")
                 .surface_query(),
-            SpecSurface::IRULES
+            SurfaceQuery::core(Family::F5Irules, "")
         );
         assert_eq!(
             DialectProfile::find("irules")
                 .expect("registered alias")
                 .surface_query(),
-            SpecSurface::IRULES
+            SurfaceQuery::core(Family::F5Irules, "")
         );
     }
 
@@ -1787,7 +1826,7 @@ mod tests {
         // registry; here we only pin the mask shape the whole scheme rests
         // on.
         let p = DialectProfile::irules();
-        assert_eq!(p.surface_query(), SpecSurface::IRULES);
+        assert_eq!(p.surface_query(), SurfaceQuery::core(Family::F5Irules, ""));
         assert_eq!(p.vendor_surface, Some(SpecProvider::Core(Family::F5Irules)));
     }
 
@@ -1800,13 +1839,17 @@ mod tests {
         // f5-iapps composes the **8.4** line: it rides the `f5-tcl` trunk
         // (fork of Tcl at 8.4.6) — measured, bigip-irule-parser-measurements.md
         // §4a; the 8.5 hypothesis is falsified.
-        let cases: &[(&str, DialectSet, DialectSet)] = &[
-            ("f5-iapps", SpecSurface::TCL84, SpecSurface::IAPPS),
-            ("expect", SpecSurface::TCL86, SpecSurface::EXPECT),
+        let cases: &[(&str, &str, &[&str])] = &[
+            ("f5-iapps", "8.4", &["iapps"]),
+            ("expect", "8.6", &["expect"]),
         ];
-        for &(name, base, vendor) in cases {
+        for &(name, base, packages) in cases {
             let p = DialectProfile::find(name).expect("catalogue profile");
-            assert_eq!(p.surface_query(), base | vendor, "{name}");
+            assert_eq!(
+                p.surface_query(),
+                SurfaceQuery::core(Family::Tcl, base).with_packages(packages),
+                "{name}"
+            );
         }
     }
 
@@ -1818,35 +1861,35 @@ mod tests {
         // Base versions follow the tools' embedded cores (owner decisions):
         // Cadence 8.4-safe, Xilinx/Quartus 8.5, Synopsys + modern Questa 8.6.
         for (name, base) in [
-            ("xilinx-eda-tcl", SpecSurface::TCL85),
-            ("synopsys-eda-tcl", SpecSurface::TCL86),
-            ("cadence-eda-tcl", SpecSurface::TCL84),
-            ("intel-quartus-eda-tcl", SpecSurface::TCL85),
-            ("mentor-eda-tcl", SpecSurface::TCL86),
+            ("xilinx-eda-tcl", "8.5"),
+            ("synopsys-eda-tcl", "8.6"),
+            ("cadence-eda-tcl", "8.4"),
+            ("intel-quartus-eda-tcl", "8.5"),
+            ("mentor-eda-tcl", "8.6"),
         ] {
             let p = DialectProfile::find(name).expect("catalogue profile");
-            assert_eq!(p.surface_query(), base, "{name}: pure base-version mask");
-            assert!(
-                SpecSurface::ALL_TCL.contains(p.surface_query()),
-                "{name}: mask carries no vendor bit"
+            assert_eq!(
+                p.surface_query(),
+                SurfaceQuery::core(Family::Tcl, base),
+                "{name}: a pure base-release point with no vendor package"
             );
         }
     }
 
     #[test]
-    fn plain_tcl_versions_keep_their_exact_bit() {
-        for (name, bit) in [
-            ("tcl8.4", SpecSurface::TCL84),
-            ("tcl8.5", SpecSurface::TCL85),
-            ("tcl8.6", SpecSurface::TCL86),
-            ("tcl9.0", SpecSurface::TCL90),
-            ("tcl9.1", SpecSurface::TCL91),
+    fn plain_tcl_versions_keep_their_exact_release() {
+        for (name, release) in [
+            ("tcl8.4", "8.4"),
+            ("tcl8.5", "8.5"),
+            ("tcl8.6", "8.6"),
+            ("tcl9.0", "9.0"),
+            ("tcl9.1", "9.1"),
         ] {
             assert_eq!(
                 DialectProfile::find(name)
                     .expect("catalogue profile")
                     .surface_query(),
-                bit
+                SurfaceQuery::core(Family::Tcl, release)
             );
         }
     }
@@ -1861,7 +1904,7 @@ mod tests {
             DialectProfile::find("f5-tmsh")
                 .expect("catalogue profile")
                 .surface_query(),
-            SpecSurface::TCL84 | SpecSurface::TMSH
+            SurfaceQuery::core(Family::Tcl, "8.4").with_packages(&["tmsh"])
         );
         // f5-bigip: identity only — a config parser with no Tcl surface;
         // BIG-IP documents route to the tcl-bigip validator, never the Tcl
@@ -1870,36 +1913,49 @@ mod tests {
             DialectProfile::find("f5-bigip")
                 .expect("catalogue profile")
                 .surface_query(),
-            SpecSurface::BIGIP
+            SurfaceQuery {
+                core: None,
+                packages: &["bigip"],
+            }
         );
         // bpf embeds a genuine Tcl 9.0 (D7).
         assert_eq!(
             DialectProfile::find("bpf")
                 .expect("catalogue profile")
                 .surface_query(),
-            SpecSurface::TCL90 | SpecSurface::BPF
+            SurfaceQuery::core(Family::Tcl, "9.0").with_packages(&["bpf"])
         );
     }
 
     #[test]
-    fn grammar_union_is_never_narrower_than_the_mask() {
+    fn grammar_union_covers_every_provider_the_point_names() {
         // §10: the static-grammar union over-approximates (or equals, for
-        // the bare-bit iRules profile) the precise mask — never under-approximates.
+        // the iRules profile) the precise point — never under-approximates.
         for p in DialectProfile::all() {
-            assert!(
-                p.grammar_union.contains(p.surface_query()),
-                "{}: grammar_union must cover availability_mask",
-                p.name
-            );
+            let query = p.surface_query();
+            if let Some((family, _)) = query.core {
+                assert!(
+                    p.grammar_union.contains(&SpecProvider::Core(family)),
+                    "{}: grammar_union must cover the point's core family",
+                    p.name
+                );
+            }
+            for package in query.packages {
+                assert!(
+                    p.grammar_union.contains(&SpecProvider::Package(package)),
+                    "{}: grammar_union must cover the point's `{package}` package",
+                    p.name
+                );
+            }
         }
     }
 
     #[test]
     fn irules_grammar_union_is_the_shipped_bare_bit_fix() {
-        // The shipped iRules highlight fix is literally
-        // `grammar_union == availability_mask == IRULES` (§9.1).
+        // The shipped iRules highlight fix is literally "the grammar union
+        // is the iRules surface and nothing else" (§9.1).
         let p = DialectProfile::irules();
-        assert_eq!(p.grammar_union, SpecSurface::IRULES);
+        assert_eq!(p.grammar_union, &[SpecProvider::Core(Family::F5Irules)]);
     }
 
     // Behaviour axis — the §7.1 derivation rules as
@@ -1912,44 +1968,69 @@ mod tests {
     }
 
     #[test]
-    fn vendor_bit_composes_the_availability_mask() {
-        // §2.2 + the EDA-as-packages migration: a vendor profile's mask is one of
-        // - the bare vendor bit (iRules, §9);
-        // - (version bits | vendor_surface) for an additive vendor shell (iApps,
-        //   Expect, tmsh, bpf) or the bigip identity; or
-        // - pure version bits for a *packaged* vendor (the EDA shells), whose
-        //   `vendor_surface` is a loading/identity marker only — the vendor command
-        //   surface is gated by `required_package`, not the mask.
+    fn surface_packages_carry_the_vendor_surface() {
+        // The point's package half is the vendor package wherever there is
+        // one; `tk` is the single documented addition (a library, not a
+        // closed-world vendor surface).
         for p in all_with_fallback() {
             match p.vendor_surface {
-                Some(bit) => {
-                    // Every remaining vendor-bit profile carries its bit in the
-                    // mask; the EDA shells became packaged vendors with no
-                    // vendor_surface (eda-library-packages.md). The non-vendor half
-                    // is pure version bits; iRules is the bare-bit case.
-                    assert!(
-                        p.surface_query().contains(bit),
-                        "{}: mask must contain the vendor bit",
+                Some(SpecProvider::Package(package)) => assert_eq!(
+                    p.surface_packages,
+                    [package],
+                    "{}: the point carries exactly its vendor package",
+                    p.name
+                ),
+                _ => assert!(
+                    p.surface_packages.is_empty() || p.name == "tk",
+                    "{}: only `tk` adds a package without a vendor surface",
+                    p.name
+                ),
+            }
+        }
+    }
+
+    #[test]
+    fn the_vendor_surface_composes_the_point() {
+        // §2.2 + the EDA-as-packages migration: a profile's point is one of
+        // - a bare core family (iRules, §9);
+        // - a Tcl release plus the vendor package (iApps, Expect, tmsh,
+        //   bpf) or the bigip identity; or
+        // - a bare Tcl release for a *packaged* vendor (the EDA shells),
+        //   whose `vendor_surface` is a loading marker only — the vendor
+        //   command surface is gated by `required_package`, not the point.
+        for p in all_with_fallback() {
+            let query = p.surface_query();
+            match p.vendor_surface {
+                Some(SpecProvider::Core(family)) => {
+                    assert_eq!(
+                        query,
+                        SurfaceQuery::core(family, ""),
+                        "{}: a core vendor surface asks as that family alone (§9)",
                         p.name
                     );
-                    let version_half = p.surface_query().difference(bit);
+                }
+                Some(SpecProvider::Package(package)) => {
                     assert!(
-                        SpecSurface::ALL_TCL.contains(version_half),
-                        "{}: the non-vendor half of the mask is version bits",
+                        query.packages.contains(&package),
+                        "{}: the point must carry the vendor package",
                         p.name
                     );
-                    if p.is_irules() {
-                        assert_eq!(p.surface_query(), bit, "iRules mask is BARE (§9)");
-                    }
                 }
                 None => {
                     assert!(
-                        SpecSurface::ALL_TCL.contains(p.surface_query()),
-                        "{}: no vendor bit — the mask is pure Tcl versions",
+                        query.packages.is_empty(),
+                        "{}: no vendor surface — the point carries no package",
                         p.name
                     );
                 }
             }
+            assert!(
+                query
+                    .core
+                    .is_none_or(|(family, _)| family == Family::Tcl || p.is_irules()),
+                "{}: a non-iRules point asks on the Tcl ladder",
+                p.name
+            );
         }
     }
 
@@ -2014,32 +2095,6 @@ mod tests {
         // documents that no current entry does.
         for p in all_with_fallback() {
             assert_eq!(p.signature_base, p.runtime_base, "{}", p.name);
-        }
-    }
-
-    #[test]
-    fn expr_grammar_matches_the_retired_string_table() {
-        // The profile's expr_grammar_base must agree with the (still
-        // shipping) `DialectSet::expr_grammar_base_version` string table
-        // for every canonical name it has an arm for — one source of
-        // truth, two projections, zero drift.
-        for p in DialectProfile::all() {
-            let legacy = DialectSet::expr_grammar_base_version(p.name);
-            let via_profile = p.expr_grammar_base.map(|v| match v {
-                TclVersion::V8_4 => SpecSurface::TCL84,
-                TclVersion::V8_5 => SpecSurface::TCL85,
-                TclVersion::V8_6 => SpecSurface::TCL86,
-                TclVersion::V9_0 => SpecSurface::TCL90,
-                TclVersion::V9_1 => SpecSurface::TCL91,
-            });
-            // bpf is the one deliberate divergence: the legacy table had no
-            // arm (None), the profile models its Tcl 9.0 core (D7).
-            if p.name == "bpf" {
-                assert_eq!(legacy, None);
-                assert_eq!(via_profile, Some(SpecSurface::TCL90));
-                continue;
-            }
-            assert_eq!(via_profile, legacy, "{}", p.name);
         }
     }
 
@@ -2346,15 +2401,3 @@ mod tests {
     }
 }
 
-/// The `'static` slot holding `package`, so a query can borrow it.
-///
-/// A profile's vendor package is one of a closed compiled set; interning it
-/// here lets [`DialectProfile::surface_query`] hand out a `'static` slice
-/// without allocating per call.
-fn vendor_package_slot(package: &'static str) -> &'static &'static str {
-    const SLOTS: &[&str] = &["iapps", "tmsh", "Tk", "expect", "spectcl", "bpf", "bigip"];
-    SLOTS
-        .iter()
-        .find(|slot| **slot == package)
-        .expect("every compiled vendor surface package has a slot")
-}
