@@ -130,30 +130,33 @@ loads, release build:
 
 | pack | lines | commands | 1.x ms | 2.0 ms | Δ | 2.0 VM ms | 1.x KiB | 2.0 KiB | 2.0 VM KiB |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| `eda_cadence` | 1076 | 77 | 3 | 4 | +11% | 23 | 129 | 144 | 129 |
-| `eda_mentor` | 1262 | 69 | 5 | 6 | +11% | 43 | 126 | 201 | 196 |
-| `eda_microchip` | 6366 | 257 | 39 | 42 | +8% | 403 | 810 | 853 | 968 |
-| `eda_quartus` | 1110 | 77 | 5 | 5 | +9% | 35 | 0 | 0 | 0 |
-| `eda_synopsys` | 923 | 68 | 4 | 4 | +8% | 26 | 0 | 0 | 0 |
-| `eda_xilinx` | 20887 | 788 | 166 | 193 | +16% | 2773 | 3197 | 2849 | 2741 |
-| `sdc_base` | 1186 | 86 | 8 | 9 | +10% | 52 | 0 | 0 | 0 |
-| `upf` | 2191 | 67 | 26 | 25 | -2% | 142 | 0 | 0 | 0 |
-| **corpus** | | | **256** | **288** | **+12%** | **3495** | **4264** | **4048** | **4035** |
+| `eda_cadence` | 1076 | 77 | 3 | 4 | +13% | 21 | 129 | 144 | 129 |
+| `eda_mentor` | 1262 | 69 | 5 | 6 | +9% | 39 | 126 | 201 | 197 |
+| `eda_microchip` | 6366 | 257 | 36 | 37 | +3% | 398 | 809 | 852 | 1008 |
+| `eda_quartus` | 1110 | 77 | 5 | 5 | +7% | 32 | 0 | 0 | 0 |
+| `eda_synopsys` | 923 | 68 | 3 | 4 | +9% | 22 | 0 | 0 | 0 |
+| `eda_xilinx` | 20887 | 788 | 145 | 174 | +20% | 2725 | 3164 | 2840 | 3162 |
+| `sdc_base` | 1186 | 86 | 7 | 6 | -6% | 41 | 0 | 0 | 0 |
+| `upf` | 2191 | 67 | 22 | 19 | -14% | 123 | 0 | 0 | 0 |
+| **corpus** | | | **227** | **255** | **+12%** | **3401** | **4230** | **4038** | **4498** |
 
 Three things the numbers say:
 
 - **2.0 costs about a tenth of the load, and nothing else.** The
   `available {tcl 8.4-}` algebra is more words to segment than
   `dialects all-tcl`, which is the whole difference: repeated runs put
-  the corpus figure between +8% and +12%. On the 27k-line corpus that is
-  ~30 ms once, at workspace scope.
+  the corpus figure between +8% and +12%, and individual packs swing
+  either side of it. On the 35k-line corpus that is ~30 ms once, at
+  workspace scope.
 - **Memory is unchanged**, because the two spellings lower to the same
-  rows. The column measures resident bytes a load *retains* — the loader
-  interns what it registers, so that, not a transient peak, is what a
-  pack costs the process. It is measured at page granularity, so the
-  small packs read `0`.
+  rows: 4.2 MiB against 4.0 MiB across the corpus is noise at this
+  resolution. The column measures resident bytes a load *retains* — the
+  loader interns what it registers, so that, not a transient peak, is what
+  a pack costs the process. It is measured at page granularity, so the
+  small packs read `0`, and the interpreted column runs a little higher
+  because the VM's own pages are still resident when it is sampled.
 - **The static fast path is what makes design E affordable.** Executing
-  the corpus as Tcl costs 3.5 s against 0.29 s: a wholly declarative pack
+  the corpus as Tcl costs 3.4 s against 0.26 s: a wholly declarative pack
   is captured from its CST instead, and `tests/eval_loader.rs` loads
   every shipped pack both ways and asserts the snapshots are identical,
   which is what makes the shortcut an optimisation rather than a second
