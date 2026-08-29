@@ -43,6 +43,7 @@
 
 use tcl_compiler::analyser::{Analyser, AnalysisResult};
 use tcl_registry::model::ingress::static_context_for;
+use tcl_dialect::model::{SpecSurface};
 
 fn analyse(source: &str) -> AnalysisResult {
     Analyser::new().analyse(source, "tcl8.6").clone()
@@ -577,12 +578,12 @@ fn mathfunc_command_spellings_are_registered_and_gated() {
         );
     }
     assert!(
-        reg.get_for_dialect("::tcl::mathfunc::isinf", tcl_dialect::DialectSet::TCL86)
+        reg.get_for_surface("::tcl::mathfunc::isinf", SpecSurface::TCL86)
             .is_none(),
         "isinf is 9.0+"
     );
     assert!(
-        reg.get_for_dialect("::tcl::mathfunc::sin", tcl_dialect::DialectSet::TCL84)
+        reg.get_for_surface("::tcl::mathfunc::sin", SpecSurface::TCL84)
             .is_none(),
         "the command table itself is 8.5+ (TIP 232)"
     );

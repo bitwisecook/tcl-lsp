@@ -19,6 +19,7 @@
 //! `when` iRules command.
 use crate::hooks::LoweringHookId;
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 /// Dynamic arg-role resolver for `when EVENT ?priority? { body }`.
 ///
@@ -70,7 +71,7 @@ pub const fn spec() -> CommandSpec {
             // Registering a handler stores its body for the dispatcher to
             // run on a later event; nothing in it executes at this call.
             .union(Traits::DEFERS_BODY),
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         event_handler_priority: Some(BIGIP_EVENT_HANDLER_PRIORITY),
         arity: Arity::new(2, 6),
         arg_role_resolver: Some(when_arg_roles),

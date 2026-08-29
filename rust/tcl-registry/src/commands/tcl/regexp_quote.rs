@@ -21,6 +21,7 @@
 //! contrast `regex__quote.rs`, which doubles the underscore for the
 //! shorter `regex::quote` spelling).
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "regexp::quote STRING",
     ..FormSpec::DEFAULT
@@ -45,7 +46,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// this alternate name — or one of its three siblings — as the same
 /// REGEX_LITERAL-quoting idiom (`tcl_compiler`'s
 /// `regexp_quote_suppresses_t103` test) wherever it is called, standard
-/// Tcl or otherwise. `dialects: ALL_TCL` (no `IRULES` bit) is deliberate,
+/// Tcl or otherwise. `surface: ALL_TCL` (no `IRULES` bit) is deliberate,
 /// not an oversight: iRules excludes all four spellings, and this group's
 /// omission of the `IRULES` bit is exactly what enforces that — an
 /// `ALL_TCL` group never intersects the bare `IRULES` availability mask,
@@ -54,7 +55,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "regexp::quote",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::PURE,
         arity: Arity::exact(1),
         return_type: Some(TclType::String),

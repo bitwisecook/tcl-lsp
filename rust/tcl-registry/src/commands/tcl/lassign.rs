@@ -19,6 +19,7 @@
 //! `lassign` — assign list elements to variables.
 use crate::hooks::CodegenHookId;
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::Variable,
     writes: true,
@@ -41,12 +42,12 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[
     FormSpec {
         synopsis: "lassign list ?varName ...?",
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         ..FormSpec::DEFAULT
     },
     FormSpec {
         synopsis: "lassign list varName ?varName ...?",
-        dialects: Some(DialectSet::TCL85),
+        surface: Some(SpecSurface::TCL85),
         ..FormSpec::DEFAULT
     },
 ];
@@ -64,7 +65,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lassign",
         traits: Traits::FRAMELESS_RUNTIME | Traits::FRAME_HASH_BUILTIN | Traits::BYTE_COMPILED,
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         arity: Arity::at_least(1),
         return_type: Some(TclType::List),
         // `lassign` writes list *elements* to its targets — of any intrep —

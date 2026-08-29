@@ -18,6 +18,7 @@
 
 //! `yield` — suspend a coroutine and produce a value to its resumer.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
@@ -71,7 +72,7 @@ pub fn spec() -> CommandSpec {
         // dialect-specific form, ban, or extra option anywhere). `f5-bigip`'s
         // mask carries no Tcl-version bit at all (a config-file surface, not
         // a Tcl command surface).
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         traits: Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD
             | Traits::TRANSFERS_CONTROL

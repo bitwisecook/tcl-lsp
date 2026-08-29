@@ -59,6 +59,7 @@
 //! same-invocation in the sense a `struct::list map` callback is.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::NetworkIo,
     reads: true,
@@ -137,7 +138,7 @@ const OPTIONS: &[OptionSpec] = &[
         value: OptionValue::boolean(),
         detail: "Guess the response content type when the server does not supply a usable one.",
         // Absent from http 2.9.8 (tcl8.6.16); present in 2.10.2 (tcl9.0.4).
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         ..OptionSpec::DEFAULT
     },
     OptionSpec {
@@ -159,21 +160,21 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-keepalive",
         value: OptionValue::boolean(),
         detail: "Reuse a persistent connection for this request.",
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         ..OptionSpec::DEFAULT
     },
     OptionSpec {
         name: "-method",
         value: OptionValue::value("verb"),
         detail: "HTTP method to use instead of the GET/POST default.",
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         ..OptionSpec::DEFAULT
     },
     OptionSpec {
         name: "-myaddr",
         value: OptionValue::value("address"),
         detail: "Local address to bind the outgoing socket to.",
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         ..OptionSpec::DEFAULT
     },
     OptionSpec {
@@ -186,7 +187,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-protocol",
         value: OptionValue::value("version"),
         detail: "HTTP protocol version to advertise (default 1.1).",
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         ..OptionSpec::DEFAULT
     },
     OptionSpec {
@@ -217,7 +218,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-strict",
         value: OptionValue::boolean(),
         detail: "Reject URLs that are not strictly RFC 3986 conformant.",
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         ..OptionSpec::DEFAULT
     },
     OptionSpec {
@@ -243,7 +244,7 @@ const OPTIONS: &[OptionSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http::geturl",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Retrieve a URL — the primary command for the http package.",
@@ -308,7 +309,7 @@ mod tests {
             spec.options
                 .iter()
                 .find(|option| option.name == name)
-                .map(|option| option.dialects)
+                .map(|option| option.surface)
         };
         // The 8.4 base set: no gate of their own.
         for name in ["-binary", "-channel", "-command", "-handler", "-headers"] {
@@ -318,14 +319,14 @@ mod tests {
         for name in ["-keepalive", "-method", "-myaddr", "-protocol", "-strict"] {
             assert_eq!(
                 gate(name),
-                Some(Some(DialectSet::TCL85_PLUS)),
+                Some(Some(SpecSurface::TCL85_PLUS)),
                 "{name} arrived with http 2.7.13 (tcl8.5)",
             );
         }
         // 9.0's http 2.10.2 addition.
         assert_eq!(
             gate("-guesstype"),
-            Some(Some(DialectSet::TCL90_PLUS)),
+            Some(Some(SpecSurface::TCL90_PLUS)),
             "-guesstype arrived with http 2.10.2 (tcl9.0)",
         );
     }

@@ -18,11 +18,12 @@
 
 //! `HTTP::retry` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::retry",
         traits: Traits::DIAGRAM_ACTION,
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Resends a request to a server.",
@@ -49,7 +50,7 @@ pub const fn spec() -> CommandSpec {
                 name: "-reset",
                 value: OptionValue::flag(),
                 detail: "Reset the server-side connection.",
-                dialects: None,
+                surface: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,

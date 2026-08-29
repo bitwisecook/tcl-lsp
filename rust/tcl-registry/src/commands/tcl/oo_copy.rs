@@ -28,6 +28,7 @@
 // line's capitalisation ("create copies…" in 8.6, "Create copies…" from
 // 9.0 on) — neither affects this command's own arguments or behaviour.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const COPY_SOURCE_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
     StateTransitionDomain::ObjectDispatch,
@@ -168,7 +169,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "oo::copy",
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         // Three positional arguments total (sourceObject required,
         // targetObject and targetNamespace each optional), matching the
         // synopsis below in every version that has this command (8.6,
@@ -215,7 +216,7 @@ mod tests {
             .resolve_invocation(
                 "oo::copy",
                 &["::source", "::target", "::private::target"],
-                DialectSet::TCL86,
+                SpecSurface::TCL86,
             )
             .expect("oo::copy must resolve");
         let transitions = invocation.state_transitions();
@@ -258,7 +259,7 @@ mod tests {
     fn omitted_copy_identities_remain_typed_fresh_values() {
         let registry = CommandRegistry::build_default();
         let transitions = registry
-            .resolve_invocation("oo::copy", &["::source"], DialectSet::TCL86)
+            .resolve_invocation("oo::copy", &["::source"], SpecSurface::TCL86)
             .expect("oo::copy must resolve")
             .state_transitions();
         assert!(transitions.facts().iter().any(|fact| matches!(

@@ -215,7 +215,7 @@ impl Lowerer<'_> {
     fn is_coroutine_primitive(&self, cmd: &str, args: &[String]) -> bool {
         let args: Vec<&str> = args.iter().map(String::as_str).collect();
         self.registry
-            .invocation_traits(cmd, &args, self.registry.own_availability_mask())
+            .invocation_traits(cmd, &args, self.registry.own_surface_query())
             .contains(Traits::COROUTINE_PRIMITIVE)
     }
 

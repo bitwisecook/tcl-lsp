@@ -19,6 +19,7 @@
 //! `try` — trap and process errors and exceptions.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 // `body`, every handler `script`, and `finally` can do literally anything
 // (`cmd_try` in `tcl-vm/src/cmd_try.rs` evaluates each one with
@@ -41,7 +42,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 // genuine "URL Not Found" page (HTTP 200 with a soft-404 body, not a
 // redirect quirk — the same pattern `throw_.rs` documents for
 // `throw`), consistent with `try` being a Tcl 8.6 addition (TIP 329,
-// alongside `throw`). `dialects: None` here inherits the command's own
+// alongside `throw`). `surface: None` here inherits the command's own
 // `TCL86_PLUS` gate below, so this single entry already correctly
 // excludes 8.4/8.5 and every dialect pinned to an 8.4/8.5 base.
 const FORMS: &[FormSpec] = &[FormSpec {
@@ -179,7 +180,7 @@ pub fn spec() -> CommandSpec {
         // grepping `irules/`, `iapps/`, `expect/`, `eda_*/`, `tk/`, and
         // `itcl/` for `"try"`: no hits at all, so no dialect overrides or
         // bans it).
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         // Minimum 1 (`body` is mandatory — `try` with no arguments is
         // "wrong # args: should be \"try body ?handler ...? ?finally
         // script?\"", confirmed in `cmd_try`'s own `USAGE` string); no

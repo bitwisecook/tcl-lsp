@@ -18,10 +18,11 @@
 
 //! `teststringobj` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "teststringobj",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Test string Tcl_Obj operations.",

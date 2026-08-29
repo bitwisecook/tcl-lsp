@@ -21,7 +21,7 @@
 //! row C1, redesign §11.2 D1).
 //!
 //! Before this module the semantic-analysis and executable-IR path spoke
-//! `DialectSet`: `SemanticAnalysisBundle` carried a `dialect: DialectSet`
+//! `DialectSet`: `SemanticAnalysisBundle` carried a `dialect: Option<SurfaceQuery<'_>>`
 //! field, `build_linear_executable_ir` took a mask, and a bundle whose mask
 //! did not name exactly one profile recorded a `DialectUnavailable` decline.
 //! That was the last dialect vocabulary in the tree beside
@@ -58,13 +58,13 @@
 //! [`crate::model::assembly::resolve_invocation_in_context`] already
 //! implements for the lowering-hook and side-effect paths: a carried context
 //! is a binding-proof obligation ([`ResolvedContext::resolve_spec`]), and the
-//! proved spec is the selected spec because both sides are `get_for_dialect`
+//! proved spec is the selected spec because both sides are `get_for_surface`
 //! under the same authoring mask. No context means the caller carries no
 //! environment — a unit harness or a shape-only query — and the
-//! dialect-blind store selection stands, exactly as `DialectSet::empty()`
+//! dialect-blind store selection stands, exactly as `None`
 //! behaved.
 
-use tcl_dialect::{DialectProfile, DialectSet, TclVersion};
+use tcl_dialect::{DialectProfile, TclVersion};
 
 use crate::invocation_words::InvocationWords;
 use crate::model::assembly::ContextRegistry;
@@ -189,7 +189,7 @@ impl std::fmt::Debug for SemanticContext {
 ///
 /// No context means the caller carries no environment — the obligation is
 /// `NotRequired` and the dialect-blind store selection stands, exactly as the
-/// retired `DialectSet::empty()` argument behaved.
+/// retired `None` argument behaved.
 #[must_use]
 pub fn resolve_structured_invocation_in_context<'r, 'w>(
     commands: &'r CommandRegistry,
@@ -197,20 +197,20 @@ pub fn resolve_structured_invocation_in_context<'r, 'w>(
     words: InvocationWords<'w>,
 ) -> StructuredInvocationResolution<'r, 'w> {
     let Some(context) = context else {
-        return commands.resolve_structured_invocation(words, DialectSet::empty());
+        return commands.resolve_structured_invocation(words, None);
     };
     let Some(name) = words.head_literal() else {
         // A computed head selects nothing in either model; report it through
         // the ordinary path so the decline names the word kind rather than a
         // missing spec.
-        return commands.resolve_structured_invocation(words, context.context().authoring_mask());
+        return commands.resolve_structured_invocation(words, Some(context.context().authoring_query()));
     };
     if context.context().resolve_spec(commands, name).is_none() {
         return StructuredInvocationResolution::from_unresolved(
             InvocationResolutionUnresolved::UnknownLiteralHead { spelling: name },
         );
     }
-    commands.resolve_structured_invocation(words, context.context().authoring_mask())
+    commands.resolve_structured_invocation(words, Some(context.context().authoring_query()))
 }
 
 #[cfg(test)]
@@ -235,7 +235,7 @@ mod tests {
     #[test]
     fn an_unknown_name_sinks_to_the_lenient_environment() {
         // The ingress contract: unknown and unstated names resolve to `tcl`.
-        // Under the retired mask vocabulary they produced `DialectSet::empty()`
+        // Under the retired mask vocabulary they produced `None`
         // and the bundle declined outright; here they name a real context.
         for name in ["", "tcl", "no-such-dialect"] {
             assert_eq!(
@@ -282,7 +282,7 @@ mod tests {
             let names: Vec<&'static str> = commands.command_names().collect();
             for name in names {
                 let old = (!retired.is_empty())
-                    .then(|| commands.get_for_dialect(name, retired))
+                    .then(|| commands.get_for_surface(name, retired))
                     .flatten();
                 let new = context.context().resolve_spec(commands, name);
                 assert!(

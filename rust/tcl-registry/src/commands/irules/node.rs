@@ -18,11 +18,12 @@
 
 //! `node` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "node",
         traits: Traits::CSE_CANDIDATE.union(Traits::DIAGRAM_ACTION),
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::new(1, 2),
         hover: Some(HoverSnippet {
             summary: "Route traffic directly to a specific node.",

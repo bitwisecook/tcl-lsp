@@ -29,6 +29,7 @@
 //! The disabled-command, arity, and W304 emitters buffer their candidates
 //! and flush them after the walk.
 
+use tcl_dialect::model::{SpecProvider};
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_core_types::DiagCode;
 use tcl_registry::Arity;
@@ -38,6 +39,9 @@ use super::helpers::{has_substitution, is_ident_continue};
 use crate::analyser::state::Analyser;
 use crate::analyser::types::{PendingUserCallArity, Severity};
 use crate::expr_ast::{ExprNode, render_expr};
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::Family;
+use tcl_dialect::model::{surface_admits};
 
 /// The argument words of one command invocation, scoped to the prefix the
 /// caller has already consumed: `args` / `arg_tokens` / `arg_expand` are the
@@ -579,7 +583,7 @@ struct OptionScanContext {
     /// The resolved option table (command-level, or the subcommand's).
     options: &'static [tcl_registry::hover::OptionSpec],
     /// Dialect set the options inherit when they declare none.
-    parent_dialects: Option<tcl_registry::prelude::DialectSet>,
+    parent_surface: Option<&'static [SpecSurface]>,
     /// First argument index the scan starts at (1 past a subcommand word).
     start_idx: usize,
     /// The resolved subcommand path, for messages — just the subcommand
@@ -767,20 +771,20 @@ got {nargs_min}{usage_suffix}",
 /// "iRules") — this suffix is the highest-traffic dialect naming in
 /// editor-visible prose, so it uses the human spelling; a member with no
 /// catalog profile keeps its canonical name.
-fn dialect_availability_suffix(dialects: Option<tcl_registry::prelude::DialectSet>) -> String {
-    let Some(dialects) = dialects else {
+fn dialect_availability_suffix(surface: Option<&'static [SpecSurface]>) -> String {
+    let Some(rows) = surface else {
         return String::new();
     };
-    let names = dialects.member_names();
-    if names.is_empty() {
+    // The catalogue profiles a row list admits, in catalogue order: the
+    // reader wants the releases they can select, not the row spelling.
+    let labels: Vec<&str> = tcl_dialect::DialectProfile::all()
+        .iter()
+        .filter(|profile| surface_admits(rows, Some(&profile.surface_query())))
+        .map(|profile| profile.short_name)
+        .collect();
+    if labels.is_empty() {
         return String::new();
     }
-    let labels: Vec<&str> = names
-        .iter()
-        .map(|name| {
-            tcl_dialect::DialectProfile::find(name).map_or(*name, |profile| profile.short_name)
-        })
-        .collect();
     format!(" (available in: {})", labels.join(", "))
 }
 
@@ -1082,7 +1086,7 @@ impl Analyser {
                     tcl_registry::InvocationWord::Literal(cmd_name),
                     &words,
                 ),
-                self.analysis_context().context().authoring_mask(),
+                Some(self.analysis_context().context().authoring_query()),
             )
             .resolved()
             .and_then(|invocation| invocation.validate_literal_arguments())
@@ -1246,7 +1250,7 @@ impl Analyser {
         // and the message falls back to the plain form — never wrong, just
         // sometimes less specific.
         let suffix = registry.get(bare).map_or(String::new(), |spec| {
-            dialect_availability_suffix(spec.dialects)
+            dialect_availability_suffix(spec.surface)
         });
         let diag = crate::analyser::types::Diagnostic::new(
             DiagCode::W002,
@@ -1369,8 +1373,11 @@ impl Analyser {
         let tk_fallback = || {
             let registry = self.registry.as_deref()?;
             let spec = registry.get(cmd_name)?;
-            spec.dialects
-                .is_some_and(|d| d.intersects(DialectSet::TK))
+            spec.surface
+                .is_some_and(|rows| {
+                    rows.iter()
+                        .any(|row| row.provider == SpecProvider::Package("Tk"))
+                })
                 .then(|| super::dispatch::signature_for_command_any_dialect(registry, cmd_name))
                 .flatten()
         };
@@ -1682,7 +1689,7 @@ impl Analyser {
                 .iter()
                 .find(|s| s.name == first_arg)
                 .map_or(String::new(), |sub| {
-                    dialect_availability_suffix(sub.dialects.or(spec.dialects))
+                    dialect_availability_suffix(sub.surface.or(spec.surface))
                 })
         });
         let diag = crate::analyser::types::Diagnostic::new(
@@ -3379,11 +3386,11 @@ impl Analyser {
         // resolving with no dialect means W304 still fires on a command
         // that the active dialect disables (e.g. `exec` / `glob` under
         // f5-irules, which also draw W002 / W123).  Passing the dialect
-        // here would over-filter via `get_for_dialect` and silently drop
+        // here would over-filter via `get_for_surface` and silently drop
         // those W304s.
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
         let Some(profile) =
-            registry.resolve_option_terminator(cmd_name, &arg_strs, DialectSet::empty())
+            registry.resolve_option_terminator(cmd_name, &arg_strs, None)
         else {
             return;
         };
@@ -3765,7 +3772,7 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
         let Some(call) = tcl_registry::private_tcl_namespaces::classify_private_tcl_namespace_call(
             cmd_name,
             registry,
-            self.analysis_context().context().authoring_mask(),
+            Some(self.analysis_context().context().authoring_query()),
         ) else {
             return;
         };
@@ -4087,8 +4094,8 @@ before this value so it is treated as data, not an option."
         } else {
             spec.prefix_matching
         };
-        let (options, parent_dialects, start_idx, sub_name) = if spec.subcommands.is_empty() {
-            (spec.options, spec.dialects, 0usize, None::<String>)
+        let (options, parent_surface, start_idx, sub_name) = if spec.subcommands.is_empty() {
+            (spec.options, spec.surface, 0usize, None::<String>)
         } else {
             // Ensemble-shaped: index 0 is always the subcommand word.  A
             // `{*}`-expanded or substituted word resolves to an unknown name
@@ -4104,7 +4111,7 @@ before this value so it is treated as data, not an option."
             }
             let sub = spec.resolve_subcommand_for_dialect(
                 &args[0],
-                self.analysis_context().context().authoring_mask(),
+                Some(self.analysis_context().context().authoring_query()),
             )?;
             // A two-level ensemble dispatches once more on the next word, and
             // its operations can carry genuinely different option tables
@@ -4121,19 +4128,19 @@ before this value so it is treated as data, not an option."
             });
             let scope = sub.option_scope(
                 dispatch.map(String::as_str),
-                Some(self.analysis_context().context().authoring_mask()),
+                Some(self.analysis_context().context().authoring_query()),
                 None,
-                spec.dialects,
+                spec.surface,
             );
             let name = match scope.sub_subcommand {
                 Some(op) => format!("{} {op}", sub.name),
                 None => sub.name.to_owned(),
             };
-            (scope.options, scope.dialects, 1usize, Some(name))
+            (scope.options, scope.surface, 1usize, Some(name))
         };
         (!options.is_empty()).then_some(OptionScanContext {
             options,
-            parent_dialects,
+            parent_surface,
             start_idx,
             sub_name,
             prefix_matching,
@@ -4189,7 +4196,7 @@ before this value so it is treated as data, not an option."
         };
         let OptionScanContext {
             options,
-            parent_dialects,
+            parent_surface,
             start_idx,
             sub_name,
             prefix_matching,
@@ -4230,14 +4237,14 @@ before this value so it is treated as data, not an option."
             // it consumes, so a value that itself looks like a flag
             // (`-command -bar`) is not mistakenly tested as an option.
             if let Some(opt) = options.iter().find(|o| o.matches(arg)) {
-                // Profile gating (§5.2): gate.intersects(mask) plus the
+                // Profile gating (§5.2): surface_admits(gate, &mask) plus the
                 // version ceiling — an inherited option on a vendor command
                 // resolves under that vendor's composed profile, and a
                 // later-version option never leaks below its ceiling.
                 if !self
                     .analysis_context()
                     .context()
-                    .option_available(opt, parent_dialects)
+                    .option_available(opt, parent_surface)
                     && i < arg_tokens.len()
                 {
                     let span = arg_tokens[i].span;
@@ -4274,7 +4281,7 @@ in the active dialect ({}).",
             let generation = self.analysis_context();
             let table = option_keyword_table(
                 options,
-                |opt| generation.context().option_available(opt, parent_dialects),
+                |opt| generation.context().option_available(opt, parent_surface),
                 prefix_matching,
             );
             match table.resolve(arg) {
@@ -4646,7 +4653,7 @@ fn is_builtin_math_function(name: &str) -> bool {
 /// iRules only (`+`, `in`, `**`, `eq`, …) — used by the W117 stub-shadow
 /// check. Derived from [`tcl_syntax::expr::operators`] (issue #983's
 /// unification) rather than a hand-typed list: a `BinOp`/`UnaryOp` whose
-/// `dialects` isn't exactly `Some(DialectSet::IRULES)` is available outside
+/// `dialects` isn't exactly `Some(SpecSurface::IRULES)` is available outside
 /// iRules (`None` = ungated, `Some(TCL90_PLUS)` etc. = version-gated but not
 /// dialect-*identity*-gated — both count as "built-in" here; only the nine
 /// iRules word operators are excluded).
@@ -4654,10 +4661,10 @@ fn is_builtin_expr_op(name: &str) -> bool {
     use tcl_registry::prelude::DialectSet;
     tcl_syntax::expr::operators::ALL_BIN_OPS.iter().any(|op| {
         let spec = op.spec();
-        spec.spelling == name && spec.dialects != Some(DialectSet::IRULES)
+        spec.spelling == name && spec.surface != Some(SpecSurface::IRULES)
     }) || tcl_syntax::expr::operators::ALL_UNARY_OPS.iter().any(|op| {
         let spec = op.spec();
-        spec.spelling == name && spec.dialects != Some(DialectSet::IRULES)
+        spec.spelling == name && spec.surface != Some(SpecSurface::IRULES)
     })
 }
 
@@ -4668,10 +4675,10 @@ fn is_irules_only_expr_op(name: &str) -> bool {
     use tcl_registry::prelude::DialectSet;
     tcl_syntax::expr::operators::ALL_BIN_OPS.iter().any(|op| {
         let spec = op.spec();
-        spec.spelling == name && spec.dialects == Some(DialectSet::IRULES)
+        spec.spelling == name && spec.surface == Some(SpecSurface::IRULES)
     }) || tcl_syntax::expr::operators::ALL_UNARY_OPS.iter().any(|op| {
         let spec = op.spec();
-        spec.spelling == name && spec.dialects == Some(DialectSet::IRULES)
+        spec.spelling == name && spec.surface == Some(SpecSurface::IRULES)
     })
 }
 
@@ -4852,7 +4859,7 @@ fn w003_tip_string(spelling: &str) -> &'static str {
 /// [`tcl_syntax::expr::operators::OperatorSpec::expr_grammar_min_version`]
 /// is `Some(_)` — plus (issue #985) the 9 iRules-only word operators, every
 /// `BinOp`/`UnaryOp` whose `OperatorSpec::dialects` is exactly
-/// `Some(DialectSet::IRULES)`. Computed once (not `const`: `OperatorSpec`
+/// `Some(SpecSurface::IRULES)`. Computed once (not `const`: `OperatorSpec`
 /// isn't cheaply iterable in a const context) and cached for the process
 /// lifetime — W003 only calls into this after its own text prefilter narrows
 /// to expressions that already contain a gated keyword, so this never runs
@@ -4877,7 +4884,7 @@ fn gated_expr_ops() -> &'static [GatedExprOp] {
             .iter()
             .filter_map(|op| {
                 let spec = op.spec();
-                (spec.dialects == Some(DialectSet::IRULES)).then(|| GatedExprOp {
+                (spec.surface == Some(SpecSurface::IRULES)).then(|| GatedExprOp {
                     op: spec.spelling,
                     word_shaped: true,
                     gate: ExprOpGate::IrulesOnly,
@@ -4888,7 +4895,7 @@ fn gated_expr_ops() -> &'static [GatedExprOp] {
             .iter()
             .filter_map(|op| {
                 let spec = op.spec();
-                (spec.dialects == Some(DialectSet::IRULES)).then(|| GatedExprOp {
+                (spec.surface == Some(SpecSurface::IRULES)).then(|| GatedExprOp {
                     op: spec.spelling,
                     word_shaped: true,
                     gate: ExprOpGate::IrulesOnly,

@@ -267,9 +267,9 @@ mod term_text;
 mod text_misc;
 mod web_asn;
 
-use crate::dialects::DialectSet;
-use crate::model::tcllib::core_floor_exclusions;
+use crate::model::tcllib::core_floor_surface;
 use crate::spec::CommandSpec;
+use tcl_dialect::model::{SpecSurface};
 
 /// Return all `tcllib` command specifications.
 ///
@@ -292,29 +292,22 @@ pub fn tcllib_command_specs() -> Vec<CommandSpec> {
     // W120 (missing-package-require) and package-gated
     // completion fire for tcllib commands used without the
     // corresponding `package require`.
-    // tcllib packages are loaded with `package require`, which the restricted
-    // F5 embedded dialects (iRules / iApps) do not support — those run in TMM
-    // with a fixed command set.  Gate every tcllib command out of them (mirrors
-    // how Tk is excluded via `TK_AND_TCL`), so they are not offered or counted
-    // as valid there.  A spec that already carries an explicit dialect set (a
-    // version-gated command) keeps it.
-    let tcllib_dialects = DialectSet::all().difference(DialectSet::IRULES | DialectSet::IAPPS);
+    // A tcllib command is available where its package's `package require`
+    // can be honoured, at the Tcl releases the package's own
+    // `package require Tcl` floor admits. The restricted F5 embedded
+    // dialects (iRules, iApps) run in TMM with a fixed command set and can
+    // host no package at all, so they refuse these commands through the
+    // `required_package` gate — the environment answers it, rather than
+    // every spec carrying a subtraction (§3.3).
     for spec in &mut specs {
         if spec.required_package.is_none() {
             spec.required_package = tcllib_required_package(spec.name);
         }
-        if spec.dialects.is_none() {
-            spec.dialects = Some(tcllib_dialects);
-        }
-        // Honour the providing package's Tcl-version floor: a tcllib
-        // package whose `package require Tcl` line excludes an older
-        // release must not offer its commands under that dialect.  Applied
-        // after the blanket gate (and to specs with an explicit dialect
-        // set) so every command a package provides stays consistent.
-        if let Some(excluded) = spec.owning_package().and_then(tcllib_package_dialect_floor)
-            && let Some(dialects) = spec.dialects
-        {
-            spec.dialects = Some(dialects.difference(excluded));
+        if spec.surface.is_none() {
+            spec.surface = Some(
+                spec.owning_package()
+                    .map_or(SpecSurface::ALL_TCL, core_floor_surface),
+            );
         }
     }
     specs
@@ -663,18 +656,6 @@ fn tcllib_required_package(name: &str) -> Option<&'static str> {
 /// dialects (8.4–9.1).  A package that requires a newer Tcl core is not
 /// installable on the excluded dialect, so its commands must drop that
 /// membership.  Returns the dialect bits to remove, or `None` when the
-/// package supports the full range.
-///
-/// **P5.** This used to be a two-name `match` (`report`, `stooop`) — the
-/// two modules somebody had checked — while every other module carried
-/// the same `package vsatisfies [package provide Tcl] 8.5 9` head guard
-/// and was offered under `tcl8.4` anyway.  The answer now comes from
-/// [`core_floor_exclusions`], which reads each module's real guard out of
-/// [`TCLLIB_MODULES`](crate::model::tcllib::TCLLIB_MODULES), so the rule is applied to the whole distribution
-/// from one piece of evidence instead of to two names from memory.
-fn tcllib_package_dialect_floor(pkg: &str) -> Option<DialectSet> {
-    core_floor_exclusions(pkg)
-}
 
 #[cfg(test)]
 mod tests {
@@ -778,17 +759,17 @@ mod tests {
             let Some(package) = spec.owning_package() else {
                 continue;
             };
-            let Some(excluded) = core_floor_exclusions(package) else {
+            let rows = spec.surface.expect("tcllib command carries a surface");
+            let Some(floor) = tcllib_module(package).and_then(|module| module.core_floor) else {
                 continue;
             };
-            let dialects = spec.dialects.expect("tcllib command carries a dialect set");
             assert!(
-                !dialects.intersects(excluded),
+                !surface_admits(rows, &SurfaceQuery::core(Family::Tcl, "8.4")) || floor == "8.4",
                 "`{}` (package {package}) must not be offered below its declared Tcl floor",
                 spec.name,
             );
             assert!(
-                dialects.contains(DialectSet::TCL90),
+                surface_admits(rows, &SurfaceQuery::core(Family::Tcl, "9.0")),
                 "`{}` should remain available under tcl9.0",
                 spec.name,
             );
@@ -800,9 +781,9 @@ mod tests {
             .collect();
         assert!(!gated.is_empty(), "expected report::/stooop:: commands");
         for spec in gated {
-            let dialects = spec.dialects.expect("dialect set");
-            assert!(!dialects.contains(DialectSet::TCL84), "{}", spec.name);
-            assert!(dialects.contains(DialectSet::TCL86), "{}", spec.name);
+            let dialects = spec.surface.expect("dialect set");
+            assert!(!dialects.contains(SpecSurface::TCL84), "{}", spec.name);
+            assert!(dialects.contains(SpecSurface::TCL86), "{}", spec.name);
         }
         // … and so do the ones it silently missed: `csv` carries the same
         // `8.5 9` guard, and the 8.6-floor modules lose 8.5 as well.
@@ -810,13 +791,13 @@ mod tests {
             specs
                 .iter()
                 .find(|s| s.name == name)
-                .and_then(|s| s.dialects)
+                .and_then(|s| s.surface)
                 .expect("spec")
         };
-        assert!(!floor_of("csv::split").contains(DialectSet::TCL84));
-        assert!(floor_of("csv::split").contains(DialectSet::TCL85));
-        assert!(!floor_of("defer::defer").contains(DialectSet::TCL85));
-        assert!(floor_of("defer::defer").contains(DialectSet::TCL86));
+        assert!(!floor_of("csv::split").contains(SpecSurface::TCL84));
+        assert!(floor_of("csv::split").contains(SpecSurface::TCL85));
+        assert!(!floor_of("defer::defer").contains(SpecSurface::TCL85));
+        assert!(floor_of("defer::defer").contains(SpecSurface::TCL86));
     }
 
     #[test]

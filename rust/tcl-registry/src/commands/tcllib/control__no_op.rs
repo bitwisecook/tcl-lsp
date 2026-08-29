@@ -27,7 +27,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "control::no-op",
-        dialects: None,
+        surface: None,
         arity: Arity::any(),
         traits: Traits::PURE,
         hover: Some(HoverSnippet {

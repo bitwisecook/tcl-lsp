@@ -38,6 +38,7 @@ use tcl_registry::pack_hooks::{self, HookFamily, HookInputs};
 use tcl_registry::spec::CommandSpec;
 use tcl_registry::{CommandRegistry, arity::Arity};
 use tcl_spec_hooks::{HookProgram, PackPrograms, tclvm_host};
+use tcl_dialect::model::Family;
 
 /// The pack body under test: `string length` re-expressed in the DSL, guarded
 /// on `string is ascii` exactly as [`string.tclspec`] does so it stays inside

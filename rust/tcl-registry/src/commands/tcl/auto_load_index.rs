@@ -20,6 +20,7 @@
 //! `tclIndex` files on `auto_path`.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "auto_load_index",
@@ -30,7 +31,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "auto_load_index",
-        // `dialects: Some(DialectSet::ALL_TCL)` matches every sibling
+        // `surface: Some(SpecSurface::ALL_TCL)` matches every sibling
         // autoloading proc (`auto_execok`, `auto_import`, `auto_load`,
         // `auto_mkindex`, `auto_mkindex_old`, `auto_qualify`, `auto_reset`):
         // F5 iRules bans all seven, and that ban is now carried by each
@@ -46,7 +47,7 @@ pub fn spec() -> CommandSpec {
         // iRules; making availability explicit per spec closes that gap,
         // since this `ALL_TCL` group now excludes iRules directly, just
         // like its siblings.
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         // A Tcl-level library proc (`library/init.tcl`), not a
         // `Tcl_CreateObjCommand`-registered builtin, so it carries no
         // `CmdInfo` row and is absent from the exact C Tcl safe-interpreter

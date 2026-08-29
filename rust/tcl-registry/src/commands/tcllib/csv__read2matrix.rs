@@ -26,7 +26,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "csv::read2matrix",
-        dialects: None,
+        surface: None,
         arity: Arity::new(2, 5),
         hover: Some(HoverSnippet {
             summary: "Read CSV data from a channel into a matrix object.",

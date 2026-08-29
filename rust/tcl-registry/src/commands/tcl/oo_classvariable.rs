@@ -30,6 +30,7 @@
 //! core entry below plus [`spec_ooutil_86`] — mirroring `mymethod`'s
 //! [`super::oo_callback::mymethod_spec_ooutil_86`].
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "classvariable variableName ?...?",
@@ -88,7 +89,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "classvariable",
         traits: TRAITS,
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
         side_effects: SIDE_EFFECTS,
@@ -107,7 +108,7 @@ pub fn spec_ooutil_86() -> CommandSpec {
     CommandSpec {
         name: "classvariable",
         traits: TRAITS,
-        dialects: Some(DialectSet::TCL86),
+        surface: Some(SpecSurface::TCL86),
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
         side_effects: SIDE_EFFECTS,
@@ -130,7 +131,7 @@ mod tests {
     /// straight out of a bare interpreter).
     #[test]
     fn classvariable_is_core_only_from_90() {
-        assert_eq!(spec().dialects, Some(DialectSet::TCL90_PLUS));
+        assert_eq!(spec().surface, Some(SpecSurface::TCL90_PLUS));
         assert_eq!(spec().required_package, None);
     }
 
@@ -141,7 +142,7 @@ mod tests {
     #[test]
     fn classvariable_has_an_ooutil_86_route() {
         let ooutil = spec_ooutil_86();
-        assert_eq!(ooutil.dialects, Some(DialectSet::TCL86));
+        assert_eq!(ooutil.surface, Some(SpecSurface::TCL86));
         assert_eq!(ooutil.required_package, Some("oo::util"));
         assert_eq!(ooutil.tcllib_package, Some("oo::util"));
     }

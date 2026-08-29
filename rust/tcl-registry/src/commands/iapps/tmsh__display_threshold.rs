@@ -18,6 +18,8 @@
 
 //! `tmsh::display_threshold` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "tmsh::display_threshold ?value?",
     ..FormSpec::DEFAULT
@@ -26,7 +28,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tmsh::display_threshold",
-        dialects: Some(DialectSet::IAPPS.union(DialectSet::TMSH)),
+        surface: Some(surface![SpecSurface::package("iapps"), SpecSurface::package("tmsh")]),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet::brief(
             "Re-enables a display-threshold in the script.",

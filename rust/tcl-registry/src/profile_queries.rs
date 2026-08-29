@@ -28,14 +28,17 @@
 //! command such as `exec` simply never carries the `IRULES` bit; there is
 //! no subtractive disable list left to bypass.
 
-use tcl_dialect::{DialectProfile, DialectSet};
+use tcl_dialect::DialectProfile;
 
+use crate::model::context::core_tcl_floor;
 use crate::hover::OptionSpec;
 use crate::registry::CommandRegistry;
 #[cfg(test)]
 use crate::spec::SubSubCommand;
 use crate::spec::{CommandSpec, SubCommand};
 use crate::traits::Traits;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::{surface_admits};
 
 /// Availability queries a resolved [`DialectProfile`] answers against
 /// registry data (design doc §5.1/§5.2). Implemented for `DialectProfile`
@@ -63,8 +66,8 @@ pub trait ProfileQueries {
     ) -> Option<&'r CommandSpec>;
 
     /// Whether `opt` is available under this profile, given the gate it
-    /// inherits from its parent (`spec.dialects`, or
-    /// `sub.dialects.or(spec.dialects)` for a subcommand option).
+    /// inherits from its parent (`spec.surface`, or
+    /// `sub.surface.or(spec.surface)` for a subcommand option).
     ///
     /// This is the §5.2 option-gating semantics — a genuine change from
     /// the old `contains` rule:
@@ -80,7 +83,7 @@ pub trait ProfileQueries {
     ///
     /// A gate of `None` on both the option and its parent means "no
     /// restriction".
-    fn is_option_available(&self, opt: &OptionSpec, parent_gate: Option<DialectSet>) -> bool;
+    fn is_option_available(&self, opt: &OptionSpec, parent_gate: Option<&'static [SpecSurface]>) -> bool;
 
     /// Declared option / switch names of `spec` available under this
     /// profile, in declaration order with duplicates removed — the
@@ -155,7 +158,7 @@ fn package_available(profile: &DialectProfile, required: Option<&'static str>) -
 
 impl ProfileQueries for DialectProfile {
     fn is_available(&self, spec: &CommandSpec) -> bool {
-        spec.supports_dialect(self.availability_mask)
+        spec.supports_dialect(Some(self.surface_query()))
             && (self.operators_as_commands || !spec.traits.contains(Traits::OPERATOR_COMMAND))
             && package_available(self, spec.required_package)
     }
@@ -166,19 +169,19 @@ impl ProfileQueries for DialectProfile {
         name: &str,
     ) -> Option<&'r CommandSpec> {
         registry
-            .get_for_dialect(name, self.availability_mask)
+            .get_for_surface(name, Some(self.surface_query()))
             .filter(|spec| self.is_available(spec))
     }
 
-    fn is_option_available(&self, opt: &OptionSpec, parent_gate: Option<DialectSet>) -> bool {
-        let Some(gate) = opt.dialects.or(parent_gate) else {
+    fn is_option_available(&self, opt: &OptionSpec, parent_gate: Option<&'static [SpecSurface]>) -> bool {
+        let Some(gate) = opt.surface.or(parent_gate) else {
             // No restriction on the option or its parent.
             return true;
         };
-        if !gate.intersects(self.availability_mask) {
+        if !surface_admits(gate, Some(&self.surface_query())) {
             return false;
         }
-        match (gate.min_version(), self.version_ceiling) {
+        match (core_tcl_floor(gate), self.version_ceiling) {
             (Some(min), Some(ceiling)) => min <= ceiling,
             // A pure vendor gate has no version floor; a profile without a
             // ceiling accepts every version.
@@ -189,7 +192,7 @@ impl ProfileQueries for DialectProfile {
     fn available_option_names(&self, spec: &CommandSpec) -> Vec<&'static str> {
         let mut names: Vec<&'static str> = Vec::new();
         let mut consider = |opt: &OptionSpec| {
-            if self.is_option_available(opt, spec.dialects) && !names.contains(&opt.name) {
+            if self.is_option_available(opt, spec.surface) && !names.contains(&opt.name) {
                 names.push(opt.name);
             }
         };
@@ -207,7 +210,7 @@ impl ProfileQueries for DialectProfile {
     fn available_option_specs(&self, spec: &CommandSpec) -> Vec<&'static OptionSpec> {
         let mut out: Vec<&'static OptionSpec> = Vec::new();
         let mut consider = |opt: &'static OptionSpec| {
-            if self.is_option_available(opt, spec.dialects)
+            if self.is_option_available(opt, spec.surface)
                 && !out.iter().any(|o| o.name == opt.name)
             {
                 out.push(opt);
@@ -229,7 +232,7 @@ impl ProfileQueries for DialectProfile {
         spec: &CommandSpec,
         sub: &SubCommand,
     ) -> Vec<&'static OptionSpec> {
-        let parent = sub.dialects.or(spec.dialects);
+        let parent = sub.surface.or(spec.surface);
         sub.options
             .iter()
             .filter(|opt| self.is_option_available(opt, parent))
@@ -255,7 +258,7 @@ pub(crate) trait LegacyProfileOracle {
     /// `package_version`.
     ///
     /// Both axes apply, exactly as they do one level up: the dialect gate
-    /// `sub_sub.dialects` inherits from `sub.dialects.or(spec.dialects)` and
+    /// `sub_sub.surface` inherits from `sub.surface.or(spec.surface)` and
     /// is intersected with the availability mask, and the owning package's
     /// [`crate::lifecycle::Lifecycle`] must admit `package_version`
     /// (`None` = permissive).
@@ -268,7 +271,7 @@ pub(crate) trait LegacyProfileOracle {
     ) -> bool;
 
     /// Option / switch names of subcommand `sub`, whose options inherit
-    /// `sub.dialects.or(spec.dialects)` as their parent gate.
+    /// `sub.surface.or(spec.surface)` as their parent gate.
     fn available_sub_option_names(&self, spec: &CommandSpec, sub: &SubCommand)
     -> Vec<&'static str>;
 
@@ -306,9 +309,9 @@ pub(crate) trait LegacyProfileOracle {
 #[cfg(test)]
 impl LegacyProfileOracle for DialectProfile {
     fn is_subcommand_available(&self, spec: &CommandSpec, sub: &SubCommand) -> bool {
-        sub.dialects
-            .or(spec.dialects)
-            .is_none_or(|gate| gate.intersects(self.availability_mask))
+        sub.surface
+            .or(spec.surface)
+            .is_none_or(|gate| gate)
     }
 
     fn is_sub_subcommand_available(
@@ -319,10 +322,10 @@ impl LegacyProfileOracle for DialectProfile {
         package_version: Option<&str>,
     ) -> bool {
         sub_sub
-            .dialects
-            .or(sub.dialects)
-            .or(spec.dialects)
-            .is_none_or(|gate| gate.intersects(self.availability_mask))
+            .surface
+            .or(sub.surface)
+            .or(spec.surface)
+            .is_none_or(|gate| gate)
             && sub_sub.available_for_version(package_version)
     }
 
@@ -331,7 +334,7 @@ impl LegacyProfileOracle for DialectProfile {
         spec: &CommandSpec,
         sub: &SubCommand,
     ) -> Vec<&'static str> {
-        let parent = sub.dialects.or(spec.dialects);
+        let parent = sub.surface.or(spec.surface);
         let mut names: Vec<&'static str> = Vec::new();
         for opt in sub.options {
             if self.is_option_available(opt, parent) && !names.contains(&opt.name) {
@@ -342,7 +345,7 @@ impl LegacyProfileOracle for DialectProfile {
     }
 
     fn vendor_surface(&self, registry: &CommandRegistry) -> Option<VendorSurface> {
-        let vendor = self.vendor_bit?;
+        let vendor = self.vendor_surface?;
         let mut by_ns: std::collections::BTreeMap<String, usize> =
             std::collections::BTreeMap::new();
         let mut command_count = 0usize;
@@ -355,8 +358,8 @@ impl LegacyProfileOracle for DialectProfile {
             // data (tcllib's complement-shaped "everywhere but the closed
             // sandboxes" gates), not the vendor's own surface.
             if !spec
-                .dialects
-                .is_some_and(|d| d.intersects(vendor) && !d.intersects(DialectSet::ALL_TCL))
+                .surface
+                .is_some_and(|d| d.intersects(vendor) && !surface_admits(SpecSurface::ALL_TCL, Some(&d)))
             {
                 continue;
             }
@@ -395,10 +398,10 @@ impl LegacyProfileOracle for DialectProfile {
         {
             return keyed_ambient(&pin).then_some(pin);
         }
-        let vendor = self.vendor_bit?;
+        let vendor = self.vendor_surface?;
         let vendor_own = spec
-            .dialects
-            .is_some_and(|d| d.intersects(vendor) && !d.intersects(DialectSet::ALL_TCL));
+            .surface
+            .is_some_and(|d| d.intersects(vendor) && !surface_admits(SpecSurface::ALL_TCL, Some(&d)));
         if !vendor_own {
             return None;
         }

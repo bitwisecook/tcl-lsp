@@ -19,6 +19,7 @@
 //! `time` — measure the execution time of a script.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 /// `time`'s script can do literally anything once evaluated — the same
 /// "unknowable statically" placeholder `eval`/`apply` declare for their own
@@ -61,7 +62,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// hover snippet below rather than as a dialect gate here, since the
 /// command's own syntax is unchanged.
 ///
-/// `dialects: Some(DialectSet::ALL_TCL)` is deliberate, not an oversight:
+/// `surface: Some(SpecSurface::ALL_TCL)` is deliberate, not an oversight:
 /// `time` is one of the K36322151 commands F5 iRules excludes — unlike
 /// `exec`/`open`/`socket`'s filesystem-and-process rationale or
 /// `vwait`/`update`'s event-loop one, no equivalent documented reason
@@ -82,7 +83,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "time",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED
             // script is evaluated by a runtime call back into the
             // interpreter (`Tcl_EvalObjEx`, every version — see `FORMS`

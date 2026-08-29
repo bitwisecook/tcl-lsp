@@ -18,10 +18,11 @@
 
 //! `tcltest::removeDirectory` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcltest::removeDirectory",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::new(1, 2),
         hover: Some(HoverSnippet {
             summary: "Remove a temporary test directory.",

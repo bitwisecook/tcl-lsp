@@ -202,7 +202,7 @@ mod tests {
         assert_eq!(derived.len(), family().len());
         for ((qualified, bare), found) in family().into_iter().zip(derived) {
             assert_eq!(found.name, qualified);
-            assert_eq!(found.dialects, bare.dialects, "{qualified} dialects");
+            assert_eq!(found.surface, bare.surface, "{qualified} dialects");
             assert_eq!(
                 found.required_package, bare.required_package,
                 "{qualified} required_package"
@@ -231,12 +231,12 @@ mod tests {
             .iter()
             .find(|s| s.required_package.is_none())
             .expect("a core entry");
-        assert_eq!(core.dialects, Some(DialectSet::TCL90_PLUS));
+        assert_eq!(core.surface, Some(SpecSurface::TCL90_PLUS));
         let ooutil = links
             .iter()
             .find(|s| s.required_package == Some("oo::util"))
             .expect("an ooutil entry");
-        assert_eq!(ooutil.dialects, Some(DialectSet::TCL86));
+        assert_eq!(ooutil.surface, Some(SpecSurface::TCL86));
         assert_eq!(ooutil.tcllib_package, Some("oo::util"));
     }
 }

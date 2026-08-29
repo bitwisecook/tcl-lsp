@@ -20,6 +20,9 @@
 
 use crate::hooks::InlineCodegenHookId;
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
+use tcl_dialect::model::Family;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "break",
@@ -32,7 +35,7 @@ const COMPLETION_CODES: &[CompletionCode] = &[CompletionCode::Break];
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "break",
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD

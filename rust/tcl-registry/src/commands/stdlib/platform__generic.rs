@@ -18,11 +18,12 @@
 
 //! `platform::generic` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "platform::generic",
         traits: Traits::PURE,
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::exact(0),
         hover: Some(HoverSnippet {
             summary: "Return the generic platform identifier (less specific than identify).",

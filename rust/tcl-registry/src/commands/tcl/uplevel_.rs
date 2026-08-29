@@ -19,6 +19,9 @@
 //! `uplevel` — execute a script in a different stack frame.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
+use tcl_dialect::model::Family;
 
 /// `uplevel`'s script can do literally anything once evaluated in the
 /// target frame — set variables, open files, spawn processes — none of
@@ -133,7 +136,7 @@ pub fn spec() -> CommandSpec {
         // own `unsafe_command: true` flags it as a context-escalation risk
         // inside iRules (IRULE2003) — a usage warning about a real,
         // available command, not an availability gate.
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD

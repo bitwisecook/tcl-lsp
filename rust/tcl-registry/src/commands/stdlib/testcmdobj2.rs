@@ -18,10 +18,11 @@
 
 //! `testcmdobj2` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testcmdobj2",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Test the Tcl_CreateObjCommand2 dispatch path (Tcl 9.0+).",

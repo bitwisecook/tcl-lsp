@@ -30,6 +30,7 @@
 //! and the rest of the Family-B impls build on this skeleton. See
 //! `docs/design/common-runtime-emitter-architecture.md`.
 
+use tcl_dialect::model::{Family};
 pub mod debug;
 pub mod embed;
 pub mod error;

@@ -261,7 +261,7 @@ pub fn segmented_command_arguments(command: &SegmentedCommand) -> Vec<Invocation
 ///
 /// `context` is `None` for a caller that carries no environment (a unit
 /// harness, a shape-only query); the selection is then dialect-blind, exactly
-/// as the retired `DialectSet::empty()` argument behaved.
+/// as the retired `None` argument behaved.
 pub fn resolve_word_exprs(
     registry: &CommandRegistry,
     context: Option<SemanticContext>,

@@ -45,6 +45,7 @@
 //! `commands/stdlib/pkg_mkindex.rs` — out of scope for a single-file
 //! audit.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 // The 8.4 and 8.5 manpages spell the four switches out in the SYNOPSIS
 // line itself (`?-direct? ?-lazy? ?-load pkgPat? ?-verbose?`); 8.6, 9.0,
@@ -72,7 +73,7 @@ const OPTIONS: &[OptionSpec] = &[
     // does not appear anywhere on the 8.4 manpage). The flag itself, and
     // its core delay-loading behaviour, are unchanged since 8.4 — only
     // the documented caveat is newer — so this is current-truth prose on
-    // a universal option, not a `dialects:` gate.
+    // a universal option, not a `surface:` gate.
     OptionSpec {
         name: "-lazy",
         value: OptionValue::flag(),
@@ -104,18 +105,18 @@ const OPTIONS: &[OptionSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "pkg_mkindex",
-        // `Some(DialectSet::ALL_TCL)` is deliberate, mirroring
+        // `Some(SpecSurface::ALL_TCL)` is deliberate, mirroring
         // `auto_mkindex`'s precedent: F5 iRules excludes this proc
         // (K36322151 — `"pkg_mkindex"` sits among the filesystem bans
         // alongside `auto_mkindex`/`auto_mkindex_old`), and that exclusion
-        // now falls straight out of this `dialects:` group — `ALL_TCL`
+        // now falls straight out of this `surface:` group — `ALL_TCL`
         // carries no `IRULES` bit, so it never intersects the bare
         // `IRULES` mask. There is no disable list. No other dialect
         // directory (Expect, the EDA vendor shells, tmsh, iApps, Tk, itcl,
         // BPF) registers a `pkg_mkIndex`/`pkg_mkindex` spec of its own or
         // otherwise alters it, and each carries a Tcl-version bit that
         // `ALL_TCL` intersects, so it stays reachable in every one of them.
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         // A Tcl-level library proc (`library/package.tcl`, `proc
         // pkg_mkIndex {args} {...}`), not a `Tcl_CreateObjCommand`-registered
         // builtin — carries no `CmdInfo` row, so `Traits::SAFE_INTERP_HIDDEN`

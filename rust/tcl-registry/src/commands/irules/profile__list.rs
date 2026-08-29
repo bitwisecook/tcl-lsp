@@ -18,10 +18,11 @@
 
 //! `PROFILE::list` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "PROFILE::list",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Returns all the names of the profiles of the class asked for that are attached to this virtual server.",

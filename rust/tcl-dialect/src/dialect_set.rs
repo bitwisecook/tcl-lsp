@@ -113,7 +113,7 @@ bitflags! {
         // `NON_IRULES_OPERATORS` (every dialect except iRules/Tk/BPF) has
         // been retired. iRules availability is fully explicit per spec:
         // every command carries an explicit `dialects` group (universal
-        // `dialects: None` was eliminated registry-wide), with the `IRULES`
+        // `surface: None` was eliminated registry-wide), with the `IRULES`
         // bit present iff iRules enables it — so a K36322151-banned command
         // such as `exec` is just `ALL_TCL` and never intersects the bare
         // `IRULES` mask. The only remaining profile-level exclusion is

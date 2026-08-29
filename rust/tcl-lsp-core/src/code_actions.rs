@@ -64,6 +64,7 @@
 //! * Cross-document refactors (move to file, split namespace)
 //!   are not supported.
 
+use tcl_dialect::model::{SurfaceLayer, Family};
 use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::compiler_checks::DiagCode;
@@ -71,6 +72,7 @@ use tcl_lexer::{LineIndex, Utf16Col};
 use tcl_registry::events::{DataCollectionAction, EventRegistry};
 
 use crate::definition::{LspRange, utf16_col_to_char_col};
+use tcl_dialect::model::{SpecSurface};
 
 /// LSP code-action kind.  Maps to the dotted strings the editor / e2e
 /// `only` filter use (`quickfix`, `refactor.extract`, …).
@@ -1612,7 +1614,7 @@ fn extract_inline_actions(
     // the code-action signature (the data-group transform self-gates on
     // the registry resolving a `class` form).
     let mut registry = tcl_registry::CommandRegistry::build_default();
-    registry.load_dialect(tcl_dialect::DialectSet::IRULES);
+    registry.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
     let mut out = Vec::new();
     out.extend(refactor_engine_actions(
         source,

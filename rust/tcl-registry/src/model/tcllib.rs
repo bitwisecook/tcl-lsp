@@ -60,8 +60,8 @@
 //!
 //! [`Provider::Package`]: crate::model::surface::Provider::Package
 
-use tcl_dialect::DialectSet;
 use tcl_dialect::model::{VersionAxisId, VersionSet};
+use tcl_dialect::model::{SpecSurface};
 
 /// One tcllib module's package identity, as the bundled tcllib 2.0
 /// sources state it.
@@ -1436,17 +1436,15 @@ pub fn module_version_set(package: &str) -> Option<VersionSet> {
 /// and what is compared here is the module's declared Tcl requirement
 /// against the Tcl ladder.
 #[must_use]
-pub fn core_floor_exclusions(package: &str) -> Option<DialectSet> {
-    let floor = tcllib_module(package)?.core_floor?;
-    let excluded = match floor {
-        "8.5" => DialectSet::TCL84,
-        "8.6" => DialectSet::TCL84.union(DialectSet::TCL85),
-        "9.0" => DialectSet::TCL8X,
-        "9.1" => DialectSet::TCL8X.union(DialectSet::TCL90),
-        // "8.4" and anything the table does not spell.
-        _ => return None,
-    };
-    Some(excluded)
+pub fn core_floor_surface(package: &str) -> &'static [SpecSurface] {
+    match tcllib_module(package).and_then(|module| module.core_floor) {
+        Some("8.5") => SpecSurface::TCL85_PLUS,
+        Some("8.6") => SpecSurface::TCL86_PLUS,
+        Some("9.0") => SpecSurface::TCL90_PLUS,
+        Some("9.1") => SpecSurface::TCL91,
+        // "8.4" and anything the table does not spell: the whole ladder.
+        _ => SpecSurface::ALL_TCL,
+    }
 }
 
 #[cfg(test)]

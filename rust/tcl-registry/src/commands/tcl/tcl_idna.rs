@@ -43,6 +43,7 @@
 //! package, not subcommands of this ensemble.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "tcl::idna subcommand ?arg ...?",
@@ -71,7 +72,7 @@ const IDNA_PUNY_SUBS: &[SubSubCommand] = &[
 fn make_spec(name: &'static str) -> CommandSpec {
     CommandSpec {
         name,
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         // No `Traits` bits apply: package-gated rather than a core
         // builtin the compiler special-cases (no `BYTE_COMPILED`); every
         // subcommand is a pure string transform with no filesystem,

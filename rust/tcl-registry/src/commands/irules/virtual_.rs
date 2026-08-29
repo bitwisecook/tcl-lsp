@@ -18,11 +18,12 @@
 
 //! `virtual` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "virtual",
         traits: Traits::CSE_CANDIDATE.union(Traits::DIAGRAM_ACTION),
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Returns the name of the associated virtual server or selects another virtual server and an optional IP address and port to connect to.",

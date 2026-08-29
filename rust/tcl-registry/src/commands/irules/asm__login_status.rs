@@ -18,10 +18,11 @@
 
 //! `ASM::login_status` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ASM::login_status",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Request status of the login session tracked by one of the login pages defined in the policy.",

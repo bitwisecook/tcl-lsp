@@ -19,6 +19,7 @@
 //! `fblocked` — test whether the last input operation exhausted all available input.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "fblocked channel",
@@ -51,7 +52,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fblocked",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED,
         arity: Arity::exact(1),
         arg_roles: &[(0, ArgRole::Channel)],

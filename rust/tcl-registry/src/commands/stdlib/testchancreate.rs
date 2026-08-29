@@ -18,10 +18,11 @@
 
 //! `testchancreate` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testchancreate",
-        dialects: Some(DialectSet::TCL91),
+        surface: Some(SpecSurface::TCL91),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Create a reflected test channel (Tcl 9.1).",

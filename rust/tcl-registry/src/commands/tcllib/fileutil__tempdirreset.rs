@@ -32,7 +32,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fileutil::tempdirReset",
-        dialects: None,
+        surface: None,
         arity: Arity::exact(0),
         hover: Some(HoverSnippet {
             summary: "Reset the cached temporary directory path.",

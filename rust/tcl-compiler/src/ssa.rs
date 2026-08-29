@@ -664,7 +664,7 @@ fn registry_barrier_defs(
                         command,
                         &arg_strs,
                         idx,
-                        reg.own_availability_mask(),
+                        reg.own_surface_query(),
                     ) == Some(tcl_registry::VariableScope::Global)
                         && !name.starts_with("::")
                     {
@@ -2386,7 +2386,7 @@ fn mirror_top_level_global_option_defs(
                         name,
                         &arg_refs,
                         index,
-                        registry.own_availability_mask(),
+                        registry.own_surface_query(),
                     ) == Some(tcl_registry::VariableScope::Global)
                 })
                 .filter_map(|index| {
@@ -2448,7 +2448,7 @@ pub(crate) fn enrich_instance_option_defs_with_initial(
                 class,
                 command,
                 &invocation_args,
-                registry.own_availability_mask(),
+                registry.own_surface_query(),
             ) else {
                 continue;
             };
@@ -2468,7 +2468,7 @@ pub(crate) fn enrich_instance_option_defs_with_initial(
                     registry,
                     class,
                     &option_args,
-                    registry.own_availability_mask(),
+                    registry.own_surface_query(),
                     candidate,
                 ) {
                     let name = crate::naming::element_var_name(candidate);
@@ -2476,7 +2476,7 @@ pub(crate) fn enrich_instance_option_defs_with_initial(
                         class,
                         &option_args,
                         option_index,
-                        registry.own_availability_mask(),
+                        registry.own_surface_query(),
                     ) == Some(tcl_registry::VariableScope::Global)
                         && !name.starts_with("::")
                     {

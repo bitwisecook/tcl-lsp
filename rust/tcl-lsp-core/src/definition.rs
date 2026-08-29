@@ -118,6 +118,7 @@ use tcl_lexer::{LineIndex, Utf16Col};
 use crate::hover::{find_var_at_position, find_word_span_at_position};
 use crate::namespace_import::{ExportVerdict, NamespaceExportOracle};
 use crate::source_graph::{RunOrder, RunPoint};
+use tcl_dialect::model::Family;
 
 /// Whole-program export knowledge, paired with the URI of the document being
 /// resolved.

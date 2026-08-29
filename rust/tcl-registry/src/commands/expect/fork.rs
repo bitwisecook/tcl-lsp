@@ -18,6 +18,7 @@
 
 //! `fork` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "fork",
     ..FormSpec::DEFAULT
@@ -26,7 +27,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fork",
-        dialects: Some(DialectSet::EXPECT),
+        surface: Some(SpecSurface::EXPECT),
         arity: Arity::exact(0),
         hover: Some(HoverSnippet {
             summary: "Fork the Expect process, returning 0 in the child and the child pid in the parent.",

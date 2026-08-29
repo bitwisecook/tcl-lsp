@@ -19,6 +19,9 @@
 //! `catch` — evaluate script and trap exceptional returns.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
+use tcl_dialect::model::Family;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: true,
@@ -33,12 +36,12 @@ const FORMS: &[FormSpec] = &[
         // added to the synopsis in Tcl 8.5's catch(n); 8.4's synopsis is
         // the narrower two-argument form below. `TCL85_PLUS` — not
         // extended to iRules — mirrors `incr_.rs`'s `safe_on_uninit:
-        // Some(DialectSet::TCL85_PLUS)`: iRules embeds a genuine Tcl 8.4.6
+        // Some(SpecSurface::TCL85_PLUS)`: iRules embeds a genuine Tcl 8.4.6
         // runtime with nothing backported at any BIG-IP version
         // (docs/design/compiler/dialects-events.md, "Dialect base
         // versions", ratified D3), so version-dependent behaviour follows
         // 8.4 there too.
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         ..FormSpec::DEFAULT
     },
     // Tcl 8.4's `catch(n)`: `catch script ?varName?` — a single result
@@ -48,7 +51,7 @@ const FORMS: &[FormSpec] = &[
     // shape too.
     FormSpec {
         synopsis: "catch script ?varName?",
-        dialects: Some(DialectSet::TCL84.union(DialectSet::IRULES)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.5"))]), SpecSurface::core(Family::F5Irules)]),
         ..FormSpec::DEFAULT
     },
 ];
@@ -57,7 +60,7 @@ const FORMS: &[FormSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "catch",
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::CONTROL_FLOW

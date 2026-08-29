@@ -39,6 +39,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
+use tcl_dialect::model::Family;
 
 /// Dispatch reach and source anchors consumed together when W308 is built.
 #[derive(Clone, Copy)]

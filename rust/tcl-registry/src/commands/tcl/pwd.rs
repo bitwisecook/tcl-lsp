@@ -19,6 +19,7 @@
 //! `pwd` — return the absolute path of the current working directory.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "pwd",
@@ -36,7 +37,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// EXAMPLE prose, which carries no behavioural meaning. `pwd` takes no
 /// arguments and has no options/switches in any of the five versions.
 ///
-/// `dialects: Some(DialectSet::ALL_TCL)` here is deliberate, not an
+/// `surface: Some(SpecSurface::ALL_TCL)` here is deliberate, not an
 /// oversight: F5 iRules is the one modelled dialect that drops `pwd` — it
 /// is one of the K36322151 commands the TMM event sandbox excludes,
 /// having no real per-request filesystem/cwd concept, the same reasoning
@@ -51,7 +52,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "pwd",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED | Traits::RETURNS_PATH | Traits::SAFE_INTERP_HIDDEN,
         arity: Arity::exact(0),
         return_type: Some(TclType::String),

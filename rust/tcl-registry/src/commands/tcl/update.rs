@@ -24,7 +24,7 @@
 //! `update.n` 8.4, 8.5, 8.6, 9.0, and 9.1 — right down to shared, unchanged
 //! wording for both the bare form and `idletasks`. A genuinely
 //! version-invariant command: nothing about its documented behaviour
-//! warrants a `dialects:`/`min_tcl` gate anywhere in this spec. The two
+//! warrants a `surface:`/`min_tcl` gate anywhere in this spec. The two
 //! cross-reference sections that *do* drift across versions are immaterial
 //! to every field below — SEE ALSO reads "after, bgerror" on 8.4 and
 //! "after, interp" from 8.5 on; KEYWORDS gains "asynchronous I/O" starting
@@ -32,6 +32,7 @@
 //! documented command behaviour.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
@@ -86,7 +87,7 @@ pub fn spec() -> CommandSpec {
         // directories define an `update`), and `ALL_TCL` intersects each of
         // their version|vendor masks, so it stays reachable — and, for Tk
         // in particular, essential — in every one of them.
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         // BYTE_COMPILED only — this codebase's "recognised core builtin"
         // convention, not literal bytecode emission (see traits.rs). Not
         // SAFE_INTERP_HIDDEN: Tcl's safe-interpreter hidden-command table

@@ -18,10 +18,11 @@
 
 //! `ROUTE::bandwidth` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ROUTE::bandwidth",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Returns a bandwidth estimate for a destination derived from entries in the congestion metrics cache.",

@@ -18,6 +18,7 @@
 
 //! `HTTP::hsts` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
@@ -58,7 +59,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::hsts",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::new(0, 2),
         hover: Some(HoverSnippet {
             summary: "Controls HTTP Strict Transport Security.",

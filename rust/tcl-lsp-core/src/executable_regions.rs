@@ -11,6 +11,7 @@
 //! normal body arguments, clause-list arm bodies, lambda bodies, definition
 //! members, and live command substitutions.
 
+use tcl_dialect::model::{SurfaceQuery};
 use tcl_compiler::lambda_literal::split_lambda_literal;
 use tcl_compiler::realm::CommandBindingRealm;
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
@@ -46,7 +47,7 @@ pub(crate) fn visit_executable_commands(
     source: &str,
     config: LexerConfig,
     registry: &CommandRegistry,
-    availability: tcl_dialect::DialectSet,
+    availability: Option<SurfaceQuery<'_>>,
     identities: &CommandBindingRealm,
     visitor: &mut impl FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool,
 ) {
@@ -65,7 +66,7 @@ struct ExecutableWalker<'a, F> {
     source: &'a str,
     config: LexerConfig,
     registry: &'a CommandRegistry,
-    availability: tcl_dialect::DialectSet,
+    availability: Option<SurfaceQuery<'a>>,
     identities: &'a CommandBindingRealm,
     visitor: &'a mut F,
 }
@@ -361,7 +362,7 @@ mod tests {
             source,
             config,
             registry,
-            profile.availability_mask,
+            profile.surface_query(),
             &identities,
             &mut |command, identity, _context| {
                 if command.name() == "format" || command.name() == "fmt" {
@@ -466,7 +467,7 @@ mod tests {
             source,
             config,
             &registry,
-            tcl_dialect::DialectSet::empty(),
+            None,
             &identities,
             &mut |command, _identity, _context| {
                 if command.name() == "frame" {

@@ -19,6 +19,7 @@
 //! `open` — open a file, device, or command-pipeline channel.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[
     FormSpec {
@@ -134,7 +135,7 @@ const ACCESS_VALUES: &[ArgValue] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "open",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED
             | Traits::OPENS_CHANNEL
             | Traits::SAFE_INTERP_HIDDEN

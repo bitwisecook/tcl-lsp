@@ -19,6 +19,7 @@
 //! `seek` — set the access position for a channel.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 // Tcl 8.4's seek.n synopsis and body ("seek channelId offset ?origin?",
 // the three start/current/end origins, the empty-string return, the
@@ -94,7 +95,7 @@ pub fn spec() -> CommandSpec {
         // class of command (`open` is likewise `ALL_TCL`, banned from
         // iRules for the identical reason). No other dialect (iApps, tmsh,
         // Tk, Expect, the EDA shells, itcl) disables or overrides `seek`.
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED,
         arity: Arity::new(2, 3),
         arg_roles: &[(0, ArgRole::Channel)],

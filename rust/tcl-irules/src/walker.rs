@@ -417,9 +417,7 @@ fn case_list_word(
 ) -> Option<(Token, tcl_registry::CaseListSpec)> {
     let dialect = registry
         .profile()
-        .map_or_else(tcl_dialect::DialectSet::empty, |profile| {
-            profile.availability_mask
-        });
+        .map(tcl_dialect::DialectProfile::surface_query);
     let (spec, invocation) = registry.case_invocation(name, args, dialect)?;
     let case_idx = invocation.clause_list_index?;
     let tok = *cmd.argv.get(case_idx + 1)?;
@@ -871,12 +869,12 @@ mod tests {
 #[cfg(test)]
 mod case_list_tests {
     use super::extract_irules_object_references;
-    use tcl_dialect::DialectSet;
+    use tcl_dialect::model::{Family, SurfaceLayer};
     use tcl_registry::CommandRegistry;
 
     fn reg() -> CommandRegistry {
         let mut r = CommandRegistry::build_default();
-        r.load_dialect(DialectSet::parse("f5-irules").expect("the iRules dialect"));
+        r.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         r
     }
 

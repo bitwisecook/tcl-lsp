@@ -18,6 +18,7 @@
 
 //! `focus` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
     reads: true,
@@ -30,7 +31,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-displayof",
         value: OptionValue::value("window"),
         detail: "Return the focus window on the display of the given window.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -39,7 +40,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-force",
         value: OptionValue::value("window"),
         detail: "Set the focus to the window even if the application does not currently have focus.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -48,7 +49,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-lastfor",
         value: OptionValue::value("window"),
         detail: "Return the name of the most recent window to have the input focus among the window's top-level.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -63,7 +64,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "focus",
-        dialects: Some(DialectSet::TK_AND_TCL),
+        surface: Some(SpecSurface::TK_AND_TCL),
         arity: Arity::new(0, 2),
         hover: Some(HoverSnippet {
             summary: "Manage the input focus.",

@@ -27,7 +27,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "mime::word_encode",
         traits: Traits::PURE,
-        dialects: None,
+        surface: None,
         arity: Arity::at_least(3),
         hover: Some(HoverSnippet {
             summary: "Encode a string per RFC 2047.",

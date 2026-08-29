@@ -2817,7 +2817,7 @@ fn render_command(sm: &SourceMap, cmd_args: &[Arg], env: MinifyEnv<'_>, depth: u
     // (`switch … { pat body … }`, Expect's `expect { … }`).  Registry
     // data, never a spelled command name (issue #1197).
     let case_list_spec = registry.get(head).and_then(|s| s.case_list);
-    let dialect = crate::document_context_for_profile(env.dialect).authoring_mask();
+    let dialect = Some(crate::document_context_for_profile(env.dialect).authoring_query());
     let case_invocation = registry.case_invocation(head, &post_refs, dialect);
     let clause_list_index = case_invocation
         .as_ref()

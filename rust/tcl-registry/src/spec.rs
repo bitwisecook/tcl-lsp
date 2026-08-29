@@ -28,7 +28,6 @@ use crate::arity::{Arity, ArityWindow};
 use crate::body_kind::BodyKind;
 use crate::clause_shape::ClauseShapeChecker;
 use crate::command_table::CommandTableEffect;
-use crate::dialects::DialectSet;
 use crate::dispatch_stability::{DispatchDependencies, DispatchDependencyDescriptor};
 use crate::events::{EventRequirementForm, ResolvedEventRequirements};
 use crate::forms::{CommandForm, SubCommandForm};
@@ -55,6 +54,9 @@ use crate::taint::{SetterConstraint, TaintColour};
 use crate::traits::Traits;
 use crate::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 use crate::world_effect::WorldEffectDescriptor;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SurfaceQuery;
+use tcl_dialect::model::{surface_admits};
 
 /// Dynamic argument role resolver.
 ///
@@ -344,7 +346,7 @@ pub struct CaseListSpec {
     /// `switch -regexp {pattern body}` treats `-regexp` as the subject;
     /// Tcl 8.4 still scans it as an option and rejects the missing subject.
     /// `None` means this case-list descriptor has no such exception.
-    pub two_arg_optionless_dialects: Option<DialectSet>,
+    pub two_arg_optionless_surface: Option<&'static [SpecSurface]>,
     /// A *command* option that makes every pattern a regex (`switch -regexp`).
     pub regex_option: Option<&'static str>,
     /// Command option selecting literal equality (the default switch mode).
@@ -463,7 +465,7 @@ impl CaseListSpec {
     /// The `switch … { pat body … }` shape.
     pub const SWITCH: Self = Self {
         subject_args: 1,
-        two_arg_optionless_dialects: Some(DialectSet::TCL85_PLUS),
+        two_arg_optionless_surface: Some(SpecSurface::TCL85_PLUS),
         regex_option: Some("-regexp"),
         exact_option: Some("-exact"),
         glob_option: Some("-glob"),
@@ -496,7 +498,7 @@ impl CaseListSpec {
     /// fall-through body.
     pub const CASE: Self = Self {
         subject_args: 1,
-        two_arg_optionless_dialects: None,
+        two_arg_optionless_surface: None,
         regex_option: None,
         exact_option: None,
         glob_option: None,
@@ -526,7 +528,7 @@ impl CaseListSpec {
     /// The Expect `expect { ?-flags? pat body … }` shape.
     pub const EXPECT: Self = Self {
         subject_args: 0,
-        two_arg_optionless_dialects: None,
+        two_arg_optionless_surface: None,
         regex_option: None,
         exact_option: None,
         glob_option: None,
@@ -578,7 +580,7 @@ impl CaseListSpec {
         self,
         args: &[&str],
         options: &[&crate::hover::OptionSpec],
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<CaseInvocation> {
         let mut mode = CaseMatchMode::Exact;
         let mut saw_match_mode = false;
@@ -792,17 +794,17 @@ impl CaseListSpec {
     /// release; the gate only applies when Tcl 8.4 would scan an option-like
     /// first word and consume it.
     #[must_use]
-    pub(crate) fn two_arg_body_roles_allowed(self, args: &[&str], dialect: DialectSet) -> bool {
+    pub(crate) fn two_arg_body_roles_allowed(self, args: &[&str], dialect: Option<SurfaceQuery<'_>>) -> bool {
         self.two_arg_optionless_form_is_available(args, dialect)
     }
 
-    fn two_arg_optionless_form_is_available(self, args: &[&str], dialect: DialectSet) -> bool {
+    fn two_arg_optionless_form_is_available(self, args: &[&str], dialect: Option<SurfaceQuery<'_>>) -> bool {
         args.len() != 2
             || self.subject_args != 1
             || args.first().is_none_or(|word| !word.starts_with('-'))
             || self
-                .two_arg_optionless_dialects
-                .is_none_or(|available| available.intersects(dialect))
+                .two_arg_optionless_surface
+                .is_none_or(|available| surface_admits(available, dialect.as_ref()))
     }
 
     /// Adjust a command's static trailing-word reservation for the
@@ -813,7 +815,7 @@ impl CaseListSpec {
     pub(crate) fn option_scan_reserved_trailing_words(
         self,
         args: &[&str],
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
         default: usize,
     ) -> usize {
         if self.two_arg_body_roles_allowed(args, dialect) {
@@ -1293,7 +1295,7 @@ pub struct CommandSpec {
     pub traits: Traits,
 
     /// Dialects this command is available in. `None` = all dialects.
-    pub dialects: Option<DialectSet>,
+    pub surface: Option<&'static [SpecSurface]>,
 
     /// Argument count constraint.
     ///
@@ -1478,7 +1480,7 @@ pub struct CommandSpec {
 
     /// Dialects where this command safely initialises an uninitialised
     /// variable. `None` = not safe. `Some(empty)` = safe in all dialects.
-    pub safe_on_uninit: Option<DialectSet>,
+    pub safe_on_uninit: Option<&'static [SpecSurface]>,
 
     /// Compile-time constant folder.
     pub const_fold: Option<ConstFoldFn>,
@@ -2046,14 +2048,14 @@ pub struct CommandSpec {
 /// `-borderwidth`).
 fn option_table_from<'a>(
     options: impl Iterator<Item = &'a OptionSpec>,
-    dialect: Option<DialectSet>,
-    parent_dialects: Option<DialectSet>,
+    dialect: Option<SurfaceQuery<'_>>,
+    parent_surface: Option<&'static [SpecSurface]>,
     package_version: Option<&str>,
     prefix_matching: PrefixMatching,
 ) -> KeywordTable<'static> {
     let mut keywords: Vec<Keyword<'static>> = Vec::new();
     for opt in options {
-        if !opt.supports_dialect(dialect, parent_dialects)
+        if !opt.supports_dialect(dialect, parent_surface)
             || !opt.available_for_version(package_version)
         {
             continue;
@@ -2181,7 +2183,7 @@ impl CommandSpec {
     pub const DEFAULT: Self = Self {
         name: "",
         traits: Traits::empty(),
-        dialects: None,
+        surface: None,
         arity: Arity::any(),
         arity_windows: &[],
         arg_roles: &[],
@@ -2437,15 +2439,15 @@ impl CommandSpec {
     #[must_use]
     pub fn optional_trailing_arg_names(
         &self,
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
         package_version: Option<&str>,
     ) -> Vec<&'static str> {
         self.forms
             .iter()
             .filter(|form| {
-                form.dialects
-                    .or(self.dialects)
-                    .is_none_or(|allowed| allowed.contains(dialect))
+                form.surface
+                    .or(self.surface)
+                    .is_none_or(|allowed| surface_admits(allowed, dialect.as_ref()))
             })
             .filter(|form| form.available_for_version(package_version))
             .map(|form| optional_trailing_placeholders(form.synopsis))
@@ -2467,17 +2469,18 @@ impl CommandSpec {
     #[must_use]
     pub fn subcommand_table(
         &self,
-        dialect: Option<DialectSet>,
+        dialect: Option<SurfaceQuery<'_>>,
         package_version: Option<&str>,
         prefix_override: Option<PrefixMatching>,
     ) -> KeywordTable<'static> {
-        let parent = self.dialects;
+        let parent = self.surface;
         KeywordTable::from_keywords(
             self.subcommands
                 .iter()
-                .filter(|sub| match (dialect, sub.dialects.or(parent)) {
-                    (Some(want), Some(have)) => have.intersects(want),
-                    _ => true,
+                .filter(|sub| {
+                    sub.surface
+                        .or(parent)
+                        .is_none_or(|have| surface_admits(have, dialect.as_ref()))
                 })
                 .filter(|sub| sub.available_for_version(package_version))
                 .map(|sub| Keyword {
@@ -2493,7 +2496,7 @@ impl CommandSpec {
     #[must_use]
     pub fn option_table(
         &self,
-        dialect: Option<DialectSet>,
+        dialect: Option<SurfaceQuery<'_>>,
         package_version: Option<&str>,
         prefix_override: Option<PrefixMatching>,
     ) -> KeywordTable<'static> {
@@ -2502,7 +2505,7 @@ impl CommandSpec {
                 .iter()
                 .chain(self.command_forms.iter().flat_map(|f| f.options.iter())),
             dialect,
-            self.dialects,
+            self.surface,
             package_version,
             prefix_override.unwrap_or(self.prefix_matching),
         )
@@ -2519,7 +2522,7 @@ impl CommandSpec {
     pub fn resolve_subcommand_word(
         &self,
         word: &str,
-        dialect: Option<DialectSet>,
+        dialect: Option<SurfaceQuery<'_>>,
         package_version: Option<&str>,
         prefix_override: Option<PrefixMatching>,
     ) -> KeywordMatch<'static> {
@@ -2532,7 +2535,7 @@ impl CommandSpec {
     pub fn resolve_option_word(
         &self,
         word: &str,
-        dialect: Option<DialectSet>,
+        dialect: Option<SurfaceQuery<'_>>,
         package_version: Option<&str>,
         prefix_override: Option<PrefixMatching>,
     ) -> KeywordMatch<'static> {
@@ -2563,11 +2566,11 @@ impl CommandSpec {
     pub fn resolve_subcommand_for_dialect(
         &self,
         word: &str,
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<&SubCommand> {
-        let parent = self.dialects;
-        self.resolve_subcommand_filtered(word, |s| match s.dialects.or(parent) {
-            Some(d) => d.intersects(dialect),
+        let parent = self.surface;
+        self.resolve_subcommand_filtered(word, |s| match s.surface.or(parent) {
+            Some(d) => surface_admits(d, dialect.as_ref()),
             None => true,
         })
     }
@@ -2666,10 +2669,10 @@ impl CommandSpec {
 
     /// Check if this command is available in a given dialect.
     #[must_use]
-    pub fn supports_dialect(&self, dialect: DialectSet) -> bool {
-        match self.dialects {
+    pub fn supports_dialect(&self, dialect: Option<SurfaceQuery<'_>>) -> bool {
+        match self.surface {
             None => true,
-            Some(ds) => ds.intersects(dialect),
+            Some(ds) => surface_admits(ds, dialect.as_ref()),
         }
     }
 
@@ -2717,10 +2720,10 @@ impl CommandSpec {
     /// signature and get wrongly skipped (e.g. `regsub -command` is
     /// 9.0-only).
     #[must_use]
-    pub fn switch_names(&self, dialect: Option<DialectSet>) -> Vec<&'static str> {
+    pub fn switch_names(&self, dialect: Option<SurfaceQuery<'_>>) -> Vec<&'static str> {
         let mut names: Vec<&'static str> = Vec::new();
         let consider = |opt: &OptionSpec, names: &mut Vec<&'static str>| {
-            if opt.supports_dialect(dialect, self.dialects) && !names.contains(&opt.name) {
+            if opt.supports_dialect(dialect, self.surface) && !names.contains(&opt.name) {
                 names.push(opt.name);
             }
         };
@@ -2746,10 +2749,10 @@ impl CommandSpec {
     /// [`OptionSpec::value_word_count`]. Kept next to `switch_names` so the
     /// two stay dialect-consistent.
     #[must_use]
-    pub fn option_specs(&self, dialect: Option<DialectSet>) -> Vec<&'static OptionSpec> {
+    pub fn option_specs(&self, dialect: Option<SurfaceQuery<'_>>) -> Vec<&'static OptionSpec> {
         let mut specs: Vec<&'static OptionSpec> = Vec::new();
         let mut consider = |opt: &'static OptionSpec| {
-            if opt.supports_dialect(dialect, self.dialects)
+            if opt.supports_dialect(dialect, self.surface)
                 && !specs.iter().any(|o| o.name == opt.name)
             {
                 specs.push(opt);
@@ -2788,13 +2791,13 @@ impl CommandSpec {
     #[must_use]
     pub fn switch_names_ext(
         &self,
-        dialect: Option<DialectSet>,
+        dialect: Option<SurfaceQuery<'_>>,
         include_aliases: bool,
         package_version: Option<&str>,
     ) -> Vec<&'static str> {
         let mut names: Vec<&'static str> = Vec::new();
         let consider = |opt: &OptionSpec, names: &mut Vec<&'static str>| {
-            if !opt.supports_dialect(dialect, self.dialects) {
+            if !opt.supports_dialect(dialect, self.surface) {
                 return;
             }
             if !opt.available_for_version(package_version) {
@@ -2828,12 +2831,12 @@ impl CommandSpec {
     pub fn find_option(
         &self,
         option_name: &str,
-        dialect: Option<DialectSet>,
+        dialect: Option<SurfaceQuery<'_>>,
         package_version: Option<&str>,
     ) -> Option<&OptionSpec> {
         let matches = |opt: &&OptionSpec| {
             opt.matches(option_name)
-                && opt.supports_dialect(dialect, self.dialects)
+                && opt.supports_dialect(dialect, self.surface)
                 && opt.available_for_version(package_version)
         };
         self.options.iter().find(matches).or_else(|| {
@@ -3094,7 +3097,7 @@ pub struct SubCommand {
     pub result_stability: Option<crate::result_stability::ResultStability>,
 
     /// Dialect membership. `None` = inherit from parent `CommandSpec`.
-    pub dialects: Option<DialectSet>,
+    pub surface: Option<&'static [SpecSurface]>,
 
     /// Introduction / deprecation / retirement releases of this subcommand on
     /// the parent command's owning-package version axis.
@@ -3103,7 +3106,7 @@ pub struct SubCommand {
     pub lifecycle: Lifecycle,
 
     /// Safe-on-uninit dialect set.
-    pub safe_on_uninit: Option<DialectSet>,
+    pub safe_on_uninit: Option<&'static [SpecSurface]>,
 
     /// CFG header with list-expression args (foreach/lmap subcommand).
     pub loop_list_header: bool,
@@ -3268,7 +3271,7 @@ pub struct SubSubCommand {
     /// Invocation synopsis, e.g. `"info object class object ?className?"`.
     pub synopsis: &'static str,
     /// Dialect membership; `None` inherits from the owning subcommand.
-    pub dialects: Option<DialectSet>,
+    pub surface: Option<&'static [SpecSurface]>,
     /// Introduction / deprecation / retirement releases of this second-level
     /// subcommand on the owning command's package version axis.
     /// [`Lifecycle::UNSPECIFIED`] means it is present in every package
@@ -3309,23 +3312,23 @@ pub struct OptionScope {
     /// The options this call recognises.
     pub options: &'static [OptionSpec],
     /// The gate an option declaring none of its own inherits.
-    pub dialects: Option<DialectSet>,
+    pub surface: Option<&'static [SpecSurface]>,
     /// The second-level operation whose own table this is; `None` when the
     /// answer came from the subcommand's table.
     pub sub_subcommand: Option<&'static str>,
 }
 
-/// Whether `sub_sub` is present in `dialect`, inheriting `parent_dialects`
+/// Whether `sub_sub` is present in `dialect`, inheriting `parent_surface`
 /// (the owning subcommand's gate) when it declares none of its own.
 fn sub_subcommand_supports_dialect(
     sub_sub: &SubSubCommand,
-    dialect: Option<DialectSet>,
-    parent_dialects: Option<DialectSet>,
+    dialect: Option<SurfaceQuery<'_>>,
+    parent_surface: Option<&'static [SpecSurface]>,
 ) -> bool {
-    match (dialect, sub_sub.dialects.or(parent_dialects)) {
-        (Some(want), Some(have)) => have.intersects(want),
-        _ => true,
-    }
+    sub_sub
+        .surface
+        .or(parent_surface)
+        .is_none_or(|have| surface_admits(have, dialect.as_ref()))
 }
 
 impl SubSubCommand {
@@ -3334,7 +3337,7 @@ impl SubSubCommand {
         name: "",
         detail: "",
         synopsis: "",
-        dialects: None,
+        surface: None,
         lifecycle: Lifecycle::UNSPECIFIED,
         options: None,
     };
@@ -3403,7 +3406,7 @@ impl SubCommand {
         semantic_operation: None,
         completion: None,
         result_stability: None,
-        dialects: None,
+        surface: None,
         lifecycle: Lifecycle::UNSPECIFIED,
         safe_on_uninit: None,
         loop_list_header: false,
@@ -3498,7 +3501,7 @@ impl SubCommand {
     #[must_use]
     pub fn option_table(
         &self,
-        dialect: Option<DialectSet>,
+        dialect: Option<SurfaceQuery<'_>>,
         package_version: Option<&str>,
         prefix_override: Option<PrefixMatching>,
     ) -> KeywordTable<'static> {
@@ -3507,7 +3510,7 @@ impl SubCommand {
                 .iter()
                 .chain(self.subcommand_forms.iter().flat_map(|f| f.options.iter())),
             dialect,
-            self.dialects,
+            self.surface,
             package_version,
             prefix_override.unwrap_or(self.prefix_matching),
         )
@@ -3535,18 +3538,18 @@ impl SubCommand {
     /// [`SubSubCommand::options`] `== None` — declaring nothing either way —
     /// inherits.
     ///
-    /// `spec_dialects` is the owning [`CommandSpec::dialects`], for the
+    /// `spec_surface` is the owning [`CommandSpec::dialects`], for the
     /// standard option-gate inheritance chain (option → sub-sub → sub →
     /// command).
     #[must_use]
     pub fn option_scope(
         &self,
         next_word: Option<&str>,
-        dialect: Option<DialectSet>,
+        dialect: Option<SurfaceQuery<'_>>,
         package_version: Option<&str>,
-        spec_dialects: Option<DialectSet>,
+        spec_surface: Option<&'static [SpecSurface]>,
     ) -> OptionScope {
-        let inherited = self.dialects.or(spec_dialects);
+        let inherited = self.surface.or(spec_surface);
         if let Some(word) = next_word.filter(|w| !w.is_empty())
             && !self.sub_subcommands.is_empty()
             && let Some(op) = self.resolve_sub_subcommand_gated(word, dialect, package_version)
@@ -3554,13 +3557,13 @@ impl SubCommand {
         {
             return OptionScope {
                 options,
-                dialects: op.dialects.or(inherited),
+                surface: op.surface.or(inherited),
                 sub_subcommand: Some(op.name),
             };
         }
         OptionScope {
             options: self.options,
-            dialects: inherited,
+            surface: inherited,
             sub_subcommand: None,
         }
     }
@@ -3570,7 +3573,7 @@ impl SubCommand {
     pub fn resolve_option_word(
         &self,
         word: &str,
-        dialect: Option<DialectSet>,
+        dialect: Option<SurfaceQuery<'_>>,
         package_version: Option<&str>,
         prefix_override: Option<PrefixMatching>,
     ) -> KeywordMatch<'static> {
@@ -3667,9 +3670,9 @@ impl SubCommand {
     pub fn resolve_sub_subcommand_for_dialect(
         &self,
         word: &str,
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<&'static SubSubCommand> {
-        self.resolve_sub_subcommand_gated(word, Some(dialect), None)
+        self.resolve_sub_subcommand_gated(word, dialect, None)
     }
 
     /// The second-level subcommands available for `dialect` and
@@ -3682,10 +3685,10 @@ impl SubCommand {
     #[must_use]
     pub fn available_sub_subcommands(
         &self,
-        dialect: Option<DialectSet>,
+        dialect: Option<SurfaceQuery<'_>>,
         package_version: Option<&str>,
     ) -> Vec<&'static SubSubCommand> {
-        let parent = self.dialects;
+        let parent = self.surface;
         self.sub_subcommands
             .iter()
             .filter(|s| sub_subcommand_supports_dialect(s, dialect, parent))
@@ -3704,10 +3707,10 @@ impl SubCommand {
     pub fn resolve_sub_subcommand_gated(
         &self,
         word: &str,
-        dialect: Option<DialectSet>,
+        dialect: Option<SurfaceQuery<'_>>,
         package_version: Option<&str>,
     ) -> Option<&'static SubSubCommand> {
-        let parent = self.dialects;
+        let parent = self.surface;
         self.resolve_sub_subcommand_filtered(word, |s| {
             sub_subcommand_supports_dialect(s, dialect, parent)
                 && s.available_for_version(package_version)
@@ -3760,16 +3763,16 @@ impl SubCommand {
     /// subcommand's [`crate::analyser`]-side `leading_options` so the
     /// arity check skips them before counting positionals.  An option's
     /// dialect membership inherits from this subcommand's `dialects`
-    /// (falling back to *`parent_dialects`*, the parent
+    /// (falling back to *`parent_surface`*, the parent
     /// [`CommandSpec::dialects`]) when the option itself does not pin a
     /// dialect.
     #[must_use]
     pub fn switch_names(
         &self,
-        dialect: Option<DialectSet>,
-        parent_dialects: Option<DialectSet>,
+        dialect: Option<SurfaceQuery<'_>>,
+        parent_surface: Option<&'static [SpecSurface]>,
     ) -> Vec<&'static str> {
-        let effective_parent = self.dialects.or(parent_dialects);
+        let effective_parent = self.surface.or(parent_surface);
         let mut names: Vec<&'static str> = Vec::new();
         for opt in self.options {
             if opt.supports_dialect(dialect, effective_parent) && !names.contains(&opt.name) {
@@ -3787,10 +3790,10 @@ impl SubCommand {
     #[must_use]
     pub fn option_specs(
         &self,
-        dialect: Option<DialectSet>,
-        parent_dialects: Option<DialectSet>,
+        dialect: Option<SurfaceQuery<'_>>,
+        parent_surface: Option<&'static [SpecSurface]>,
     ) -> Vec<&'static OptionSpec> {
-        let effective_parent = self.dialects.or(parent_dialects);
+        let effective_parent = self.surface.or(parent_surface);
         let mut specs: Vec<&'static OptionSpec> = Vec::new();
         for opt in self.options {
             if opt.supports_dialect(dialect, effective_parent)
@@ -3850,14 +3853,14 @@ mod tests {
         let spec = registry.get("catch").expect("catch is a registry command");
         // Tcl 8.5 onward documents `catch script ?resultVarName? ?optionsVarName?`.
         assert_eq!(
-            spec.optional_trailing_arg_names(DialectSet::TCL90, None),
+            spec.optional_trailing_arg_names(SpecSurface::TCL90, None),
             vec!["resultVarName", "optionsVarName"]
         );
         // Tcl 8.4's `catch script ?varName?` has no options dictionary, so a
         // consumer running under that dialect never offers a word the release
         // has no argument slot for.
         assert_eq!(
-            spec.optional_trailing_arg_names(DialectSet::TCL84, None),
+            spec.optional_trailing_arg_names(SpecSurface::TCL84, None),
             vec!["varName"]
         );
     }
@@ -3916,15 +3919,15 @@ mod tests {
         // A quick fix must not offer to append `optionsVar` to a document
         // whose Fauxpkg is 1.x: that release has no argument slot for it.
         assert_eq!(
-            spec.optional_trailing_arg_names(DialectSet::TCL90, Some("1.0")),
+            spec.optional_trailing_arg_names(SpecSurface::TCL90, Some("1.0")),
             vec!["resultVar"]
         );
         assert_eq!(
-            spec.optional_trailing_arg_names(DialectSet::TCL90, Some("2.0")),
+            spec.optional_trailing_arg_names(SpecSurface::TCL90, Some("2.0")),
             vec!["resultVar", "optionsVar"]
         );
         assert_eq!(
-            spec.optional_trailing_arg_names(DialectSet::TCL90, None),
+            spec.optional_trailing_arg_names(SpecSurface::TCL90, None),
             vec!["resultVar", "optionsVar"]
         );
     }
@@ -3943,7 +3946,7 @@ mod tests {
         };
         assert!(spec.primary_synopsis(Some("3.0")).is_none());
         assert!(
-            spec.optional_trailing_arg_names(DialectSet::TCL90, Some("3.0"))
+            spec.optional_trailing_arg_names(SpecSurface::TCL90, Some("3.0"))
                 .is_empty()
         );
         // Retirement is exclusive, so 2.9 still documents it.

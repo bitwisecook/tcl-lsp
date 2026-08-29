@@ -19,6 +19,7 @@
 //! `tell` — return current access position for an open channel.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 // Tcl 8.4's tell.n SYNOPSIS/DESCRIPTION ("tell channelId": an integer
 // byte offset that can be passed to seek, -1 for a channel that does not
@@ -52,7 +53,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tell",
-        // `dialects: Some(DialectSet::ALL_TCL)`. F5 iRules bans `tell` —
+        // `surface: Some(SpecSurface::ALL_TCL)`. F5 iRules bans `tell` —
         // the sandboxed TMM interpreter has no real filesystem/channel-seek
         // support — and under the explicit-per-spec model that ban is
         // carried by this very `dialects` group: `ALL_TCL` spans every core
@@ -61,14 +62,14 @@ pub fn spec() -> CommandSpec {
         // unreachable there — no disable list is involved. This is the
         // established pattern for this whole class of command (`open`/`seek`,
         // banned for the identical reason, carry the same
-        // `Some(DialectSet::ALL_TCL)` value); the
+        // `Some(SpecSurface::ALL_TCL)` value); the
         // `irules_banned_commands_never_resolve` contract test in
         // `tcl-registry/tests/dialect_profile.rs` pins that `tell` and its
         // siblings do not resolve under f5-irules. No other modelled dialect
         // (iApps, tmsh, the EDA vendor shells, Tk, Expect, incr Tcl)
         // disables or alters `tell` — each carries a core-version bit that
         // `ALL_TCL` intersects.
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         // Reads channel-table state that lives outside the argument list
         // — the access position can change between two calls if
         // something else reads from or seeks the channel meanwhile —

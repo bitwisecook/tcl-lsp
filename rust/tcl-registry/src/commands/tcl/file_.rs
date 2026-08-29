@@ -19,6 +19,7 @@
 //! `file` — manipulate file names and attributes.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "file option name ?arg arg ...?",
@@ -80,7 +81,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     name: "-force",
                     value: OptionValue::flag(),
                     detail: "Overwrite an existing destination file, adjusting its permissions first if necessary.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -89,7 +90,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     name: "--",
                     value: OptionValue::flag(),
                     detail: "Marks the end of switches; the following word is treated as source even if it starts with -.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -122,7 +123,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     name: "-force",
                     value: OptionValue::flag(),
                     detail: "Remove a non-empty directory, adjusting permissions and relocating the process's cwd out of the path first if necessary.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -131,7 +132,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     name: "--",
                     value: OptionValue::flag(),
                     detail: "Marks the end of switches; the following word is treated as pathname even if it starts with -.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -200,7 +201,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Returns the home directory of the current user, or of username if given. Generally the value of $HOME (backslashes converted to forward slashes on Windows); a specific user's configured home directory may differ from $HOME even for the current user. Errors if $HOME is unset, or if username does not correspond to a real account.",
         synopsis: "file home ?username?",
         return_type: Some(TclType::String),
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         returns_path: true,
         ..SubCommand::DEFAULT
     },
@@ -259,7 +260,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     name: "-symbolic",
                     value: OptionValue::flag(),
                     detail: "Create (or require) a symbolic link.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -268,7 +269,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     name: "-hard",
                     value: OptionValue::flag(),
                     detail: "Create (or require) a hard link; files only.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -423,7 +424,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // Two forms in every version 8.4-9.1: `source target`, or one or
         // more `source`s moved into an existing `targetDir`.
         name: "rename",
-        dialects: None,
+        surface: None,
         arity: Arity::at_least(2),
         detail: "Rename or move a file or directory source to target, or one or more sources into an existing targetDir. Does not overwrite an existing destination unless -force is given; overwriting a non-empty directory, a directory with a file, or a file with a directory is always an error. Renames a symbolic link itself, never its target. There is no guarantee that metadata such as attributes or access control lists survive the rename.",
         synopsis: "file rename ?-force? ?--? source target\nfile rename ?-force? ?--? source ?source ...? targetDir",
@@ -435,7 +436,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     name: "-force",
                     value: OptionValue::flag(),
                     detail: "Overwrite an existing destination file.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -444,7 +445,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     name: "--",
                     value: OptionValue::flag(),
                     detail: "Marks the end of switches; the following word is treated as source even if it starts with -.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -563,7 +564,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "file tempdir ?template?",
         return_type: Some(TclType::String),
         mutator: true,
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             writes: true,
@@ -581,7 +582,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::Channel),
         mutator: true,
         arg_roles: &[(0, ArgRole::VarWrite)],
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             writes: true,
@@ -600,7 +601,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Returns the result of performing tilde substitution on name: a leading ~ followed immediately by a separator substitutes $HOME, and ~user substitutes that user's home directory. Returns name unmodified if it does not begin with a tilde. Errors if $HOME is unset or the named user does not exist.",
         synopsis: "file tildeexpand name",
         return_type: Some(TclType::String),
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         returns_path: true,
         ..SubCommand::DEFAULT
     },
@@ -657,7 +658,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "file",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED
             | Traits::HAS_DESTRUCTIVE_OPS
             | Traits::RETURNS_PATH

@@ -38,7 +38,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "textutil::adjust",
-        dialects: None,
+        surface: None,
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Adjust a text block to a given line length. Re-exported alias for `textutil::adjust::adjust`, provided by the `textutil` umbrella package (not by `package require textutil::adjust` alone).",

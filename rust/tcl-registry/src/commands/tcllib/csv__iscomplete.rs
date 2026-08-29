@@ -27,7 +27,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "csv::iscomplete",
         traits: Traits::PURE,
-        dialects: None,
+        surface: None,
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Test whether a CSV record is complete or has unbalanced quotes.",

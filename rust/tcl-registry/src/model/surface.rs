@@ -40,13 +40,14 @@ use std::collections::HashSet;
 use std::sync::{Arc, OnceLock};
 
 use smallvec::SmallVec;
-use tcl_dialect::DialectSet;
 use tcl_dialect::model::{
+    SpecProvider, SpecWindow,
     Family, ItemHistory, Provenance, Version, VersionAxisId, VersionSet, compiled_definitions,
 };
 
 use crate::lifecycle::Lifecycle;
 use crate::spec::CommandSpec;
+use tcl_dialect::model::{SpecSurface};
 
 /// The interned identity of one package provider (`"Tk"`, `"csv"`,
 /// `"iapps"`, `"f5-irules-cmds"`, …) — §4.1's `PackageId`.
@@ -161,7 +162,7 @@ pub struct SurfaceDeclaration {
 
 /// The interim environment-id → vendor-surface-package bridge: which
 /// [`PackageId`] carries each environment's **own** command surface,
-/// mirroring the old `DialectProfile::vendor_bit`.
+/// mirroring the old `DialectProfile::vendor_surface`.
 ///
 /// This is a **documented P2 seam**: today the environments for `spectcl`
 /// and `bpf` place no packages at all and the F5/expect environments place
@@ -289,32 +290,6 @@ pub fn is_placement_gated_package(package: &str) -> bool {
             .any(|&(_, bridged)| bridged == package)
 }
 
-/// The five Tcl ladder release lines, in ladder order: the bit, the line's
-/// inclusive start, and its exclusive end — the same `[R·a0, next-minor·a0)`
-/// lines the compiled environments target. `pub(crate)`: the context layer
-/// derives its authoring-mask facts from the same lines the translation
-/// uses, so the two can never disagree about where a line starts.
-pub(crate) const TCL_LINES: [(DialectSet, &str, &str); 5] = [
-    (DialectSet::TCL84, "8.4", "8.5"),
-    (DialectSet::TCL85, "8.5", "8.6"),
-    (DialectSet::TCL86, "8.6", "8.7"),
-    (DialectSet::TCL90, "9.0", "9.1"),
-    (DialectSet::TCL91, "9.1", "9.2"),
-];
-
-/// The seven vendor bits and the package each translates to. `pub(crate)`
-/// for the same reason as [`TCL_LINES`]: the context layer's authoring-mask
-/// derivation reads the identical bit ↔ package vocabulary.
-pub(crate) const VENDOR_BITS: [(DialectSet, &str); 7] = [
-    (DialectSet::IAPPS, "iapps"),
-    (DialectSet::TMSH, "tmsh"),
-    (DialectSet::TK, "Tk"),
-    (DialectSet::EXPECT, "expect"),
-    (DialectSet::SPECTCL, "spectcl"),
-    (DialectSet::BPF, "bpf"),
-    (DialectSet::BIGIP, "bigip"),
-];
-
 /// The whole of `axis` — `0-`, every well-formed version.
 fn full_axis(axis: VersionAxisId) -> VersionSet {
     VersionSet::from_requirements(axis, &["0-"]).expect("the full-axis requirement is well-formed")
@@ -327,30 +302,34 @@ fn full_axis(axis: VersionAxisId) -> VersionSet {
 /// unshipped interior (`8.7`, `8.8`) exactly as the environment layer's own
 /// full-ladder target does — ladder adjacency, not numeric adjacency, is
 /// what a run means.
-pub(crate) fn tcl_core_set(bits: DialectSet) -> Option<VersionSet> {
+/// The core-Tcl coverage of a gate's rows, as a version set.
+///
+/// `None` when the gate names no plain-Tcl line at all — the item is
+/// another provider's, and that provider's own axis governs it.
+pub(crate) fn core_tcl_set(gate: &[SpecSurface]) -> Option<VersionSet> {
+    let axis = VersionAxisId::core(Family::Tcl);
     let mut requirements: Vec<String> = Vec::new();
-    let mut run: Option<(usize, usize)> = None;
-    let flush = |run: &mut Option<(usize, usize)>, requirements: &mut Vec<String>| {
-        if let Some((start, end)) = run.take() {
-            // Requirement syntax, not raw spans, so the bounds carry the
-            // same `a0` pad the environment layer's own targets do.
-            requirements.push(format!("{}-{}", TCL_LINES[start].1, TCL_LINES[end].2));
+    for row in gate {
+        if row.provider != SpecProvider::Core(Family::Tcl) {
+            continue;
         }
-    };
-    for (position, (bit, _, _)) in TCL_LINES.iter().enumerate() {
-        if bits.intersects(*bit) {
-            run = Some(run.map_or((position, position), |(start, _)| (start, position)));
-        } else {
-            flush(&mut run, &mut requirements);
+        if row.windows.is_empty() {
+            requirements.push("0-".to_owned());
+            continue;
+        }
+        for &(from, until) in row.windows {
+            requirements.push(match until {
+                Some(until) => format!("{from}-{until}"),
+                None => format!("{from}-"),
+            });
         }
     }
-    flush(&mut run, &mut requirements);
     if requirements.is_empty() {
         return None;
     }
     Some(
-        VersionSet::from_requirements(VersionAxisId::core(Family::Tcl), &requirements)
-            .expect("compiled ladder requirements are well-formed"),
+        VersionSet::from_requirements(axis, &requirements)
+            .expect("compiled surface windows are well-formed"),
     )
 }
 
@@ -408,7 +387,7 @@ fn package_row(name: &str, history: ItemHistory) -> SurfaceDeclaration {
 /// - each vendor bit becomes a full-axis [`Provider::Package`] row named
 ///   by [`VENDOR_BIT_PACKAGES`].
 ///
-/// `dialects: None` means what `supports_dialect` made it mean — the mask
+/// `surface: None` means what `supports_dialect` made it mean — the mask
 /// test passes for **every** profile — so it translates to one declaration
 /// per provider the old semantics would admit: `Core(Tcl)` over the full
 /// ladder, `Core(F5Irules)` and `Core(Jim)` over their full axes, and
@@ -437,7 +416,7 @@ fn package_row(name: &str, history: ItemHistory) -> SurfaceDeclaration {
 /// lenient hosted rule, and a closed world refuses them. The surviving
 /// `Core(Tcl)` row is **specificity data, not an activation channel** —
 /// [`crate::model::context::specificity_breadth`] counts it to reproduce
-/// the coexisting `get_for_dialect` mask-popcount ordering exactly, and it
+/// the coexisting `get_for_surface` mask-popcount ordering exactly, and it
 /// disappears with the mask under ledger C1.
 ///
 /// [`ResolvedContext::package_active`]: crate::model::ResolvedContext::package_active
@@ -445,37 +424,25 @@ fn package_row(name: &str, history: ItemHistory) -> SurfaceDeclaration {
 pub fn declarations_for_spec(spec: &CommandSpec) -> SmallVec<[SurfaceDeclaration; 2]> {
     let history = item_history(&spec.lifecycle);
     let mut rows: SmallVec<[SurfaceDeclaration; 2]> = SmallVec::new();
-    if let Some(bits) = spec.dialects {
-        if let Some(applicable) = tcl_core_set(bits) {
-            rows.push(row(
-                Provider::Core(Family::Tcl),
-                applicable,
-                history.clone(),
-            ));
-        }
-        if bits.intersects(DialectSet::IRULES) {
-            let axis = VersionAxisId::core(Family::F5Irules);
-            rows.push(row(
-                Provider::Core(Family::F5Irules),
-                full_axis(axis),
-                history.clone(),
-            ));
-        }
-        for (bit, package) in VENDOR_BITS {
-            if bits.intersects(bit) {
-                rows.push(package_row(package, history.clone()));
+    match spec.surface {
+        Some(authored) => {
+            for authored_row in authored {
+                rows.push(lower(authored_row, history.clone()));
             }
         }
-    } else {
-        for family in Family::ALL {
-            rows.push(row(
-                Provider::Core(family),
-                full_axis(VersionAxisId::core(family)),
-                history.clone(),
-            ));
-        }
-        for package in VENDOR_BIT_PACKAGES {
-            rows.push(package_row(package, history.clone()));
+        // A spec that names no provider is available wherever it is asked
+        // about, which is one row per provider there is.
+        None => {
+            for family in Family::ALL {
+                rows.push(row(
+                    Provider::Core(family),
+                    full_axis(VersionAxisId::core(family)),
+                    history.clone(),
+                ));
+            }
+            for package in VENDOR_BIT_PACKAGES {
+                rows.push(package_row(package, history.clone()));
+            }
         }
     }
     if let Some(package) = spec.owning_package() {
@@ -498,12 +465,41 @@ pub fn declarations_for_spec(spec: &CommandSpec) -> SmallVec<[SurfaceDeclaration
     rows
 }
 
+/// Lower one authored row to the runtime declaration it stands for.
+fn lower(authored: &SpecSurface, history: ItemHistory) -> SurfaceDeclaration {
+    match authored.provider {
+        SpecProvider::Core(family) => {
+            let axis = VersionAxisId::core(family);
+            let applicable = if authored.windows.is_empty() {
+                full_axis(axis)
+            } else {
+                window_set(axis, authored.windows)
+            };
+            row(Provider::Core(family), applicable, history)
+        }
+        SpecProvider::Package(package) => package_row(package, history),
+    }
+}
+
+/// The version set a row's windows describe, on `axis`.
+fn window_set(axis: VersionAxisId, windows: &[SpecWindow]) -> VersionSet {
+    let requirements: Vec<String> = windows
+        .iter()
+        .map(|&(from, until)| match until {
+            Some(until) => format!("{from}-{until}"),
+            None => format!("{from}-"),
+        })
+        .collect();
+    VersionSet::from_requirements(axis, &requirements)
+        .expect("compiled surface windows are well-formed")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::spec::CommandSpec;
 
-    fn spec_with(dialects: Option<DialectSet>) -> CommandSpec {
+    fn spec_with(surface: Option<&'static [SpecSurface]>) -> CommandSpec {
         CommandSpec {
             name: "surface-test",
             dialects,
@@ -523,7 +519,7 @@ mod tests {
 
     #[test]
     fn contiguous_version_bits_fold_to_one_range() {
-        let rows = declarations_for_spec(&spec_with(Some(DialectSet::TCL85_PLUS)));
+        let rows = declarations_for_spec(&spec_with(Some(SpecSurface::TCL85_PLUS)));
         assert_eq!(rows.len(), 1);
         let core = core_tcl_row(&rows);
         assert_eq!(core.applicable.ranges().len(), 1);
@@ -533,7 +529,7 @@ mod tests {
         assert!(!core.applicable.contains(&v("8.4.19")));
         assert!(!core.applicable.contains(&v("9.2")));
         // The 8.x-only mask keeps its exclusive top.
-        let tcl8x = declarations_for_spec(&spec_with(Some(DialectSet::TCL8X)));
+        let tcl8x = declarations_for_spec(&spec_with(Some(SpecSurface::TCL8X)));
         let core = core_tcl_row(&tcl8x);
         assert!(core.applicable.contains(&v("8.6.16")));
         assert!(!core.applicable.contains(&v("9.0")));
@@ -542,7 +538,7 @@ mod tests {
     #[test]
     fn a_ladder_gap_stays_two_ranges() {
         let rows =
-            declarations_for_spec(&spec_with(Some(DialectSet::TCL84.union(DialectSet::TCL86))));
+            declarations_for_spec(&spec_with(Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.5")), ("8.6", Some("8.7"))])])));
         let core = core_tcl_row(&rows);
         assert_eq!(core.applicable.ranges().len(), 2);
         assert!(core.applicable.contains(&v("8.4")));
@@ -552,13 +548,11 @@ mod tests {
 
     #[test]
     fn irules_translates_to_the_core_family_not_a_package() {
-        let rows = declarations_for_spec(&spec_with(Some(DialectSet::IRULES)));
+        let rows = declarations_for_spec(&spec_with(Some(SpecSurface::IRULES)));
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].provider, Provider::Core(Family::F5Irules));
         // The iRules-enabled Tcl core carries both families.
-        let both = declarations_for_spec(&spec_with(Some(
-            DialectSet::ALL_TCL.union(DialectSet::IRULES),
-        )));
+        let both = declarations_for_spec(&spec_with(Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)])));
         assert_eq!(both.len(), 2);
         assert!(
             both.iter()
@@ -573,7 +567,7 @@ mod tests {
     #[test]
     fn vendor_bits_translate_to_full_axis_package_rows() {
         let rows =
-            declarations_for_spec(&spec_with(Some(DialectSet::IAPPS.union(DialectSet::TMSH))));
+            declarations_for_spec(&spec_with(Some(surface![SpecSurface::package("iapps"), SpecSurface::package("tmsh")])));
         let packages: Vec<&str> = rows
             .iter()
             .filter_map(|row| match &row.provider {
@@ -616,7 +610,7 @@ mod tests {
     fn a_hosted_owning_package_adds_an_unconditional_row() {
         let spec = CommandSpec {
             name: "surface-test",
-            dialects: Some(DialectSet::ALL_TCL),
+            surface: Some(SpecSurface::ALL_TCL),
             required_package: Some("csv"),
             tcllib_package: Some("csv"),
             ..CommandSpec::DEFAULT
@@ -643,7 +637,7 @@ mod tests {
         let row_for = |package: &'static str| {
             let spec = CommandSpec {
                 name: "surface-test",
-                dialects: Some(DialectSet::ALL_TCL),
+                surface: Some(SpecSurface::ALL_TCL),
                 required_package: Some(package),
                 tcllib_package: Some(package),
                 ..CommandSpec::DEFAULT
@@ -678,7 +672,7 @@ mod tests {
         // catalogue pack.
         let spec = CommandSpec {
             name: "surface-test",
-            dialects: Some(DialectSet::IRULES),
+            surface: Some(SpecSurface::IRULES),
             required_package: Some("f5-irules-cmds"),
             ..CommandSpec::DEFAULT
         };
@@ -694,7 +688,7 @@ mod tests {
         // `required_package: Some("Tk")` must merge with it, not double it.
         let spec = CommandSpec {
             name: "surface-test",
-            dialects: Some(DialectSet::TK_AND_TCL),
+            surface: Some(SpecSurface::TK_AND_TCL),
             required_package: Some("Tk"),
             ..CommandSpec::DEFAULT
         };
@@ -711,7 +705,7 @@ mod tests {
     fn lifecycle_populates_history_on_every_row() {
         let spec = CommandSpec {
             name: "surface-test",
-            dialects: Some(DialectSet::IRULES),
+            surface: Some(SpecSurface::IRULES),
             lifecycle: Lifecycle::introduced_in("16.1.0"),
             ..CommandSpec::DEFAULT
         };

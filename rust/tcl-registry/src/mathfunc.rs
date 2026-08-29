@@ -53,7 +53,7 @@
 //! `::tcl::mathfunc::abs` only exists from 8.5 (TIP 232 created the table).
 //! So the [`CommandSpec`](crate::spec::CommandSpec) gate that
 //! `mathfunc_generated.rs` writes (never looser than
-//! [`DialectSet::TCL85_PLUS`](crate::dialects::DialectSet)) is the right gate
+//! [`SpecSurface::TCL85_PLUS`](crate::dialects::DialectSet)) is the right gate
 //! for the *qualified command* spelling and the **wrong** one for the bare
 //! in-`expr` spelling — [`CommandRegistry::math_function_spec`] exists so a
 //! consumer rendering the in-`expr` spelling gets the registry's hover data
@@ -166,7 +166,7 @@ impl CommandRegistry {
     /// gate is the *`expr` grammar* one ([`available_in_expr`]) rather than
     /// the spec's own command-table `dialects` — see the module docs for why
     /// the two differ. Consumers rendering the *qualified command* spelling
-    /// keep using [`CommandRegistry::get_for_dialect`] and get the tighter
+    /// keep using [`CommandRegistry::get_for_surface`] and get the tighter
     /// gate, as they should.
     #[must_use]
     pub fn math_function_spec(

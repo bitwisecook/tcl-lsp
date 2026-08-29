@@ -35,6 +35,7 @@ use crate::cfg::{BlockId, CfgModule, Function as CfgFunction, Terminator};
 use crate::ir::{NodeId, Provenance, SourceSite, Statement};
 use crate::side_effects::{EffectRegion, classify_side_effects};
 use crate::ssa::{SsaFunction, SsaStatement};
+use tcl_dialect::model::{SpecSurface};
 
 // Expression-key alias
 
@@ -2284,7 +2285,7 @@ mod tests {
             .resolve_invocation(
                 "llength",
                 &["a b"],
-                tcl_registry::prelude::DialectSet::TCL90,
+                tcl_registry::prelude::SpecSurface::TCL90,
             )
             .expect("llength resolves")
             .facts();
@@ -4539,7 +4540,7 @@ mod tests {
             .resolve_invocation(
                 "test::versioned",
                 &["x"],
-                tcl_registry::prelude::DialectSet::TCL90,
+                tcl_registry::prelude::SpecSurface::TCL90,
             )
             .expect("the synthetic spec resolves")
             .facts();
@@ -4552,7 +4553,7 @@ mod tests {
             .resolve_invocation(
                 "llength",
                 &["a b"],
-                tcl_registry::prelude::DialectSet::TCL90,
+                tcl_registry::prelude::SpecSurface::TCL90,
             )
             .expect("llength resolves")
             .facts();

@@ -59,6 +59,7 @@
 //! five fetched tags.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "tclPkgSetup dir pkg version files",
@@ -69,7 +70,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tclPkgSetup",
-        // `dialects: Some(DialectSet::ALL_TCL)` here is deliberate. Under
+        // `surface: Some(SpecSurface::ALL_TCL)` here is deliberate. Under
         // the explicit-per-spec model `ALL_TCL` spans every core Tcl version
         // but not the `IRULES` bit, so the spec never intersects iRules'
         // bare `IRULES` availability mask and is unreachable there — there
@@ -90,7 +91,7 @@ pub fn spec() -> CommandSpec {
         // while leaving it reachable everywhere else — stands as the
         // conservative value here, the same data-over-assumption call
         // `tcllog.rs` documents for itself.
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         // A Tcl-level library proc (`library/package.tcl` — see the module
         // doc comment), not a `Tcl_CreateObjCommand`-registered builtin, so
         // it carries no `CmdInfo` row and is absent from the exact C Tcl

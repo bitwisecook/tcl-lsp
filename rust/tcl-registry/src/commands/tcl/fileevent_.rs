@@ -19,12 +19,13 @@
 //! `fileevent` — execute a script when a channel becomes readable or writable.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 /// Command spec for `fileevent`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fileevent",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::new(2, 3),
         arg_roles: &[(0, ArgRole::Channel), (2, ArgRole::Body)],
         return_type: Some(TclType::String),

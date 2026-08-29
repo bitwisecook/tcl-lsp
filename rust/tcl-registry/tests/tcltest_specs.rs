@@ -24,6 +24,7 @@
 
 use tcl_dialect::DialectSet;
 use tcl_registry::CommandRegistry;
+use tcl_dialect::model::{SpecSurface};
 
 fn reg() -> CommandRegistry {
     CommandRegistry::build_default()
@@ -81,18 +82,18 @@ fn tcltest_and_harness_commands_are_never_in_irules_or_iapps() {
     ] {
         let spec = r.get(name).unwrap_or_else(|| panic!("{name} registered"));
         assert!(
-            !spec.supports_dialect(DialectSet::IRULES),
+            !spec.supports_dialect(SpecSurface::IRULES),
             "{name} must not be available in f5-irules"
         );
         assert!(
-            !spec.supports_dialect(DialectSet::IAPPS),
+            !spec.supports_dialect(SpecSurface::IAPPS),
             "{name} must not be available in f5-iapps"
         );
         // …but must remain available under a real Tcl core version.
         assert!(
-            spec.supports_dialect(DialectSet::TCL84)
-                || spec.supports_dialect(DialectSet::TCL86)
-                || spec.supports_dialect(DialectSet::TCL90),
+            spec.supports_dialect(SpecSurface::TCL84)
+                || spec.supports_dialect(SpecSurface::TCL86)
+                || spec.supports_dialect(SpecSurface::TCL90),
             "{name} must stay available under some Tcl version"
         );
     }
@@ -107,7 +108,7 @@ fn test_command_declares_a_symbol_definer() {
     use tcl_registry::symbol_def::DefinedSymbolKind;
     let r = reg();
     let sym = r
-        .defines_symbol("tcltest::test", DialectSet::ALL_TCL)
+        .defines_symbol("tcltest::test", SpecSurface::ALL_TCL)
         .expect("tcltest::test should declare a symbol definer");
     assert_eq!(sym.name_arg, 0, "test name is the first argument");
     assert_eq!(
@@ -126,11 +127,11 @@ fn test_command_declares_a_symbol_definer() {
     // A plain command that defines no outline symbol returns `None` — the
     // mechanism is opt-in, not blanket.
     assert!(
-        r.defines_symbol("puts", DialectSet::ALL_TCL).is_none(),
+        r.defines_symbol("puts", SpecSurface::ALL_TCL).is_none(),
         "puts defines no outline symbol"
     );
     assert!(
-        r.defines_symbol("tcltest::cleanupTests", DialectSet::ALL_TCL)
+        r.defines_symbol("tcltest::cleanupTests", SpecSurface::ALL_TCL)
             .is_none(),
         "cleanupTests defines no outline symbol"
     );
@@ -154,11 +155,11 @@ fn c_harness_commands_are_registered_and_version_gated() {
         "testgotsig",
     ] {
         let spec = r.get(name).unwrap_or_else(|| panic!("{name} registered"));
-        assert!(spec.supports_dialect(DialectSet::TCL84), "{name} in 8.4");
-        assert!(spec.supports_dialect(DialectSet::TCL91), "{name} in 9.1");
+        assert!(spec.supports_dialect(SpecSurface::TCL84), "{name} in 8.4");
+        assert!(spec.supports_dialect(SpecSurface::TCL91), "{name} in 9.1");
         // Harness commands never leak into the restricted F5 dialects.
         assert!(
-            !spec.supports_dialect(DialectSet::IRULES),
+            !spec.supports_dialect(SpecSurface::IRULES),
             "{name} must not be in f5-irules"
         );
     }
@@ -173,23 +174,23 @@ fn c_harness_commands_are_registered_and_version_gated() {
         "testutftonormalizeddstring",
     ] {
         let spec = r.get(name).unwrap_or_else(|| panic!("{name} registered"));
-        assert!(spec.supports_dialect(DialectSet::TCL91), "{name} in 9.1");
+        assert!(spec.supports_dialect(SpecSurface::TCL91), "{name} in 9.1");
         assert!(
-            !spec.supports_dialect(DialectSet::TCL90),
+            !spec.supports_dialect(SpecSurface::TCL90),
             "{name} must be 9.1-only"
         );
         assert!(
-            !spec.supports_dialect(DialectSet::TCL84),
+            !spec.supports_dialect(SpecSurface::TCL84),
             "{name} absent in 8.4"
         );
     }
 
     // `testfork` was added in 8.5.
     let fork = r.get("testfork").expect("testfork registered");
-    assert!(fork.supports_dialect(DialectSet::TCL85), "testfork in 8.5");
-    assert!(fork.supports_dialect(DialectSet::TCL91), "testfork in 9.1");
+    assert!(fork.supports_dialect(SpecSurface::TCL85), "testfork in 8.5");
+    assert!(fork.supports_dialect(SpecSurface::TCL91), "testfork in 9.1");
     assert!(
-        !fork.supports_dialect(DialectSet::TCL84),
+        !fork.supports_dialect(SpecSurface::TCL84),
         "testfork not 8.4"
     );
 
@@ -197,10 +198,10 @@ fn c_harness_commands_are_registered_and_version_gated() {
     // removed in 9.0.
     for name in ["testgetdefenc", "testgetopenfile", "testsetdefenc"] {
         let spec = r.get(name).unwrap_or_else(|| panic!("{name} registered"));
-        assert!(spec.supports_dialect(DialectSet::TCL84), "{name} in 8.4");
-        assert!(spec.supports_dialect(DialectSet::TCL86), "{name} in 8.6");
+        assert!(spec.supports_dialect(SpecSurface::TCL84), "{name} in 8.4");
+        assert!(spec.supports_dialect(SpecSurface::TCL86), "{name} in 8.6");
         assert!(
-            !spec.supports_dialect(DialectSet::TCL90),
+            !spec.supports_dialect(SpecSurface::TCL90),
             "{name} removed in 9.0"
         );
     }
@@ -215,7 +216,7 @@ fn testconstraint_and_custommatch_declare_their_own_symbol_kinds() {
     let r = reg();
 
     let constraint = r
-        .defines_symbol("tcltest::testConstraint", DialectSet::ALL_TCL)
+        .defines_symbol("tcltest::testConstraint", SpecSurface::ALL_TCL)
         .expect("testConstraint should declare a symbol definer");
     assert_eq!(constraint.name_arg, 0);
     assert_eq!(constraint.kind, DefinedSymbolKind::Constraint);
@@ -224,7 +225,7 @@ fn testconstraint_and_custommatch_declare_their_own_symbol_kinds() {
     assert_eq!(constraint.detail_arg, Some(1));
 
     let matcher = r
-        .defines_symbol("tcltest::customMatch", DialectSet::ALL_TCL)
+        .defines_symbol("tcltest::customMatch", SpecSurface::ALL_TCL)
         .expect("customMatch should declare a symbol definer");
     assert_eq!(matcher.name_arg, 0);
     assert_eq!(matcher.kind, DefinedSymbolKind::Matcher);
@@ -246,10 +247,10 @@ fn bytestring_is_tcl8_only() {
     // `tcltest::bytestring` is guarded out under Tcl 9.0+ (tcltest 2.5.10).
     let r = reg();
     let spec = r.get("tcltest::bytestring").expect("bytestring registered");
-    assert!(spec.supports_dialect(DialectSet::TCL84));
-    assert!(spec.supports_dialect(DialectSet::TCL86));
-    assert!(!spec.supports_dialect(DialectSet::TCL90));
-    assert!(!spec.supports_dialect(DialectSet::TCL91));
+    assert!(spec.supports_dialect(SpecSurface::TCL84));
+    assert!(spec.supports_dialect(SpecSurface::TCL86));
+    assert!(!spec.supports_dialect(SpecSurface::TCL90));
+    assert!(!spec.supports_dialect(SpecSurface::TCL91));
 }
 
 #[test]
@@ -260,42 +261,42 @@ fn c_harness_commands_are_version_gated() {
     // USE_OBSOLETE_FS_HOOKS`) from Tcl 8.5 onwards.
     for name in ["testaccessproc", "teststatproc", "testopenfilechannelproc"] {
         let spec = r.get(name).unwrap_or_else(|| panic!("{name} registered"));
-        assert!(spec.supports_dialect(DialectSet::TCL84), "{name} in 8.4");
-        assert!(!spec.supports_dialect(DialectSet::TCL85), "{name} not 8.5");
-        assert!(!spec.supports_dialect(DialectSet::TCL86), "{name} not 8.6");
+        assert!(spec.supports_dialect(SpecSurface::TCL84), "{name} in 8.4");
+        assert!(!spec.supports_dialect(SpecSurface::TCL85), "{name} not 8.5");
+        assert!(!spec.supports_dialect(SpecSurface::TCL86), "{name} not 8.6");
     }
 
     // `testevent` is registered as far back as 8.4 (via `Tcl_CreateObjCommand(
     // interp, "testevent", …)` — a whitespace variant), so it is all-Tcl.
     let event = r.get("testevent").expect("testevent registered");
-    assert!(event.supports_dialect(DialectSet::TCL84));
-    assert!(event.supports_dialect(DialectSet::TCL90));
+    assert!(event.supports_dialect(SpecSurface::TCL84));
+    assert!(event.supports_dialect(SpecSurface::TCL90));
 
     // 8.4 only.
     let convertobj = r.get("testconvertobj").expect("testconvertobj registered");
-    assert!(convertobj.supports_dialect(DialectSet::TCL84));
-    assert!(!convertobj.supports_dialect(DialectSet::TCL85));
+    assert!(convertobj.supports_dialect(SpecSurface::TCL84));
+    assert!(!convertobj.supports_dialect(SpecSurface::TCL85));
 
     // `teststaticpkg` (8.x) was renamed to `teststaticlibrary` (9.0+).
     let pkg = r.get("teststaticpkg").expect("teststaticpkg registered");
-    assert!(pkg.supports_dialect(DialectSet::TCL86));
-    assert!(!pkg.supports_dialect(DialectSet::TCL90));
+    assert!(pkg.supports_dialect(SpecSurface::TCL86));
+    assert!(!pkg.supports_dialect(SpecSurface::TCL90));
     let lib = r
         .get("teststaticlibrary")
         .expect("teststaticlibrary registered");
-    assert!(lib.supports_dialect(DialectSet::TCL90));
-    assert!(!lib.supports_dialect(DialectSet::TCL86));
+    assert!(lib.supports_dialect(SpecSurface::TCL90));
+    assert!(!lib.supports_dialect(SpecSurface::TCL86));
 
     // `testsaveresult` was removed in 9.0.
     let saveresult = r.get("testsaveresult").expect("testsaveresult registered");
-    assert!(saveresult.supports_dialect(DialectSet::TCL86));
-    assert!(!saveresult.supports_dialect(DialectSet::TCL90));
+    assert!(saveresult.supports_dialect(SpecSurface::TCL86));
+    assert!(!saveresult.supports_dialect(SpecSurface::TCL90));
 
     // `testcmdobj2` is 9.0+ only.
     let cmdobj2 = r.get("testcmdobj2").expect("testcmdobj2 registered");
-    assert!(cmdobj2.supports_dialect(DialectSet::TCL90));
-    assert!(cmdobj2.supports_dialect(DialectSet::TCL91));
-    assert!(!cmdobj2.supports_dialect(DialectSet::TCL86));
+    assert!(cmdobj2.supports_dialect(SpecSurface::TCL90));
+    assert!(cmdobj2.supports_dialect(SpecSurface::TCL91));
+    assert!(!cmdobj2.supports_dialect(SpecSurface::TCL86));
 }
 
 #[test]
@@ -347,12 +348,12 @@ fn test_error_code_option_needs_tcltest_2_5() {
     // the option is gated by Tcl core dialect instead: hidden under 8.5,
     // offered under 8.6+ (which bundles tcltest 2.5).
     assert!(
-        spec.find_option("-errorCode", Some(DialectSet::TCL85), None)
+        spec.find_option("-errorCode", Some(SpecSurface::TCL85), None)
             .is_none(),
         "-errorCode hidden under Tcl 8.5 with no package floor"
     );
     assert!(
-        spec.find_option("-errorCode", Some(DialectSet::TCL86), None)
+        spec.find_option("-errorCode", Some(SpecSurface::TCL86), None)
             .is_some(),
         "-errorCode offered under Tcl 8.6"
     );
@@ -378,19 +379,19 @@ fn configure_iterations_option_needs_tcltest_2_6() {
     );
     // No package floor: gated by core dialect — offered only under 9.1.
     assert!(
-        spec.find_option("-iterations", Some(DialectSet::TCL91), None)
+        spec.find_option("-iterations", Some(SpecSurface::TCL91), None)
             .is_some(),
         "-iterations offered under Tcl 9.1"
     );
     assert!(
-        spec.find_option("-iterations", Some(DialectSet::TCL90), None)
+        spec.find_option("-iterations", Some(SpecSurface::TCL90), None)
             .is_none(),
         "-iterations hidden under Tcl 9.0 (bundles tcltest 2.5.10)"
     );
     // The 18 pre-2.6 options stay available everywhere.
     for opt in ["-verbose", "-match", "-debug", "-singleproc", "-loadfile"] {
         assert!(
-            spec.find_option(opt, Some(DialectSet::TCL84), None)
+            spec.find_option(opt, Some(SpecSurface::TCL84), None)
                 .is_some(),
             "{opt} should be available under Tcl 8.4"
         );

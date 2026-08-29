@@ -20,6 +20,7 @@
 
 use crate::hooks::CodegenHookId;
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 // `tailcall` is a Tcl 8.6 addition (TIP 285, alongside the NRE engine):
 // tailcall.html 404s with a genuine "URL Not Found" page — not a redirect
@@ -69,7 +70,7 @@ pub fn spec() -> CommandSpec {
         // bans it). `f5-bigip`'s mask carries no Tcl-version bit at all
         // (a config-file surface, not a Tcl command surface), so it is
         // unaffected either way.
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         // `tailcall command ?arg ...?` is variadic, so an ordinary call
         // like `tailcall dispatch key {status ok}` (exactly four words,
         // the last brace-quoted) matches the `HEAD NAME ARGS BODY`

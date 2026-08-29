@@ -19,6 +19,9 @@
 //! `if` — conditional execution with optional elseif/else clauses.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
+use tcl_dialect::model::Family;
 
 /// Result of one pass over an `if` invocation's argument words: the
 /// per-word [`ArgRole`] assignments [`if_arg_roles`] returns, and — for
@@ -207,7 +210,7 @@ pub fn spec() -> CommandSpec {
         // core (iapps, tmsh, the EDA shells, expect, tk). iRules availability
         // is fully explicit per spec now — there is no `disabled_commands`
         // list for a command to be absent from.
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::CONTROL_FLOW

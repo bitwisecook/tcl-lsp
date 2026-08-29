@@ -18,10 +18,11 @@
 
 //! `TCP::rexmt_thresh` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "TCP::rexmt_thresh",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "This command can be used to set/get the retransmission threshold of a TCP connection.",

@@ -75,6 +75,9 @@ use std::fmt::Write as _;
 use serde_json::Value;
 
 use crate::draft::{self, Draft, OPTION_DEPRECATION_FIX_HOOK_KEY, SOURCE_DIALECT_KEY};
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
+use tcl_dialect::model::Family;
 
 /// The DSL **vocabulary** version a rendered pack declares — the word after
 /// the pack name in `speclib <pack> <version> { … }`.
@@ -1012,7 +1015,7 @@ fn unwrap_some(text: &str) -> Option<&str> {
 /// The dialect member names behind a rendered `DialectSet` expression.
 ///
 /// [`crate::render_rs::dialect_set`] writes the readable aggregates
-/// (`DialectSet::ALL_TCL.union(DialectSet::IRULES)`); this reads them back so
+/// (`surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]`); this reads them back so
 /// an option constraint keeps its gate.
 fn dialect_names(expr: &str) -> Option<Vec<&'static str>> {
     const CONSTANTS: &[(&str, &[&str])] = &[
@@ -3320,12 +3323,12 @@ mod tests {
         const INFER: &str = "&[OptionRelation { kind: RelationKind::Requires, \
                              mode: RelationMode::Infer, \
                              subject: Some(OptionTerm::Option(\"-a\")), \
-                             terms: &[OptionTerm::Option(\"-b\")], dialects: None }]";
+                             terms: &[OptionTerm::Option(\"-b\")], surface: None }]";
         // The same relation as an assertion still renders.
         const ASSERT: &str = "&[OptionRelation { kind: RelationKind::Requires, \
                               mode: RelationMode::Assert, \
                               subject: Some(OptionTerm::Option(\"-a\")), \
-                              terms: &[OptionTerm::Option(\"-b\")], dialects: None }]";
+                              terms: &[OptionTerm::Option(\"-b\")], surface: None }]";
         assert!(option_conflict_rows(INFER, true).is_none());
         let rows = option_conflict_rows(ASSERT, true).expect("the relation parses");
         assert_eq!(rows[0].join(" "), "option_requires -a -b");
@@ -3336,7 +3339,9 @@ mod tests {
         const EXPR: &str = "&[OptionRelation { kind: RelationKind::MutuallyExclusive, \
                             subject: None, terms: &[OptionTerm::Option(\"-glob\"), \
                             OptionTerm::Option(\"-regexp\")], \
-                            dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)) }]";
+                            surface: Some(surface![SpecSurface::core_in(Family::Tcl, \
+                            &[(\"8.4\", Some(\"9.2\"))]), \
+                            SpecSurface::core(Family::F5Irules)]) }]";
         // Under 2.0 the gate is written in the availability algebra …
         let rows = option_conflict_rows(EXPR, true).expect("the constraint parses");
         assert_eq!(
@@ -3361,14 +3366,14 @@ mod tests {
             (
                 "&[OptionRelation { kind: RelationKind::Requires, \
                  subject: Some(OptionTerm::Option(\"-command\")), \
-                 terms: &[OptionTerm::Option(\"-channel\")], dialects: None, \
+                 terms: &[OptionTerm::Option(\"-channel\")], surface: None, \
                  message: None }]",
                 "option_requires -command -channel",
             ),
             (
                 "&[OptionRelation { kind: RelationKind::RequiresOneOf, subject: None, \
                  terms: &[OptionTerm::Option(\"-channel\"), OptionTerm::Argument(0)], \
-                 dialects: None, message: Some(\"Neither -channel nor text specified\") }]",
+                 surface: None, message: Some(\"Neither -channel nor text specified\") }]",
                 "option_requires_one_of {} {-channel {arg 0}} \
                  -message {Neither -channel nor text specified}",
             ),
@@ -3376,14 +3381,14 @@ mod tests {
                 "&[OptionRelation { kind: RelationKind::Forbids, \
                  subject: Some(OptionTerm::OptionValue(\"-order\", \"in\")), \
                  terms: &[OptionTerm::OptionValue(\"-type\", \"bfs\")], \
-                 dialects: None, message: None }]",
+                 surface: None, message: None }]",
                 "option_forbids {-order in} {{-type bfs}}",
             ),
             (
                 "&[OptionRelation { kind: RelationKind::Forbids, \
                  subject: Some(OptionTerm::Option(\"-channel\")), \
                  terms: &[OptionTerm::ArgumentValue(1, \"text\")], \
-                 dialects: None, message: None }]",
+                 surface: None, message: None }]",
                 "option_forbids -channel {{arg 1 text}}",
             ),
         ] {

@@ -18,10 +18,11 @@
 
 //! `GTP::ie` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "GTP::ie",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "This set of commands allows for the parsing and interpretation of GTP IE elements.",
@@ -46,7 +47,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-message",
                     value: OptionValue::value("MESSAGE"),
                     detail: "Operate on a specific GTP message object.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -55,7 +56,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-type",
                     value: OptionValue::value("TYPE"),
                     detail: "Filter by IE type value.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -64,7 +65,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-instance",
                     value: OptionValue::value("INSTANCE"),
                     detail: "Filter by IE instance.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,

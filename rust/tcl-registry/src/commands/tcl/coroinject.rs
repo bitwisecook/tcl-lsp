@@ -25,6 +25,7 @@
 //! `yieldto`) and unchanged, word-for-word, between the 9.0.4 and 9.1b0
 //! pages.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 fn coroinject_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
     (args.len() >= 2)
@@ -51,7 +52,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "coroinject",
         traits: Traits::EVALUATES_CODE | Traits::COROUTINE_PRIMITIVE,
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         arity: Arity::at_least(2),
         // `coroinject coroName command ?arg ...?` — `command` (index 1) is a
         // command prefix; when `coroName` next resumes, Tcl appends exactly

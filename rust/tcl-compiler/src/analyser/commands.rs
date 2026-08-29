@@ -39,6 +39,7 @@ use crate::signature_scan::command_prefix::CommandPrefixWords;
 
 use super::state::Analyser;
 use super::types::{CodeFix, Severity};
+use tcl_dialect::model::{SpecSurface};
 
 /// A command head collected from a `[...]` substitution / expression scan,
 /// ready to push as a `command_invocations` entry:
@@ -5106,9 +5107,7 @@ fn record_command_invocations(
                     &args,
                     registry
                         .profile()
-                        .map_or(tcl_registry::dialects::DialectSet::ALL_TCL, |profile| {
-                            profile.availability_mask
-                        }),
+                        .map(tcl_dialect::DialectProfile::surface_query),
                 ) else {
                     continue;
                 };
@@ -5291,9 +5290,7 @@ fn definition_handler_owns_body(registry: &CommandRegistry, name: &str) -> bool 
 fn case_list_body_index(registry: &CommandRegistry, name: &str, args: &[&str]) -> Option<usize> {
     let dialect = registry
         .profile()
-        .map_or(tcl_registry::dialects::DialectSet::ALL_TCL, |profile| {
-            profile.availability_mask
-        });
+        .map(tcl_dialect::DialectProfile::surface_query);
     registry
         .case_invocation(name, args, dialect)
         .and_then(|(_, invocation)| invocation.clause_list_index)

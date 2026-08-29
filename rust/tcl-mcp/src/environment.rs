@@ -81,7 +81,7 @@ pub fn context_for_dialect(name: &str) -> &'static ResolvedContext {
 pub fn analyser_mask_for_dialect(name: &str) -> tcl_dialect::DialectSet {
     tcl_registry::model::resolve_environment(name)
         .analyser_profile()
-        .availability_mask
+        .surface_query()
 }
 
 /// The command **store** for a dialect name — the resolved environment's
@@ -117,8 +117,8 @@ mod tests {
             .collect();
         for name in names {
             assert_eq!(
-                context_for_dialect(name).authoring_mask(),
-                profile_for_dialect(name).availability_mask,
+                context_for_dialect(name).authoring_query(),
+                profile_for_dialect(name).surface_query(),
                 "{name}"
             );
         }

@@ -45,6 +45,7 @@ use crate::ir::Statement;
 use crate::naming::is_dynamic_word;
 use crate::naming::normalise_qualified_name as nqn;
 use crate::var_escape::helpers::invocation_facts;
+use tcl_dialect::model::Family;
 use tcl_registry::{
     CommandBindingDefinitionKind, CommandBindingTransition, CommandRegistry, StateTransition,
     StateTransitionDomain, TransitionSubject,

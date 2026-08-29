@@ -18,10 +18,11 @@
 
 //! `ECA::select` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ECA::select",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Selects one of NTLM Authentication configuration name and Kerberos Authentication configuration name or both",

@@ -18,10 +18,11 @@
 
 //! `MQTT::keep_alive` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "MQTT::keep_alive",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Get or set keep_alive field of MQTT CONNECT message.",

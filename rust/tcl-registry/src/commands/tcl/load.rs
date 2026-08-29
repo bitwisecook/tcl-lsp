@@ -18,6 +18,9 @@
 
 //! `load` — load a shared library extension and initialize new commands.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
+use tcl_dialect::model::Family;
 
 const SIDE_EFFECTS: &[SideEffect] = &[
     // Reads fileName off disk (dlopen/LoadLibrary) before anything else
@@ -48,12 +51,12 @@ const SIDE_EFFECTS: &[SideEffect] = &[
 const FORMS: &[FormSpec] = &[
     FormSpec {
         synopsis: "load fileName ?packageName? ?interp?",
-        dialects: Some(DialectSet::TCL84.union(DialectSet::TCL85)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.6"))])]),
         ..FormSpec::DEFAULT
     },
     FormSpec {
         synopsis: "load ?-global? ?-lazy? ?--? fileName ?prefix? ?interp?",
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         ..FormSpec::DEFAULT
     },
 ];
@@ -72,7 +75,7 @@ pub fn spec() -> CommandSpec {
         // f5-iapps, f5-tmsh, the EDA vendor shells) has a mask carrying a
         // Tcl-version bit that `ALL_TCL` intersects, so `load` is available
         // there too.
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         // `TAINT_SINK`: fileName is dlopen'd/LoadLibrary'd unconditionally
         // — attacker-influenced input reaching it is arbitrary native code
         // execution in the process, at least as severe as `exec`'s argv
@@ -107,7 +110,7 @@ pub fn spec() -> CommandSpec {
                     name: "-global",
                     value: OptionValue::flag(),
                     detail: "Exports every symbol in the shared library for global use by other loaded libraries, instead of resolving them privately to this library. Ignored (not an error) on platforms that don't support it.",
-                    dialects: Some(DialectSet::TCL86_PLUS),
+                    surface: Some(SpecSurface::TCL86_PLUS),
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -116,7 +119,7 @@ pub fn spec() -> CommandSpec {
                     name: "-lazy",
                     value: OptionValue::flag(),
                     detail: "Delays the actual loading of symbols in the library until they are first used, instead of resolving them all immediately. Ignored (not an error) on platforms that don't support it.",
-                    dialects: Some(DialectSet::TCL86_PLUS),
+                    surface: Some(SpecSurface::TCL86_PLUS),
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -125,7 +128,7 @@ pub fn spec() -> CommandSpec {
                     name: "--",
                     value: OptionValue::flag(),
                     detail: "Marks the end of the options; needed if fileName begins with - and a prefix argument is also given.",
-                    dialects: Some(DialectSet::TCL86_PLUS),
+                    surface: Some(SpecSurface::TCL86_PLUS),
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,

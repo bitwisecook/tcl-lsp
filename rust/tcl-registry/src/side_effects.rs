@@ -18,9 +18,9 @@
 
 //! Side-effect metadata for structured effect analysis.
 
-use crate::dialects::DialectSet;
 use crate::documentation::{DocumentationAnnotation, DocumentationExample};
 use crate::lifecycle::{Lifecycle, LifecycleState};
+use tcl_dialect::model::{SpecSurface};
 
 /// What kind of external state a command affects.
 ///
@@ -536,10 +536,10 @@ pub struct SideEffect {
     /// Dialects *this effect* applies in, when narrower than the
     /// command's own availability — e.g. `return`'s `EventControl` effect
     /// only exists in iRules, even though `return` itself is universal
-    /// Tcl (`CommandSpec::dialects: None`). `None` = inherits the
+    /// Tcl (`CommandSpec::surface: None`). `None` = inherits the
     /// command's own dialect gating, so every effect declared before this
     /// field existed keeps its meaning unchanged.
-    pub dialects: Option<DialectSet>,
+    pub surface: Option<&'static [SpecSurface]>,
     /// Introduction / deprecation / retirement releases of *this effect* on
     /// the owning command's package version axis — an effect a later release
     /// added or stopped having. [`Lifecycle::UNSPECIFIED`] means the effect
@@ -557,7 +557,7 @@ impl SideEffect {
         reads: false,
         writes: false,
         connection_side: ConnectionSide::None,
-        dialects: None,
+        surface: None,
         lifecycle: Lifecycle::UNSPECIFIED,
     };
 

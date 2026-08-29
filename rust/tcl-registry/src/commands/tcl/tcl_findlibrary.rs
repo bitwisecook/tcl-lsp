@@ -52,12 +52,13 @@
 //!    via `uplevel #0 [list source …]`, regardless of the frame
 //!    `tcl_findLibrary` itself was called from.
 //!
-//! None of this is `dialects:`-gated on the `CommandSpec` below: the
+//! None of this is `surface:`-gated on the `CommandSpec` below: the
 //! documented argument list and arity never change, so it is all
 //! current, version-independent *behaviour* prose, captured in the
 //! hover snippet and field comments instead of a version gate.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "tcl_findLibrary basename version patch initScript enVarName varName",
@@ -68,7 +69,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl_findLibrary",
-        // `dialects: Some(DialectSet::ALL_TCL)` is deliberate, not an
+        // `surface: Some(SpecSurface::ALL_TCL)` is deliberate, not an
         // oversight: F5 iRules bans this proc (it is one of the K36322151
         // filesystem/process bans), and under the explicit-per-spec model
         // that ban is carried by this very `dialects` group. `ALL_TCL`
@@ -85,7 +86,7 @@ pub fn spec() -> CommandSpec {
         // a core-version bit that `ALL_TCL` does intersect, so it stays
         // reachable in each; and no dialect (Tk and itcl included) registers
         // a competing spec or otherwise bans it.
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         // A Tcl-level library proc (`library/auto.tcl` — confirmed by
         // name in every one of the five fetched release tags, never
         // `library/init.tcl`), not a `Tcl_CreateObjCommand`-registered

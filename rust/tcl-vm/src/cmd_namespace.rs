@@ -25,10 +25,12 @@
 //! `exists`) operate on canonical names; `export`/`import` are accepted as
 //! no-ops for now (the codegen already records export/import metadata).
 
+use tcl_dialect::model::{SurfaceQuery};
 use tcl_runtime_api::{Code, Completion};
 
 use crate::interp::{Vm, canonical_cmd_key, err, ok};
 use crate::value::Value;
+use tcl_dialect::model::{surface_admits};
 
 /// Run `body` as a script in namespace `target`, absorbing a top-level
 /// `return` at the boundary (a namespace body completes like a proc body).
@@ -93,10 +95,10 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // mask read at each use (ledger row B1).
     let profile =
         crate::environment::profile_for_dialect(vm.runtime_version().dialect_profile_name());
-    let dialect = crate::environment::surface_mask(profile);
+    let dialect = Some(crate::environment::surface_point(profile));
     let registry = tcl_registry::default_registry();
     let spec = registry
-        .get_for_dialect("namespace", dialect)
+        .get_for_surface("namespace", dialect)
         .expect("the core namespace command is registered for every Tcl release");
     let Some(subcommand) = spec.resolve_subcommand_for_dialect(&sub_word, dialect) else {
         let available: Vec<&str> = spec
@@ -104,9 +106,9 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             .iter()
             .filter(|candidate| {
                 candidate
-                    .dialects
-                    .or(spec.dialects)
-                    .is_none_or(|gate| gate.intersects(dialect))
+                    .surface
+                    .or(spec.surface)
+                    .is_none_or(|gate| surface_admits(gate, dialect.as_ref()))
             })
             .map(|candidate| candidate.name)
             .collect();
@@ -301,11 +303,11 @@ fn ns_upvar(
     vm: &mut Vm,
     rest: &[Value],
     subcommand: &tcl_registry::SubCommand,
-    dialect: tcl_dialect::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) -> Completion<Value> {
     let argc = u16::try_from(rest.len()).unwrap_or(u16::MAX);
     let valid_arity = subcommand.subcommand_forms.iter().any(|form| {
-        form.dialects.is_none_or(|gate| gate.intersects(dialect)) && form.arity.accepts(argc)
+        form.surface.is_none_or(|gate| surface_admits(gate, dialect.as_ref())) && form.arity.accepts(argc)
     });
     if !valid_arity {
         return err("wrong # args: should be \"namespace upvar ns ?otherVar myVar ...?\"");

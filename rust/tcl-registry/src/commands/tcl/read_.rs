@@ -53,7 +53,7 @@
 //! back with no exception at all and the error is deferred to the next
 //! read at that position.
 //!
-//! `dialects: Some(DialectSet::ALL_TCL)` on the command spec below is
+//! `surface: Some(SpecSurface::ALL_TCL)` on the command spec below is
 //! deliberate, not an oversight: `read` is excluded from iRules, just
 //! like `gets`/`flush`/`open`/`fconfigure` (K36322151) — its `ALL_TCL`
 //! group carries no `IRULES` bit, so it never intersects the bare
@@ -62,6 +62,7 @@
 //! shells, F5 iApps/tmsh, Tk, incr Tcl) restricts or extends it.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 // Both forms are unchanged, word-for-word (bar the cosmetic
 // channelId/channel rename noted in the module doc comment), across
@@ -104,7 +105,7 @@ fn read_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "read",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED | Traits::TAINT_SOURCE,
         // Positional count only: 1 (bare channelId, or -nonewline
         // skipped as a leading option leaving just channelId) or 2
@@ -132,7 +133,7 @@ pub fn spec() -> CommandSpec {
                 name: "-nonewline",
                 value: OptionValue::flag(),
                 detail: "In the bare (no numChars) form, discard one trailing newline from the data read — but only when the read reached true end-of-file; has no effect on an early nonblocking return. Not valid together with numChars.",
-                dialects: None,
+                surface: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,

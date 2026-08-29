@@ -936,7 +936,7 @@ impl Analyser {
             &considered,
             initial_global,
             &global_aliases,
-            self.analysis_context().context().authoring_mask(),
+            Some(self.analysis_context().context().authoring_query()),
         );
         let exists_guards = collect_existence_guards(function_unit);
         let rbs_params: HashSet<&str> = ir_proc
@@ -959,7 +959,7 @@ impl Analyser {
             &dataflow::ReturnUndefCtx {
                 initial_global,
                 global_aliases: &global_aliases,
-                dialect: self.analysis_context().context().authoring_mask(),
+                dialect: Some(self.analysis_context().context().authoring_query()),
                 params: &rbs_params,
                 exists_guards: &exists_guards,
                 scope_aliases: &scope_aliases,

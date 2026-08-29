@@ -52,6 +52,7 @@
 //! // script widens the realm state (`tcl-compiler`'s
 //! // `analyser::diagnostics::validity` / `analyser::commands`).
 
+
 /// Which of the two measured mechanisms keeps one stock builtin out of
 /// iRules source (§4b).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -217,9 +218,9 @@ mod tests {
             let specs = registry.specs(command);
             assert!(!specs.is_empty(), "{command} must have a spec");
             for spec in specs {
-                let gate = spec.dialects.expect("stock builtins carry a gate");
+                let gate = spec.surface.expect("stock builtins carry a gate");
                 assert!(
-                    !gate.intersects(DialectSet::IRULES),
+                    !surface_admits(SpecSurface::IRULES, Some(&gate)),
                     "{command} must not carry the IRULES bit"
                 );
             }

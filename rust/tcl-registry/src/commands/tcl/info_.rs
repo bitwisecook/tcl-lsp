@@ -20,6 +20,9 @@
 
 use crate::hooks::InlineCodegenHookId;
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
+use tcl_dialect::model::Family;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "info option ?arg arg ...?",
@@ -54,14 +57,14 @@ const fn sub_since(
     name: &'static str,
     detail: &'static str,
     synopsis: &'static str,
-    dialects: DialectSet,
+    surface: &'static [SpecSurface],
     since: &'static str,
 ) -> SubSubCommand {
     SubSubCommand {
         name,
         detail,
         synopsis,
-        dialects: Some(dialects),
+        surface: Some(surface),
         lifecycle: Lifecycle::introduced_in(since),
         ..SubSubCommand::DEFAULT
     }
@@ -85,7 +88,7 @@ const INFO_OBJECT_SUBS: &[SubSubCommand] = &[
         "creationid",
         "Report the object's unique creation id, fixed for its lifetime.",
         "info object creationid object",
-        DialectSet::TCL90_PLUS,
+        SpecSurface::TCL90_PLUS,
         "9.0",
     ),
     sub(
@@ -132,7 +135,7 @@ const INFO_OBJECT_SUBS: &[SubSubCommand] = &[
         "properties",
         "List the declared properties of an object.",
         "info object properties object ?options...?",
-        DialectSet::TCL90_PLUS,
+        SpecSurface::TCL90_PLUS,
         "9.0",
     ),
     sub(
@@ -170,7 +173,7 @@ const INFO_CLASS_SUBS: &[SubSubCommand] = &[
         "definitionnamespace",
         "Report the definition namespace used for kind definitions of the class: -class (the default) or -instance.",
         "info class definitionnamespace class ?kind?",
-        DialectSet::TCL90_PLUS,
+        SpecSurface::TCL90_PLUS,
         "9.0",
     ),
     sub(
@@ -212,7 +215,7 @@ const INFO_CLASS_SUBS: &[SubSubCommand] = &[
         "properties",
         "List the declared properties of a class.",
         "info class properties class ?options...?",
-        DialectSet::TCL90_PLUS,
+        SpecSurface::TCL90_PLUS,
         "9.0",
     ),
     sub(
@@ -268,7 +271,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info class subcommand class ?arg ...?",
         pure: true,
         return_type: Some(TclType::String),
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         // `info class` is itself an ensemble: the word after `class` selects a
         // CLASS INTROSPECTION operation (issue #798).
         sub_subcommands: INFO_CLASS_SUBS,
@@ -292,7 +295,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info cmdtype commandName",
         pure: true,
         return_type: Some(TclType::String),
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         // `commandName` is an introspected command (a command reference),
         // matching `info args`/`info body`'s treatment of `procname`.
         arg_roles: &[(0, ArgRole::CommandName)],
@@ -333,7 +336,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info constant varName",
         pure: true,
         return_type: Some(TclType::Boolean),
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         arg_roles: &[(0, ArgRole::VarRead)],
         ..SubCommand::DEFAULT
     },
@@ -344,7 +347,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info consts ?pattern?",
         pure: true,
         return_type: Some(TclType::List),
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -355,7 +358,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info coroutine",
         pure: true,
         return_type: Some(TclType::String),
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -380,7 +383,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info errorstack ?interp?",
         pure: true,
         return_type: Some(TclType::List),
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -407,7 +410,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::Dict),
         // Introduced in Tcl 8.5 (TIP 280) — not available in 8.4.
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -498,7 +501,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "info object subcommand object ?arg ...?",
         pure: true,
         return_type: Some(TclType::String),
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         // `info object` is itself an ensemble: the word after `object` selects
         // an OBJECT INTROSPECTION operation (issue #798).
         sub_subcommands: INFO_OBJECT_SUBS,
@@ -590,7 +593,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "info",
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
         traits: Traits::BYTE_COMPILED,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,

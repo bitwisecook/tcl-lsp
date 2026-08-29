@@ -37,7 +37,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "textutil::indent",
-        dialects: None,
+        surface: None,
         arity: Arity::new(2, 3),
         hover: Some(HoverSnippet {
             summary: "Indent each line of text by a given prefix. Re-exported alias for `textutil::adjust::indent`, provided by the `textutil` umbrella package (not by `package require textutil::adjust` alone).",

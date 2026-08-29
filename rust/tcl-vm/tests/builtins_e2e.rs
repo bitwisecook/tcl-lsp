@@ -21,6 +21,7 @@
 //! friends — each compiled as real Tcl via `tcl-compiler` and run through
 //! `tcl-vm`, asserting observable behaviour.
 
+use tcl_dialect::model::{Family};
 use std::cell::RefCell;
 use std::io::Write;
 use std::rc::Rc;

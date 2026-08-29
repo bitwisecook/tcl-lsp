@@ -20,6 +20,7 @@
 //! `regex_quote`, and `regexp::quote` are recognised aliases of the same
 //! idiom, `::` being the canonical spelling).
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "regex::quote STRING",
     ..FormSpec::DEFAULT
@@ -52,7 +53,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// `regex_colon_quote_suppresses_t103` test, plus the `regex_literal`
 /// and `t106_double_encoding` test modules) wherever it is called,
 /// standard Tcl or otherwise.
-/// `dialects: Some(DialectSet::ALL_TCL)` is deliberate, not an oversight:
+/// `surface: Some(SpecSurface::ALL_TCL)` is deliberate, not an oversight:
 /// iRules excludes all four spellings, and that exclusion now comes
 /// straight from this field — the `ALL_TCL` group carries no `IRULES`
 /// bit, so it never intersects the bare `IRULES` mask, and there is no
@@ -60,7 +61,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "regex::quote",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::PURE,
         arity: Arity::exact(1),
         return_type: Some(TclType::String),

@@ -63,11 +63,13 @@
 //! rows both forms load to — so a translation that moved a row's home
 //! must still mean the same thing to the registry.
 
+use tcl_dialect::model::{SpecProvider};
 use std::ops::Range;
 
 use tcl_compiler::parsing::syntax::build::build_document;
 use tcl_compiler::parsing::syntax::segment::segments_from_document;
 use tcl_lexer::{LexerConfig, SourceMap, TokenType};
+use tcl_dialect::model::{SpecSurface};
 
 use crate::loader::{
     KNOWN_VOCABULARY_VERSIONS, NEWEST_VOCABULARY_VERSION, evaluate_pack, list_words,
@@ -95,7 +97,7 @@ const TRANSLATIONS: &[(&str, &str)] = &[
     ("tcl9.1+", "tcl 9.1-"),
     ("all-tcl", "tcl 8.4-"),
     // The 8 series with its exclusive maximum stated, which is what the
-    // `DialectSet::TCL8X` bit has always meant.
+    // `SpecSurface::TCL8X` bit has always meant.
     ("tcl8.x", "tcl 8.4-9.0"),
     ("f5-irules", "f5-irules"),
     // Review B11: Tk is a package on its own axis, never a Tcl release.
@@ -1051,17 +1053,24 @@ fn pack_owner(
     if !declared.is_empty() {
         return None;
     }
-    let mut union = tcl_dialect::DialectSet::empty();
+    // The providers every command in the pack names, taken together: a pack
+    // whose commands all come from one membership surface converts to that
+    // environment, and one that spans several is left for the author.
+    let mut providers: Vec<SpecProvider> = Vec::new();
     for command in commands {
-        if let Some(set) = command.spec.dialects {
-            union |= set;
+        for row in command.spec.surface.unwrap_or_default() {
+            if !providers.contains(&row.provider) {
+                providers.push(row.provider);
+            }
         }
     }
     let members: Vec<&str> = MEMBERSHIP
         .iter()
         .copied()
         .filter(|token| {
-            crate::catalogue::dialect_bit(token).is_some_and(|bit| union.intersects(bit))
+            crate::catalogue::dialect_surface(token).is_some_and(|rows| {
+                rows.iter().any(|row| providers.contains(&row.provider))
+            })
         })
         .collect();
     match members.as_slice() {

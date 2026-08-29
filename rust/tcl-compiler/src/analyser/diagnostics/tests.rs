@@ -20,6 +20,7 @@ use super::*;
 use crate::analyser::types::Diagnostic;
 use tcl_core_types::DiagCode;
 use tcl_lexer::Span;
+use tcl_dialect::model::{SpecSurface};
 
 fn w114_codes(src: &str) -> usize {
     let mut a = crate::analyser::Analyser::new();
@@ -1485,7 +1486,7 @@ fn the_two_ensemble_option_tables_do_not_share_their_distinctive_options() {
         .expect("`namespace ensemble`");
     let names = |op: &str| -> Vec<&'static str> {
         ensemble
-            .option_scope(Some(op), None, None, spec.dialects)
+            .option_scope(Some(op), None, None, spec.surface)
             .options
             .iter()
             .map(|o| o.name)
@@ -4519,7 +4520,7 @@ fn w003_correctly_gates_eda_vendor_dialects_by_documented_base_version() {
     // these vendor dialects are documented as running on top of a real
     // Tcl 8.5+ core (`docs/design/compiler/dialects-events.md`), so
     // `in`/`ni` (TIP 201, 8.5+) must NOT be flagged for them — the old
-    // `DialectSet::TCL85_PLUS` check excluded them entirely and
+    // `SpecSurface::TCL85_PLUS` check excluded them entirely and
     // over-fired. (`f5-iapps` is deliberately NOT here any more: it rides
     // the `f5-tcl` trunk, a fork of Tcl at 8.4.6, and its measured expr
     // surface fails every 8.5 discriminator —
@@ -4640,7 +4641,7 @@ fn memoized_compilation_unit_diagnostics_match_whole_file() {
     for src in snippets {
         let mut registry = tcl_registry::CommandRegistry::build_default();
         if let Some(d) = tcl_registry::prelude::DialectSet::parse("tcl") {
-            registry.load_dialect(d);
+            registry.load_surface(d);
         }
         // Whole-file reference.
         let mut whole = Analyser::new();
@@ -4763,7 +4764,7 @@ fn memoized_compilation_unit_shift_correctness() {
 
     let mut registry = tcl_registry::CommandRegistry::build_default();
     if let Some(d) = tcl_registry::prelude::DialectSet::parse("tcl") {
-        registry.load_dialect(d);
+        registry.load_surface(d);
     }
     let mut cache: HashMap<String, FunctionUnit> = HashMap::new();
     let build = |s: &str, cache: &mut HashMap<String, FunctionUnit>| {
@@ -6124,14 +6125,14 @@ fn w210_uses_registry_owned_startup_lifecycle_facts() {
     // exact fixture guards the audited release-by-release inventory.
     for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let source: String = tcl_registry::special_vars::special_vars_for_dialect(
-            tcl_registry::special_vars::dialect_set_for_profile(Some(
+            tcl_registry::special_vars::surface_query_for_profile(Some(
                 tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
             )),
         )
         .filter(|spec| {
             tcl_registry::special_vars::is_readable_at_startup(
                 spec.name,
-                tcl_registry::special_vars::dialect_set_for_profile(Some(
+                tcl_registry::special_vars::surface_query_for_profile(Some(
                     tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
                 )),
             )
@@ -6256,7 +6257,7 @@ fn i230_existence_fold_abstains_on_interpreter_globals_at_top_level() {
     // automatically.
     for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let source: String = tcl_registry::special_vars::special_vars_for_dialect(
-            tcl_registry::special_vars::dialect_set_for_profile(Some(tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile())),
+            tcl_registry::special_vars::surface_query_for_profile(Some(tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile())),
         )
             .filter_map(|spec| match spec.kind {
                 tcl_registry::special_vars::SpecialVarKind::Scalar => {

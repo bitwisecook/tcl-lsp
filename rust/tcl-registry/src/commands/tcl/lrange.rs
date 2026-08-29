@@ -74,6 +74,9 @@
 // `lrange` — so the command-level group is correct as-is.
 use crate::hooks::{CodegenHookId, InlineCodegenHookId};
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
+use tcl_dialect::model::Family;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "lrange list first last",
     ..FormSpec::DEFAULT
@@ -82,7 +85,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lrange",
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
         const_fold: Some(crate::const_fold::fold_lrange),
         // `lrange list first last` has fixed arity 3, so *every* call is a
         // `HEAD NAME BRACED BRACED` shape once first/last happen to be

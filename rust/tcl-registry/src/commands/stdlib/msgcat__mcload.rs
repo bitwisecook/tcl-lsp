@@ -18,10 +18,11 @@
 
 //! `msgcat::mcload` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "msgcat::mcload",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Load message catalogue files from a directory.",

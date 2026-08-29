@@ -44,10 +44,12 @@
 //! yields no completion) are asserted directly — tclsh has no opinion on
 //! editor presentation.
 
+use tcl_dialect::model::{SurfaceLayer, Family};
 use tcl_compiler::analyser::{Analyser, AnalysisResult};
 use tcl_lsp_core::completion::{CompletionKind, completions};
 use tcl_lsp_core::workspace_index::WorkspaceIndex;
 use tcl_registry::CommandRegistry;
+use tcl_dialect::model::{SpecSurface};
 
 /// Analyse `source` under the `tcl8.6` dialect (shared harness shape).
 fn analyse(source: &str) -> AnalysisResult {
@@ -63,7 +65,7 @@ fn registry() -> CommandRegistry {
 /// An iRules-loaded registry (carries `when` / `call` / `HTTP::…`).
 fn irules_registry() -> CommandRegistry {
     let mut r = CommandRegistry::build_default();
-    r.load_dialect(tcl_dialect::DialectSet::IRULES);
+    r.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
     r
 }
 

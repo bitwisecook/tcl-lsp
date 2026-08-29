@@ -18,6 +18,7 @@
 
 //! `iapp::get_items` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "iapp::get_items ?arg ...?",
     ..FormSpec::DEFAULT
@@ -26,7 +27,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "iapp::get_items",
-        dialects: Some(DialectSet::IAPPS),
+        surface: Some(SpecSurface::IAPPS),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet::brief(
             "F5 iApps utility command `iapp::get_items`.",

@@ -270,7 +270,7 @@ speclib picolpack 2.0 {
 
     let registration = publish_pack_set(&set);
     assert_eq!(registration.declared, 1);
-    assert_eq!(registration.dialects, 1);
+    assert_eq!(registration.surface, 1);
     assert_eq!(registration.dynamic_cores, 1);
     assert!(
         registration.dialects_refused.is_empty(),

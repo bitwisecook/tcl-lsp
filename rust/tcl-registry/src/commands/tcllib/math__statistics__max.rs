@@ -27,7 +27,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "math::statistics::max",
         traits: Traits::PURE,
-        dialects: None,
+        surface: None,
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Return the maximum value.",

@@ -18,10 +18,11 @@
 
 //! `DHCPv4::hops` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DHCPv4::hops",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "This command returns hops (number of hops) field from DHCPv4 message.",

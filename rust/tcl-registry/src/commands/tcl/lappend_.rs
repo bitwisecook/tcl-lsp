@@ -20,6 +20,9 @@
 
 use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
+use tcl_dialect::model::Family;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "lappend varName ?value value value ...?",
@@ -30,7 +33,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lappend",
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
@@ -42,7 +45,7 @@ pub fn spec() -> CommandSpec {
         // iRules embeds Tcl 8.4.6 and retains lappend's documented
         // auto-creation behaviour; its bare profile mask needs explicit
         // membership alongside the ordinary Tcl cores.
-        safe_on_uninit: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        safe_on_uninit: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
         return_type: Some(TclType::List),
         var_elements_effect: Some(VarElementsEffect::AppendsListElements { values_from: 1 }),
         representation_effect: Some(RepresentationEffect::copy_on_write_container(0, 2)),

@@ -18,6 +18,7 @@
 
 //! `next` — invoke the next implementation of the currently executing method.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 /// `next` is a `TclOO` command: Tcl 8.4 and 8.5 have no `next.n` manpage at
 /// all — `tcl-lang.org/man/tcl8.{4,5}/TclCmd/next.html` (and the `.htm`
@@ -65,7 +66,7 @@ pub fn spec() -> CommandSpec {
             .union(Traits::TCLOO_NEXT_CHAIN)
             .union(Traits::TCLOO_METHOD_CONTEXT)
             .union(Traits::TCLOO_REQUIRES_METHOD_FRAME),
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         arity: Arity::any(),
         return_type: Some(TclType::String),
         side_effects: SIDE_EFFECTS,

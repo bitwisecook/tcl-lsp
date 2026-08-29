@@ -20,6 +20,9 @@
 
 use crate::hooks::InlineCodegenHookId;
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
+use tcl_dialect::model::Family;
 
 // Confirmed byte-for-byte stable synopsis/switch text across the fetched
 // Tcl 8.4, 8.5, 8.6, 9.0, and 9.1 manpages: no switch was added, removed,
@@ -60,7 +63,7 @@ const fn flag(name: &'static str, detail: &'static str) -> OptionSpec {
         name,
         value: OptionValue::flag(),
         detail,
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -69,7 +72,7 @@ const fn flag(name: &'static str, detail: &'static str) -> OptionSpec {
 
 /// The 11 `regexp` switches — confirmed byte-for-byte stable (same 11
 /// names, same value-taking shape) across the fetched Tcl 8.4, 8.5, 8.6,
-/// 9.0, and 9.1 manpages, so none carries a `dialects:` restriction.
+/// 9.0, and 9.1 manpages, so none carries a `surface:` restriction.
 /// `-start` is the only switch that takes a value (an `index`); the rest
 /// are boolean flags.  `--` terminates option parsing.
 ///
@@ -120,7 +123,7 @@ const REGEXP_OPTIONS: &[OptionSpec] = &[
         name: "-start",
         value: OptionValue::value("index"),
         detail: "Character index into string to start matching at. Tcl 8.4 accepts only a plain non-negative integer; Tcl 8.5 and later accept the fuller index syntax used by string index (e.g. end, end-N). ^ no longer anchors to the string's real start there, though \\A still does; -indices results stay relative to the whole string, and index is clamped to the string's bounds.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -152,7 +155,7 @@ const REGEXP_HOVER: HoverSnippet = HoverSnippet {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "regexp",
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
         traits: Traits::BYTE_COMPILED | Traits::FRAME_HASH_BUILTIN,
         // The post-switch positional floor is 2 (`exp`, `string`) in the
         // general case, but `-about` relaxes it to 1 (`exp` alone) —

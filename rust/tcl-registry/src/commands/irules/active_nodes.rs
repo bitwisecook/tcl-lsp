@@ -18,10 +18,11 @@
 
 //! `active_nodes` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "active_nodes",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Returns the alias for active members of the specified pool (for BIG-IP version 4.X compatibility).",
@@ -40,7 +41,7 @@ pub const fn spec() -> CommandSpec {
                 name: "-list",
                 value: OptionValue::flag(),
                 detail: "Return as list instead of count.",
-                dialects: None,
+                surface: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,

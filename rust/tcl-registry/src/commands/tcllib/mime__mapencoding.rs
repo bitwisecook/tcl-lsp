@@ -27,7 +27,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "mime::mapencoding",
         traits: Traits::PURE,
-        dialects: None,
+        surface: None,
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Map a Tcl encoding name to a MIME charset.",

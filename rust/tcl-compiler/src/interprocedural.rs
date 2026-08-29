@@ -23,6 +23,7 @@
 //! `InterproceduralAnalysis`) plus the call-target resolver, which
 //! plug into the side-effect classifier and the SCCP evaluator.
 
+use tcl_dialect::model::{SurfaceLayer, Family};
 use std::collections::{HashMap, HashSet};
 
 pub use tcl_registry::Arity;
@@ -853,7 +854,7 @@ fn direct_instance_option_writes(
                             registry,
                             lookup,
                             &arg_refs,
-                            registry.own_availability_mask(),
+                            registry.own_surface_query(),
                             variable,
                         ) {
                             defs.insert(variable.clone());
@@ -2818,6 +2819,7 @@ fn compute_transitive_calls(root: &str, local: &HashMap<String, LocalFacts>) -> 
 }
 
 use crate::side_effects::classify_side_effects;
+use tcl_dialect::model::{SpecSurface};
 
 #[cfg(test)]
 mod tests {
@@ -3936,7 +3938,7 @@ mod effect_propagation_tests {
 
     fn irules_registry() -> CommandRegistry {
         let mut reg = CommandRegistry::build_default();
-        reg.load_dialect(DialectSet::IRULES);
+        reg.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         reg
     }
 

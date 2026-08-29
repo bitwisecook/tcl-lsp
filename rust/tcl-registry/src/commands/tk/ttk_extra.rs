@@ -24,6 +24,7 @@
 //! `-style`, `-takefocus`, `-state`) are shared.  Available in Tk 8.5+.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
@@ -128,7 +129,7 @@ fn checkbutton() -> CommandSpec {
     CommandSpec {
         name: "ttk::checkbutton",
         traits: Traits::TAINTS_VAR_WRITES,
-        dialects: Some(DialectSet::TK_AND_TCL),
+        surface: Some(SpecSurface::TK_AND_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Create and manipulate a themed checkbutton widget.",
@@ -201,7 +202,7 @@ super::common::ttk_widget_class!(MENUBUTTON_METHODS, MENUBUTTON_CLASS, "ttk::men
 fn menubutton() -> CommandSpec {
     CommandSpec {
         name: "ttk::menubutton",
-        dialects: Some(DialectSet::TK_AND_TCL),
+        surface: Some(SpecSurface::TK_AND_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Create and manipulate a themed menubutton widget.",
@@ -332,7 +333,7 @@ super::common::ttk_widget_class!(
 fn panedwindow() -> CommandSpec {
     CommandSpec {
         name: "ttk::panedwindow",
-        dialects: Some(DialectSet::TK_AND_TCL),
+        surface: Some(SpecSurface::TK_AND_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Create and manipulate a themed paned-window widget.",
@@ -439,7 +440,7 @@ fn radiobutton() -> CommandSpec {
     CommandSpec {
         name: "ttk::radiobutton",
         traits: Traits::TAINTS_VAR_WRITES,
-        dialects: Some(DialectSet::TK_AND_TCL),
+        surface: Some(SpecSurface::TK_AND_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Create and manipulate a themed radiobutton widget.",
@@ -717,7 +718,7 @@ fn spinbox() -> CommandSpec {
     CommandSpec {
         name: "ttk::spinbox",
         traits: Traits::TAINTS_VAR_WRITES,
-        dialects: Some(DialectSet::TK_AND_TCL),
+        surface: Some(SpecSurface::TK_AND_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Create and manipulate a themed spinbox widget.",

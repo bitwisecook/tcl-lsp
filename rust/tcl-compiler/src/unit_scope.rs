@@ -1573,9 +1573,8 @@ pub fn scan_unit_linkage(
     // `availability_mask`: `unit_linkage` filters registry rows by the single
     // dialect the document is, not by the wider set of releases whose commands
     // that dialect makes available (`f5-iapps` composes `TCL85|IAPPS`).
-    let dialect_set = dialect
-        .and_then(|profile| tcl_dialect::DialectSet::parse(profile.name))
-        .unwrap_or_else(tcl_dialect::DialectSet::empty);
+    let dialect = dialect
+        .map(tcl_dialect::DialectProfile::surface_query);
     let mut found = Traits::empty();
 
     let mut visit = |stmt: &crate::ir::Statement| {
@@ -1583,7 +1582,7 @@ pub fn scan_unit_linkage(
         | crate::ir::Statement::Barrier { command, args, .. } = stmt
         {
             let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-            found |= registry.unit_linkage(command, &arg_strs, dialect_set);
+            found |= registry.unit_linkage(command, &arg_strs, dialect);
         }
     };
     walk_module_scripts(ir_module, &mut visit);

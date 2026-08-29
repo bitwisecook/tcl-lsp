@@ -27,7 +27,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "logger::levels",
         traits: Traits::PURE,
-        dialects: None,
+        surface: None,
         arity: Arity::exact(0),
         hover: Some(HoverSnippet {
             summary: "Return the list of valid log levels.",

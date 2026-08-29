@@ -35,7 +35,7 @@
 //! `(profile, overlay)` cache owns, so [`store_for_profile`] returns the
 //! allocation `registry_for_profile` returned; and the document authoring
 //! mask is test-pinned to the threaded profile's `availability_mask` for
-//! every profile an ingress can produce, so [`surface_mask`] answers the
+//! every profile an ingress can produce, so [`surface_point`] answers the
 //! command-availability gate exactly as the mask read did.
 //!
 //! Post-P1-G (which deleted the name validators and old cache doors):
@@ -47,7 +47,8 @@
 //! [`TclVersion`]: tcl_dialect::TclVersion
 //! [`TclVersion::dialect_name`]: tcl_dialect::TclVersion::dialect_name
 
-use tcl_dialect::{DialectProfile, DialectSet};
+use tcl_dialect::DialectProfile;
+use tcl_dialect::model::SurfaceQuery;
 use tcl_registry::CommandRegistry;
 
 /// Resolve a dialect **name** to the profile this VM pins.
@@ -84,26 +85,26 @@ pub(crate) fn store_for_profile(profile: &'static DialectProfile) -> &'static Co
 
 /// The availability mask the builtin command-surface gate answers under
 /// for `profile` — the **document authoring mask** of the profile's
-/// environment, replacing the direct `profile.availability_mask` read.
+/// environment, replacing the direct `profile.surface_query()` read.
 ///
-/// Equal to `profile.availability_mask` for every profile an ingress can
+/// Equal to `profile.surface_query()` for every profile an ingress can
 /// produce, pinned by `tcl_registry::model::ingress`'s
 /// `the_document_mask_is_the_threaded_profiles_mask`, so the gate admits
 /// and hides exactly what it did.
-pub(crate) fn surface_mask(profile: &'static DialectProfile) -> DialectSet {
-    tcl_registry::model::static_document_context_for_profile(profile).authoring_mask()
+pub(crate) fn surface_point(profile: &'static DialectProfile) -> SurfaceQuery<'static> {
+    tcl_registry::model::static_document_context_for_profile(profile).authoring_query()
 }
 
-/// [`surface_mask`] keyed by a dialect **name** — for the native command
+/// [`surface_point`] keyed by a dialect **name** — for the native command
 /// handlers that gate a subcommand or option table on the emulated
 /// release ([`TclVersion::dialect_profile_name`]) rather than on a pinned
 /// profile handle.
 ///
 /// One resolution of the name, not two: the old form was
-/// the retired resolver's `availability_mask` read, and the resolved
-/// environment's document authoring mask is that same mask.
+/// the retired resolver's availability-mask read, and the resolved
+/// environment's document authoring point is that same point.
 ///
 /// [`TclVersion::dialect_profile_name`]: tcl_dialect::TclVersion::dialect_profile_name
-pub(crate) fn surface_mask_for_dialect(name: &str) -> DialectSet {
-    tcl_registry::model::static_document_context_for(name).authoring_mask()
+pub(crate) fn surface_point_for_dialect(name: &str) -> SurfaceQuery<'static> {
+    tcl_registry::model::static_document_context_for(name).authoring_query()
 }

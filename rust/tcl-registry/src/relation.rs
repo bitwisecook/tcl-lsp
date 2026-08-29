@@ -41,8 +41,10 @@
 //! ([`crate::pack_hooks::HookFamily::Constraints`]) remains the escape hatch
 //! for what this cannot phrase, and reaching for it is the exception.
 
-use crate::dialects::DialectSet;
+use tcl_dialect::model::{surface_admits};
 use crate::lifecycle::{Lifecycle, LifecycleState};
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SurfaceQuery;
 
 /// A term type some [`Relation`] ranges over.
 ///
@@ -173,7 +175,7 @@ pub struct Relation<T: RelationTermKind> {
     /// The terms the relation ranges over.
     pub terms: &'static [T],
     /// Tcl dialects in which this relation applies.
-    pub dialects: Option<DialectSet>,
+    pub surface: Option<&'static [SpecSurface]>,
     /// Introduction / deprecation / retirement releases of this relation on
     /// the owning subject's version axis. [`Lifecycle::UNSPECIFIED`] means it
     /// applies in every version.
@@ -224,7 +226,7 @@ impl<T: RelationTermKind> Relation<T> {
         mode: RelationMode::Assert,
         subject: None,
         terms: &[],
-        dialects: None,
+        surface: None,
         lifecycle: Lifecycle::UNSPECIFIED,
         message: None,
     };
@@ -287,22 +289,19 @@ impl<T: RelationTermKind> Relation<T> {
     /// Whether this relation is active for `dialect`, inheriting the owning
     /// subject's dialect set when it has no own gate.
     #[must_use]
-    pub const fn supports_dialect(
+    pub fn supports_dialect(
         &self,
-        dialect: Option<DialectSet>,
-        parent_dialects: Option<DialectSet>,
+        dialect: Option<SurfaceQuery<'_>>,
+        parent_surface: Option<&'static [SpecSurface]>,
     ) -> bool {
         let Some(want) = dialect else {
             return true;
         };
-        let gate = match self.dialects {
+        let gate = match self.surface {
             Some(gate) => Some(gate),
-            None => parent_dialects,
+            None => parent_surface,
         };
-        match gate {
-            Some(have) => have.intersects(want),
-            None => true,
-        }
+        gate.is_none_or(|have| surface_admits(have, Some(&want)))
     }
 
     /// The relation as a `SpecTcl` author wrote it — the statement word, the

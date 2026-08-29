@@ -19,6 +19,7 @@
 //! `exit` — end the application.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "exit ?returnCode?",
@@ -49,7 +50,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "exit",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED
             | Traits::TERMINATES_BLOCK
             | Traits::TERMINATES_PROCESS

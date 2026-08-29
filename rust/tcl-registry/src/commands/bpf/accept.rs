@@ -18,13 +18,14 @@
 
 //! `accept` — accept the packet, optionally a byte count (`accept ?N?`).
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 pub fn spec() -> CommandSpec {
     const OP: BpfOpSpec =
         BpfOpSpec::verdict(BpfVerdictKind::Accept, BpfProgTypeSet::SOCKET_FILTER_ONLY);
     CommandSpec {
         name: "accept",
-        dialects: Some(DialectSet::BPF),
+        surface: Some(SpecSurface::BPF),
         arity: Arity::new(0, 1),
         bpf_op: Some(&OP),
         ..CommandSpec::DEFAULT

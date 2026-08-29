@@ -26,7 +26,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "dns::result",
-        dialects: None,
+        surface: None,
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Return the result of a DNS query.",

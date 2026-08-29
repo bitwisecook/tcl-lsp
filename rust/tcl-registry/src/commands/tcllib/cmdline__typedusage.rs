@@ -27,7 +27,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "cmdline::typedUsage",
         traits: Traits::PURE,
-        dialects: None,
+        surface: None,
         arity: Arity::new(1, 2),
         hover: Some(HoverSnippet {
             summary: "Generate a usage string from a typed option specification.",

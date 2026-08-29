@@ -18,6 +18,7 @@
 
 //! `oo::define` — define class members.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const OO_DEFINE_TRANSITION_DOMAINS: &[StateTransitionDomain] =
     &[StateTransitionDomain::ObjectDispatch];
@@ -336,7 +337,7 @@ pub fn spec() -> CommandSpec {
             | Traits::LANGUAGE_KEYWORD
             | Traits::INSTALLS_NAMED_DEFINITION
             | Traits::NEVER_INLINE_BODY,
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         arity: Arity::at_least(2),
         arg_roles: &[(0, ArgRole::Name)],
         arg_role_resolver: Some(oo_define_arg_roles),
@@ -425,7 +426,7 @@ mod tests {
                 .resolve_invocation(
                     command,
                     &["::Target", "method", "m", "{}", "{}"],
-                    DialectSet::TCL86,
+                    SpecSurface::TCL86,
                 )
                 .expect("TclOO definition command must resolve");
             let transitions = invocation.state_transitions();

@@ -26,7 +26,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "textutil::splitx",
-        dialects: None,
+        surface: None,
         arity: Arity::new(1, 2),
         hover: Some(HoverSnippet {
             summary: "Split a string using a regexp pattern as delimiter.",

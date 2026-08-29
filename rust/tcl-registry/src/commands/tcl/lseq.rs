@@ -70,6 +70,7 @@
 // cmd_lseq`), so `FRAMELESS_RUNTIME` still holds, matching `expr`'s own
 // classification for the identical reason.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[
     FormSpec {
@@ -157,7 +158,7 @@ pub fn spec() -> CommandSpec {
         // including both extensions for 8.6, and absent from every 8.x
         // command index) and unchanged in 9.1 (byte-identical manpage) —
         // see the module comment.
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         // 1..=5 words after the command name spans every documented form
         // (`lseq count` at the floor; `lseq start to end by step` /
         // `lseq start count count by step` at the ceiling), matching the

@@ -38,6 +38,7 @@ use crate::mathfunc::MATHFUNC_NAMESPACE;
 use crate::mathfunc::available_in_expr;
 use crate::registry::CommandRegistry;
 use crate::spec::CommandSpec;
+use tcl_dialect::model::{surface_admits};
 
 /// The dispatch mechanism an `expr` math-function call uses in this profile.
 ///
@@ -161,8 +162,8 @@ impl RuntimeExprSurface {
                 .is_none_or(|base| base >= floor)
         });
         let dialect_visible = spec
-            .dialects
-            .is_none_or(|dialects| dialects.intersects(self.profile.availability_mask))
+            .surface
+            .is_none_or(|rows| surface_admits(rows, Some(&self.profile.surface_query())))
             || self
                 .profile
                 .f5_core_expr_grammar()

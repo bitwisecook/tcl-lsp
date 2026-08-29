@@ -18,6 +18,7 @@
 
 //! `SIP::header` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
@@ -155,7 +156,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SIP::header",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Gets or sets SIP header information.",

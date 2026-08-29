@@ -18,10 +18,11 @@
 
 //! `ACCESS::ephemeral-auth` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ACCESS::ephemeral-auth",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Ephemeral auth related iRule",
@@ -44,7 +45,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-user",
                     value: OptionValue::value(""),
                     detail: "Option -user.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -53,7 +54,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-auth_cfg",
                     value: OptionValue::value(""),
                     detail: "Option -auth_cfg.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -62,7 +63,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-sid",
                     value: OptionValue::value(""),
                     detail: "Option -sid.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -71,7 +72,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-password",
                     value: OptionValue::value(""),
                     detail: "Option -password.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -80,7 +81,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-protocol",
                     value: OptionValue::value(""),
                     detail: "Option -protocol.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,

@@ -897,7 +897,7 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         FieldKind::RustExpr {
             hint: "&[OptionRelation { kind: RelationKind::MutuallyExclusive, subject: None, \
                    terms: &[OptionTerm::Option(\"-a\"), OptionTerm::Option(\"-b\")], \
-                   dialects: None, lifecycle: Lifecycle::UNSPECIFIED, message: None }]",
+                   surface: None, lifecycle: Lifecycle::UNSPECIFIED, message: None }]",
         },
         "Registry-declared relations between this command's options and arguments \
          (E-R14) — mutual exclusion, directional requires, requires-one-of, and forbids, \
@@ -1563,7 +1563,7 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         FieldKind::RustExpr {
             hint: "&[OptionRelation { kind: RelationKind::MutuallyExclusive, subject: None, \
                    terms: &[OptionTerm::Option(\"-a\"), OptionTerm::Option(\"-b\")], \
-                   dialects: None, lifecycle: Lifecycle::UNSPECIFIED, message: None }]",
+                   surface: None, lifecycle: Lifecycle::UNSPECIFIED, message: None }]",
         },
         "Subcommand-specific option relations (E-R14), evaluated by the same \
          native checker as the command-level ones.",

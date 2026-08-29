@@ -378,7 +378,7 @@ fn extract_prefix_head(
 /// double-count diagnosis holds for the braced word, which was already
 /// guarded, but not for this one).
 ///
-/// The `DialectSet::empty()` traits read below is deliberate under
+/// The `None` traits read below is deliberate under
 /// invariant I4: this is a navigation/reference **widening** query (an
 /// extra recorded reference, never a semantic specialisation), so
 /// over-approximating across environments is the conservative direction.
@@ -401,7 +401,7 @@ fn extract_wrapped_prefix_head(
         .invocation_traits(
             &seg.texts[0],
             &args,
-            tcl_registry::prelude::DialectSet::empty(),
+            None,
         )
         .contains(tcl_registry::Traits::WRAPS_COMMAND_PREFIX)
     {

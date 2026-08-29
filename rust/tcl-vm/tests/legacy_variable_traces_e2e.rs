@@ -22,7 +22,7 @@
 //! C compiles them behind `#ifndef TCL_REMOVE_OBSOLETE_TRACES`
 //! (`tclTrace.c` 8.6.16:198-206); Tcl 9.0 dropped them, so the very same
 //! script is a working legacy trace at 8.x and a `bad option` at 9.x. The
-//! registry states that boundary (`DialectSet::TCL8X` on the three
+//! registry states that boundary (`SpecSurface::TCL8X` on the three
 //! subcommands), and the VM reads it rather than carrying its own list.
 //!
 //! The ops word is the `rwua` letter concatenation, expanded and validated by
@@ -42,6 +42,7 @@ use tcl_compiler::codegen::codegen_module;
 use tcl_dialect::{DialectProfile, TclVersion};
 use tcl_registry::CommandRegistry;
 use tcl_vm::{CompileError, CompileService, Vm};
+use tcl_dialect::model::{SpecSurface};
 
 struct CompilerSvc;
 
@@ -290,7 +291,7 @@ fn the_registry_owns_the_release_boundary() {
     for version in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V8_6] {
         let mask = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
             .analyser_profile()
-            .availability_mask;
+            .surface_query();
         for name in ["variable", "vdelete", "vinfo"] {
             assert!(
                 spec.resolve_subcommand_for_dialect(name, mask).is_some(),
@@ -301,7 +302,7 @@ fn the_registry_owns_the_release_boundary() {
     for version in [TclVersion::V9_0, TclVersion::V9_1] {
         let mask = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
             .analyser_profile()
-            .availability_mask;
+            .surface_query();
         for name in ["variable", "vdelete", "vinfo"] {
             assert!(
                 spec.resolve_subcommand_for_dialect(name, mask).is_none(),

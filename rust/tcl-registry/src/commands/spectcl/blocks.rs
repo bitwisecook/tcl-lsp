@@ -38,6 +38,7 @@
 use crate::prelude::*;
 
 use super::SOURCE;
+use tcl_dialect::model::{SpecSurface};
 
 /// A bare-block statement: `hover { … }` / `NAME` / `none`.
 fn block(
@@ -49,7 +50,7 @@ fn block(
     CommandSpec {
         name,
         traits: Traits::CREATES_BARRIER | Traits::NEVER_INLINE_BODY | Traits::LANGUAGE_KEYWORD,
-        dialects: Some(DialectSet::SPECTCL),
+        surface: Some(SpecSurface::SPECTCL),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary,
@@ -146,7 +147,7 @@ fn descriptor() -> CommandSpec {
     CommandSpec {
         name: "descriptor",
         traits: Traits::CREATES_BARRIER | Traits::NEVER_INLINE_BODY | Traits::LANGUAGE_KEYWORD,
-        dialects: Some(DialectSet::SPECTCL),
+        surface: Some(SpecSurface::SPECTCL),
         arity: Arity::exact(3),
         hover: Some(HoverSnippet {
             summary: "Declare a shared, named block-valued descriptor.",
@@ -174,7 +175,7 @@ fn hook() -> CommandSpec {
     CommandSpec {
         name: "hook",
         traits: Traits::CREATES_BARRIER | Traits::NEVER_INLINE_BODY | Traits::LANGUAGE_KEYWORD,
-        dialects: Some(DialectSet::SPECTCL),
+        surface: Some(SpecSurface::SPECTCL),
         arity: Arity::exact(3),
         hover: Some(HoverSnippet {
             summary: "Declare a shared hook body.",

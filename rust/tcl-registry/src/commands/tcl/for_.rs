@@ -19,6 +19,9 @@
 //! `for` — C-style loop with init, test, and next scripts.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
+use tcl_dialect::model::Family;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: true,
@@ -35,7 +38,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "for",
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::CONTROL_FLOW

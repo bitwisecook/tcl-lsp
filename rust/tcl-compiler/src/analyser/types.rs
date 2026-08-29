@@ -2590,12 +2590,13 @@ impl AnalysisResult {
 
     /// Whether this document's dialect keeps the TIP 278 namespace-scope
     /// global variable fallback (Tcl 8.x yes, 9.0+ no) — the registry's
-    /// [`DialectSet::namespace_var_global_fallback`](tcl_registry::prelude::DialectSet::namespace_var_global_fallback)
-    /// applied to [`Self::dialect`].  The default-constructed empty dialect
-    /// answers `false` (the stricter 9.0 semantics).
+    /// [`DialectProfile::namespace_var_global_fallback`](tcl_dialect::DialectProfile::namespace_var_global_fallback)
+    /// applied to [`Self::dialect`]. An unresolved dialect answers `false`
+    /// (the stricter 9.0 semantics).
     #[must_use]
     pub fn ns_var_global_fallback(&self) -> bool {
-        tcl_registry::prelude::DialectSet::namespace_var_global_fallback(&self.dialect)
+        tcl_dialect::DialectProfile::find(&self.dialect)
+            .is_some_and(tcl_dialect::DialectProfile::namespace_var_global_fallback)
     }
 
     /// Whether byte offset `off` falls inside any recorded proc or class

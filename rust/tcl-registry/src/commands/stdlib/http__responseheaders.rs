@@ -18,11 +18,12 @@
 
 //! `http::responseHeaders` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http::responseHeaders",
         traits: Traits::PURE,
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::new(1, 2),
         return_type: Some(TclType::List),
         hover: Some(HoverSnippet {

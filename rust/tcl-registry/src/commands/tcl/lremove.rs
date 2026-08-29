@@ -37,6 +37,7 @@
 // excludes every one of them.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "lremove list ?index ...?",
@@ -72,7 +73,7 @@ pub fn spec() -> CommandSpec {
             | Traits::BYTE_COMPILED
             | Traits::NOT_PROC_FACTORY
             | Traits::CSE_CANDIDATE,
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         arity: Arity::at_least(1),
         return_type: Some(TclType::List),
         inferred_storage_type: Some(StorageType::List),

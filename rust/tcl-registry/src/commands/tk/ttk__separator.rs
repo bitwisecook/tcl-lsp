@@ -18,6 +18,7 @@
 
 //! `ttk::separator` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
     writes: true,
@@ -29,7 +30,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-orient",
         value: OptionValue::value("orientation"),
         detail: "Orientation of the separator (horizontal or vertical).",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -38,7 +39,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-style",
         value: OptionValue::value("style"),
         detail: "Style to use for the widget.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -47,7 +48,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-class",
         value: OptionValue::value("className"),
         detail: "Widget class name for option-database lookups.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -56,7 +57,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-cursor",
         value: OptionValue::value("cursor"),
         detail: "Cursor to display when the pointer is over the widget.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -65,7 +66,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-takefocus",
         value: OptionValue::value("focusSpec"),
         detail: "Whether the widget accepts focus during keyboard traversal.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -82,7 +83,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "ttk::separator",
-        dialects: Some(DialectSet::TK_AND_TCL),
+        surface: Some(SpecSurface::TK_AND_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Create and manipulate a themed separator widget.",

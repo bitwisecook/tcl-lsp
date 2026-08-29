@@ -61,6 +61,7 @@
 // derived directly from `tcl_syntax::expr::operators`.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 // `?field?` is Tcl 9.0+ only (see the module doc comment above for the
 // full version evidence) — the form's own `dialects` says so directly, and
@@ -69,7 +70,7 @@ use crate::prelude::*;
 // its version gate alone, not by any disable list.
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "tcl::build-info ?field?",
-    dialects: Some(DialectSet::TCL90_PLUS),
+    surface: Some(SpecSurface::TCL90_PLUS),
     ..FormSpec::DEFAULT
 }];
 
@@ -238,7 +239,7 @@ const FIELD_VALUES: &[ArgValue] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::build-info",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         traits: Traits::BYTE_COMPILED,
         arity: Arity::new(0, 1),
         return_type: Some(TclType::String),

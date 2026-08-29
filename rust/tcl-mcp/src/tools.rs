@@ -98,7 +98,7 @@ fn set_dialect(args: &Value) -> Value {
     let Some(profile) = crate::environment::known_profile_for_dialect(requested) else {
         return json!({
             "error": format!(
-                "Unknown dialect '{requested}'; valid dialects: {}",
+                "Unknown dialect '{requested}'; valid surface: {}",
                 dialect_names().join(", ")
             ),
             "valid_dialects": dialect_names(),

@@ -18,6 +18,7 @@
 
 //! `tcl::mathop` — namespace of math operator commands.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "tcl::mathop::op ?arg ...?",
@@ -59,7 +60,7 @@ pub fn spec() -> CommandSpec {
         // `availability_mask` alongside its vendor bit, so that same plain
         // intersection resolves them available without needing to name
         // any of them explicitly.
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         arity: Arity::at_least(0),
         // No single `TclType` describes the family: the arithmetic and
         // bit-wise operators return a number, but boolean negation (`!`)

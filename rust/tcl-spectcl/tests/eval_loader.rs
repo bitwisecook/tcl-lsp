@@ -84,7 +84,7 @@ fn snapshot(pack: &Pack) -> String {
     let _ = writeln!(out, "file_extensions {:?}", pack.file_extensions);
     let _ = writeln!(out, "ambient_packages {:?}", pack.ambient_packages);
     let _ = writeln!(out, "environments {:?}", pack.environments);
-    let _ = writeln!(out, "dialects {:?}", pack.dialects);
+    let _ = writeln!(out, "dialects {:?}", pack.surface);
     for command in &pack.commands {
         let _ = writeln!(
             out,

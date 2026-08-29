@@ -18,10 +18,11 @@
 
 //! `X509::subject_public_key_RSA_bits` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "X509::subject_public_key_RSA_bits",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Returns the size of the subjectXs public RSA key of an X509 certificate.",

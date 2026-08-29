@@ -18,6 +18,7 @@
 
 //! `tcltest::test` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 /// Dynamic arg-role resolver for the legacy positional form of
 /// `tcltest::test name description ?constraints? body result`, where the body
@@ -182,7 +183,7 @@ const OPTIONS: &[OptionSpec] = &[
         // unknown, so also gate by Tcl core version (tcltest 2.5 ships with
         // 8.6) to hide the option under 8.4 / 8.5.
         lifecycle: Lifecycle::introduced_in("2.5"),
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         ..OptionSpec::DEFAULT
     },
     OptionSpec {
@@ -201,7 +202,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcltest::test",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::at_least(2),
         hover: Some(HoverSnippet {
             summary: "Define and run a single test case.",

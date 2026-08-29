@@ -18,10 +18,11 @@
 
 //! `msgcat::mcforgetpackage` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "msgcat::mcforgetpackage",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::exact(0),
         hover: Some(HoverSnippet {
             summary: "Remove all translations for the calling package.",

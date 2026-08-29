@@ -27,7 +27,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "math::statistics::linear-model",
         traits: Traits::PURE,
-        dialects: None,
+        surface: None,
         arity: Arity::new(2, 3),
         hover: Some(HoverSnippet {
             summary: "Fit a linear regression model.",

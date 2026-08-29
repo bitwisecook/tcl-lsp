@@ -80,6 +80,7 @@
 //!   command-substitution args and proc / method bodies but
 //!   not into string interpolation.
 
+use tcl_dialect::model::{SurfaceLayer, Family};
 use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_lexer::LineIndex;
@@ -88,6 +89,7 @@ use tcl_registry::CommandRegistry;
 use crate::definition::LspRange;
 use crate::hover::find_word_span_at_position;
 use crate::references::{MemberSel, resolve_member_span};
+use tcl_dialect::model::{SpecSurface};
 
 /// One text edit in a rename — span plus replacement text.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3701,7 +3703,7 @@ mod tests {
         let src = "oo::class create MyClass {}\nMyClass new\n";
         let analysis = analyse(src);
         let mut r = tcl_registry::CommandRegistry::build_default();
-        r.load_dialect(tcl_dialect::DialectSet::IRULES);
+        r.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         let edits = rename(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),

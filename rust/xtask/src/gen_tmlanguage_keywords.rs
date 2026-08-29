@@ -68,7 +68,7 @@
 //! the full iRules command surface (~1,270 commands, mostly `HTTP::`/`LB::`/…
 //! namespaced) would bulk-highlight F5-only commands even in plain `.tcl`
 //! files that will never see them. So the registry projection here is scoped
-//! to [`DialectSet::ALL_TCL`] (core Tcl 8.4-9.1 + Tk) only — the same
+//! to [`SpecSurface::ALL_TCL`] (core Tcl 8.4-9.1 + Tk) only — the same
 //! ambient ground the old hand lists actually covered — and the one
 //! iRules-only word the old lists carried (`when`) is kept as a small static
 //! addition alongside the non-command clause words below, rather than
@@ -133,6 +133,7 @@ use tcl_registry::traits::{CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC, Traits};
 use tcl_syntax::naming::textmate_variable_name_body;
 
 use crate::util::{self, repo_root};
+use tcl_dialect::model::{SpecSurface};
 
 /// The iRules block keyword `when`, added alongside
 /// [`CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC`] (see module docs for why it
@@ -300,7 +301,7 @@ fn lexical_regexes() -> LexicalRegexes {
 /// `#any-of?` lists) assume is inherently safe to embed literally.
 fn classify(reg: &CommandRegistry) -> Buckets {
     let mut b = Buckets::default();
-    let dialects = DialectSet::ALL_TCL;
+    let dialects = SpecSurface::ALL_TCL;
 
     for name in reg.command_names() {
         if name == util::DISABLED_SENTINEL || CONTEXT_SENSITIVE_EXCLUDE.contains(&name) {

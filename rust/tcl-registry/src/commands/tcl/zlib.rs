@@ -69,6 +69,7 @@
 //! (identical option tables and error paths on both), since that is
 //! real per-mode behaviour the prose alone under-specifies.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "zlib subcommand ?arg ...?",
@@ -407,7 +408,7 @@ pub fn spec() -> CommandSpec {
         // and textually identical (bar the 8.6-only `stream header`
         // outline-anchor quirk, not a content difference) across
         // 8.6.18/9.0.4/9.1b0.
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         // A real core-builtin ensemble command (registered by `Tcl_CreateObjCommand`,
         // not a library proc), so the minifier must not alias its head —
         // same reasoning `chan`/`encoding` already carry this trait for.

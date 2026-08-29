@@ -18,10 +18,11 @@
 
 //! `PCP::reject` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "PCP::reject",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Provides the ability to cause a PCP reqeust to fail based on processing in the iRule.",

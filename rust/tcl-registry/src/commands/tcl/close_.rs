@@ -19,6 +19,7 @@
 //! `close` — close, or half-close, an open channel.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[
     FormSpec {
@@ -33,7 +34,7 @@ const FORMS: &[FormSpec] = &[
     // for prose, stating close "supports the same syntax and options".
     FormSpec {
         synopsis: "close channelId ?r(ead)|w(rite)?",
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         ..FormSpec::DEFAULT
     },
 ];
@@ -73,7 +74,7 @@ const DIRECTION_VALUES: &[ArgValue] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "close",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         // `FIRE_AND_FORGET_TEARDOWN`: `Tcl_CloseObjCmd` (tclIOCmd.c) unregisters
         // and frees the channel — a second `close` on the same handle errors
         // ("can not find channel named …"), which is why a bare

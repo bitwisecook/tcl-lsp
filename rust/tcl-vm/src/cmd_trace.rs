@@ -40,6 +40,8 @@ use tcl_runtime_api::Completion;
 
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
+use tcl_dialect::model::{surface_admits};
+use tcl_dialect::model::{SpecSurface};
 
 pub(crate) fn register(vm: &mut Vm) {
     vm.register("trace", cmd_trace);
@@ -48,25 +50,25 @@ pub(crate) fn register(vm: &mut Vm) {
 /// The `trace` option words the emulated release carries, in the registry's
 /// declaration order — which is C's `traceOptions[]` order, so the `bad
 /// option` / `ambiguous option` enumeration matches byte for byte. The three
-/// legacy forms are gated to `DialectSet::TCL8X`, so 9.0+ sees only
+/// legacy forms are gated to `SpecSurface::TCL8X`, so 9.0+ sees only
 /// `add`/`info`/`remove` (C drops them behind `TCL_REMOVE_OBSOLETE_TRACES`).
 fn visible_options(vm: &Vm) -> Vec<&'static str> {
     // The emulated release's name resolves through the one ingress seam;
     // the option table is gated on the resolved environment's document
     // authoring mask (ledger row B1), which is the mask the retired
-    // `by_name(name).availability_mask` read handed back.
+    // `by_name(name).surface_query()` read handed back.
     let dialect =
-        crate::environment::surface_mask_for_dialect(vm.runtime_version().dialect_profile_name());
+        Some(crate::environment::surface_point_for_dialect(vm.runtime_version().dialect_profile_name()));
     let registry = tcl_registry::default_registry();
-    let Some(spec) = registry.get_for_dialect("trace", dialect) else {
+    let Some(spec) = registry.get_for_surface("trace", dialect) else {
         return Vec::new();
     };
     spec.subcommands
         .iter()
         .filter(|sub| {
-            sub.dialects
-                .or(spec.dialects)
-                .is_none_or(|gate| gate.intersects(dialect))
+            sub.surface
+                .or(spec.surface)
+                .is_none_or(|gate| surface_admits(gate, dialect.as_ref()))
         })
         .map(|sub| sub.name)
         .collect()

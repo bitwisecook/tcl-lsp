@@ -18,10 +18,11 @@
 
 //! `DHCPv4::reject` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DHCPv4::reject",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "This command drops the packet while sending ICMP packet about the drop reason.",

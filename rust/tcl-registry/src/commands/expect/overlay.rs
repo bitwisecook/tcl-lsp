@@ -18,6 +18,7 @@
 
 //! `overlay` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "overlay ?-# spawn_id ...? program ?args ...?",
     ..FormSpec::DEFAULT
@@ -26,7 +27,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "overlay",
-        dialects: Some(DialectSet::EXPECT),
+        surface: Some(SpecSurface::EXPECT),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Replace the Expect process with another program (exec-style).",

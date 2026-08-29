@@ -31,6 +31,9 @@ use serde_json::Value;
 
 use crate::draft::{self, Draft, UNRENDERABLE_KEY};
 use crate::schema::{self, FieldKind, FieldSchema};
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
+use tcl_dialect::model::Family;
 
 /// The project's AGPL-3.0 copyright banner, as it appears at the top of every
 /// original Rust source file in the repository.
@@ -153,11 +156,12 @@ fn flag_union(ty: &str, values: &[Value]) -> String {
     names.fold(head, |acc, name| acc + ".union(" + &name + ")")
 }
 
-/// Render a `DialectSet` from the canonical dialect-name list a draft holds.
+/// Render a surface row list from the canonical dialect-name list a draft
+/// holds.
 ///
-/// Emits the readable aggregate constants (`DialectSet::ALL_TCL`,
-/// `DialectSet::TCL85_PLUS`) when the set matches one exactly, so the output
-/// reads like the hand-written specs rather than a five-way union.
+/// Emits the readable aggregate constants (`SpecSurface::ALL_TCL`,
+/// `SpecSurface::TCL85_PLUS`) when the list matches one exactly, so the
+/// output reads like the hand-written specs rather than a five-row list.
 pub(crate) fn dialect_set(values: &[Value]) -> String {
     const AGGREGATES: &[(&str, &[&str])] = &[
         (
@@ -170,36 +174,38 @@ pub(crate) fn dialect_set(values: &[Value]) -> String {
     ];
     let names: Vec<&str> = values.iter().map(as_str).collect();
     if names.is_empty() {
-        return "DialectSet::empty()".to_owned();
+        return "None".to_owned();
     }
     let mut remaining = names.clone();
     let mut parts: Vec<String> = Vec::new();
     for (constant, members) in AGGREGATES {
         if members.iter().all(|m| remaining.contains(m)) {
-            parts.push(format!("DialectSet::{constant}"));
+            parts.push((*constant).to_owned());
             remaining.retain(|n| !members.contains(n));
             break;
         }
     }
     for name in remaining {
-        // The canonical names are the registry's own (`DialectSet::parse` /
-        // `member_names`); the constants are their Rust spellings. An
-        // unrecognised name is emitted as a comment rather than a bare
-        // identifier — `DialectSet::f5-tmsh` is not valid Rust, and rendering
-        // it silently produced a file that only failed at `cargo build`.
-        let Some(bit) = dialect_constant(name) else {
+        // An unrecognised name is emitted as a comment rather than a bare
+        // identifier — `SpecSurface::f5-tmsh` is not valid Rust, and
+        // rendering it silently produced a file that only failed at
+        // `cargo build`.
+        let Some(constant) = dialect_constant(name) else {
             parts.push(format!("/* unknown dialect {name:?} */"));
             continue;
         };
-        parts.push(format!("DialectSet::{bit}"));
+        parts.push(constant.to_owned());
     }
     match parts.len() {
-        0 => "DialectSet::empty()".to_owned(),
-        1 => parts.remove(0),
+        0 => "None".to_owned(),
+        1 => format!("SpecSurface::{}", parts.remove(0)),
+        // Several named surfaces compose by listing their rows.
         _ => {
-            let head = parts.remove(0);
-            let tail: Vec<String> = parts.into_iter().map(|p| format!(".union({p})")).collect();
-            format!("{head}{}", tail.join(""))
+            let rows: Vec<String> = parts
+                .into_iter()
+                .map(|part| format!("SpecSurface::{part}"))
+                .collect();
+            format!("surface![{}]", rows.join(", "))
         }
     }
 }
@@ -653,7 +659,7 @@ fn option_expr(entry: &Value, indent: &str) -> String {
         parts.push(format!("{inner}detail: {},", rust_string(detail)));
     }
     if let Some(dialects) = entry["dialects"].as_array() {
-        parts.push(format!("{inner}dialects: Some({}),", dialect_set(dialects)));
+        parts.push(format!("{inner}surface: Some({}),", dialect_set(dialects)));
     }
     let aliases = as_array(&entry["aliases"]);
     if !aliases.is_empty() {
@@ -686,7 +692,7 @@ fn row_literal(name: &str, parts: &[String], indent: &str) -> String {
 fn dialects_line(entry: &Value, indent: &str) -> Option<String> {
     let dialects = entry["dialects"].as_array()?;
     Some(format!(
-        "{indent}    dialects: Some({}),",
+        "{indent}    surface: Some({}),",
         dialect_set(dialects)
     ))
 }
@@ -1375,7 +1381,7 @@ mod tests {
     fn round_trips_a_real_registry_spec() {
         let spec = CommandSpec {
             name: "lappend",
-            dialects: Some(tcl_dialect::DialectSet::ALL_TCL.union(tcl_dialect::DialectSet::IRULES)),
+            surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
             traits: Traits::BYTE_COMPILED | Traits::FIRST_ARG_VARNAME,
             arity: Arity::at_least(1),
             arg_roles: &[(0, ArgRole::VarWrite)],
@@ -1394,7 +1400,7 @@ mod tests {
             "a `|` chain is not const-evaluable inside the hoisted tables:\n{out}"
         );
         assert!(
-            out.contains("DialectSet::ALL_TCL.union(DialectSet::IRULES)"),
+            out.contains("surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]"),
             "dialect aggregates should read like the hand-written specs:\n{out}"
         );
     }
@@ -1690,7 +1696,7 @@ mod tests {
                 "option_relations: &[OptionRelation { kind: RelationKind::MutuallyExclusive, \
                  mode: RelationMode::Assert, subject: None, \
                  terms: &[OptionTerm::Option(\"-encoding\"), \
-                 OptionTerm::Option(\"-nopkg\")], dialects: None, \
+                 OptionTerm::Option(\"-nopkg\")], surface: None, \
                  lifecycle: Lifecycle { introduced: None, deprecated: None, \
                  retired: None, deprecation_fix: None }, message: None }],"
             ),

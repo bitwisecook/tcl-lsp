@@ -19,6 +19,7 @@
 //! `fcopy` — copy data from one channel to another.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "fcopy inputChan outputChan ?-size size? ?-command callback?",
@@ -57,7 +58,7 @@ const OPTIONS: &[OptionSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fcopy",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED,
         arity: Arity::at_least(2),
         arg_roles: &[(0, ArgRole::Channel), (1, ArgRole::Channel)],

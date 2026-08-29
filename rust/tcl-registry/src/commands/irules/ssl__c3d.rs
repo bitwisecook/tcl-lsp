@@ -18,6 +18,7 @@
 
 //! `SSL::c3d` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
@@ -129,7 +130,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SSL::c3d",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Inserts a certificate extension to the C3D certificate, sets the C3D client certificate, or modifies forged certificate subject CN.",

@@ -18,10 +18,11 @@
 
 //! `exit` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 // `-onexit`/`-noexit` are Expect's own extensions to `exit`; core Tcl
 // `exit` takes only `?returnCode?` (exit(n)). They carry an explicit
 // `Some(EXPECT)` gate rather than inheriting the command's universal
-// `dialects: None` (see below) — otherwise the inherited `None` would offer
+// `surface: None` (see below) — otherwise the inherited `None` would offer
 // these Expect-only flags as valid `exit` options under *every* dialect
 // (plain Tcl, iRules, the EDA vendors, …).
 const OPTIONS: &[OptionSpec] = &[
@@ -29,7 +30,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-onexit",
         value: OptionValue::command_prefix("command"),
         detail: "Register a handler to run at exit.",
-        dialects: Some(DialectSet::EXPECT),
+        surface: Some(SpecSurface::EXPECT),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -38,7 +39,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-noexit",
         value: OptionValue::flag(),
         detail: "Prepare for exit without exiting.",
-        dialects: Some(DialectSet::EXPECT),
+        surface: Some(SpecSurface::EXPECT),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -57,7 +58,7 @@ const FORMS: &[FormSpec] = &[
     // as a plain-Tcl `exit` form.
     FormSpec {
         synopsis: "exit ?-onexit command | -noexit? ?status?",
-        dialects: Some(DialectSet::EXPECT),
+        surface: Some(SpecSurface::EXPECT),
         ..FormSpec::DEFAULT
     },
 ];
@@ -65,7 +66,7 @@ const FORMS: &[FormSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "exit",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Exit Expect, optionally running an onexit handler.",

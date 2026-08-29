@@ -27,7 +27,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "math::statistics::samplescount",
         traits: Traits::PURE,
-        dialects: None,
+        surface: None,
         arity: Arity::new(2, 3),
         hover: Some(HoverSnippet {
             summary: "Count samples matching expression.",

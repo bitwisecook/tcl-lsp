@@ -50,12 +50,13 @@ use tcl_dialect::model::{
     CapabilityAnswer, CoreProfileId, EnvironmentDefinition, KeyedAxis, PackagePlacement, Placement,
     Version, VersionAxisId, VersionSet, VersionSetError, WorldPolicy,
 };
-use tcl_dialect::{DialectSet, LibraryVersionOverrides, TclVersion};
+use tcl_dialect::{LibraryVersionOverrides, TclVersion};
 
 use crate::hover::OptionSpec;
+use tcl_dialect::model::{SurfaceQuery, surface_admits};
 use crate::model::surface::{
-    BuildCapability, CapabilityPredicate, Provider, SurfaceDeclaration, TCL_LINES,
-    VENDOR_BIT_PACKAGES, VENDOR_BITS, is_closed_world_package, is_placement_gated_package,
+    BuildCapability, CapabilityPredicate, Provider, SurfaceDeclaration, VENDOR_BIT_PACKAGES,
+    is_closed_world_package, is_placement_gated_package,
     vendor_surface_package,
 };
 // The vendor-surface summary payload: plain registry-derived data, not
@@ -68,6 +69,8 @@ use crate::profile_queries::VendorSurface;
 use crate::registry::CommandRegistry;
 use crate::spec::{CommandSpec, SubCommand, SubSubCommand};
 use crate::traits::Traits;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::{SpecProvider};
 
 /// The resolved externally-keyed axis versions — the new-model mirror of
 /// today's `LibraryVersionOverrides`. An unset key falls back to the D5
@@ -239,7 +242,7 @@ pub struct ResolvedContext {
     /// ladder lines, active vendor surfaces). Cached at resolution; the
     /// parity sweep pins it to the old profile's mask for every catalogue
     /// environment.
-    authoring_mask: DialectSet,
+    authoring_scope: AuthoringScope,
 }
 
 impl ResolvedContext {
@@ -348,9 +351,9 @@ impl ResolvedContext {
             required_packages: Vec::new(),
             pack_ambient: Vec::new(),
             declared_targets: Vec::new(),
-            authoring_mask: DialectSet::empty(),
+            authoring_scope: AuthoringScope::default(),
         };
-        context.authoring_mask = compute_authoring_mask(&context);
+        context.authoring_scope = compute_authoring_scope(&context);
         context
     }
 
@@ -592,7 +595,7 @@ impl ResolvedContext {
     /// the old `spec_visible` (mask + profile exclusions, no package
     /// gate), used as the selection stage of most-specific-wins so the
     /// package conjunct filters the *winner*, exactly as the old
-    /// `get_for_dialect → is_available` layering did.
+    /// `get_for_surface → is_available` layering did.
     #[must_use]
     pub fn admits_for_selection(&self, declaration: &SurfaceDeclaration) -> bool {
         self.provider_active(&declaration.provider)
@@ -628,12 +631,19 @@ impl ResolvedContext {
     /// document has always been answered under the additive `TK` bit and
     /// the derivation could not produce it. That door
     /// (`with_authoring_mask`) is deleted — the ambient Tk placement
-    /// derives the bit — so the field now has exactly one source,
-    /// [`compute_authoring_mask`], for every environment, and the
-    /// analyser-vs-unit `tk` mask asymmetry waves 1-2 carried is gone.
+    /// derives the package — so the field now has exactly one source,
+    /// [`compute_authoring_scope`], for every environment, and the
+    /// analyser-vs-unit `tk` asymmetry waves 1-2 carried is gone.
     #[must_use]
-    pub fn authoring_mask(&self) -> DialectSet {
-        self.authoring_mask
+    pub fn authoring_query(&self) -> SurfaceQuery<'_> {
+        self.authoring_scope.query()
+    }
+
+    /// The environment's authoring surface, owned — for a caller that
+    /// cannot hold the context alive while it asks.
+    #[must_use]
+    pub fn authoring_scope(&self) -> AuthoringScope {
+        self.authoring_scope.clone()
     }
 
     /// The environment's option-gating version ceiling — the old
@@ -752,7 +762,7 @@ impl ResolvedContext {
     /// exclusion, required-package gate) over context-derived facts.
     #[must_use]
     pub fn spec_available(&self, spec: &CommandSpec) -> bool {
-        spec.supports_dialect(self.authoring_mask)
+        spec.supports_dialect(Some(self.authoring_query()))
             && (self.operator_heads_are_commands()
                 || !spec.traits.contains(Traits::OPERATOR_COMMAND))
             && self.required_package_available(spec.required_package)
@@ -769,7 +779,7 @@ impl ResolvedContext {
         name: &str,
     ) -> Option<&'static CommandSpec> {
         registry
-            .get_for_dialect(name, self.authoring_mask)
+            .get_for_surface(name, Some(self.authoring_query()))
             .filter(|spec| self.spec_available(spec))
     }
 
@@ -777,9 +787,9 @@ impl ResolvedContext {
     /// `is_subcommand_available` gate-inheritance rule.
     #[must_use]
     pub fn subcommand_available(&self, spec: &CommandSpec, sub: &SubCommand) -> bool {
-        sub.dialects
-            .or(spec.dialects)
-            .is_none_or(|gate| gate.intersects(self.authoring_mask))
+        sub.surface
+            .or(spec.surface)
+            .is_none_or(|gate| surface_admits(gate, Some(&self.authoring_query())))
     }
 
     /// The subcommands of `spec` available here, in declaration order.
@@ -803,10 +813,10 @@ impl ResolvedContext {
         package_version: Option<&str>,
     ) -> bool {
         sub_sub
-            .dialects
-            .or(sub.dialects)
-            .or(spec.dialects)
-            .is_none_or(|gate| gate.intersects(self.authoring_mask))
+            .surface
+            .or(sub.surface)
+            .or(spec.surface)
+            .is_none_or(|gate| surface_admits(gate, Some(&self.authoring_query())))
             && sub_sub.available_for_version(package_version)
     }
 
@@ -829,15 +839,15 @@ impl ResolvedContext {
     /// the old `is_option_available` §5.2 semantics: mask membership plus
     /// the gate's version floor against the environment's ceiling.
     #[must_use]
-    pub fn option_available(&self, opt: &OptionSpec, parent_gate: Option<DialectSet>) -> bool {
-        let Some(gate) = opt.dialects.or(parent_gate) else {
+    pub fn option_available(&self, opt: &OptionSpec, parent_gate: Option<&'static [SpecSurface]>) -> bool {
+        let Some(gate) = opt.surface.or(parent_gate) else {
             // No restriction on the option or its parent.
             return true;
         };
-        if !gate.intersects(self.authoring_mask) {
+        if !surface_admits(gate, Some(&self.authoring_query())) {
             return false;
         }
-        match (gate.min_version(), self.tcl_version_ceiling()) {
+        match (core_tcl_floor(gate), self.tcl_version_ceiling()) {
             (Some(min), Some(ceiling)) => min <= ceiling,
             // A pure vendor gate has no version floor; an environment
             // without a ceiling accepts every version.
@@ -851,7 +861,7 @@ impl ResolvedContext {
     pub fn available_option_names(&self, spec: &CommandSpec) -> Vec<&'static str> {
         let mut names: Vec<&'static str> = Vec::new();
         let mut consider = |opt: &OptionSpec| {
-            if self.option_available(opt, spec.dialects) && !names.contains(&opt.name) {
+            if self.option_available(opt, spec.surface) && !names.contains(&opt.name) {
                 names.push(opt.name);
             }
         };
@@ -871,7 +881,7 @@ impl ResolvedContext {
     pub fn available_option_specs(&self, spec: &CommandSpec) -> Vec<&'static OptionSpec> {
         let mut out: Vec<&'static OptionSpec> = Vec::new();
         let mut consider = |opt: &'static OptionSpec| {
-            if self.option_available(opt, spec.dialects) && !out.iter().any(|o| o.name == opt.name)
+            if self.option_available(opt, spec.surface) && !out.iter().any(|o| o.name == opt.name)
             {
                 out.push(opt);
             }
@@ -888,14 +898,14 @@ impl ResolvedContext {
     }
 
     /// Option / switch names of subcommand `sub` (inheriting
-    /// `sub.dialects.or(spec.dialects)` as the parent gate).
+    /// `sub.surface.or(spec.surface)` as the parent gate).
     #[must_use]
     pub fn available_sub_option_names(
         &self,
         spec: &CommandSpec,
         sub: &SubCommand,
     ) -> Vec<&'static str> {
-        let parent = sub.dialects.or(spec.dialects);
+        let parent = sub.surface.or(spec.surface);
         let mut names: Vec<&'static str> = Vec::new();
         for opt in sub.options {
             if self.option_available(opt, parent) && !names.contains(&opt.name) {
@@ -913,7 +923,7 @@ impl ResolvedContext {
         spec: &CommandSpec,
         sub: &SubCommand,
     ) -> Vec<&'static OptionSpec> {
-        let parent = sub.dialects.or(spec.dialects);
+        let parent = sub.surface.or(spec.surface);
         sub.options
             .iter()
             .filter(|opt| self.option_available(opt, parent))
@@ -932,7 +942,7 @@ impl ResolvedContext {
     ) -> Option<&'r OptionSpec> {
         let matches = |opt: &&'r OptionSpec| {
             opt.matches(option_name)
-                && self.option_available(opt, spec.dialects)
+                && self.option_available(opt, spec.surface)
                 && opt.available_for_version(package_version)
         };
         spec.options.iter().find(matches).or_else(|| {
@@ -945,23 +955,19 @@ impl ResolvedContext {
 
     /// The environment's own vendor **authoring bit**, when its surface is
     /// authored under one (the F5/expect/spectcl/bpf vendor vocabularies) —
-    /// the old `DialectProfile::vendor_bit`, derived from the environment:
+    /// the old `DialectProfile::vendor_surface`, derived from the environment:
     /// the iRules core family authors under `IRULES`; the bridge surfaces
     /// author under their bridge package's bit.
     #[must_use]
-    pub fn vendor_authoring_bit(&self) -> Option<DialectSet> {
+    pub fn vendor_authoring_provider(&self) -> Option<SpecProvider> {
         if self
             .environment
             .core
             .is_some_and(|core| core.family == Family::F5Irules)
         {
-            return Some(DialectSet::IRULES);
+            return Some(SpecProvider::Core(Family::F5Irules));
         }
-        let surface = vendor_surface_package(self.environment.id.as_str())?;
-        VENDOR_BITS
-            .iter()
-            .find(|&&(_, package)| package == surface)
-            .map(|&(bit, _)| bit)
+        vendor_surface_package(self.environment.id.as_str()).map(SpecProvider::Package)
     }
 
     /// This environment's **own vendor command surface** over `registry`,
@@ -980,7 +986,7 @@ impl ResolvedContext {
     /// over its own generation (`vendor_surface_matches_the_profile_query`).
     #[must_use]
     pub fn vendor_command_surface(&self, registry: &CommandRegistry) -> Option<VendorSurface> {
-        let vendor = self.vendor_authoring_bit()?;
+        let vendor = self.vendor_authoring_provider()?;
         let mut by_ns: std::collections::BTreeMap<String, usize> =
             std::collections::BTreeMap::new();
         let mut command_count = 0usize;
@@ -1021,7 +1027,7 @@ impl ResolvedContext {
         {
             return keyed_ambient(&placement).then_some(placement);
         }
-        let vendor = self.vendor_authoring_bit()?;
+        let vendor = self.vendor_authoring_provider()?;
         if !is_vendor_own(spec, vendor) {
             return None;
         }
@@ -1125,11 +1131,10 @@ impl ResolvedContext {
     /// (the item is another provider's — its own axis governs it), or
     /// every declared target is covered.
     #[must_use]
-    pub fn targets_uncovered_by_gate(&self, gate: Option<DialectSet>) -> Option<VersionSet> {
+    pub fn targets_uncovered_by_gate(&self, gate: Option<&'static [SpecSurface]>) -> Option<VersionSet> {
         let axis = VersionAxisId::core(Family::Tcl);
         let targets = self.declared_targets(&axis)?;
-        let bits = gate?;
-        let covered = crate::model::surface::tcl_core_set(bits)?;
+        let covered = crate::model::surface::core_tcl_set(gate?)?;
         let uncovered = targets.intersect(&complement_of(&covered)).ok()?;
         (!uncovered.is_empty()).then_some(uncovered)
     }
@@ -1182,7 +1187,7 @@ fn release_line(
 }
 
 /// Derive the context's authoring mask (see
-/// [`ResolvedContext::authoring_mask`]): each Tcl ladder line bit is
+/// [`ResolvedContext::authoring_query`]): each Tcl ladder line bit is
 /// admitted exactly when the core axis's point primary sits inside the
 /// line (no point primary — the lenient environments — admits the whole
 /// ladder); the iRules core admits the bare `IRULES` bit; each vendor bit
@@ -1200,67 +1205,75 @@ fn release_line(
 /// `tk` earns the `TK` bit from its **ambient** placement, which is
 /// exactly the promotion `DocumentEnvironment::document_context` used to
 /// apply by hand.
-fn compute_authoring_mask(context: &ResolvedContext) -> DialectSet {
-    let mut mask = DialectSet::empty();
+fn compute_authoring_scope(context: &ResolvedContext) -> AuthoringScope {
+    let mut scope = AuthoringScope::default();
     if let Some(core) = context.environment.core {
-        match core.family {
-            Family::Tcl => {
-                let axis = VersionAxisId::core(Family::Tcl);
-                let primary = context.floors.primary(&axis);
-                for (bit, start, end) in TCL_LINES {
-                    let admitted = primary.is_none_or(|point| {
-                        let start = Version::parse(start).expect("compiled line start parses");
-                        let end = Version::parse(end).expect("compiled line end parses");
-                        *point >= start && *point < end
-                    });
-                    if admitted {
-                        mask = mask.union(bit);
-                    }
-                }
-            }
-            Family::F5Irules => {
-                mask = mask.union(DialectSet::IRULES);
-            }
+        scope.core = Some(match core.family {
+            // The primary pins the release; without one the question is
+            // about the family's whole ladder, which is what the mask said
+            // by setting every line bit.
+            Family::Tcl => (
+                Family::Tcl,
+                context.floors.primary(&VersionAxisId::core(Family::Tcl)).cloned(),
+            ),
+            Family::F5Irules => (Family::F5Irules, None),
             // Every other family derives its Tcl-facing surface from an
-            // ancestry anchor, so the admitted ladder bit is the line
-            // that anchor sits in — derived, not per family.
+            // ancestry anchor, so the release it authors against is that
+            // anchor — derived, not per family.
             //
             // `f5-tcl`: measurements §4a (F5 reclassification,
             // `docs/design/bigip-irule-parser-measurements.md`) — the
             // trunk-riding environments (`f5-iapps`, `f5-tmsh`) embed the
-            // fork of Tcl at 8.4.6, every 8.4/8.5 discriminator behaves
-            // as 8.4, so the embedded core admits the 8.4 line and not
-            // the falsified 8.5 one the old profiles claimed.
+            // fork of Tcl at 8.4.6, and every 8.4/8.5 discriminator behaves
+            // as 8.4.
             //
             // `jim`: the 8.6 command-set anchor (`jim_tcl.txt`), which is
             // the whole of P6's inherit-then-override — a `jim` document
             // resolves `set`, `if`, `proc`, `lassign`, `dict` and `lmap`
             // from the shared core specs instead of from 76
             // hand-re-authored copies.
-            Family::F5Tcl | Family::Jim => {
-                if let Some(ancestry) = core.family.ancestry()
-                    && ancestry.parent == Family::Tcl
-                    && let Ok(anchor) = Version::parse(ancestry.anchor)
-                {
-                    for (bit, start, end) in TCL_LINES {
-                        let start = Version::parse(start).expect("compiled line start parses");
-                        let end = Version::parse(end).expect("compiled line end parses");
-                        if anchor >= start && anchor < end {
-                            mask = mask.union(bit);
-                        }
-                    }
-                }
-            }
-        }
+            family @ (Family::F5Tcl | Family::Jim) => (
+                Family::Tcl,
+                family
+                    .ancestry()
+                    .filter(|ancestry| ancestry.parent == Family::Tcl)
+                    .and_then(|ancestry| Version::parse(ancestry.anchor).ok()),
+            ),
+        });
     }
-    for (bit, package) in VENDOR_BITS {
-        if vendor_surface_package(context.environment.id.as_str()) == Some(package)
+    for package in VENDOR_BIT_PACKAGES {
+        if vendor_surface_package(context.environment.id.as_str()) == Some(*package)
             || context.placement_is_ambient(package)
         {
-            mask = mask.union(bit);
+            scope.packages.push(package);
         }
     }
-    mask
+    scope
+}
+
+/// The environment's own authoring surface, owned so the context can lend it
+/// as a [`SurfaceQuery`].
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AuthoringScope {
+    /// The core family this environment authors against, and the release
+    /// when one is pinned.
+    core: Option<(Family, Option<Version>)>,
+    /// The vendor packages whose surface this environment carries.
+    packages: Vec<&'static str>,
+}
+
+impl AuthoringScope {
+    /// This scope as a query.
+    #[must_use]
+    pub fn query(&self) -> SurfaceQuery<'_> {
+        SurfaceQuery {
+            core: self
+                .core
+                .as_ref()
+                .map(|(family, release)| (*family, release.as_ref().map(Version::as_str))),
+            packages: &self.packages,
+        }
+    }
 }
 
 /// The whole of `axis`.
@@ -1553,9 +1566,13 @@ impl ContextQueries for ResolvedContext {
 /// gates). The membership rule
 /// [`ResolvedContext::vendor_command_surface`] and
 /// [`ResolvedContext::keyed_ambient_placement`] share.
-fn is_vendor_own(spec: &CommandSpec, vendor: DialectSet) -> bool {
-    spec.dialects
-        .is_some_and(|d| d.intersects(vendor) && !d.intersects(DialectSet::ALL_TCL))
+fn is_vendor_own(spec: &CommandSpec, vendor: SpecProvider) -> bool {
+    spec.surface.is_some_and(|rows| {
+        rows.iter().any(|row| row.provider == vendor)
+            && !rows
+                .iter()
+                .any(|row| row.provider == SpecProvider::Core(Family::Tcl))
+    })
 }
 
 /// The **total applicability breadth** of a declaration set — the
@@ -1575,7 +1592,7 @@ fn is_vendor_own(spec: &CommandSpec, vendor: DialectSet) -> bool {
 ///   authoring vocabulary ([`VENDOR_BIT_PACKAGES`]) and zero otherwise —
 ///   a hosted owning-package attribution row mirrors the old
 ///   `required_package`, which never participated in specificity;
-/// - the `dialects: None` translation therefore counts 22 (5 Tcl + 1
+/// - the `surface: None` translation therefore counts 22 (5 Tcl + 1
 ///   iRules + 9 Jim + 7 vendor packages), strictly wider than any
 ///   explicit gate's maximum of 13, reproducing the old rule that a
 ///   catch-all loses to every scoped spec.
@@ -1628,7 +1645,7 @@ mod tests {
         ResolvedContext::resolve(definition, &KeyedVersions::default())
     }
 
-    fn rows(dialects: Option<DialectSet>) -> Vec<SurfaceDeclaration> {
+    fn rows(surface: Option<&'static [SpecSurface]>) -> Vec<SurfaceDeclaration> {
         declarations_for_spec(&CommandSpec {
             name: "context-test",
             dialects,
@@ -1703,7 +1720,7 @@ mod tests {
 
     #[test]
     fn core_rows_follow_the_environment_family_and_primary() {
-        let tcl85_plus = rows(Some(DialectSet::TCL85_PLUS));
+        let tcl85_plus = rows(Some(SpecSurface::TCL85_PLUS));
         assert!(context("tcl8.6").is_available(&tcl85_plus));
         assert!(context("tcl9.1").is_available(&tcl85_plus));
         assert!(!context("tcl8.4").is_available(&tcl85_plus));
@@ -1711,24 +1728,24 @@ mod tests {
         // environment.
         assert!(!context("f5-irules").is_available(&tcl85_plus));
         assert!(!context("f5-bigip").is_available(&tcl85_plus));
-        let irules_only = rows(Some(DialectSet::IRULES));
+        let irules_only = rows(Some(SpecSurface::IRULES));
         assert!(context("f5-irules").is_available(&irules_only));
         assert!(!context("tcl8.4").is_available(&irules_only));
     }
 
     #[test]
     fn world_policy_gates_package_rows() {
-        let expect_only = rows(Some(DialectSet::EXPECT));
+        let expect_only = rows(Some(SpecSurface::EXPECT));
         // The vendor surface is active in its own environment only.
         assert!(context("expect").is_available(&expect_only));
         for other in ["tcl8.6", "f5-irules", "f5-iapps", "spectcl", "f5-bigip"] {
             assert!(!context(other).is_available(&expect_only), "{other}");
         }
         // The bridge covers surfaces with no compiled placement at all.
-        let spectcl_only = rows(Some(DialectSet::SPECTCL));
+        let spectcl_only = rows(Some(SpecSurface::SPECTCL));
         assert!(context("spectcl").is_available(&spectcl_only));
         assert!(!context("tcl9.0").is_available(&spectcl_only));
-        let shared = rows(Some(DialectSet::IAPPS.union(DialectSet::TMSH)));
+        let shared = rows(Some(surface![SpecSurface::package("iapps"), SpecSurface::package("tmsh")]));
         assert!(context("f5-iapps").is_available(&shared));
         assert!(context("f5-tmsh").is_available(&shared));
         assert!(!context("tcl8.5").is_available(&shared));
@@ -1763,7 +1780,7 @@ mod tests {
         // package must not resurrect it under 9.x through the package row.
         let spec = CommandSpec {
             name: "context-test",
-            dialects: Some(DialectSet::TCL8X),
+            surface: Some(SpecSurface::TCL8X),
             required_package: Some("tcltest"),
             tcllib_package: None,
             ..CommandSpec::DEFAULT
@@ -1785,7 +1802,7 @@ mod tests {
     fn a_closed_world_require_constrains_across_environments() {
         let spec = CommandSpec {
             name: "context-test",
-            dialects: Some(DialectSet::IRULES),
+            surface: Some(SpecSurface::IRULES),
             required_package: Some("f5-irules-cmds"),
             ..CommandSpec::DEFAULT
         };
@@ -1793,7 +1810,7 @@ mod tests {
         assert!(context("f5-irules").is_available(&declarations));
         assert!(!context("tcl8.4").is_available(&declarations));
         // Selection admits it (mask analog); the package conjunct is the
-        // winner filter, mirroring `get_for_dialect → is_available`.
+        // winner filter, mirroring `get_for_surface → is_available`.
         assert!(
             declarations
                 .iter()
@@ -1871,14 +1888,14 @@ mod tests {
     /// conjunct, so the Tk surface resolves through
     /// [`ResolvedContext::package_active`] rather than off its
     /// `Core(Tcl)` row. The surviving core row is specificity data — the
-    /// breadth the coexisting `get_for_dialect` popcount ordering needs —
+    /// breadth the coexisting `get_for_surface` popcount ordering needs —
     /// which is why it is asserted here rather than deleted.
     #[test]
     fn tk_declarations_are_gated_on_the_package_provider() {
         use crate::model::surface::{CapabilityPredicate, PackageId, Provider};
         let spec = CommandSpec {
             name: "context-test",
-            dialects: Some(DialectSet::TK_AND_TCL),
+            surface: Some(SpecSurface::TK_AND_TCL),
             required_package: Some("Tk"),
             ..CommandSpec::DEFAULT
         };
@@ -1917,7 +1934,7 @@ mod tests {
     fn tk_is_closed_out_of_closed_worlds() {
         let spec = CommandSpec {
             name: "context-test",
-            dialects: Some(DialectSet::TK_AND_TCL),
+            surface: Some(SpecSurface::TK_AND_TCL),
             required_package: Some("Tk"),
             ..CommandSpec::DEFAULT
         };
@@ -1951,7 +1968,7 @@ mod tests {
     fn available_at_targets_names_the_covered_subset() {
         let ctx = context("tcl");
         let axis = VersionAxisId::core(tcl_dialect::model::Family::Tcl);
-        let tcl86_plus = rows(Some(DialectSet::TCL86_PLUS));
+        let tcl86_plus = rows(Some(SpecSurface::TCL86_PLUS));
         let covered = ctx.available_at_targets(&tcl86_plus, &axis);
         assert!(covered.contains(&Version::parse("8.6").expect("version")));
         assert!(covered.contains(&Version::parse("9.1").expect("version")));
@@ -1960,10 +1977,10 @@ mod tests {
         let targets = ctx.floors.targets(&axis).expect("targets");
         assert!(!targets.subset(&covered).expect("same axis"));
         // …and holds for an everywhere spec.
-        let everywhere = ctx.available_at_targets(&rows(Some(DialectSet::ALL_TCL)), &axis);
+        let everywhere = ctx.available_at_targets(&rows(Some(SpecSurface::ALL_TCL)), &axis);
         assert!(targets.subset(&everywhere).expect("same axis"));
         // Another provider's rows never contribute to this axis.
-        let vendor = ctx.available_at_targets(&rows(Some(DialectSet::EXPECT)), &axis);
+        let vendor = ctx.available_at_targets(&rows(Some(SpecSurface::EXPECT)), &axis);
         assert!(vendor.is_empty());
     }
 
@@ -2001,16 +2018,16 @@ mod tests {
         );
 
         // The derived mask, and what it admits.
-        assert_eq!(ctx.authoring_mask(), DialectSet::TCL86);
+        assert_eq!(ctx.authoring_query(), SpecSurface::TCL86);
         for gate in [
-            DialectSet::ALL_TCL,
-            DialectSet::TCL85_PLUS,
-            DialectSet::TCL86_PLUS,
+            SpecSurface::ALL_TCL,
+            SpecSurface::TCL85_PLUS,
+            SpecSurface::TCL86_PLUS,
         ] {
             assert!(
                 ctx.spec_available(&CommandSpec {
                     name: "context-test",
-                    dialects: Some(gate),
+                    surface: Some(gate),
                     ..CommandSpec::DEFAULT
                 }),
                 "{gate:?}"
@@ -2019,7 +2036,7 @@ mod tests {
         assert!(
             !ctx.spec_available(&CommandSpec {
                 name: "context-test",
-                dialects: Some(DialectSet::TCL84),
+                surface: Some(SpecSurface::TCL84),
                 ..CommandSpec::DEFAULT
             }),
             "an 8.4-only shape is not part of the 8.6 command set"
@@ -2138,7 +2155,7 @@ mod tests {
         assert!(!targets.subset(&covered).expect("same axis"));
         // A Tcl-provider row contributes nothing to the jim axis.
         assert!(
-            ctx.available_at_targets(&rows(Some(DialectSet::ALL_TCL)), &jim_axis)
+            ctx.available_at_targets(&rows(Some(SpecSurface::ALL_TCL)), &jim_axis)
                 .is_empty()
         );
     }
@@ -2146,15 +2163,15 @@ mod tests {
     #[test]
     fn breadth_reproduces_the_old_mask_popcount() {
         let cases: &[(DialectSet, u32)] = &[
-            (DialectSet::TCL84, 1),
-            (DialectSet::TCL8X, 3),
-            (DialectSet::TCL85_PLUS, 4),
-            (DialectSet::ALL_TCL, 5),
-            (DialectSet::IRULES, 1),
-            (DialectSet::ALL_TCL.union(DialectSet::IRULES), 6),
-            (DialectSet::TK_AND_TCL, 6),
-            (DialectSet::IAPPS.union(DialectSet::TMSH), 2),
-            (DialectSet::EXPECT, 1),
+            (SpecSurface::TCL84, 1),
+            (SpecSurface::TCL8X, 3),
+            (SpecSurface::TCL85_PLUS, 4),
+            (SpecSurface::ALL_TCL, 5),
+            (SpecSurface::IRULES, 1),
+            (surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)], 6),
+            (SpecSurface::TK_AND_TCL, 6),
+            (surface![SpecSurface::package("iapps"), SpecSurface::package("tmsh")], 2),
+            (SpecSurface::EXPECT, 1),
         ];
         for &(bits, expected) in cases {
             assert_eq!(specificity_breadth(&rows(Some(bits))), expected, "{bits:?}");
@@ -2170,7 +2187,7 @@ mod tests {
         // popcount which never counted `required_package`.
         let hosted = declarations_for_spec(&CommandSpec {
             name: "context-test",
-            dialects: Some(DialectSet::ALL_TCL),
+            surface: Some(SpecSurface::ALL_TCL),
             required_package: Some("http"),
             ..CommandSpec::DEFAULT
         });
@@ -2190,8 +2207,8 @@ mod tests {
             let ctx = context(profile.name);
             // documented deltas (mask, ceiling, operator heads).
             assert_eq!(
-                ctx.authoring_mask(),
-                profile.availability_mask,
+                ctx.authoring_query(),
+                profile.surface_query(),
                 "{} mask",
                 profile.name
             );
@@ -2209,7 +2226,7 @@ mod tests {
             );
             assert_eq!(
                 ctx.vendor_authoring_bit(),
-                profile.vendor_bit,
+                profile.vendor_surface,
                 "{} vendor bit",
                 profile.name
             );
@@ -2256,7 +2273,7 @@ mod tests {
         // permissive facts.
         let plain = DialectProfile::plain_tcl();
         let ctx = context("tcl");
-        assert_eq!(ctx.authoring_mask(), plain.availability_mask);
+        assert_eq!(ctx.authoring_query(), plain.surface_query());
         assert_eq!(ctx.tcl_version_ceiling(), None);
         assert!(ctx.operator_heads_are_commands());
         assert_eq!(ctx.vendor_authoring_bit(), None);
@@ -2267,8 +2284,8 @@ mod tests {
         // so no vendor authoring bit and no ceiling.
         let tk = context("tk");
         assert_eq!(
-            tk.authoring_mask(),
-            plain.availability_mask.union(DialectSet::TK)
+            tk.authoring_query(),
+            plain.surface_query().union(SpecSurface::TK)
         );
         assert_eq!(tk.tcl_version_ceiling(), None);
         assert!(tk.operator_heads_are_commands());
@@ -2342,7 +2359,7 @@ mod tests {
                         );
                         checks += 1;
                     }
-                    let parent = spec.dialects;
+                    let parent = spec.surface;
                     for opt in spec
                         .options
                         .iter()
@@ -2423,7 +2440,7 @@ mod tests {
                 .is_none()
         );
         assert!(
-            ctx.targets_uncovered_by_gate(Some(DialectSet::TCL86_PLUS))
+            ctx.targets_uncovered_by_gate(Some(SpecSurface::TCL86_PLUS))
                 .is_none()
         );
 
@@ -2460,28 +2477,28 @@ mod tests {
         // an absent gate cover everything; a vendor-only gate is another
         // provider's item and abstains.
         let uncovered = ctx
-            .targets_uncovered_by_gate(Some(DialectSet::TCL86_PLUS))
+            .targets_uncovered_by_gate(Some(SpecSurface::TCL86_PLUS))
             .expect("8.5 uncovered");
         assert_eq!(ladder_releases_in(&uncovered), vec!["8.5"]);
         assert!(
-            ctx.targets_uncovered_by_gate(Some(DialectSet::ALL_TCL))
+            ctx.targets_uncovered_by_gate(Some(SpecSurface::ALL_TCL))
                 .is_none()
         );
         assert!(ctx.targets_uncovered_by_gate(None).is_none());
         assert!(
-            ctx.targets_uncovered_by_gate(Some(DialectSet::TK))
+            ctx.targets_uncovered_by_gate(Some(SpecSurface::TK))
                 .is_none()
         );
         // An 8.x-only gate misses the 9.0 end.
         let gone = ctx
-            .targets_uncovered_by_gate(Some(DialectSet::TCL8X))
+            .targets_uncovered_by_gate(Some(SpecSurface::TCL8X))
             .expect("9.0 uncovered");
         assert_eq!(ladder_releases_in(&gone), vec!["9.0"]);
 
         // Redeclaring an axis replaces, never accumulates.
         ctx.declare_targets(targets_from_clauses(&axis, &["9.0"]).expect("well-formed"));
         assert!(
-            ctx.targets_uncovered_by_gate(Some(DialectSet::TCL86_PLUS))
+            ctx.targets_uncovered_by_gate(Some(SpecSurface::TCL86_PLUS))
                 .is_none(),
             "a single 9.0 target is covered by an 8.6+ gate"
         );
@@ -2522,7 +2539,7 @@ mod tests {
 
     #[test]
     fn capability_predicates_resolve_through_the_core_build() {
-        let mut declaration = rows(Some(DialectSet::ALL_TCL)).remove(0);
+        let mut declaration = rows(Some(SpecSurface::ALL_TCL)).remove(0);
         declaration.predicate =
             CapabilityPredicate::RequiresCapability(BuildCapability::MathExtension);
         let ctx = context("tcl8.6");
@@ -2531,4 +2548,17 @@ mod tests {
         // No core ⇒ no build to answer ⇒ fail, never silently pass.
         assert!(!context("f5-bigip").predicate_passes(&declaration.predicate));
     }
+}
+
+/// The lowest Tcl release a gate's core-Tcl rows name — the floor the §5.2
+/// option-gating ceiling compares against.
+///
+/// `None` for a gate that names no plain-Tcl line at all: a pure vendor gate
+/// has no version floor, so no ceiling can exclude it.
+pub fn core_tcl_floor(gate: &[SpecSurface]) -> Option<TclVersion> {
+    gate.iter()
+        .filter(|row| row.provider == SpecProvider::Core(Family::Tcl))
+        .flat_map(|row| row.windows.iter())
+        .filter_map(|&(from, _)| TclVersion::from_version_string(from))
+        .min()
 }

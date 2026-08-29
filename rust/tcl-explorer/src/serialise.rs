@@ -2110,34 +2110,24 @@ pub fn serialise_irules_flow(result: &ExplorerResult, li: &LineIndex, source: &s
     let mut warnings = find_unnormalised_getter_warnings(
         cu,
         registry,
-        dialect.map_or(tcl_dialect::DialectSet::empty(), |profile| {
-            profile.availability_mask
-        }),
+        dialect.map(tcl_dialect::DialectProfile::surface_query),
     );
     warnings.extend(find_unguarded_drop_warnings(
         cu,
-        dialect.map_or(tcl_dialect::DialectSet::empty(), |profile| {
-            profile.availability_mask
-        }),
+        dialect.map(tcl_dialect::DialectProfile::surface_query),
     ));
     warnings.extend(find_collect_flow_warnings(
         cu,
         registry,
-        dialect.map_or(tcl_dialect::DialectSet::empty(), |profile| {
-            profile.availability_mask
-        }),
+        dialect.map(tcl_dialect::DialectProfile::surface_query),
     ));
     warnings.extend(find_http_flow_warnings(
         cu,
-        dialect.map_or(tcl_dialect::DialectSet::empty(), |profile| {
-            profile.availability_mask
-        }),
+        dialect.map(tcl_dialect::DialectProfile::surface_query),
     ));
     warnings.extend(find_hoistable_set_warnings(
         cu,
-        dialect.map_or(tcl_dialect::DialectSet::empty(), |profile| {
-            profile.availability_mask
-        }),
+        dialect.map(tcl_dialect::DialectProfile::surface_query),
     ));
 
     let out: Vec<Value> = warnings

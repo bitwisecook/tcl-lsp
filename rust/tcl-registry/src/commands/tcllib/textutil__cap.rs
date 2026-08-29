@@ -27,7 +27,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "textutil::cap",
         traits: Traits::PURE,
-        dialects: None,
+        surface: None,
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Capitalise the first character.",

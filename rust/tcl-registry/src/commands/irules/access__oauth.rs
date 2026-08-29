@@ -18,10 +18,11 @@
 
 //! `ACCESS::oauth` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ACCESS::oauth",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "OAuth related ACCESS iRule",
@@ -41,7 +42,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-header",
                     value: OptionValue::value("RAW_DATA"),
                     detail: "Raw data for JOSE header section.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -50,7 +51,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-payload",
                     value: OptionValue::value("RAW_DATA"),
                     detail: "Raw data for JWS payload.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -59,7 +60,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-key",
                     value: OptionValue::value("JWK_OBJECT"),
                     detail: "JWK object for signing.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -68,7 +69,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-alg",
                     value: OptionValue::value("ALG"),
                     detail: "Signing algorithm.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -77,7 +78,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-ignore-cert-expiry",
                     value: OptionValue::flag(),
                     detail: "Allow expired certificate.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,

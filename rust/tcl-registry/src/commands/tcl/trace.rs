@@ -22,6 +22,9 @@ use crate::world_effect::{
     EffectAccess, EffectAccessMode, EffectFootprint, InterpreterScope, NamespaceScope, SubjectScope,
 };
 use tcl_cmd_core::trace::{TraceKind, parse_legacy_variable_ops, parse_ops, resolve_type};
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
+use tcl_dialect::model::Family;
 
 const VARIABLE_TRACE_OPERATIONS: &[&str] = &["array", "read", "unset", "write"];
 const COMMAND_TRACE_OPERATIONS: &[&str] = &["delete", "rename"];
@@ -1093,7 +1096,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // `IRULES` bit) and never intersect the bare iRules mask. This is
         // an arity/form gate on the embedded fork, not a command removal:
         // `trace` itself stays present in iRules.
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1120,7 +1123,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         world_effects: Some(TRACE_INFO_EFFECTS),
         state_transitions: Some(StateTransitionDescriptor::EMPTY),
         // measurements §5: 8.3-form-only on TMM — see `add` above.
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1151,7 +1154,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         state_transitions: Some(TRACE_REMOVE_TRANSITIONS),
         literal_argument_validator: Some(validate_modern_trace_operations),
         // measurements §5: 8.3-form-only on TMM — see `add` above.
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1187,7 +1190,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // (measurements §5, BIG-IP 21.1.0.1): TMM's `trace` accepts the
         // 8.3-era forms ONLY — this one works where `trace add` is
         // `wrong # args` — an arity/form gate, not a removal.
-        dialects: Some(DialectSet::TCL8X.union(DialectSet::IRULES)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.7"))]), SpecSurface::core(Family::F5Irules)]),
         lifecycle: Lifecycle::deprecated_in("8.4").retired_from("9.0"),
         ..SubCommand::DEFAULT
     },
@@ -1215,7 +1218,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // Deprecated legacy form; removed in Tcl 9.0 (8.4-8.6 only) — see
         // `variable` above for why both `dialects` and `lifecycle` state
         // it, and for the measured iRules 8.3-form-only gate.
-        dialects: Some(DialectSet::TCL8X.union(DialectSet::IRULES)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.7"))]), SpecSurface::core(Family::F5Irules)]),
         lifecycle: Lifecycle::deprecated_in("8.4").retired_from("9.0"),
         ..SubCommand::DEFAULT
     },
@@ -1240,7 +1243,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // Deprecated legacy form; removed in Tcl 9.0 (8.4-8.6 only) — see
         // `variable` above for why both `dialects` and `lifecycle` state
         // it, and for the measured iRules 8.3-form-only gate.
-        dialects: Some(DialectSet::TCL8X.union(DialectSet::IRULES)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.7"))]), SpecSurface::core(Family::F5Irules)]),
         lifecycle: Lifecycle::deprecated_in("8.4").retired_from("9.0"),
         ..SubCommand::DEFAULT
     },
@@ -1259,7 +1262,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 ///     SYNOPSIS lines and the whole "For backwards compatibility..."
 ///     paragraph documenting them are present in 8.4/8.5/8.6 and absent
 ///     from 9.0/9.1 (byte-identical omission in both). See the
-///     `dialects: Some(DialectSet::TCL8X)` gate on `variable`/`vdelete`/
+///     `surface: Some(SpecSurface::TCL8X)` gate on `variable`/`vdelete`/
 ///     `vinfo` below.
 ///   - Sharpens (without contradicting) the `trace add variable`
 ///     callback's name1/name2 description: 9.0/9.1 spell out that name2
@@ -1296,7 +1299,7 @@ pub fn spec() -> CommandSpec {
         // `TCL85`/`TCL86`, Expect at `TCL86`), per the same
         // intersects-only membership rule `tests/dialect_profile.rs`'s
         // `option_gating_honours_the_version_ceiling` documents.
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
         traits: Traits::CREATES_BARRIER | Traits::CREATES_DYNAMIC_BARRIER | Traits::BYTE_COMPILED,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
@@ -1353,7 +1356,7 @@ mod tests {
         ] {
             let arguments = ["add", kind, "target", operations, "callback"];
             let invocation = registry
-                .resolve_invocation("trace", &arguments, DialectSet::TCL90)
+                .resolve_invocation("trace", &arguments, SpecSurface::TCL90)
                 .expect("modern trace form resolves");
             assert_eq!(
                 invocation.validate_literal_arguments(),
@@ -1381,7 +1384,7 @@ mod tests {
         let invocation = registry
             .resolve_structured_invocation(
                 crate::InvocationWords::structured(InvocationWord::Literal("trace"), &dynamic),
-                DialectSet::TCL90,
+                SpecSurface::TCL90,
             )
             .resolved()
             .expect("dynamic one-word argument keeps the invocation resolvable");
@@ -1407,7 +1410,7 @@ mod tests {
             ),
         ] {
             let invocation = registry
-                .resolve_invocation("trace", arguments, DialectSet::TCL90)
+                .resolve_invocation("trace", arguments, SpecSurface::TCL90)
                 .expect("literal trace head resolves even when an argument is invalid");
             assert_eq!(
                 invocation.validate_literal_arguments(),
@@ -1422,7 +1425,7 @@ mod tests {
         for operations in ["", "bogus nope"] {
             let arguments = ["remove", "command", "target", operations, "callback"];
             let invocation = registry
-                .resolve_invocation("trace", &arguments, DialectSet::TCL90)
+                .resolve_invocation("trace", &arguments, SpecSurface::TCL90)
                 .expect("modern trace remove resolves");
             let Some(LiteralArgumentValidation::Invalid(issue)) =
                 invocation.validate_literal_arguments()
@@ -1436,7 +1439,7 @@ mod tests {
     #[test]
     fn legacy_validator_exists_only_on_tcl8_forms() {
         let registry = CommandRegistry::build_default();
-        for dialect in [DialectSet::TCL84, DialectSet::TCL85, DialectSet::TCL86] {
+        for dialect in [SpecSurface::TCL84, SpecSurface::TCL85, SpecSurface::TCL86] {
             let invocation = registry
                 .resolve_invocation("trace", &["variable", "target", "rwx", "callback"], dialect)
                 .expect("legacy trace variable resolves in Tcl 8.x");
@@ -1457,7 +1460,7 @@ mod tests {
                 .resolve_invocation(
                     "trace",
                     &["variable", "target", "rwx", "callback"],
-                    DialectSet::TCL90,
+                    SpecSurface::TCL90,
                 )
                 .and_then(|invocation| invocation.validate_literal_arguments())
                 .is_none(),
@@ -1689,7 +1692,7 @@ mod tests {
             .resolve_invocation(
                 "trace",
                 &["add", "variable", "item", "write", "prefix"],
-                DialectSet::TCL86,
+                SpecSurface::TCL86,
             )
             .expect("literal trace add resolves")
             .facts();
@@ -1719,7 +1722,7 @@ mod tests {
     #[test]
     fn oracle_profiles_keep_legacy_forms_in_tcl8_only() {
         let registry = CommandRegistry::build_default();
-        for dialect in [DialectSet::TCL84, DialectSet::TCL85, DialectSet::TCL86] {
+        for dialect in [SpecSurface::TCL84, SpecSurface::TCL85, SpecSurface::TCL86] {
             for (arguments, expected) in [
                 (&["variable", "item", "rw", "prefix"][..], "variable"),
                 (&["vdelete", "item", "rw", "prefix"][..], "vdelete"),
@@ -1737,7 +1740,7 @@ mod tests {
                 assert_eq!(canonical.as_deref(), Some(expected));
             }
         }
-        for dialect in [DialectSet::TCL90, DialectSet::TCL91] {
+        for dialect in [SpecSurface::TCL90, SpecSurface::TCL91] {
             for arguments in [
                 &["variable", "item", "rw", "prefix"][..],
                 &["vdelete", "item", "rw", "prefix"][..],
@@ -1764,7 +1767,7 @@ mod tests {
             .resolve_invocation(
                 "trace",
                 &["variable", "item", "awrw", "prefix"],
-                DialectSet::TCL86,
+                SpecSurface::TCL86,
             )
             .expect("legacy add resolves")
             .facts();
@@ -1772,7 +1775,7 @@ mod tests {
             .resolve_invocation(
                 "trace",
                 &["vdelete", "item", "awrw", "prefix"],
-                DialectSet::TCL86,
+                SpecSurface::TCL86,
             )
             .expect("legacy remove resolves")
             .facts();
@@ -1831,7 +1834,7 @@ mod tests {
             .resolve_invocation(
                 "trace",
                 &["info", "execution", "llength"],
-                DialectSet::TCL90,
+                SpecSurface::TCL90,
             )
             .expect("trace info resolves")
             .facts();
@@ -1850,7 +1853,7 @@ mod tests {
             .resolve_invocation(
                 "trace",
                 &["remove", "variable", "item", "write", "prefix"],
-                DialectSet::TCL90,
+                SpecSurface::TCL90,
             )
             .expect("trace remove resolves")
             .facts();

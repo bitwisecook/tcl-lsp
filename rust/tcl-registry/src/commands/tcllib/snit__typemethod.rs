@@ -26,7 +26,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "snit::typemethod",
-        dialects: None,
+        surface: None,
         arity: Arity::exact(4),
         // Snit typemethod bodies run in a dispatch context.
         arg_roles: &[(2, ArgRole::ParamList), (3, ArgRole::Body)],

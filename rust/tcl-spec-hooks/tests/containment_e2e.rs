@@ -32,6 +32,7 @@ use tcl_engine_api::{Budget, CompileUnit, Engine, EngineError, HostCommand, Valu
 use tcl_registry::invocation_words::InvocationWordKind;
 use tcl_registry::pack_hooks::{self, HookAnswer, HookCall, HookFamily, HookWord, PackHookHost};
 use tcl_spec_hooks::{CrashKind, HookHost, HookProgram, PackPrograms};
+use tcl_dialect::model::Family;
 
 /// What the hostile engine does when a body is invoked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

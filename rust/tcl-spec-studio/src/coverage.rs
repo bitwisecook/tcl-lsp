@@ -168,7 +168,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
     // `Surface::Excluded("why")` and skip the first two.
     let CommandSpec {
         name: _, traits: _,
-        dialects: _,
+        surface: _,
         arity: _, arity_windows: _,
         arg_roles: _,
         arg_role_resolver: _,
@@ -502,7 +502,7 @@ pub fn witness_sub_command(sub: &SubCommand) {
         subcommand_forms: _,
         semantic_operation: _,
         completion: _,
-        dialects: _,
+        surface: _,
         lifecycle: _,
         safe_on_uninit: _,
         loop_list_header: _,
@@ -662,7 +662,7 @@ pub fn witness_sub_sub_command(sub: &SubSubCommand) {
         name: _,
         detail: _,
         synopsis: _,
-        dialects: _,
+        surface: _,
         lifecycle: _,
         options: _,
     } = sub;
@@ -684,7 +684,7 @@ pub fn witness_option_spec(opt: &OptionSpec) {
         name: _,
         value: _,
         detail: _,
-        dialects: _,
+        surface: _,
         aliases: _,
         lifecycle: _,
         min_abbrev: _,
@@ -767,7 +767,7 @@ pub fn witness_form_spec(form: &FormSpec) {
     let FormSpec {
         kind: _,
         synopsis: _,
-        dialects: _,
+        surface: _,
         lifecycle: _,
     } = form;
 }
@@ -809,7 +809,7 @@ pub fn witness_side_effect(effect: &SideEffect) {
         reads: _,
         writes: _,
         connection_side: _,
-        dialects: _,
+        surface: _,
         lifecycle: _,
     } = effect;
 }
@@ -1001,7 +1001,7 @@ pub fn witness_option_constraint(constraint: &OptionRelation) {
         mode: _,
         subject: _,
         terms: _,
-        dialects: _,
+        surface: _,
         lifecycle: _,
         message: _,
     } = constraint;
@@ -1196,7 +1196,7 @@ pub const OBJECT_CLASS_SPEC: &[Field] = &[
 pub fn witness_case_list_spec(spec: &CaseListSpec) {
     let CaseListSpec {
         subject_args: _,
-        two_arg_optionless_dialects: _,
+        two_arg_optionless_surface: _,
         regex_option: _,
         exact_option: _,
         glob_option: _,
@@ -1224,7 +1224,7 @@ pub fn witness_case_list_spec(spec: &CaseListSpec) {
 pub const CASE_LIST_SPEC: &[Field] = &[
     f("subject_args", Surface::Excluded(NAMED_CONSTANT)),
     f(
-        "two_arg_optionless_dialects",
+        "two_arg_optionless_surface",
         Surface::Excluded(NAMED_CONSTANT),
     ),
     f("regex_option", Surface::Excluded(NAMED_CONSTANT)),

@@ -32,7 +32,6 @@ use tcl_dialect::DialectProfile;
 
 use crate::arity::Arity;
 use crate::body_kind::BodyKind;
-use crate::dialects::DialectSet;
 use crate::hover::FormKind;
 use crate::profile_queries::ProfileQueries;
 use crate::registry::CommandRegistry;
@@ -40,6 +39,8 @@ use crate::side_effects::StorageType;
 use crate::snapshot::Json;
 use crate::spec::{CommandSpec, SubCommand};
 use crate::traits::Traits;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::{SpecProvider, surface_admits};
 
 /// `sha256` of the empty string — the digest of an empty list. Every Tcl
 /// command's `valid_events` set is empty, so this constant is the only
@@ -110,7 +111,7 @@ const TRAIT_FLAGS: &[(&str, Traits)] = &[
     ("unsafe", Traits::UNSAFE),
 ];
 
-// `CommandSpec.dialects` serialisation derives from
+// `CommandSpec.surface` serialisation derives from
 // `DialectSet::member_names` — the same canonical-name table `parse`
 // inverts — rather than a parallel hand-list. A hand-list here missed
 // `tcl9.1`/`bpf` once (a `TCL90_PLUS` spec dropped its 9.1
@@ -133,29 +134,48 @@ fn arity_json(arity: Arity) -> Json {
     Json::Object(m)
 }
 
-/// The spec's dialect set: `null` for "all dialects", else the sorted
-/// list of canonical dialect-name strings (every primitive bit the set
-/// carries, via `DialectSet::member_names`).
-fn dialects_json(dialects: Option<DialectSet>) -> Json {
-    match dialects {
+/// The spec's surface: `null` for "every provider", else one entry per
+/// row — `"tcl 8.5-9.2"`, `"f5-irules"`, `"package:Tk"`.
+fn surface_json(surface: Option<&'static [SpecSurface]>) -> Json {
+    match surface {
         None => Json::Null,
-        Some(set) => {
-            let mut names = set.member_names();
+        Some(rows) => {
+            let mut names: Vec<String> = rows.iter().map(row_name).collect();
             names.sort_unstable();
-            Json::Array(names.into_iter().map(Json::s).collect())
+            Json::Array(names.into_iter().map(|name| Json::s(&name)).collect())
         }
     }
 }
 
+/// One surface row's snapshot spelling.
+fn row_name(row: &SpecSurface) -> String {
+    let who = match row.provider {
+        SpecProvider::Core(family) => family.name().to_owned(),
+        SpecProvider::Package(package) => format!("package:{package}"),
+    };
+    if row.windows.is_empty() {
+        return who;
+    }
+    let windows: Vec<String> = row
+        .windows
+        .iter()
+        .map(|&(from, until)| match until {
+            Some(until) => format!("{from}-{until}"),
+            None => format!("{from}-"),
+        })
+        .collect();
+    format!("{who} {}", windows.join(","))
+}
+
 /// Whether the subcommand is available under `profile` (own gate wins;
-/// else inherit the parent `CommandSpec.dialects`; else available) — the
+/// else inherit the parent `CommandSpec.surface`; else available) — the
 /// same §5.1 intersects membership every other availability consumer uses
 /// (the old `contains` rule hid a vendor profile's embedded-core
 /// subcommands from the dump).
-fn sub_available(profile: &DialectProfile, sub: &SubCommand, parent: Option<DialectSet>) -> bool {
-    sub.dialects
+fn sub_available(profile: &DialectProfile, sub: &SubCommand, parent: Option<&'static [SpecSurface]>) -> bool {
+    sub.surface
         .or(parent)
-        .is_none_or(|gate| gate.intersects(profile.availability_mask))
+        .is_none_or(|gate| surface_admits(gate, Some(&profile.surface_query())))
 }
 
 /// Sorted union of every option name declared on `spec` (no dialect
@@ -305,7 +325,7 @@ fn subcommands_json(spec: &CommandSpec, profile: &DialectProfile) -> Json {
     let mut subs: Vec<&SubCommand> = spec
         .subcommands
         .iter()
-        .filter(|sub| sub_available(profile, sub, spec.dialects))
+        .filter(|sub| sub_available(profile, sub, spec.surface))
         .collect();
     subs.sort_by(|a, b| a.name.cmp(b.name));
     let out = subs
@@ -365,7 +385,7 @@ fn command_entry(spec: &CommandSpec, profile: &DialectProfile) -> Json {
 
     let mut m = BTreeMap::new();
     m.insert("name".to_owned(), Json::s(spec.name));
-    m.insert("dialects".to_owned(), dialects_json(spec.dialects));
+    m.insert("dialects".to_owned(), surface_json(spec.surface));
     m.insert("arity".to_owned(), arity_json(spec.arity));
     m.insert("switches".to_owned(), Json::Array(switches_json));
     m.insert("subcommands".to_owned(), subcommands_json(spec, profile));
@@ -452,7 +472,7 @@ mod tests {
 
     /// The rendered dialect-name strings for a set.
     fn names(set: DialectSet) -> Vec<String> {
-        match dialects_json(Some(set)) {
+        match surface_json(Some(set)) {
             Json::Array(items) => items
                 .into_iter()
                 .filter_map(|j| match j {
@@ -468,7 +488,7 @@ mod tests {
     fn tcl90_plus_includes_tcl91() {
         // A TCL90_PLUS spec must serialise BOTH tcl9.0 and
         // tcl9.1 — 9.1 was silently dropped.
-        let n = names(DialectSet::TCL90_PLUS);
+        let n = names(SpecSurface::TCL90_PLUS);
         assert!(n.contains(&"tcl9.0".to_owned()), "{n:?}");
         assert!(n.contains(&"tcl9.1".to_owned()), "{n:?}");
     }
@@ -477,6 +497,6 @@ mod tests {
     fn bpf_only_spec_is_not_empty() {
         // A BPF-only spec serialised `[]` (looks like
         // "available nowhere"); it must render `["bpf"]`.
-        assert_eq!(names(DialectSet::BPF), vec!["bpf".to_owned()]);
+        assert_eq!(names(SpecSurface::BPF), vec!["bpf".to_owned()]);
     }
 }

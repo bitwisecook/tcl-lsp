@@ -18,10 +18,11 @@
 
 //! `testbigdata` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testbigdata",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Create large data objects for testing (9.0+).",

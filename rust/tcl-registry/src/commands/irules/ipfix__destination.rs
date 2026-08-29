@@ -18,10 +18,11 @@
 
 //! `IPFIX::destination` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "IPFIX::destination",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "IPFIX::destination Provides the ability to manage IPFIX logging destinations and send IPFIX messages based on processing in the iRule.",
@@ -40,7 +41,7 @@ pub const fn spec() -> CommandSpec {
                 name: "-publisher",
                 value: OptionValue::value(""),
                 detail: "Option -publisher.",
-                dialects: None,
+                surface: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,

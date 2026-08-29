@@ -36,40 +36,38 @@
 //! §6.1 is explicit that 2.0 changes meaning through *a new word plus a
 //! translation of the legacy word*, never through per-version dispatch.
 //! The legacy direction (1.x `dialects` → the new algebra) is what the
-//! loader already does by keeping [`DialectSet`]; this module is the
-//! **other** direction, and it is total: an `available` row is projected
+//! loader already does; this module is the **other** direction, and it is
+//! total: an `available` row is projected
 //! onto exactly the fields `dialects` and `required_package` feed, so a
 //! command body spelled either way loads to a byte-equal
 //! [`CommandSpec`](tcl_registry::spec::CommandSpec). `tcl spec upgrade`'s
 //! U2 rewrite and the round-trip tests beside it are the proof.
 //!
-//! ## What 1.x cannot hold
+//! ## What the projection still cannot hold
 //!
-//! Two things a 2.0 row can say have no `DialectSet` home, and both are
-//! reported rather than silently widened:
+//! A **per-package window**. `required_package` is a bare name, so
+//! `{package Tk 8.5-8.6}` carries the name and reports that the window is
+//! not representable yet.
 //!
-//! - **Jim.** `DialectSet` has no Jim bit (the family axis lands with the
-//!   jim branch), so `available {jim 0.78-}` contributes no bit. A row
-//!   naming only Jim providers therefore yields the *empty* set — the
-//!   command is gated off — rather than `None`, which would read as
-//!   "available everywhere".
-//! - **A per-package window.** `required_package` is a bare name, so
-//!   `{package Tk 8.5-8.6}` carries the name and reports that the window
-//!   is not representable yet.
+//! Jim used to be the other one: the retired `DialectSet` had no Jim bit,
+//! so `available {jim 0.78-}` contributed nothing and the command was
+//! gated off. A row names its family directly now (Q13), so a Jim window
+//! projects exactly as a Tcl one does.
 
+use tcl_dialect::model::{SpecWindow};
 use std::sync::LazyLock;
 
-use tcl_dialect::DialectSet;
 use tcl_dialect::model::{Family, Release, Version, VersionAxisId, VersionSet};
 
 use super::{Log, Stmt, leak_str, list_words};
+use tcl_dialect::model::{SpecSurface};
 
 /// What one `available` row set translates to in the 1.x fields.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub(super) struct Availability {
     /// The projected dialect set, `None` when no row parsed (the same
     /// "said nothing" answer [`super::parse_dialects`] gives).
-    pub(super) dialects: Option<DialectSet>,
+    pub(super) surface: Option<&'static [SpecSurface]>,
     /// The package a `{package NAME}` row requires, when the name is not
     /// one the 1.x dialect bits already cover.
     pub(super) required_package: Option<&'static str>,
@@ -84,7 +82,7 @@ const PROVIDERS: &[&str] = &["tcl", "f5-irules", "jim", "package"];
 ///
 /// This is the exact inverse of `tcl spec upgrade`'s U2 rule `tk` →
 /// `{package Tk}`, and it is what makes the two spellings byte-equal.
-const PACKAGE_DIALECT_BITS: &[(&str, DialectSet)] = &[("Tk", DialectSet::TK)];
+const PACKAGE_DIALECT_SURFACES: &[(&str, &[SpecSurface])] = &[("Tk", SpecSurface::TK)];
 
 /// The **environment-derived** half of the same table (upgrade spec U3):
 /// each compiled environment whose surface is one ambient package and
@@ -96,12 +94,13 @@ const PACKAGE_DIALECT_BITS: &[(&str, DialectSet)] = &[("Tk", DialectSet::TK)];
 /// environment-membership token, and this projection carries the answer
 /// back onto the closed 1.x bit vocabulary. Derived, not hand-written, so
 /// a seeded environment cannot drift from its own translation.
-static ENVIRONMENT_PACKAGE_BITS: LazyLock<Vec<(String, DialectSet)>> = LazyLock::new(|| {
+static ENVIRONMENT_PACKAGE_SURFACES: LazyLock<Vec<(String, &'static [SpecSurface])>> =
+    LazyLock::new(|| {
     tcl_dialect::model::compiled_definitions()
         .into_iter()
         .filter(|definition| definition.core.is_some())
         .filter_map(|definition| {
-            let bit = crate::catalogue::dialect_bit(definition.id.as_str())?;
+            let bit = crate::catalogue::dialect_surface(definition.id.as_str())?;
             let ambient: Vec<_> = definition
                 .expected_packages
                 .iter()
@@ -116,13 +115,13 @@ static ENVIRONMENT_PACKAGE_BITS: LazyLock<Vec<(String, DialectSet)>> = LazyLock:
 });
 
 /// The 1.x dialect bit standing behind `package`, when one does.
-pub(crate) fn package_bit(package: &str) -> Option<DialectSet> {
-    PACKAGE_DIALECT_BITS
+pub(crate) fn package_surface(package: &str) -> Option<&'static [SpecSurface]> {
+    PACKAGE_DIALECT_SURFACES
         .iter()
         .find(|(name, _)| *name == package)
         .map(|(_, bit)| *bit)
         .or_else(|| {
-            ENVIRONMENT_PACKAGE_BITS
+            ENVIRONMENT_PACKAGE_SURFACES
                 .iter()
                 .find(|(name, _)| name == package)
                 .map(|(_, bit)| *bit)
@@ -153,7 +152,7 @@ pub(super) fn from_texts(words: &[String], line: u32, log: &mut Log) -> Availabi
         log.say(line, "`available` needs at least one `{PROVIDER …}` row");
         return Availability::default();
     }
-    let mut set = DialectSet::empty();
+    let mut rows: Vec<SpecSurface> = Vec::new();
     let mut required_package = None;
     let mut parsed_any = false;
     for row in split_rows(words) {
@@ -161,7 +160,7 @@ pub(super) fn from_texts(words: &[String], line: u32, log: &mut Log) -> Availabi
             continue;
         };
         parsed_any = true;
-        set |= row.bits;
+        rows.extend(row.surface);
         if let Some(name) = row.package {
             match required_package {
                 None => required_package = Some(name),
@@ -177,7 +176,7 @@ pub(super) fn from_texts(words: &[String], line: u32, log: &mut Log) -> Availabi
         }
     }
     Availability {
-        dialects: parsed_any.then_some(set),
+        surface: parsed_any.then(|| &*Box::leak(rows.into_boxed_slice())),
         required_package,
     }
 }
@@ -207,9 +206,9 @@ fn split_rows(words: &[String]) -> Vec<Vec<String>> {
     words.iter().map(|word| list_words(word)).collect()
 }
 
-/// One parsed provider row, in the 1.x fields it feeds.
+/// One parsed provider row, in the spec fields it feeds.
 struct Row {
-    bits: DialectSet,
+    surface: Vec<SpecSurface>,
     package: Option<&'static str>,
 }
 
@@ -228,7 +227,7 @@ fn parse_row(words: &[String], line: u32, log: &mut Log) -> Option<Row> {
                 );
             }
             Some(Row {
-                bits: DialectSet::IRULES,
+                surface: SpecSurface::IRULES.to_vec(),
                 package: None,
             })
         }
@@ -261,40 +260,43 @@ fn parse_row(words: &[String], line: u32, log: &mut Log) -> Option<Row> {
     }
 }
 
-/// `tcl RANGE` / `jim RANGE` — a window on a core family's ladder,
-/// projected onto the release bits it covers.
+/// `tcl RANGE` / `jim RANGE` — a window on a core family's ladder.
 fn core_row(family: Family, rest: &[String], line: u32, log: &mut Log) -> Option<Row> {
     let window = window_of(VersionAxisId::core(family), rest, line, log)?;
-    let mut bits = DialectSet::empty();
-    let mut unrepresentable = Vec::new();
-    for release in family.releases() {
-        let Ok(version) = Version::parse(release.as_str()) else {
-            continue;
-        };
-        if !window.contains(&version) {
-            continue;
-        }
-        match release_bit(*release) {
-            Some(bit) => bits |= bit,
-            None => unrepresentable.push(release.as_str()),
-        }
-    }
-    if !unrepresentable.is_empty() {
+    // The ladder releases the window covers, as one row per contiguous run
+    // — the same shape a compiled spec writes by hand.
+    let covered: Vec<&str> = family
+        .releases()
+        .iter()
+        .map(|release| release.as_str())
+        .filter(|release| {
+            Version::parse(release).is_ok_and(|version| window.contains(&version))
+        })
+        .collect();
+    if covered.is_empty() {
         log.say(
             line,
             format!(
-                "`available {{{} …}}` covers {} — the {} family has no SpecTcl 1.x dialect \
-                 bit, so the window narrows availability to nothing rather than widening it",
+                "`available {{{} …}}` covers no release of the {} ladder; the row is dropped",
                 family.name(),
-                unrepresentable.join(", "),
                 family.name()
             ),
         );
+        return None;
     }
+    let windows: Vec<SpecWindow> = covered
+        .iter()
+        .map(|release| (leak_str(release), None))
+        .collect();
     Some(Row {
-        bits,
+        surface: vec![SpecSurface::core_in(family, leak_windows(windows))],
         package: None,
     })
+}
+
+/// Intern a window list for the process lifetime, for the same reason.
+fn leak_windows(windows: Vec<SpecWindow>) -> &'static [SpecWindow] {
+    Box::leak(windows.into_boxed_slice())
 }
 
 /// `package NAME ?RANGE?`.
@@ -317,14 +319,14 @@ fn package_row(rest: &[String], line: u32, log: &mut Log) -> Option<Row> {
             ),
         );
     }
-    if let Some(bit) = package_bit(name) {
+    if let Some(rows) = package_surface(name) {
         return Some(Row {
-            bits: bit,
+            surface: rows.to_vec(),
             package: None,
         });
     }
     Some(Row {
-        bits: DialectSet::empty(),
+        surface: Vec::new(),
         package: Some(leak_str(name)),
     })
 }
@@ -370,14 +372,3 @@ fn window_of(
     }
 }
 
-/// The 1.x dialect bit of one ladder release, when the release has one.
-fn release_bit(release: Release) -> Option<DialectSet> {
-    let name = match release.family() {
-        Family::Tcl => format!("tcl{}", release.as_str()),
-        Family::F5Irules => "f5-irules".to_owned(),
-        // The `f5-tcl` trunk has no 1.x dialect bit of its own — the 1.x
-        // catalogue never modelled the shared fork (measurements §4a).
-        Family::F5Tcl | Family::Jim => return None,
-    };
-    crate::catalogue::dialect_bit(&name)
-}

@@ -26,6 +26,7 @@
 // TIP 631 landing for the 9.0 release.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "ledit listVar first last ?value value ...?",
@@ -64,7 +65,7 @@ pub fn spec() -> CommandSpec {
             | Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED,
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         arity: Arity::at_least(3),
         assigns_variable_at: Some(0),
         arg_roles: &[(0, ArgRole::VarWrite)],

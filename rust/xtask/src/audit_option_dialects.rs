@@ -836,7 +836,7 @@ fn run_check() -> ExitCode {
     let findings = cross_check();
     if findings.is_empty() {
         println!(
-            "audit-option-dialects: OK ({} probed options all declared in the \
+            "audit-option-surface: OK ({} probed options all declared in the \
              registry, {} tracked gap(s))",
             PROBES.len(),
             KNOWN_UNSPECIFIED.len()
@@ -845,7 +845,7 @@ fn run_check() -> ExitCode {
     }
     let report: Vec<String> = findings.iter().map(Finding::describe).collect();
     eprintln!(
-        "audit-option-dialects: {} audit↔registry disagreement(s). The dialect \
+        "audit-option-surface: {} audit↔registry disagreement(s). The dialect \
          audit and the registry must describe the same option surface — an \
          option the audit probes but the registry never declares is invisible \
          to completion, hover, and the arity check (issue #1396, `fconfigure \
@@ -940,7 +940,7 @@ fn require_all_tclsh_built(root: &Path) -> Result<()> {
         return Ok(());
     }
     bail!(
-        "audit-option-dialects: missing reference tclsh for {} — run `make \
+        "audit-option-surface: missing reference tclsh for {} — run `make \
          ensure-test-deps` to build the full reference-interpreter matrix, or \
          set AUDIT_ALLOW_MISSING_TCLSH=1 to run the audit anyway with a \
          degenerate column for the missing tree(s).",

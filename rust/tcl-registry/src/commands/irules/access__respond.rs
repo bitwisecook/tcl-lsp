@@ -18,10 +18,11 @@
 
 //! `ACCESS::respond` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ACCESS::respond",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "This command generates new respond and automatically overrides the default respond.",
@@ -52,7 +53,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-ifile",
                     value: OptionValue::flag(),
                     detail: "Option -ifile.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -61,7 +62,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-content",
                     value: OptionValue::value(""),
                     detail: "Option -content.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,

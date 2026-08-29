@@ -18,10 +18,11 @@
 
 //! `llookup` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "llookup",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {
             summary: "Returns a list of values corresponding to the given key in a multimap.",

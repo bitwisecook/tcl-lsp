@@ -27,6 +27,7 @@ use tcl_registry::{
 };
 
 use crate::util::repo_root;
+use tcl_dialect::model::{SpecSurface};
 
 const SEED_PATH: &str = "docs/references/command-spec/callback-surface-catalogue.json";
 const JSON_PATH: &str = "docs/generated/callback-surfaces.json";
@@ -97,7 +98,7 @@ pub fn run(check: bool) -> Result<ExitCode> {
     let mut rows = discover_registry_rows()?;
     validate_seed(&seed.rows)?;
     rows.extend(seed.rows);
-    rows.sort_by(|a, b| a.id.cmp(&b.id).then(a.dialects.cmp(&b.dialects)));
+    rows.sort_by(|a, b| a.id.cmp(&b.id).then(a.surface.cmp(&b.surface)));
     reject_duplicate_ids(&rows)?;
 
     let json = format!("{}\n", serde_json::to_string_pretty(&rows)?);
@@ -133,7 +134,7 @@ fn discover_registry_rows() -> Result<Vec<InventoryRow>> {
     Ok(rows
         .into_values()
         .map(|mut row| {
-            row.id = format!("{}@{}", row.id, row.dialects.join("+"));
+            row.id = format!("{}@{}", row.id, row.surface.join("+"));
             row
         })
         .collect())
@@ -185,7 +186,7 @@ fn collect_spec(
         &forms,
     )?;
     for form in spec.command_forms {
-        if !visible_in(form.dialects, dialect) {
+        if !visible_in(form.surface, dialect) {
             continue;
         }
         let form_owner = format!("{registered_name} form {}", form.name);
@@ -216,7 +217,7 @@ fn collect_spec(
     }
 
     for sub in spec.subcommands {
-        if !visible_in(sub.dialects, dialect) {
+        if !visible_in(sub.surface, dialect) {
             continue;
         }
         let sub_owner = format!("{registered_name} {}", sub.name);
@@ -258,7 +259,7 @@ fn collect_spec(
             &sub_forms,
         )?;
         for form in sub.subcommand_forms {
-            if !visible_in(form.dialects, dialect) {
+            if !visible_in(form.surface, dialect) {
                 continue;
             }
             let form_owner = format!("{sub_owner} form {}", form.name);
@@ -292,7 +293,7 @@ fn collect_spec(
 
     if let Some(class) = spec.object_class {
         for method in class.instance_methods {
-            if !visible_in(method.dialects, dialect) {
+            if !visible_in(method.surface, dialect) {
                 continue;
             }
             let method_owner = format!("{registered_name} instance {}", method.name);
@@ -334,7 +335,7 @@ fn collect_spec(
                 &method_forms,
             )?;
             for form in method.subcommand_forms {
-                if !visible_in(form.dialects, dialect) {
+                if !visible_in(form.surface, dialect) {
                     continue;
                 }
                 let form_owner = format!("{method_owner} form {}", form.name);
@@ -479,7 +480,7 @@ fn collect_options(
     forms: &[String],
 ) -> Result<()> {
     for option in options {
-        if !visible_in(option.dialects, dialect) {
+        if !visible_in(option.surface, dialect) {
             continue;
         }
         let Some((kind, timing, appended, taint)) = classify_option(option) else {
@@ -633,24 +634,26 @@ fn insert_row(
     // separate row and remains visible in the report.
     let key = serde_json::to_string(&candidate)?;
     if let Some(existing) = rows.get_mut(&key) {
-        if !existing.dialects.iter().any(|item| item == dialect) {
-            existing.dialects.push(dialect.to_owned());
-            existing.dialects.sort();
+        if !existing.surface.iter().any(|item| item == dialect) {
+            existing.surface.push(dialect.to_owned());
+            existing.surface.sort();
         }
     } else {
-        candidate.dialects.push(dialect.to_owned());
+        candidate.surface.push(dialect.to_owned());
         rows.insert(key, candidate);
     }
     Ok(())
 }
 
-fn visible_in(dialects: Option<DialectSet>, profile_name: &str) -> bool {
-    // The retired `resolve_known(name).unwrap_or(plain_tcl).availability_mask`
-    // ingress, through the seam: the resolved environment's document
-    // authoring mask, which is that same mask for every name this
-    // projection passes (the catalogue ids plus `tk`).
-    dialects.is_none_or(|set| {
-        set.intersects(crate::environment::surface_mask_for_dialect(profile_name))
+fn visible_in(surface: Option<&'static [SpecSurface]>, profile_name: &str) -> bool {
+    // The resolved environment's document authoring point, through the seam
+    // — the same point for every name this projection passes (the catalogue
+    // ids plus `tk`).
+    surface.is_none_or(|rows| {
+        surface_admits(
+            rows,
+            Some(&crate::environment::surface_point_for_dialect(profile_name)),
+        )
     })
 }
 
@@ -830,7 +833,7 @@ fn render_markdown(rows: &[InventoryRow]) -> String {
             row.id.replace('|', "\\|"),
             row.kind,
             row.timing,
-            row.dialects.join(", "),
+            row.surface.join(", "),
             row.appended_arity.as_deref().unwrap_or("—"),
             taint,
             forms,

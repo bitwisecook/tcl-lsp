@@ -18,6 +18,7 @@
 
 //! `image` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
@@ -94,7 +95,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "image",
-        dialects: Some(DialectSet::TK_AND_TCL),
+        surface: Some(SpecSurface::TK_AND_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Create and manipulate images.",

@@ -18,10 +18,11 @@
 
 //! `RESOLV::lookup` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "RESOLV::lookup",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Deprecated: The commands for making a DNS lookup.",
@@ -41,7 +42,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-a",
                     value: OptionValue::flag(),
                     detail: "Query for type A (IPv4) records.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -50,7 +51,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-aaaa",
                     value: OptionValue::flag(),
                     detail: "Query for type AAAA (IPv6) records.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -59,7 +60,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-ptr",
                     value: OptionValue::flag(),
                     detail: "Query for PTR records.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -68,7 +69,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-txt",
                     value: OptionValue::flag(),
                     detail: "Query for TXT records.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -77,7 +78,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-mx",
                     value: OptionValue::flag(),
                     detail: "Query for MX records.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,

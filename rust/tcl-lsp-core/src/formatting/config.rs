@@ -35,9 +35,11 @@
 //! docstring knobs affect a plain format pass — only the explicit
 //! generate-docstring action.
 
+use tcl_dialect::model::SurfaceQuery;
 use tcl_dialect::DialectProfile;
 use tcl_lexer::LexerConfig;
 use tcl_registry::prelude::DialectSet;
+use tcl_dialect::model::{SpecSurface};
 
 /// Where to place opening braces.  Only K&R is supported (the F5
 /// style-guide default); the enum exists so the field can grow.
@@ -258,7 +260,7 @@ pub struct FormatterConfig {
     ///
     /// The formatter needs three dialect-derived facts: the lexer preset it
     /// tokenises with ([`Self::lexer_config`]), the availability mask that
-    /// filters per-release rewrite candidates ([`Self::dialect_bits`]), and
+    /// filters per-release rewrite candidates ([`Self::dialect_query`]), and
     /// the release range a rewrite must stay correct across
     /// ([`Self::target_range`]). All three are pure projections of this
     /// profile and are derived from it here, so a caller can no longer set a
@@ -280,7 +282,7 @@ pub struct FormatterConfig {
     /// release and run on a later one needs. Set this only for a document
     /// that must *also* keep working on a release the profile does not
     /// imply — a backward range no single profile can express.
-    pub target_range_override: Option<DialectSet>,
+    pub target_range_override: Option<&'static [&'static str]>,
 }
 
 impl Default for FormatterConfig {
@@ -385,12 +387,8 @@ impl FormatterConfig {
     /// was declared, so every keyword the handed registry declares stays a
     /// rewrite candidate (the pre-#1257 conservative direction).
     #[must_use]
-    pub fn dialect_bits(&self) -> Option<DialectSet> {
-        if self.profile.is_fallback() {
-            None
-        } else {
-            Some(crate::document_context_for_profile(self.profile).authoring_mask())
-        }
+    pub fn dialect_query(&self) -> Option<SurfaceQuery<'static>> {
+        (!self.profile.is_fallback()).then(|| self.profile.surface_query())
     }
 
     /// The range of releases a rewrite must stay correct across: the explicit
@@ -403,7 +401,7 @@ impl FormatterConfig {
     /// candidates. A vendor dialect that names no core release (`f5-irules`)
     /// yields the empty range — the handed registry is then the whole story.
     #[must_use]
-    pub fn target_range(&self) -> DialectSet {
+    pub fn target_range(&self) -> &'static [&'static str] {
         self.target_range_override
             .unwrap_or_else(|| tcl_registry::version_range::forward_range(self.profile.name))
     }
@@ -450,7 +448,7 @@ mod tests {
         // — `{*}` expansion off, so `{*}` stays a literal braced word.
         assert!(cfg.lexer_config().irules_brace_separator);
         assert!(!cfg.lexer_config().expand_syntax);
-        assert_eq!(cfg.dialect_bits(), Some(DialectSet::IRULES));
+        assert_eq!(cfg.dialect_query(), Some(SpecSurface::IRULES));
         // `f5-irules` names its own runtime, not a core release: no forward
         // range to widen an abbreviation over.
         assert!(cfg.target_range().is_empty());
@@ -474,7 +472,7 @@ mod tests {
         let cfg = FormatterConfig::for_profile(
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
-        assert_eq!(cfg.dialect_bits(), Some(DialectSet::TCL86));
+        assert_eq!(cfg.dialect_query(), Some(SpecSurface::TCL86));
         assert_eq!(
             tcl_registry::version_range::core_releases_in(cfg.target_range()),
             vec!["tcl8.6", "tcl9.0", "tcl9.1"]
@@ -492,7 +490,7 @@ mod tests {
         assert!(!cfg.lexer_config().irules_brace_separator);
         // No dialect declared, so no candidate filter and no range — the
         // conservative direction, unchanged from before #1465.
-        assert_eq!(cfg.dialect_bits(), None);
+        assert_eq!(cfg.dialect_query(), None);
         assert!(cfg.target_range().is_empty());
         assert_eq!(cfg.line_ending, LINE_ENDING_AUTO);
     }
@@ -502,7 +500,7 @@ mod tests {
         // A document that must also keep working on an *older* release than
         // its own names a range no profile implies.
         let cfg = FormatterConfig {
-            target_range_override: Some(DialectSet::TCL86 | DialectSet::TCL90),
+            target_range_override: Some(SpecSurface::TCL86 | SpecSurface::TCL90),
             ..FormatterConfig::for_profile(
                 tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             )
@@ -512,7 +510,7 @@ mod tests {
             vec!["tcl8.6", "tcl9.0"]
         );
         // The rest of the dialect still follows the profile.
-        assert_eq!(cfg.dialect_bits(), Some(DialectSet::TCL90));
+        assert_eq!(cfg.dialect_query(), Some(SpecSurface::TCL90));
     }
 
     #[test]

@@ -18,10 +18,11 @@
 
 //! `tcltest::restoreState` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcltest::restoreState",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::exact(0),
         hover: Some(HoverSnippet {
             summary: "Restore interpreter state saved by ``saveState``.",

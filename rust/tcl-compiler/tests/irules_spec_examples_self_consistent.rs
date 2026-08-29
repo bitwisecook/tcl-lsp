@@ -36,6 +36,7 @@ use tcl_core_types::{DiagCode, Severity};
 use tcl_dialect::DialectSet;
 use tcl_registry::model::ingress::static_context_for;
 use tcl_registry::{events::EventRegistry, profiles::ProfileRegistry};
+use tcl_dialect::model::{SpecSurface};
 
 /// Every IRULE1001 diagnostic raised against `command` in `source`.
 fn invalidity_diagnostics_for(source: &str, command: &str) -> Vec<String> {
@@ -68,7 +69,7 @@ fn irules_documented_examples_do_not_violate_their_own_event_contract() {
         let Some(spec) = registry.get(name) else {
             continue;
         };
-        if !spec.supports_dialect(DialectSet::IRULES) {
+        if !spec.supports_dialect(SpecSurface::IRULES) {
             continue;
         }
         let Some(example) = spec.hover.as_ref().map(|hover| hover.examples) else {

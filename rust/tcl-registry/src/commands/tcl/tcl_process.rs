@@ -33,6 +33,7 @@
 //! qualified spellings.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "tcl::process subcommand ?arg ...?",
@@ -63,7 +64,7 @@ fn make_spec(name: &'static str) -> CommandSpec {
         // `process`-named registration of their own (grepped each
         // `commands/<dialect>/` directory — no matches). `bpf` is the
         // one profile whose `availability_mask` does reach Tcl 9.0
-        // (`DialectSet::TCL90.union(DialectSet::BPF)` — a genuine
+        // (`surface![SpecSurface::core_in(Family::Tcl, &[("9.0", Some("9.1"))]), SpecSurface::package("bpf")]` — a genuine
         // embedded Tcl 9.0 core), so this spec's `TCL90_PLUS` gate
         // intersects it and `tcl::process` resolves there today — just as
         // the sandbox-banned `exec`/`open`/`socket` (each now `ALL_TCL`,
@@ -73,7 +74,7 @@ fn make_spec(name: &'static str) -> CommandSpec {
         // exec facility of its own. That gap predates this spec and
         // spans more than one command, so it is left alone here rather
         // than narrowed unilaterally for `tcl::process` alone.
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         // BYTE_COMPILED follows this codebase's convention (see
         // `traits.rs`'s doc comment): "recognised core builtin", not
         // literal bytecode compilation of the ensemble head itself. Its
@@ -134,7 +135,7 @@ static STATUS_OPTIONS: [OptionSpec; 2] = [
         name: "-wait",
         value: OptionValue::flag(),
         detail: "Block until status is available for pids (or, if pids is omitted, for every tracked subprocess) instead of polling once and returning immediately.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -143,7 +144,7 @@ static STATUS_OPTIONS: [OptionSpec; 2] = [
         name: "--",
         value: OptionValue::flag(),
         detail: "Marks the end of switches; the following argument is treated as pids even if it starts with -.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,

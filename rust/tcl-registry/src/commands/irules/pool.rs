@@ -18,11 +18,12 @@
 
 //! `pool` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "pool",
         traits: Traits::DIAGRAM_ACTION,
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         // The optional member form includes the literal `member` selector:
         // `pool POOL member ADDRESS PORT`.  It is therefore four words after
         // the command name, not three.

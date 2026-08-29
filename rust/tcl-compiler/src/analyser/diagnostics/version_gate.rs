@@ -59,6 +59,7 @@
 //!
 //! [`ArgValue::min_tcl`]: tcl_registry::ArgValue
 
+use tcl_dialect::model::{SpecProvider, Family};
 use tcl_core_types::DiagCode;
 use tcl_lexer::{Span, Token, TokenType};
 use tcl_registry::deprecation::{
@@ -69,6 +70,7 @@ use tcl_registry::lifecycle::{Lifecycle, LifecycleState};
 
 use super::super::state::Analyser;
 use super::super::types::{Diagnostic, Severity};
+use tcl_dialect::model::{SpecSurface};
 
 /// A lifecycle-bearing registry use, recorded during the walk and checked
 /// post-walk against its package or core-Tcl version floor.
@@ -493,7 +495,11 @@ impl Analyser {
             .or_else(|| spec.owning_package())
             .map(VersionGateAxis::Package)
             .or_else(|| {
-                spec.supports_dialect(DialectSet::ALL_TCL)
+                spec.surface
+                    .is_none_or(|rows| {
+                        rows.iter()
+                            .any(|row| row.provider == SpecProvider::Core(Family::Tcl))
+                    })
                     .then_some(VersionGateAxis::TclCore)
             })
     }
@@ -563,7 +569,7 @@ impl Analyser {
             };
             // §5.4 range mode: the subcommand's inherited mask gate
             // across the declared core targets.
-            self.record_range_gate_site(span, &item, sub.dialects.or(spec.dialects));
+            self.record_range_gate_site(span, &item, sub.surface.or(spec.surface));
             self.record_lifecycle_site(span, invocation.axis, sub.lifecycle, item, payload);
         }
         if sub_is_literal && !sub.sub_subcommands.is_empty() {
@@ -687,7 +693,7 @@ impl Analyser {
         invocation: LifecycleInvocation<'_>,
         options: &[tcl_registry::hover::OptionSpec],
         start_idx: usize,
-        parent_gate: Option<DialectSet>,
+        parent_gate: Option<&'static [SpecSurface]>,
     ) {
         let mut i = start_idx;
         while i < invocation.args.len() {
@@ -721,7 +727,7 @@ impl Analyser {
                     };
                     // §5.4 range mode: the option's inherited mask gate
                     // across the declared core targets.
-                    self.record_range_gate_site(span, &item, opt.dialects.or(parent_gate));
+                    self.record_range_gate_site(span, &item, opt.surface.or(parent_gate));
                     self.record_lifecycle_site(span, invocation.axis, opt.lifecycle, item, payload);
                 }
                 i += 1 + opt.value_word_count(invocation.args, i);
@@ -798,7 +804,7 @@ impl Analyser {
             self.record_range_gate_site(
                 span,
                 &VersionGateItem::Command(cmd_name.to_owned()),
-                spec.dialects,
+                spec.surface,
             );
         }
 
@@ -825,8 +831,8 @@ impl Analyser {
             self.record_subcommand_version_sites(invocation, spec, sub);
         }
         let (options, start_idx, parent_gate) = match sub_match {
-            Some(sub) => (sub.options, 1usize, sub.dialects.or(spec.dialects)),
-            None => (spec.options, 0usize, spec.dialects),
+            Some(sub) => (sub.options, 1usize, sub.surface.or(spec.surface)),
+            None => (spec.options, 0usize, spec.surface),
         };
         if options.is_empty() {
             return;
@@ -934,7 +940,7 @@ impl Analyser {
         &mut self,
         span: Span,
         item: &VersionGateItem,
-        gate: Option<DialectSet>,
+        gate: Option<&'static [SpecSurface]>,
     ) {
         let Some(context) = self.range_context.as_ref() else {
             return;
@@ -943,7 +949,7 @@ impl Analyser {
             return;
         };
         let requires = gate
-            .and_then(tcl_dialect::DialectSet::min_version)
+            .and_then(tcl_registry::model::core_tcl_floor)
             .map(|version| version.as_package_version().to_owned());
         self.range_gate_sites.push(RangeGateSite {
             span,

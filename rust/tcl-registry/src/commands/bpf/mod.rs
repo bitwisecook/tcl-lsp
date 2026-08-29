@@ -116,7 +116,7 @@ mod tests {
         ] {
             assert!(names.contains(&n), "missing `{n}`");
         }
-        assert!(specs.iter().all(|s| s.dialects == Some(DialectSet::BPF)));
+        assert!(specs.iter().all(|s| s.surface == Some(SpecSurface::BPF)));
     }
 
     #[test]

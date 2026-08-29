@@ -18,10 +18,11 @@
 
 //! `X509::cert_fields` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "X509::cert_fields",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Returns a list of X509 certificate fields to be added to HTTP headers for ModSSL behavior.",

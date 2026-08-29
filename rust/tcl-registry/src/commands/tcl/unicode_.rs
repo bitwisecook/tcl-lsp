@@ -43,6 +43,7 @@
 //! command.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "unicode function ?options? string",
@@ -79,7 +80,7 @@ static PROFILE_OPTIONS: [OptionSpec; 1] = [OptionSpec {
         ..OptionArg::DEFAULT
     }),
     detail: "Profile controlling how the command reacts to invalid or ill-formed Unicode data in string; must be strict or replace, defaulting to strict when omitted.",
-    dialects: None,
+    surface: None,
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
@@ -146,7 +147,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "unicode",
         traits: Traits::BYTE_COMPILED | Traits::CSE_CANDIDATE,
-        dialects: Some(DialectSet::TCL91),
+        surface: Some(SpecSurface::TCL91),
         arity: Arity::at_least(1),
         subcommands: &SUBCOMMANDS,
         return_type: Some(TclType::String),

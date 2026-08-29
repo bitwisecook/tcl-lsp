@@ -18,6 +18,9 @@
 
 //! `lsort` — sort a list.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
+use tcl_dialect::model::Family;
 
 /// Option table for `lsort` (all 12 documented switches). Cross-checked
 /// against the TclCmd/lsort manpages for Tcl 8.4, 8.5, 8.6, 9.0, and 9.1
@@ -45,7 +48,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-ascii",
         value: OptionValue::flag(),
         detail: "Compare using Unicode code-point (raw string) order — the default. The flag name is a holdover from Tcl's original ASCII-only implementation; it is not restricted to ASCII text.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -54,7 +57,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-dictionary",
         value: OptionValue::flag(),
         detail: "Dictionary-style comparison: like -ascii but case-insensitive except as a tie-breaker, and embedded numbers compare as integers rather than character-by-character (bigBoy sorts between bigbang and bigboy; x10y sorts between x9y and x11y). Takes precedence over -nocase.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -63,7 +66,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-integer",
         value: OptionValue::flag(),
         detail: "Convert each element to an integer and compare numerically; an element that doesn't convert is an error.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -72,7 +75,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-real",
         value: OptionValue::flag(),
         detail: "Convert each element to a floating-point value and compare numerically; an element that doesn't convert is an error.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -83,7 +86,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Case-insensitive comparison. Only affects -ascii comparisons — has no effect combined with -dictionary, -integer, or -real.",
         // Added to `lsort` in Tcl 8.5 (absent from the 8.4 manpage's
         // option list).
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -92,7 +95,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-increasing",
         value: OptionValue::flag(),
         detail: "Sort in increasing order, smallest items first (the default).",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -101,7 +104,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-decreasing",
         value: OptionValue::flag(),
         detail: "Sort in decreasing order, largest items first.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -111,7 +114,7 @@ const OPTIONS: &[OptionSpec] = &[
         value: OptionValue::flag(),
         detail: "Return the sorted positions (indices) into list instead of the elements themselves.",
         // Added to `lsort` in Tcl 8.5.
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -120,7 +123,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-unique",
         value: OptionValue::flag(),
         detail: "Retain only the last element of each run of duplicates in the sorted result. Duplicates are determined by the comparison in use — e.g. with -index 0, {1 a} and {1 b} count as duplicates and only {1 b} is kept.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -132,7 +135,7 @@ const OPTIONS: &[OptionSpec] = &[
         // additional arguments").
         value: OptionValue::command_prefix_n("cmdPrefix", AppendedArity::Exactly(2)),
         detail: "Use cmdPrefix as the comparator: invoked with the two elements being compared appended as additional arguments, and must return an integer less than, equal to, or greater than zero if the first is respectively less than, equal to, or greater than the second. lsort is reentrant, so cmdPrefix may itself call lsort.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -141,7 +144,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-index",
         value: OptionValue::value("indexList"),
         detail: "Sort by the sub-element at indexList within each list element (itself treated as a sublist, unless -stride is also given) instead of the whole element; indexList accepts end/end-N and, since Tcl 8.5, may itself be a list of indices for nested sublist access (as if passed to lindex). Combined with -stride, the index is relative to each group. Much more efficient than an equivalent -command comparator.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -156,7 +159,7 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "Treat list as consecutive groups of strideLength elements (strideLength must be at least 2, and list's length a multiple of it), keeping each group's element order fixed while sorting whole groups by their first element, or by the -index'th element within each group when -index is also given.",
         // Added to `lsort` in Tcl 8.6 (TIP 326 — TIP 351 is `lsearch`'s
         // later, 9.0+ `-stride`, not this one).
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -173,7 +176,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lsort",
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
         // NOT `Traits::PURE` / `Traits::CSE_CANDIDATE`: unlike `lsearch`
         // (which has no comparator option), `-command cmdPrefix` lets a
         // call site name an arbitrary command that runs with the

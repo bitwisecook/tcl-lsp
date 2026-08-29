@@ -345,7 +345,7 @@ fn command_span_at(
                 written: command.name(),
                 resolved: &semantic_head,
             };
-            let availability = crate::document_context_for_profile(profile).authoring_mask();
+            let availability = Some(crate::document_context_for_profile(profile).authoring_query());
             let body_indices = definition_grammar
                 .filter(|grammar| grammar.is_member(head.written))
                 .map_or_else(

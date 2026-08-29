@@ -18,10 +18,11 @@
 
 //! `CRYPTO::keygen` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "CRYPTO::keygen",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Generates keys that can be used to encrypt and sign data.",
@@ -41,7 +42,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-alg",
                     value: OptionValue::value("ALG"),
                     detail: "Key generation algorithm.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -50,7 +51,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-len",
                     value: OptionValue::value("LENGTH"),
                     detail: "Key length (must be multiple of 8).",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -59,7 +60,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-exp",
                     value: OptionValue::value("EXPONENT"),
                     detail: "Exponent (for RSA).",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -68,7 +69,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-passphrase",
                     value: OptionValue::value("PASSPHRASE"),
                     detail: "Passphrase for key derivation.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -77,7 +78,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-salt",
                     value: OptionValue::value("SALT"),
                     detail: "Binary salt.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -86,7 +87,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-salthex",
                     value: OptionValue::value("SALT_HEX"),
                     detail: "Hex-encoded salt.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -95,7 +96,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-rounds",
                     value: OptionValue::value("ROUNDS"),
                     detail: "Rounds for PBKDF2.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,

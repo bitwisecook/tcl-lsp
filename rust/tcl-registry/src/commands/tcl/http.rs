@@ -27,6 +27,7 @@
 //! `commands/stdlib/http__*.rs`.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 /// Command spec for the `http` package identifier.
 pub fn spec() -> CommandSpec {
@@ -43,7 +44,7 @@ pub fn spec() -> CommandSpec {
         // bit and so never intersects the bare `IRULES` mask, rather than
         // relying on a disable list. iRules availability is fully explicit
         // per spec.
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         // Never actually invoked as a command (see the module doc
         // comment) — left unconstrained rather than modelling an
         // invocation shape that doesn't exist.

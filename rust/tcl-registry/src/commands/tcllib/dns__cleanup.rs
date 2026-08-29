@@ -26,7 +26,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "dns::cleanup",
-        dialects: None,
+        surface: None,
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Clean up resources associated with a DNS query.",

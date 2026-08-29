@@ -24,7 +24,7 @@
 // error page, not the broken-redirect gotcha), and the 8.4.20 source
 // tree's generic/tclCmdIL.c has no Tcl_LrepeatObjCmd at all — the
 // command was added in Tcl 8.5 (TIP 136), matching the
-// `dialects: Some(DialectSet::TCL85_PLUS)` gate below.
+// `surface: Some(SpecSurface::TCL85_PLUS)` gate below.
 //
 // Tcl 8.5's own synopsis and C implementation (8.5.19
 // generic/tclCmdIL.c) are stricter than every later release: the
@@ -82,16 +82,17 @@
 // gate via their additive vendor-bit composition — no dialect adds or
 // removes a form or option here.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[
     FormSpec {
         synopsis: "lrepeat count ?element ...?",
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         ..FormSpec::DEFAULT
     },
     FormSpec {
         synopsis: "lrepeat count element ?element ...?",
-        dialects: Some(DialectSet::TCL85),
+        surface: Some(SpecSurface::TCL85),
         ..FormSpec::DEFAULT
     },
 ];
@@ -114,7 +115,7 @@ pub fn spec() -> CommandSpec {
         // Added in Tcl 8.5 (TIP 136); absent from 8.4 and never
         // available in iRules (a genuine embedded Tcl 8.4.6) — see the
         // module comment above for the full version/dialect cross-check.
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         // The 8.6+ minimum (count alone, no elements). `Arity` has no
         // per-dialect axis, so this is a narrow gap for arity
         // diagnostics against code targeting Tcl 8.5 specifically,

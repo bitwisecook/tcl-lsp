@@ -26,12 +26,13 @@
 //! that sentinel as "continue the chain" rather than a packet decision. It is
 //! valid in every program type.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 pub fn spec() -> CommandSpec {
     const OP: BpfOpSpec = BpfOpSpec::verdict(BpfVerdictKind::Next, BpfProgTypeSet::ALL);
     CommandSpec {
         name: "next",
-        dialects: Some(DialectSet::BPF),
+        surface: Some(SpecSurface::BPF),
         arity: Arity::exact(0),
         bpf_op: Some(&OP),
         ..CommandSpec::DEFAULT

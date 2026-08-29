@@ -18,6 +18,7 @@
 
 //! `nextto` — invoke a specific class's implementation of the current method.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 /// `nextto` invokes a method implementation the registry cannot see into —
 /// an arbitrary, program-defined method body picked at runtime by the
@@ -60,7 +61,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "nextto",
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
         side_effects: SIDE_EFFECTS,

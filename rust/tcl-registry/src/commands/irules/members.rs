@@ -18,10 +18,11 @@
 
 //! `members` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "members",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Lists all members of a given pool for v10.x.x.",
@@ -40,7 +41,7 @@ pub const fn spec() -> CommandSpec {
                 name: "-list",
                 value: OptionValue::flag(),
                 detail: "Return as list instead of count.",
-                dialects: None,
+                surface: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,

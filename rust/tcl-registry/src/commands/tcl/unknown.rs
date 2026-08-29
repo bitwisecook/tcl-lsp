@@ -76,6 +76,7 @@
 //! underlying C/Tcl behaviour.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     // Identical synopsis in every fetched manpage, Tcl 8.4 through 9.1.
@@ -135,7 +136,7 @@ pub fn spec() -> CommandSpec {
         // intersection, with no subtractive disable list involved. See
         // `source_.rs`/`auto_load.rs`/`auto_execok.rs` for the identical
         // explicit-per-spec reasoning on their own specs.
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::CREATES_BARRIER
             | Traits::CREATES_DYNAMIC_BARRIER
             | Traits::OVERRIDABLE_LIBRARY_PROC

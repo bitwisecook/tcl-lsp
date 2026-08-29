@@ -1153,7 +1153,7 @@ pub fn existence_constant_branches(
     if frame.initial_global {
         aliased.extend(
             tcl_registry::special_vars::special_vars_for_dialect(
-                tcl_registry::special_vars::dialect_set_for_profile(registry.profile()),
+                Some(tcl_registry::special_vars::surface_query_for_profile(registry.profile())),
             )
             .map(|spec| spec.name.to_owned()),
         );

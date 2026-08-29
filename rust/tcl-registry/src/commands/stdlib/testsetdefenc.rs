@@ -18,10 +18,11 @@
 
 //! `testsetdefenc` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testsetdefenc",
-        dialects: Some(DialectSet::TCL8X),
+        surface: Some(SpecSurface::TCL8X),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Set the default encoding search directory (Tcl 8.4-8.6).",

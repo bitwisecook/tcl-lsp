@@ -25,10 +25,11 @@
 //! loaded (otherwise the iRules override shadows the Tcl spec
 //! with empty roles and the diagnostic silently stops firing).
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "close",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::new(1, 2),
         arg_roles: &[(0, ArgRole::Channel)],
         hover: Some(HoverSnippet {

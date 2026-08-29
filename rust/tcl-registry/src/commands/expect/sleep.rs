@@ -18,6 +18,7 @@
 
 //! `sleep` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "sleep seconds",
     ..FormSpec::DEFAULT
@@ -26,7 +27,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "sleep",
-        dialects: Some(DialectSet::EXPECT),
+        surface: Some(SpecSurface::EXPECT),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Pause execution for the specified number of seconds.",

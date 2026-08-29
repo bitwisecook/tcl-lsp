@@ -84,6 +84,8 @@
 //! taxonomy) applies inside embedded rule bodies exactly as it does in a
 //! standalone `.irul`.
 
+use tcl_dialect::model::{SurfaceLayer};
+use tcl_dialect::model::{surface_admits};
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::types::{ProcArgTrait, ProcDef};
 use tcl_compiler::analyser::{AnalysisResult, ClassHierarchy};
@@ -96,6 +98,9 @@ use crate::definition::utf16_len;
 use tcl_dialect::{DialectSet, NumberSyntax};
 use tcl_registry::definer::{DefinerFamily, DefinitionBodyGrammar, MemberKind};
 use tcl_registry::{CommandRegistry, InvocationArguments};
+use tcl_dialect::model::Family;
+use tcl_dialect::model::{SurfaceQuery};
+use tcl_dialect::model::{SpecSurface};
 
 /// Encoded semantic-tokens response.  The `data` array is
 /// the LSP packed integer encoding (5 ints per token: line
@@ -1555,7 +1560,7 @@ fn special_arg_kinds(
     object_collections: &ObjectClassMap,
     classes: Option<&ClassHierarchy>,
     document_floor: Option<crate::document_floor::DocumentFloor<'_>>,
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     extra_var_write: &FxHashMap<String, Vec<u32>>,
     extra_var_read: &FxHashMap<String, Vec<u32>>,
     extra_command: &FxHashMap<String, Vec<u32>>,
@@ -1625,7 +1630,7 @@ fn special_arg_kinds(
             .traits
             .contains(tcl_registry::Traits::DEFINES_PROCEDURE)
         && spec.definition_body.is_none()
-        && (!dialect.intersects(DialectSet::IRULES)
+        && (!surface_admits(SpecSurface::IRULES, dialect.as_ref())
             || matches!(
                 irules_declaration.as_ref(),
                 Some(tcl_registry::events::IrulesTopLevelDeclaration::Procedure { .. })
@@ -1896,7 +1901,7 @@ fn insert_oo_body_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     oo_grammar: Option<&'static DefinitionBodyGrammar>,
     arg_texts: &[&str],
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     let Some(grammar) = oo_grammar else {
@@ -1932,7 +1937,7 @@ fn insert_oo_member_overrides(
     head: &str,
     arg_texts: &[&str],
     base: usize,
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     if !crate::oo_body::is_member(grammar, head) {
@@ -2046,7 +2051,7 @@ fn insert_regex_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
     head: &str,
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     // Sub-tokenise only the *literal* fragments of the pattern word as regex:
@@ -2141,7 +2146,7 @@ fn insert_format_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
     head: &str,
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     let source_args = segmented_command_arguments(seg);
@@ -2246,7 +2251,7 @@ fn insert_option_and_subcommand_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
     head: &str,
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     let Some(spec) = registry.get(head) else {
@@ -2298,7 +2303,7 @@ fn insert_option_and_subcommand_overrides(
     if let Some(sub_text) = seg.texts.get(1)
         && let Some(sub) = spec.resolve_subcommand_for_dialect(sub_text, dialect)
     {
-        option_names.extend(sub.switch_names(None, spec.dialects));
+        option_names.extend(sub.switch_names(None, spec.surface));
         option_prefix_matching = sub.prefix_matching;
         collect_value_options(sub.options);
         if let Some(tok) = seg.argv.get(1) {
@@ -2576,7 +2581,7 @@ fn insert_object_method_overrides(
     object_collections: &ObjectClassMap,
     classes: Option<&ClassHierarchy>,
     document_floor: Option<crate::document_floor::DocumentFloor<'_>>,
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     let (Some(head_tok), Some(head_text), Some(method)) =
@@ -2634,7 +2639,7 @@ fn insert_object_method_overrides(
         let package_version = registry
             .get(cls)
             .and_then(|spec| document_floor.and_then(|floor| floor.for_spec(spec)));
-        registry.instance_method_at(cls, method, package_version, Some(dialect))
+        registry.instance_method_at(cls, method, package_version, dialect)
     }) {
         mark_method_word(seg, overrides);
         insert_registry_method_options(seg, method_sub, overrides);
@@ -2747,7 +2752,7 @@ fn collection_head_element_classes<'a>(
     let (cmd, args) = tcl_compiler::value_shapes::parse_command_substitution(head_text)?;
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
     let resolved =
-        registry.resolve_call(&cmd, &arg_refs, tcl_registry::dialects::DialectSet::empty())?;
+        registry.resolve_call(&cmd, &arg_refs, None)?;
     let ReturnElements::ElementOf { container_arg } = resolved.return_elements()? else {
         return None;
     };
@@ -3062,7 +3067,7 @@ fn insert_enum_value_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
     head: &str,
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     let Some(spec) = registry.get(head) else {
@@ -3158,7 +3163,7 @@ fn insert_enum_value_overrides(
 fn insert_oo_define_keyword_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     let Some(spec) = registry.get(seg.texts[0].as_str()) else {
@@ -3485,7 +3490,7 @@ fn insert_case_list_override(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
     resolved_head: &str,
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     // The clause-list shape is registry data (`CommandSpec::case_list`), so this
@@ -4998,7 +5003,7 @@ fn collect_script(
             ctx.classes,
             ctx.analysis
                 .map(|analysis| crate::document_floor::DocumentFloor::new(analysis, ctx.dialect)),
-            crate::document_context_for_profile(ctx.dialect).authoring_mask(),
+            Some(crate::document_context_for_profile(ctx.dialect).authoring_query()),
             ctx.extra_var_write,
             ctx.extra_var_read,
             ctx.extra_command,
@@ -5152,7 +5157,7 @@ fn merge_list_quoted_command_overrides(
         ctx.classes,
         ctx.analysis
             .map(|analysis| crate::document_floor::DocumentFloor::new(analysis, ctx.dialect)),
-        crate::document_context_for_profile(ctx.dialect).authoring_mask(),
+        Some(crate::document_context_for_profile(ctx.dialect).authoring_query()),
         ctx.extra_var_write,
         ctx.extra_var_read,
         ctx.extra_command,
@@ -6620,7 +6625,7 @@ mod tests {
 
     fn expect_reg() -> CommandRegistry {
         let mut registry = reg();
-        registry.load_dialect(DialectSet::EXPECT);
+        registry.load_surface(SurfaceLayer::Package("expect"));
         registry
     }
 
@@ -9754,7 +9759,7 @@ mod tests {
     #[test]
     fn event_name_classified_as_event() {
         let mut registry = CommandRegistry::build_default();
-        registry.load_dialect(tcl_dialect::DialectSet::IRULES);
+        registry.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         let ks = kinds(
             "when HTTP_REQUEST {\n  set x 1\n}\n",
             tcl_dialect::DialectProfile::irules(),
@@ -9769,7 +9774,7 @@ mod tests {
     #[test]
     fn malformed_when_body_does_not_classify_an_event_declaration() {
         let mut registry = CommandRegistry::build_default();
-        registry.load_dialect(tcl_dialect::DialectSet::IRULES);
+        registry.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         for source in [
             "when HTTP_REQUEST bare_body\n",
             "when HTTP_REQUEST \"quoted body\"\n",
@@ -9786,7 +9791,7 @@ mod tests {
     #[test]
     fn bigip_object_ref_token_in_irules_body() {
         let mut registry = CommandRegistry::build_default();
-        registry.load_dialect(tcl_dialect::DialectSet::IRULES);
+        registry.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         // `pool web_pool` inside a multi-line `when` body → `object`.
         for dialect in ["f5-irules", "irules", "tcl-irule"] {
             let ks = kinds(

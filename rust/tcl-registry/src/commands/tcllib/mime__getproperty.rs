@@ -26,7 +26,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "mime::getproperty",
-        dialects: None,
+        surface: None,
         arity: Arity::new(1, 2),
         hover: Some(HoverSnippet {
             summary: "Return a property of a MIME part.",

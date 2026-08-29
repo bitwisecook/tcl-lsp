@@ -286,8 +286,8 @@ pub fn signature_for_command(
                         )
                         .filter(|constraint| {
                             constraint.supports_dialect(
-                                Some(context.authoring_mask()),
-                                sub.dialects.or(spec.dialects),
+                                Some(context.authoring_query()),
+                                sub.surface.or(spec.surface),
                             )
                         })
                         .collect(),
@@ -335,7 +335,7 @@ pub fn signature_for_command(
                     .flat_map(|form| form.option_relations.iter()),
             )
             .filter(|constraint| {
-                constraint.supports_dialect(Some(context.authoring_mask()), spec.dialects)
+                constraint.supports_dialect(Some(context.authoring_query()), spec.surface)
             })
             .collect(),
         constraints_hook: spec.constraints,
@@ -371,11 +371,11 @@ pub fn signature_for_command_any_dialect(
                 .map(|(idx, role)| (*idx, *role))
                 .collect();
             let leading_options = sub
-                .switch_names(None, spec.dialects)
+                .switch_names(None, spec.surface)
                 .into_iter()
                 .map(str::to_string)
                 .collect();
-            let leading_option_specs = sub.option_specs(None, spec.dialects);
+            let leading_option_specs = sub.option_specs(None, spec.surface);
             subs.insert(
                 sub.name.to_string(),
                 CommandSig {

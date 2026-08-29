@@ -19,6 +19,9 @@
 //! `lindex` — retrieve an element from a list.
 use crate::hooks::InlineCodegenHookId;
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
+use tcl_dialect::model::Family;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "lindex list ?index ...?",
     ..FormSpec::DEFAULT
@@ -27,7 +30,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lindex",
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
         const_fold: Some(crate::const_fold::fold_lindex),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY

@@ -35,6 +35,7 @@ use tcl_lsp_core::source_style::StyleDiagnostic;
 /// idx 10 / idx 27. The CLI's own copy had additionally drifted from the
 /// server's by `exp` / `apl` (issue #1242).
 use tcl_registry::dialects::TCL_SOURCE_EXTENSIONS as SOURCE_SUFFIXES;
+use tcl_dialect::model::{SpecSurface};
 
 /// Directory names skipped during recursive discovery.
 const SKIP_DIRECTORY_NAMES: &[&str] = &[
@@ -476,8 +477,8 @@ mod tests {
         // from the resolved environment's document authoring mask.
         assert!(
             crate::environment::context_for_dialect("tk")
-                .authoring_mask()
-                .contains(DialectSet::TK)
+                .authoring_query()
+                .contains(SpecSurface::TK)
         );
     }
 

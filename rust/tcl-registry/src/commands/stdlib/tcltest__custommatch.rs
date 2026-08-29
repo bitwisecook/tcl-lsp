@@ -18,6 +18,7 @@
 
 //! `tcltest::customMatch` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 fn custom_match_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
     (args.len() >= 2)
@@ -28,7 +29,7 @@ fn custom_match_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcltest::customMatch",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {
             summary: "Register a custom matching command for test results.",

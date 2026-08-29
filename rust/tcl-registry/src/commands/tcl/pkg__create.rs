@@ -36,22 +36,22 @@ pub fn spec() -> CommandSpec {
         // text identical too except one wording nuance: -load's target is
         // documented as "a binary library" on 8.4-8.6 and "a library" (the
         // word "binary" dropped, no other change) on 9.0-9.1 — plain
-        // prose in the hover snippet below, not a `dialects:` gate, since
+        // prose in the hover snippet below, not a `surface:` gate, since
         // the option itself is legal and required-if-no-`-source` on every
         // one of the five fetched versions),
         // not a `Tcl_CreateObjCommand` builtin — same footing as
         // `auto_mkindex`/`tclPkgSetup`/`tclPkgUnknown`, none of which carry
-        // a C `CmdInfo` row either. Stays `dialects: None` (fully
+        // a C `CmdInfo` row either. Stays `surface: None` (fully
         // universal — `supports_dialect` then holds for every dialect,
-        // iRules included) rather than `Some(DialectSet::ALL_TCL)` (as
+        // iRules included) rather than `Some(SpecSurface::ALL_TCL)` (as
         // `auto_mkindex`/`tclPkgSetup`/`tclPkgUnknown` have it): `package`
         // and `pkg_mkindex` are dropped from iRules by their own
-        // `Some(DialectSet::ALL_TCL)` groups — no `IRULES` bit, so they
+        // `Some(SpecSurface::ALL_TCL)` groups — no `IRULES` bit, so they
         // never intersect the bare `IRULES` mask (K36322151 — the TMM
         // sandbox has no real package-loading surface) — whereas nothing
-        // restricts `pkg::create`, so a `dialects:` group here would
+        // restricts `pkg::create`, so a `surface:` group here would
         // instead drop it too. There is no disable list.
-        dialects: None,
+        surface: None,
         // A redefinable Tcl library proc (see `Traits::OVERRIDABLE_LIBRARY_PROC`,
         // whose own doc comment names the `pkg_*` family directly) that only
         // builds and returns a string — it never touches a variable, channel,

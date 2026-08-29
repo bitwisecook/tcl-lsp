@@ -68,11 +68,14 @@
 //! Expect at Tcl 8.6) intersecting each new option's own `TCL90_PLUS`
 //! gate below — none of them reach it, matching their real embedded
 //! cores. `bpf` is the one profile whose mask does reach Tcl 9.0
-//! (`DialectSet::TCL90.union(DialectSet::BPF)`, a genuine embedded Tcl
+//! (`surface![SpecSurface::core_in(Family::Tcl, &[("9.0", Some("9.1"))]), SpecSurface::package("bpf")]`, a genuine embedded Tcl
 //! 9.0 core, and it does not ban `vwait`), so it resolves both the command
 //! and the new options today, the same way `tcl::process`'s identical
 //! `TCL90_PLUS` gate does (`commands/tcl/tcl_process.rs`).
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
+use tcl_dialect::model::Family;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
@@ -85,56 +88,56 @@ const OPTIONS: &[OptionSpec] = &[
         name: "--",
         value: OptionValue::flag(),
         detail: "Mark the end of options; every remaining argument is treated as a variable name.",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         ..OptionSpec::DEFAULT
     },
     OptionSpec {
         name: "-all",
         value: OptionValue::flag(),
         detail: "Require every wait condition to be met to complete the wait operation. Without -all (the default), the first condition that fires completes the wait.",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         ..OptionSpec::DEFAULT
     },
     OptionSpec {
         name: "-extended",
         value: OptionValue::flag(),
         detail: "Return an extended result: an even-sized list whose odd elements are readable, timeleft, variable, or writable and whose following element is the matching channel/variable name or the remaining milliseconds, one pair per condition that fired, ordered by when each fired except timeleft, which always comes last.",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         ..OptionSpec::DEFAULT
     },
     OptionSpec {
         name: "-nofileevents",
         value: OptionValue::flag(),
         detail: "Do not service file events while waiting.",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         ..OptionSpec::DEFAULT
     },
     OptionSpec {
         name: "-noidleevents",
         value: OptionValue::flag(),
         detail: "Do not invoke idle handlers while waiting.",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         ..OptionSpec::DEFAULT
     },
     OptionSpec {
         name: "-notimerevents",
         value: OptionValue::flag(),
         detail: "Do not service timer events (such as after) while waiting.",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         ..OptionSpec::DEFAULT
     },
     OptionSpec {
         name: "-nowindowevents",
         value: OptionValue::flag(),
         detail: "Do not handle windowing-system events while waiting.",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         ..OptionSpec::DEFAULT
     },
     OptionSpec {
         name: "-readable",
         value: OptionValue::channel("channel"),
         detail: "Complete the wait once channel is, or becomes, readable. channel must name a Tcl channel open for reading.",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         ..OptionSpec::DEFAULT
     },
     OptionSpec {
@@ -145,21 +148,21 @@ const OPTIONS: &[OptionSpec] = &[
             ..OptionArg::DEFAULT
         }),
         detail: "Limit the wait to milliseconds. (From Tcl 9.1, a monotonic clock is used for this when available.)",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         ..OptionSpec::DEFAULT
     },
     OptionSpec {
         name: "-variable",
         value: OptionValue::var_name(),
         detail: "varName must be the name of a global variable. Writing or unsetting it completes the wait operation.",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         ..OptionSpec::DEFAULT
     },
     OptionSpec {
         name: "-writable",
         value: OptionValue::channel("channel"),
         detail: "Complete the wait once channel is, or becomes, writable. channel must name a Tcl channel open for writing.",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         ..OptionSpec::DEFAULT
     },
 ];
@@ -173,19 +176,14 @@ const FORMS: &[FormSpec] = &[
     // syntax under `f5-irules` at all.
     FormSpec {
         synopsis: "vwait varName",
-        dialects: Some(
-            DialectSet::TCL8X
-                .union(DialectSet::EXPECT)
-                .union(DialectSet::IAPPS)
-                .union(DialectSet::TMSH),
-        ),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.7"))]), SpecSurface::package("iapps"), SpecSurface::package("tmsh"), SpecSurface::package("expect")]),
         ..FormSpec::DEFAULT
     },
     // Tcl 9.0+ (and `bpf`, whose mask reaches Tcl 9.0 automatically
     // through the `TCL90_PLUS` overlap — see the module doc comment).
     FormSpec {
         synopsis: "vwait ?options? ?varName ...?",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         ..FormSpec::DEFAULT
     },
 ];
@@ -197,7 +195,7 @@ pub fn spec() -> CommandSpec {
         // bit, so this spec never intersects the bare `IRULES` mask and is
         // banned there by plain intersection, with no disable list — see
         // the module doc comment.
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         // BYTE_COMPILED only in the "recognised core builtin" sense this
         // codebase's convention uses (traits.rs's doc comment) — real
         // `Tcl_VwaitObjCmd` has no `CompileProc`. FRAME_HASH_BUILTIN is

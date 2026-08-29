@@ -19,13 +19,14 @@
 //! `timerate` — measure the calibrated rate of execution of a script.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 // All three forms are unchanged, synopsis-for-synopsis, across Tcl 8.6,
 // 9.0, and 9.1 (see the `spec` doc comment below) — mirroring the real
 // manpage's three illustrative lines, per the `return_.rs` convention,
 // even though the underlying option grammar is actually a flat,
 // freely-combinable set (confirmed empirically; see below). Each entry's
-// own `dialects: None` inherits the command-level `TCL86_PLUS` gate.
+// own `surface: None` inherits the command-level `TCL86_PLUS` gate.
 const FORMS: &[FormSpec] = &[
     FormSpec {
         synopsis: "timerate script ?time? ?max-count?",
@@ -85,9 +86,9 @@ const SIDE_EFFECTS: &[SideEffect] = &[
 /// Not Found" body (HTTP 200 — the status alone doesn't show it), and
 /// `generic/tclBasic.c` at the `core-8-4-20` / `core-8-5-19` release tags
 /// has no `timerate` entry at all (`time` is present in both, so this
-/// isn't a fetch fluke). `dialects: Some(DialectSet::TCL86_PLUS)` below
+/// isn't a fetch fluke). `surface: Some(SpecSurface::TCL86_PLUS)` below
 /// is therefore correct — narrower than the sibling `time`'s genuine
-/// `dialects: Some(DialectSet::ALL_TCL)`.
+/// `surface: Some(SpecSurface::ALL_TCL)`.
 ///
 /// In every stock 8.6 build the real command is
 /// `::tcl::unsupported::timerate` (`core-8-6-16`'s `tclBasic.c`); a
@@ -190,8 +191,8 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "timerate",
         // Tcl 8.6+ only — see the doc comment above. Narrower than the
-        // sibling `time`'s `dialects: Some(DialectSet::ALL_TCL)`.
-        dialects: Some(DialectSet::TCL86_PLUS),
+        // sibling `time`'s `surface: Some(SpecSurface::ALL_TCL)`.
+        surface: Some(SpecSurface::TCL86_PLUS),
         traits: Traits::BYTE_COMPILED | Traits::DYNAMIC_EVAL_BODY,
         // The body's position varies with the leading options, so we
         // don't pin a fixed BODY index beyond arg 0; the option /

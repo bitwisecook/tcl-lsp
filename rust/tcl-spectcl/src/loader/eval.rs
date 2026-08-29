@@ -82,6 +82,7 @@
 //!   in [`crate::cache`], which is the one door production code loads a pack
 //!   through. Target-dependent packs (E-R1) are never stored.
 
+use tcl_dialect::model::surfaces_overlap;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -100,6 +101,7 @@ use super::{
 };
 use crate::discovery::Tier;
 use crate::export::{Registration, synth_word};
+use tcl_dialect::model::{SpecSurface};
 
 /// The evaluation loader's own version, part of the snapshot cache key: a
 /// change to how evaluation captures or replays invalidates every cached
@@ -621,7 +623,7 @@ struct State {
     /// The union of the pack's declared support so far (`default
     /// available` / `default dialects`), the set `available?` answers
     /// against. `None` = nothing declared = everything.
-    declared_dialects: Option<DialectSet>,
+    declared_surface: Option<&'static [SpecSurface]>,
     /// The file's declarative skeleton, verbatim, for line-exact body
     /// evaluation. Its second layer builds only if a body reaches the
     /// interpreter.
@@ -732,13 +734,13 @@ fn track_declared_support(state: &mut State, args: &[String], line: u32) {
     match args.first().map(String::as_str) {
         Some("dialects") => {
             if let Some(set) = parse_dialects(args.get(1).map_or("", |a| a), line, &mut scratch) {
-                state.declared_dialects = Some(set);
+                state.declared_surface = Some(set);
             }
         }
         Some("available") => {
             let availability = available::from_texts(&args[1..], line, &mut scratch);
-            if let Some(set) = availability.dialects {
-                state.declared_dialects = Some(set);
+            if let Some(set) = availability.surface {
+                state.declared_surface = Some(set);
             }
         }
         _ => {}
@@ -1298,9 +1300,12 @@ fn available_handler(state: &Rc<RefCell<State>>) -> WordHandler {
         let line = st.absolute_line(ctx.line());
         let mut scratch = Log::default();
         let requirement = available::from_texts(args, line, &mut scratch);
-        let required = requirement.dialects.unwrap_or_else(DialectSet::all);
-        let declared = st.declared_dialects.unwrap_or_else(DialectSet::all);
-        let answer = required.intersects(declared);
+        // An unstated surface on either side names no provider to disagree
+        // with, so the guard holds.
+        let answer = match (requirement.surface, st.declared_surface) {
+            (Some(required), Some(declared)) => surfaces_overlap(required, declared),
+            _ => true,
+        };
         if !st.target_dependent {
             st.target_dependent = true;
         }

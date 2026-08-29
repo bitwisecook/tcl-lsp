@@ -29,6 +29,7 @@ use crate::semantic_optimisation::{SemanticOptimisationConfig, SemanticOptimisat
 use crate::ssa::{SsaBlock, SsaStatement, Symbol, ValueKey};
 use crate::types::{TypeKind, TypeLattice, TypeShape, type_join};
 use crate::var_escape::{EscapeTag, ProcEscapeSummary, analyse_var_escape_cu};
+use tcl_dialect::model::{SpecSurface};
 
 /// Stable identity of one CFG invocation, including an immediate command
 /// substitution nested in one argument of the enclosing statement.
@@ -1906,7 +1907,7 @@ mod tests {
     fn dialect_tcloo_and_variable_trace_premises_are_retained() {
         let registry = tcl_registry::CommandRegistry::build_default();
         // **Enumerated delta of the ledger C1 / §11.2 D1 re-key.** This
-        // assertion used to feed `DialectSet::ALL_TCL` — a multi-bit mask no
+        // assertion used to feed `SpecSurface::ALL_TCL` — a multi-bit mask no
         // production caller could produce — and pin the `count_ones() != 1`
         // decline. The executable-IR vocabulary is now a resolved
         // environment, which names exactly one context or none, so an

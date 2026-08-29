@@ -74,6 +74,7 @@
 //! that trait's docs for why `link`, which likewise only *prepares* a call,
 //! is kept out of the family too.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const CALLBACK_FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "callback methodName ?arg ...?",
@@ -118,7 +119,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "callback",
         traits: TRAITS,
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         arity: Arity::at_least(1),
         return_type: Some(TclType::List),
         hover: Some(hover(CALLBACK_SYNOPSIS)),
@@ -134,7 +135,7 @@ pub fn mymethod_spec() -> CommandSpec {
     CommandSpec {
         name: "mymethod",
         traits: TRAITS,
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         arity: Arity::at_least(1),
         return_type: Some(TclType::List),
         hover: Some(hover(MYMETHOD_SYNOPSIS)),
@@ -151,7 +152,7 @@ pub fn mymethod_spec_ooutil_86() -> CommandSpec {
     CommandSpec {
         name: "mymethod",
         traits: TRAITS,
-        dialects: Some(DialectSet::TCL86),
+        surface: Some(SpecSurface::TCL86),
         arity: Arity::at_least(1),
         return_type: Some(TclType::List),
         hover: Some(hover(MYMETHOD_SYNOPSIS)),
@@ -173,8 +174,8 @@ mod tests {
     /// Both facts are dialect data, not a branch in a consumer.
     #[test]
     fn callback_is_core_only_from_90() {
-        assert_eq!(spec().dialects, Some(DialectSet::TCL90_PLUS));
-        assert_eq!(mymethod_spec().dialects, Some(DialectSet::TCL90_PLUS));
+        assert_eq!(spec().surface, Some(SpecSurface::TCL90_PLUS));
+        assert_eq!(mymethod_spec().surface, Some(SpecSurface::TCL90_PLUS));
         // No package gate on the core entries — 9.0 needs no `package
         // require` (tclsh 9.0.4: `info commands ::oo::Helpers::callback`
         // answers straight out of a bare interpreter).
@@ -189,7 +190,7 @@ mod tests {
     #[test]
     fn only_mymethod_has_an_ooutil_86_route() {
         let ooutil = mymethod_spec_ooutil_86();
-        assert_eq!(ooutil.dialects, Some(DialectSet::TCL86));
+        assert_eq!(ooutil.surface, Some(SpecSurface::TCL86));
         assert_eq!(ooutil.required_package, Some("oo::util"));
         assert_eq!(ooutil.tcllib_package, Some("oo::util"));
     }

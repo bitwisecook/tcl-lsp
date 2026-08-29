@@ -18,6 +18,7 @@
 
 //! `pack` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
@@ -34,7 +35,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         detail: "Return a list of all slaves in the packing order for the master (9.0+ name for `slaves`).",
         synopsis: "pack content master",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -78,7 +79,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-side",
         value: OptionValue::value("top|bottom|left|right"),
         detail: "Specifies which side of the master the slave will be packed against.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -87,7 +88,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-fill",
         value: OptionValue::value("none|x|y|both"),
         detail: "If a slave's parcel is larger than its requested dimensions, this option may be used to stretch the slave.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -96,7 +97,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-expand",
         value: OptionValue::boolean(),
         detail: "Specifies whether the slave should be expanded to consume extra space in its master.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -105,7 +106,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-anchor",
         value: OptionValue::enumerated(super::common::ANCHOR, true, "anchor"),
         detail: "Anchor must be a valid anchor position: n, ne, e, se, s, sw, w, nw, or center.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -114,7 +115,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-padx",
         value: OptionValue::value("amount"),
         detail: "Specifies how much external horizontal padding to leave on each side of the slave.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -123,7 +124,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-pady",
         value: OptionValue::value("amount"),
         detail: "Specifies how much external vertical padding to leave on each side of the slave.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -132,7 +133,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-ipadx",
         value: OptionValue::value("amount"),
         detail: "Specifies how much internal horizontal padding to leave on each side of the slave.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -141,7 +142,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-ipady",
         value: OptionValue::value("amount"),
         detail: "Specifies how much internal vertical padding to leave on each side of the slave.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -150,7 +151,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-in",
         value: OptionValue::value("master"),
         detail: "Insert the slave at the end of the packing order for the master window.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -159,7 +160,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-before",
         value: OptionValue::value("other"),
         detail: "Insert the slave before the window given by other in the packing order.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -168,7 +169,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-after",
         value: OptionValue::value("other"),
         detail: "Insert the slave after the window given by other in the packing order.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -184,7 +185,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "pack",
         traits: Traits::TK_GEOMETRY_MANAGER,
-        dialects: Some(DialectSet::TK_AND_TCL),
+        surface: Some(SpecSurface::TK_AND_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Geometry manager that packs slaves around the edges of a cavity.",

@@ -20,6 +20,7 @@
 //! naive line-based `proc` scanning, instead of real evaluation.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "auto_mkindex_old dir ?pattern pattern ...?",
@@ -30,7 +31,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "auto_mkindex_old",
-        // `dialects: Some(DialectSet::ALL_TCL)` is deliberate, not an
+        // `surface: Some(SpecSurface::ALL_TCL)` is deliberate, not an
         // oversight: F5 iRules bans this proc (it is one of the K36322151
         // filesystem/process bans), and that ban is now carried by this
         // very `dialects` group. `ALL_TCL` spans every core Tcl version
@@ -42,7 +43,7 @@ pub fn spec() -> CommandSpec {
         // (Expect, the EDA vendor shells, tmsh, iApps, BPF) carries a
         // core-version bit that `ALL_TCL` does intersect, so
         // `auto_mkindex_old` stays reachable in every one of them.
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         // A Tcl-level library proc (`library/auto.tcl`), not a
         // `Tcl_CreateObjCommand`-registered builtin, so it carries no
         // `CmdInfo` row and is absent from the exact C Tcl safe-interpreter

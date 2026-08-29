@@ -44,6 +44,7 @@
 //! unchanged — they are what the command metadata carries; this
 //! module holds the richer inferred-by-analysis types.
 
+use tcl_dialect::model::{SurfaceLayer, Family};
 use bitflags::bitflags;
 
 use tcl_registry::prelude::StorageType as RegistryStorageType;
@@ -52,6 +53,7 @@ use tcl_registry::side_effects::{
     SideEffectTarget as RegistryTarget,
 };
 use tcl_registry::{CommandRegistry, Traits};
+use tcl_dialect::model::{SpecSurface};
 
 // StorageType — data shape of a target
 
@@ -928,7 +930,7 @@ fn classify_variable_assignment(
         let base = crate::naming::normalise_var_name(varname);
         if let Some(target) = tcl_registry::special_vars::special_var_write_effect(
             base,
-            tcl_registry::special_vars::dialect_set_for_profile(dialect),
+            Some(tcl_registry::special_vars::surface_query_for_profile(dialect)),
         ) {
             let mut extra = SideEffect::new(lift_registry_target(target), false, true);
             extra.dialect = dialect.map(|profile| profile.name.to_owned());
@@ -1160,7 +1162,7 @@ mod tests {
         // `side_effects`, so callgraph/dataflow reported `NONE` instead of
         // `HTTP_STATE`.
         let mut reg = tcl_registry::CommandRegistry::build_default();
-        reg.load_dialect(tcl_dialect::DialectSet::IRULES);
+        reg.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         for cmd in ["HTTP::uri", "HTTP::path", "HTTP::query"] {
             let ci = classify_side_effects(&reg, cmd, &[], None, None);
             let (reads, writes) = ci.to_effect_regions();
@@ -1542,7 +1544,7 @@ mod tests {
         // `HTTP::header` → (HTTP_STATE, NONE) pure; `insert` → (HTTP_STATE,
         // HTTP_STATE) impure.
         let mut registry = CommandRegistry::build_default();
-        registry.load_dialect(tcl_dialect::DialectSet::IRULES);
+        registry.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
 
         let getter = classify_side_effects(
             &registry,
@@ -1584,7 +1586,7 @@ mod tests {
         // (dialect-mismatched specs are skipped). With no dialect requested
         // the hint applies.
         let mut registry = CommandRegistry::build_default();
-        registry.load_dialect(tcl_dialect::DialectSet::IRULES);
+        registry.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         // Dialect-agnostic (interproc path): LogIo, region-free, impure.
         let agnostic = classify_side_effects(&registry, "log", &["hi".into()], None, None);
         assert!(!agnostic.pure);

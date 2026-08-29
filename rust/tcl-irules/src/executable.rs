@@ -467,9 +467,7 @@ fn recurse_case_bodies(
     let registry = ctx.registry;
     let dialect = registry
         .profile()
-        .map_or_else(tcl_dialect::DialectSet::empty, |profile| {
-            profile.availability_mask
-        });
+        .map(tcl_dialect::DialectProfile::surface_query);
     let Some((spec, invocation)) = registry.case_invocation(head, args, dialect) else {
         return;
     };

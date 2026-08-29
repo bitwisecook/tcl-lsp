@@ -18,6 +18,7 @@
 
 //! `itcl::configbody` command — define a public variable's config body.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
@@ -34,7 +35,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "itcl::configbody",
         traits: Traits::NEVER_INLINE_BODY,
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {
             summary: "Define the configuration body of a public [incr Tcl] variable.",

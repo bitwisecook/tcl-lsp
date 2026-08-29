@@ -18,11 +18,12 @@
 
 //! `http::responseLine` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http::responseLine",
         traits: Traits::PURE,
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Return the HTTP response status line.",

@@ -33,6 +33,7 @@ use super::super::Op;
 use super::super::Operand;
 use super::super::values::{is_qualified, split_array_ref};
 use super::super::{INDEX_END, bytecode_imm, parse_tcl_index};
+use tcl_dialect::model::{SpecSurface};
 
 /// Try to emit specialised bytecode for `cmd args...` via a per-
 /// command hook. Returns `true` if the hook handled the command;
@@ -63,7 +64,7 @@ pub fn try_bytecoded(
     // where the runtime's availability gate can reject it.
     let Some(resolved) =
         ctx.registry
-            .resolve_call(cmd, &arg_refs, ctx.registry.own_availability_mask())
+            .resolve_call(cmd, &arg_refs, ctx.registry.own_surface_query())
     else {
         return false;
     };
@@ -1716,7 +1717,7 @@ mod tests {
             .resolve_call(
                 "dict",
                 &["set", "d", "k", "v"],
-                tcl_dialect::DialectSet::TCL86,
+                SpecSurface::TCL86,
             )
             .expect("dict set resolves");
         assert_eq!(resolved.codegen_hook, Some(CodegenHookId::Dict));
@@ -1736,7 +1737,7 @@ mod tests {
         let mut registry = CommandRegistry::build_default();
         registry.load_irules();
         let resolved = registry
-            .resolve_call("HTTP::header", &["names"], tcl_dialect::DialectSet::IRULES)
+            .resolve_call("HTTP::header", &["names"], SpecSurface::IRULES)
             .expect("HTTP::header resolves under iRules");
         assert_eq!(resolved.spec.name, "HTTP::header");
     }
@@ -1757,7 +1758,7 @@ mod tests {
         let default = CommandRegistry::build_default();
         assert!(
             default
-                .resolve_call("HTTP::header", &["names"], tcl_dialect::DialectSet::IRULES,)
+                .resolve_call("HTTP::header", &["names"], SpecSurface::IRULES,)
                 .is_none()
         );
 
@@ -1770,7 +1771,7 @@ mod tests {
         let mut irules = CommandRegistry::build_default();
         irules.load_irules();
         let resolved = irules
-            .resolve_call("HTTP::header", &["names"], tcl_dialect::DialectSet::IRULES)
+            .resolve_call("HTTP::header", &["names"], SpecSurface::IRULES)
             .expect("HTTP::header resolves once iRules is loaded");
 
         // Wire it through CodegenCtx: the ctx's registry field is

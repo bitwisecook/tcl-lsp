@@ -216,7 +216,7 @@ fn var_write_typing_declares_destructuring_writers() {
     let reg = CommandRegistry::build_default();
 
     let resolve = |name: &str, args: &[&str]| {
-        reg.resolve_call(name, args, DialectSet::empty())
+        reg.resolve_call(name, args, None)
             .unwrap_or_else(|| panic!("{name} resolves"))
             .var_write_typing()
     };
@@ -274,7 +274,7 @@ fn var_write_typing_declares_destructuring_writers() {
     assert_eq!(
         static_context_for("tcl9.0")
             .commands()
-            .resolve_call("lpop", &["l"], DialectSet::empty())
+            .resolve_call("lpop", &["l"], None)
             .expect("lpop resolves on 9.0")
             .var_write_typing(),
         VarWriteTyping::Fixed(TclType::List),

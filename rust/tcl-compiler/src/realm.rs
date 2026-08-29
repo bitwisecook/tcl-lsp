@@ -597,7 +597,7 @@ fn valid_irules_procedure_declaration(
 fn available_spec(registry: &CommandRegistry, name: &str) -> Option<&'static CommandSpec> {
     registry.profile().map_or_else(
         || registry.get(name),
-        |profile| registry.get_for_dialect(name, profile.availability_mask),
+        |profile| registry.get_for_surface(name, Some(profile.surface_query())),
     )
 }
 
@@ -1254,7 +1254,7 @@ mod tests {
         for command in ["interp", "rename", "namespace"] {
             assert!(
                 registry
-                    .get_for_dialect(command, profile.availability_mask)
+                    .get_for_surface(command, Some(profile.surface_query()))
                     .is_none(),
                 "F5 K36322151 disables {command} in iRules"
             );

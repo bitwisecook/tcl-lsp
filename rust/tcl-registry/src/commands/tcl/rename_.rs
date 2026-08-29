@@ -18,6 +18,7 @@
 
 //! `rename` — rename or delete a command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::ProcDefinition,
     writes: true,
@@ -40,7 +41,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// Tcl 8.5 leaves `errorCode` as `NONE`.  The detailed evidence and the
 /// unavailable source-tree record live in the command-oracle audit.
 ///
-/// `dialects: ALL_TCL` (no `IRULES` bit) here is deliberate, not an
+/// `surface: ALL_TCL` (no `IRULES` bit) here is deliberate, not an
 /// oversight: F5 iRules is the one modelled dialect that drops `rename` —
 /// it is one of the K36322151 commands F5 bans from direct command-table
 /// surgery in the TMM event sandbox alongside its `namespace`/`interp`
@@ -56,7 +57,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "rename",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         // `FIRE_AND_FORGET_TEARDOWN`: `Tcl_RenameObjCmd` → `TclRenameCommand`
         // (tclCmdMZ.c / tclBasic.c) deletes `oldName` (an empty `newName`
         // deletes the command outright) and errors when `oldName` doesn't

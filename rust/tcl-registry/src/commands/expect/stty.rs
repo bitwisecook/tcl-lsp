@@ -18,6 +18,7 @@
 
 //! `stty` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "stty ?args?",
     ..FormSpec::DEFAULT
@@ -26,7 +27,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "stty",
-        dialects: Some(DialectSet::EXPECT),
+        surface: Some(SpecSurface::EXPECT),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Set or query terminal modes (raw, echo, rows, columns, etc.).",

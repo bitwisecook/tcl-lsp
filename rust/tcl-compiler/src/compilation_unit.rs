@@ -1102,7 +1102,7 @@ fn resolve_unit_scope(
 /// **Ledger C1 / redesign §11.2 D1 — the re-key.** This replaces the retired
 /// `semantic_dialect_set` name→`DialectSet` projection, which selected the
 /// *exact* bit the profile's own name parsed to and therefore answered
-/// `DialectSet::empty()` (no executable facts at all) for every environment
+/// `None` (no executable facts at all) for every environment
 /// whose name owns no bit — the lenient `tcl` sink and the six EDA shells —
 /// and the bare vendor bit for the composite environments (`f5-iapps` parsed
 /// to `IAPPS` while its mask composes `TCL84|IAPPS`). The context's authoring

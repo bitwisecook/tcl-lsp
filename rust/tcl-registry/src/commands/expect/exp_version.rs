@@ -18,6 +18,7 @@
 
 //! `exp_version` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "exp_version ?version?",
     ..FormSpec::DEFAULT
@@ -26,7 +27,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "exp_version",
-        dialects: Some(DialectSet::EXPECT),
+        surface: Some(SpecSurface::EXPECT),
         arity: Arity::new(0, 1),
         hover: Some(HoverSnippet {
             summary: "Query or require a minimum Expect version.",

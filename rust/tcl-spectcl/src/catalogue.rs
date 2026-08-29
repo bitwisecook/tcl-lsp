@@ -37,6 +37,7 @@ use tcl_dialect::DialectSet;
 use tcl_registry::side_effects::SideEffectTarget;
 use tcl_registry::taint::{TaintColour, TaintColourAtom};
 use tcl_registry::traits::{Trait, Traits};
+use tcl_dialect::model::{SpecSurface};
 
 /// One selectable value in a picker — the Rust spelling plus a one-line
 /// description.
@@ -391,27 +392,26 @@ pub static TAINT_COLOURS: LazyLock<Vec<Variant>> = LazyLock::new(|| {
 });
 
 /// Canonical dialect name ↔ primitive [`DialectSet`] bit — the vocabulary
-/// [`DIALECTS`] and [`dialect_bit`] both read.
+/// [`DIALECTS`] and [`dialect_surface`] both read.
 ///
-/// The names are the ones `DialectSet::parse` accepts and `member_names`
-/// emits, so a draft round-trips through the registry's own vocabulary rather
-/// than a parallel spelling. Every bit the type declares appears here; the EDA
+/// The names are the catalogue's own dialect ids, so a draft round-trips
+/// through the registry's vocabulary rather than a parallel spelling. The EDA
 /// shells are deliberately absent, being a base Tcl version plus
-/// package-gated command libraries rather than dialect bits.
-const DIALECT_BITS: &[(&str, DialectSet)] = &[
-    ("tcl8.4", DialectSet::TCL84),
-    ("tcl8.5", DialectSet::TCL85),
-    ("tcl8.6", DialectSet::TCL86),
-    ("tcl9.0", DialectSet::TCL90),
-    ("tcl9.1", DialectSet::TCL91),
-    ("f5-irules", DialectSet::IRULES),
-    ("f5-iapps", DialectSet::IAPPS),
-    ("tk", DialectSet::TK),
-    ("expect", DialectSet::EXPECT),
-    ("bpf", DialectSet::BPF),
-    ("f5-tmsh", DialectSet::TMSH),
-    ("f5-bigip", DialectSet::BIGIP),
-    ("spectcl", DialectSet::SPECTCL),
+/// package-gated command libraries rather than surfaces of their own.
+const DIALECT_SURFACES: &[(&str, &[SpecSurface])] = &[
+    ("tcl8.4", SpecSurface::TCL84),
+    ("tcl8.5", SpecSurface::TCL85),
+    ("tcl8.6", SpecSurface::TCL86),
+    ("tcl9.0", SpecSurface::TCL90),
+    ("tcl9.1", SpecSurface::TCL91),
+    ("f5-irules", SpecSurface::IRULES),
+    ("f5-iapps", SpecSurface::IAPPS),
+    ("tk", SpecSurface::TK),
+    ("expect", SpecSurface::EXPECT),
+    ("bpf", SpecSurface::BPF),
+    ("f5-tmsh", SpecSurface::TMSH),
+    ("f5-bigip", SpecSurface::BIGIP),
+    ("spectcl", SpecSurface::SPECTCL),
 ];
 
 /// Labels for the bits with no profile in the dialect catalogue. `tk` is the
@@ -424,7 +424,7 @@ const BIT_ONLY_LABELS: &[(&str, &str)] = &[("tk", "Tk")];
 /// Labelled from the dialect catalogue, so a profile's display name is the one
 /// the studio's picker shows and renaming a dialect renames it here too.
 pub static DIALECTS: LazyLock<Vec<Variant>> = LazyLock::new(|| {
-    DIALECT_BITS
+    DIALECT_SURFACES
         .iter()
         .map(|(name, _)| {
             let label = crate::environment::catalogue_profile_for_dialect(name).map_or_else(
@@ -444,8 +444,8 @@ pub static DIALECTS: LazyLock<Vec<Variant>> = LazyLock::new(|| {
 /// The primitive [`DialectSet`] bit for a canonical dialect name from
 /// [`DIALECTS`].
 #[must_use]
-pub fn dialect_bit(name: &str) -> Option<DialectSet> {
-    DIALECT_BITS
+pub fn dialect_surface(name: &str) -> Option<&'static [SpecSurface]> {
+    DIALECT_SURFACES
         .iter()
         .find(|(n, _)| *n == name)
         .map(|(_, b)| *b)
@@ -976,7 +976,7 @@ mod tests {
     #[test]
     fn dialect_catalogue_round_trips_through_member_names() {
         for entry in DIALECTS.iter() {
-            let bit = dialect_bit(entry.key).expect("catalogued dialect has a bit");
+            let bit = dialect_surface(entry.key).expect("catalogued dialect has a bit");
             assert_eq!(
                 bit.member_names(),
                 vec![entry.key],

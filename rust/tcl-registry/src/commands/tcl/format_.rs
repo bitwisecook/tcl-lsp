@@ -131,6 +131,9 @@ fn fold_format(args: &[&str], version: Option<TclVersion>) -> Option<String> {
 /// in the shared `tcl-syntax` crate so the WASM runtime reuses it; the
 /// version-aware renderers below are this const-folder's own.
 use tcl_syntax::format::{FmtFlags, Spec, parse_spec};
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
+use tcl_dialect::model::Family;
 
 /// A single parsed `%…` conversion — the render input. Matches
 /// [`tcl_syntax::format::Spec`]; kept local so the version-aware `render*`
@@ -598,7 +601,7 @@ fn fmt_general(v: f64, prec: usize, upper: bool) -> String {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "format",
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
         byte_array_effect: ByteArrayEffect::Coerces,
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED

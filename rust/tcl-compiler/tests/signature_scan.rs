@@ -33,6 +33,7 @@
 use tcl_compiler::signature_scan::params::parse_param_list;
 use tcl_compiler::signature_scan::{SignatureScanResult, extract_signatures};
 use tcl_registry::CommandRegistry;
+use tcl_dialect::model::Family;
 
 fn run(src: &str) -> SignatureScanResult {
     let registry = CommandRegistry::build_default();

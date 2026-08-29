@@ -18,6 +18,7 @@
 
 //! `iapp::apm_config` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "iapp::apm_config ?arg ...?",
     ..FormSpec::DEFAULT
@@ -26,7 +27,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "iapp::apm_config",
-        dialects: Some(DialectSet::IAPPS),
+        surface: Some(SpecSurface::IAPPS),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet::brief(
             "F5 iApps utility command `iapp::apm_config`.",

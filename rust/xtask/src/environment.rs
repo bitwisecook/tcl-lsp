@@ -82,10 +82,9 @@ pub fn context_for_dialect(name: &str) -> &'static ResolvedContext {
     tcl_registry::model::static_document_context_for(name)
 }
 
-/// The availability mask a dialect name's projections are filtered under
-/// — its environment's document authoring mask, replacing the direct
-/// `profile.availability_mask` read. Test-pinned equal to that mask for
-/// every profile an ingress can produce.
-pub fn surface_mask_for_dialect(name: &str) -> DialectSet {
-    context_for_dialect(name).authoring_mask()
+/// The point a dialect name's projections are filtered under — its
+/// environment's document authoring point. Test-pinned equal to the
+/// profile's own point for every profile an ingress can produce.
+pub fn surface_point_for_dialect(name: &str) -> SurfaceQuery<'static> {
+    context_for_dialect(name).authoring_query()
 }

@@ -32,7 +32,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "uri::register",
-        dialects: None,
+        surface: None,
         arity: Arity::exact(2),
         // `uri::register schemeList {script}` registers a
         // scheme handler — the script runs at parse time inside the

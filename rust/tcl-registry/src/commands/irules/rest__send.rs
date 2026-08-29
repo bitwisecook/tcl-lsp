@@ -18,10 +18,11 @@
 
 //! `REST::send` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "REST::send",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Send a rest request.",
@@ -40,7 +41,7 @@ pub const fn spec() -> CommandSpec {
                 name: "-method",
                 value: OptionValue::value("METHOD"),
                 detail: "HTTP method (GET, POST, PUT, DELETE, etc.).",
-                dialects: None,
+                surface: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,

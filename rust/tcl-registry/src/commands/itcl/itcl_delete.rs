@@ -18,6 +18,7 @@
 
 //! `itcl::delete` command ([incr Tcl] runtime).
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "itcl::delete object|class|namespace name ?name ...?",
@@ -27,7 +28,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "itcl::delete",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::at_least(2),
         hover: Some(HoverSnippet {
             summary: "Delete [incr Tcl] objects, classes, or namespaces.",

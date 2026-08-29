@@ -35,7 +35,6 @@
 //! formatter's version-blind resolution were two copies of the same list, and
 //! a new core release had to be remembered in both.
 
-use tcl_dialect::DialectSet;
 
 use crate::CommandRegistry;
 
@@ -52,13 +51,11 @@ pub const CORE_TCL_RELEASES: &[&str] = &["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0",
 /// vendor gates, not releases on the core version axis, and the keyword
 /// tables that change between releases are the core ones.
 #[must_use]
-pub fn core_releases_in(range: DialectSet) -> Vec<&'static str> {
+pub fn core_releases_in(range: &[&'static str]) -> Vec<&'static str> {
     CORE_TCL_RELEASES
         .iter()
         .copied()
-        .filter(|name| {
-            DialectSet::parse(name).is_some_and(|bit| range.intersects(bit) && range.contains(bit))
-        })
+        .filter(|name| range.contains(name))
         .collect()
 }
 
@@ -70,7 +67,7 @@ pub fn core_releases_in(range: DialectSet) -> Vec<&'static str> {
 /// (a pure vendor dialect), and a caller should fall back to the single
 /// registry it was handed.
 #[must_use]
-pub fn registries_over_range(range: DialectSet) -> Vec<&'static CommandRegistry> {
+pub fn registries_over_range(range: &[&'static str]) -> Vec<&'static CommandRegistry> {
     core_releases_in(range)
         .into_iter()
         .map(|name| {
@@ -86,18 +83,15 @@ pub fn registries_over_range(range: DialectSet) -> Vec<&'static CommandRegistry>
 ///
 /// This is the range a rewrite must be safe across, because a script written
 /// for 8.6 may well be run under 9.0. A vendor dialect with no core version
-/// bit (`f5-irules` names its own runtime, not a core release) yields the
-/// empty range — nothing to widen over, so a consumer keeps the single table
-/// it holds, which is the pre-existing conservative behaviour.
+/// A name that is not a core release (`f5-irules` names its own runtime)
+/// yields the empty range — nothing to widen over, so a consumer keeps the
+/// single table it holds, which is the pre-existing conservative behaviour.
 #[must_use]
-pub fn forward_range(dialect: &str) -> DialectSet {
-    let Some(pos) = CORE_TCL_RELEASES.iter().position(|name| *name == dialect) else {
-        return DialectSet::empty();
-    };
-    CORE_TCL_RELEASES[pos..]
+pub fn forward_range(dialect: &str) -> &'static [&'static str] {
+    CORE_TCL_RELEASES
         .iter()
-        .filter_map(|name| DialectSet::parse(name))
-        .fold(DialectSet::empty(), |acc, bit| acc | bit)
+        .position(|name| *name == dialect)
+        .map_or(&[], |pos| &CORE_TCL_RELEASES[pos..])
 }
 
 #[cfg(test)]
@@ -129,19 +123,19 @@ mod tests {
 
     #[test]
     fn an_explicit_range_maps_to_its_packs_oldest_first() {
-        let names = core_releases_in(DialectSet::TCL85_PLUS);
+        let names = core_releases_in(SpecSurface::TCL85_PLUS);
         assert_eq!(names, vec!["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"]);
         assert_eq!(
-            registries_over_range(DialectSet::TCL85_PLUS).len(),
+            registries_over_range(SpecSurface::TCL85_PLUS).len(),
             names.len()
         );
-        assert!(core_releases_in(DialectSet::empty()).is_empty());
+        assert!(core_releases_in(None).is_empty());
     }
 
     #[test]
     fn a_mixed_range_keeps_only_the_core_releases() {
         // A vendor bit alongside core bits contributes no pack of its own.
-        let range = DialectSet::TCL86 | DialectSet::TCL90 | DialectSet::IRULES;
+        let range = SpecSurface::TCL86 | SpecSurface::TCL90 | SpecSurface::IRULES;
         assert_eq!(core_releases_in(range), vec!["tcl8.6", "tcl9.0"]);
     }
 }

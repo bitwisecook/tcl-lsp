@@ -50,7 +50,7 @@
 //! `chan.n` option tables), so no encoding-profile concept existed for
 //! `puts` to be gated by.
 //!
-//! `dialects: Some(DialectSet::ALL_TCL)` on the command spec below is
+//! `surface: Some(SpecSurface::ALL_TCL)` on the command spec below is
 //! deliberate, not an oversight: `puts` is excluded from iRules, just
 //! like `gets`/`flush`/`open`/`fconfigure` (K36322151) — its `ALL_TCL`
 //! group carries no `IRULES` bit, so it never intersects the bare
@@ -59,6 +59,7 @@
 //! vendor shells, F5 iApps/tmsh, Tk, incr Tcl) restricts or extends it.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 // The single invocation form is unchanged, word-for-word (bar the
 // cosmetic channelId/channel rename noted above), across every fetched
@@ -88,7 +89,7 @@ fn puts_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "puts",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::FRAMELESS_RUNTIME | Traits::BYTE_COMPILED | Traits::TAINT_SINK,
         // Positional count only (1 = string, 2 = channelId string) — the
         // registry's arity checker skips a recognised *leading* option
@@ -111,7 +112,7 @@ pub fn spec() -> CommandSpec {
                 name: "-nonewline",
                 value: OptionValue::flag(),
                 detail: "Suppress the newline puts normally appends after string.",
-                dialects: None,
+                surface: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,

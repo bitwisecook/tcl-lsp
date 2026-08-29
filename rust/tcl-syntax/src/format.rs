@@ -103,21 +103,23 @@ pub fn is_verb(verb: u8) -> bool {
     )
 }
 
+use tcl_dialect::model::{SpecSurface, surface_admits};
+
 /// Whether a parsed conversion is available under the resolved dialect
 /// profile.  Unknown-release profiles abstain rather than guessing.
 #[must_use]
 pub fn is_available(spec: &Spec, profile: &tcl_dialect::DialectProfile) -> bool {
-    let required = if spec.verb == b'b' {
-        tcl_dialect::DialectSet::TCL86_PLUS
+    let required: &[SpecSurface] = if spec.verb == b'b' {
+        SpecSurface::TCL86_PLUS
     } else if spec.big && spec.verb == b'u' {
-        tcl_dialect::DialectSet::TCL90_PLUS
+        SpecSurface::TCL90_PLUS
     } else {
-        tcl_dialect::DialectSet::empty()
+        &[]
     };
     // Release-invariant verbs remain recognisable for the permissive
     // profile; a version-gated verb must abstain until a release is resolved.
     required.is_empty()
-        || (profile.runtime_base.is_some() && profile.availability_mask.intersects(required))
+        || (profile.runtime_base.is_some() && surface_admits(required, Some(&profile.surface_query())))
 }
 
 /// The outcome of parsing a width / `.precision` field.

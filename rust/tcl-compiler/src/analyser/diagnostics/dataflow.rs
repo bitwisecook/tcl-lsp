@@ -29,6 +29,7 @@
 //! cross-event flow (IRULE4005), and the flow-sensitive renamed-command
 //! check (W128).
 
+use tcl_dialect::model::{SurfaceQuery};
 use std::collections::HashSet;
 use tcl_core_types::DiagCode;
 
@@ -73,7 +74,7 @@ pub(super) struct ReadBeforeSetCtx<'a> {
 pub(super) struct ReturnUndefCtx<'a> {
     pub initial_global: bool,
     pub global_aliases: &'a HashSet<String>,
-    pub dialect: tcl_registry::prelude::DialectSet,
+    pub dialect: Option<SurfaceQuery<'a>>,
     pub params: &'a HashSet<&'a str>,
     pub exists_guards: &'a [(String, crate::cfg::BlockId)],
     pub scope_aliases: &'a HashSet<String>,
@@ -97,7 +98,7 @@ fn startup_read_facts(
     killed: bool,
     initial_global: bool,
     global_aliases: &HashSet<String>,
-    dialect: tcl_registry::prelude::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) -> StartupReadFacts {
     let global_binding =
         super::helpers::has_global_startup_binding(name, initial_global, global_aliases);
@@ -367,7 +368,7 @@ file; this call falls through to the 'unknown' handler."
             // #831).
             if tcl_registry::special_vars::is_externally_read(
                 crate::naming::normalise_var_name(var),
-                self.analysis_context().context().authoring_mask(),
+                Some(self.analysis_context().context().authoring_query()),
             ) {
                 continue;
             }
@@ -669,7 +670,7 @@ file; this call falls through to the 'unknown' handler."
             // Dialect-aware via the special-variable registry (issue #831).
             if tcl_registry::special_vars::is_externally_read(
                 crate::naming::normalise_var_name(var),
-                self.analysis_context().context().authoring_mask(),
+                Some(self.analysis_context().context().authoring_query()),
             ) {
                 continue;
             }
@@ -1158,7 +1159,7 @@ file; this call falls through to the 'unknown' handler."
                 ctx.supp.killed.contains(&chain.key),
                 ctx.initial_global,
                 ctx.global_aliases,
-                self.analysis_context().context().authoring_mask(),
+                Some(self.analysis_context().context().authoring_query()),
             );
             if startup.lazy_read && ctx.supp.killed.contains(&chain.key) {
                 continue;

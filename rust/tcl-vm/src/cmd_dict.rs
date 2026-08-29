@@ -19,6 +19,7 @@
 //! The `dict` ensemble. A dict value is an even-length list; this currently keeps the
 //! list rep (a typed dict intrep is a later optimisation).
 
+use tcl_dialect::model::{Family};
 use tcl_runtime_api::{Code, Completion};
 
 use crate::interp::{Vm, err, ok};

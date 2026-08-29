@@ -20,6 +20,7 @@
 
 use crate::hooks::LoweringHookId;
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::ProcDefinition,
@@ -56,7 +57,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "proc",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::INSTALLS_NAMED_DEFINITION
             | Traits::BYTE_COMPILED

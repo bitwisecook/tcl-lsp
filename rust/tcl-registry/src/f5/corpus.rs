@@ -1846,7 +1846,7 @@ mod tests {
         let control = static_context_for("tcl8.5").commands();
         let control_mask = resolve_environment("tcl8.5")
             .analyser_profile()
-            .availability_mask;
+            .surface_query();
         for row in RELEASE_DISCRIMINATOR_VECTORS {
             assert!(
                 !row.tcl84 && row.tcl85,
@@ -1865,16 +1865,16 @@ mod tests {
                 continue;
             };
             assert!(
-                control.get_for_dialect(command, control_mask).is_some(),
+                control.get_for_surface(command, control_mask).is_some(),
                 "{command}: the 8.5 control must have it"
             );
             for environment in F5_ENVIRONMENTS {
                 let registry = static_context_for(environment).commands();
                 let mask = resolve_environment(environment)
                     .analyser_profile()
-                    .availability_mask;
+                    .surface_query();
                 assert!(
-                    registry.get_for_dialect(command, mask).is_none(),
+                    registry.get_for_surface(command, mask).is_none(),
                     "{environment}: {command} is measured absent (§4)"
                 );
             }
@@ -2136,7 +2136,7 @@ mod tests {
             .expect("tcl_platform is modelled")
             .keys
             .iter()
-            .filter(|key| key.dialects.intersects(tcl_dialect::DialectSet::IRULES))
+            .filter(|key| surface_admits(SpecSurface::IRULES, Some(&key.surface)))
             .count();
         assert_eq!(irules_keys, 7, "§4: TMM reports 7 fabricated keys");
     }

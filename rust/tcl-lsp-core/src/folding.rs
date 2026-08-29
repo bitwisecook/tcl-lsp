@@ -34,6 +34,8 @@
 //!
 //! [`AnalysisResult`]: tcl_compiler::analyser::AnalysisResult
 
+use tcl_dialect::model::{SurfaceLayer};
+use tcl_dialect::model::{SurfaceQuery};
 use std::collections::BTreeSet;
 
 use rustc_hash::FxHashSet;
@@ -46,6 +48,7 @@ use tcl_registry::{ArgRole, CommandRegistry};
 
 use crate::oo_body::{HeadWords, is_member, member_body_indices_in, next_definition_grammar};
 use tcl_registry::definer::DefinitionBodyGrammar;
+use tcl_dialect::model::{SpecSurface};
 
 /// LSP folding-range kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -131,7 +134,7 @@ pub fn folding_ranges(
     let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
     let mut ctx = FoldCtx {
         registry,
-        availability: crate::document_context_for_profile(dialect).authoring_mask(),
+        availability: Some(crate::document_context_for_profile(dialect).authoring_query()),
         identities: &identities,
         line_index: &line_index,
         original_source: source,
@@ -368,7 +371,7 @@ struct FoldCtx<'a> {
     registry: &'a CommandRegistry,
     /// Selected profile availability. Member layouts use this to reject a
     /// version-gated option instead of treating it as a fixed-tail word.
-    availability: tcl_dialect::DialectSet,
+    availability: Option<SurfaceQuery<'a>>,
     /// The document's statically proven command-identity facts, so a body-arg
     /// role is resolved against the command a head *is* rather than the one it
     /// is spelled as (issue #1275).  Empty — and lookup-free — for the
@@ -876,7 +879,7 @@ mod tests {
 
     fn folding_ranges_expect(source: &str) -> Vec<FoldingRange> {
         let mut registry = registry();
-        registry.load_dialect(tcl_dialect::DialectSet::EXPECT);
+        registry.load_surface(SurfaceLayer::Package("expect"));
         folding_ranges(
             source,
             tcl_registry::model::ingress::resolve_environment("expect").analyser_profile(),

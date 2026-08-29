@@ -18,13 +18,14 @@
 
 //! `seti32` — assign a 32-bit signed integer from an expression.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 pub fn spec() -> CommandSpec {
     const OP: BpfOpSpec =
         BpfOpSpec::structural(BpfOpKind::ScalarSet(BpfScalarWidth::I32SignExtended));
     CommandSpec {
         name: "seti32",
-        dialects: Some(DialectSet::BPF),
+        surface: Some(SpecSurface::BPF),
         arity: Arity::exact(2),
         bpf_op: Some(&OP),
         ..CommandSpec::DEFAULT

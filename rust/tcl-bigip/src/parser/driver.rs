@@ -25,6 +25,7 @@
 //! iteration, header resolution, partition-prefixing, and `generic_objects`
 //! index.
 
+use tcl_dialect::model::{Family};
 use tcl_lexer::LineIndex;
 use tcl_registry::bigip::BigipRegistry;
 

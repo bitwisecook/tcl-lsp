@@ -18,10 +18,11 @@
 
 //! `BOTDEFENSE::cs_allowed` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "BOTDEFENSE::cs_allowed",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Returns or sets whether it is allowed for Bot Defense to take a client-side action.",

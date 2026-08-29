@@ -45,6 +45,7 @@
 //! iApps/tmsh, Tk, incr Tcl) restricts or extends `gets`.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 // `channelId` is mandatory in every version's synopsis; `varName` is
 // always optional — there is no bare/no-argument form, matching
@@ -63,7 +64,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "gets",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED | Traits::TAINT_SOURCE,
         arity: Arity::new(1, 2),
         arg_roles: &[(0, ArgRole::Channel), (1, ArgRole::VarWrite)],

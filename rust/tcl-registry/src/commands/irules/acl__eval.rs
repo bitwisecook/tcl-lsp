@@ -18,10 +18,11 @@
 
 //! `ACL::eval` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ACL::eval",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Enforce ACLs in your connections.",
@@ -48,7 +49,7 @@ pub const fn spec() -> CommandSpec {
                 name: "-l7",
                 value: OptionValue::flag(),
                 detail: "Evaluate L7 ACLs.",
-                dialects: None,
+                surface: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,

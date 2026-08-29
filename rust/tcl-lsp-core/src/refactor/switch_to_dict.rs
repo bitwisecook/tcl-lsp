@@ -18,12 +18,14 @@
 
 //! Convert a constant-mapping `switch` to a `dict` lookup.
 
+use tcl_dialect::model::{SurfaceLayer, Family};
 use tcl_compiler::segmenter::segment_commands_with_offset;
 use tcl_lexer::LineIndex;
 use tcl_registry::CommandRegistry;
 
 use super::{RefactorEdit, Refactoring, find_command_at, token_end_offset};
 use crate::code_actions::ActionKind;
+use tcl_dialect::model::{SpecSurface};
 
 /// A parsed single-command arm body.
 enum BranchBody {
@@ -292,7 +294,7 @@ mod tests {
         let source = "when HTTP_REQUEST {\n    switch -exact -- $method {\n        GET { set handler get_h }\n        POST { set handler post_h }\n        PUT { set handler put_h }\n    }\n}";
         // `when`'s body role lives in the iRules dialect.
         let mut reg = CommandRegistry::build_default();
-        reg.load_dialect(tcl_dialect::DialectSet::IRULES);
+        reg.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         let li = LineIndex::new(source);
         let cursor = u32::try_from(source.find("switch").unwrap()).unwrap();
         let r = switch_to_dict(source, cursor, &reg, &li).expect("nested result");

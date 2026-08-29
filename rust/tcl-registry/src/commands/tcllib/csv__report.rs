@@ -26,7 +26,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "csv::report",
-        dialects: None,
+        surface: None,
         arity: Arity::new(2, 3),
         hover: Some(HoverSnippet {
             summary: "Format a matrix as a human-readable report.",

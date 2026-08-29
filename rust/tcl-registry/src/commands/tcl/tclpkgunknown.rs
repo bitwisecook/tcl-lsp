@@ -20,6 +20,7 @@
 //! `auto_path` for `pkgIndex.tcl` files.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 // Tcl 8.4's real formal parameter list (`library/package.tcl`:
 // `proc tclPkgUnknown {name version {exact {}}}`, selected whenever the
@@ -35,12 +36,12 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[
     FormSpec {
         synopsis: "tclPkgUnknown name ?arg arg ...?",
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         ..FormSpec::DEFAULT
     },
     FormSpec {
         synopsis: "tclPkgUnknown name version ?exact?",
-        dialects: Some(DialectSet::TCL84),
+        surface: Some(SpecSurface::TCL84),
         ..FormSpec::DEFAULT
     },
 ];
@@ -93,7 +94,7 @@ pub fn spec() -> CommandSpec {
         // Not a `Tcl_CreateObjCommand` builtin — a Tcl-level library proc
         // (`library/package.tcl` in every one of 8.4 through 9.1, never
         // `init.tcl`) with no `CmdInfo` row of its own.
-        // `Some(DialectSet::ALL_TCL)` carries the same value as its sibling
+        // `Some(SpecSurface::ALL_TCL)` carries the same value as its sibling
         // autoloading procs (`auto_mkindex`/`auto_load_index`): under the
         // explicit-per-spec model `ALL_TCL` spans every core Tcl version but
         // not the `IRULES` bit, so the spec never intersects iRules' bare
@@ -108,7 +109,7 @@ pub fn spec() -> CommandSpec {
         // itself is banned there is not independently confirmed, so
         // `Some(ALL_TCL)` — which excludes it from iRules while leaving it
         // reachable everywhere else — stands as the conservative value here.
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         // A redefinable Tcl library proc — see
         // `Traits::OVERRIDABLE_LIBRARY_PROC`. Not `SAFE_INTERP_HIDDEN`:
         // unlike `auto_mkindex` (which refuses to even be defined inside

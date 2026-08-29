@@ -20,6 +20,9 @@
 
 use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
+use tcl_dialect::model::Family;
 
 const UPVAR_FRAME_EFFECT: FrameEffectSpec = FrameEffectSpec {
     level_word: FrameLevelWord::ArityParity,
@@ -145,7 +148,7 @@ pub fn spec() -> CommandSpec {
         // pack (irules/, iapps/, itcl/, tk/, expect/, the eda_*/ vendor
         // directories) defines its own "upvar" spec to add or restrict a
         // form.
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED

@@ -64,6 +64,9 @@ use tcl_registry::lifecycle::Lifecycle;
 use tcl_registry::profiles::ProfileRegistry;
 use tcl_registry::side_effects::SideEffectTarget;
 use tcl_registry::taint::TaintColour;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SurfaceQuery;
+use tcl_dialect::model::{surface_admits};
 // `registry_for_dialect` is deliberately *not* imported: this file defines its
 // own below, routing the sweep through the shipped `.tclspec` loadables so the
 // EDA specs are present. The tests `origin/rust` added here call it too, and
@@ -368,7 +371,7 @@ fn arity_window_gate_rejects_each_malformed_shape() {
 fn check_subcommand_accessors(
     spec: &tcl_registry::CommandSpec,
     sub: &tcl_registry::SubCommand,
-    ds: Option<DialectSet>,
+    ds: Option<SurfaceQuery<'_>>,
     dname: &str,
     name: &str,
 ) {
@@ -389,7 +392,7 @@ fn check_subcommand_accessors(
         &format!("{dname}/{name} {}", sub.name),
     );
     // Sub-level switch_names + arg_values + arg_role accessors.
-    let sub_sw = sub.switch_names(ds, spec.dialects);
+    let sub_sw = sub.switch_names(ds, spec.surface);
     let sub_declared: BTreeSet<&str> = sub.options.iter().map(|o| o.name).collect();
     for sw in &sub_sw {
         assert!(
@@ -429,7 +432,7 @@ fn check_subcommand_accessors(
     }
 }
 
-fn check_command_accessors(reg: &CommandRegistry, ds: Option<DialectSet>, dname: &str, name: &str) {
+fn check_command_accessors(reg: &CommandRegistry, ds: Option<SurfaceQuery<'_>>, dname: &str, name: &str) {
     // `get` (dialect-agnostic) must resolve a name the registry lists.
     let spec = reg
         .get(name)
@@ -475,8 +478,8 @@ fn check_command_accessors(reg: &CommandRegistry, ds: Option<DialectSet>, dname:
             let _ = (opt.value_hint(), opt.detail);
         }
         // Exercise the dialect predicate both with and without context.
-        let _ = opt.supports_dialect(ds, spec.dialects);
-        let _ = opt.supports_dialect(None, spec.dialects);
+        let _ = opt.supports_dialect(ds, spec.surface);
+        let _ = opt.supports_dialect(None, spec.surface);
     }
 
     // --- subcommands: arity, roles, options, arg-values, hover ---
@@ -549,7 +552,7 @@ fn check_command_accessors(reg: &CommandRegistry, ds: Option<DialectSet>, dname:
 /// budget.
 fn check_registry_queries(
     reg: &CommandRegistry,
-    ds: Option<DialectSet>,
+    ds: Option<SurfaceQuery<'_>>,
     dname: &str,
     name: &str,
     spec: &tcl_registry::CommandSpec,
@@ -574,7 +577,7 @@ fn check_registry_queries(
 
     // --- resolve_call: nullary and a small arg list ---
     // Must never panic; when it resolves, the spec name is preserved.
-    let active = ds.unwrap_or(DialectSet::TCL86);
+    let active = ds.unwrap_or(SpecSurface::TCL86);
     if let Some(rc) = reg.resolve_call(name, &[], active) {
         assert_eq!(
             rc.spec.name, spec.name,
@@ -725,7 +728,7 @@ fn sweep_trait_membership_is_self_consistent() {
     }
 }
 
-/// `get_for_dialect` is consistent with `supports_dialect` and with the
+/// `get_for_surface` is consistent with `supports_dialect` and with the
 /// command's declared `dialects` set, swept over every command in the Tcl
 /// dialects. This exercises the dialect-filtered resolution path on every spec.
 ///
@@ -735,26 +738,26 @@ fn sweep_trait_membership_is_self_consistent() {
 #[test]
 fn sweep_dialect_resolution_is_consistent() {
     for (dname, bit) in [
-        ("tcl8.4", DialectSet::TCL84),
-        ("tcl8.5", DialectSet::TCL85),
-        ("tcl8.6", DialectSet::TCL86),
-        ("tcl9.0", DialectSet::TCL90),
+        ("tcl8.4", SpecSurface::TCL84),
+        ("tcl8.5", SpecSurface::TCL85),
+        ("tcl8.6", SpecSurface::TCL86),
+        ("tcl9.0", SpecSurface::TCL90),
     ] {
         let reg = registry_for_dialect(dname);
         let names: Vec<String> = reg.command_names().map(ToOwned::to_owned).collect();
         for name in &names {
-            let for_dialect = reg.get_for_dialect(name, bit);
+            let for_dialect = reg.get_for_surface(name, bit);
             if let Some(spec) = for_dialect {
                 // A spec returned for `bit` must support `bit`.
                 assert!(
                     spec.supports_dialect(bit),
-                    "{dname}: get_for_dialect({name:?}) returned a spec that rejects the dialect"
+                    "{dname}: get_for_surface({name:?}) returned a spec that rejects the dialect"
                 );
             }
             // If *every* registered spec under this name rejects the dialect,
-            // get_for_dialect must return None (and vice-versa). Use
+            // get_for_surface must return None (and vice-versa). Use
             // `spec_visible`, not the bare `supports_dialect` mask test:
-            // `get_for_dialect` also applies the profile's subtractive
+            // `get_for_surface` also applies the profile's subtractive
             // disable list and (for a profile whose operators are not
             // command heads, e.g. tcl8.4/f5-irules) the
             // `Traits::OPERATOR_COMMAND` exclusion, so a naive mask-only
@@ -763,7 +766,7 @@ fn sweep_dialect_resolution_is_consistent() {
             assert_eq!(
                 for_dialect.is_some(),
                 any_supports,
-                "{dname}: get_for_dialect/{name:?} disagrees with specs() support scan"
+                "{dname}: get_for_surface/{name:?} disagrees with specs() support scan"
             );
         }
     }
@@ -781,14 +784,14 @@ fn sweep_dialect_resolution_is_consistent() {
 ///
 /// `None` on either side is trivially valid (`None` child = inherit; `None`
 /// parent = universal).
-fn assert_dialects_nest(parent: Option<DialectSet>, child: Option<DialectSet>, context: &str) {
+fn assert_dialects_nest(parent: Option<&'static [SpecSurface]>, child: Option<&'static [SpecSurface]>, context: &str) {
     let (Some(child), Some(parent)) = (child, parent) else {
         return;
     };
     for profile in tcl_dialect::DialectProfile::all() {
-        let mask = profile.availability_mask;
+        let mask = Some(profile.surface_query());
         assert!(
-            !child.intersects(mask) || parent.intersects(mask),
+            !surface_admits(child, &mask) || surface_admits(parent, &mask),
             "{context}: child dialects {child:?} resolve under {} (mask \
              {mask:?}) but the parent's {parent:?} do not — the child would be \
              reachable where its parent command is not",
@@ -803,19 +806,19 @@ fn assert_dialects_nest(parent: Option<DialectSet>, child: Option<DialectSet>, c
 /// callers since the two form kinds are the same type.
 fn check_form_dialect_nesting(
     ctx: &str,
-    effective_parent: Option<DialectSet>,
+    effective_parent: Option<&'static [SpecSurface]>,
     form: &tcl_registry::forms::CommandForm,
 ) {
     assert_dialects_nest(
         effective_parent,
-        form.dialects,
+        form.surface,
         &format!("{ctx} form {}", form.name),
     );
-    let effective = form.dialects.or(effective_parent);
+    let effective = form.surface.or(effective_parent);
     for o in form.options {
         assert_dialects_nest(
             effective,
-            o.dialects,
+            o.surface,
             &format!("{ctx} form {} option {}", form.name, o.name),
         );
     }
@@ -826,19 +829,19 @@ fn check_form_dialect_nesting(
 /// sub-subcommands against *its own* effective dialects.
 fn check_subcommand_dialect_nesting(
     cmd_ctx: &str,
-    parent: Option<DialectSet>,
+    parent: Option<&'static [SpecSurface]>,
     sub: &tcl_registry::SubCommand,
 ) {
     let ctx = format!("{cmd_ctx} {}", sub.name);
-    assert_dialects_nest(parent, sub.dialects, &ctx);
-    let effective = sub.dialects.or(parent);
+    assert_dialects_nest(parent, sub.surface, &ctx);
+    let effective = sub.surface.or(parent);
     for o in sub.options {
-        assert_dialects_nest(effective, o.dialects, &format!("{ctx} option {}", o.name));
+        assert_dialects_nest(effective, o.surface, &format!("{ctx} option {}", o.name));
     }
     for se in sub.side_effects {
         assert_dialects_nest(
             effective,
-            se.dialects,
+            se.surface,
             &format!("{ctx} side_effect {:?}", se.target),
         );
     }
@@ -846,7 +849,7 @@ fn check_subcommand_dialect_nesting(
         check_form_dialect_nesting(&ctx, effective, scf);
     }
     for ssc in sub.sub_subcommands {
-        assert_dialects_nest(effective, ssc.dialects, &format!("{ctx} {}", ssc.name));
+        assert_dialects_nest(effective, ssc.surface, &format!("{ctx} {}", ssc.name));
     }
 }
 
@@ -857,30 +860,30 @@ fn check_command_dialect_nesting(dname: &str, name: &str, spec: &tcl_registry::C
     let ctx = format!("{dname}/{name}");
     for opt in spec.options {
         assert_dialects_nest(
-            spec.dialects,
-            opt.dialects,
+            spec.surface,
+            opt.surface,
             &format!("{ctx} option {}", opt.name),
         );
     }
     for se in spec.side_effects {
         assert_dialects_nest(
-            spec.dialects,
-            se.dialects,
+            spec.surface,
+            se.surface,
             &format!("{ctx} side_effect {:?}", se.target),
         );
     }
     for f in spec.forms {
         assert_dialects_nest(
-            spec.dialects,
-            f.dialects,
+            spec.surface,
+            f.surface,
             &format!("{ctx} form {}", f.synopsis),
         );
     }
     for cf in spec.command_forms {
-        check_form_dialect_nesting(&ctx, spec.dialects, cf);
+        check_form_dialect_nesting(&ctx, spec.surface, cf);
     }
     for sub in spec.subcommands {
-        check_subcommand_dialect_nesting(&ctx, spec.dialects, sub);
+        check_subcommand_dialect_nesting(&ctx, spec.surface, sub);
     }
 }
 
@@ -1301,7 +1304,7 @@ fn family_control_flow_shapes() {
     );
     // tclsh: `switch --` terminator is real — `switch -- abc {abc {...}}` runs.
     // The registry models the terminator via resolve_option_terminator.
-    let term = reg.resolve_option_terminator("switch", &["--", "abc"], DialectSet::TCL86);
+    let term = reg.resolve_option_terminator("switch", &["--", "abc"], SpecSurface::TCL86);
     if let Some(t) = term {
         assert!(
             t.options.iter().any(|o| o.name == "--"),
@@ -1318,14 +1321,14 @@ fn terminator_resolves_subcommand_prefix() {
     let reg = registry_for_dialect("f5-irules");
     // `class match` (F5 iRules) declares a subcommand-scoped `--` terminator.
     let exact = reg
-        .resolve_option_terminator("class", &["match", "-nocase", "--"], DialectSet::IRULES)
+        .resolve_option_terminator("class", &["match", "-nocase", "--"], SpecSurface::IRULES)
         .expect("class match declares a -- terminator");
     assert_eq!(exact.subcommand, Some("match"));
     assert!(exact.options.iter().any(|o| o.name == "--"));
 
     // The unique prefix `ma` must resolve to the same `match` profile.
     let abbrev = reg
-        .resolve_option_terminator("class", &["ma", "-nocase", "--"], DialectSet::IRULES)
+        .resolve_option_terminator("class", &["ma", "-nocase", "--"], SpecSurface::IRULES)
         .expect("abbreviated `class ma` must keep the -- terminator");
     assert_eq!(abbrev.subcommand, Some("match"));
     assert_eq!(abbrev.scan_start, exact.scan_start);
@@ -1368,7 +1371,7 @@ fn family_string_dict_list_ops() {
     // List ops: `lsort` carries the switch set tclsh reports.
     // tclsh8.6 & 9.0: `lsort -bogus` lists -ascii … -unique (8.6∩9.0 below).
     let lsort = reg.get("lsort").expect("lsort");
-    let sw = lsort.switch_names(Some(DialectSet::TCL86));
+    let sw = lsort.switch_names(Some(SpecSurface::TCL86));
     for opt in [
         "-ascii",
         "-decreasing",
@@ -1398,8 +1401,8 @@ fn family_string_dict_list_ops() {
 fn lsearch_stride_version_gating() {
     let reg = CommandRegistry::build_default();
     let lsearch = reg.get("lsearch").expect("lsearch");
-    let in_86 = lsearch.switch_names(Some(DialectSet::TCL86));
-    let in_90 = lsearch.switch_names(Some(DialectSet::TCL90));
+    let in_86 = lsearch.switch_names(Some(SpecSurface::TCL86));
+    let in_90 = lsearch.switch_names(Some(SpecSurface::TCL90));
     // Common options present in both (these match tclsh on 8.6 & 9.0).
     for opt in ["-exact", "-glob", "-regexp", "-all", "-inline"] {
         assert!(in_86.contains(&opt), "8.6 lsearch missing {opt}: {in_86:?}");
@@ -1427,7 +1430,7 @@ fn family_io_shapes() {
 
     // tclsh: socket -server / -myaddr.
     let socket = reg.get("socket").expect("socket");
-    let sw = socket.switch_names(Some(DialectSet::TCL86));
+    let sw = socket.switch_names(Some(SpecSurface::TCL86));
     assert!(sw.contains(&"-server"), "socket -server: {sw:?}");
     // socket needs host+port at minimum.
     assert_eq!(socket.arity.min, 2, "socket min arity");
@@ -1580,10 +1583,10 @@ fn family_array_clock_subcommands() {
 #[test]
 fn family_f5_irules_shapes() {
     let reg = registry_for_dialect("f5-irules");
-    let ds = DialectSet::IRULES;
+    let ds = SpecSurface::IRULES;
 
     // when is the event handler with a structural body.
-    let when = reg.get_for_dialect("when", ds).expect("when");
+    let when = reg.get_for_surface("when", ds).expect("when");
     assert!(
         when.traits.contains(Traits::IS_EVENT_HANDLER),
         "when IS_EVENT_HANDLER"
@@ -1609,7 +1612,7 @@ fn family_f5_irules_shapes() {
 
     // Closed value arg: HTTP::version arg 0 is a closed version set.
     let ver = reg
-        .get_for_dialect("HTTP::version", ds)
+        .get_for_surface("HTTP::version", ds)
         .expect("HTTP::version");
     assert!(
         ver.closed_value_args.contains(&0),
@@ -1624,7 +1627,7 @@ fn family_f5_irules_shapes() {
     // Excluded events: TCP::rcv_scale declares at least one excluded event, and
     // is illegal there.
     let rcv = reg
-        .get_for_dialect("TCP::rcv_scale", ds)
+        .get_for_surface("TCP::rcv_scale", ds)
         .expect("TCP::rcv_scale");
     assert!(
         !rcv.excluded_events.is_empty(),

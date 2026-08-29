@@ -33,7 +33,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fileutil::insertIntoFile",
-        dialects: None,
+        surface: None,
         arity: Arity::at_least(3),
         hover: Some(HoverSnippet {
             summary: "Insert data into a file at an offset.",

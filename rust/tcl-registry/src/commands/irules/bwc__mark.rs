@@ -18,10 +18,11 @@
 
 //! `BWC::mark` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "BWC::mark",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "This command allows you to set or unset marking for traffic flows in bwc when configured rate limit is exceeded.",

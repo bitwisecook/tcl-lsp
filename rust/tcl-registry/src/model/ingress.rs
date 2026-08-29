@@ -84,6 +84,7 @@
 //!
 //! [`DialectProfile`]: tcl_dialect::DialectProfile
 
+use crate::model::context::AuthoringScope;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use rustc_hash::FxHashMap;
@@ -215,8 +216,8 @@ impl DocumentEnvironment {
     /// P3 note: the promotion is no longer what carries Tk's
     /// *availability*. The `tk` environment's own derived authoring mask
     /// now contains the `TK` bit (its ambient Tk placement produces it),
-    /// so `unit_profile().availability_mask` and
-    /// [`Self::document_authoring_mask`] agree by derivation rather than
+    /// so `unit_profile().surface_query()` and
+    /// [`Self::document_authoring_scope`] agree by derivation rather than
     /// by injection — pinned by `the_document_mask_is_the_threaded_profiles_mask`.
     #[must_use]
     pub fn unit_profile(&self) -> &'static DialectProfile {
@@ -299,10 +300,10 @@ impl DocumentEnvironment {
     /// (`the_document_mask_is_the_threaded_profiles_mask`) pins the two
     /// equal by derivation.
     ///
-    /// [`ResolvedContext::authoring_mask`]: crate::model::ResolvedContext::authoring_mask
+    /// [`ResolvedContext::authoring_query`]: crate::model::ResolvedContext::authoring_query
     #[must_use]
-    pub fn document_authoring_mask(&self) -> tcl_dialect::DialectSet {
-        self.default_context_registry().context().authoring_mask()
+    pub fn document_authoring_scope(&self) -> AuthoringScope {
+        self.default_context_registry().context().authoring_scope()
     }
 
     /// The context a **document** of this environment is assisted under:
@@ -545,22 +546,22 @@ mod tests {
         for name in names {
             let environment = resolve_environment(name);
             assert_eq!(
-                environment.document_authoring_mask(),
-                environment.unit_profile().availability_mask,
+                environment.document_authoring_scope().query(),
+                environment.unit_profile().surface_query(),
                 "{name}"
             );
             assert_eq!(
-                environment.document_context().authoring_mask(),
-                environment.unit_profile().availability_mask,
+                environment.document_context().authoring_query(),
+                environment.unit_profile().surface_query(),
                 "{name} context"
             );
             // One value, not two: no injected mask over the derivation.
             assert_eq!(
-                environment.document_context().authoring_mask(),
+                environment.document_context().authoring_query(),
                 environment
                     .default_context_registry()
                     .context()
-                    .authoring_mask(),
+                    .authoring_query(),
                 "{name} derivation"
             );
         }
@@ -571,8 +572,8 @@ mod tests {
         assert!(
             tk_context
                 .context()
-                .authoring_mask()
-                .contains(tcl_dialect::DialectSet::TK)
+                .authoring_query()
+                .contains(SpecSurface::TK)
         );
         assert!(tk_context.context().placement_is_ambient("Tk"));
         // …and no plain-Tcl environment gains it from the lenient hosted
@@ -583,8 +584,8 @@ mod tests {
             let context = generation.context();
             assert!(
                 !context
-                    .authoring_mask()
-                    .contains(tcl_dialect::DialectSet::TK),
+                    .authoring_query()
+                    .contains(SpecSurface::TK),
                 "{plain}"
             );
             assert!(context.can_host_package("Tk"), "{plain}");

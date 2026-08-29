@@ -49,9 +49,12 @@
 //! namespace. Consumers resolve the active dialect once and query this table;
 //! no consumer hardcodes a name list.
 
-use crate::dialects::DialectSet;
+use tcl_dialect::model::{Family};
 use crate::side_effects::SideEffectTarget;
 use crate::taint::TaintColour;
+use tcl_dialect::model::{SurfaceQuery, surface_admits};
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
 
 /// The value shape a special variable holds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -124,7 +127,7 @@ pub struct SpecialVarKey {
     pub key: &'static str,
     /// Dialects in which this key is present. `tcl_platform(tmmVersion)` is
     /// iRules-only; `tcl_platform(pointerSize)` is Tcl 8.5+.
-    pub dialects: DialectSet,
+    pub surface: &'static [SpecSurface],
     /// One-line description for hover.
     pub summary: &'static str,
 }
@@ -143,7 +146,7 @@ pub struct SpecialVarSpec {
     pub origin: VarOrigin,
     /// Dialects that provide this variable. A membership test against the
     /// active dialect decides whether the variable exists there.
-    pub dialects: DialectSet,
+    pub surface: &'static [SpecSurface],
     /// Dialects in which the default host has bound this global before user
     /// code runs.  This is deliberately independent of [`Self::dialects`]:
     /// a runtime-sensitive variable such as `errorInfo` or `auto_execs` can
@@ -152,13 +155,13 @@ pub struct SpecialVarSpec {
     ///
     /// These are startup-*global* facts only.  They do not make a same-named
     /// procedure local defined, and a later `unset` removes the binding.
-    pub initially_bound: DialectSet,
+    pub initially_bound: &'static [SpecSurface],
     /// Dialects where an otherwise-unbound direct read is defined by a core
     /// read trace.  Tcl 8.x's `tcl_precision` is the current example: it is
     /// not materialised in a fresh globals snapshot, but `$tcl_precision`
     /// reads as `0`.  A read trace is semantically equivalent to an entry
     /// binding for W210, but must remain distinct for lifecycle auditing.
-    pub lazily_readable: DialectSet,
+    pub lazily_readable: &'static [SpecSurface],
     /// Lifecycle event behind [`Self::initially_bound`] or
     /// [`Self::lazily_readable`].  It documents why W210 can treat only the
     /// initial global version as defined.
@@ -199,23 +202,23 @@ impl SpecialVarSpec {
     /// Whether this variable is available in `dialect` (a resolved
     /// [`DialectSet`] flag for the active dialect).
     #[must_use]
-    pub fn available_in(&self, dialect: DialectSet) -> bool {
-        self.dialects.intersects(dialect)
+    pub fn available_in(&self, dialect: Option<SurfaceQuery<'_>>) -> bool {
+        surface_admits(self.surface, dialect.as_ref())
     }
 
     /// Whether a read from the initial, default global scope is defined in
     /// `dialect`.  This combines an eager startup binding with any documented
     /// lazy read trace; callers must still account for scope and later writes.
     #[must_use]
-    pub fn readable_at_startup_in(&self, dialect: DialectSet) -> bool {
-        self.initially_bound.intersects(dialect) || self.lazily_readable.intersects(dialect)
+    pub fn readable_at_startup_in(&self, dialect: Option<SurfaceQuery<'_>>) -> bool {
+        surface_admits(self.initially_bound, dialect.as_ref()) || surface_admits(self.lazily_readable, dialect.as_ref())
     }
 
     /// The known keys of this array that are present in `dialect`.
-    pub fn keys_in(&self, dialect: DialectSet) -> impl Iterator<Item = &SpecialVarKey> {
+    pub fn keys_in(&self, dialect: Option<SurfaceQuery<'_>>) -> impl Iterator<Item = &SpecialVarKey> {
         self.keys
             .iter()
-            .filter(move |k| k.dialects.intersects(dialect))
+            .filter(move |k| surface_admits(k.surface, dialect.as_ref()))
     }
 }
 
@@ -226,11 +229,15 @@ impl SpecialVarSpec {
 /// `tcl_registry::model::ingress`) and threads the profile; the old
 /// name-keyed `resolve_dialect` validator is deleted (ledger C2, P1-G).
 ///
-/// `None` (no dialect resolved) answers [`DialectSet::ALL_TCL`]: the
-/// permissive `PLAIN_TCL` sink, whose own mask is that same set.
+/// `None` (no dialect resolved) answers the permissive `PLAIN_TCL`
+/// profile's own point.
 #[must_use]
-pub fn dialect_set_for_profile(profile: Option<&tcl_dialect::DialectProfile>) -> DialectSet {
-    profile.map_or(DialectSet::ALL_TCL, |p| p.availability_mask)
+pub fn surface_query_for_profile(
+    profile: Option<&tcl_dialect::DialectProfile>,
+) -> SurfaceQuery<'static> {
+    profile
+        .unwrap_or_else(|| tcl_dialect::DialectProfile::plain_tcl())
+        .surface_query()
 }
 
 /// Look up a special variable by bare name, ignoring dialect.
@@ -244,9 +251,9 @@ pub fn special_var(name: &str) -> Option<&'static SpecialVarSpec> {
 }
 
 /// Look up a special variable that is available in `dialect` (the resolved
-/// availability mask, from [`dialect_set_for_profile`]).
+/// availability mask, from [`surface_query_for_profile`]).
 #[must_use]
-pub fn special_var_in_dialect(name: &str, dialect: DialectSet) -> Option<&'static SpecialVarSpec> {
+pub fn special_var_in_dialect(name: &str, dialect: Option<SurfaceQuery<'_>>) -> Option<&'static SpecialVarSpec> {
     special_var(name).filter(|v| v.available_in(dialect))
 }
 
@@ -256,7 +263,7 @@ pub fn special_var_in_dialect(name: &str, dialect: DialectSet) -> Option<&'stati
 /// W210 predicate: a number of special variables are created only after a
 /// runtime event or library call.
 #[must_use]
-pub fn is_special_var(name: &str, dialect: DialectSet) -> bool {
+pub fn is_special_var(name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
     special_var_in_dialect(name, dialect).is_some()
 }
 
@@ -267,7 +274,7 @@ pub fn is_special_var(name: &str, dialect: DialectSet) -> bool {
 /// procedure-local variable of the same name, or a version killed by `unset`,
 /// remains a genuine read-before-set.
 #[must_use]
-pub fn is_readable_at_startup(name: &str, dialect: DialectSet) -> bool {
+pub fn is_readable_at_startup(name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
     special_var(name).is_some_and(|v| v.readable_at_startup_in(dialect))
 }
 
@@ -278,8 +285,8 @@ pub fn is_readable_at_startup(name: &str, dialect: DialectSet) -> bool {
 /// 8.x `tcl_precision`: an initial read is valid there, but a first `unset`
 /// still fails until that trace has materialised a value.
 #[must_use]
-pub fn is_initially_bound(name: &str, dialect: DialectSet) -> bool {
-    special_var(name).is_some_and(|v| v.initially_bound.intersects(dialect))
+pub fn is_initially_bound(name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
+    special_var(name).is_some_and(|v| surface_admits(v.initially_bound, dialect.as_ref()))
 }
 
 /// Whether reading `name` in `dialect` invokes a registry-declared Tcl read
@@ -288,8 +295,8 @@ pub fn is_initially_bound(name: &str, dialect: DialectSet) -> bool {
 /// bindings such as `argv`: deleting those leaves an ordinary undefined Tcl
 /// variable.
 #[must_use]
-pub fn is_lazily_readable(name: &str, dialect: DialectSet) -> bool {
-    special_var(name).is_some_and(|v| v.lazily_readable.intersects(dialect))
+pub fn is_lazily_readable(name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
+    special_var(name).is_some_and(|v| surface_admits(v.lazily_readable, dialect.as_ref()))
 }
 
 /// Whether a *write* to `name` in `dialect` is observed by the runtime — so
@@ -297,7 +304,7 @@ pub fn is_lazily_readable(name: &str, dialect: DialectSet) -> bool {
 /// (W211) even when the script never reads `$NAME`. This is the fix for the
 /// `set auto_path …` false positive (issue #831).
 #[must_use]
-pub fn is_externally_read(name: &str, dialect: DialectSet) -> bool {
+pub fn is_externally_read(name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool {
     special_var_in_dialect(name, dialect).is_some_and(|v| v.externally_read)
 }
 
@@ -306,7 +313,7 @@ pub fn is_externally_read(name: &str, dialect: DialectSet) -> bool {
 /// special variable there. Lets the side-effect analysis treat
 /// `set auto_path …` as an [`SideEffectTarget::InterpState`] mutation.
 #[must_use]
-pub fn special_var_write_effect(name: &str, dialect: DialectSet) -> Option<SideEffectTarget> {
+pub fn special_var_write_effect(name: &str, dialect: Option<SurfaceQuery<'_>>) -> Option<SideEffectTarget> {
     special_var_in_dialect(name, dialect).and_then(|v| v.write_effect)
 }
 
@@ -314,13 +321,13 @@ pub fn special_var_write_effect(name: &str, dialect: DialectSet) -> Option<SideE
 /// or `None` if reading it is not a taint source there. `env` / `argv` /
 /// `argv0` are attacker-influenced external input.
 #[must_use]
-pub fn special_var_read_taint(name: &str, dialect: DialectSet) -> Option<TaintColour> {
+pub fn special_var_read_taint(name: &str, dialect: Option<SurfaceQuery<'_>>) -> Option<TaintColour> {
     special_var_in_dialect(name, dialect).and_then(|v| v.read_taint)
 }
 
 /// Iterate the special variables available in `dialect`, in table order.
 pub fn special_vars_for_dialect(
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) -> impl Iterator<Item = &'static SpecialVarSpec> {
     SPECIAL_VARS.iter().filter(move |v| v.available_in(dialect))
 }
@@ -331,70 +338,70 @@ pub fn special_vars_for_dialect(
 const TCL_PLATFORM_KEYS: &[SpecialVarKey] = &[
     SpecialVarKey {
         key: "platform",
-        dialects: DialectSet::ALL_TCL.union(DialectSet::IRULES),
+        surface: surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)],
         summary: "OS family: `unix`, `windows`, or (older) `macintosh`.",
     },
     SpecialVarKey {
         key: "os",
-        dialects: DialectSet::ALL_TCL.union(DialectSet::IRULES),
+        surface: surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)],
         summary: "Operating-system name (`Linux`, `Windows NT`; `BIG-IP` on iRules).",
     },
     SpecialVarKey {
         key: "osVersion",
-        dialects: DialectSet::ALL_TCL.union(DialectSet::IRULES),
+        surface: surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)],
         summary: "Operating-system version (the BIG-IP version on iRules).",
     },
     SpecialVarKey {
         key: "byteOrder",
-        dialects: DialectSet::ALL_TCL.union(DialectSet::IRULES),
+        surface: surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)],
         summary: "`littleEndian` or `bigEndian`.",
     },
     SpecialVarKey {
         key: "wordSize",
-        dialects: DialectSet::ALL_TCL.union(DialectSet::IRULES),
+        surface: surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)],
         summary: "Size in bytes of the native `long` (4 or 8).",
     },
     SpecialVarKey {
         key: "machine",
-        dialects: DialectSet::ALL_TCL.union(DialectSet::IRULES),
+        surface: surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)],
         summary: "Hardware architecture (`x86_64`, `arm64`; hostname on iRules).",
     },
     SpecialVarKey {
         key: "pointerSize",
-        dialects: DialectSet::TCL85_PLUS,
+        surface: SpecSurface::TCL85_PLUS,
         summary: "Size in bytes of a native pointer (Tcl 8.5+).",
     },
     SpecialVarKey {
         key: "user",
-        dialects: DialectSet::ALL_TCL,
+        surface: SpecSurface::ALL_TCL,
         summary: "Login name of the user running the process.",
     },
     SpecialVarKey {
         key: "engine",
-        dialects: DialectSet::TCL85_PLUS,
+        surface: SpecSurface::TCL85_PLUS,
         summary: "Interpreter engine name — `Tcl` for the reference implementation (8.5+).",
     },
     SpecialVarKey {
         key: "pathSeparator",
-        dialects: DialectSet::TCL86_PLUS,
+        surface: SpecSurface::TCL86_PLUS,
         summary: "Separator between paths in a search-path list (Tcl 8.6+).",
     },
     SpecialVarKey {
         key: "threaded",
         // Build conditional (`TCL_THREADS`), so no release-only profile can
         // promise this key to ordinary user code.
-        dialects: DialectSet::empty(),
+        surface: &[],
         summary: "Present only on Tcl 8.x builds configured with thread support.",
     },
     SpecialVarKey {
         key: "debug",
         // Windows debug-build conditional, likewise not a release fact.
-        dialects: DialectSet::empty(),
+        surface: &[],
         summary: "Present only on Tcl 8.x Windows debug builds.",
     },
     SpecialVarKey {
         key: "tmmVersion",
-        dialects: DialectSet::IRULES,
+        surface: SpecSurface::IRULES,
         summary: "iRules only: full TMM version including build number.",
     },
 ];
@@ -411,9 +418,9 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Scalar,
         access: VarAccess::ReadOnly,
         origin: VarOrigin::Interpreter,
-        dialects: DialectSet::ALL_TCL,
-        initially_bound: DialectSet::ALL_TCL,
-        lazily_readable: DialectSet::empty(),
+        surface: SpecSurface::ALL_TCL,
+        initially_bound: SpecSurface::ALL_TCL,
+        lazily_readable: &[],
         startup_binding: StartupBinding::TclMain,
         keys: &[],
         externally_read: true,
@@ -427,9 +434,9 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Scalar,
         access: VarAccess::ReadWrite,
         origin: VarOrigin::Interpreter,
-        dialects: DialectSet::ALL_TCL,
-        initially_bound: DialectSet::ALL_TCL,
-        lazily_readable: DialectSet::empty(),
+        surface: SpecSurface::ALL_TCL,
+        initially_bound: SpecSurface::ALL_TCL,
+        lazily_readable: &[],
         startup_binding: StartupBinding::TclMain,
         keys: &[],
         externally_read: true,
@@ -443,9 +450,9 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Scalar,
         access: VarAccess::ReadOnly,
         origin: VarOrigin::Interpreter,
-        dialects: DialectSet::ALL_TCL,
-        initially_bound: DialectSet::ALL_TCL,
-        lazily_readable: DialectSet::empty(),
+        surface: SpecSurface::ALL_TCL,
+        initially_bound: SpecSurface::ALL_TCL,
+        lazily_readable: &[],
         startup_binding: StartupBinding::TclMain,
         keys: &[],
         externally_read: true,
@@ -460,9 +467,9 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Scalar,
         access: VarAccess::ReadWrite,
         origin: VarOrigin::AutoLoader,
-        dialects: DialectSet::ALL_TCL,
-        initially_bound: DialectSet::ALL_TCL,
-        lazily_readable: DialectSet::empty(),
+        surface: SpecSurface::ALL_TCL,
+        initially_bound: SpecSurface::ALL_TCL,
+        lazily_readable: &[],
         startup_binding: StartupBinding::TclInit,
         keys: &[],
         externally_read: true,
@@ -477,9 +484,9 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Array,
         access: VarAccess::ReadWrite,
         origin: VarOrigin::AutoLoader,
-        dialects: DialectSet::ALL_TCL,
-        initially_bound: DialectSet::empty(),
-        lazily_readable: DialectSet::empty(),
+        surface: SpecSurface::ALL_TCL,
+        initially_bound: &[],
+        lazily_readable: &[],
         startup_binding: StartupBinding::None,
         keys: &[],
         externally_read: true,
@@ -493,9 +500,9 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Array,
         access: VarAccess::ReadWrite,
         origin: VarOrigin::AutoLoader,
-        dialects: DialectSet::ALL_TCL,
-        initially_bound: DialectSet::empty(),
-        lazily_readable: DialectSet::empty(),
+        surface: SpecSurface::ALL_TCL,
+        initially_bound: &[],
+        lazily_readable: &[],
         startup_binding: StartupBinding::None,
         keys: &[],
         externally_read: true,
@@ -509,9 +516,9 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Scalar,
         access: VarAccess::ReadWrite,
         origin: VarOrigin::AutoLoader,
-        dialects: DialectSet::ALL_TCL,
-        initially_bound: DialectSet::empty(),
-        lazily_readable: DialectSet::empty(),
+        surface: SpecSurface::ALL_TCL,
+        initially_bound: &[],
+        lazily_readable: &[],
         startup_binding: StartupBinding::None,
         keys: &[],
         externally_read: true,
@@ -525,9 +532,9 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Scalar,
         access: VarAccess::ReadWrite,
         origin: VarOrigin::AutoLoader,
-        dialects: DialectSet::ALL_TCL,
-        initially_bound: DialectSet::empty(),
-        lazily_readable: DialectSet::empty(),
+        surface: SpecSurface::ALL_TCL,
+        initially_bound: &[],
+        lazily_readable: &[],
         startup_binding: StartupBinding::None,
         keys: &[],
         externally_read: true,
@@ -542,9 +549,9 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Array,
         access: VarAccess::ReadWrite,
         origin: VarOrigin::Environment,
-        dialects: DialectSet::ALL_TCL,
-        initially_bound: DialectSet::ALL_TCL,
-        lazily_readable: DialectSet::empty(),
+        surface: SpecSurface::ALL_TCL,
+        initially_bound: SpecSurface::ALL_TCL,
+        lazily_readable: &[],
         startup_binding: StartupBinding::Interpreter,
         keys: &[],
         externally_read: true,
@@ -563,9 +570,9 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Scalar,
         access: VarAccess::ReadWrite,
         origin: VarOrigin::Interpreter,
-        dialects: DialectSet::ALL_TCL.union(DialectSet::IRULES),
-        initially_bound: DialectSet::TCL84,
-        lazily_readable: DialectSet::empty(),
+        surface: surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)],
+        initially_bound: SpecSurface::TCL84,
+        lazily_readable: &[],
         startup_binding: StartupBinding::TclInit,
         keys: &[],
         externally_read: true,
@@ -579,9 +586,9 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Scalar,
         access: VarAccess::ReadWrite,
         origin: VarOrigin::Interpreter,
-        dialects: DialectSet::ALL_TCL.union(DialectSet::IRULES),
-        initially_bound: DialectSet::TCL84,
-        lazily_readable: DialectSet::empty(),
+        surface: surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)],
+        initially_bound: SpecSurface::TCL84,
+        lazily_readable: &[],
         startup_binding: StartupBinding::TclInit,
         keys: &[],
         externally_read: true,
@@ -596,9 +603,9 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Scalar,
         access: VarAccess::ReadOnly,
         origin: VarOrigin::Interpreter,
-        dialects: DialectSet::ALL_TCL.union(DialectSet::IRULES),
-        initially_bound: DialectSet::ALL_TCL.union(DialectSet::IRULES),
-        lazily_readable: DialectSet::empty(),
+        surface: surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)],
+        initially_bound: surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)],
+        lazily_readable: &[],
         startup_binding: StartupBinding::Interpreter,
         keys: &[],
         externally_read: false,
@@ -612,9 +619,9 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Scalar,
         access: VarAccess::ReadOnly,
         origin: VarOrigin::Interpreter,
-        dialects: DialectSet::ALL_TCL.union(DialectSet::IRULES),
-        initially_bound: DialectSet::ALL_TCL.union(DialectSet::IRULES),
-        lazily_readable: DialectSet::empty(),
+        surface: surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)],
+        initially_bound: surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)],
+        lazily_readable: &[],
         startup_binding: StartupBinding::Interpreter,
         keys: &[],
         externally_read: false,
@@ -628,9 +635,9 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Scalar,
         access: VarAccess::ReadWrite,
         origin: VarOrigin::Interpreter,
-        dialects: DialectSet::ALL_TCL,
-        initially_bound: DialectSet::ALL_TCL,
-        lazily_readable: DialectSet::empty(),
+        surface: SpecSurface::ALL_TCL,
+        initially_bound: SpecSurface::ALL_TCL,
+        lazily_readable: &[],
         startup_binding: StartupBinding::TclInit,
         keys: &[],
         externally_read: true,
@@ -648,9 +655,9 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         // (`tclUnixInit.c` / `tclWinInit.c`).  Tcl 8.5 marks it "OBSOLETE:
         // This variable is no longer set by Tcl" (`tclInterp.c`) and no
         // later release restores it.
-        dialects: DialectSet::TCL84,
-        initially_bound: DialectSet::TCL84,
-        lazily_readable: DialectSet::empty(),
+        surface: SpecSurface::TCL84,
+        initially_bound: SpecSurface::TCL84,
+        lazily_readable: &[],
         startup_binding: StartupBinding::TclInit,
         keys: &[],
         externally_read: true,
@@ -665,9 +672,9 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Scalar,
         access: VarAccess::ReadWrite,
         origin: VarOrigin::Interpreter,
-        dialects: DialectSet::ALL_TCL,
-        initially_bound: DialectSet::ALL_TCL,
-        lazily_readable: DialectSet::empty(),
+        surface: SpecSurface::ALL_TCL,
+        initially_bound: SpecSurface::ALL_TCL,
+        lazily_readable: &[],
         startup_binding: StartupBinding::Interpreter,
         keys: &[],
         externally_read: true,
@@ -681,9 +688,9 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Array,
         access: VarAccess::ReadOnly,
         origin: VarOrigin::Platform,
-        dialects: DialectSet::ALL_TCL.union(DialectSet::IRULES),
-        initially_bound: DialectSet::ALL_TCL.union(DialectSet::IRULES),
-        lazily_readable: DialectSet::empty(),
+        surface: surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)],
+        initially_bound: surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)],
+        lazily_readable: &[],
         startup_binding: StartupBinding::Interpreter,
         keys: TCL_PLATFORM_KEYS,
         externally_read: false,
@@ -698,9 +705,9 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Scalar,
         access: VarAccess::ReadWrite,
         origin: VarOrigin::Interpreter,
-        dialects: DialectSet::TCL8X,
-        initially_bound: DialectSet::empty(),
-        lazily_readable: DialectSet::TCL8X,
+        surface: SpecSurface::TCL8X,
+        initially_bound: &[],
+        lazily_readable: SpecSurface::TCL8X,
         startup_binding: StartupBinding::ReadTrace,
         keys: &[],
         externally_read: true,
@@ -714,9 +721,9 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Scalar,
         access: VarAccess::ReadWrite,
         origin: VarOrigin::Interpreter,
-        dialects: DialectSet::ALL_TCL,
-        initially_bound: DialectSet::ALL_TCL,
-        lazily_readable: DialectSet::empty(),
+        surface: SpecSurface::ALL_TCL,
+        initially_bound: SpecSurface::ALL_TCL,
+        lazily_readable: &[],
         startup_binding: StartupBinding::AppInit,
         keys: &[],
         externally_read: true,
@@ -730,9 +737,9 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Scalar,
         access: VarAccess::ReadWrite,
         origin: VarOrigin::Interpreter,
-        dialects: DialectSet::ALL_TCL,
-        initially_bound: DialectSet::ALL_TCL,
-        lazily_readable: DialectSet::empty(),
+        surface: SpecSurface::ALL_TCL,
+        initially_bound: SpecSurface::ALL_TCL,
+        lazily_readable: &[],
         startup_binding: StartupBinding::TclMain,
         keys: &[],
         externally_read: true,
@@ -746,9 +753,9 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Scalar,
         access: VarAccess::ReadWrite,
         origin: VarOrigin::Interpreter,
-        dialects: DialectSet::ALL_TCL,
-        initially_bound: DialectSet::empty(),
-        lazily_readable: DialectSet::empty(),
+        surface: SpecSurface::ALL_TCL,
+        initially_bound: &[],
+        lazily_readable: &[],
         startup_binding: StartupBinding::None,
         keys: &[],
         externally_read: true,
@@ -762,9 +769,9 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Scalar,
         access: VarAccess::ReadWrite,
         origin: VarOrigin::Interpreter,
-        dialects: DialectSet::ALL_TCL,
-        initially_bound: DialectSet::empty(),
-        lazily_readable: DialectSet::empty(),
+        surface: SpecSurface::ALL_TCL,
+        initially_bound: &[],
+        lazily_readable: &[],
         startup_binding: StartupBinding::None,
         keys: &[],
         externally_read: true,
@@ -778,9 +785,9 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Scalar,
         access: VarAccess::ReadWrite,
         origin: VarOrigin::Interpreter,
-        dialects: DialectSet::ALL_TCL,
-        initially_bound: DialectSet::empty(),
-        lazily_readable: DialectSet::empty(),
+        surface: SpecSurface::ALL_TCL,
+        initially_bound: &[],
+        lazily_readable: &[],
         startup_binding: StartupBinding::None,
         keys: &[],
         externally_read: true,
@@ -794,9 +801,9 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Scalar,
         access: VarAccess::ReadWrite,
         origin: VarOrigin::Interpreter,
-        dialects: DialectSet::ALL_TCL,
-        initially_bound: DialectSet::empty(),
-        lazily_readable: DialectSet::empty(),
+        surface: SpecSurface::ALL_TCL,
+        initially_bound: &[],
+        lazily_readable: &[],
         startup_binding: StartupBinding::None,
         keys: &[],
         externally_read: true,
@@ -810,9 +817,9 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Scalar,
         access: VarAccess::ReadWrite,
         origin: VarOrigin::Interpreter,
-        dialects: DialectSet::ALL_TCL,
-        initially_bound: DialectSet::empty(),
-        lazily_readable: DialectSet::empty(),
+        surface: SpecSurface::ALL_TCL,
+        initially_bound: &[],
+        lazily_readable: &[],
         startup_binding: StartupBinding::None,
         keys: &[],
         externally_read: true,
@@ -826,9 +833,9 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Scalar,
         access: VarAccess::ReadWrite,
         origin: VarOrigin::Interpreter,
-        dialects: DialectSet::ALL_TCL,
-        initially_bound: DialectSet::empty(),
-        lazily_readable: DialectSet::empty(),
+        surface: SpecSurface::ALL_TCL,
+        initially_bound: &[],
+        lazily_readable: &[],
         startup_binding: StartupBinding::None,
         keys: &[],
         externally_read: true,
@@ -843,9 +850,9 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         kind: SpecialVarKind::Namespace,
         access: VarAccess::ReadWrite,
         origin: VarOrigin::Dialect,
-        dialects: DialectSet::IRULES,
-        initially_bound: DialectSet::empty(),
-        lazily_readable: DialectSet::empty(),
+        surface: SpecSurface::IRULES,
+        initially_bound: &[],
+        lazily_readable: &[],
         startup_binding: StartupBinding::None,
         keys: &[],
         externally_read: true,
@@ -870,7 +877,7 @@ mod tests {
         // ingress resolves it.
         tcl_dialect::DialectProfile::find(dialect)
             .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl)
-            .availability_mask
+            .surface_query()
     }
 
     #[test]
@@ -1128,7 +1135,7 @@ mod tests {
     fn version_dialects_keep_exact_bit_for_per_key_gating() {
         // A specific Tcl version must not be widened to ALL_TCL, or per-key
         // version gating (pointerSize is 8.5+) would leak into 8.4.
-        assert_eq!(d("tcl8.4"), DialectSet::TCL84);
+        assert_eq!(d("tcl8.4"), SpecSurface::TCL84);
         let spec = special_var("tcl_platform").unwrap();
         let keys_84: Vec<_> = spec.keys_in(d("tcl8.4")).map(|k| k.key).collect();
         assert!(!keys_84.contains(&"pointerSize"));

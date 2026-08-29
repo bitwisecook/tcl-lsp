@@ -818,10 +818,10 @@ mod tests {
                 "neutral parent row: {command} {method}"
             );
             let query = registry
-                .resolve_instance_invocation(command, ".w", query, DialectSet::empty())
+                .resolve_instance_invocation(command, ".w", query, None)
                 .expect("query form resolves");
             let setter = registry
-                .resolve_instance_invocation(command, ".w", setter, DialectSet::empty())
+                .resolve_instance_invocation(command, ".w", setter, None)
                 .expect("setter form resolves");
             assert!(
                 query
@@ -868,7 +868,7 @@ mod tests {
                 &registry,
                 "winfo",
                 args,
-                DialectSet::TCL90
+                SpecSurface::TCL90
             ));
         }
     }
@@ -908,7 +908,7 @@ mod tests {
         ];
         for (class, query_args, mutation_args) in cases {
             let query = registry
-                .resolve_instance_invocation(class, ".w", query_args, DialectSet::empty())
+                .resolve_instance_invocation(class, ".w", query_args, None)
                 .unwrap_or_else(|| panic!("query form resolves: {class} {query_args:?}"));
             assert_eq!(query.form.map(|form| form.name), Some("query"));
             assert!(query.semantics.traits.contains(Traits::PURE));
@@ -922,7 +922,7 @@ mod tests {
             );
 
             let mutation = registry
-                .resolve_instance_invocation(class, ".w", mutation_args, DialectSet::empty())
+                .resolve_instance_invocation(class, ".w", mutation_args, None)
                 .unwrap_or_else(|| panic!("mutation form resolves: {class} {mutation_args:?}"));
             assert!(matches!(
                 mutation.form.map(|form| form.name),
@@ -944,7 +944,7 @@ mod tests {
                 "button",
                 ".w",
                 &["configure", "-text", "Save"],
-                DialectSet::empty(),
+                None,
             )
             .unwrap();
         assert!(
@@ -959,7 +959,7 @@ mod tests {
                 "ttk::toggleswitch",
                 ".w",
                 &["switchstate", "1"],
-                DialectSet::empty(),
+                None,
             )
             .unwrap();
         assert!(
@@ -1045,7 +1045,7 @@ mod tests {
 
         for (class, query_args, mutation_args) in cases {
             let query = registry
-                .resolve_instance_invocation(class, ".w", query_args, DialectSet::empty())
+                .resolve_instance_invocation(class, ".w", query_args, None)
                 .unwrap_or_else(|| panic!("query resolves: {class} {query_args:?}"));
             assert!(query.form.is_some(), "query form: {class} {query_args:?}");
             assert!(!query.semantics.mutator, "query: {class} {query_args:?}");
@@ -1059,7 +1059,7 @@ mod tests {
             );
 
             let mutation = registry
-                .resolve_instance_invocation(class, ".w", mutation_args, DialectSet::empty())
+                .resolve_instance_invocation(class, ".w", mutation_args, None)
                 .unwrap_or_else(|| panic!("mutation resolves: {class} {mutation_args:?}"));
             assert!(
                 mutation.semantics.mutator
@@ -1086,7 +1086,7 @@ mod tests {
             .resolve_structured_instance_invocation(
                 "entry",
                 InvocationWords::structured(InvocationWord::Literal(".e"), &dynamic),
-                DialectSet::empty(),
+                None,
             )
             .expect("the method row still resolves");
         assert!(invocation.form.is_none());
@@ -1105,14 +1105,14 @@ mod tests {
             ("ttk::treeview", &["tag", "c", "hot"] as &[&str]),
         ] {
             let invocation = registry
-                .resolve_instance_invocation(class, ".w", args, DialectSet::empty())
+                .resolve_instance_invocation(class, ".w", args, None)
                 .unwrap_or_else(|| panic!("parent method resolves: {class} {args:?}"));
             assert!(invocation.form.is_none(), "must abstain: {class} {args:?}");
             assert!(invocation.semantics.mutator, "parent fallback: {class}");
         }
 
         let abbreviated = registry
-            .resolve_instance_invocation("entry", ".e", &["selection", "pres"], DialectSet::empty())
+            .resolve_instance_invocation("entry", ".e", &["selection", "pres"], None)
             .expect("unique literal prefix resolves");
         assert_eq!(abbreviated.form.map(|form| form.name), Some("present"));
         assert!(!abbreviated.semantics.mutator);
@@ -1193,7 +1193,7 @@ mod tests {
                 "neutral {command} configure"
             );
             let query = registry
-                .resolve_instance_invocation(command, ".w", &["configure"], DialectSet::empty())
+                .resolve_instance_invocation(command, ".w", &["configure"], None)
                 .unwrap();
             assert!(query.semantics.traits.contains(Traits::PURE));
             assert!(!query.semantics.mutator);
@@ -1209,7 +1209,7 @@ mod tests {
                     command,
                     ".w",
                     &["configure", "-text", "value"],
-                    DialectSet::empty(),
+                    None,
                 )
                 .unwrap();
             assert!(setter.semantics.mutator);

@@ -18,12 +18,13 @@
 
 //! `pktlen` — read the packet length (`pktlen DST SRC`).
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 pub fn spec() -> CommandSpec {
     const OP: BpfOpSpec = BpfOpSpec::gated(BpfOpKind::PacketLen, BpfEffects::PKT_READ);
     CommandSpec {
         name: "pktlen",
-        dialects: Some(DialectSet::BPF),
+        surface: Some(SpecSurface::BPF),
         arity: Arity::exact(2),
         bpf_op: Some(&OP),
         ..CommandSpec::DEFAULT

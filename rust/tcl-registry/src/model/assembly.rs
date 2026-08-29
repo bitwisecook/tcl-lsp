@@ -54,7 +54,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 use tcl_dialect::model::{EnvironmentDefinition, EnvironmentIdentity};
-use tcl_dialect::{DialectProfile, DialectSet};
+use tcl_dialect::DialectProfile;
 
 use crate::model::context::{ContextQueries, KeyedVersions, ResolvedContext, specificity_breadth};
 use crate::model::surface::{SurfaceDeclaration, declarations_for_spec};
@@ -77,13 +77,13 @@ pub(crate) fn universe() -> &'static CommandRegistry {
     CELL.get_or_init(|| {
         let mut registry = CommandRegistry::build_default();
         for pack in [
-            DialectSet::BPF,
-            DialectSet::IRULES,
-            DialectSet::IAPPS,
-            DialectSet::EXPECT,
-            DialectSet::SPECTCL,
+            SpecSurface::BPF,
+            SpecSurface::IRULES,
+            SpecSurface::IAPPS,
+            SpecSurface::EXPECT,
+            SpecSurface::SPECTCL,
         ] {
-            registry.load_dialect(pack);
+            registry.load_surface(pack);
         }
         registry
     })
@@ -192,11 +192,11 @@ impl ContextRegistry {
     /// the multimap with the generalised most-specific-wins rule.
     ///
     /// **Selection, then the package conjunct** — mirroring the old
-    /// `get_for_dialect → is_available` layering: among the specs with a
+    /// `get_for_surface → is_available` layering: among the specs with a
     /// declaration admitted for selection, the winner has the **narrowest
     /// total applicability breadth** ([`specificity_breadth`]; the
     /// documented tiebreaks are: a scoped spec beats the universal
-    /// `dialects: None` translation because the universal breadth of 22
+    /// `surface: None` translation because the universal breadth of 22
     /// exceeds every explicit gate's maximum of 13, and among equal
     /// breadths the **last-registered** spec wins so curated overrides
     /// keep beating the data they shadow). The winner then still has to
@@ -401,14 +401,14 @@ pub fn resolve_invocation_in_context<'r, 'w>(
     args: &'w [&'w str],
 ) -> Option<ResolvedInvocation<'r, 'w>> {
     let Some(context) = context else {
-        return commands.resolve_invocation(name, args, DialectSet::empty());
+        return commands.resolve_invocation(name, args, None);
     };
     // Binding proof (I4): Absent ⇒ no hook. `resolve_spec` and the mask
-    // resolution below share one selection (`get_for_dialect` under the
+    // resolution below share one selection (`get_for_surface` under the
     // authoring mask), so the proved spec IS the selected spec; the
     // proof adds the full availability conjunct the mask alone lacks.
     context.resolve_spec(commands, name)?;
-    commands.resolve_invocation(name, args, context.authoring_mask())
+    commands.resolve_invocation(name, args, Some(context.authoring_query()))
 }
 
 /// The legacy-selection twin of [`resolve_invocation_in_context`] for the
@@ -428,10 +428,10 @@ pub fn resolve_call_in_context<'r>(
     args: &[&str],
 ) -> Option<ResolvedCall<'r>> {
     let Some(context) = context else {
-        return commands.resolve_call(name, args, DialectSet::empty());
+        return commands.resolve_call(name, args, None);
     };
     let proved = context.resolve_spec(commands, name)?;
-    let resolved = commands.resolve_call(name, args, context.authoring_mask())?;
+    let resolved = commands.resolve_call(name, args, Some(context.authoring_query()))?;
     // `Unavailable ≠ permission`: only the proved binding may specialise.
     std::ptr::eq(resolved.spec, proved).then_some(resolved)
 }
@@ -542,13 +542,13 @@ pub(crate) mod tests {
         spec: &'static CommandSpec,
     ) -> (
         &'static str,
-        Option<DialectSet>,
+        Option<&'static [SpecSurface]>,
         Option<&'static str>,
         Option<&'static str>,
     ) {
         (
             spec.name,
-            spec.dialects,
+            spec.surface,
             spec.required_package,
             spec.tcllib_package,
         )
@@ -585,7 +585,7 @@ pub(crate) mod tests {
                 assert_eq!(
                     old, new,
                     "`{name}` (gate {:?}, requires {:?}) under `{}`: old {old} vs new {new}",
-                    spec.dialects, spec.required_package, profile.name
+                    spec.surface, spec.required_package, profile.name
                 );
                 checks += 1;
             }

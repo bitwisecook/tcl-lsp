@@ -46,6 +46,7 @@
 //! matching the `tcl::process`/`tcl::zipfs`/`tcl::idna` sibling 9.0-era
 //! additions — both spellings are registered here explicitly.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "::tcl::unsupported::corotype coroName",
@@ -74,7 +75,7 @@ fn make_spec(name: &'static str) -> CommandSpec {
         traits: Traits::FRAMELESS_RUNTIME,
         // TCL86_PLUS, not TCL90_PLUS: present (mid-series) in 8.6 and
         // unchanged in 9.0/9.1 — see the module doc comment for the exact
-        // patch-level evidence. Not universal (`dialects: None`) either:
+        // patch-level evidence. Not universal (`surface: None`) either:
         // absent from 8.4/8.5 (no coroutines at all there), and — being a
         // standard-Tcl-core internal with no sibling registration anywhere
         // under `commands/irules|iapps|expect|tk|itcl|eda_*` — absent from
@@ -84,7 +85,7 @@ fn make_spec(name: &'static str) -> CommandSpec {
         // `IRULES` bit, so the spec never intersects iRules' bare `IRULES`
         // mask and is excluded on the version axis alone — no separate
         // per-dialect exclusion, and no disable list.
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         arity: Arity::new(1, 1),
         return_type: Some(TclType::String),
         side_effects: SIDE_EFFECTS,

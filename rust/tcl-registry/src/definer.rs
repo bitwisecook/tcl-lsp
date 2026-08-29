@@ -37,6 +37,9 @@
 //! [`CommandSpec::definition_body`]: crate::CommandSpec::definition_body
 
 use crate::arg_role::ArgRole;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::{surface_admits};
+use tcl_dialect::model::{SurfaceQuery};
 
 /// How a member's argument layout is determined — most members are `Flat`
 /// (their `arg_roles` give the layout directly), but two irregular shapes recur
@@ -351,7 +354,7 @@ pub struct MemberOptionValue {
     pub role: ArgRole,
     /// Dialects that accept this spelling, or `None` when it is available in
     /// every dialect that supplies the enclosing member.
-    pub dialects: Option<crate::dialects::DialectSet>,
+    pub surface: Option<&'static [SpecSurface]>,
     /// Visibility selected for a member declaration, when this option has one.
     pub declared_visibility: Option<DeclaredMemberVisibility>,
 }
@@ -372,20 +375,20 @@ pub struct OptionalMemberArgument {
 
 impl OptionalMemberArgument {
     fn value_for<S: AsRef<str>>(self, args: &[S]) -> Option<MemberOptionValue> {
-        self.value_for_in(args, crate::dialects::DialectSet::all())
+        self.value_for_in(args, None)
     }
 
     fn value_for_in<S: AsRef<str>>(
         self,
         args: &[S],
-        dialect: crate::dialects::DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<MemberOptionValue> {
         let word = args.get(usize::from(self.position))?.as_ref();
         self.values.iter().copied().find(|candidate| {
             candidate.value == word
                 && candidate
-                    .dialects
-                    .is_none_or(|available| available.intersects(dialect))
+                    .surface
+                    .is_none_or(|available| surface_admits(available, dialect.as_ref()))
         })
     }
 }
@@ -426,7 +429,7 @@ pub struct MemberSpec {
     /// version-independent (the common case).  `property` is 9.0+ — it does
     /// not exist in the 8.6 `TclOO` definition grammar — so a document using it
     /// under an older core is flagged rather than silently accepted.
-    pub dialects: Option<crate::dialects::DialectSet>,
+    pub surface: Option<&'static [SpecSurface]>,
     /// How this member **removes** the members its arguments name, or `None`
     /// when it merely refers to them.
     ///
@@ -496,7 +499,7 @@ impl MemberSpec {
             all_args_ref: None,
             kind: MemberKind::Flat,
             wrapper_block_body: false,
-            dialects: None,
+            surface: None,
             retraction: None,
             visibility_effect: None,
             slot: None,
@@ -515,7 +518,7 @@ impl MemberSpec {
             all_args_ref: Some(kind),
             kind: MemberKind::Flat,
             wrapper_block_body: false,
-            dialects: None,
+            surface: None,
             retraction: None,
             visibility_effect: None,
             slot: None,
@@ -533,7 +536,7 @@ impl MemberSpec {
             all_args_ref: None,
             kind: MemberKind::Flat,
             wrapper_block_body: false,
-            dialects: None,
+            surface: None,
             retraction: None,
             visibility_effect: None,
             slot: None,
@@ -552,7 +555,7 @@ impl MemberSpec {
             all_args_ref: None,
             kind: MemberKind::Flat,
             wrapper_block_body: false,
-            dialects: None,
+            surface: None,
             retraction: None,
             visibility_effect: None,
             slot: None,
@@ -572,7 +575,7 @@ impl MemberSpec {
             all_args_ref: None,
             kind: MemberKind::Wrapper,
             wrapper_block_body: false,
-            dialects: None,
+            surface: None,
             retraction: None,
             visibility_effect: None,
             slot: None,
@@ -595,19 +598,19 @@ impl MemberSpec {
             all_args_ref: None,
             kind: MemberKind::Wrapper,
             wrapper_block_body: true,
-            dialects: None,
+            surface: None,
             retraction: None,
             visibility_effect: None,
             slot: None,
         }
     }
 
-    /// Restrict this member to `dialects` (a builder over the constructors
+    /// Restrict this member to `surface` (a builder over the constructors
     /// above): `property` is 9.0+, so it carries `TCL90_PLUS` while every other
     /// `TclOO` member stays version-independent.
     #[must_use]
-    const fn with_dialects(mut self, dialects: crate::dialects::DialectSet) -> Self {
-        self.dialects = Some(dialects);
+    const fn with_surface(mut self, surface: &'static [SpecSurface]) -> Self {
+        self.surface = Some(surface);
         self
     }
 
@@ -658,7 +661,7 @@ impl MemberSpec {
             all_args_ref: None,
             kind: MemberKind::FlagKeyed,
             wrapper_block_body: false,
-            dialects: None,
+            surface: None,
             retraction: None,
             visibility_effect: None,
             slot: None,
@@ -716,7 +719,7 @@ impl MemberSpec {
     pub fn indices_for_call_in<S: AsRef<str>>(
         &self,
         args: &[S],
-        dialect: crate::dialects::DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
         role: ArgRole,
     ) -> impl Iterator<Item = usize> + '_ {
         let option = self
@@ -756,7 +759,7 @@ impl MemberSpec {
     pub fn option_for_in<S: AsRef<str>>(
         &self,
         args: &[S],
-        dialect: crate::dialects::DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<MemberOptionValue> {
         self.optional_argument
             .and_then(|optional| optional.value_for_in(args, dialect))
@@ -768,7 +771,7 @@ impl MemberSpec {
     pub fn unavailable_option_for<S: AsRef<str>>(
         &self,
         args: &[S],
-        dialect: crate::dialects::DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<MemberOptionValue> {
         self.option_for(args)
             .filter(|_| self.option_for_in(args, dialect).is_none())
@@ -791,7 +794,7 @@ impl MemberSpec {
     pub fn declared_visibility_for_in<S: AsRef<str>>(
         &self,
         args: &[S],
-        dialect: crate::dialects::DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<DeclaredMemberVisibility> {
         self.option_for_in(args, dialect)
             .and_then(|option| option.declared_visibility)
@@ -1102,7 +1105,7 @@ impl DefinitionBodyGrammar {
         &self,
         keyword: &str,
         args: &[&str],
-        dialect: crate::dialects::DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Vec<usize> {
         let Some(member) = self.member(keyword) else {
             return Vec::new();
@@ -1262,19 +1265,19 @@ const TCLOO_METHOD_VISIBILITY_OPTIONS: &[MemberOptionValue] = &[
     MemberOptionValue {
         value: "-export",
         role: ArgRole::Option,
-        dialects: Some(TCL90_MEMBERS),
+        surface: Some(TCL90_MEMBERS),
         declared_visibility: Some(DeclaredMemberVisibility::Public),
     },
     MemberOptionValue {
         value: "-private",
         role: ArgRole::Option,
-        dialects: Some(TCL90_MEMBERS),
+        surface: Some(TCL90_MEMBERS),
         declared_visibility: Some(DeclaredMemberVisibility::Private),
     },
     MemberOptionValue {
         value: "-unexport",
         role: ArgRole::Option,
-        dialects: Some(TCL90_MEMBERS),
+        surface: Some(TCL90_MEMBERS),
         declared_visibility: Some(DeclaredMemberVisibility::Unexported),
     },
 ];
@@ -1288,13 +1291,13 @@ const TCLOO_DEFINITION_NAMESPACE_FACETS: &[MemberOptionValue] = &[
     MemberOptionValue {
         value: "-class",
         role: ArgRole::Option,
-        dialects: Some(TCL90_MEMBERS),
+        surface: Some(TCL90_MEMBERS),
         declared_visibility: None,
     },
     MemberOptionValue {
         value: "-instance",
         role: ArgRole::Option,
-        dialects: Some(TCL90_MEMBERS),
+        surface: Some(TCL90_MEMBERS),
         declared_visibility: None,
     },
 ];
@@ -1325,18 +1328,18 @@ const NO_ROLES: &[(u8, ArgRole)] = &[];
 /// `oo::define` block, and the single-command `oo::define Cls classmethod …`
 /// form) fails on tclsh8.6 with `invalid command name "<member>"` and
 /// succeeds on tclsh9.0.
-const TCL90_MEMBERS: crate::dialects::DialectSet = crate::dialects::DialectSet::TCL90_PLUS;
+const TCL90_MEMBERS: &[SpecSurface] = SpecSurface::TCL90_PLUS;
 
 const TCLOO_MEMBERS: &[MemberSpec] = &[
     MemberSpec::flat("method", METHOD_ROLES).optional_argument(TCLOO_METHOD_VISIBILITY_ARGUMENT),
-    MemberSpec::flat("classmethod", METHOD_ROLES).with_dialects(TCL90_MEMBERS),
+    MemberSpec::flat("classmethod", METHOD_ROLES).with_surface(TCL90_MEMBERS),
     MemberSpec::flat("constructor", CTOR_ROLES),
     MemberSpec::flat("destructor", BODY0_ROLES),
-    MemberSpec::flat("initialise", BODY0_ROLES).with_dialects(TCL90_MEMBERS),
-    MemberSpec::flat("initialize", BODY0_ROLES).with_dialects(TCL90_MEMBERS),
+    MemberSpec::flat("initialise", BODY0_ROLES).with_surface(TCL90_MEMBERS),
+    MemberSpec::flat("initialize", BODY0_ROLES).with_surface(TCL90_MEMBERS),
     // `private` is a prefix wrapper (`private method m {} {…}`, `private
     // variable x`) *and* a bare definition-script block (`private { … }`).
-    MemberSpec::wrapper_or_body("private").with_dialects(TCL90_MEMBERS),
+    MemberSpec::wrapper_or_body("private").with_surface(TCL90_MEMBERS),
     // `variable a b c` inside a class body declares every name.  A slot:
     // `-append` default like `filter`, but deduplicating (tclsh 9.0.4:
     // `variable a ; variable a b` → `a b`).
@@ -1369,14 +1372,14 @@ const TCLOO_MEMBERS: &[MemberSpec] = &[
         .retracting(MemberRetraction::FirstArgument),
     MemberSpec::flat("definitionnamespace", DEFINITION_NAMESPACE_ROLES)
         .optional_argument(TCLOO_DEFINITION_NAMESPACE_ARGUMENT)
-        .with_dialects(TCL90_MEMBERS),
+        .with_surface(TCL90_MEMBERS),
     // Structurally irregular — a nested-member wrapper (`self method …`) and a
     // flag-keyed body form (`property … -get/-set …`); their body indices come
     // from the walker's `MemberKind`-driven handling, not a hardcoded name.
     MemberSpec::wrapper_or_body("self"),
     // `property` (and its configurable-class accessor machinery) is a 9.0
     // addition; the 8.6 `TclOO` definition grammar has no such member.
-    MemberSpec::flag_keyed("property").with_dialects(TCL90_MEMBERS),
+    MemberSpec::flag_keyed("property").with_surface(TCL90_MEMBERS),
 ];
 
 /// The methods every `TclOO` object inherits from `oo::object` (plus the
@@ -1944,7 +1947,7 @@ const SPECTCL_OVERRIDE_ARGUMENT: OptionalMemberArgument = OptionalMemberArgument
     values: &[MemberOptionValue {
         value: "-override",
         role: ArgRole::Option,
-        dialects: None,
+        surface: None,
         declared_visibility: None,
     }],
 };
@@ -2130,7 +2133,7 @@ const SPECTCL_CLAUSE_GRAMMAR_MEMBERS: &[MemberSpec] = &[
 /// The nineteen plain-data fields of a `case_list { … }` block.
 const SPECTCL_CASE_LIST_MEMBERS: &[MemberSpec] = &[
     MemberSpec::keyword_only("subject_args"),
-    MemberSpec::keyword_only("two_arg_optionless_dialects"),
+    MemberSpec::keyword_only("two_arg_optionless_surface"),
     MemberSpec::keyword_only("exact_option"),
     MemberSpec::keyword_only("glob_option"),
     MemberSpec::keyword_only("regex_option"),
@@ -2479,7 +2482,7 @@ mod tests {
             method
                 .indices_for_call_in(
                     &private,
-                    crate::dialects::DialectSet::TCL86,
+                    crate::dialects::SpecSurface::TCL86,
                     ArgRole::ParamList
                 )
                 .collect::<Vec<_>>(),
@@ -2489,7 +2492,7 @@ mod tests {
             method
                 .indices_for_call_in(
                     &private,
-                    crate::dialects::DialectSet::TCL86,
+                    crate::dialects::SpecSurface::TCL86,
                     ArgRole::Option
                 )
                 .next()
@@ -2497,12 +2500,12 @@ mod tests {
         );
         assert!(
             method
-                .unavailable_option_for(&private, crate::dialects::DialectSet::TCL86)
+                .unavailable_option_for(&private, crate::dialects::SpecSurface::TCL86)
                 .is_some()
         );
         assert_eq!(
             method
-                .indices_for_call_in(&private, crate::dialects::DialectSet::TCL90, ArgRole::Body)
+                .indices_for_call_in(&private, crate::dialects::SpecSurface::TCL90, ArgRole::Body)
                 .collect::<Vec<_>>(),
             vec![3]
         );

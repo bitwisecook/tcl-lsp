@@ -19,6 +19,7 @@
 //! `yieldto` — suspend a coroutine, ceding execution to another command.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 // `yieldto` is a Tcl 8.6 addition (TIP 328, alongside `coroutine`/`yield`):
 // coroutine.html 404s with a genuine "URL Not Found" page — not a redirect
@@ -95,7 +96,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "yieldto",
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         // Deliberately no `TAINT_SINK`: `command` is looked up and invoked
         // by name with already-substituted argument words — ordinary
         // dynamic command dispatch, the same mechanism a plain `$cmd arg`

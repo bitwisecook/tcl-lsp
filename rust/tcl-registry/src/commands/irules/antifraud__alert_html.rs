@@ -18,10 +18,11 @@
 
 //! `ANTIFRAUD::alert_html` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ANTIFRAUD::alert_html",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "For js_vhtml alert: returns or sets the whole HTML in an escaped base64 format.",

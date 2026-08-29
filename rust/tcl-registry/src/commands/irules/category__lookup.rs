@@ -18,10 +18,11 @@
 
 //! `CATEGORY::lookup` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "CATEGORY::lookup",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Get category of URL.",
@@ -43,7 +44,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-display",
                     value: OptionValue::flag(),
                     detail: "Return display name of categories.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -52,7 +53,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-id",
                     value: OptionValue::flag(),
                     detail: "Return category IDs.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -61,7 +62,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-ip",
                     value: OptionValue::value("IP"),
                     detail: "IP address to categorize.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -70,7 +71,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-custom_cat_match",
                     value: OptionValue::value("CUSTOM_CAT"),
                     detail: "Match against a specified custom category.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,

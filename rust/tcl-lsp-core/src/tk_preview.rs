@@ -11,6 +11,7 @@
 //! constructor shape, geometry-manager membership and nested executable bodies
 //! all come from the shared registry and executable-region walker.
 
+use tcl_dialect::model::{SurfaceQuery};
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
@@ -25,6 +26,7 @@ use tcl_registry::tk_geometry::TkGeometryContainerPolicy;
 use tcl_registry::{CommandRegistry, CommandSpec, InvocationWord, InvocationWords, Traits};
 
 use crate::executable_regions::{ExecutableContext, visit_executable_commands};
+use tcl_dialect::model::{SpecSurface};
 
 /// The current JSON-compatible Tk UI model schema version.
 pub const TK_UI_SCHEMA_VERSION: u32 = 1;
@@ -329,8 +331,9 @@ pub fn analyse_tk_ui(
     let identities = document_realm_bindings(source, dialect, registry);
     let config = LexerConfig::for_file_grammar(dialect.grammar);
     let tk_active = crate::document_context_for_profile(dialect)
-        .authoring_mask()
-        .contains(tcl_dialect::DialectSet::TK)
+        .authoring_query()
+        .packages
+        .contains(&"Tk")
         || source_requires_tk(source, config, dialect, registry, &identities);
     if !tk_active {
         return TkUiModel {
@@ -357,14 +360,14 @@ pub fn analyse_tk_ui(
         source,
         config,
         registry,
-        crate::document_context_for_profile(dialect).authoring_mask(),
+        Some(crate::document_context_for_profile(dialect).authoring_query()),
         &identities,
         &mut |command, heads, context| {
             collect_tk_command(
                 command,
                 heads.resolved,
                 registry,
-                crate::document_context_for_profile(dialect).authoring_mask(),
+                Some(crate::document_context_for_profile(dialect).authoring_query()),
                 tk_version,
                 &mut analysis,
                 context,
@@ -460,7 +463,7 @@ fn collect_tk_command(
     command: &SegmentedCommand,
     resolved_head: &str,
     registry: &CommandRegistry,
-    dialect: tcl_dialect::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     tk_version: Option<&str>,
     analysis: &mut TkAnalysis,
     context: ExecutableContext,
@@ -549,7 +552,7 @@ fn source_requires_tk(
         source,
         config,
         registry,
-        crate::document_context_for_profile(dialect).authoring_mask(),
+        Some(crate::document_context_for_profile(dialect).authoring_query()),
         identities,
         &mut |command, heads, context| {
             if context != ExecutableContext::Direct {
@@ -562,7 +565,7 @@ fn source_requires_tk(
                 .resolve_call(
                     heads.resolved,
                     &args,
-                    crate::document_context_for_profile(dialect).authoring_mask(),
+                    Some(crate::document_context_for_profile(dialect).authoring_query()),
                 )
                 .is_some_and(|call| call.analyser_hook == Some(AnalyserHookId::PackageRequire))
                 && literal_word(command, package_index).is_some_and(|(word, _)| word == "Tk")
@@ -613,7 +616,7 @@ fn collect_widget(
     command: &SegmentedCommand,
     constructor: &str,
     spec: &CommandSpec,
-    dialect: tcl_dialect::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     tk_version: Option<&str>,
     widgets: &mut BTreeMap<String, CollectedWidget>,
     widgets_truncated: &mut usize,
@@ -654,7 +657,7 @@ fn collect_widget(
         }
         return;
     }
-    let option_specs = available_options(spec.options, dialect, spec.dialects, tk_version);
+    let option_specs = available_options(spec.options, dialect, spec.surface, tk_version);
     let options = literal_options(command, path_index + 2, &option_specs, uncertainties);
     let widget = CollectedWidget {
         constructor: constructor.to_owned(),
@@ -689,7 +692,7 @@ fn collect_known_widget_mutation(
     command: &SegmentedCommand,
     resolved_head: &str,
     registry: &CommandRegistry,
-    dialect: tcl_dialect::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     widgets: &mut BTreeMap<String, CollectedWidget>,
     pending_widget_calls: &mut BTreeMap<String, Vec<PendingWidgetCall>>,
     uncertainties: &mut Vec<TkUiUncertainty>,
@@ -757,7 +760,7 @@ fn apply_pending_widget_calls(
     command: &SegmentedCommand,
     constructor: &CommandSpec,
     registry: &CommandRegistry,
-    dialect: tcl_dialect::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     analysis: &mut TkAnalysis,
 ) {
     let Some(path_index) = constructor.creates_instance_at.map(usize::from) else {
@@ -935,7 +938,7 @@ fn collect_placement(
     command: &SegmentedCommand,
     manager: &str,
     spec: &CommandSpec,
-    dialect: tcl_dialect::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     tk_version: Option<&str>,
     widgets: &BTreeMap<String, CollectedWidget>,
     active: &mut BTreeMap<String, CollectedPlacement>,
@@ -965,7 +968,7 @@ fn collect_placement(
     };
 
     let subcommand = spec
-        .resolve_subcommand_word(&first_word, Some(dialect), tk_version, None)
+        .resolve_subcommand_word(&first_word, dialect, tk_version, None)
         .unique()
         .and_then(|canonical| spec.subcommands.iter().find(|sub| sub.name == canonical));
     if let Some(subcommand) = subcommand
@@ -986,7 +989,7 @@ fn collect_placement(
 
     let (target_start, raw_option_specs, option_parent_dialects, first_path, first_target) =
         if geometry_spec.direct_form && tcl_registry::tk_geometry::is_widget_path(&first_word) {
-            (1, spec.options, spec.dialects, first_word, first_target)
+            (1, spec.options, spec.surface, first_word, first_target)
         } else if let Some(subcommand) = subcommand
             && geometry_spec.placement_subcommand == Some(subcommand.name)
         {
@@ -1001,7 +1004,7 @@ fn collect_placement(
             (
                 2,
                 subcommand.options,
-                subcommand.dialects.or(spec.dialects),
+                subcommand.surface.or(spec.surface),
                 path,
                 target,
             )
@@ -1250,13 +1253,13 @@ fn literal_options(
 
 fn available_options(
     specs: &[OptionSpec],
-    dialect: tcl_dialect::DialectSet,
-    parent_dialects: Option<tcl_dialect::DialectSet>,
+    dialect: Option<SurfaceQuery<'_>>,
+    parent_surface: Option<&'static [SpecSurface]>,
     package_version: Option<&str>,
 ) -> Vec<OptionSpec> {
     specs
         .iter()
-        .filter(|option| option.supports_dialect(Some(dialect), parent_dialects))
+        .filter(|option| option.supports_dialect(dialect, parent_surface))
         .filter(|option| option.available_for_version(package_version))
         .cloned()
         .collect()

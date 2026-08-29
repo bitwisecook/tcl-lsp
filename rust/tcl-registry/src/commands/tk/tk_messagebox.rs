@@ -18,6 +18,7 @@
 
 //! `tk_messageBox` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
     reads: true,
@@ -30,7 +31,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-default",
         value: OptionValue::value("buttonName"),
         detail: "Name of the default button.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -39,7 +40,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-detail",
         value: OptionValue::value("string"),
         detail: "Supplemental message text.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -48,7 +49,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-icon",
         value: OptionValue::value("iconImage"),
         detail: "Icon to display (error, info, question, warning).",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -57,7 +58,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-message",
         value: OptionValue::value("string"),
         detail: "Main message text to display.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -66,7 +67,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-parent",
         value: OptionValue::value("window"),
         detail: "Parent window for the dialogue.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -75,7 +76,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-title",
         value: OptionValue::value("titleString"),
         detail: "Title string for the dialogue window.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -84,7 +85,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-type",
         value: OptionValue::value("predefinedType"),
         detail: "Arrangement of buttons to display.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -93,7 +94,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-command",
         value: OptionValue::deferred_command_prefix_n("prefix", AppendedArity::Unknown),
         detail: "Command prefix invoked when the dialog closes; the clicked button name is appended (macOS).",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -108,7 +109,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tk_messageBox",
-        dialects: Some(DialectSet::TK_AND_TCL),
+        surface: Some(SpecSurface::TK_AND_TCL),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Pop up a message window and wait for user response.",

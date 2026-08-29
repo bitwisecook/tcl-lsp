@@ -18,11 +18,12 @@
 
 //! `TCP::local_port` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "TCP::local_port",
         traits: Traits::PURE.union(Traits::CSE_CANDIDATE),
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Returns the local port of a TCP connection.",

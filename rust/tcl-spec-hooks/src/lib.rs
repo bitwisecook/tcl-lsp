@@ -81,6 +81,7 @@ pub use program::{HookInstallation, HookOwner, HookProgram, PackPrograms};
 pub use sandbox::SANDBOX_COMMANDS;
 
 use tcl_engine_tclvm::TclVmEngine;
+use tcl_dialect::model::Family;
 
 /// A host running its packs on `tcl-vm` — the canonical engine everywhere
 /// (`docs/design/spec-packs.md`: server, CLI, and studio alike).

@@ -73,11 +73,13 @@
 //! top of this provider in `tcl-lsp-server::Backend::completion`;
 //! this module is the pure-CPU computation, no I/O, no async.
 
+use tcl_dialect::model::{SurfaceLayer, Family};
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope};
 use tcl_registry::CommandRegistry;
 
 use crate::definition::utf16_col_to_char_col;
+use tcl_dialect::model::{SpecSurface};
 
 /// LSP completion-item kind for our surface.  Keep narrow —
 /// extend as richer completion is added.
@@ -326,11 +328,11 @@ fn switch_completion_items(
         .and_then(|sub_name| {
             spec.resolve_subcommand_for_dialect(
                 &sub_name,
-                crate::document_context_for_profile(profile).authoring_mask(),
+                Some(crate::document_context_for_profile(profile).authoring_query()),
             )
         });
     let floor = package_version_floor(analysis, spec, profile);
-    let (options, parent_dialects) = match sub {
+    let (options, parent_surface) = match sub {
         Some(sub) => {
             // The dispatch word of a two-level ensemble, when the cursor is
             // past it — `namespace ensemble configure -⟨tab⟩` has it at
@@ -341,13 +343,13 @@ fn switch_completion_items(
                 .flatten();
             let scope = sub.option_scope(
                 next.as_deref(),
-                Some(crate::document_context_for_profile(profile).authoring_mask()),
+                Some(crate::document_context_for_profile(profile).authoring_query()),
                 floor,
-                spec.dialects,
+                spec.surface,
             );
-            (scope.options, scope.dialects)
+            (scope.options, scope.surface)
         }
-        None => (spec.options, spec.dialects),
+        None => (spec.options, spec.surface),
     };
     if options.is_empty() {
         return None;
@@ -364,7 +366,7 @@ fn switch_completion_items(
     Some(switch_completions(
         options,
         profile,
-        parent_dialects,
+        parent_surface,
         switch_partial,
         edit,
         floor,
@@ -1564,7 +1566,7 @@ fn registry_method_items(
     let methods = registry.instance_methods_at(
         class_q,
         package_version,
-        Some(crate::document_context_for_profile(profile).authoring_mask()),
+        Some(crate::document_context_for_profile(profile).authoring_query()),
     );
     let mut items: Vec<CompletionItem> = methods
         .into_iter()
@@ -1630,7 +1632,7 @@ fn switch_partial_at_position(
 fn switch_completions(
     options: &[tcl_registry::hover::OptionSpec],
     profile: &'static tcl_dialect::DialectProfile,
-    parent_dialects: Option<tcl_dialect::DialectSet>,
+    parent_surface: Option<&'static [SpecSurface]>,
     partial: &str,
     edit: (u32, u32),
     package_version: Option<&str>,
@@ -1640,7 +1642,7 @@ fn switch_completions(
         .filter(|opt| {
             opt.available_for_version(package_version)
                 && crate::document_context_for_profile(profile)
-                    .option_available(opt, parent_dialects)
+                    .option_available(opt, parent_surface)
         })
         .collect();
     opts.sort_unstable_by_key(|opt| opt.name);
@@ -2071,7 +2073,7 @@ fn builtin_completions(
         // world where a desktop library cannot be `package require`d, even if
         // the source says so. An environment can host Tk iff it declares a Tk
         // placement (redesign §3.2's placement claims, ledger F4); the EDA
-        // shells are packaged vendors with no vendor_bit, so this keys off
+        // shells are packaged vendors with no vendor_surface, so this keys off
         // the placement, not the bit (eda-library-packages.md). P3 moved the
         // query onto the resolved context, where hosting is one predicate
         // over the environment's own placements.
@@ -3871,7 +3873,7 @@ mod tests {
 
     fn irules_registry() -> CommandRegistry {
         let mut r = CommandRegistry::build_default();
-        r.load_dialect(tcl_dialect::DialectSet::IRULES);
+        r.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         r
     }
 

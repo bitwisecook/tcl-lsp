@@ -331,15 +331,15 @@ pub fn is_specifier(letter: u8) -> bool {
     )
 }
 
+use tcl_dialect::model::{SpecSurface, surface_admits};
+
 /// Whether Tcl's signedness suffix (`u` / `s`) is part of the resolved
 /// binary-field grammar.  Keep this decision with the binary owner so LSP
 /// surfaces cannot drift or re-derive a release comparison independently.
 #[must_use]
 pub fn signedness_available(profile: &tcl_dialect::DialectProfile) -> bool {
     profile.runtime_base.is_some()
-        && profile
-            .availability_mask
-            .intersects(tcl_dialect::DialectSet::TCL85_PLUS)
+        && surface_admits(SpecSurface::TCL85_PLUS, Some(&profile.surface_query()))
 }
 
 #[must_use]

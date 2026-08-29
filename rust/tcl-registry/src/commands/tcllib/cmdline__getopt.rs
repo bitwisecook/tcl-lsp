@@ -31,7 +31,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "cmdline::getopt",
-        dialects: None,
+        surface: None,
         arity: Arity::exact(4),
         hover: Some(HoverSnippet {
             summary: "Parse a single command-line option.",

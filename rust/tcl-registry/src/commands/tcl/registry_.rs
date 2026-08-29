@@ -21,6 +21,7 @@
 //! Module name has a trailing underscore to avoid a collision with the
 //! crate's [`crate::registry`] module.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[
     FormSpec {
@@ -35,7 +36,7 @@ const FORMS: &[FormSpec] = &[
     // leading flag mentioned anywhere in their DESCRIPTION either.
     FormSpec {
         synopsis: "registry ?-32bit|-64bit? option keyName ?arg arg ...?",
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         ..FormSpec::DEFAULT
     },
     // Tcl 9.1 adds `tcl::registry` as a second, always-present spelling of
@@ -46,7 +47,7 @@ const FORMS: &[FormSpec] = &[
     // SYNOPSIS sections, which document only the bare `registry` spelling.
     FormSpec {
         synopsis: "tcl::registry ?-32bit|-64bit? option keyName ?arg arg ...?",
-        dialects: Some(DialectSet::TCL91),
+        surface: Some(SpecSurface::TCL91),
         ..FormSpec::DEFAULT
     },
 ];
@@ -102,7 +103,7 @@ const REGISTRY_OPTION_VALUES: &[ArgValue] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "registry",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::HAS_DESTRUCTIVE_OPS,
         arity: Arity::new(2, 5),
         return_type: Some(TclType::String),
@@ -137,14 +138,14 @@ pub fn spec() -> CommandSpec {
                     name: "-32bit",
                     value: OptionValue::flag(),
                     detail: "Operate on the 32-bit registry view instead of the system default. Precedes option; mutually exclusive with -64bit.",
-                    dialects: Some(DialectSet::TCL86_PLUS),
+                    surface: Some(SpecSurface::TCL86_PLUS),
                     ..OptionSpec::DEFAULT
                 },
                 OptionSpec {
                     name: "-64bit",
                     value: OptionValue::flag(),
                     detail: "Operate on the 64-bit registry view instead of the system default. Precedes option; mutually exclusive with -32bit.",
-                    dialects: Some(DialectSet::TCL86_PLUS),
+                    surface: Some(SpecSurface::TCL86_PLUS),
                     ..OptionSpec::DEFAULT
                 },
                 OptionSpec {

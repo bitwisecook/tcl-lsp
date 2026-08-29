@@ -19,6 +19,9 @@
 //! `while` — loop while a condition is true.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
+use tcl_dialect::model::Family;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: true,
@@ -54,7 +57,7 @@ pub fn spec() -> CommandSpec {
         // filesystem/process/network access, so every dialect that hosts a
         // real Tcl core (irules, iapps, tmsh, the EDA shells, expect, tk)
         // carries it unmodified.
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::CONTROL_FLOW

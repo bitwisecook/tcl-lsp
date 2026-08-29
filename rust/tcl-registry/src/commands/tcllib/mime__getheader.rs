@@ -27,7 +27,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "mime::getheader",
         traits: Traits::PURE,
-        dialects: None,
+        surface: None,
         arity: Arity::new(1, 2),
         hover: Some(HoverSnippet {
             summary: "Get header value(s) from a MIME token.",

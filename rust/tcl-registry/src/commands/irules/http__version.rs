@@ -18,11 +18,12 @@
 
 //! `HTTP::version` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::version",
         traits: Traits::PURE.union(Traits::CSE_CANDIDATE),
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Returns or sets the HTTP version of the request or response.",
@@ -73,7 +74,7 @@ pub const fn spec() -> CommandSpec {
                 name: "-string",
                 value: OptionValue::value("version"),
                 detail: "Get/set version as raw string.",
-                dialects: None,
+                surface: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,

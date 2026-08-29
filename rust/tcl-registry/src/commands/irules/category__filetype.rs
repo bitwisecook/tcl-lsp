@@ -18,10 +18,11 @@
 
 //! `CATEGORY::filetype` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "CATEGORY::filetype",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Get mime type and mime subtype of payload.",
@@ -49,7 +50,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-mimetype",
                     value: OptionValue::value("TYPE"),
                     detail: "Variable name to store MIME type.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -58,7 +59,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-mimesubtype",
                     value: OptionValue::value("SUBTYPE"),
                     detail: "Variable name to store MIME subtype.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,

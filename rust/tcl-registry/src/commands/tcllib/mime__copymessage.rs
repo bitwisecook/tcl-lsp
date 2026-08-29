@@ -32,7 +32,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "mime::copymessage",
-        dialects: None,
+        surface: None,
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {
             summary: "Copy MIME message to a channel.",

@@ -19,6 +19,7 @@
 //! `flush` — flush buffered output for a channel.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 // `channelId` is mandatory in every version's synopsis — 8.4/8.5/8.6's
 // flush.n gives only `flush channelId`, and 9.0/9.1's abbreviated flush.n
@@ -37,7 +38,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "flush",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED,
         arity: Arity::exact(1),
         arg_roles: &[(0, ArgRole::Channel)],

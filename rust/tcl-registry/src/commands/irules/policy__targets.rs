@@ -18,10 +18,11 @@
 
 //! `POLICY::targets` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "POLICY::targets",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Returns or sets properties of the policy rule targets for the policies associated with the virtual server that the iRule is enabled on.",

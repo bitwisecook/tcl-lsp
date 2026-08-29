@@ -18,13 +18,14 @@
 
 //! `socket` — open a TCP client or server socket channel.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-myaddr",
         value: OptionValue::value("addr"),
         detail: "Local network interface, by domain name or IP address: the client-side interface to originate from (client sockets), or the interface to listen on (server sockets). Defaults to a system-chosen interface for a client socket, or the wildcard address (all interfaces) for a server socket.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -33,7 +34,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-myport",
         value: OptionValue::value("port"),
         detail: "Client sockets only: local port to use for the connection. Defaults to a system-assigned port.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -42,7 +43,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-async",
         value: OptionValue::flag(),
         detail: "Client sockets only: create the socket and return immediately instead of waiting for the connection to complete. A gets or flush issued before it completes then either blocks (blocking channel) or fails with fblocked returning 1 (nonblocking channel).",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -52,7 +53,7 @@ const OPTIONS: &[OptionSpec] = &[
         // Accept callback invoked as `command channel addr port` → 3 args.
         value: OptionValue::deferred_command_prefix_n("command", AppendedArity::Exactly(3)),
         detail: "Create a listening server socket instead of a client connection. command (a command prefix) is invoked as \"command channel clientAddr clientPort\" for each accepted connection.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -61,7 +62,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-reuseaddr",
         value: OptionValue::boolean(),
         detail: "Server sockets only, Tcl 9.0+: whether the kernel may reuse the local address when no socket is actively listening on it (SO_REUSEADDR). True is the default on Windows; the default on other platforms is undocumented.",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -70,7 +71,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-reuseport",
         value: OptionValue::boolean(),
         detail: "Server sockets only, Tcl 9.0+: whether multiple sockets may bind the same local address and port (SO_REUSEPORT). The default value is undocumented.",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -147,7 +148,7 @@ const FORMS: &[FormSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "socket",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED
             | Traits::OPENS_CHANNEL
             | Traits::TAINT_SOURCE

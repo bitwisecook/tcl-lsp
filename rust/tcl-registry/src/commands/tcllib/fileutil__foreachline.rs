@@ -32,7 +32,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fileutil::foreachLine",
-        dialects: None,
+        surface: None,
         arity: Arity::exact(3),
         hover: Some(HoverSnippet {
             summary: "Iterate over each line of a file.",

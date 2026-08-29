@@ -263,7 +263,7 @@ fn statement_has_frame_reach(stmt: &Statement, registry: &CommandRegistry) -> bo
 /// `info frame` carry [`tcl_registry::Traits::CURRENT_FRAME_INTROSPECTION`]
 /// on the subcommand rather than on `info` itself.
 ///
-/// The `DialectSet::empty()` read is deliberate under invariant I4: this is
+/// The `None` read is deliberate under invariant I4: this is
 /// a **widening** query — a frame-reaching answer *declines* the inline,
 /// so over-approximating across environments is the conservative
 /// direction, never a specialisation on an unproved binding.
@@ -283,7 +283,7 @@ fn invocation_reaches_frame(stmt: &Statement, registry: &CommandRegistry) -> boo
     }
     let words: Vec<&str> = args.iter().map(String::as_str).collect();
     registry
-        .invocation_traits(command, &words, DialectSet::empty())
+        .invocation_traits(command, &words, None)
         .intersects(FRAME_REACH_TRAITS)
 }
 

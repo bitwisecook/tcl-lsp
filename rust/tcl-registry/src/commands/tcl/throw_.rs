@@ -19,6 +19,7 @@
 //! `throw` — generate a machine-readable error.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 // `throw` is a Tcl 8.6 addition (TIP 90, alongside `try`): throw.html 404s
 // with a genuine "URL Not Found" page — not a redirect quirk — on both the
@@ -64,7 +65,7 @@ pub fn spec() -> CommandSpec {
         // overrides or bans it). `f5-bigip`'s mask carries no Tcl-version
         // bit at all (a config-file surface, not a Tcl command surface),
         // so it is unaffected either way.
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         // `cmd_throw` (`tcl-vm/src/cmd_try.rs`) takes its two already-
         // substituted arguments, validates `type` as a non-empty Tcl list,
         // and builds its return-options dict directly via `options_dict` —

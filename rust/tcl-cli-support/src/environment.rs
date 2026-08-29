@@ -127,8 +127,8 @@ mod tests {
             .collect();
         for name in names {
             assert_eq!(
-                context_for_dialect(name).authoring_mask(),
-                profile_for_dialect(name).availability_mask,
+                context_for_dialect(name).authoring_query(),
+                profile_for_dialect(name).surface_query(),
                 "{name}"
             );
         }

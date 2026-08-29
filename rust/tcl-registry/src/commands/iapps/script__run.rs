@@ -18,6 +18,7 @@
 
 //! `script::run` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "script::run",
     ..FormSpec::DEFAULT
@@ -26,7 +27,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "script::run",
-        dialects: Some(DialectSet::IAPPS),
+        surface: Some(SpecSurface::IAPPS),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet::brief(
             "Invoked when the tmsh ``run cli script`` command is issued.",

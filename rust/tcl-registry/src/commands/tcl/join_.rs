@@ -18,6 +18,9 @@
 
 //! `join` — join list elements into a string.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
+use tcl_dialect::model::Family;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "join list ?joinString?",
     ..FormSpec::DEFAULT
@@ -26,7 +29,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "join",
-        // `Some(DialectSet::ALL_TCL.union(DialectSet::IRULES))` is
+        // `Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)])` is
         // deliberate, not an oversight: `join` is a pure list-manipulation
         // command — none of the filesystem/process/interp surface (`open`,
         // `exec`, `file`, `glob`, `namespace`, …) that iRules bans — so it
@@ -36,7 +39,7 @@ pub fn spec() -> CommandSpec {
         // the irules/, expect/, tk/, itcl/, iapps/, or eda_*/ command packs
         // declares an override or an extra form for it, so it resolves
         // identically everywhere.
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
         byte_array_effect: ByteArrayEffect::Coerces,
         const_fold: Some(crate::const_fold::fold_join),
         traits: Traits::FRAMELESS_RUNTIME | Traits::PURE | Traits::CSE_CANDIDATE,

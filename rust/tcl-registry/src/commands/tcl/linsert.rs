@@ -40,16 +40,19 @@
 // command-level group is correct as-is.
 use crate::hooks::{CodegenHookId, InlineCodegenHookId};
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
+use tcl_dialect::model::Family;
 
 const FORMS: &[FormSpec] = &[
     FormSpec {
         synopsis: "linsert list index ?element element ...?",
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         ..FormSpec::DEFAULT
     },
     FormSpec {
         synopsis: "linsert list index element ?element element ...?",
-        dialects: Some(DialectSet::TCL84.union(DialectSet::TCL85)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.6"))])]),
         ..FormSpec::DEFAULT
     },
 ];
@@ -57,7 +60,7 @@ const FORMS: &[FormSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "linsert",
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED
             | Traits::PURE

@@ -18,6 +18,7 @@
 
 //! `http::cookiejar` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::NetworkIo,
     reads: true,
@@ -28,7 +29,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http::cookiejar",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Create or configure an HTTP cookie jar (TclOO class).",

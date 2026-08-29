@@ -19,6 +19,9 @@
 //! `regsub` — perform substitutions based on regular expression matching.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
+use tcl_dialect::model::Family;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "regsub ?switches? exp string subSpec ?varName?",
@@ -110,7 +113,7 @@ const fn flag(name: &'static str, detail: &'static str) -> OptionSpec {
         name,
         value: OptionValue::flag(),
         detail,
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -162,7 +165,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-start",
         value: OptionValue::value("index"),
         detail: "Character index into string to start matching at. Tcl 8.4 accepts only a plain non-negative integer; Tcl 8.5 and later accept the fuller index syntax used by string index (e.g. end, end-N). ^ no longer anchors to the string's real start there, though \\A still does; index is clamped to the string's bounds.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -174,7 +177,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-command",
         value: OptionValue::flag(),
         detail: "Treat subSpec as a command prefix (a non-empty list) instead of a substitution template: & and \\n lose their special meaning. The whole match, then each capturing subexpression's match (like regexp -inline), are appended to the prefix, and the completed list is evaluated as a Tcl command whose result becomes the replacement text. Invoked once per match with -all, otherwise at most once; any error or exception from the callback becomes an error from regsub itself.",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -189,7 +192,7 @@ const OPTIONS: &[OptionSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "regsub",
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
         byte_array_effect: ByteArrayEffect::Coerces,
         traits: Traits::BYTE_COMPILED | Traits::FRAME_HASH_BUILTIN,
         // Positional floor/ceiling — `exp`, `string`, `subSpec` required

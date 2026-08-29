@@ -18,6 +18,7 @@
 
 //! `pkg_mkIndex` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
     reads: true,
@@ -29,7 +30,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "pkg_mkIndex",
         traits: Traits::OVERRIDABLE_LIBRARY_PROC,
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Build a ``pkgIndex.tcl`` file for one or more packages.",

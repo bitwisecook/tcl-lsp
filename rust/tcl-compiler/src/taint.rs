@@ -99,6 +99,7 @@
 //! [`Traits::TAINT_SINK`] / [`Traits::EVALUATES_CODE`] plus each spec's
 //! declared output/log sink code) rather than matching command names.
 
+use tcl_dialect::model::{SurfaceLayer};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
 use tcl_core_types::{DiagCode, DiagFamily};
@@ -121,6 +122,9 @@ use crate::regex_source::regexp_pattern_index;
 use crate::rendered_properties::{RenderedProperties, RenderedValueProps};
 use crate::sccp::{SccpResult, cfg_order};
 use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey, Version};
+use tcl_dialect::model::Family;
+use tcl_dialect::model::{SurfaceQuery};
+use tcl_dialect::model::{SpecSurface};
 use crate::value_shapes::{
     is_pure_var_ref, parse_command_substitution, parse_command_substitution_with_spans,
 };
@@ -377,14 +381,14 @@ fn source_colour(
     instance_classes: Option<&LocalInstanceClasses>,
     source_position: Option<u32>,
 ) -> Option<TaintLattice> {
-    let dialect_set = dialect_to_set(dialect);
-    let direct = tcl_registry::taint::taint_source_colour(registry, command, args, dialect_set);
+    let dialect = dialect_to_point(dialect);
+    let direct = tcl_registry::taint::taint_source_colour(registry, command, args, dialect);
     let colour = direct.or_else(|| {
         instance_taint_source_colour(
             registry,
             command,
             args,
-            dialect_set,
+            dialect,
             instance_classes,
             source_position,
         )
@@ -411,7 +415,7 @@ fn instance_taint_source_colour(
     registry: &CommandRegistry,
     command: &str,
     args: &[&str],
-    dialect: tcl_dialect::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     instance_classes: Option<&LocalInstanceClasses>,
     source_position: Option<u32>,
 ) -> Option<tcl_registry::TaintColour> {
@@ -464,7 +468,7 @@ fn instance_taints_var_write(
     let Some(class) = unique_instance_class(command, instance_classes, source_position) else {
         return false;
     };
-    let dialect = dialect_to_set(dialect);
+    let dialect = dialect_to_point(dialect);
     let Some(invocation) = registry.resolve_instance_invocation(class, command, args, dialect)
     else {
         return false;
@@ -894,14 +898,14 @@ pub fn is_irules_dialect(dialect: Option<&tcl_dialect::DialectProfile>) -> bool 
     dialect.is_some_and(tcl_dialect::DialectProfile::is_irules)
 }
 
-fn dialect_to_set(dialect: Option<&tcl_dialect::DialectProfile>) -> DialectSet {
+fn dialect_to_point(dialect: Option<&tcl_dialect::DialectProfile>) -> Option<SurfaceQuery<'_>> {
     // The profile's availability mask: bare IRULES for iRules (aliases
     // canonicalise), the composed (version|vendor) mask for the additive
     // vendor shells — so version-gated taint/side-effect hints reach a
     // vendor dialect's embedded Tcl core. An unknown / unset dialect stays
     // EMPTY (not the permissive fallback): taint hints gated to a specific
     // dialect must not fire when the dialect is unknown.
-    dialect.map_or(DialectSet::empty(), |profile| profile.availability_mask)
+    dialect.map(tcl_dialect::DialectProfile::surface_query)
 }
 
 fn is_sanitiser(registry: &CommandRegistry, command: &str, args: &[&str]) -> bool {
@@ -1432,7 +1436,7 @@ fn evaluate_taint_def<S: std::hash::BuildHasher>(
                 ctx.registry,
                 command,
                 &arg_refs,
-                dialect_to_set(ctx.dialect),
+                dialect_to_point(ctx.dialect),
                 defined_name,
             ) || instance_taints_var_write(
                 ctx.registry,
@@ -1832,7 +1836,7 @@ fn seed_entry_taints(
     // to the local (version > 0) is unaffected; shadowing falls out of the SSA
     // versioning, not a check here.
     for spec in tcl_registry::special_vars::special_vars_for_dialect(
-        tcl_registry::special_vars::dialect_set_for_profile(dialect),
+        Some(tcl_registry::special_vars::surface_query_for_profile(dialect)),
     ) {
         let Some(colour) = spec.read_taint else {
             continue;
@@ -2016,7 +2020,7 @@ fn classify_sink(
         registry,
         command,
         subcommand,
-        DialectSet::empty(),
+        None,
     );
 
     if let Some(code_str) = info.output_sink.or(info.log_sink) {
@@ -2909,7 +2913,7 @@ fn callback_taint_inputs_at_call(
     command: &str,
     args: &[&str],
     index: usize,
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     instance_classes: &LocalInstanceClasses,
     source_position: u32,
 ) -> &'static [tcl_registry::CallbackTaintInput] {
@@ -2975,7 +2979,7 @@ fn find_callback_substitution_warnings(
                         command,
                         &arg_refs,
                         index,
-                        dialect_to_set(dialect),
+                        dialect_to_point(dialect),
                         &instance_classes,
                         stmt.span().start(),
                     );
@@ -5508,7 +5512,7 @@ fn emit_sink_warnings<S: std::hash::BuildHasher>(
 /// `eval`, `uplevel`, and `interp eval`; the role/trait projection owns that
 /// distinction and the concatenating eval family extends through the tail.
 ///
-/// The `DialectSet::empty()` read is deliberate under invariant I4: this is
+/// The `None` read is deliberate under invariant I4: this is
 /// a **widening** query, not hook selection — treating an
 /// environment-disabled eval-family command as evaluating widens the taint
 /// warning set (conservative), it never specialises semantics on an
@@ -5517,7 +5521,7 @@ fn quoted_sink_use_is_evaluated(call: &SinkCall<'_>, name: &str) -> bool {
     let arg_refs: Vec<&str> = call.args.iter().map(String::as_str).collect();
     let traits = call
         .registry
-        .invocation_traits(call.command, &arg_refs, DialectSet::empty());
+        .invocation_traits(call.command, &arg_refs, None);
     let is_eval = traits.contains(Traits::EVALUATES_CODE)
         || classify_network_interp_sinks(call.registry, call.command, call.args)
             .iter()
@@ -5688,7 +5692,7 @@ fn emit_option_injection<S: std::hash::BuildHasher>(
     let (uses, taints, ssa) = (env.uses, env.taints, env.ssa);
     let args_str: Vec<&str> = args.iter().map(String::as_str).collect();
     let Some(profile) =
-        registry.resolve_option_terminator(command, &args_str, dialect_to_set(dialect))
+        registry.resolve_option_terminator(command, &args_str, dialect_to_point(dialect))
     else {
         // No `--` terminator declared → no option-injection sink.
         return;
@@ -6389,7 +6393,7 @@ mod tests {
         use tcl_lexer::Span;
 
         let mut registry = CommandRegistry::build_default();
-        registry.load_dialect(tcl_dialect::DialectSet::IRULES);
+        registry.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
 
         // set x [gets stdin]      (taint source)
         // set y [URI::encode $x]  (x tainted → y URL_ENCODED)
@@ -7078,7 +7082,7 @@ mod tests {
         // taint_output_sink_subcommands) are present for the registry-driven,
         // prefix-aware sink classification.
         let mut registry = CommandRegistry::build_default();
-        registry.load_dialect(DialectSet::IRULES);
+        registry.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         let cu = CompilationUnit::build_for(source, &registry, false)
             .with_interprocedural(&registry, Some(tcl_dialect::DialectProfile::irules()));
         let mut out: Vec<TaintWarning> = Vec::new();
@@ -7299,7 +7303,7 @@ mod tests {
 
     #[test]
     fn classify_sink_exec_stays_t100_under_irules_dialect() {
-        // `exec` is universal spec data (`dialects: None` since the
+        // `exec` is universal spec data (`surface: None` since the
         // spec); under f5-irules it is *banned* by the
         // profile's §9 disable list, not by any dialect mask. T100
         // classification must not route through profile availability —
@@ -7933,7 +7937,7 @@ mod tests {
             &registry,
             "gets",
             &["stdin"],
-            tcl_dialect::DialectSet::empty(),
+            None,
         ));
 
         // End-to-end: `gets` → `eval` raises T100. The fact reaches

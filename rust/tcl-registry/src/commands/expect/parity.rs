@@ -18,12 +18,13 @@
 
 //! `parity` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-d",
         value: OptionValue::flag(),
         detail: "Set the default.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -32,7 +33,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-i",
         value: OptionValue::value("spawn_id"),
         detail: "Set for the specified spawn id.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -47,7 +48,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "parity",
-        dialects: Some(DialectSet::EXPECT),
+        surface: Some(SpecSurface::EXPECT),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Set or query whether parity is retained on spawned process output.",

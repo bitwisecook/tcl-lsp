@@ -18,6 +18,7 @@
 
 //! `itcl::code` command ([incr Tcl] runtime).
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "itcl::code ?-namespace ns? command ?arg ...?",
@@ -27,7 +28,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "itcl::code",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Capture a command for later evaluation in its namespace context.",

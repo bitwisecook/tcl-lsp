@@ -94,7 +94,7 @@ response code and diagnostic text, and must return secure / insecure.",
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "smtp::sendmessage",
-        dialects: None,
+        surface: None,
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Send an e-mail message via SMTP.",

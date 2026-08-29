@@ -18,6 +18,7 @@
 
 //! `itcl::body` command — define a method/proc body outside the class.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
@@ -34,7 +35,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "itcl::body",
         traits: Traits::NEVER_INLINE_BODY,
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::exact(3),
         hover: Some(HoverSnippet {
             summary: "Define the body of a previously-declared [incr Tcl] method or proc.",

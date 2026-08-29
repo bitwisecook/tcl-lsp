@@ -19,6 +19,7 @@
 //! `fileevent` — execute a script when a channel becomes readable or writable.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[
     FormSpec {
@@ -71,7 +72,7 @@ pub fn spec() -> CommandSpec {
         // exclusion is expressed directly by this `dialects` group:
         // `ALL_TCL` omits the `IRULES` bit, so the spec never intersects
         // the bare `IRULES` availability mask.
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         // `DEFERS_BODY`: the handler script is *registered*, and runs only
         // when the channel becomes ready and the event loop dispatches it —
         // the same fact `body_kind` records below, said where a consumer

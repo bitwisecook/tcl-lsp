@@ -59,6 +59,7 @@ use crate::backend_registry::{
 };
 use crate::codegen::values::whole_var_reference;
 use crate::ir::{CommandTokens, Provenance, SourceSite, WordExpr, WordPart};
+use tcl_dialect::model::Family;
 use crate::target_contract::{
     LegalisationRequirements, TargetCapabilities, TargetContract, TargetFamily,
 };

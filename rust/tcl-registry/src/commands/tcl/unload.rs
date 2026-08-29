@@ -18,6 +18,7 @@
 
 //! `unload` — unload a shared library extension.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 // `unload` does not exist before Tcl 8.5 — introduced by TIP 100 (George
 // Petasis, 2003). Confirmed three independent ways: Tcl 8.4's
@@ -43,7 +44,7 @@ use crate::prelude::*;
 // resources, again with no Tcl-level command behaviour it changes.
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "unload ?switches? fileName ?prefix? ?interp?",
-    dialects: Some(DialectSet::TCL85_PLUS),
+    surface: Some(SpecSurface::TCL85_PLUS),
     ..FormSpec::DEFAULT
 }];
 
@@ -56,7 +57,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-nocomplain",
         value: OptionValue::flag(),
         detail: "Suppresses all error messages; unload never reports an error when this switch is given.",
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -65,7 +66,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-keeplibrary",
         value: OptionValue::flag(),
         detail: "Prevents unload from issuing the operating system call that detaches the library from the process; the library's own unload procedure still runs and the reference counts are still updated.",
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -74,7 +75,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "--",
         value: OptionValue::flag(),
         detail: "Marks the end of switches; the following argument is treated as fileName even if it begins with -.",
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -91,7 +92,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "unload",
-        // On the version axis this ought to be `Some(DialectSet::TCL85_PLUS)`
+        // On the version axis this ought to be `Some(SpecSurface::TCL85_PLUS)`
         // per the FORMS comment above — unload is genuinely absent from Tcl
         // 8.4. It is left at the broader `ALL_TCL` because that group is
         // also what bans it from iRules: `unload` is one of the K36322151
@@ -110,7 +111,7 @@ pub fn spec() -> CommandSpec {
         // FORMS above (which nothing else in the test suite depends on),
         // and the per-option `dialects` below are set precisely rather than
         // inheriting this field's overly-permissive lower bound.
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         // BYTE_COMPILED: `unload` is a recognised core Tcl builtin — the
         // same literal-command-word convention `load` (its direct
         // sibling, same manpage family) already carries.

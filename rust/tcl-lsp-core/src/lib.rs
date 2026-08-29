@@ -28,6 +28,7 @@
 
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
+use tcl_dialect::model::{SpecSurface};
 
 /// Cap on [`tcl_compiler::analyser::Scope`]-tree walking depth shared by
 /// every LSP feature provider that recurses over `scope.children`
@@ -215,7 +216,7 @@ pub fn context_for_dialect_profile(
 /// [`context_for_dialect`]'s own `context()`: the two differ for the `tk`
 /// environment by exactly the additive `TK` bit a `tk` document has always
 /// been answered under (see
-/// [`document_authoring_mask`](tcl_registry::model::DocumentEnvironment::document_authoring_mask)).
+/// [`document_authoring_scope`](tcl_registry::model::DocumentEnvironment::document_authoring_scope)).
 ///
 /// [`ResolvedContext`]: tcl_registry::model::ResolvedContext
 #[must_use]
@@ -284,8 +285,8 @@ mod dialect_ingress_tests {
         assert_eq!(profile.name, "tk", "the ingress must keep the spelling");
         assert!(
             profile
-                .availability_mask
-                .contains(tcl_dialect::DialectSet::TK),
+                .surface_query()
+                .contains(SpecSurface::TK),
             "the ingress must keep the TK availability bit"
         );
 

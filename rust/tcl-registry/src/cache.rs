@@ -230,7 +230,7 @@ pub fn registry_for_profile_with_overlay(
 
     let mut registry = CommandRegistry::build_default();
     for &layer in profile.base_layers {
-        registry.load_dialect(layer);
+        registry.load_surface(layer);
     }
     extend(&mut registry);
     registry.set_profile(profile);

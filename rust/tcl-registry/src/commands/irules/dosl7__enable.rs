@@ -18,10 +18,11 @@
 
 //! `DOSL7::enable` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DOSL7::enable",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Enables blocking and detection of DoS attacks according to the ASM security policy configuration.",

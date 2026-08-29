@@ -83,6 +83,7 @@ use crate::state_ssa::adapters::{
     WorldInterpreterScope, WorldRegion, WorldRegionKind, WorldSubjectScope,
 };
 use crate::world_state_ssa::{EdgeCompletion, edge_completion, successors_of};
+use tcl_dialect::model::{SpecSurface};
 
 /// Bound on distinct changed-subject patterns tracked per identity ledger.
 const MAX_TRACKED_SUBJECTS: usize = 16;
@@ -2241,7 +2242,7 @@ mod tests {
 
     fn llength_dependencies() -> DispatchDependencies {
         registry()
-            .resolve_invocation("llength", &["a b"], DialectSet::TCL90)
+            .resolve_invocation("llength", &["a b"], SpecSurface::TCL90)
             .expect("llength resolves")
             .facts()
             .dispatch_dependencies

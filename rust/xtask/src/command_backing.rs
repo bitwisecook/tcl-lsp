@@ -48,6 +48,7 @@
 //! command that is neither backed nor classified (a genuinely new gap) or any
 //! stale classification entry (a name no longer in the registry, or now backed).
 
+use tcl_dialect::model::{surface_admits};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::fs;
@@ -58,6 +59,7 @@ use anyhow::{Context, Result};
 use regex::Regex;
 
 use crate::util::repo_root;
+use tcl_dialect::model::{SpecSurface};
 
 /// The generated per-command backing report (committed, drift-checked).
 const REPORT_PATH: &str = "docs/generated/wasm-command-backing.md";
@@ -484,8 +486,8 @@ fn core_commands() -> BTreeSet<String> {
         .iter()
         .filter(|s| s.required_package.is_none())
         .filter(|s| {
-            s.dialects
-                .is_none_or(|d| d.intersects(DialectSet::TCL90_PLUS))
+            s.surface
+                .is_none_or(|d| surface_admits(SpecSurface::TCL90_PLUS, Some(&d)))
         })
         .map(|s| s.name.to_string())
         .collect()

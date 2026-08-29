@@ -19,6 +19,9 @@
 //! `list` — create a Tcl list.
 use crate::hooks::InlineCodegenHookId;
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
+use tcl_dialect::model::Family;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "list ?arg arg ...?",
     ..FormSpec::DEFAULT
@@ -27,7 +30,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "list",
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
         const_fold: Some(crate::const_fold::fold_list),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY

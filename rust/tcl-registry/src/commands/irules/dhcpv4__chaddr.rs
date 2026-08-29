@@ -18,10 +18,11 @@
 
 //! `DHCPv4::chaddr` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DHCPv4::chaddr",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "This command returns chaddr (client hardware address) from DHCPv4 message.",

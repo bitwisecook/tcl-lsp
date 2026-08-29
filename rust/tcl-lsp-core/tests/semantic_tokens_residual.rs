@@ -49,12 +49,14 @@
 //! backref is meaningful), it is backed by `scripts/dev/tclsh_check.sh` against
 //! tclsh **8.6** + **9.0** and cited with a `// tclsh-proof:` comment.
 
+use tcl_dialect::model::{SurfaceLayer, Family};
 use std::collections::HashSet;
 
 use tcl_lsp_core::definition::LspRange;
 use tcl_lsp_core::semantic_tokens::{full, legend_token_types, range};
 use tcl_registry::model::ingress::static_context_for;
 use tcl_registry::{ArgRole, Arity, CommandRegistry, CommandSpec, Traits};
+use tcl_dialect::model::{SpecSurface};
 
 fn reg() -> &'static CommandRegistry {
     static_context_for("tcl8.6").commands()
@@ -64,7 +66,7 @@ fn reg() -> &'static CommandRegistry {
 /// default command set) for the `f5-irules` object-overlay tests.
 fn irules_registry() -> CommandRegistry {
     let mut r = CommandRegistry::build_default();
-    r.load_dialect(tcl_dialect::DialectSet::IRULES);
+    r.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
     r
 }
 

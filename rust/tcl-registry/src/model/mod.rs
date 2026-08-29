@@ -83,6 +83,7 @@ pub use binding::{
     BindingKnowledge, BindingTarget, PackageState, PackageStateMap, PackageTransition, SpecKey,
 };
 pub use context::{
+    AuthoringScope, core_tcl_floor,
     ContextQueries, FloorMap, KeyedVersions, ResolvedContext, ladder_releases_in,
     requirement_spelling, specificity_breadth, targets_from_clauses,
 };

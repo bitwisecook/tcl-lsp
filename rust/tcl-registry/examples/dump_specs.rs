@@ -58,14 +58,14 @@ fn group_specs(group: &str) -> Vec<CommandSpec> {
 }
 
 const DIALECT_TAGS: &[(DialectSet, &str)] = &[
-    (DialectSet::TCL84, "tcl8.4"),
-    (DialectSet::TCL85, "tcl8.5"),
-    (DialectSet::TCL86, "tcl8.6"),
-    (DialectSet::TCL90, "tcl9.0"),
-    (DialectSet::IRULES, "f5-irules"),
-    (DialectSet::IAPPS, "f5-iapps"),
-    (DialectSet::TK, "tk"),
-    (DialectSet::EXPECT, "expect"),
+    (SpecSurface::TCL84, "tcl8.4"),
+    (SpecSurface::TCL85, "tcl8.5"),
+    (SpecSurface::TCL86, "tcl8.6"),
+    (SpecSurface::TCL90, "tcl9.0"),
+    (SpecSurface::IRULES, "f5-irules"),
+    (SpecSurface::IAPPS, "f5-iapps"),
+    (SpecSurface::TK, "tk"),
+    (SpecSurface::EXPECT, "expect"),
 ];
 
 fn dialect_tags(d: DialectSet) -> Vec<&'static str> {
@@ -108,6 +108,7 @@ fn json_str_list(items: &[&str]) -> String {
 use tcl_registry::side_effects::SideEffect;
 use tcl_registry::spec::SubCommand;
 use tcl_registry::traits::Traits;
+use tcl_dialect::model::{SpecSurface};
 
 /// Schema field name -> Rust trait, for the content audit's `bools`.
 const BOOL_TRAITS: &[(&str, Traits)] = &[
@@ -536,7 +537,7 @@ fn main() {
     let specs = group_specs(&group);
     for spec in &specs {
         // dialects
-        let (dialects_all, dialects) = match spec.dialects {
+        let (dialects_all, dialects) = match spec.surface {
             None => (true, Vec::new()),
             Some(d) => (false, dialect_tags(d)),
         };

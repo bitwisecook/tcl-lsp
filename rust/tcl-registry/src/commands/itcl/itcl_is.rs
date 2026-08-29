@@ -18,6 +18,7 @@
 
 //! `itcl::is` command ([incr Tcl] runtime).
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "itcl::is class|object ?-class name? name",
@@ -27,7 +28,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "itcl::is",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::at_least(2),
         hover: Some(HoverSnippet {
             summary: "Test whether a name is an [incr Tcl] class or object.",

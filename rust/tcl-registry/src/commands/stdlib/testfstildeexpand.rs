@@ -18,10 +18,11 @@
 
 //! `testfstildeexpand` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testfstildeexpand",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Test tilde expansion in file paths (9.0+).",

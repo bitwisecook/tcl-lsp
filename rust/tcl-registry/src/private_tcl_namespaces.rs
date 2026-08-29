@@ -41,6 +41,8 @@
 //! of `tcllib-2.0/modules/virtchannel_base`), so "anything under
 //! `::tcl::chan` is private" is simply false there.
 
+use tcl_dialect::model::{SurfaceQuery, surface_admits};
+
 /// How far a private namespace's claim over its members reaches.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TailRule {
@@ -175,7 +177,7 @@ pub struct PrivateTclNamespaceCall {
 pub fn classify_private_tcl_namespace_call(
     cmd_name: &str,
     registry: &crate::CommandRegistry,
-    dialect: crate::dialects::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) -> Option<PrivateTclNamespaceCall> {
     let rest = cmd_name.strip_prefix("::").unwrap_or(cmd_name);
     let rest = rest.strip_prefix("tcl::")?;
@@ -193,16 +195,16 @@ pub fn classify_private_tcl_namespace_call(
     // [`crate::spec::CommandSpec::implementation_namespace`]; tcllib's
     // `tcl::chan::memchan` and friends are registered without one.
     if registry
-        .get_for_dialect(cmd_name, dialect)
+        .get_for_surface(cmd_name, dialect)
         .is_some_and(|spec| spec.implementation_namespace.is_none())
     {
         return None;
     }
     let public_command = entry.namespace;
     let is_ensemble_subcommand = registry
-        .get_for_dialect(public_command, dialect)
+        .get_for_surface(public_command, dialect)
         .and_then(|spec| spec.subcommand(tail))
-        .is_some_and(|sub| sub.dialects.is_none_or(|d| d.intersects(dialect)));
+        .is_some_and(|sub| sub.surface.is_none_or(|d| surface_admits(d, dialect.as_ref())));
     if entry.tail_rule == TailRule::EnsembleSubcommandsOnly && !is_ensemble_subcommand {
         return None;
     }
@@ -216,11 +218,11 @@ pub fn classify_private_tcl_namespace_call(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dialects::DialectSet;
+use crate::dialects::DialectSet;
 
     fn classify(cmd: &str) -> Option<PrivateTclNamespaceCall> {
         let registry = crate::model::ingress::static_context_for("tcl9.0").commands();
-        classify_private_tcl_namespace_call(cmd, registry, DialectSet::TCL90)
+        classify_private_tcl_namespace_call(cmd, registry, SpecSurface::TCL90)
     }
 
     #[test]

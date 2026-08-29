@@ -27,6 +27,7 @@
 //! `package require Tk` interpreter.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const WRITES: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
@@ -45,7 +46,7 @@ fn cmd(
 ) -> CommandSpec {
     CommandSpec {
         name,
-        dialects: Some(DialectSet::TK_AND_TCL),
+        surface: Some(SpecSurface::TK_AND_TCL),
         arity,
         arg_roles,
         hover: Some(HoverSnippet::brief(summary, synopsis, "Tk man page")),

@@ -38,6 +38,8 @@ use tcl_registry::{
     InvocationFacts, SemanticOperationId, StateTransitionKnowledge,
 };
 use tcl_runtime_api::guard::{GuardDomain, GuardDomains};
+use tcl_dialect::model::Family;
+use tcl_dialect::model::{SpecSurface};
 
 use crate::representation_plan::{
     BoundaryPlan, GuardCondition, GuardedPlan, OwnershipLedger, SuspensionPlan,
@@ -1269,7 +1271,7 @@ mod tests {
     fn closed_invocation_facts() -> InvocationFacts {
         let registry = CommandRegistry::build_default();
         let mut facts = registry
-            .resolve_invocation("incr", &["counter"], DialectSet::TCL86)
+            .resolve_invocation("incr", &["counter"], SpecSurface::TCL86)
             .expect("core invocation resolves")
             .facts();
         facts.effects = EffectFootprint::default();

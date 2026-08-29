@@ -47,6 +47,7 @@
 //! so the analyser's class-body walk finds `link` calls through the registry
 //! rather than by spelling.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "link linkName ?linkName ...?",
     ..FormSpec::DEFAULT
@@ -72,7 +73,7 @@ pub fn spec() -> CommandSpec {
             .union(Traits::TCLOO_METHOD_CONTEXT)
             .union(Traits::TCLOO_REQUIRES_METHOD_FRAME)
             .union(Traits::TCLOO_BINDS_METHOD_ALIAS),
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
         hover: Some(HOVER),
@@ -92,7 +93,7 @@ pub fn spec_ooutil_86() -> CommandSpec {
             .union(Traits::TCLOO_METHOD_CONTEXT)
             .union(Traits::TCLOO_REQUIRES_METHOD_FRAME)
             .union(Traits::TCLOO_BINDS_METHOD_ALIAS),
-        dialects: Some(DialectSet::TCL86),
+        surface: Some(SpecSurface::TCL86),
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
         hover: Some(HOVER),

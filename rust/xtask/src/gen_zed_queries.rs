@@ -39,6 +39,7 @@
 //! Run `cargo xtask gen-zed-queries` to (re)write the files; `--check` verifies
 //! the committed files match, exiting non-zero on drift.
 
+use tcl_dialect::model::{Family};
 use std::collections::BTreeSet;
 use std::fs;
 use std::process::ExitCode;
@@ -50,6 +51,8 @@ use tcl_registry::model::ResolvedContext;
 use tcl_registry::traits::Traits;
 
 use crate::util::{self, repo_root};
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
 
 /// A language directory we emit a query for, and the dialect profile whose
 /// static-grammar surface it covers.
@@ -192,7 +195,11 @@ impl Buckets {
 /// Namespaced ambient commands are kept: they are the *point* of the dialect
 /// scoping (the F5 surface — `HTTP::uri`, `LB::server` — is entirely
 /// namespaced), and the tcl grammar parses `ns::cmd` as one `simple_word`.
-fn classify(reg: &CommandRegistry, context: &ResolvedContext, dialects: DialectSet) -> Buckets {
+fn classify(
+    reg: &CommandRegistry,
+    context: &ResolvedContext,
+    providers: &'static [SpecProvider],
+) -> Buckets {
     let mut b = Buckets::default();
 
     for name in reg.command_names() {
@@ -207,7 +214,7 @@ fn classify(reg: &CommandRegistry, context: &ResolvedContext, dialects: DialectS
         // this projection spans the profile's whole grammar union rather
         // than one version — so the question is "is this word a keyword in
         // any dialect the grammar covers", which no single-spec lookup can
-        // answer. `get`/`get_for_dialect` return one spec (the last
+        // answer. `get`/`get_for_surface` return one spec (the last
         // registered / the tightest-gated), which for those two names is the
         // `ooutil` twin — and the package rule below then dropped an ambient
         // core keyword from the highlight set entirely.
@@ -224,7 +231,7 @@ fn classify(reg: &CommandRegistry, context: &ResolvedContext, dialects: DialectS
         // (`--check`, and `committed_command_data_equals_live_registry`) are
         // the oracle: the emitted queries are byte-identical.
         let Some(spec) = reg.specs(name).iter().find(|spec| {
-            reg.spec_visible(spec, dialects)
+            reg.spec_visible_to(spec, providers)
                 && spec
                     .required_package
                     .is_none_or(|pkg| context.placement_is_ambient(pkg))
@@ -251,7 +258,7 @@ fn classify(reg: &CommandRegistry, context: &ResolvedContext, dialects: DialectS
 /// bucket in this file, each already scoped per-`DialectSet` via
 /// [`classify`] — never included the iRules word operators (`contains`,
 /// `matches_regex`, …) for the `irules` target at all.
-fn operator_spellings(dialects: DialectSet) -> BTreeSet<String> {
+fn operator_spellings(surface: &'static [SpecSurface]) -> BTreeSet<String> {
     tcl_syntax::expr::operators::ALL_BIN_OPS
         .iter()
         .map(|op| op.spec())
@@ -260,7 +267,7 @@ fn operator_spellings(dialects: DialectSet) -> BTreeSet<String> {
                 .iter()
                 .map(|op| op.spec()),
         )
-        .filter(|spec| spec.dialects.is_none_or(|d| d.intersects(dialects)))
+        .filter(|spec| spec.surface.is_none_or(|d| d.intersects(dialects)))
         .map(|spec| spec.spelling.to_owned())
         .collect()
 }
@@ -286,7 +293,11 @@ fn render_any_of(names: &BTreeSet<String>) -> String {
 
 /// Build a full `highlights.scm` from the static template and the registry
 /// buckets for one language's dialect set.
-fn render(reg: &CommandRegistry, context: &ResolvedContext, dialects: DialectSet) -> String {
+fn render(
+    reg: &CommandRegistry,
+    context: &ResolvedContext,
+    providers: &'static [SpecProvider],
+) -> String {
     let b = classify(reg, context, dialects);
     let (literal_ops, word_ops): (BTreeSet<String>, BTreeSet<String>) =
         operator_spellings(dialects)
@@ -485,7 +496,7 @@ mod tests {
         let b = classify(
             reg,
             crate::environment::context_for_dialect("tcl"),
-            DialectSet::TK_AND_TCL,
+            SpecSurface::TK_AND_TCL,
         );
         assert!(
             b.builtin.len() > 100,
@@ -505,8 +516,8 @@ mod tests {
     fn irules_surface_exceeds_plain_tcl() {
         // Loading the iRules dialect must add the F5 command surface on top of
         // core Tcl — the whole point of dialect scoping.
-        let tcl_dialects = DialectSet::TK_AND_TCL;
-        let irules_dialects = DialectSet::ALL_TCL.union(DialectSet::IRULES);
+        let tcl_dialects = SpecSurface::TK_AND_TCL;
+        let irules_dialects = surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)];
         let tcl = classify(
             registry_for(crate::environment::profile_for_dialect("tcl")),
             crate::environment::context_for_dialect("tcl"),
@@ -532,7 +543,7 @@ mod tests {
     /// other bucket in this file, each already scoped per-`DialectSet`.
     #[test]
     fn operator_spellings_are_dialect_scoped_and_complete() {
-        let tcl_ops = operator_spellings(DialectSet::TK_AND_TCL);
+        let tcl_ops = operator_spellings(SpecSurface::TK_AND_TCL);
         for op in ["lt", "le", "gt", "ge", "!", "~", "eq", "ne", "in", "ni"] {
             assert!(tcl_ops.contains(op), "tcl: missing {op:?}: {tcl_ops:?}");
         }
@@ -552,7 +563,7 @@ mod tests {
             );
         }
 
-        let irules_ops = operator_spellings(DialectSet::ALL_TCL.union(DialectSet::IRULES));
+        let irules_ops = operator_spellings(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]);
         for op in [
             "contains",
             "starts_with",

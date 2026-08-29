@@ -21,6 +21,9 @@
 use crate::hooks::LoweringHookId;
 use crate::prelude::*;
 use crate::state_transition::local_alias_name;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
+use tcl_dialect::model::Family;
 
 const VARIABLE_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
     StateTransitionDomain::VariableCells,
@@ -76,12 +79,12 @@ const FORMS: &[FormSpec] = &[
     // of forms too.
     FormSpec {
         synopsis: "variable name",
-        dialects: Some(DialectSet::TCL86_PLUS.union(DialectSet::EXPECT)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.6", Some("9.2"))]), SpecSurface::package("expect")]),
         ..FormSpec::DEFAULT
     },
     FormSpec {
         synopsis: "variable ?name value...?",
-        dialects: Some(DialectSet::TCL86_PLUS.union(DialectSet::EXPECT)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.6", Some("9.2"))]), SpecSurface::package("expect")]),
         ..FormSpec::DEFAULT
     },
     // Tcl 8.4 and 8.5 require at least one `name`: `Tcl_VariableObjCmd`
@@ -94,13 +97,7 @@ const FORMS: &[FormSpec] = &[
     // requirement.
     FormSpec {
         synopsis: "variable ?name value...? name ?value?",
-        dialects: Some(
-            DialectSet::TCL84
-                .union(DialectSet::TCL85)
-                .union(DialectSet::IRULES)
-                .union(DialectSet::IAPPS)
-                .union(DialectSet::TMSH),
-        ),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.6"))]), SpecSurface::core(Family::F5Irules), SpecSurface::package("iapps"), SpecSurface::package("tmsh")]),
         ..FormSpec::DEFAULT
     },
 ];
@@ -136,7 +133,7 @@ pub fn spec() -> CommandSpec {
         // Only the minimum argument count narrows per Tcl version —
         // captured on the individual FORMS entries above, not as a
         // whole-command dialect gate.
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED

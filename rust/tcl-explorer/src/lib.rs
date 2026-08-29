@@ -211,7 +211,7 @@ pub fn run_pipeline(source: &str, dialect: &str) -> ExplorerResult {
     // `aliases` list degrades to empty.
     let profile = environment::profile_for_dialect(dialect);
     // Ledger C1: one resolved environment for the whole deep-inspection
-    // build, where the retired form passed `profile.availability_mask`.
+    // build, where the retired form passed `profile.surface_query()`.
     let semantic_context = Some(tcl_registry::model::semantic::SemanticContext::for_profile(
         profile,
     ));

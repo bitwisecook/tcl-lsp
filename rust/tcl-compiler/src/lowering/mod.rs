@@ -38,6 +38,8 @@ use crate::ir::{
 };
 use crate::lowering_hooks::{ArgTokenKind, LoweringCommand, try_lower_hook};
 use crate::naming::normalise_var_name;
+use tcl_dialect::model::{surface_admits};
+use tcl_dialect::model::{SpecSurface};
 use crate::segmenter::{
     SegmentedCommand, segment_commands, segment_commands_with_offset_and_config,
 };
@@ -126,18 +128,18 @@ impl Lowerer<'_> {
     /// result, not a consumer-side command-name or read-modify-write rule.
     fn safe_on_uninit(&self, command: &str, args: &[String]) -> bool {
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let dialect = self.registry.own_availability_mask();
+        let dialect = self.registry.own_surface_query();
         // A profile-less registry is an intentionally dialect-blind union.
         // `safe_on_uninit` is a release/runtime guarantee, so the union cannot
         // prove it: in particular, `incr` differs between Tcl 8.4 and 8.5.
         // Abstain until a concrete profile selects the applicable fact.
-        if dialect.is_empty() {
+        if dialect.is_none() {
             return false;
         }
         self.registry
             .resolve_invocation(command, &arg_refs, dialect)
             .and_then(|resolved| resolved.semantics.safe_on_uninit)
-            .is_some_and(|allowed| allowed.is_empty() || allowed.intersects(dialect))
+            .is_none_or(|allowed| surface_admits(allowed, dialect.as_ref()))
     }
 
     /// Classify one command as a statically-extractable definer call, from
@@ -590,13 +592,13 @@ fn body_has_dynamic_barrier(body_text: &str, registry: &CommandRegistry) -> bool
         // A "dynamic barrier" command evaluates a script (`eval`,
         // `uplevel`, `namespace eval`, `interp eval`, …).  Sourced from
         // the registry's `EVALUATES_CODE` trait rather than a hardcoded
-        // name list.  `DialectSet::empty()` because the question is the
+        // name list.  `None` because the question is the
         // command's *shape*, not its availability: a barrier is a barrier
         // whichever dialect the file is analysed as.  Deliberate under
         // invariant I4 — a barrier answer *widens* (falls back to
         // `Statement::Barrier`), never specialises on an unproved
         // binding.
-        let traits = registry.invocation_traits(name, &args, DialectSet::empty());
+        let traits = registry.invocation_traits(name, &args, None);
         if !traits.contains(Traits::EVALUATES_CODE) {
             // Recurse into braced args of non-barrier commands so
             // nested barriers still trip the gate.
@@ -1424,7 +1426,7 @@ impl<'r> Lowerer<'r> {
         let resolved = self.registry.resolve_invocation(
             cmd_name,
             &arg_refs,
-            self.registry.own_availability_mask(),
+            self.registry.own_surface_query(),
         )?;
         let hook = resolved.semantics.lowering_hook?;
         // The expansion gate lives here, keyed on the same typed hook the
@@ -1529,7 +1531,7 @@ impl<'r> Lowerer<'r> {
             // `when EVENT ?priority N? body` — iRules event
             // handler.  The hook stamp lives on the `when` spec
             // in `tcl-registry/src/commands/irules/when.rs`,
-            // which `load_dialect(DialectSet::IRULES)` brings
+            // which `load_dialect(SpecSurface::IRULES)` brings
             // into the registry.  Production callers (the LSP
             // server) load the active dialect
             // before lowering; tests that lower iRule code call
@@ -1679,7 +1681,7 @@ impl<'r> Lowerer<'r> {
             if let Some(resolved) = self.registry.resolve_invocation(
                 cmd_name,
                 &arg_refs,
-                self.registry.own_availability_mask(),
+                self.registry.own_surface_query(),
             ) && let Some(tcl_registry::events::IrulesTopLevelDeclaration::Priority { value }) =
                 self.registry
                     .irules_top_level_effect(resolved.canonical_command, &arg_refs)
@@ -2777,7 +2779,7 @@ impl<'r> Lowerer<'r> {
                     &role_cmd,
                     &role_args_ref,
                     index,
-                    self.registry.own_availability_mask(),
+                    self.registry.own_surface_query(),
                 )
                 .is_none_or(|timing| timing == tcl_registry::ScriptTiming::SameInvocation)
         });
@@ -2812,7 +2814,7 @@ impl<'r> Lowerer<'r> {
                             &role_cmd,
                             &role_args_ref,
                             i,
-                            self.registry.own_availability_mask(),
+                            self.registry.own_surface_query(),
                         ) == Some(tcl_registry::VariableScope::Global)
                             && !name.starts_with("::")
                         {
@@ -2833,7 +2835,7 @@ impl<'r> Lowerer<'r> {
                             &role_cmd,
                             &role_args_ref,
                             i,
-                            self.registry.own_availability_mask(),
+                            self.registry.own_surface_query(),
                         ) == Some(tcl_registry::VariableScope::Global)
                             && !name.starts_with("::")
                         {

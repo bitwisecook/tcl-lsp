@@ -239,7 +239,7 @@ Consider capturing the result: catch {\u{2026}} result"
         // owning package's resolved version is not known until the post-walk
         // flush, by which time the fix has already been attached.
         let documented = spec
-            .optional_trailing_arg_names(self.analysis_context().context().authoring_mask(), None);
+            .optional_trailing_arg_names(Some(self.analysis_context().context().authoring_query()), None);
         let offered = writable.min(documented.len());
         if offered == 0 {
             return Vec::new();

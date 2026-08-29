@@ -18,10 +18,11 @@
 
 //! `testutftonormalized` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testutftonormalized",
-        dialects: Some(DialectSet::TCL91),
+        surface: Some(SpecSurface::TCL91),
         arity: Arity::new(4, 5),
         hover: Some(HoverSnippet {
             summary: "Test UTF-8 Unicode normalisation into a buffer (Tcl 9.1).",

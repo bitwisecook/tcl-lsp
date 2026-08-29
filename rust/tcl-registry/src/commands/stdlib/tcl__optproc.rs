@@ -18,6 +18,7 @@
 
 //! `tcl::OptProc` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: true,
     ..SideEffect::DEFAULT
@@ -26,7 +27,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::OptProc",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::exact(3),
         // `DEFINES_PROCEDURE` drives the proc-name-declaration semantic
         // token/hover override (`semantic_tokens.rs`'s `ArgOverride::ProcNameDef`)

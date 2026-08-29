@@ -18,10 +18,11 @@
 
 //! `testlistapi` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testlistapi",
-        dialects: Some(DialectSet::TCL91),
+        surface: Some(SpecSurface::TCL91),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Exercise the internal list C API (Tcl 9.1).",

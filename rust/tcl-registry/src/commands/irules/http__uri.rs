@@ -19,6 +19,7 @@
 //! `HTTP::uri` iRules command.
 use crate::prelude::*;
 use crate::taint::SetterConstraint;
+use tcl_dialect::model::{SpecSurface};
 
 /// The setter form of `HTTP::uri` requires its value to start
 /// with `/` (IRULE3101). Registry-driven replacement for the hardcoded
@@ -37,14 +38,14 @@ pub const fn spec() -> CommandSpec {
             .union(Traits::CSE_CANDIDATE)
             .union(Traits::DIAGRAM_ACTION)
             .union(Traits::UNNORMALISED_HTTP_GETTER),
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::new(0, 1),
         options: const {
             &[OptionSpec {
                 name: "-normalized",
                 value: OptionValue::flag(),
                 detail: "Return the canonicalised URI (URL evasion patterns rejected).",
-                dialects: None,
+                surface: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,

@@ -18,6 +18,9 @@
 
 //! `split` — split a string into a proper Tcl list.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
+use tcl_dialect::model::Family;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "split string ?splitChars?",
     ..FormSpec::DEFAULT
@@ -36,7 +39,7 @@ pub fn spec() -> CommandSpec {
         // iapps/, or eda_*/ command packs declares an override or an extra
         // form for it, so it resolves identically everywhere — the common
         // iRules idiom `split [HTTP::uri] "/"` relies on exactly this.
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
         byte_array_effect: ByteArrayEffect::Coerces,
         const_fold: Some(crate::const_fold::fold_split),
         traits: Traits::FRAMELESS_RUNTIME | Traits::PURE | Traits::CSE_CANDIDATE,

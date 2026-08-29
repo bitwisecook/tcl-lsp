@@ -18,10 +18,11 @@
 
 //! `IPFIX::template` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "IPFIX::template",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "IPFIX::template Provides the ability to create and delete IPFIX message templates that may be used to generate IPFIX messages based on processing in the iRule.",

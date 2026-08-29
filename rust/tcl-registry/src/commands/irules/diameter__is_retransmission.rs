@@ -18,10 +18,11 @@
 
 //! `DIAMETER::is_retransmission` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DIAMETER::is_retransmission",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Returns true if it is a retransmitted request, otherwise, returns false.",

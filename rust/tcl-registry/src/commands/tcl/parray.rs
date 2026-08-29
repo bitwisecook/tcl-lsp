@@ -19,6 +19,7 @@
 //! `parray` — print an array's contents to standard output.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 // Manpage comparison across Tcl 8.4, 8.5, 8.6, 9.0, and 9.1
 // (tcl-lang.org's TclCmd/library.html, `.htm` for the 8.6 tree — `parray`
@@ -45,7 +46,7 @@ use crate::prelude::*;
 // documented on the same manpage (auto_execok, auto_import, auto_load,
 // auto_mkindex, auto_mkindex_old, auto_qualify, auto_reset,
 // tcl_findLibrary): `parray`'s own command-level `dialects` group below
-// is `Some(DialectSet::ALL_TCL)`, which carries no `IRULES` bit and so
+// is `Some(SpecSurface::ALL_TCL)`, which carries no `IRULES` bit and so
 // never intersects the bare `IRULES` availability mask — there is no
 // disable list. It stays reachable in every real-Tcl-hosting dialect
 // (whose mask carries a version bit `ALL_TCL` intersects), and no
@@ -62,12 +63,12 @@ use crate::prelude::*;
 const FORMS: &[FormSpec] = &[
     FormSpec {
         synopsis: "parray arrayName ?pattern?",
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         ..FormSpec::DEFAULT
     },
     FormSpec {
         synopsis: "parray arrayName",
-        dialects: Some(DialectSet::TCL84),
+        surface: Some(SpecSurface::TCL84),
         ..FormSpec::DEFAULT
     },
 ];
@@ -77,7 +78,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "parray",
         traits: Traits::WHOLE_ARRAY_ARG | Traits::OVERRIDABLE_LIBRARY_PROC,
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         // Real 8.5+ ceiling (`arrayName ?pattern?`); Tcl 8.4's SYNOPSIS is
         // `parray arrayName` alone (see the FORMS comment above), so a
         // narrow gap remains for arity diagnostics against code

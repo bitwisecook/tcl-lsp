@@ -78,6 +78,7 @@ use tcl_registry::types::{ReturnElements, VarElementsEffect, VarWriteTyping};
 
 use crate::catalogue;
 use crate::render_rs::rust_string;
+use tcl_dialect::model::{SpecSurface};
 
 /// Draft key listing the fields a live spec sets but whose defining Rust
 /// expression could not be recovered. Absent (or empty) when everything
@@ -134,10 +135,20 @@ fn opt_index(value: Option<u8>) -> Value {
     value.map_or(Value::Null, |n| json!(n))
 }
 
-fn dialects(value: Option<DialectSet>) -> Value {
+fn dialects(value: Option<&'static [SpecSurface]>) -> Value {
     match value {
         None => Value::Null,
-        Some(set) => Value::Array(set.member_names().into_iter().map(|n| json!(n)).collect()),
+        // The draft's own vocabulary is catalogue dialect names, so the rows
+        // are projected back onto the profiles they admit.
+        Some(rows) => Value::Array(
+            tcl_dialect::DialectProfile::all()
+                .iter()
+                .filter(|profile| {
+                    tcl_dialect::model::surface_admits(rows, Some(&profile.surface_query()))
+                })
+                .map(|profile| json!(profile.name))
+                .collect(),
+        ),
     }
 }
 
@@ -452,7 +463,7 @@ pub(crate) fn option_spec(opt: &OptionSpec) -> (Value, OptionDraftCompleteness) 
         json!({
             "name": opt.name,
             "detail": opt.detail,
-            "dialects": dialects(opt.dialects),
+            "dialects": dialects(opt.surface),
             "aliases": str_list(opt.aliases),
             "introduced_version": opt_str(opt.lifecycle.introduced),
             "deprecated_version": opt_str(opt.lifecycle.deprecated),
@@ -473,7 +484,7 @@ pub(crate) fn form_spec(form: &FormSpec) -> (Value, bool) {
     let mut d = Map::new();
     d.insert("kind".into(), json!(catalogue::variant_name(&form.kind)));
     d.insert("synopsis".into(), json!(form.synopsis));
-    d.insert("dialects".into(), dialects(form.dialects));
+    d.insert("dialects".into(), dialects(form.surface));
     let complete = insert_lifecycle(&mut d, form.lifecycle);
     (Value::Object(d), complete)
 }
@@ -490,7 +501,7 @@ pub(crate) fn side_effect(effect: &SideEffect) -> (Value, bool) {
         "connection_side".into(),
         json!(catalogue::variant_name(&effect.connection_side)),
     );
-    d.insert("dialects".into(), dialects(effect.dialects));
+    d.insert("dialects".into(), dialects(effect.surface));
     let complete = insert_lifecycle(&mut d, effect.lifecycle);
     (Value::Object(d), complete)
 }
@@ -567,7 +578,7 @@ pub(crate) fn sub_subcommand(sub: &SubSubCommand) -> (Value, bool) {
     d.insert("name".into(), json!(sub.name));
     d.insert("detail".into(), json!(sub.detail));
     d.insert("synopsis".into(), json!(sub.synopsis));
-    d.insert("dialects".into(), dialects(sub.dialects));
+    d.insert("dialects".into(), dialects(sub.surface));
     let mut lost = Unrecovered::default();
     // `null` — declares nothing, inherits the subcommand's table — is a
     // different draft value from `[]`, which declares that there are no
@@ -801,7 +812,7 @@ fn representation_effect_expr(effect: RepresentationEffect) -> String {
     }
 }
 
-fn dialect_set_expr(set: DialectSet) -> String {
+fn dialect_set_expr(set: &'static [SpecSurface]) -> String {
     let members = dialects(Some(set));
     crate::render_rs::dialect_set(
         members
@@ -849,7 +860,7 @@ fn option_relations_expr(constraints: &[OptionRelation]) -> Option<String> {
                 || "None".to_owned(),
                 |term| format!("Some({})", relation_term_expr(term)),
             );
-            let dialects = relation.dialects.map_or_else(
+            let dialects = relation.surface.map_or_else(
                 || "None".to_owned(),
                 |set| format!("Some({})", dialect_set_expr(set)),
             );
@@ -859,7 +870,7 @@ fn option_relations_expr(constraints: &[OptionRelation]) -> Option<String> {
             );
             Some(format!(
                 "OptionRelation {{ kind: RelationKind::{:?}, mode: RelationMode::{:?}, \
-                 subject: {subject}, terms: &[{terms}], dialects: {dialects}, \
+                 subject: {subject}, terms: &[{terms}], surface: {dialects}, \
                  lifecycle: {}, message: {message} }}",
                 relation.kind,
                 relation.mode,
@@ -1138,7 +1149,7 @@ fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
         "subcommand_forms".into(),
         lost.expr("subcommand_forms", !sub.subcommand_forms.is_empty()),
     );
-    d.insert("dialects".into(), dialects(sub.dialects));
+    d.insert("dialects".into(), dialects(sub.surface));
     if !insert_lifecycle(d, sub.lifecycle) {
         lost.note("deprecation_fix");
     }
@@ -1234,7 +1245,7 @@ pub fn from_command_spec(spec: &CommandSpec) -> Draft {
 fn command_identity(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert("name".into(), json!(spec.name));
     d.insert("traits".into(), traits(spec.traits));
-    d.insert("dialects".into(), dialects(spec.dialects));
+    d.insert("dialects".into(), dialects(spec.surface));
     d.insert("arity".into(), arity(spec.arity));
     d.insert("arity_windows".into(), arity_windows(spec.arity_windows));
     d.insert("arg_roles".into(), role_map(spec.arg_roles));

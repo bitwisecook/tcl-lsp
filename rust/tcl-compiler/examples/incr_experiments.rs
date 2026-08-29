@@ -289,7 +289,7 @@ fn e6_e7_lattice_costs(root: &Path, dialect: &str) {
     };
     let mut reg = tcl_registry::CommandRegistry::build_default();
     if let Some(d) = tcl_dialect::DialectSet::parse(dialect) {
-        reg.load_dialect(d);
+        reg.load_surface(d);
     }
     let n = 3;
     let time = |f: &dyn Fn()| {

@@ -51,10 +51,10 @@
 //! carries no grammar — correctly drops back to ordinary Tcl.
 
 use crate::arity::Arity;
-use crate::dialects::DialectSet;
 use crate::hover::HoverSnippet;
 use crate::spec::CommandSpec;
 use crate::traits::Traits;
+use tcl_dialect::model::{SpecSurface};
 
 mod arg;
 mod blocks;
@@ -85,7 +85,7 @@ pub(crate) fn statement(
     CommandSpec {
         name,
         traits: Traits::LANGUAGE_KEYWORD,
-        dialects: Some(DialectSet::SPECTCL),
+        surface: Some(SpecSurface::SPECTCL),
         arity,
         hover: Some(HoverSnippet {
             summary,

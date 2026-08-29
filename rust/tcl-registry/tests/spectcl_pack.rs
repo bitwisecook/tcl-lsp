@@ -27,6 +27,8 @@ use tcl_dialect::DialectSet;
 use tcl_registry::ArgRole;
 use tcl_registry::definer::{DefinerFamily, SPECTCL_GRAMMARS};
 use tcl_registry::model::ingress::static_context_for;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::Family;
 
 /// The pack loads by profile identity, through exactly the same
 /// `base_layers` path every other dialect pack takes — so the registry sweep
@@ -69,21 +71,21 @@ fn generic_statement_words_do_not_collide_across_dialects() {
     let spectcl = static_context_for("spectcl").commands();
     let mask = tcl_registry::model::ingress::resolve_environment("spectcl")
         .analyser_profile()
-        .availability_mask;
+        .surface_query();
     for word in ["command", "option", "arg", "hover", "values", "hook"] {
         let spec = spectcl
-            .get_for_dialect(word, mask)
+            .get_for_surface(word, mask)
             .unwrap_or_else(|| panic!("{word} resolves under spectcl"));
         assert_eq!(
-            spec.dialects,
-            Some(DialectSet::SPECTCL),
+            spec.surface,
+            Some(SpecSurface::SPECTCL),
             "{word} must resolve to the SpecTcl spec, not another pack's"
         );
     }
     // Tk keeps its own `option` everywhere else.
     let tcl = static_context_for("tcl9.0").commands();
     let tk_option = tcl.get("option").expect("Tk `option` still exists");
-    assert_ne!(tk_option.dialects, Some(DialectSet::SPECTCL));
+    assert_ne!(tk_option.surface, Some(SpecSurface::SPECTCL));
 }
 
 /// Every `SpecTcl` statement word is gated to the `SpecTcl` bit alone. A word
@@ -96,8 +98,8 @@ fn every_statement_word_is_gated_to_spectcl() {
     let mut names: Vec<&str> = specs.iter().map(|s| s.name).collect();
     for spec in &specs {
         assert_eq!(
-            spec.dialects,
-            Some(DialectSet::SPECTCL),
+            spec.surface,
+            Some(SpecSurface::SPECTCL),
             "{}: statement words are SpecTcl-only",
             spec.name
         );

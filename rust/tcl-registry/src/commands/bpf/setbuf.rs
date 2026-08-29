@@ -18,12 +18,13 @@
 
 //! `setbuf` — bind a packet/context buffer pointer (`setbuf NAME ctx`).
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 pub fn spec() -> CommandSpec {
     const OP: BpfOpSpec = BpfOpSpec::structural(BpfOpKind::BindPacket);
     CommandSpec {
         name: "setbuf",
-        dialects: Some(DialectSet::BPF),
+        surface: Some(SpecSurface::BPF),
         // `setbuf NAME ctx` or `setbuf NAME = ctx`.
         arity: Arity::new(2, 3),
         bpf_op: Some(&OP),

@@ -18,6 +18,7 @@
 
 //! `itcl::local` command ([incr Tcl] runtime).
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "itcl::local class name ?arg ...?",
@@ -27,7 +28,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "itcl::local",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::at_least(2),
         hover: Some(HoverSnippet {
             summary: "Create an object that is automatically deleted when the current call frame ends.",

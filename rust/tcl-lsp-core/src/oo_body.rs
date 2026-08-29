@@ -63,8 +63,11 @@
 //! than by fixed argument roles: `self …` (a nested member) and
 //! `property … -get/-set …` (flag-keyed bodies).
 
+use tcl_dialect::model::{SurfaceLayer, Family};
 use tcl_registry::definer::{DefinitionBodyGrammar, MemberKind, MemberRefKind, MemberSpec};
 use tcl_registry::{ArgRole, CommandRegistry};
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SurfaceQuery;
 
 /// The definition-body grammar for `command`'s body when it is an *outer*
 /// definer — a command carrying a [`DefinitionBodyGrammar`] (a `TclOO` metaclass
@@ -174,7 +177,7 @@ pub fn member_body_indices(
 ) -> Vec<usize> {
     // The registry owns this irregular structural layout. Keeping this thin
     // forwarding function avoids a second Flat/Wrapper/FlagKeyed dispatcher.
-    grammar.member_body_indices_in(command, args, tcl_dialect::DialectSet::all())
+    grammar.member_body_indices_in(command, args, None)
 }
 
 /// Profile-aware [`member_body_indices`].
@@ -183,7 +186,7 @@ pub fn member_body_indices_in(
     grammar: &DefinitionBodyGrammar,
     command: &str,
     args: &[&str],
-    dialect: tcl_dialect::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) -> Vec<usize> {
     grammar.member_body_indices_in(command, args, dialect)
 }
@@ -206,9 +209,9 @@ pub fn member_param_indices_in(
     grammar: &DefinitionBodyGrammar,
     command: &str,
     args: &[&str],
-    dialect: tcl_dialect::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) -> Vec<usize> {
-    member_role_indices(grammar, command, args, Some(dialect), ArgRole::ParamList)
+    member_role_indices(grammar, command, args, dialect, ArgRole::ParamList)
 }
 
 /// Name-argument indices for a member call under `grammar` — the declared name
@@ -234,9 +237,9 @@ pub fn member_name_indices_in(
     grammar: &DefinitionBodyGrammar,
     command: &str,
     args: &[&str],
-    dialect: tcl_dialect::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) -> Vec<usize> {
-    member_role_indices(grammar, command, args, Some(dialect), ArgRole::Name)
+    member_role_indices(grammar, command, args, dialect, ArgRole::Name)
 }
 
 /// The entity kind a member's arguments *reference*, plus their indices, when
@@ -286,9 +289,9 @@ pub fn member_var_indices_in(
     grammar: &DefinitionBodyGrammar,
     command: &str,
     args: &[&str],
-    dialect: tcl_dialect::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) -> Vec<usize> {
-    member_role_indices(grammar, command, args, Some(dialect), ArgRole::VarWrite)
+    member_role_indices(grammar, command, args, dialect, ArgRole::VarWrite)
 }
 
 /// Closed-vocabulary option arguments for a definition member. These are
@@ -309,9 +312,9 @@ pub fn member_option_indices_in(
     grammar: &DefinitionBodyGrammar,
     command: &str,
     args: &[&str],
-    dialect: tcl_dialect::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) -> Vec<usize> {
-    member_role_indices(grammar, command, args, Some(dialect), ArgRole::Option)
+    member_role_indices(grammar, command, args, dialect, ArgRole::Option)
 }
 
 /// Namespace-name arguments for a definition member. Keeping this separate
@@ -332,13 +335,13 @@ pub fn member_namespace_indices_in(
     grammar: &DefinitionBodyGrammar,
     command: &str,
     args: &[&str],
-    dialect: tcl_dialect::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) -> Vec<usize> {
     member_role_indices(
         grammar,
         command,
         args,
-        Some(dialect),
+        dialect,
         ArgRole::NamespaceName,
     )
 }
@@ -353,13 +356,13 @@ fn member_role_indices(
     grammar: &DefinitionBodyGrammar,
     command: &str,
     args: &[&str],
-    dialect: Option<tcl_dialect::DialectSet>,
+    dialect: Option<SurfaceQuery<'_>>,
     role: ArgRole,
 ) -> Vec<usize> {
     let Some(member) = grammar.member(command) else {
         return Vec::new();
     };
-    if dialect.is_some_and(|dialect| member.unavailable_option_for(args, dialect).is_some()) {
+    if member.unavailable_option_for(args, dialect).is_some() {
         return Vec::new();
     }
     match member.kind {
@@ -388,10 +391,10 @@ fn member_role_indices(
 fn flat_member_indices(
     member: &MemberSpec,
     args: &[&str],
-    dialect: Option<tcl_dialect::DialectSet>,
+    dialect: Option<SurfaceQuery<'_>>,
     role: ArgRole,
 ) -> Vec<usize> {
-    if dialect.is_some_and(|dialect| member.unavailable_option_for(args, dialect).is_some()) {
+    if member.unavailable_option_for(args, dialect).is_some() {
         return Vec::new();
     }
     if role == ArgRole::VarWrite && member.all_args_var {
@@ -399,7 +402,7 @@ fn flat_member_indices(
     } else {
         let indices: Vec<usize> = dialect.map_or_else(
             || member.indices_for_call(args, role).collect(),
-            |dialect| member.indices_for_call_in(args, dialect, role).collect(),
+            |dialect| member.indices_for_call_in(args, Some(dialect), role).collect(),
         );
         indices.into_iter().filter(|&i| i < args.len()).collect()
     }
@@ -435,7 +438,7 @@ fn wrapper_member_indices(
     grammar: &DefinitionBodyGrammar,
     member: &MemberSpec,
     args: &[&str],
-    dialect: Option<tcl_dialect::DialectSet>,
+    dialect: Option<SurfaceQuery<'_>>,
     role: ArgRole,
 ) -> Vec<usize> {
     let Some((inner, rest)) = args.split_first() else {
@@ -477,7 +480,7 @@ mod tests {
 
     fn registry() -> CommandRegistry {
         let mut r = CommandRegistry::build_default();
-        r.load_dialect(tcl_dialect::DialectSet::IRULES);
+        r.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         r
     }
 
@@ -654,10 +657,10 @@ mod tests {
         let g = &TCLOO_GRAMMAR;
         let args = ["m", "-private", "{x}", "body"];
         assert!(
-            member_body_indices_in(g, "method", &args, tcl_dialect::DialectSet::TCL86,).is_empty()
+            member_body_indices_in(g, "method", &args, SpecSurface::TCL86,).is_empty()
         );
         assert_eq!(
-            member_body_indices_in(g, "method", &args, tcl_dialect::DialectSet::TCL90,),
+            member_body_indices_in(g, "method", &args, SpecSurface::TCL90,),
             vec![3]
         );
     }

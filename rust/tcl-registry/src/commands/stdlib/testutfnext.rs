@@ -18,10 +18,11 @@
 
 //! `testutfnext` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testutfnext",
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Test Tcl_UtfNext.",

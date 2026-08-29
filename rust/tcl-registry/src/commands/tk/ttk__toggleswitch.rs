@@ -5,6 +5,7 @@
 
 //! `ttk::toggleswitch` command (Tk 9.1+).
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
@@ -176,7 +177,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "ttk::toggleswitch",
         traits: Traits::TAINTS_VAR_WRITES,
-        dialects: Some(DialectSet::TK_AND_TCL),
+        surface: Some(SpecSurface::TK_AND_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Create and manipulate a themed toggle switch widget.",

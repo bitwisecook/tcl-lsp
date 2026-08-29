@@ -23,6 +23,7 @@
 //! are structural (string → dialect-name), so no tclsh proof applies.
 
 use tcl_registry::detect_dialect_from_source as detect;
+use tcl_dialect::model::{SpecSurface};
 
 #[test]
 fn shebang_tclsh84() {
@@ -266,11 +267,11 @@ fn spectcl_is_a_catalogued_dialect() {
     use tcl_dialect::{DialectSet, KNOWN_DIALECTS};
 
     assert!(KNOWN_DIALECTS.contains(&"spectcl"));
-    assert_eq!(DialectSet::parse("spectcl"), Some(DialectSet::SPECTCL));
-    assert_eq!(DialectSet::SPECTCL.canonical_name(), Some("spectcl"));
+    assert_eq!(DialectSet::parse("spectcl"), Some(SpecSurface::SPECTCL));
+    assert_eq!(SpecSurface::SPECTCL.canonical_name(), Some("spectcl"));
     let profile = tcl_registry::model::ingress::resolve_environment("spectcl").analyser_profile();
     assert_eq!(profile.name, "spectcl");
-    assert_eq!(profile.base_layers, &[DialectSet::SPECTCL]);
+    assert_eq!(profile.base_layers, &[SpecSurface::SPECTCL]);
     // The editor / MCP spellings canonicalise to it.
     for alias in ["tclspec", "tcl-spec"] {
         assert_eq!(

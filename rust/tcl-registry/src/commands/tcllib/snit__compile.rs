@@ -35,7 +35,7 @@ pub fn spec() -> CommandSpec {
         traits: Traits::CREATES_BARRIER
             | Traits::NEVER_INLINE_BODY
             | Traits::CREATES_DYNAMIC_BARRIER,
-        dialects: None,
+        surface: None,
         arity: Arity::exact(3),
         hover: Some(HoverSnippet {
             summary: "Compile a snit type definition into a Tcl script.",

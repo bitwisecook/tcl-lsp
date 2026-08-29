@@ -24,6 +24,8 @@
 //! as a regression check that the highlighting behaviour the semantic-tokens
 //! layer depends on is preserved.
 
+use tcl_dialect::model::{SurfaceLayer, Family};
+use tcl_dialect::model::{SpecSurface};
 pub use tcl_irules::object_ref_spans;
 
 #[cfg(test)]
@@ -33,7 +35,7 @@ mod tests {
 
     fn spans(src: &str) -> Vec<(usize, &str)> {
         let mut reg = CommandRegistry::build_default();
-        reg.load_dialect(tcl_dialect::DialectSet::IRULES);
+        reg.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         object_ref_spans(src, &reg)
             .into_iter()
             .map(|s| (s.start() as usize, &src[s.as_range()]))

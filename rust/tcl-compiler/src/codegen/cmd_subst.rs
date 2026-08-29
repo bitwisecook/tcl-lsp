@@ -745,7 +745,7 @@ impl CodegenCtx<'_> {
         // `emitter::bytecoded::try_bytecoded` (issues #1462/#1463).
         let resolved =
             self.registry
-                .resolve_call(cmd, &arg_refs, self.registry.own_availability_mask())?;
+                .resolve_call(cmd, &arg_refs, self.registry.own_surface_query())?;
         if resolved.spec.name != cmd {
             return None;
         }

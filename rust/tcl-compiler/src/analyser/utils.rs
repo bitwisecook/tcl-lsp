@@ -23,6 +23,7 @@
 //! `signature_scan::params` so the analyser can keep its imports
 //! flat.
 
+use tcl_dialect::model::SurfaceQuery;
 use std::collections::{HashMap, HashSet};
 
 use tcl_lexer::{SourceMap, Span, Token, TokenType};
@@ -269,7 +270,7 @@ struct CommentLineWalker<'a> {
     registry: &'a CommandRegistry,
     identities: crate::realm::CommandBindingRealm,
     line_index: tcl_lexer::LineIndex,
-    availability: tcl_dialect::DialectSet,
+    availability: Option<SurfaceQuery<'static>>,
     visited: HashSet<(u32, u32)>,
     facts: Vec<ScriptCommentFact>,
 }
@@ -284,7 +285,7 @@ impl<'a> CommentLineWalker<'a> {
             line_index: tcl_lexer::LineIndex::new(whole),
             availability: registry
                 .profile()
-                .map_or_else(tcl_dialect::DialectSet::empty, |p| p.availability_mask),
+                .map(tcl_dialect::DialectProfile::surface_query),
             visited: HashSet::new(),
             facts: Vec::new(),
         }

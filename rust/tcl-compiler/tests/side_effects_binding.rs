@@ -59,6 +59,7 @@
 //! hint — pure subcommands win, so the class-lookup assertions check purity
 //! (documented at the site).
 
+use tcl_dialect::model::{SurfaceLayer, Family};
 use tcl_compiler::command_binding::{
     Binding, BindingKind, analyse_command_binding, scan_module_command_mutations,
 };
@@ -71,6 +72,7 @@ use tcl_compiler::side_effects::{
 use tcl_dialect::DialectSet;
 use tcl_registry::CommandRegistry;
 use tcl_registry::model::ingress::static_context_for;
+use tcl_dialect::model::{SpecSurface};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -81,7 +83,7 @@ use tcl_registry::model::ingress::static_context_for;
 /// argument, so this registry serves both the Tcl-core and the iRules tests.
 fn irules_registry() -> CommandRegistry {
     let mut reg = CommandRegistry::build_default();
-    reg.load_dialect(DialectSet::IRULES);
+    reg.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
     reg
 }
 

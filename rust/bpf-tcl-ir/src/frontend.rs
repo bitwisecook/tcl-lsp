@@ -422,8 +422,8 @@ mod tests {
         let profile = registry.profile().expect("BPF registry has a profile");
         assert_eq!(profile.name, "bpf");
         assert_eq!(
-            profile.availability_mask,
-            DialectSet::TCL90 | DialectSet::BPF
+            profile.surface_query(),
+            SurfaceQuery::core(Family::Tcl, "9.0").with_packages(&["bpf"])
         );
         assert_eq!(registry.runtime_version(), Some(TclVersion::V9_0));
         assert_eq!(registry.numbers(), NumberSyntax::Tcl90);

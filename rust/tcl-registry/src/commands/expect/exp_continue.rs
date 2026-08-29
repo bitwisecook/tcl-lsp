@@ -18,11 +18,12 @@
 
 //! `exp_continue` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 const OPTIONS: &[OptionSpec] = &[OptionSpec {
     name: "-continue_timer",
     value: OptionValue::flag(),
     detail: "Do not restart the timeout timer.",
-    dialects: None,
+    surface: None,
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
@@ -36,7 +37,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "exp_continue",
-        dialects: Some(DialectSet::EXPECT),
+        surface: Some(SpecSurface::EXPECT),
         arity: Arity::new(0, 1),
         hover: Some(HoverSnippet {
             summary: "Continue matching within an expect body instead of returning.",

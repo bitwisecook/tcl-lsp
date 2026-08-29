@@ -32,6 +32,7 @@ use tcl_lexer::{Lexer, SourceMap, Token, TokenType};
 use tcl_registry::{ArgRole, CaseListSpec, CommandRegistry, Traits};
 
 use super::config::FormatterConfig;
+use tcl_dialect::model::{SpecSurface};
 
 /// Depth cap for [`format_body`]'s (and [`format_case_list_body`]'s) recursion
 /// over nested control-flow bodies — issue #996. Reuses their existing
@@ -1209,7 +1210,7 @@ fn keyword_rewrites_for(
     // candidate, which can only make a prefix *less* unique.
     super::keywords::rewrites_for_command(
         registry,
-        config.dialect_bits(),
+        config.dialect_query(),
         config,
         &cmd.resolved_name,
         &words,
@@ -1236,12 +1237,8 @@ fn case_list_body_index(
         .map(|arg| arg.text.as_str())
         .collect();
     let dialect = registry.profile().map_or_else(
-        || {
-            config
-                .dialect_bits()
-                .unwrap_or(tcl_dialect::DialectSet::ALL_TCL)
-        },
-        |profile| crate::document_context_for_profile(profile).authoring_mask(),
+        || config.dialect_query(),
+        |profile| Some(crate::document_context_for_profile(profile).authoring_query()),
     );
     if let Some(index) = registry
         .case_invocation(&cmd.resolved_name, &args, dialect)

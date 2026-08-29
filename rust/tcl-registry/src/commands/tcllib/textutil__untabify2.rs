@@ -27,7 +27,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "textutil::untabify2",
         traits: Traits::PURE,
-        dialects: None,
+        surface: None,
         arity: Arity::new(1, 2),
         hover: Some(HoverSnippet {
             summary: "Convert tabs to spaces (position-aware).",

@@ -18,6 +18,7 @@
 
 //! `speclib` — the one loader directive of a `SpecTcl` pack.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "speclib name dsl-version { declarations }",
@@ -30,7 +31,7 @@ pub fn spec() -> CommandSpec {
         // A pack body is a *declaration* scope, not enclosing-scope data flow
         // — the same classification `oo::class` / `snit::type` carry.
         traits: Traits::CREATES_BARRIER | Traits::NEVER_INLINE_BODY | Traits::LANGUAGE_KEYWORD,
-        dialects: Some(DialectSet::SPECTCL),
+        surface: Some(SpecSurface::SPECTCL),
         arity: Arity::exact(3),
         hover: Some(HoverSnippet {
             summary: "Open a SpecTcl command pack.",

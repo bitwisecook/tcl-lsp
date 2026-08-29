@@ -31,6 +31,7 @@
 //! `switch`, `catch`/`try`, `interp alias`, `oo::objdefine`, and
 //! alias resolution.
 
+use tcl_dialect::model::{surface_admits};
 use tcl_core_types::DiagCode;
 use tcl_lexer::{Span, Token, TokenType};
 use tcl_syntax::list::find_element;
@@ -48,6 +49,8 @@ use super::types::{
     ClassDef, ClassFactory, DefinedSymbol, FactoryMember, FactoryWord, MetaclassProvenance, ProcDef,
 };
 use super::utils::{param_name_spans_for_token, parse_param_list};
+use tcl_dialect::model::Family;
+use tcl_dialect::model::{SpecSurface};
 
 /// The three per-proc facts [`Analyser::infer_proc_param_traits`] derives from
 /// one view of a proc body: the per-parameter trait map, the caller-frame
@@ -1364,7 +1367,8 @@ impl Analyser {
         cmd_name: &str,
         scope_path: &[usize],
     ) -> Option<tcl_registry::SymbolDef> {
-        let dialect = self.analysis_context().context().authoring_mask();
+        let context = self.analysis_context();
+        let dialect = Some(context.context().authoring_query());
         // Which namespace's imports are in effect is the *command-resolution*
         // namespace: a proc body resolves unqualified commands (and so the
         // imports covering them) in the proc's defining namespace, which the
@@ -3469,12 +3473,10 @@ impl Analyser {
         // falsely settle a call onto a path entry the runtime never consults —
         // so skip it, matching the `namespace path` subcommand's own dialect
         // gate (which already flags the command W002 there).
-        if !self
-            .analysis_context()
-            .context()
-            .authoring_mask()
-            .intersects(tcl_dialect::DialectSet::TCL85_PLUS)
-        {
+        if !surface_admits(
+            SpecSurface::TCL85_PLUS,
+            Some(&self.analysis_context().context().authoring_query()),
+        ) {
             return;
         }
         let ns = self.command_resolution_namespace(scope_path);
@@ -4448,7 +4450,7 @@ impl Analyser {
         let Some((case, invocation)) = registry.case_invocation(
             cmd_name,
             &arg_refs,
-            self.analysis_context().context().authoring_mask(),
+            Some(self.analysis_context().context().authoring_query()),
         ) else {
             // Preserve malformed-switch handling while allowing valid
             // subjectless Expect clause lists through the registry resolver.
@@ -5657,7 +5659,7 @@ impl Analyser {
                     &inline_args,
                     &inline_tokens,
                     object_class,
-                    self.analysis_context().context().authoring_mask(),
+                    Some(self.analysis_context().context().authoring_query()),
                 );
                 self.record_member_command_references(
                     grammar,
@@ -6294,12 +6296,12 @@ impl Analyser {
         if registry.invocation_completion(
             seg.name(),
             &args,
-            self.analysis_context().context().authoring_mask(),
+            Some(self.analysis_context().context().authoring_query()),
         ) != tcl_registry::registry::InvocationCompletion::FallsThrough
             || registry.control_invocation_valid(
                 seg.name(),
                 &args,
-                self.analysis_context().context().authoring_mask(),
+                Some(self.analysis_context().context().authoring_query()),
             ) != Some(true)
         {
             return None;
@@ -6435,7 +6437,7 @@ impl Analyser {
             match registry.invocation_completion(
                 seg.name(),
                 &args,
-                self.analysis_context().context().authoring_mask(),
+                Some(self.analysis_context().context().authoring_query()),
             ) {
                 tcl_registry::registry::InvocationCompletion::FallsThrough => {
                     let controls = self.control_arms_for_segment(&seg);
@@ -6495,7 +6497,7 @@ impl Analyser {
         let completion = registry.invocation_completion(
             seg.name(),
             &args,
-            self.analysis_context().context().authoring_mask(),
+            Some(self.analysis_context().context().authoring_query()),
         );
         if registry.method_dispatch_keyword(seg.name())
             == Some(tcl_registry::registry::MethodDispatchKind::NextChain)
@@ -6946,7 +6948,7 @@ impl Analyser {
             match registry.invocation_completion(
                 seg.name(),
                 &args,
-                self.analysis_context().context().authoring_mask(),
+                Some(self.analysis_context().context().authoring_query()),
             ) {
                 tcl_registry::registry::InvocationCompletion::ReturnsResult(_) => {
                     return Some(true);
@@ -7012,7 +7014,7 @@ impl Analyser {
         match registry.invocation_completion(
             seg.name(),
             &args,
-            self.analysis_context().context().authoring_mask(),
+            Some(self.analysis_context().context().authoring_query()),
         ) {
             tcl_registry::registry::InvocationCompletion::FallsThrough => {}
             tcl_registry::registry::InvocationCompletion::Unknown
@@ -7031,14 +7033,14 @@ impl Analyser {
             .invocation_traits(
                 seg.name(),
                 &args,
-                self.analysis_context().context().authoring_mask(),
+                Some(self.analysis_context().context().authoring_query()),
             )
             .contains(tcl_registry::Traits::CONTROL_FLOW);
         if is_control
             && registry.control_invocation_valid(
                 seg.name(),
                 &args,
-                self.analysis_context().context().authoring_mask(),
+                Some(self.analysis_context().context().authoring_query()),
             ) != Some(true)
         {
             return false;
@@ -7356,7 +7358,7 @@ impl Analyser {
                 let (_, invocation) = registry.case_invocation(
                     arm.controller.name(),
                     &args,
-                    self.analysis_context().context().authoring_mask(),
+                    Some(self.analysis_context().context().authoring_query()),
                 )?;
                 let index = invocation.clause_list_index?;
                 let container = arm.controller.arg_tokens().get(index)?.span;
@@ -7473,7 +7475,7 @@ impl Analyser {
                 seg.name(),
                 &args,
                 body_index,
-                self.analysis_context().context().authoring_mask(),
+                Some(self.analysis_context().context().authoring_query()),
             )
             .is_none_or(|timing| timing == tcl_registry::ScriptTiming::SameInvocation)
     }
@@ -7533,7 +7535,7 @@ impl Analyser {
                 registry.invocation_completion(
                     seg.name(),
                     &args,
-                    self.analysis_context().context().authoring_mask()
+                    Some(self.analysis_context().context().authoring_query())
                 ),
                 tcl_registry::registry::InvocationCompletion::Terminates
                     | tcl_registry::registry::InvocationCompletion::ReturnsResult(_)
@@ -7555,7 +7557,7 @@ impl Analyser {
             .case_invocation(
                 seg.name(),
                 &args,
-                self.analysis_context().context().authoring_mask(),
+                Some(self.analysis_context().context().authoring_query()),
             )
             .and_then(|(_, invocation)| invocation.clause_list_index);
         let mut arms = Vec::new();
@@ -7571,7 +7573,7 @@ impl Analyser {
                 let Some((case, _)) = registry.case_invocation(
                     seg.name(),
                     &args,
-                    self.analysis_context().context().authoring_mask(),
+                    Some(self.analysis_context().context().authoring_query()),
                 ) else {
                     complete = false;
                     continue;
@@ -7717,7 +7719,7 @@ impl Analyser {
         let (case, invocation) = registry.case_invocation(
             arm.controller.name(),
             &args,
-            self.analysis_context().context().authoring_mask(),
+            Some(self.analysis_context().context().authoring_query()),
         )?;
         if usize::from(case.subject_args) != 1 {
             return None;
@@ -8241,7 +8243,7 @@ impl Analyser {
             match registry.invocation_completion(
                 seg.name(),
                 &raw_args,
-                self.analysis_context().context().authoring_mask(),
+                Some(self.analysis_context().context().authoring_query()),
             ) {
                 tcl_registry::registry::InvocationCompletion::ReturnsResult(Some(idx)) => {
                     let value =
@@ -8263,7 +8265,7 @@ impl Analyser {
                 if registry.control_invocation_valid(
                     seg.name(),
                     &raw_args,
-                    self.analysis_context().context().authoring_mask(),
+                    Some(self.analysis_context().context().authoring_query()),
                 ) != Some(true)
                 {
                     return None;
@@ -8493,7 +8495,7 @@ impl Analyser {
                 .case_invocation(
                     seg.name(),
                     &args,
-                    self.analysis_context().context().authoring_mask(),
+                    Some(self.analysis_context().context().authoring_query()),
                 )
                 .and_then(|(_, invocation)| invocation.clause_list_index);
             let mut body_indices =
@@ -8511,7 +8513,7 @@ impl Analyser {
                     let Some((case, _)) = registry.case_invocation(
                         seg.name(),
                         &args,
-                        self.analysis_context().context().authoring_mask(),
+                        Some(self.analysis_context().context().authoring_query()),
                     ) else {
                         continue;
                     };
@@ -8624,7 +8626,7 @@ impl Analyser {
                 .case_invocation(
                     seg.name(),
                     &args,
-                    self.analysis_context().context().authoring_mask(),
+                    Some(self.analysis_context().context().authoring_query()),
                 )
                 .and_then(|(_, invocation)| invocation.clause_list_index);
             for body_idx in body_indices {
@@ -8638,7 +8640,7 @@ impl Analyser {
                     let Some((case, _)) = registry.case_invocation(
                         seg.name(),
                         &args,
-                        self.analysis_context().context().authoring_mask(),
+                        Some(self.analysis_context().context().authoring_query()),
                     ) else {
                         continue;
                     };
@@ -9269,7 +9271,7 @@ impl Analyser {
                     &injected.texts,
                     &injected.argv,
                     &mut class,
-                    self.analysis_context().context().authoring_mask(),
+                    Some(self.analysis_context().context().authoring_query()),
                 );
             }
         }
@@ -9602,7 +9604,7 @@ impl Analyser {
                     &inline_args,
                     &inline_tokens,
                     class_def,
-                    self.analysis_context().context().authoring_mask(),
+                    Some(self.analysis_context().context().authoring_query()),
                 );
                 self.record_member_command_references(
                     grammar,
@@ -9631,7 +9633,7 @@ impl Analyser {
     /// script path — comes from `source`'s own [`OptionSpec`
     /// list](tcl_registry::CommandSpec::options) via
     /// [`Self::leading_option_words`], not a `-encoding` literal here.  The
-    /// option carries `DialectSet::TCL85_PLUS` in the registry, so the
+    /// option carries `SpecSurface::TCL85_PLUS` in the registry, so the
     /// dialect gating comes along for free: under an 8.4 profile — which has
     /// no `-encoding` — the word is not recognised as an option and the path
     /// word is read at index 0, matching that spec's own declaration rather

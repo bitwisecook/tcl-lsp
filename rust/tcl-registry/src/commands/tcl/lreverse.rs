@@ -95,6 +95,7 @@
 // since every one of those masks intersects `TCL85_PLUS` through its
 // shared Tcl-version bit.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "lreverse list",
     ..FormSpec::DEFAULT
@@ -108,7 +109,7 @@ pub fn spec() -> CommandSpec {
         // Added in Tcl 8.5 (TIP 272) — absent from the 8.4 manpage tree and
         // from `generic/tclCmdIL.c` in the 8.4.20 source; see the module
         // doc comment above for the full cross-version/cross-dialect audit.
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         arity: Arity::exact(1),
         return_type: Some(TclType::List),
         return_elements: Some(ReturnElements::SubListOf { container_arg: 0 }),

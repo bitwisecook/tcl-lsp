@@ -18,10 +18,11 @@
 
 //! `testsocket` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testsocket",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Test socket operations (9.0+).",

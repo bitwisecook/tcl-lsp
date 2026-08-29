@@ -80,7 +80,7 @@ pub fn analyser_profile_for_dialect(name: &str) -> &'static DialectProfile {
 ///
 /// The serialiser views that thread `Option<&DialectProfile>` into the
 /// GVN / taint / optimiser / irules-flow finders read it here; a `None`
-/// still maps to `DialectSet::empty()` at each `availability_mask` read,
+/// still maps to `None` at each `availability_mask` read,
 /// not to the fallback's permissive mask, exactly as the retired
 /// `DialectProfile::resolve_known` ingress left it.
 ///

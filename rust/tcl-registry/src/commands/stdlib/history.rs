@@ -18,6 +18,7 @@
 
 //! `history` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
@@ -44,7 +45,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "event",
-        dialects: None,
+        surface: None,
         arity: Arity::new(0, 1),
         detail: "Return a history event by number or pattern.",
         synopsis: "history event ?event?",
@@ -96,7 +97,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "history",
         traits: Traits::UNSAFE | Traits::OVERRIDABLE_LIBRARY_PROC,
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Manipulate the history list of previously executed commands.",

@@ -26,6 +26,8 @@
 //! callbacks) exactly as C Tcl's shared-C-stack, different-`Tcl_Interp*`
 //! model does (issue #946).
 
+use tcl_dialect::model::{SurfaceQuery};
+use tcl_dialect::model::{Family};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::io::{self, Write};
@@ -528,13 +530,13 @@ pub struct InterpState {
     profile_registry: Option<&'static tcl_registry::CommandRegistry>,
     /// The availability mask [`Self::command_surface_profile`]'s
     /// environment answers the builtin-surface gate under — its **document
-    /// authoring mask** ([`crate::environment::surface_mask`]), resolved at
+    /// authoring mask** ([`crate::environment::surface_point`]), resolved at
     /// pin time for the same reason [`Self::profile_registry`] is: the
     /// generation lookup takes a lock and this is read on every command
-    /// resolution, where the retired `profile.availability_mask` was a
+    /// resolution, where the retired `profile.surface_query()` was a
     /// field read. Equal to that mask for every profile an ingress can
     /// produce, pinned by the seam's own sweep.
-    command_surface_mask: tcl_dialect::DialectSet,
+    command_surface_point: Option<SurfaceQuery<'static>>,
     /// Monotonic invalidation generation for bytecode that depends on the
     /// selected profile's grammar or command surface. It is deliberately
     /// independent of `cmd_epoch`: command resolution can be recomputed from
@@ -1088,7 +1090,7 @@ impl Vm {
         }
         self.dialect_profile = profile;
         self.command_surface_profile = profile;
-        self.command_surface_mask = crate::environment::surface_mask(profile);
+        self.command_surface_point = Some(crate::environment::surface_point(profile));
         self.profile_registry =
             (!profile.is_fallback()).then(|| crate::environment::store_for_profile(profile));
         self.runtime_version = profile.vm_runtime_version;
@@ -1145,7 +1147,7 @@ impl Vm {
         self.eval_cache_traced.clear();
         self.module_procs.clear();
         self.command_surface_profile = profile;
-        self.command_surface_mask = crate::environment::surface_mask(profile);
+        self.command_surface_point = Some(crate::environment::surface_point(profile));
         self.profile_registry =
             (!profile.is_fallback()).then(|| crate::environment::store_for_profile(profile));
         true
@@ -1174,15 +1176,15 @@ impl Vm {
         // ingress seam pins equal to the profile mask this read used.
         let compiled_registry = crate::environment::store_for_profile(dialect);
         let surface_registry = crate::environment::store_for_profile(surface);
-        let compiled_mask = crate::environment::surface_mask(dialect);
-        let surface_mask = crate::environment::surface_mask(surface);
+        let compiled_mask = Some(crate::environment::surface_point(dialect));
+        let surface_point = Some(crate::environment::surface_point(surface));
         compiled_registry.command_names().all(|name| {
-            let Some(spec) = compiled_registry.get_for_dialect(name, compiled_mask) else {
+            let Some(spec) = compiled_registry.get_for_surface(name, compiled_mask) else {
                 return true;
             };
             !spec.traits.contains(tcl_registry::Traits::BYTE_COMPILED)
                 || surface_registry
-                    .get_for_dialect(name, surface_mask)
+                    .get_for_surface(name, surface_point)
                     .is_some()
         })
     }
@@ -1325,7 +1327,7 @@ impl InterpState {
         };
         registry.get(name).is_none()
             || registry
-                .get_for_dialect(name, self.command_surface_mask)
+                .get_for_surface(name, self.command_surface_point)
                 .is_some()
     }
 
@@ -1349,7 +1351,7 @@ impl InterpState {
             runtime_version: tcl_dialect::TclVersion::V9_0,
             dialect_profile: unpinned,
             command_surface_profile: unpinned,
-            command_surface_mask: crate::environment::surface_mask(unpinned),
+            command_surface_point: Some(crate::environment::surface_point(unpinned)),
             profile_registry: None,
             profile_generation: 0,
             frames: vec![CallFrame::new(0, ROOT_NS, None, Vec::new())],
@@ -2527,7 +2529,7 @@ impl Vm {
         // profile, the mask its environment gates under, and the
         // generation's store. A child that inherited two of the three would
         // gate the parent's registry under the unpinned permissive mask.
-        child.command_surface_mask = self.command_surface_mask;
+        child.command_surface_point = self.command_surface_point;
         child.profile_registry = self.profile_registry;
         Box::new(child)
     }

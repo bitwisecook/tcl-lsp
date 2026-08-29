@@ -27,7 +27,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "math::statistics::map",
         traits: Traits::PURE,
-        dialects: None,
+        surface: None,
         arity: Arity::exact(3),
         hover: Some(HoverSnippet {
             summary: "Map data by expression.",

@@ -18,6 +18,9 @@
 
 //! `binary` — manipulate binary data.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
+use tcl_dialect::model::Family;
 
 // Only `binary scan` ever reaches this: `format`/`encode`/`decode` are
 // `pure: true` on their `SubCommand` entries, so the compiler's side-effect
@@ -45,12 +48,12 @@ const FORMS: &[FormSpec] = &[
     // the matching gate on the `encode`/`decode` `SubCommand` entries below.
     FormSpec {
         synopsis: "binary encode format ?-option value ...? data",
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         ..FormSpec::DEFAULT
     },
     FormSpec {
         synopsis: "binary decode format ?-option value ...? data",
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         ..FormSpec::DEFAULT
     },
 ];
@@ -123,7 +126,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             }]
         },
         // `binary encode`/`binary decode` added in Tcl 8.6 (TIP 317).
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -183,7 +186,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             ]
         },
         // `binary encode`/`binary decode` added in Tcl 8.6 (TIP 317).
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -284,7 +287,7 @@ fn binary_scan_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "binary",
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
         traits: Traits::BYTE_COMPILED | Traits::CSE_CANDIDATE | Traits::FRAME_HASH_BUILTIN,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,

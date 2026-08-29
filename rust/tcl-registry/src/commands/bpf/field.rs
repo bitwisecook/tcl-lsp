@@ -20,12 +20,13 @@
 //! (`field NAME OFFSET WIDTHBITS ?be|le|native?`; the byte order defaults to
 //! `be` — network order).
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 pub fn spec() -> CommandSpec {
     const OP: BpfOpSpec = BpfOpSpec::framework(BpfDeclKind::Field);
     CommandSpec {
         name: "field",
-        dialects: Some(DialectSet::BPF),
+        surface: Some(SpecSurface::BPF),
         // NAME OFFSET WIDTHBITS ?be|le|native?
         arity: Arity::new(3, 4),
         bpf_op: Some(&OP),

@@ -18,11 +18,12 @@
 
 //! `HTTP::is_redirect` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::is_redirect",
         traits: Traits::PURE,
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::exact(0),
         hover: Some(HoverSnippet {
             summary: "Returns a true value if the response is a redirect.",

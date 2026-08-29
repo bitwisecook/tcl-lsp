@@ -29,6 +29,7 @@
 
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
+use tcl_dialect::model::{SpecSurface};
 
 pub mod config_ini;
 pub mod path_glob;
@@ -7903,8 +7904,8 @@ impl Backend {
         // unknown name) carries no vendor bit, exactly as `find` answering
         // `None` did.
         tcl_lsp_core::document_context_for_dialect(dialect)
-            .authoring_mask()
-            .contains(DialectSet::BIGIP)
+            .authoring_query()
+            .contains(SpecSurface::BIGIP)
     }
 
     /// Look up the per-folder dialect override for `uri`,
@@ -21712,7 +21713,7 @@ fn unknown_dialect_error(dialect: &str) -> String {
         .map(|profile| profile.name)
         .collect::<Vec<_>>()
         .join(", ");
-    format!("unknown dialect: {dialect} (valid dialects: {valid})")
+    format!("unknown dialect: {dialect} (valid surface: {valid})")
 }
 
 /// Extract `tclLsp.style.nonAscii` from an LSP settings payload, accepting

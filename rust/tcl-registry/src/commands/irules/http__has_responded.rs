@@ -18,11 +18,12 @@
 
 //! `HTTP::has_responded` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::has_responded",
         traits: Traits::PURE,
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::exact(0),
         hover: Some(HoverSnippet {
             summary: "Returns true if this HTTP transaction has been prematurely completed by an iRule command or other filter logic.",

@@ -27,7 +27,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "uri::isrelative",
         traits: Traits::PURE,
-        dialects: None,
+        surface: None,
         arity: Arity::exact(1),
         return_type: Some(TclType::Boolean),
         hover: Some(HoverSnippet {

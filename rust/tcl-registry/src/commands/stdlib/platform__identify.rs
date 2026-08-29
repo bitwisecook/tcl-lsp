@@ -18,6 +18,7 @@
 
 //! `platform::identify` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: true,
     ..SideEffect::DEFAULT
@@ -27,7 +28,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "platform::identify",
         traits: Traits::PURE,
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::exact(0),
         hover: Some(HoverSnippet {
             summary: "Return the platform identifier for the current machine.",

@@ -19,6 +19,7 @@
 //! `bgerror` — application-defined handler for background errors.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "bgerror message",
@@ -29,7 +30,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "bgerror",
-        // `dialects: Some(DialectSet::ALL_TCL)` is deliberate, not an
+        // `surface: Some(SpecSurface::ALL_TCL)` is deliberate, not an
         // oversight: F5 iRules bans this proc — one of the K36322151
         // event-loop/filesystem/process bans — and that ban is now
         // carried by this very `dialects` group. `ALL_TCL` spans every
@@ -41,7 +42,7 @@ pub fn spec() -> CommandSpec {
         // other dialect profile (Expect, the EDA vendor shells, tmsh,
         // iApps, BPF) carries a core-version bit that `ALL_TCL` does
         // intersect, so `bgerror` stays reachable there.
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         // A Tcl-level convention the application/script defines, not a
         // `Tcl_CreateObjCommand`-registered builtin, so it carries no
         // `CmdInfo` row and is absent from the exact C Tcl

@@ -28,6 +28,7 @@
 //! plus its phi-undef index that the dataflow read-before-set emitters
 //! consult.
 
+use tcl_dialect::model::{SurfaceQuery};
 use std::collections::HashSet;
 
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -322,7 +323,7 @@ pub(super) struct PhiUndefCtx<'a> {
     /// Locals that registry metadata says alias the interpreter's global
     /// namespace in this function (`global name`).
     pub global_aliases: &'a HashSet<String>,
-    pub dialect: tcl_registry::prelude::DialectSet,
+    pub dialect: Option<SurfaceQuery<'a>>,
     pub ssa: &'a crate::ssa::SsaFunction,
 }
 
@@ -885,7 +886,7 @@ pub(super) fn build_undef_suppression(
     considered: &HashSet<BlockId>,
     initial_global: bool,
     global_aliases: &HashSet<String>,
-    dialect: tcl_registry::prelude::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) -> UndefSuppression {
     let (phi_def, phi_block, killed) = build_phi_undef_index(&fu.ssa, considered);
     // Phi versions that can reach an undef origin on some executable path —

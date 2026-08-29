@@ -18,11 +18,12 @@
 
 //! `send_log` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 const OPTIONS: &[OptionSpec] = &[OptionSpec {
     name: "--",
     value: OptionValue::flag(),
     detail: "End of options.",
-    dialects: None,
+    surface: None,
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
@@ -36,7 +37,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "send_log",
-        dialects: Some(DialectSet::EXPECT),
+        surface: Some(SpecSurface::EXPECT),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Send a string to the log file only (not to the process or user).",

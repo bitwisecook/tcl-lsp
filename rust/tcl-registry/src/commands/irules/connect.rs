@@ -18,6 +18,7 @@
 
 //! `connect` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 /// The command's option table, hoisted out of the spec literal so the
 /// builder stays inside the line budget.
 const OPTIONS: &[OptionSpec] = &[
@@ -25,7 +26,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-protocol",
         value: OptionValue::value("PROTO"),
         detail: "IP protocol (default TCP).",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -34,7 +35,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-myaddr",
         value: OptionValue::value("IP_ADDR"),
         detail: "Source address for the connection.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -43,7 +44,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-myport",
         value: OptionValue::value("PORT"),
         detail: "Source port for the connection.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -52,7 +53,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-timeout",
         value: OptionValue::value("MSEC"),
         detail: "Time in ms to wait for connection.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -61,7 +62,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-idle",
         value: OptionValue::value("SEC"),
         detail: "Idle timeout in seconds (default 300).",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -70,7 +71,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-tos",
         value: OptionValue::value("TOS"),
         detail: "IP TOS value.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -79,7 +80,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-status",
         value: OptionValue::value("VARIABLE"),
         detail: "Save connection status into variable.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -89,7 +90,7 @@ const OPTIONS: &[OptionSpec] = &[
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "connect",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Establishes a sideband connection.",

@@ -53,6 +53,7 @@ use std::path::PathBuf;
 use serde_json::Value;
 use tcl_spec_studio::spectcl;
 use tcl_spec_studio::{draft, load_command, schema};
+use tcl_dialect::model::Family;
 
 /// One command inside a ported pack.
 struct PortedCommand {
@@ -139,7 +140,7 @@ const PORTS: &[Port] = &[
                 dialect: "tcl9.1",
                 unequal: &[(
                     "dialects",
-                    "the port is faithful to the `.rs` (`dialects: None`), but the shipped registry fills a tcllib command's dialect set at REGISTRATION time — `tcllib_command_specs` gates every tcllib command out of the F5 embedded dialects, which have no `package require`. A pack loader installing into a registry would apply the same blanket rule; the spec field itself matches",
+                    "the port is faithful to the `.rs` (`surface: None`), but the shipped registry fills a tcllib command's dialect set at REGISTRATION time — `tcllib_command_specs` gates every tcllib command out of the F5 embedded dialects, which have no `package require`. A pack loader installing into a registry would apply the same blanket rule; the spec field itself matches",
                 )],
                 unequal_subcommand: NO_SUBS,
                 subcommand_subset: ALL_SUBS,
@@ -188,7 +189,7 @@ const PORTS: &[Port] = &[
             dialect: "tcl9.1",
             unequal: &[(
                 "dialects",
-                "the port is faithful to the `.rs` (`dialects: None`), but the shipped registry fills a tcllib command's dialect set at REGISTRATION time — `tcllib_command_specs` gates every tcllib command out of the F5 embedded dialects, which have no `package require`. A pack loader installing into a registry would apply the same blanket rule; the spec field itself matches",
+                "the port is faithful to the `.rs` (`surface: None`), but the shipped registry fills a tcllib command's dialect set at REGISTRATION time — `tcllib_command_specs` gates every tcllib command out of the F5 embedded dialects, which have no `package require`. A pack loader installing into a registry would apply the same blanket rule; the spec field itself matches",
             )],
             unequal_subcommand: NO_SUBS,
             subcommand_subset: ALL_SUBS,

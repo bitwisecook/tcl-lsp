@@ -177,6 +177,7 @@ const OO_OBJDEFINE_SUBCOMMAND_VALUES: &[ArgValue] = &[
 ];
 
 use super::oo_define::oo_define_arg_roles;
+use tcl_dialect::model::{SpecSurface};
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -185,7 +186,7 @@ pub fn spec() -> CommandSpec {
             | Traits::LANGUAGE_KEYWORD
             | Traits::INSTALLS_NAMED_DEFINITION
             | Traits::NEVER_INLINE_BODY,
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         arity: Arity::at_least(2),
         // `oo::objdefine` has the same body-shape rules as
         // `oo::define`; share the resolver.

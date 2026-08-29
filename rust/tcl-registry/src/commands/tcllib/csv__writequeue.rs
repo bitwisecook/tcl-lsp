@@ -32,7 +32,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "csv::writequeue",
-        dialects: None,
+        surface: None,
         arity: Arity::new(2, 4),
         hover: Some(HoverSnippet {
             summary: "Write a queue object to a channel in CSV format.",

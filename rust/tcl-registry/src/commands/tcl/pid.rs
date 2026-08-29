@@ -19,6 +19,7 @@
 //! `pid` — return the process identifier of the current process, or of a
 //! command pipeline's processes.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 /// `pid` reads process/channel-table state it never writes, but that
 /// state lives outside the argument list — the OS process table for the
@@ -76,7 +77,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// `commands/tcl/chan_.rs`), so `pid` stays the only spelling
 /// throughout.
 ///
-/// `dialects: Some(DialectSet::ALL_TCL)` here is deliberate, not an
+/// `surface: Some(SpecSurface::ALL_TCL)` here is deliberate, not an
 /// oversight: F5 iRules is the one modelled dialect that drops `pid` —
 /// its TMM sandbox has no real process model, the same reasoning that
 /// drops `exec`/`open`/`socket`/the rest of the filesystem-and-process
@@ -92,7 +93,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "pid",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         // Reads process/channel-table state that lives outside the
         // argument list rather than being a pure function of its own
         // arguments (see the `SIDE_EFFECTS` doc comment above) —

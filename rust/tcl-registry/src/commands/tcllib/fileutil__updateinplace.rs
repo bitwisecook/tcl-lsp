@@ -33,7 +33,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fileutil::updateInPlace",
-        dialects: None,
+        surface: None,
         arity: Arity::at_least(2),
         // The trailing `cmdOrBody` argument is invoked as a
         // command prefix with the file contents appended at runtime.

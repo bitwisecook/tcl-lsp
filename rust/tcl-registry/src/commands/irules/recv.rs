@@ -18,10 +18,11 @@
 
 //! `recv` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "recv",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Receives data from a given sideband connection.",
@@ -41,7 +42,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-eol",
                     value: OptionValue::flag(),
                     detail: "Suspend until end-of-line received.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -50,7 +51,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-peek",
                     value: OptionValue::flag(),
                     detail: "Return data but leave it buffered.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -59,7 +60,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-timeout",
                     value: OptionValue::value("MSEC"),
                     detail: "Time in ms to wait for data.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -68,7 +69,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-status",
                     value: OptionValue::value("VARIABLE"),
                     detail: "Save recv status into variable.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,

@@ -25,13 +25,13 @@
 //! the registry "is this call a source / sink / sanitiser?" rather
 //! than maintaining its own command-name set.
 
-use crate::dialects::DialectSet;
 use crate::documentation::{DocumentationAnnotation, DocumentationExample};
 use crate::registry::CommandRegistry;
 use crate::traits::Traits;
 use crate::types::TclType;
 use bitflags::bitflags;
 use tcl_core_types::DiagCode;
+use tcl_dialect::model::{SurfaceQuery};
 
 bitflags! {
     /// Properties carried by a tainted value — the taint *colour* lattice.
@@ -358,7 +358,7 @@ pub fn is_taint_source(
     registry: &CommandRegistry,
     command: &str,
     args: &[&str],
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) -> bool {
     let _ = dialect;
     if let Some(spec) = registry.get(command) {
@@ -404,7 +404,7 @@ pub fn taint_source_colour(
     registry: &CommandRegistry,
     command: &str,
     args: &[&str],
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) -> Option<TaintColour> {
     if !is_taint_source(registry, command, args, dialect) {
         return None;
@@ -433,7 +433,7 @@ pub fn taints_var_write(
     registry: &CommandRegistry,
     command: &str,
     args: &[&str],
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     variable: &str,
 ) -> bool {
     let Some(spec) = registry.get(command) else {
@@ -451,7 +451,7 @@ pub fn taints_var_write(
             index += 1;
             continue;
         };
-        if !option.supports_dialect(Some(dialect), spec.dialects) {
+        if !option.supports_dialect(dialect, spec.surface) {
             index += 1;
             continue;
         }
@@ -574,7 +574,7 @@ pub fn classify_taint_sinks(
     registry: &CommandRegistry,
     command: &str,
     subcommand: Option<&str>,
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) -> TaintSinkInfo {
     let Some(spec) = registry.get(command) else {
         return TaintSinkInfo::default();
@@ -582,7 +582,7 @@ pub fn classify_taint_sinks(
     // An empty `dialect` means "no dialect filter" — a `None`-like
     // short-circuit. Only a
     // concrete dialect set gates dialect-specific specs.
-    if !dialect.is_empty() && !spec.supports_dialect(dialect) {
+    if !dialect.is_none() && !spec.supports_dialect(dialect) {
         return TaintSinkInfo::default();
     }
 
@@ -696,7 +696,7 @@ mod tests {
             &registry,
             "gets",
             &["stdin"],
-            DialectSet::empty()
+            None
         ));
     }
 
@@ -707,7 +707,7 @@ mod tests {
             &registry,
             "chan",
             &["gets", "stdin"],
-            DialectSet::empty()
+            None
         ));
     }
 
@@ -718,7 +718,7 @@ mod tests {
             &registry,
             "chan",
             &["configure", "$ch"],
-            DialectSet::empty()
+            None
         ));
     }
 
@@ -730,7 +730,7 @@ mod tests {
             &registry,
             "HTTP::uri",
             &[],
-            DialectSet::IRULES
+            SpecSurface::IRULES
         ));
     }
 
@@ -746,7 +746,7 @@ mod tests {
             &registry,
             "HTTP::uri",
             &[],
-            DialectSet::empty()
+            None
         ));
     }
 
@@ -756,7 +756,7 @@ mod tests {
         // `NON_DASH_PREFIXED` — the option-injection-safe colour set.
         let registry = CommandRegistry::build_default();
         let colour =
-            taint_source_colour(&registry, "HTTP::path", &[], DialectSet::empty()).unwrap();
+            taint_source_colour(&registry, "HTTP::path", &[], None).unwrap();
         assert!(colour.contains(TaintColour::TAINTED));
         assert!(colour.contains(TaintColour::PATH_PREFIXED));
         assert!(colour.contains(TaintColour::NON_DASH_PREFIXED));
@@ -768,12 +768,12 @@ mod tests {
         // SHELL_ATOM on top of their IP_ADDRESS / PORT colour.
         let registry = CommandRegistry::build_default();
         let ip =
-            taint_source_colour(&registry, "IP::client_addr", &[], DialectSet::empty()).unwrap();
+            taint_source_colour(&registry, "IP::client_addr", &[], None).unwrap();
         assert!(
             ip.contains(TaintColour::IP_ADDRESS | TaintColour::CRLF_FREE | TaintColour::SHELL_ATOM)
         );
         let port =
-            taint_source_colour(&registry, "TCP::remote_port", &[], DialectSet::empty()).unwrap();
+            taint_source_colour(&registry, "TCP::remote_port", &[], None).unwrap();
         assert!(port.contains(TaintColour::PORT | TaintColour::NON_DASH_PREFIXED));
     }
 
@@ -783,7 +783,7 @@ mod tests {
         // TAINTED — no mitigating colours.
         let registry = CommandRegistry::build_default();
         let colour =
-            taint_source_colour(&registry, "HTTP::header", &["host"], DialectSet::empty()).unwrap();
+            taint_source_colour(&registry, "HTTP::header", &["host"], None).unwrap();
         assert_eq!(colour, TaintColour::TAINTED);
     }
 
@@ -791,7 +791,7 @@ mod tests {
     fn non_source_has_no_source_colour() {
         let registry = CommandRegistry::build_default();
         assert!(
-            taint_source_colour(&registry, "string", &["length", "$x"], DialectSet::empty())
+            taint_source_colour(&registry, "string", &["length", "$x"], None)
                 .is_none()
         );
     }
@@ -811,7 +811,7 @@ mod tests {
             &registry,
             "encoding",
             &["convertfrom", "utf-8", "$bytes"],
-            DialectSet::empty(),
+            None,
         ));
     }
 
@@ -824,7 +824,7 @@ mod tests {
             &registry,
             "encoding",
             &["system"],
-            DialectSet::empty(),
+            None,
         ));
     }
 
@@ -869,7 +869,7 @@ mod tests {
     #[test]
     fn classify_unknown_command_is_clear() {
         let registry = CommandRegistry::build_default();
-        let info = classify_taint_sinks(&registry, "no_such_cmd", None, DialectSet::empty());
+        let info = classify_taint_sinks(&registry, "no_such_cmd", None, None);
         assert_eq!(info, TaintSinkInfo::default());
         assert!(!info.is_code_sink);
         assert!(info.output_sink.is_none());
@@ -900,21 +900,21 @@ mod tests {
     #[test]
     fn sink_classification_is_populated() {
         let registry = CommandRegistry::build_default();
-        let puts = classify_taint_sinks(&registry, "puts", None, DialectSet::empty());
+        let puts = classify_taint_sinks(&registry, "puts", None, None);
         assert_eq!(puts.output_sink, Some("T101"));
         assert!(!puts.output_sink_is_subcommand_qualified);
 
-        let socket = classify_taint_sinks(&registry, "socket", None, DialectSet::empty());
+        let socket = classify_taint_sinks(&registry, "socket", None, None);
         assert!(socket.is_network_sink);
 
-        let geturl = classify_taint_sinks(&registry, "http::geturl", None, DialectSet::empty());
+        let geturl = classify_taint_sinks(&registry, "http::geturl", None, None);
         assert!(geturl.is_network_sink);
         assert_eq!(
             registry.get("http::geturl").unwrap().credential_options,
             &["-headers"]
         );
 
-        let interp = classify_taint_sinks(&registry, "interp", Some("eval"), DialectSet::empty());
+        let interp = classify_taint_sinks(&registry, "interp", Some("eval"), None);
         assert_eq!(interp.interp_eval_subcommands, &["eval", "invokehidden"]);
     }
 
@@ -949,7 +949,7 @@ mod tests {
     fn cookie_output_sink_is_subcommand_qualified() {
         let mut registry = CommandRegistry::build_default();
         registry.load_irules();
-        let dialect = DialectSet::IRULES;
+        let dialect = SpecSurface::IRULES;
         let insert = classify_taint_sinks(&registry, "HTTP::cookie", Some("insert"), dialect);
         assert_eq!(insert.output_sink, Some("IRULE3002"));
         assert!(insert.output_sink_is_subcommand_qualified);
@@ -965,7 +965,7 @@ mod tests {
     fn cookie_output_sink_matches_prefix_abbreviation() {
         let mut registry = CommandRegistry::build_default();
         registry.load_irules();
-        let dialect = DialectSet::IRULES;
+        let dialect = SpecSurface::IRULES;
         for abbr in ["ins", "inse", "insert", "rep", "replace"] {
             let info = classify_taint_sinks(&registry, "HTTP::cookie", Some(abbr), dialect);
             assert_eq!(

@@ -30,6 +30,7 @@ use std::collections::BTreeSet;
 use tcl_dialect::DialectSet;
 use tcl_registry::hooks::AnalyserHookId;
 use tcl_registry::{CommandRegistry, Traits};
+use tcl_dialect::model::Family;
 
 /// Every dialect name that loads a non-trivial *compiled-in* command pack —
 /// the same list `registry_sweep.rs` uses — so the sweep sees every spec,
@@ -67,7 +68,7 @@ fn full_registry() -> CommandRegistry {
     let mut reg = CommandRegistry::build_default();
     for name in LOADABLE_DIALECTS {
         let dialect = DialectSet::parse(name).expect("a compiled-in dialect name");
-        reg.load_dialect(dialect);
+        reg.load_surface(dialect);
     }
     let packs = bundled_packs();
     assert!(

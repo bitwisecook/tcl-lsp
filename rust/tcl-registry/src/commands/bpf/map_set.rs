@@ -18,12 +18,13 @@
 
 //! `map_set` — store a value into a map (`map_set NAME {KEY} {VAL}`).
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 pub fn spec() -> CommandSpec {
     const OP: BpfOpSpec = BpfOpSpec::gated(BpfOpKind::MapSet, BpfEffects::MAP_WRITE);
     CommandSpec {
         name: "map_set",
-        dialects: Some(DialectSet::BPF),
+        surface: Some(SpecSurface::BPF),
         arity: Arity::exact(3),
         bpf_op: Some(&OP),
         ..CommandSpec::DEFAULT

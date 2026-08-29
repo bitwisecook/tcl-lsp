@@ -130,11 +130,11 @@ fn command_completion(
         registry.invocation_completion_knowledge(
             command,
             InvocationArguments::structured(&words),
-            DialectSet::empty(),
+            None,
         )
     } else {
         registry
-            .exact_invocation_completion(command, &arg_refs, DialectSet::empty())
+            .exact_invocation_completion(command, &arg_refs, None)
             .map(InvocationCompletionKnowledge::Exact)
     };
     if let Some(InvocationCompletionKnowledge::Exact(completion)) = knowledge {
@@ -170,7 +170,7 @@ fn command_completion(
             InvocationCompletionKnowledge::Dynamic => DiagramCompletion::Dynamic,
         };
     }
-    match registry.invocation_completion(command, &arg_refs, DialectSet::empty()) {
+    match registry.invocation_completion(command, &arg_refs, None) {
         InvocationCompletion::ReturnsResult(_) => DiagramCompletion::Return,
         InvocationCompletion::Terminates => DiagramCompletion::Terminal,
         // Dynamic completion options are not enough evidence to draw a

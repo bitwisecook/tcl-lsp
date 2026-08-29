@@ -18,10 +18,11 @@
 
 //! `tcl::OptKeyParse` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::OptKeyParse",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {
             summary: "Parse arguments using a previously registered option description.",

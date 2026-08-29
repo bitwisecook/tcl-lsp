@@ -18,10 +18,11 @@
 
 //! `XLAT::listen` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "XLAT::listen",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Creates a related ephemeral listener.",
@@ -51,7 +52,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-hairpin",
                     value: OptionValue::flag(),
                     detail: "Enable hairpin mode for the listener.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -60,7 +61,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-inherit-main-rules",
                     value: OptionValue::flag(),
                     detail: "Execute main rules attached to parent virtual.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -69,7 +70,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-single-connection",
                     value: OptionValue::flag(),
                     detail: "Listener expires after one connection.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -78,7 +79,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-translation-loose",
                     value: OptionValue::flag(),
                     detail: "Use hint data as suggestion; don't fail if unusable.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,

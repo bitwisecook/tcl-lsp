@@ -20,6 +20,7 @@
 //! mapping patterns to iRules `class match` / `class lookup` against a
 //! generated data-group.
 
+use tcl_dialect::model::{SurfaceLayer, Family};
 use std::net::{Ipv4Addr, Ipv6Addr};
 
 use tcl_compiler::segmenter::segment_commands_with_offset;
@@ -31,6 +32,7 @@ use super::{
     token_end_offset,
 };
 use crate::code_actions::ActionKind;
+use tcl_dialect::model::{SpecSurface};
 
 /// A generated data-group artefact (separate from the iRule edits).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -710,7 +712,7 @@ mod tests {
 
     fn reg() -> CommandRegistry {
         let mut r = CommandRegistry::build_default();
-        r.load_dialect(tcl_dialect::DialectSet::IRULES);
+        r.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         r
     }
 

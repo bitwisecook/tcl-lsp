@@ -18,10 +18,11 @@
 
 //! `LSN::persistence-entry` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "LSN::persistence-entry",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Create or lookup LSN translation address.",
@@ -43,7 +44,7 @@ pub const fn spec() -> CommandSpec {
                 name: "-override",
                 value: OptionValue::flag(),
                 detail: "Option -override.",
-                dialects: None,
+                surface: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,

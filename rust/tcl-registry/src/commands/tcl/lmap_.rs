@@ -19,6 +19,7 @@
 //! `lmap` — iterate over all elements in one or more lists and collect results.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: true,
@@ -84,7 +85,7 @@ pub fn spec() -> CommandSpec {
         // newer list commands like `lseq`/`lremove`/`lpop`/`ledit` — not
         // a behavioural change to `lmap` itself).  `TCL86_PLUS` is
         // therefore exact, not merely a close fit.
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         // `varList list ?varList list ...? command` — identical grammar to
         // `foreach`: n varList/list pairs (n >= 1) plus one command body, so a
         // valid count is odd and >= 3.  An even count is `wrong # args`

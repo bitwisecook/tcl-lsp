@@ -18,6 +18,7 @@
 
 //! `regex_quote` — regex quoting helper alias (underscore spelling).
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "regex_quote STRING",
     ..FormSpec::DEFAULT
@@ -46,7 +47,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// covers the other three spellings by name
 /// (`regexp_quote_suppresses_t103`, `regex_colon_quote_suppresses_t103`,
 /// `re_quote_suppresses_t103`) but has no test yet exercising this literal
-/// underscore-without-colon spelling. `dialects: ALL_TCL` (no `IRULES`
+/// underscore-without-colon spelling. `surface: ALL_TCL` (no `IRULES`
 /// bit) is deliberate, not an oversight: iRules excludes all four
 /// spellings, and this group's omission of the `IRULES` bit is exactly
 /// what enforces that — an `ALL_TCL` group never intersects the bare
@@ -56,7 +57,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "regex_quote",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::PURE,
         arity: Arity::exact(1),
         return_type: Some(TclType::String),

@@ -18,6 +18,7 @@
 
 //! `oo::class` — the class of all classes; the `TclOO` metaclass.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const CLASS_NAMED_CREATE_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
     StateTransitionDomain::CommandBindings,
@@ -259,7 +260,7 @@ pub fn spec() -> CommandSpec {
             | Traits::IS_OO_METACLASS
             | Traits::LANGUAGE_KEYWORD
             | Traits::DEFINES_PROCEDURE,
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         arity: Arity::at_least(1),
         arg_role_resolver: Some(oo_class_arg_roles),
         return_type: Some(TclType::String),
@@ -303,7 +304,7 @@ mod tests {
     fn class_create_records_command_dispatch_and_independent_private_namespace() {
         let registry = CommandRegistry::build_default();
         let invocation = registry
-            .resolve_invocation("oo::class", &["create", "::C", "{}"], DialectSet::TCL86)
+            .resolve_invocation("oo::class", &["create", "::C", "{}"], SpecSurface::TCL86)
             .expect("oo::class create must resolve");
         let transitions = invocation.state_transitions();
         assert!(
@@ -343,7 +344,7 @@ mod tests {
             .resolve_invocation(
                 "oo::class",
                 &["createWithNamespace", "::C", "::private::C", "{}"],
-                DialectSet::TCL86,
+                SpecSurface::TCL86,
             )
             .expect("createWithNamespace must resolve")
             .state_transitions();
@@ -360,10 +361,10 @@ mod tests {
     fn every_registered_metaclass_create_uses_shared_lifecycle_data() {
         let registry = CommandRegistry::build_default();
         for (metaclass, dialect) in [
-            ("oo::class", DialectSet::TCL86),
-            ("oo::abstract", DialectSet::TCL90),
-            ("oo::configurable", DialectSet::TCL90),
-            ("oo::singleton", DialectSet::TCL90),
+            ("oo::class", SpecSurface::TCL86),
+            ("oo::abstract", SpecSurface::TCL90),
+            ("oo::configurable", SpecSurface::TCL90),
+            ("oo::singleton", SpecSurface::TCL90),
         ] {
             let transitions = registry
                 .resolve_invocation(metaclass, &["create", "::C", "{}"], dialect)

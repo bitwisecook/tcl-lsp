@@ -211,6 +211,17 @@ impl TclVersion {
         }
     }
 
+    /// The release line `text` spells, if it is one of the ladder's own.
+    ///
+    /// The inverse of [`Self::version_string`], for reading a compiled
+    /// surface window's bound back onto the enum.
+    #[must_use]
+    pub fn from_version_string(text: &str) -> Option<Self> {
+        [Self::V8_4, Self::V8_5, Self::V8_6, Self::V9_0, Self::V9_1]
+            .into_iter()
+            .find(|version| version.version_string() == text)
+    }
+
     /// The canonical plain-Tcl dialect profile for this release line.
     ///
     /// This is the bridge from an engine's runtime-version setting to the

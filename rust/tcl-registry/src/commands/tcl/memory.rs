@@ -19,6 +19,7 @@
 //! `memory` — control Tcl's built-in memory-debugging capabilities (debug
 //! builds only).
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "memory option ?arg arg ...?",
@@ -129,7 +130,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // trace_on_at_malloc/validate (nine subcommands, no `objs`); 8.5
         // through 9.1 all list ten, adding `objs` in the same position
         // (raw manpage HTML fetched and diffed for every version).
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             writes: true,
@@ -194,7 +195,7 @@ pub fn spec() -> CommandSpec {
         //
         // Excluded from f5-irules (K36322151, which already covers
         // `"memory"`): its own `dialects` group below is
-        // `Some(DialectSet::ALL_TCL)`, which carries no `IRULES` bit and
+        // `Some(SpecSurface::ALL_TCL)`, which carries no `IRULES` bit and
         // so never intersects the bare `IRULES` availability mask — the
         // same fully-explicit, per-spec exclusion `cd`/`load`/`open`/
         // `unload` now rely on. There is no disable list. No other
@@ -203,7 +204,7 @@ pub fn spec() -> CommandSpec {
         // `TCL_MEM_DEBUG` build either, but there is no evidence (and no
         // available mechanism) to model that here per-dialect, so this
         // stays available across every real-Tcl surface.
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
         return_type: Some(TclType::String),

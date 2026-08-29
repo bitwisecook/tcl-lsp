@@ -63,6 +63,9 @@
 
 use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
+use tcl_dialect::model::Family;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "unset ?-nocomplain? ?--? ?name name name ...?",
@@ -112,7 +115,7 @@ pub fn spec() -> CommandSpec {
         // tk/, itcl/, and eda_*/ command packs is an unrelated subcommand
         // of a different ensemble (`array unset`, `dict unset`) or a
         // `trace` operation name, never a redefinition of this command.
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
         // `FIRE_AND_FORGET_TEARDOWN`: `Tcl_UnsetObjCmd` (tclCmdMZ.c) removes the
         // variable and errors ("can't unset …: no such variable") when the
         // target is already gone (absent `-nocomplain`) — the property the
@@ -144,7 +147,7 @@ pub fn spec() -> CommandSpec {
                     name: "-nocomplain",
                     value: OptionValue::flag(),
                     detail: "Suppress every error unset would otherwise raise for each name that follows — a missing variable, an array-element reference against a scalar, or a nonexistent namespace — and keep processing the remaining names. Must be the literal first argument, spelled out in full; never abbreviated, so it can't be confused with a variable name that happens to start the same way.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -153,7 +156,7 @@ pub fn spec() -> CommandSpec {
                     name: "--",
                     value: OptionValue::flag(),
                     detail: "End option parsing, so a following word is always treated as a variable name even if it looks like an option. Recognised only as the first argument, or as the second when it immediately follows -nocomplain — anywhere else -- is itself just another name to delete.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,

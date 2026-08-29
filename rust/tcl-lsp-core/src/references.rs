@@ -2139,7 +2139,7 @@ fn collect_stored_callback_writes(
         let resolved_call = ctx.registry.resolve_call(
             resolved,
             &args,
-            crate::document_context_for_profile(ctx.dialect).authoring_mask(),
+            Some(crate::document_context_for_profile(ctx.dialect).authoring_query()),
         );
         has_scope_alias |= resolved_call.is_some_and(|call| {
             matches!(
@@ -2458,7 +2458,7 @@ fn command_prefix_targets_from_word(
     let Some(invocation) = ctx.registry.resolve_invocation(
         builder_resolved,
         &args,
-        crate::document_context_for_profile(ctx.dialect).authoring_mask(),
+        Some(crate::document_context_for_profile(ctx.dialect).authoring_query()),
     ) else {
         return Vec::new();
     };
@@ -4062,7 +4062,7 @@ fn case_list_clause_body_regions(
     let (_, invocation) = registry.case_invocation(
         name,
         args,
-        crate::document_context_for_profile(profile).authoring_mask(),
+        Some(crate::document_context_for_profile(profile).authoring_query()),
     )?;
     if let Some(start) = invocation.inline_clause_start {
         let clauses = case_list.inline_clauses(args, start)?;

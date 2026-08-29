@@ -18,10 +18,11 @@
 
 //! `AAA::acct_result` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "AAA::acct_result",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "This command is used to check whether the accounting information is sent successfully to IVS(internal virtual server) or not.",

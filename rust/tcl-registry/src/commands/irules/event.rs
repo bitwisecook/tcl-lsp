@@ -18,6 +18,7 @@
 
 //! `event` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "event",
@@ -34,7 +35,7 @@ pub const fn spec() -> CommandSpec {
         // (ConnectionControl side effect and all) instead of reading as
         // unknown. Gating to the bare `IRULES` vendor bit matches every
         // other `irules/` command and confines it to the iRules dialect.
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Enables or disables evaluation of the specified iRule event or all iRule events on this connection.",

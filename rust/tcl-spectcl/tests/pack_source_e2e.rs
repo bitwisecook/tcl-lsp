@@ -207,7 +207,7 @@ fn a_pack_timing_hook_controls_a_live_command_prefix_position() {
             "mylib::callback",
             &["now", "callback"],
             1,
-            DialectSet::empty(),
+            None,
         ),
         Some(ScriptTiming::SameInvocation),
     );
@@ -216,7 +216,7 @@ fn a_pack_timing_hook_controls_a_live_command_prefix_position() {
             "mylib::callback",
             &["later", "callback"],
             1,
-            DialectSet::empty(),
+            None,
         ),
         Some(ScriptTiming::Deferred),
     );

@@ -42,6 +42,7 @@
 //! here wraps or shims them — old names are first-class data rows in the
 //! new registry.
 
+pub mod authored_surface;
 pub mod dynamic;
 pub mod environment;
 pub mod expr_grammar;
@@ -49,6 +50,9 @@ pub mod family;
 pub mod inherited_surface;
 pub mod version_set;
 
+pub use authored_surface::{
+    SpecProvider, SpecSurface, SpecWindow, SurfaceLayer, SurfaceQuery, surface_admits, surface_breadth, surface_provided_by, surfaces_overlap,
+};
 pub use dynamic::{
     DynamicCore, DynamicFamily, DynamicFamilyError, DynamicFamilyId, DynamicRegistration,
     DynamicRelease, dynamic_core_for, dynamic_core_grammar, dynamic_families, dynamic_generation,

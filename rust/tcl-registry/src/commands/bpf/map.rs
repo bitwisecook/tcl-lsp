@@ -19,12 +19,13 @@
 //! `map` — declare a BPF map
 //! (`map NAME hash|array KEYSZ VALSZ MAX ?shared|percpu?`).
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 pub fn spec() -> CommandSpec {
     const OP: BpfOpSpec = BpfOpSpec::structural(BpfOpKind::MapDeclare);
     CommandSpec {
         name: "map",
-        dialects: Some(DialectSet::BPF),
+        surface: Some(SpecSurface::BPF),
         // NAME hash|array KEYSZ VALSZ MAX ?shared|percpu?
         arity: Arity::new(5, 6),
         bpf_op: Some(&OP),

@@ -1538,7 +1538,7 @@ fn issue_862_reported_builtins_are_function_default_library_in_tcltest_body() {
 #[test]
 fn bigip_conf_embedded_rule_body_is_tokenised_as_irules() {
     let mut registry = tcl_registry::CommandRegistry::build_default();
-    registry.load_dialect(tcl_dialect::DialectSet::parse("f5-irules").unwrap());
+    registry.load_surface(tcl_dialect::DialectSet::parse("f5-irules").unwrap());
     let src =
         "ltm rule /Common/r {\n    when HTTP_REQUEST {\n        pool /Common/api_pool\n    }\n}\n";
     let toks = tcl_lsp_core::semantic_tokens::bigip_conf_full(src, &registry);

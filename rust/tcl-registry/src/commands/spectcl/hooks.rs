@@ -38,6 +38,7 @@
 use crate::prelude::*;
 
 use super::SOURCE;
+use tcl_dialect::model::{SpecSurface};
 
 /// A hook property statement.  `silence` is what the field's abstention
 /// means — the one thing an author most needs and most often assumes wrongly,
@@ -51,7 +52,7 @@ fn hook_statement(
     CommandSpec {
         name,
         traits: Traits::CREATES_BARRIER | Traits::NEVER_INLINE_BODY | Traits::LANGUAGE_KEYWORD,
-        dialects: Some(DialectSet::SPECTCL),
+        surface: Some(SpecSurface::SPECTCL),
         arity: Arity::new(1, 2),
         hover: Some(HoverSnippet {
             summary,

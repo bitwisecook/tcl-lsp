@@ -33,6 +33,7 @@ use anyhow::{Context, Result, bail};
 use regex::Regex;
 use serde_json::Value;
 use tcl_dialect::DialectSet;
+use tcl_dialect::model::{SpecSurface};
 
 const DIALECT: &str = "f5-irules";
 
@@ -355,8 +356,8 @@ fn irule_command_names(registry: &tcl_registry::CommandRegistry) -> BTreeSet<&st
         .filter(|name| {
             registry
                 .get(name)
-                .and_then(|spec| spec.dialects)
-                .is_some_and(|dialects| dialects.contains(DialectSet::IRULES))
+                .and_then(|spec| spec.surface)
+                .is_some_and(|dialects| dialects.contains(SpecSurface::IRULES))
         })
         .collect()
 }

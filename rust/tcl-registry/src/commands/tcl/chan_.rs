@@ -24,6 +24,7 @@
 //! `gets`/`open`/`puts`/`read`/`seek`/`tell` commands it later wraps), so
 //! the command-level `dialects` gate below is `TCL85_PLUS`, not `None`.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::FileIo,
@@ -160,7 +161,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         name: "-blocking",
         value: OptionValue::boolean(),
         detail: "Whether I/O on the channel may block the process indefinitely. Channels are blocking by default; nonblocking mode affects chan gets/read/puts/flush/close and requires the event loop (vwait/update) to drive it.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -174,7 +175,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
             ..OptionArg::DEFAULT
         }),
         detail: "full, line, or none — see the value list for the per-mode default.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -183,7 +184,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         name: "-buffersize",
         value: OptionValue::value("size"),
         detail: "Buffer size in bytes for buffers subsequently allocated for this channel; capped at 1,000,000.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -192,7 +193,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         name: "-encoding",
         value: OptionValue::value("encoding"),
         detail: "Character encoding used to convert the channel's bytes to/from Tcl's internal string representation; defaults to the platform/locale system encoding (encoding system). Use iso8859-1 for byte-transparent binary data (Tcl 8.5 instead used the pseudo-encoding \"binary\" for this; removed in Tcl 9.0).",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -201,7 +202,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         name: "-eofchar",
         value: OptionValue::value("char"),
         detail: "A single character (\\x01-\\x7f) that signals end-of-file on input; the empty string (the default) disables it. Tcl 8.5/8.6 additionally accepted a {inChar outChar} two-element list for a read-write channel and defaulted to Control-Z on Windows file reads; Tcl 9.0+ takes a single value only and always defaults to the empty string.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -214,7 +215,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
             ..OptionArg::DEFAULT
         }),
         detail: "End-of-line translation mode; also accepts a {inTranslation outTranslation} list to set input/output independently. See the value list for per-mode behaviour and defaults.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -228,7 +229,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
             ..OptionArg::DEFAULT
         }),
         detail: "Encoding profile controlling how conversion errors on this channel are handled (see PROFILES in encoding(n)).",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -241,7 +242,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         name: "-nodelay",
         value: OptionValue::boolean(),
         detail: "TCP_NODELAY on a socket channel: disables Nagle's algorithm so small writes are sent immediately (Tcl 9.0+, TIP 344). Documented on socket(n).",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -250,7 +251,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
         name: "-keepalive",
         value: OptionValue::boolean(),
         detail: "SO_KEEPALIVE on a socket channel (Tcl 9.0+, TIP 344). Documented on socket(n).",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -264,7 +265,7 @@ static CONFIGURE_OPTIONS: &[OptionSpec] = &[
             ..OptionArg::DEFAULT
         }),
         detail: "Terminal input mode on a serial/console channel (Tcl 9.0+, TIP 160); Unix-only (Windows exposes the equivalent on console channels). Documented on open(n).",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -277,7 +278,7 @@ const COPY_OPTIONS: &[OptionSpec] = &[
         name: "-size",
         value: OptionValue::value("size"),
         detail: "Maximum number of bytes (or characters, if the channels' encodings differ) to copy before stopping. Without it, chan copy reads until end of file.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -286,7 +287,7 @@ const COPY_OPTIONS: &[OptionSpec] = &[
         name: "-command",
         value: OptionValue::deferred_command_prefix_n("callback", AppendedArity::AtLeast(1)),
         detail: "Run the copy in the background and return immediately; callback is invoked on completion with the byte/character count appended, plus an error-message argument if the copy failed. inputChan/outputChan are switched to non-blocking automatically; an active event loop (vwait or Tk) is required to drive it.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -298,7 +299,7 @@ const PUTS_OPTIONS: &[OptionSpec] = &[OptionSpec {
     name: "-nonewline",
     value: OptionValue::flag(),
     detail: "Suppress the trailing newline that chan puts otherwise appends.",
-    dialects: None,
+    surface: None,
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
@@ -309,7 +310,7 @@ const READ_OPTIONS: &[OptionSpec] = &[OptionSpec {
     name: "-nonewline",
     value: OptionValue::flag(),
     detail: "Trim a trailing newline from the data read. Only meaningful when reading to end of file (i.e. without numChars).",
-    dialects: None,
+    surface: None,
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
@@ -513,7 +514,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "eof",
-        dialects: None,
+        surface: None,
         arity: Arity::exact(1),
         detail: "Test for end of file.",
         synopsis: "chan eof channelId",
@@ -529,7 +530,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "event",
-        dialects: None,
+        surface: None,
         arity: Arity::new(2, 3),
         detail: "Set up a channel event handler for \"readable\" or \"writable\".",
         synopsis: "chan event channelId event ?script?",
@@ -551,7 +552,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "flush",
-        dialects: None,
+        surface: None,
         arity: Arity::exact(1),
         detail: "Flush buffered output.",
         synopsis: "chan flush channelId",
@@ -567,7 +568,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "gets",
-        dialects: None,
+        surface: None,
         traits: Traits::TAINT_SOURCE,
         arity: Arity::new(1, 2),
         detail: "Read a line.",
@@ -625,7 +626,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         name: "pipe",
         // Absent from the 8.5 chan.n synopsis and body; present from 8.6
         // on (confirmed identical text in 8.6.18, 9.0.4, and 9.1b0).
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         arity: Arity::exact(0),
         detail: "Create a standalone connected pipe (Tcl 8.6+); returns its two channels.",
         synopsis: "chan pipe",
@@ -640,7 +641,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "pop",
         // Absent from the 8.5 chan.n synopsis and body; present from 8.6 on.
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         arity: Arity::exact(1),
         detail: "Remove the topmost channel transformation (Tcl 8.6+); equivalent to chan close if none remain.",
         synopsis: "chan pop channelId",
@@ -657,7 +658,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "push",
         // Absent from the 8.5 chan.n synopsis and body; present from 8.6 on.
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         arity: Arity::exact(2),
         detail: "Add a channel transformation (Tcl 8.6+; see transchan(n)); returns a handle to it.",
         synopsis: "chan push channelId cmdPrefix",
@@ -707,7 +708,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "seek",
-        dialects: None,
+        surface: None,
         arity: Arity::new(2, 3),
         detail: "Set access position.",
         synopsis: "chan seek channelId offset ?origin?",
@@ -725,7 +726,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "tell",
-        dialects: None,
+        surface: None,
         arity: Arity::exact(1),
         detail: "Return current position.",
         synopsis: "chan tell channelId",
@@ -758,7 +759,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(1),
         // `chan isbinary` was added in Tcl 9.0 — absent in the 8.5/8.6.x
         // series (confirmed absent from both fetched pages).
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         detail: "Test whether the channel is binary (iso8859-1 encoding, empty -eofchar, lf translation).",
         synopsis: "chan isbinary channelId",
         pure: true,
@@ -795,7 +796,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         name: "-blocking",
         value: OptionValue::boolean(),
         detail: "Set blocking mode.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -804,7 +805,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         name: "-buffering",
         value: OptionValue::value("mode"),
         detail: "Set buffering mode (full, line, none).",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -813,7 +814,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         name: "-buffersize",
         value: OptionValue::value("size"),
         detail: "Set buffer size in bytes.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -822,7 +823,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         name: "-encoding",
         value: OptionValue::value("encoding"),
         detail: "Set character encoding.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -831,7 +832,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         name: "-eofchar",
         value: OptionValue::value("chars"),
         detail: "Set end-of-file character(s).",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -840,7 +841,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         name: "-profile",
         value: OptionValue::value("profile"),
         detail: "Set encoding profile (strict, tcl8, replace).",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -849,7 +850,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         name: "-translation",
         value: OptionValue::value("mode"),
         detail: "Set line-ending translation mode.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -872,7 +873,7 @@ pub fn spec() -> CommandSpec {
         // removes `chan` from iRules, which already separately excludes
         // the standalone commands it wraps (`open`, `gets`, `fconfigure`,
         // `flush`, `seek`, `tell`, `eof`).
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
         options: CMD_OPTIONS,

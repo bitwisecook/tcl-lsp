@@ -18,6 +18,9 @@
 
 //! `subst` — perform Tcl substitutions on a string.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
+use tcl_dialect::model::Family;
 
 /// `subst`'s embedded `[command]` substitutions can do literally anything
 /// once evaluated, the same "unknowable statically" reasoning `eval` /
@@ -58,7 +61,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-nobackslashes",
         value: OptionValue::flag(),
         detail: "Disable backslash substitution; backslash sequences such as \\n are left as literal text. Command and variable substitution are unaffected.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -67,7 +70,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-nocommands",
         value: OptionValue::flag(),
         detail: "Disable top-level command substitution; [ and ] are treated as ordinary characters. A [command] nested inside a variable reference (e.g. an array index) still runs, since that is part of resolving the variable, not a top-level substitution.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -76,7 +79,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-novariables",
         value: OptionValue::flag(),
         detail: "Disable top-level variable substitution; $ is treated as an ordinary character. A $variable reference nested inside a command still runs, since that is part of evaluating the command, not a top-level substitution.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -88,7 +91,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-backslashes",
         value: OptionValue::flag(),
         detail: "Enable only backslash substitution; commands and variables are left as literal text (Tcl 9.1). Cannot combine with -nobackslashes/-nocommands/-novariables.",
-        dialects: Some(DialectSet::TCL91),
+        surface: Some(SpecSurface::TCL91),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -97,7 +100,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-commands",
         value: OptionValue::flag(),
         detail: "Enable only command substitution; backslashes and variables are left as literal text (Tcl 9.1). Cannot combine with -nobackslashes/-nocommands/-novariables.",
-        dialects: Some(DialectSet::TCL91),
+        surface: Some(SpecSurface::TCL91),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -106,7 +109,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-variables",
         value: OptionValue::flag(),
         detail: "Enable only variable substitution; backslashes and commands are left as literal text (Tcl 9.1). Cannot combine with -nobackslashes/-nocommands/-novariables.",
-        dialects: Some(DialectSet::TCL91),
+        surface: Some(SpecSurface::TCL91),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -117,7 +120,7 @@ const OPTIONS: &[OptionSpec] = &[
 // negative-switch form). Tcl 9.1 adds a second SYNOPSIS line for the new
 // positive-switch form (see the OPTIONS comment above) — narrowed to
 // `TCL91` here rather than inheriting the command's own unrestricted
-// `dialects: None`, mirroring how `return_.rs` narrows its `-level` form to
+// `surface: None`, mirroring how `return_.rs` narrows its `-level` form to
 // `TCL85_PLUS`.
 const FORMS: &[FormSpec] = &[
     FormSpec {
@@ -126,7 +129,7 @@ const FORMS: &[FormSpec] = &[
     },
     FormSpec {
         synopsis: "subst ?-backslashes? ?-commands? ?-variables? string",
-        dialects: Some(DialectSet::TCL91),
+        surface: Some(SpecSurface::TCL91),
         ..FormSpec::DEFAULT
     },
 ];
@@ -206,7 +209,7 @@ pub fn spec() -> CommandSpec {
         // profile's `version_ceiling`), which is why the 9.1-only positive
         // switches can never resolve under any of those 8.x-pinned
         // embedded cores even though the command itself is universal.
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
         byte_array_effect: ByteArrayEffect::Coerces,
         traits: Traits::TAINT_SINK | Traits::IS_UNESCAPE | Traits::PERFORMS_SUBSTITUTION,
         // Exactly one trailing `string` is mandatory; 0 or more recognised

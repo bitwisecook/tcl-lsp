@@ -22,6 +22,7 @@
 //! collapses them into one row per index, which is the single biggest
 //! readability win the format has over the `.rs` form.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
@@ -110,7 +111,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "arg",
         traits: Traits::LANGUAGE_KEYWORD,
-        dialects: Some(DialectSet::SPECTCL),
+        surface: Some(SpecSurface::SPECTCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Declare the facts about one argument position.",

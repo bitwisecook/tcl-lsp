@@ -27,7 +27,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "textutil::trimPrefix",
         traits: Traits::PURE,
-        dialects: None,
+        surface: None,
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {
             summary: "Remove a prefix from a string.",

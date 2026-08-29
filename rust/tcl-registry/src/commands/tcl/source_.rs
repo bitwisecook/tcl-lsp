@@ -60,6 +60,7 @@
 //! convention `open`/`cd` rely on (see their own specs).
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 // Tcl 8.4's SYNOPSIS documents `source -rsrc resourceName ?fileName?` and
 // `source -rsrcid resourceId ?fileName?` alongside the plain `source
@@ -80,22 +81,22 @@ const FORMS: &[FormSpec] = &[
     },
     FormSpec {
         synopsis: "source -encoding encodingName fileName",
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         ..FormSpec::DEFAULT
     },
     FormSpec {
         synopsis: "source -nopkg fileName",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         ..FormSpec::DEFAULT
     },
     FormSpec {
         synopsis: "source -rsrc resourceName ?fileName?",
-        dialects: Some(DialectSet::TCL84),
+        surface: Some(SpecSurface::TCL84),
         ..FormSpec::DEFAULT
     },
     FormSpec {
         synopsis: "source -rsrcid resourceId ?fileName?",
-        dialects: Some(DialectSet::TCL84),
+        surface: Some(SpecSurface::TCL84),
         ..FormSpec::DEFAULT
     },
 ];
@@ -119,7 +120,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[
 ];
 
 const OPTION_RELATIONS: &[OptionRelation] = &[OptionRelation {
-    dialects: Some(DialectSet::TCL90_PLUS),
+    surface: Some(SpecSurface::TCL90_PLUS),
     ..OptionRelation::conflict(&[
         OptionTerm::Option("-encoding"),
         OptionTerm::Option("-nopkg"),
@@ -141,7 +142,7 @@ pub fn spec() -> CommandSpec {
         // the `IRULES` bit here would re-admit `source` under `f5-irules`,
         // the exact trap this omission avoids; there is no separate
         // disable list.
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD
@@ -213,7 +214,7 @@ pub fn spec() -> CommandSpec {
                     name: "-encoding",
                     value: OptionValue::value("encodingName"),
                     detail: "The character encoding of fileName's contents. Added in Tcl 8.5 — Tcl 8.4's source has no -encoding option. When omitted, Tcl 8.5 and 8.6 assume the platform's system encoding (see encoding system); Tcl 9.0 and 9.1 instead always assume utf-8.",
-                    dialects: Some(DialectSet::TCL85_PLUS),
+                    surface: Some(SpecSurface::TCL85_PLUS),
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     // Tcl's source parser requires the complete option
@@ -225,7 +226,7 @@ pub fn spec() -> CommandSpec {
                     name: "-nopkg",
                     value: OptionValue::flag(),
                     detail: "Source the file without package initialisation. Added in Tcl 9.0; unavailable in Tcl 8.x.",
-                    dialects: Some(DialectSet::TCL90_PLUS),
+                    surface: Some(SpecSurface::TCL90_PLUS),
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     // Likewise, Tcl 9 rejects `-nop` and accepts only the
@@ -266,7 +267,7 @@ mod tests {
             .find(|option| option.name == "-nopkg")
             .expect("Tcl 9 source -nopkg option");
         assert!(matches!(nopkg.value, OptionValue::Flag));
-        assert_eq!(nopkg.dialects, Some(DialectSet::TCL90_PLUS));
+        assert_eq!(nopkg.surface, Some(SpecSurface::TCL90_PLUS));
         assert_eq!(nopkg.min_abbrev, Some(6));
 
         let encoding = source
@@ -294,6 +295,6 @@ mod tests {
             .first()
             .expect("source option constraint");
         assert_eq!(constraint.describe(), "option_conflict {-encoding -nopkg}");
-        assert_eq!(constraint.dialects, Some(DialectSet::TCL90_PLUS));
+        assert_eq!(constraint.surface, Some(SpecSurface::TCL90_PLUS));
     }
 }

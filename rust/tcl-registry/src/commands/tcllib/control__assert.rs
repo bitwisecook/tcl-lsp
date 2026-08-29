@@ -27,7 +27,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "control::assert",
-        dialects: None,
+        surface: None,
         arity: Arity::at_least(1),
         // `expr` is evaluated as an expression, like `expr` itself.
         arg_roles: &[(0, ArgRole::Expr)],

@@ -43,6 +43,9 @@
 
 use crate::hooks::LoweringHookId;
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::surface;
+use tcl_dialect::model::Family;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::Variable,
@@ -101,7 +104,7 @@ pub fn spec() -> CommandSpec {
         // a different ensemble (`array set`, `dict set`, a Tk widget's
         // `pathName set`, iRules' `table set`), never a redefinition of
         // this command.
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED

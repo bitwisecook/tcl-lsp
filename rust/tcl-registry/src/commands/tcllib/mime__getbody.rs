@@ -49,7 +49,7 @@ reason keyword (data / end / error) and, for data / error, one payload word.",
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "mime::getbody",
-        dialects: None,
+        surface: None,
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Return the body of a MIME part.",

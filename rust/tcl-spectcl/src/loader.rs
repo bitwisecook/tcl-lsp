@@ -146,6 +146,8 @@ use tcl_registry::world_effect::WorldStateDomain;
 use tcl_registry::{CommandPrefixArguments, InvocationArguments};
 
 use crate::catalogue;
+use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::Family;
 
 mod available;
 mod dialect_block;
@@ -1651,7 +1653,7 @@ fn check_vocabulary_version(declared: &str, line: u32, log: &mut Log) -> bool {
 /// The pack-wide availability / identity defaults a command inherits.
 #[derive(Debug, Default, Clone)]
 struct PackDefaults {
-    dialects: Option<DialectSet>,
+    surface: Option<&'static [SpecSurface]>,
     required_package: Option<&'static str>,
     /// The fallback provider `provides` declares (§6.2): applied only
     /// when no explicit `default required_package` (or `default
@@ -1716,12 +1718,12 @@ impl PackTables {
         let key = stmt.word_text(1);
         let value = stmt.word_text(2);
         match key {
-            "dialects" => self.defaults.dialects = parse_dialects(value, stmt.line, log),
+            "dialects" => self.defaults.surface = parse_dialects(value, stmt.line, log),
             "available" => {
                 log.v20(stmt.line, "available");
                 let availability = available::from_statement(stmt, 2, log);
-                if availability.dialects.is_some() {
-                    self.defaults.dialects = availability.dialects;
+                if availability.surface.is_some() {
+                    self.defaults.surface = availability.surface;
                 }
                 if let Some(package) = availability.required_package {
                     self.defaults.required_package = Some(package);
@@ -1962,19 +1964,15 @@ fn parse_version(name: &str) -> Option<TclVersion> {
     }
 }
 
-/// The `tclX.Y+` "and later" closure.
-fn version_and_later(base: TclVersion) -> DialectSet {
-    const LADDER: &[(TclVersion, DialectSet)] = &[
-        (TclVersion::V8_4, DialectSet::TCL84),
-        (TclVersion::V8_5, DialectSet::TCL85),
-        (TclVersion::V8_6, DialectSet::TCL86),
-        (TclVersion::V9_0, DialectSet::TCL90),
-        (TclVersion::V9_1, DialectSet::TCL91),
-    ];
-    LADDER
-        .iter()
-        .filter(|(version, _)| *version >= base)
-        .fold(DialectSet::empty(), |set, (_, bit)| set | *bit)
+/// The `tclX.Y+` "and later" closure — one core row open-ended at `base`.
+fn version_and_later(base: TclVersion) -> &'static [SpecSurface] {
+    match base {
+        TclVersion::V8_4 => SpecSurface::ALL_TCL,
+        TclVersion::V8_5 => SpecSurface::TCL85_PLUS,
+        TclVersion::V8_6 => SpecSurface::TCL86_PLUS,
+        TclVersion::V9_0 => SpecSurface::TCL90_PLUS,
+        TclVersion::V9_1 => SpecSurface::TCL91,
+    }
 }
 
 /// Apply an [`available::Availability`] at a scope that has no
@@ -1985,7 +1983,7 @@ fn version_and_later(base: TclVersion) -> DialectSet {
 /// silence, because a reader of the pack would otherwise believe the
 /// requirement was in force.
 fn apply_availability(
-    target: &mut Option<DialectSet>,
+    target: &mut Option<&'static [SpecSurface]>,
     availability: available::Availability,
     scope: &str,
     line: u32,
@@ -2001,33 +1999,30 @@ fn apply_availability(
             ),
         );
     }
-    if availability.dialects.is_some() {
-        *target = availability.dialects;
+    if availability.surface.is_some() {
+        *target = availability.surface;
     }
 }
 
-/// A dialect set word: members verbatim, plus `tclX.Y+`, `all-tcl`, `tcl8.x`.
-fn parse_dialects(text: &str, line: u32, log: &mut Log) -> Option<DialectSet> {
-    let mut set = DialectSet::empty();
-    let mut saw_any = false;
+/// A legacy `dialects` word: members verbatim, plus `tclX.Y+`, `all-tcl`,
+/// `tcl8.x`, translated to the surface rows they name.
+fn parse_dialects(text: &str, line: u32, log: &mut Log) -> Option<&'static [SpecSurface]> {
+    let mut rows: Vec<SpecSurface> = Vec::new();
     for member in list_words(text) {
-        let bit = match member.as_str() {
-            "all-tcl" => Some(DialectSet::ALL_TCL),
-            "tcl8.x" => Some(DialectSet::TCL8X),
+        let named = match member.as_str() {
+            "all-tcl" => Some(SpecSurface::ALL_TCL),
+            "tcl8.x" => Some(SpecSurface::TCL8X),
             other => match other.strip_suffix('+') {
                 Some(base) => parse_version(base).map(version_and_later),
-                None => catalogue::dialect_bit(other),
+                None => catalogue::dialect_surface(other),
             },
         };
-        match bit {
-            Some(bit) => {
-                set |= bit;
-                saw_any = true;
-            }
+        match named {
+            Some(named) => rows.extend_from_slice(named),
             None => log.say(line, format!("unknown dialect `{member}` dropped")),
         }
     }
-    saw_any.then_some(set)
+    (!rows.is_empty()).then(|| &*Box::leak(rows.into_boxed_slice()))
 }
 
 fn parse_traits(text: &str, line: u32, log: &mut Log) -> Traits {
@@ -3332,13 +3327,13 @@ fn option_row(
             }
             "-dialects" => {
                 let text = next_text(words, &mut i);
-                option.dialects = parse_dialects(&text, stmt.line, log);
+                option.surface = parse_dialects(&text, stmt.line, log);
             }
             "-available" => {
                 log.v20(stmt.line, "-available");
                 let text = next_text(words, &mut i);
                 let availability = available::from_flag(&text, stmt.line, log);
-                apply_availability(&mut option.dialects, availability, "option", stmt.line, log);
+                apply_availability(&mut option.surface, availability, "option", stmt.line, log);
             }
             "-min-abbrev" => option.min_abbrev = next_text(words, &mut i).parse().ok(),
             // The data form only: `{-replace WORD ?-replace-arg N? …}`, read by
@@ -3633,7 +3628,7 @@ fn event_requires_block(stmts: &[Stmt], log: &mut Log) -> EventRequires {
 fn case_list_block(stmts: &[Stmt], log: &mut Log) -> CaseListSpec {
     let mut spec = CaseListSpec {
         subject_args: 0,
-        two_arg_optionless_dialects: None,
+        two_arg_optionless_surface: None,
         regex_option: None,
         exact_option: None,
         glob_option: None,
@@ -3659,8 +3654,8 @@ fn case_list_block(stmts: &[Stmt], log: &mut Log) -> CaseListSpec {
         let value = stmt.word_text(1).to_owned();
         match stmt.word_text(0) {
             "subject_args" => spec.subject_args = value.parse().unwrap_or(0),
-            "two_arg_optionless_dialects" => {
-                spec.two_arg_optionless_dialects = parse_dialects(&value, stmt.line, log);
+            "two_arg_optionless_surface" => {
+                spec.two_arg_optionless_surface = parse_dialects(&value, stmt.line, log);
             }
             "exact_option" => spec.exact_option = Some(leak_str(&value)),
             "glob_option" => spec.glob_option = Some(leak_str(&value)),
@@ -4017,7 +4012,7 @@ fn member_row(stmt: &Stmt, log: &mut Log) -> MemberSpec {
         all_args_ref: None,
         kind: MemberKind::Flat,
         wrapper_block_body: false,
-        dialects: None,
+        surface: None,
         retraction: None,
         slot: None,
         visibility_effect: None,
@@ -4050,14 +4045,14 @@ fn member_row(stmt: &Stmt, log: &mut Log) -> MemberSpec {
             "-block-body" => member.wrapper_block_body = true,
             "-dialects" => {
                 let text = next_text(words, &mut i);
-                member.dialects = parse_dialects(&text, stmt.line, log);
+                member.surface = parse_dialects(&text, stmt.line, log);
             }
             "-available" => {
                 log.v20(stmt.line, "-available");
                 let text = next_text(words, &mut i);
                 let availability = available::from_flag(&text, stmt.line, log);
                 apply_availability(
-                    &mut member.dialects,
+                    &mut member.surface,
                     availability,
                     "object-class method",
                     stmt.line,
@@ -4608,7 +4603,7 @@ fn command_from_parts(
     log.scoped(format!("command {name}"), |log| {
         let mut spec = CommandSpec {
             name: leak_str(name),
-            dialects: tables.defaults.dialects,
+            surface: tables.defaults.surface,
             required_package: tables
                 .defaults
                 .required_package
@@ -4926,12 +4921,12 @@ fn apply_command_stmt(
     let value = stmt.word_text(1).to_owned();
     match key.as_str() {
         // --- identity and availability -----------------------------------
-        "dialects" => spec.dialects = parse_dialects(&value, stmt.line, log),
+        "dialects" => spec.surface = parse_dialects(&value, stmt.line, log),
         "available" => {
             log.v20(stmt.line, "available");
             let availability = available::from_statement(stmt, 1, log);
-            if availability.dialects.is_some() {
-                spec.dialects = availability.dialects;
+            if availability.surface.is_some() {
+                spec.surface = availability.surface;
             }
             match (availability.required_package, spec.required_package) {
                 (Some(named), None) => spec.required_package = Some(named),
@@ -5486,14 +5481,14 @@ fn form_row(stmt: &Stmt, log: &mut Log) -> FormSpec {
         match words[i].text.as_str() {
             "-dialects" => {
                 let text = next_text(words, &mut i);
-                form.dialects = parse_dialects(&text, stmt.line, log);
+                form.surface = parse_dialects(&text, stmt.line, log);
             }
             "-available" => {
                 log.v20(stmt.line, "-available");
                 let text = next_text(words, &mut i);
                 let availability = available::from_flag(&text, stmt.line, log);
                 apply_availability(
-                    &mut form.dialects,
+                    &mut form.surface,
                     availability,
                     "command form",
                     stmt.line,
@@ -5547,14 +5542,14 @@ fn side_effect_row(stmt: &Stmt, log: &mut Log) -> Option<SideEffect> {
             }
             "-dialects" => {
                 let text = next_text(words, &mut i);
-                effect.dialects = parse_dialects(&text, stmt.line, log);
+                effect.surface = parse_dialects(&text, stmt.line, log);
             }
             "-available" => {
                 log.v20(stmt.line, "-available");
                 let text = next_text(words, &mut i);
                 let availability = available::from_flag(&text, stmt.line, log);
                 apply_availability(
-                    &mut effect.dialects,
+                    &mut effect.surface,
                     availability,
                     "side effect",
                     stmt.line,
@@ -5668,14 +5663,14 @@ fn option_relation_row(
         match words[i].text.as_str() {
             "-dialects" => {
                 let text = next_text(words, &mut i);
-                relation.dialects = parse_dialects(&text, stmt.line, log);
+                relation.surface = parse_dialects(&text, stmt.line, log);
             }
             "-available" => {
                 log.v20(stmt.line, "-available");
                 let text = next_text(words, &mut i);
                 let availability = available::from_flag(&text, stmt.line, log);
                 apply_availability(
-                    &mut relation.dialects,
+                    &mut relation.surface,
                     availability,
                     "option relation",
                     stmt.line,
@@ -6011,12 +6006,12 @@ fn apply_subcommand_stmt(
         "body_arg_implicit_args" => sub.body_arg_implicit_args = value.parse().unwrap_or(0),
         "credential_arg" => sub.credential_arg = value.parse().ok(),
         "sensitive_headers" => sub.sensitive_headers = leak_strs(&list_words(&value)),
-        "dialects" => sub.dialects = parse_dialects(&value, stmt.line, log),
+        "dialects" => sub.surface = parse_dialects(&value, stmt.line, log),
         "available" => {
             log.v20(stmt.line, "available");
             let availability = available::from_statement(stmt, 1, log);
             apply_availability(
-                &mut sub.dialects,
+                &mut sub.surface,
                 availability,
                 "subcommand",
                 stmt.line,
@@ -6253,14 +6248,14 @@ fn sub_subcommand_row(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> SubSub
             "-synopsis" => row.synopsis = leak_str(&next_text(words, &mut i)),
             "-dialects" => {
                 let text = next_text(words, &mut i);
-                row.dialects = parse_dialects(&text, stmt.line, log);
+                row.surface = parse_dialects(&text, stmt.line, log);
             }
             "-available" => {
                 log.v20(stmt.line, "-available");
                 let text = next_text(words, &mut i);
                 let availability = available::from_flag(&text, stmt.line, log);
                 apply_availability(
-                    &mut row.dialects,
+                    &mut row.surface,
                     availability,
                     "sub_subcommand",
                     stmt.line,
@@ -6413,7 +6408,7 @@ mod tests {
     fn case_list_loader_preserves_every_clause_shape_field() {
         let pack = evaluate_pack(
             "speclib probe 1.1 { command demo { case_list { \
-             two_arg_optionless_dialects tcl8.5+; \
+             two_arg_optionless_surface tcl8.5+; \
              clause_end_options_flag --; clause_force_inline_flag -nobrace; \
              clause_force_list_flag -brace; clause_force_list_shape first_arg_only_remainder; \
              allow_omitted_final_body 1; \
@@ -6421,8 +6416,8 @@ mod tests {
         );
         let case = pack.command("demo").unwrap().spec.case_list.unwrap();
         assert_eq!(
-            case.two_arg_optionless_dialects,
-            Some(tcl_dialect::DialectSet::TCL85_PLUS)
+            case.two_arg_optionless_surface,
+            Some(SpecSurface::TCL85_PLUS)
         );
         assert_eq!(case.clause_end_options_flag, Some("--"));
         assert_eq!(case.clause_force_inline_flag, Some("-nobrace"));
@@ -6552,15 +6547,15 @@ mod tests {
         let mut log = Log::default();
         assert_eq!(
             parse_dialects("tcl8.6+", 1, &mut log),
-            Some(DialectSet::TCL86 | DialectSet::TCL90 | DialectSet::TCL91)
+            Some(SpecSurface::TCL86 | SpecSurface::TCL90 | SpecSurface::TCL91)
         );
         assert_eq!(
             parse_dialects("all-tcl f5-irules", 1, &mut log),
-            Some(DialectSet::ALL_TCL | DialectSet::IRULES)
+            Some(SpecSurface::ALL_TCL | SpecSurface::IRULES)
         );
         assert_eq!(
             parse_dialects("tcl8.x", 1, &mut log),
-            Some(DialectSet::TCL8X)
+            Some(SpecSurface::TCL8X)
         );
         assert!(log.notices.is_empty());
     }
@@ -7491,13 +7486,13 @@ mod tests {
             assert!(new.notices.is_empty(), "{modern}: {:?}", new.notices);
             let old_spec = old.command("demo").expect("legacy demo loads").spec;
             let new_spec = new.command("demo").expect("2.0 demo loads").spec;
-            assert_eq!(old_spec.dialects, new_spec.dialects, "{legacy} vs {modern}");
+            assert_eq!(old_spec.surface, new_spec.surface, "{legacy} vs {modern}");
             assert_eq!(
-                old_spec.subcommands[0].dialects, new_spec.subcommands[0].dialects,
+                old_spec.subcommands[0].surface, new_spec.subcommands[0].surface,
                 "{legacy} vs {modern}"
             );
             assert_eq!(
-                old_spec.options[0].dialects, new_spec.options[0].dialects,
+                old_spec.options[0].surface, new_spec.options[0].surface,
                 "{legacy} vs {modern}"
             );
             assert_eq!(
@@ -7541,7 +7536,7 @@ mod tests {
             format!("{modern_spec:?}"),
             "every scope projects alike"
         );
-        assert_eq!(modern_spec.dialects, Some(DialectSet::TCL86_PLUS));
+        assert_eq!(modern_spec.surface, Some(SpecSurface::TCL86_PLUS));
     }
 
     /// `available {package NAME}` fills `required_package` at command
@@ -7601,7 +7596,7 @@ mod tests {
             pack.command("demo")
                 .expect("demo still loads")
                 .spec
-                .dialects,
+                .surface,
             None,
             "a dropped row narrows nothing"
         );
@@ -7628,8 +7623,8 @@ mod tests {
              available {jim 0.78-}\n }\n}",
         );
         assert_eq!(
-            pack.command("demo").expect("demo loads").spec.dialects,
-            Some(DialectSet::empty())
+            pack.command("demo").expect("demo loads").spec.surface,
+            Some(None)
         );
         assert!(
             pack.notices
@@ -8139,7 +8134,7 @@ mod tests {
              axis bom_skip on\n }\n command demo { arity 1 }\n}",
         );
         assert!(pack.notices.is_empty(), "{:?}", pack.notices);
-        let dialect = &pack.dialects[0];
+        let dialect = &pack.surface[0];
         assert_eq!(dialect.name, "picol2");
         assert_eq!(dialect.releases.len(), 2);
         assert_eq!(dialect.releases[1].build, BuildProfileId::Unknown);
@@ -8166,7 +8161,7 @@ mod tests {
                 "speclib probe 2.0 {{\n dialect probe-dialect {{\n {body}\n }}\n \
                  command demo {{ arity 1 }}\n}}"
             ));
-            assert!(pack.dialects.is_empty(), "{body}: {:?}", pack.dialects);
+            assert!(pack.surface.is_empty(), "{body}: {:?}", pack.surface);
             assert!(pack.command("demo").is_some(), "{body}: the rest loads");
             assert!(
                 pack.notices.iter().any(|n| n.message.contains(needle)),
@@ -8188,7 +8183,7 @@ mod tests {
              axis expr_comments none\n axis bom_skip off\n \
              axis irules_brace_separator off\n }\n command demo { arity 1 }\n}",
         );
-        assert!(pack.dialects.is_empty(), "{:?}", pack.dialects);
+        assert!(pack.surface.is_empty(), "{:?}", pack.surface);
         assert!(
             pack.notices.iter().any(|n| {
                 n.message.contains("declares the grammar of tcl 8.6")

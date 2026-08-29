@@ -18,10 +18,11 @@
 
 //! `tcltest::skip` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcltest::skip",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::new(0, 1),
         hover: Some(HoverSnippet {
             summary: "Get or set test skip patterns.  Deprecated: use ``configure -skip``.",

@@ -18,10 +18,11 @@
 
 //! `testconvertobj` command.
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testconvertobj",
-        dialects: Some(DialectSet::TCL84),
+        surface: Some(SpecSurface::TCL84),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Force conversion of a value to a named internal type (Tcl 8.4 only).",

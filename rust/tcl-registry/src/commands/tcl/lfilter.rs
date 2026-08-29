@@ -26,6 +26,7 @@
 //! manual-page trees at <https://www.tcl-lang.org/man/>.
 
 use crate::prelude::*;
+use tcl_dialect::model::{SpecSurface};
 
 // `lfilter` assigns to its loop variable(s) on every iteration it runs —
 // Tcl lfilter(n): "lfilter assigns the contents of the element to varname"
@@ -112,7 +113,7 @@ pub fn spec() -> CommandSpec {
             // `if`, so it needs the same skip to avoid being misread as a
             // tcllib-style `proc`-factory wrapper call.
             | Traits::NOT_PROC_FACTORY,
-        dialects: Some(DialectSet::TCL91),
+        surface: Some(SpecSurface::TCL91),
         // `varList list ?varList list ...? command` — identical grammar to
         // `foreach`/`lmap`: n varList/list pairs (n >= 1) plus one command
         // body, so a valid argument count (after the command name) is odd

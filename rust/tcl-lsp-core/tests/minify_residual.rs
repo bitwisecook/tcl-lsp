@@ -668,7 +668,7 @@ fn expr_unbalanced_bracket_with_multibyte_does_not_panic() {
 
 #[test]
 fn clock_subcommand_abbreviated_in_irules_dialect() {
-    // The `clock` ensemble table is abbreviated for fixed-ensemble dialects:
+    // The `clock` ensemble table is abbreviated for fixed-ensemble surface:
     // `clock seconds` -> `clock se`, `clock format` -> `clock f`.
     // Unlike the `info`/`string` abbreviations, `clock se` / `clock f` are also
     // UNAMBIGUOUS in stock tclsh, so we additionally cite the value.
