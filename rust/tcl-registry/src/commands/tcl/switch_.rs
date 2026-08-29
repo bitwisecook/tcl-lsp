@@ -201,7 +201,7 @@ pub fn spec() -> CommandSpec {
         // OptionSpecs' own `dialects` gates below (-nocase/-matchvar/
         // -indexvar from 8.5, -integer from 9.1) — not a whole-command
         // dialect gate.
-        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::CONTROL_FLOW

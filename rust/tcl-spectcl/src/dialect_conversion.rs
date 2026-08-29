@@ -176,7 +176,7 @@ mod tests {
              }\n",
         );
         assert!(pack.notices.is_empty(), "{:?}", pack.notices);
-        let family = to_dynamic_family(&pack.surface[0], &pack.name, PackEnvironmentTier::User)
+        let family = to_dynamic_family(&pack.dialects[0], &pack.name, PackEnvironmentTier::User)
             .expect("the block converts");
         assert_eq!(family.id.as_str(), "picolpack/picol2");
         assert_eq!(family.releases.len(), 2);
@@ -210,7 +210,7 @@ mod tests {
         );
         assert!(pack.notices.is_empty(), "{:?}", pack.notices);
         assert_eq!(
-            to_dynamic_family(&pack.surface[0], &pack.name, PackEnvironmentTier::User),
+            to_dynamic_family(&pack.dialects[0], &pack.name, PackEnvironmentTier::User),
             Err(ConversionError::NoLadder("axesonly".to_owned()))
         );
     }

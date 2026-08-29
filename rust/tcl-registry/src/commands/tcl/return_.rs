@@ -220,7 +220,7 @@ pub fn spec() -> CommandSpec {
         // *argument shape* narrows further inside an iRules event body
         // (see `FORMS` / `return_context_gate`) — neither of which is a
         // whole-command dialect gate.
-        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD

@@ -104,7 +104,7 @@ pub fn spec() -> CommandSpec {
         // a different ensemble (`array set`, `dict set`, a Tk widget's
         // `pathName set`, iRules' `table set`), never a redefinition of
         // this command.
-        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED

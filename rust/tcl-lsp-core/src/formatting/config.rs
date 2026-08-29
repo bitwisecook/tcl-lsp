@@ -431,6 +431,7 @@ impl FormatterConfig {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::surface;
     use tcl_dialect::model::{SpecSurface};
     use super::{FormatterConfig, LINE_ENDING_AUTO};
     use tcl_dialect::DialectProfile;
@@ -499,7 +500,7 @@ mod tests {
         // A document that must also keep working on an *older* release than
         // its own names a range no profile implies.
         let cfg = FormatterConfig {
-            target_range_override: Some(SpecSurface::TCL86 | SpecSurface::TCL90),
+            target_range_override: Some(surface![SpecSurface::TCL86, SpecSurface::TCL90]),
             ..FormatterConfig::for_profile(
                 tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             )

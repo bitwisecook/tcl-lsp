@@ -474,7 +474,7 @@ fn a_boolean_option_a_release_in_the_range_lacks_is_not_normalised() {
     //     -> bad option "-validate", must be -base, -format, -gmt, -locale
     //        or -timezone
     let src = "clock scan $s -format %Y -validate yes\n";
-    let out = fmt_in_range(src, "tcl9.0", SpecSurface::TCL86 | SpecSurface::TCL90);
+    let out = fmt_in_range(src, "tcl9.0", surface![SpecSurface::TCL86, SpecSurface::TCL90]);
     assert!(out.contains("-validate yes"), "{out}");
     // TP control: with the range confined to the releases that have it, the
     // same value normalises.
@@ -495,7 +495,7 @@ fn a_boolean_option_present_across_the_range_still_normalises() {
     let out = fmt_in_range(
         "clock scan $s -gmt yes\n",
         "tcl9.0",
-        SpecSurface::TCL86 | SpecSurface::TCL90,
+        surface![SpecSurface::TCL86, SpecSurface::TCL90],
     );
     assert!(out.contains("-gmt true"), "{out}");
     for dialect in ["tcl8.5", "tcl8.6", "tcl9.0"] {

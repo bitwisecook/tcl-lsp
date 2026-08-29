@@ -155,7 +155,7 @@ const REGEXP_HOVER: HoverSnippet = HoverSnippet {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "regexp",
-        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::BYTE_COMPILED | Traits::FRAME_HASH_BUILTIN,
         // The post-switch positional floor is 2 (`exp`, `string`) in the
         // general case, but `-about` relaxes it to 1 (`exp` alone) —

@@ -140,41 +140,12 @@ fn surface_json(surface: Option<&'static [SpecSurface]>) -> Json {
     match surface {
         None => Json::Null,
         Some(rows) => {
-            let mut names: Vec<String> = rows.iter().flat_map(row_names).collect();
-            names.sort_unstable();
-            names.dedup();
+            let names = crate::model::surface::dialect_names_for_rows(rows);
             Json::Array(names.into_iter().map(|name| Json::s(&name)).collect())
         }
     }
 }
 
-/// The catalogue dialect names one surface row covers.
-///
-/// The snapshot's vocabulary is dialect ids, not row spellings, because the
-/// committed artefact is read by editors and docs: a core row expands to one
-/// name per ladder release it covers, a package row to the environment that
-/// ships it.
-fn row_names(row: &SpecSurface) -> Vec<String> {
-    match row.provider {
-        SpecProvider::Core(Family::Tcl) => tcl_dialect::TclVersion::ALL
-            .iter()
-            .filter(|release| {
-                surface_admits(
-                    std::slice::from_ref(row),
-                    Some(&SurfaceQuery::core(Family::Tcl, release.version_string())),
-                )
-            })
-            .map(|release| format!("tcl{}", release.version_string()))
-            .collect(),
-        SpecProvider::Core(Family::F5Irules) => vec!["f5-irules".to_owned()],
-        SpecProvider::Core(Family::F5Tcl) => vec!["f5-tcl".to_owned()],
-        SpecProvider::Core(Family::Jim) => vec!["jim".to_owned()],
-        SpecProvider::Package(package) => {
-            crate::model::surface::vendor_surface_environment(package)
-                .map_or_else(|| vec![package.to_owned()], |id| vec![id.to_owned()])
-        }
-    }
-}
 
 /// Whether the subcommand is available under `profile` (own gate wins;
 /// else inherit the parent `CommandSpec.surface`; else available) — the

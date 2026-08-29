@@ -33,7 +33,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "append",
-        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED
             | Traits::READS_BEFORE_WRITE
@@ -57,7 +57,7 @@ pub fn spec() -> CommandSpec {
         // iRules embeds Tcl 8.4.6 and retains append's documented
         // auto-creation behaviour. Its bare availability mask therefore
         // needs an explicit membership bit alongside the ordinary Tcl cores.
-        safe_on_uninit: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
+        safe_on_uninit: Some(SpecSurface::ALL_TCL_AND_IRULES),
         return_type: Some(TclType::String),
         arg_types: &[(
             0,

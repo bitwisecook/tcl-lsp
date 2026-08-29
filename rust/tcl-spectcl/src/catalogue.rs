@@ -973,13 +973,13 @@ mod tests {
     }
 
     #[test]
-    fn dialect_catalogue_round_trips_through_member_names() {
+    fn dialect_catalogue_round_trips_through_its_names() {
         for entry in DIALECTS.iter() {
-            let bit = dialect_surface(entry.key).expect("catalogued dialect has a bit");
+            let rows = dialect_surface(entry.key).expect("catalogued dialect has a surface");
             assert_eq!(
-                bit.member_names(),
-                vec![entry.key],
-                "{} must be a primitive bit whose canonical name matches",
+                tcl_registry::model::surface::dialect_names_for_rows(rows),
+                vec![entry.key.to_owned()],
+                "{} must name exactly itself",
                 entry.key
             );
         }

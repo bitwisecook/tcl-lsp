@@ -54,7 +54,7 @@ pub fn spec() -> CommandSpec {
         // filesystem/process/network access, so every dialect that hosts a
         // real Tcl core (irules, iapps, tmsh, the EDA shells, expect, tk)
         // carries it unmodified.
-        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         // `LANGUAGE_KEYWORD`, like its sibling `throw`: both raise an exception
         // and both are `TERMINATES_BLOCK`. `error` carried neither the trait nor
         // any keyword colouring, so `catch { error boom }` painted `catch` as a

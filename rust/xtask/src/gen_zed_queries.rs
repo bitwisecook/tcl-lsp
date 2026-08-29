@@ -520,7 +520,7 @@ mod tests {
         // Loading the iRules dialect must add the F5 command surface on top of
         // core Tcl — the whole point of dialect scoping.
         let tcl_dialects = SpecSurface::TK_AND_TCL;
-        let irules_dialects = surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)];
+        let irules_dialects = SpecSurface::ALL_TCL_AND_IRULES;
         let tcl = classify(
             registry_for(crate::environment::profile_for_dialect("tcl")),
             crate::environment::context_for_dialect("tcl"),
@@ -566,7 +566,7 @@ mod tests {
             );
         }
 
-        let irules_ops = operator_spellings(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]);
+        let irules_ops = operator_spellings(SpecSurface::ALL_TCL_AND_IRULES);
         for op in [
             "contains",
             "starts_with",

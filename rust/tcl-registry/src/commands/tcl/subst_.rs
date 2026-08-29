@@ -209,7 +209,7 @@ pub fn spec() -> CommandSpec {
         // profile's `version_ceiling`), which is why the 9.1-only positive
         // switches can never resolve under any of those 8.x-pinned
         // embedded cores even though the command itself is universal.
-        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         byte_array_effect: ByteArrayEffect::Coerces,
         traits: Traits::TAINT_SINK | Traits::IS_UNESCAPE | Traits::PERFORMS_SUBSTITUTION,
         // Exactly one trailing `string` is mandatory; 0 or more recognised

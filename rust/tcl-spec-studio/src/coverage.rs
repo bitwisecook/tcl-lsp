@@ -1017,7 +1017,7 @@ pub const OPTION_CONSTRAINT: &[Field] = &[
     f("mode", Surface::Expression("option_relations")),
     f("subject", Surface::Expression("option_relations")),
     f("terms", Surface::Expression("option_relations")),
-    f("dialects", Surface::Expression("option_relations")),
+    f("surface", Surface::Expression("option_relations")),
     f("lifecycle", Surface::Expression("option_relations")),
     f("message", Surface::Expression("option_relations")),
 ];

@@ -29,7 +29,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "join",
-        // `Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)])` is
+        // `Some(SpecSurface::ALL_TCL_AND_IRULES)` is
         // deliberate, not an oversight: `join` is a pure list-manipulation
         // command — none of the filesystem/process/interp surface (`open`,
         // `exec`, `file`, `glob`, `namespace`, …) that iRules bans — so it
@@ -39,7 +39,7 @@ pub fn spec() -> CommandSpec {
         // the irules/, expect/, tk/, itcl/, iapps/, or eda_*/ command packs
         // declares an override or an extra form for it, so it resolves
         // identically everywhere.
-        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         byte_array_effect: ByteArrayEffect::Coerces,
         const_fold: Some(crate::const_fold::fold_join),
         traits: Traits::FRAMELESS_RUNTIME | Traits::PURE | Traits::CSE_CANDIDATE,

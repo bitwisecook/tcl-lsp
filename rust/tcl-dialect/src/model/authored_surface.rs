@@ -154,6 +154,14 @@ impl SpecSurface {
     /// The BIG-IP configuration surface.
     pub const BIGIP: &'static [Self] = &[Self::package("bigip")];
 
+    /// The whole Tcl ladder plus the iRules surface — a core command that
+    /// iRules also enables. The single most common composite in the
+    /// compiled data.
+    pub const ALL_TCL_AND_IRULES: &'static [Self] = &[
+        Self::core_in(Family::Tcl, &W_ALL_TCL),
+        Self::core(Family::F5Irules),
+    ];
+
     /// Tk plus the whole Tcl ladder — a command `wish` has because Tcl has
     /// it, which also exists as a Tk-provided shape.
     pub const TK_AND_TCL: &'static [Self] = &[

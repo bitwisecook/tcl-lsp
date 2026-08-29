@@ -1015,7 +1015,7 @@ fn unwrap_some(text: &str) -> Option<&str> {
 /// The dialect member names behind a rendered `DialectSet` expression.
 ///
 /// [`crate::render_rs::dialect_set`] writes the readable aggregates
-/// (`surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]`); this reads them back so
+/// (`SpecSurface::ALL_TCL_AND_IRULES`); this reads them back so
 /// an option constraint keeps its gate.
 fn dialect_names(expr: &str) -> Option<Vec<&'static str>> {
     const CONSTANTS: &[(&str, &[&str])] = &[
@@ -1040,12 +1040,14 @@ fn dialect_names(expr: &str) -> Option<Vec<&'static str>> {
         ("BIGIP", &["f5-bigip"]),
         ("SPECTCL", &["spectcl"]),
     ];
+    // A row list is `SpecSurface::CONST` or `surface![CONST, CONST…]`.
+    let inner = expr
+        .trim()
+        .strip_prefix("surface![")
+        .and_then(|rest| rest.strip_suffix(']'))
+        .unwrap_or(expr);
     let mut names: Vec<&'static str> = Vec::new();
-    for part in expr
-        .replace(".union(", " ")
-        .replace(')', " ")
-        .split_whitespace()
-    {
+    for part in inner.split(',') {
         let key = part.trim().rsplit("::").next()?;
         let (_, members) = CONSTANTS.iter().find(|(name, _)| *name == key)?;
         for member in *members {
@@ -1352,7 +1354,7 @@ fn option_conflict_rows(expr: &str, availability: bool) -> Option<Vec<Vec<String
             });
         }
         row.push(terms);
-        if let Some(inner) = unwrap_some(fields.get("dialects")?) {
+        if let Some(inner) = unwrap_some(fields.get("surface")?) {
             let members = dialect_names(inner)?;
             if let Some(spelling) = availability.then(|| available_flag(&members)).flatten() {
                 row.push("-available".to_owned());
@@ -3341,9 +3343,8 @@ mod tests {
         const EXPR: &str = "&[OptionRelation { kind: RelationKind::MutuallyExclusive, \
                             subject: None, terms: &[OptionTerm::Option(\"-glob\"), \
                             OptionTerm::Option(\"-regexp\")], \
-                            surface: Some(surface![SpecSurface::core_in(Family::Tcl, \
-                            &[(\"8.4\", Some(\"9.2\"))]), \
-                            SpecSurface::core(Family::F5Irules)]) }]";
+                            surface: Some(surface![SpecSurface::ALL_TCL, \
+                            SpecSurface::IRULES]) }]";
         // Under 2.0 the gate is written in the availability algebra …
         let rows = option_conflict_rows(EXPR, true).expect("the constraint parses");
         assert_eq!(

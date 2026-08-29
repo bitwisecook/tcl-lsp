@@ -1383,7 +1383,7 @@ mod tests {
     fn round_trips_a_real_registry_spec() {
         let spec = CommandSpec {
             name: "lappend",
-            surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
+            surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
             traits: Traits::BYTE_COMPILED | Traits::FIRST_ARG_VARNAME,
             arity: Arity::at_least(1),
             arg_roles: &[(0, ArgRole::VarWrite)],
@@ -1402,7 +1402,7 @@ mod tests {
             "a `|` chain is not const-evaluable inside the hoisted tables:\n{out}"
         );
         assert!(
-            out.contains("surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]"),
+            out.contains("surface![SpecSurface::ALL_TCL, SpecSurface::IRULES]"),
             "dialect aggregates should read like the hand-written specs:\n{out}"
         );
     }

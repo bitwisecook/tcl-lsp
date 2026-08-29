@@ -136,7 +136,7 @@ pub fn spec() -> CommandSpec {
         // own `unsafe_command: true` flags it as a context-escalation risk
         // inside iRules (IRULE2003) — a usage warning about a real,
         // available command, not an availability gate.
-        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD

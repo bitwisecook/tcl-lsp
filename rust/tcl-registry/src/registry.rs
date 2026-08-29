@@ -4875,6 +4875,7 @@ impl std::fmt::Debug for CommandRegistry {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SpecProvider};
     use tcl_dialect::surface;
     use tcl_dialect::model::{SpecSurface, SurfaceQuery, SurfaceLayer, Family};
     use super::CommandRegistry;

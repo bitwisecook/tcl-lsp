@@ -1299,7 +1299,7 @@ pub fn spec() -> CommandSpec {
         // `TCL85`/`TCL86`, Expect at `TCL86`), per the same
         // intersects-only membership rule `tests/dialect_profile.rs`'s
         // `option_gating_honours_the_version_ceiling` documents.
-        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::CREATES_BARRIER | Traits::CREATES_DYNAMIC_BARRIER | Traits::BYTE_COMPILED,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,

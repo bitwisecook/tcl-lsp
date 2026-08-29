@@ -2175,7 +2175,7 @@ mod tests {
             (SpecSurface::TCL85_PLUS, 4),
             (SpecSurface::ALL_TCL, 5),
             (SpecSurface::IRULES, 1),
-            (surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)], 6),
+            (SpecSurface::ALL_TCL_AND_IRULES, 6),
             (SpecSurface::TK_AND_TCL, 6),
             (surface![SpecSurface::package("iapps"), SpecSurface::package("tmsh")], 2),
             (SpecSurface::EXPECT, 1),

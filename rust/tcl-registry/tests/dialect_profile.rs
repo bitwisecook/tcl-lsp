@@ -62,7 +62,7 @@ fn retired_non_irules_operators_union_never_reappears_as_a_gate() {
     // Reconstructed from the non-iRules/Tk/BPF dialect bits that still exist;
     // the 5 EDA vendor bits that were also part of this union were retired by
     // the EDA-as-packages migration (eda-library-packages.md).
-    let retired = SpecSurface::ALL_TCL | SpecSurface::IAPPS | SpecSurface::EXPECT;
+    let retired = surface![SpecSurface::ALL_TCL, SpecSurface::IAPPS, SpecSurface::EXPECT];
     let check = |gate: Option<&'static [SpecSurface]>, what: &str| {
         assert_ne!(
             gate,
@@ -358,7 +358,7 @@ fn bpf_registry_is_stamped_with_its_tcl90_embedding() {
     assert_eq!(registry.profile(), Some(profile));
     assert_eq!(
         profile.surface_query(),
-        SpecSurface::TCL90 | SpecSurface::BPF
+        surface![SpecSurface::TCL90, SpecSurface::BPF]
     );
     assert_eq!(registry.runtime_version(), Some(TclVersion::V9_0));
     assert_eq!(registry.numbers(), NumberSyntax::Tcl90);

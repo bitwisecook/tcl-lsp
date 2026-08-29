@@ -220,7 +220,7 @@ fn scan_int(s: &[u8], mut si: usize, conv: u8) -> Option<(String, usize)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "scan",
-        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::BYTE_COMPILED | Traits::FRAME_HASH_BUILTIN,
         arity: Arity::at_least(2),
         // Documented return is the int conversion count (`scan str fmt

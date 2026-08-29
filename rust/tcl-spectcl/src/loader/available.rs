@@ -263,15 +263,21 @@ fn parse_row(words: &[String], line: u32, log: &mut Log) -> Option<Row> {
 /// `tcl RANGE` / `jim RANGE` — a window on a core family's ladder.
 fn core_row(family: Family, rest: &[String], line: u32, log: &mut Log) -> Option<Row> {
     let window = window_of(VersionAxisId::core(family), rest, line, log)?;
-    // The ladder releases the window covers, as one row per contiguous run
-    // — the same shape a compiled spec writes by hand.
-    let covered: Vec<&str> = family
+    let ladder: Vec<&str> = family
         .releases()
         .iter()
         .map(|release| release.as_str())
-        .filter(|release| {
+        .collect();
+    // The ladder positions the window covers, merged into runs, so a
+    // contiguous span is one window rather than one per release — the same
+    // shape a compiled spec writes by hand.
+    let covered: Vec<usize> = ladder
+        .iter()
+        .enumerate()
+        .filter(|(_, release)| {
             Version::parse(release).is_ok_and(|version| window.contains(&version))
         })
+        .map(|(position, _)| position)
         .collect();
     if covered.is_empty() {
         log.say(
@@ -284,14 +290,41 @@ fn core_row(family: Family, rest: &[String], line: u32, log: &mut Log) -> Option
         );
         return None;
     }
-    let windows: Vec<SpecWindow> = covered
-        .iter()
-        .map(|release| (leak_str(release), None))
-        .collect();
+    let mut windows: Vec<SpecWindow> = Vec::new();
+    let mut run = (covered[0], covered[0]);
+    for &position in &covered[1..] {
+        if position == run.1 + 1 {
+            run.1 = position;
+        } else {
+            windows.push(ladder_window(ladder[run.0], ladder[run.1]));
+            run = (position, position);
+        }
+    }
+    windows.push(ladder_window(ladder[run.0], ladder[run.1]));
     Some(Row {
         surface: vec![SpecSurface::core_in(family, leak_windows(windows))],
         package: None,
     })
+}
+
+/// The half-open window a run of ladder releases spans: from the first
+/// release to just past the last.
+///
+/// "Just past" is the next minor of the run's last release — `8.6` ends at
+/// `8.7`, not at the ladder's next entry `9.0` — so a patch release inside
+/// the line (`8.6.16`) stays covered and a later line does not leak in.
+fn ladder_window(first: &str, last: &str) -> SpecWindow {
+    (leak_str(first), Some(leak_str(&next_minor(last))))
+}
+
+/// `8.6` → `8.7`, `0.84` → `0.85`.
+fn next_minor(release: &str) -> String {
+    match release.rsplit_once('.') {
+        Some((major, minor)) => minor
+            .parse::<u32>()
+            .map_or_else(|_| release.to_owned(), |n| format!("{major}.{}", n + 1)),
+        None => release.to_owned(),
+    }
 }
 
 /// Intern a window list for the process lifetime, for the same reason.

@@ -115,7 +115,7 @@ pub fn spec() -> CommandSpec {
         // tk/, itcl/, and eda_*/ command packs is an unrelated subcommand
         // of a different ensemble (`array unset`, `dict unset`) or a
         // `trace` operation name, never a redefinition of this command.
-        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         // `FIRE_AND_FORGET_TEARDOWN`: `Tcl_UnsetObjCmd` (tclCmdMZ.c) removes the
         // variable and errors ("can't unset …: no such variable") when the
         // target is already gone (absent `-nocomplain`) — the property the

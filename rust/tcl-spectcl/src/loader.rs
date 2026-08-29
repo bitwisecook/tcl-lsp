@@ -6359,6 +6359,8 @@ fn versioned_arg_value_row(
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{SpecProvider, SurfaceQuery, surface_admits, Family};
+    use tcl_dialect::surface;
     use tcl_dialect::model::{SpecSurface};
     use tcl_dialect::BracedVarStyle;
     use tcl_dialect::model::{BuildProfileId, Provenance, Release, WorldPolicy};
@@ -6547,11 +6549,11 @@ mod tests {
         let mut log = Log::default();
         assert_eq!(
             parse_dialects("tcl8.6+", 1, &mut log),
-            Some(SpecSurface::TCL86 | SpecSurface::TCL90 | SpecSurface::TCL91)
+            Some(SpecSurface::TCL86_PLUS)
         );
         assert_eq!(
             parse_dialects("all-tcl f5-irules", 1, &mut log),
-            Some(SpecSurface::ALL_TCL | SpecSurface::IRULES)
+            Some(SpecSurface::ALL_TCL_AND_IRULES)
         );
         assert_eq!(
             parse_dialects("tcl8.x", 1, &mut log),
@@ -7614,24 +7616,37 @@ mod tests {
         );
     }
 
-    /// Jim has no 1.x dialect bit, so a Jim-only window gates the command
-    /// off rather than reading as "available everywhere".
+    /// A Jim-only window names the Jim family directly (Q13): the retired
+    /// bitmask had no Jim bit, so such a row used to gate the command off
+    /// entirely rather than say what it meant (ledger D17-J).
     #[test]
-    fn a_jim_only_window_narrows_to_nothing_rather_than_widening() {
+    fn a_jim_only_window_names_the_jim_family() {
         let pack = evaluate_pack(
             "speclib probe 2.0 {\n command demo {\n arity 1\n \
              available {jim 0.78-}\n }\n}",
         );
-        assert_eq!(
-            pack.command("demo").expect("demo loads").spec.surface,
-            Some(None)
+        let rows = pack
+            .command("demo")
+            .expect("demo loads")
+            .spec
+            .surface
+            .expect("the row list is stated");
+        assert!(
+            rows.iter()
+                .all(|row| row.provider == SpecProvider::Core(Family::Jim)),
+            "{rows:?}"
         );
         assert!(
-            pack.notices
-                .iter()
-                .any(|n| n.message.contains("no SpecTcl 1.x dialect bit")),
-            "{:?}",
-            pack.notices
+            surface_admits(rows, Some(&SurfaceQuery::core(Family::Jim, "0.82"))),
+            "{rows:?}"
+        );
+        assert!(
+            !surface_admits(rows, Some(&SurfaceQuery::core(Family::Jim, "0.76"))),
+            "{rows:?}"
+        );
+        assert!(
+            !surface_admits(rows, Some(&SurfaceQuery::core(Family::Tcl, "8.6"))),
+            "{rows:?}"
         );
     }
 
@@ -8134,7 +8149,7 @@ mod tests {
              axis bom_skip on\n }\n command demo { arity 1 }\n}",
         );
         assert!(pack.notices.is_empty(), "{:?}", pack.notices);
-        let dialect = &pack.surface[0];
+        let dialect = &pack.dialects[0];
         assert_eq!(dialect.name, "picol2");
         assert_eq!(dialect.releases.len(), 2);
         assert_eq!(dialect.releases[1].build, BuildProfileId::Unknown);
@@ -8161,7 +8176,7 @@ mod tests {
                 "speclib probe 2.0 {{\n dialect probe-dialect {{\n {body}\n }}\n \
                  command demo {{ arity 1 }}\n}}"
             ));
-            assert!(pack.surface.is_empty(), "{body}: {:?}", pack.surface);
+            assert!(pack.dialects.is_empty(), "{body}: {:?}", pack.dialects);
             assert!(pack.command("demo").is_some(), "{body}: the rest loads");
             assert!(
                 pack.notices.iter().any(|n| n.message.contains(needle)),
@@ -8183,7 +8198,7 @@ mod tests {
              axis expr_comments none\n axis bom_skip off\n \
              axis irules_brace_separator off\n }\n command demo { arity 1 }\n}",
         );
-        assert!(pack.surface.is_empty(), "{:?}", pack.surface);
+        assert!(pack.dialects.is_empty(), "{:?}", pack.dialects);
         assert!(
             pack.notices.iter().any(|n| {
                 n.message.contains("declares the grammar of tcl 8.6")

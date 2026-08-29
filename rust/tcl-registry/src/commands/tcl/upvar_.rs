@@ -148,7 +148,7 @@ pub fn spec() -> CommandSpec {
         // pack (irules/, iapps/, itcl/, tk/, expect/, the eda_*/ vendor
         // directories) defines its own "upvar" spec to add or restrict a
         // form.
-        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED

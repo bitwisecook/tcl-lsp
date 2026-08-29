@@ -125,7 +125,7 @@ pub fn spec() -> CommandSpec {
             .union(Traits::FIRST_ARG_VARNAME)
             .union(Traits::BYTE_COMPILED)
             .union(Traits::NOT_PROC_FACTORY),
-        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)]),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         arity: Arity::at_least(2),
         arg_roles: &[(0, ArgRole::VarWrite)],
         assigns_variable_at: Some(0),

@@ -206,6 +206,41 @@ pub fn vendor_surface_package(environment_id: &str) -> Option<&'static str> {
         .map(|&(_, package)| package)
 }
 
+/// The catalogue dialect names a surface row list covers.
+///
+/// The one projection from rows back onto the catalogue's own dialect ids,
+/// shared by every consumer that names dialects rather than rows (the
+/// command snapshot, the spec studio's drafts). A core row expands to one
+/// name per ladder release it covers; a package row names the environment
+/// that ships it.
+#[must_use]
+pub fn dialect_names_for_rows(rows: &[SpecSurface]) -> Vec<String> {
+    let mut names: Vec<String> = rows.iter().flat_map(row_dialect_names).collect();
+    names.sort_unstable();
+    names.dedup();
+    names
+}
+
+fn row_dialect_names(row: &SpecSurface) -> Vec<String> {
+    match row.provider {
+        SpecProvider::Core(Family::Tcl) => tcl_dialect::TclVersion::ALL
+            .iter()
+            .filter(|release| {
+                surface_admits(
+                    std::slice::from_ref(row),
+                    Some(&SurfaceQuery::core(Family::Tcl, release.version_string())),
+                )
+            })
+            .map(|release| format!("tcl{}", release.version_string()))
+            .collect(),
+        SpecProvider::Core(Family::F5Irules) => vec!["f5-irules".to_owned()],
+        SpecProvider::Core(Family::F5Tcl) => vec!["f5-tcl".to_owned()],
+        SpecProvider::Core(Family::Jim) => vec!["jim".to_owned()],
+        SpecProvider::Package(package) => vendor_surface_environment(package)
+            .map_or_else(|| vec![package.to_owned()], |id| vec![id.to_owned()]),
+    }
+}
+
 /// Whether two points answer every availability question alike.
 ///
 /// The context's authoring point carries the *measured* release where the
@@ -605,7 +640,7 @@ mod tests {
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].provider, Provider::Core(Family::F5Irules));
         // The iRules-enabled Tcl core carries both families.
-        let both = declarations_for_spec(&spec_with(Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("9.2"))]), SpecSurface::core(Family::F5Irules)])));
+        let both = declarations_for_spec(&spec_with(Some(SpecSurface::ALL_TCL_AND_IRULES)));
         assert_eq!(both.len(), 2);
         assert!(
             both.iter()

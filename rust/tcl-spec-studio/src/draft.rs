@@ -139,15 +139,12 @@ fn opt_index(value: Option<u8>) -> Value {
 fn dialects(value: Option<&'static [SpecSurface]>) -> Value {
     match value {
         None => Value::Null,
-        // The draft's own vocabulary is catalogue dialect names, so the rows
-        // are projected back onto the profiles they admit.
+        // The draft's vocabulary is catalogue dialect names; the registry
+        // owns the one projection from rows onto them.
         Some(rows) => Value::Array(
-            tcl_dialect::DialectProfile::all()
-                .iter()
-                .filter(|profile| {
-                    tcl_dialect::model::surface_admits(rows, Some(&profile.surface_query()))
-                })
-                .map(|profile| json!(profile.name))
+            tcl_registry::model::surface::dialect_names_for_rows(rows)
+                .into_iter()
+                .map(|name| json!(name))
                 .collect(),
         ),
     }
