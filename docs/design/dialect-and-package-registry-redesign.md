@@ -206,6 +206,54 @@ covers **one build and four contexts**, and its own test says so — the
 the two APL contexts remain empty, and the two APL contexts resolve
 `Unknown` through both evidence doors.
 
+## 0.3 Closing adversarial review (2026-08-29)
+
+The programme's last pass asked three questions of the shipped tree rather
+than of the design, and each is now a gate rather than a claim.
+
+**Is the model centralised?** One duplicate survived every earlier sweep:
+`profile_queries::package_available` computed its own closed-world package
+set from `DialectProfile::libraries`, while `ResolvedContext` asked
+`is_closed_world_package`, computed from the environments' placements. Two
+sets, one question — and the two disagreed about `Tk`, which the profile
+side happened not to notice because its set was built from a catalogue that
+had not yet placed Tk ambient. The profile-side gate now reads the same
+predicate; `retired-api-gate` owns both closed-world spellings to
+`tcl-registry`'s surface model, so a third set cannot quietly appear. The
+parity sweeps (`per_spec_visibility_matches_the_old_model_for_every_profile`,
+`spec_queries_reproduce_profile_queries_for_every_profile`) are what caught
+the disagreement and now pin the unification.
+
+**Is a `SpecTcl` pack really a Tcl script?** Our own parser is not a
+credible witness, so a real `tclsh9.0` is the arbiter
+(`rust/tcl-spectcl/tests/pack_is_real_tcl.rs`): every shipped pack is
+sourced by a stock interpreter that knows nothing about `SpecTcl`, with the
+vocabulary absorbed by `unknown` and the three words the loader really does
+evaluate as a script — `speclib`, `command`, `subcommand` — recursing into
+their brace group, so nested blocks are parsed rather than skipped over as
+opaque words. Only parse failures count: a body raises ordinary runtime
+errors here (a hook reads `ctx`, which does not exist), and Tcl distinguishes
+the two by leaving `::errorCode` as `NONE` for what it could not parse. The
+gate was mutation-tested — an unbalanced `[` inside one `command` body fails
+it, and the same defect passes a driver that only reads the outer braces.
+
+This is also the honest statement of *how much* of a pack is a program: the
+three structural words evaluate their bodies, every row word's body is
+captured verbatim and replayed through the vocabulary readers. A pack is a
+Tcl program whose leaves are data.
+
+**Does the VM execute them?** `every_shipped_pack_loads_identically_with_and_without_the_static_fast_path`
+loads every bundled pack twice — once captured from its parse tree, once
+executed statement by statement by `tcl-vm` — and requires byte-identical
+`command_entry_json` per declared command through a real registry.
+`every_shipped_pack_upgrades_to_2_0_and_loads_identically` does the same for
+the `tcl spec upgrade` rewrite, so the 2.0 vocabulary is proved on both
+routes rather than only on the shortcut. The interpreter route is slow, not
+absent: §"Measured: what the 2.0 vocabulary costs" in
+[`spec-packs.md`](spec-packs.md) puts the whole corpus at 3.5 s through the
+VM against 0.29 s captured, which is what makes the fast path an
+optimisation worth gating rather than a second reading of the file.
+
 ## 1. Evidence base
 
 The research establishing current state (agent sweeps over the workspace,

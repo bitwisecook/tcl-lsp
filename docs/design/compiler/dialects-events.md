@@ -230,7 +230,7 @@ and only an explicitly stricter dialect policy can request IRULE1004.
 
 ## Related docs
 
-- [Command infrastructure — Dialects](../../../docs/design/example-script-walkthroughs.md#dialects)
+- [Command infrastructure — Availability](../../../docs/design/example-script-walkthroughs.md#availability)
 - [Command infrastructure — Events](../../../docs/design/example-script-walkthroughs.md#events-irules-only)
 - [kcs-command-registry.md](../../../docs/design/compiler/command-registry.md)
 - [kcs-connection-scope.md](../../../docs/design/compiler/connection-scope.md)

@@ -25,25 +25,55 @@
 //! or `[` our segmenter happens to tolerate — the claim would be false and
 //! our own agreement with ourselves would not notice.
 //!
-//! So: hand every shipped pack to `tclsh9.0` with the vocabulary swallowed by
-//! `unknown`, and require it to source cleanly. What survives is a parse
-//! judgement from an interpreter that knows nothing about SpecTcl.
+//! So: hand every shipped pack to `tclsh9.0` and require it to source
+//! cleanly. `unknown` swallows every vocabulary word, and the three words
+//! whose trailing brace group the loader really does evaluate as a script
+//! (`speclib`, `command`, `subcommand` — a row word's body is captured
+//! verbatim and replayed, never executed) recurse into it, so a real
+//! interpreter parses every nested block rather than stopping at the outer
+//! braces.
+//!
+//! A body evaluated this way raises ordinary runtime errors — a hook body
+//! reads `ctx`, which does not exist here — so only a *parse* failure counts.
+//! Tcl leaves `::errorCode` as `NONE` for those and sets a `TCL …` code for
+//! everything it managed to parse and then could not run.
 
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-/// `unknown` swallows every vocabulary word, so the only thing left that can
-/// fail is Tcl's own reading of the file.
+/// Absorb the vocabulary, recurse into the bodies the loader executes, and
+/// report only what Tcl could not parse.
 const DRIVER: &str = r#"
 proc unknown {args} { return "" }
+
 set failures {}
-foreach path $argv {
-    if {[catch {uplevel #0 [list source $path]} err]} {
-        lappend failures "$path: $err"
+
+# Evaluate one block body. A body raises ordinary runtime errors here — a
+# hook reads `ctx`, which does not exist — and Tcl sets a `TCL …` errorCode
+# for anything it parsed before failing, so `NONE` isolates the parse errors.
+proc block {body} {
+    if {![catch {uplevel #0 $body} err]} { return }
+    if {$::errorCode ne "NONE"} { return }
+    lappend ::failures $err
+}
+
+# The three words whose trailing brace group the loader evaluates as a
+# script; every other word's body is captured verbatim and replayed.
+foreach word {speclib command subcommand} {
+    proc $word {args} {
+        if {[llength $args]} { block [lindex $args end] }
+        return ""
     }
 }
-puts [join $failures "\n"]
+
+foreach path $argv {
+    set failures {}
+    if {[catch {uplevel #0 [list source $path]} err] && $::errorCode eq "NONE"} {
+        lappend failures $err
+    }
+    foreach failure $failures { puts "$path: $failure" }
+}
 "#;
 
 fn repo_root() -> PathBuf {
