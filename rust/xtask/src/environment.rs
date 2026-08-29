@@ -38,7 +38,7 @@
 //! [`unit_profile`]: tcl_registry::model::DocumentEnvironment::unit_profile
 
 use tcl_dialect::model::{SurfaceQuery};
-use tcl_dialect::{DialectProfile, DialectSet};
+use tcl_dialect::{DialectProfile};
 use tcl_registry::CommandRegistry;
 use tcl_registry::model::ResolvedContext;
 

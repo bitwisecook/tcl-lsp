@@ -1762,7 +1762,6 @@ mod tests {
     use tcl_dialect::model::{SurfaceQuery, Family};
     use tcl_dialect::model::{SpecSurface};
     use super::fold_is;
-    use crate::dialects::DialectSet;
     use crate::hooks::TclVersion;
     use crate::{CommandRegistry, DispatchDependencies, DispatchDependencyDomain};
 

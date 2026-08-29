@@ -23,7 +23,6 @@
 //! `test` / `configure`.
 
 use tcl_dialect::model::{SurfaceQuery, Family};
-use tcl_dialect::DialectSet;
 use tcl_registry::CommandRegistry;
 use tcl_dialect::model::{SpecSurface};
 

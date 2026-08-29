@@ -22,7 +22,6 @@ use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use tcl_registry::{
     AppendedArity, ArgRole, CallbackTaintInput, CommandSpec, ScriptTiming, SubCommand, Traits,
-    dialects::DialectSet,
     hover::{OptionSpec, OptionValue},
     lifecycle::Lifecycle,
 };

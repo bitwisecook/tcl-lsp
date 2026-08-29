@@ -220,7 +220,6 @@ mod tests {
     use tcl_dialect::model::{SurfaceQuery, Family};
     use tcl_dialect::model::{SpecSurface};
     use super::*;
-use crate::dialects::DialectSet;
 
     fn classify(cmd: &str) -> Option<PrivateTclNamespaceCall> {
         let registry = crate::model::ingress::static_context_for("tcl9.0").commands();

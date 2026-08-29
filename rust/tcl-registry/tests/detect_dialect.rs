@@ -264,10 +264,10 @@ fn the_speclib_directive_is_a_content_signature() {
 /// to its own bit, and round-trips through the canonical-name inverse.
 #[test]
 fn spectcl_is_a_catalogued_dialect() {
-    use tcl_dialect::{DialectSet, KNOWN_DIALECTS};
+    use tcl_dialect::{KNOWN_DIALECTS};
 
     assert!(KNOWN_DIALECTS.contains(&"spectcl"));
-    assert_eq!(DialectSet::parse("spectcl"), Some(SpecSurface::SPECTCL));
+    assert_eq!(tcl_dialect::DialectProfile::find("spectcl").map(tcl_dialect::DialectProfile::surface_query), Some(SpecSurface::SPECTCL));
     assert_eq!(SpecSurface::SPECTCL.canonical_name(), Some("spectcl"));
     let profile = tcl_registry::model::ingress::resolve_environment("spectcl").analyser_profile();
     assert_eq!(profile.name, "spectcl");

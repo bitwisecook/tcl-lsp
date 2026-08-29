@@ -155,7 +155,6 @@ fn leak_slice<T>(v: Vec<T>) -> &'static [T] {
 mod tests {
     use tcl_dialect::model::{SpecSurface};
     use super::specs;
-    use crate::prelude::DialectSet;
 
     /// Issue #1035, mathfunc half — see `mathop_generated`'s twin for the full
     /// rationale.  `specs()` leaks `&'static` strings, so it must memoise:

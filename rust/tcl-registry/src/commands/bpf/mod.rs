@@ -103,7 +103,6 @@ pub fn bpf_command_specs() -> Vec<CommandSpec> {
 mod tests {
     use tcl_dialect::model::{SpecSurface};
     use super::*;
-    use crate::dialects::DialectSet;
 
     #[test]
     fn all_bpf_commands_present_and_tagged() {

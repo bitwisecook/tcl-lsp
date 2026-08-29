@@ -2672,7 +2672,7 @@ fn abbreviated_subcommand(
     subcommand_name: &str,
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> String {
-    if !tcl_registry::prelude::DialectSet::has_fixed_ensembles(Some(dialect.name)) {
+    if !tcl_dialect::DialectProfile::name_has_fixed_ensembles(Some(dialect.name)) {
         return subcommand_name.to_owned();
     }
     subcommand_abbreviation(command_name, subcommand_name)

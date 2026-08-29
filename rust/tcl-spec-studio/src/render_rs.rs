@@ -207,7 +207,7 @@ pub(crate) fn dialect_set(values: &[Value]) -> String {
     }
 }
 
-/// The `DialectSet` constant for a canonical dialect name, or `None` when the
+/// The surface constant for a canonical dialect name, or `None` when the
 /// name is not one the registry knows.
 fn dialect_constant(name: &str) -> Option<&'static str> {
     Some(match name {
@@ -911,7 +911,7 @@ fn enum_type_name(catalogue: &str) -> &'static str {
         "analyserHook" => "AnalyserHookId",
         "traits" => "Traits",
         "taintColour" => "TaintColour",
-        "dialects" => "DialectSet",
+        "dialects" => "&'static [SpecSurface]",
         "defaultFormFirstWord" => "DefaultFormFirstWord",
         "prefixMatching" => "PrefixMatching",
         "optionPlacement" => "OptionPlacement",
@@ -1558,7 +1558,7 @@ mod tests {
         for entry in crate::catalogue::DIALECTS.iter() {
             assert!(
                 dialect_constant(entry.key).is_some(),
-                "no DialectSet constant for the catalogued dialect {}",
+                "no SpecSurface constant for the catalogued dialect {}",
                 entry.key
             );
         }

@@ -378,7 +378,6 @@ mod tests {
     use tcl_dialect::model::{SpecSurface};
     use super::oo_define_arg_roles;
     use crate::arg_role::ArgRole;
-    use crate::dialects::DialectSet;
     use crate::{
         CallbackKinds, CommandRegistry, ObjectDispatchLayer, ObjectDispatchTransition, Reentrancy,
         StateTransition, StateTransitionCommit, WorldStateDomain,

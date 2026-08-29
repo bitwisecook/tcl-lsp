@@ -898,7 +898,6 @@ mod tests {
     use tcl_dialect::model::{SpecSurface};
     use super::*;
     use crate::InvocationArguments;
-    use crate::dialects::DialectSet;
     use crate::world_effect::{
         CallbackKinds, EffectAccess, EffectAccessMode, EffectFootprint, StaticEffectAccess,
         StaticEffectFootprint, StaticInterpreterScope, StaticNamespaceScope, StaticSubjectScope,

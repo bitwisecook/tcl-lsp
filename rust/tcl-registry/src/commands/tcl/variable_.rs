@@ -75,7 +75,7 @@ const FORMS: &[FormSpec] = &[
     // core-8-4-20/core-8-5-19 (guard present), and empirically against
     // tclsh 8.6.14 (`catch {variable}` -> 0). Expect, Synopsys, and
     // Cadence embed that 8.6-based Tcl core
-    // (`DialectSet::expr_grammar_base_version`), so they follow this pair
+    // (`DialectProfile::expr_grammar_base`), so they follow this pair
     // of forms too.
     FormSpec {
         synopsis: "variable name",
@@ -93,7 +93,7 @@ const FORMS: &[FormSpec] = &[
     // those versions' manpage SYNOPSIS, one combined `variable ?name
     // value...? name ?value?` line). iRules, iApps, tmsh, and the
     // Xilinx/Quartus/Mentor EDA shells embed an 8.4- or 8.5-based Tcl core
-    // (`DialectSet::expr_grammar_base_version`), so they inherit the same
+    // (`DialectProfile::expr_grammar_base`), so they inherit the same
     // requirement.
     FormSpec {
         synopsis: "variable ?name value...? name ?value?",

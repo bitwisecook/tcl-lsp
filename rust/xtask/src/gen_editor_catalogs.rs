@@ -23,7 +23,6 @@ use std::process::ExitCode;
 
 use anyhow::{Context, Result};
 use serde::Serialize;
-use tcl_dialect::DialectSet;
 use tcl_registry::CommandRegistry;
 use tcl_registry::events::EventRegistry;
 use tcl_registry::traits::Traits;

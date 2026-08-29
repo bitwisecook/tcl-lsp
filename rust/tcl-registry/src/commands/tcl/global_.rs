@@ -72,7 +72,7 @@ const FORMS: &[FormSpec] = &[
     // — the manpage's own SYNOPSIS changed from `global varname ?varname
     // ...?` to `global ?varname ...?` at that same boundary (8.6 TclCmd
     // manpage vs. 8.4/8.5). Expect, Synopsys, and Cadence embed an
-    // 8.6-based Tcl core (`DialectSet::expr_grammar_base_version`), so
+    // 8.6-based Tcl core (`DialectProfile::expr_grammar_base`), so
     // they follow this form too.
     FormSpec {
         synopsis: "global ?varname ...?",
@@ -84,7 +84,7 @@ const FORMS: &[FormSpec] = &[
     // so a bare `global` is a hard "wrong # args" error there (matching
     // those versions' manpage SYNOPSIS, `global varname ?varname ...?`).
     // iRules, iApps, tmsh, and the Xilinx/Quartus/Mentor EDA shells embed
-    // an 8.4- or 8.5-based Tcl core (`DialectSet::expr_grammar_base_version`),
+    // an 8.4- or 8.5-based Tcl core (`DialectProfile::expr_grammar_base`),
     // so they inherit the same requirement.
     FormSpec {
         synopsis: "global varname ?varname ...?",

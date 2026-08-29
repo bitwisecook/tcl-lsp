@@ -30,8 +30,6 @@
 //! `.tclspec` loadables under `specs/` (`docs/design/spec-packs.md`).
 
 use std::fmt::Write as _;
-
-use tcl_dialect::DialectSet;
 use tcl_registry::commands;
 use tcl_registry::events::EventRegistry;
 use tcl_registry::profiles::ProfileRegistry;

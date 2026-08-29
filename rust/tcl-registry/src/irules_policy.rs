@@ -137,7 +137,6 @@ pub fn irules_disabled_class(command: &str) -> Option<IrulesDisabledClass> {
 mod tests {
     use tcl_dialect::model::{Family, SpecSurface, SurfaceQuery, surface_admits};
     use super::*;
-    use tcl_dialect::DialectSet;
 
     /// The §4b split is exact: 16 + 15 disjoint commands, together the
     /// §5 31-command disabled list.

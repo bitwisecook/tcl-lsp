@@ -46,7 +46,7 @@ use std::fs;
 use std::process::ExitCode;
 
 use anyhow::{Context, Result};
-use tcl_dialect::{DialectProfile, DialectSet};
+use tcl_dialect::{DialectProfile};
 use tcl_registry::CommandRegistry;
 use tcl_registry::model::ResolvedContext;
 use tcl_registry::traits::Traits;

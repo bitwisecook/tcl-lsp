@@ -92,7 +92,7 @@ use tcl_lsp_core::formatting::{FormatterConfig, format_tcl};
 /// Dialects the studio offers, as `(registry name, label)`, in catalogue order.
 ///
 /// These are the profile names [`environment::store_for_dialect`] resolves, not the
-/// primitive `DialectSet` bits — a profile is what decides which commands are
+/// primitive surface rows — a profile is what decides which commands are
 /// actually visible. `tk` is therefore not here: it is a library pin rather
 /// than a profile, so it resolves to the permissive fallback, and the Tk
 /// commands are already browsable under every Tcl-version profile.

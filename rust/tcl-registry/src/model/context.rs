@@ -1640,7 +1640,6 @@ mod tests {
     use super::*;
     use crate::model::surface::declarations_for_spec;
     use crate::spec::CommandSpec;
-    use tcl_dialect::DialectSet;
     use tcl_dialect::model::EnvironmentRegistry;
 
     fn context(environment: &str) -> ResolvedContext {

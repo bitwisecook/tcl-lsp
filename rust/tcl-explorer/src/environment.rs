@@ -88,7 +88,7 @@ pub fn analyser_profile_for_dialect(name: &str) -> &'static DialectProfile {
 /// that seam helper answers `Some(&PLAIN_TCL)` for the literal name `"tcl"`
 /// (a registered environment id, for the editor-identity and lenient-sink
 /// roles), where the retired `DialectProfile::resolve_known("tcl")` —
-/// `find("tcl").or_else(|| DialectSet::parse("tcl")…)`, and `"tcl"` is
+/// `find("tcl").or_else(|| tcl_dialect::DialectProfile::find("tcl").map(tcl_dialect::DialectProfile::surface_query)…)`, and `"tcl"` is
 /// neither a catalog profile name nor a `DialectSet::parse` spelling —
 /// answered `None`. Composed from [`catalogue_profile_for_dialect`] (the
 /// exact `find` twin) plus the one `DialectSet::parse` promotion the old

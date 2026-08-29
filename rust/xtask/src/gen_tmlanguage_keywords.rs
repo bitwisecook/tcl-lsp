@@ -128,7 +128,7 @@ use std::fs;
 use std::process::ExitCode;
 
 use anyhow::{Context, Result, bail};
-use tcl_dialect::{DialectSet, EscapeSyntax, NumberSyntax};
+use tcl_dialect::{EscapeSyntax, NumberSyntax};
 use tcl_registry::CommandRegistry;
 use tcl_registry::traits::{CLAUSE_KEYWORDS_WITHOUT_COMMAND_SPEC, Traits};
 use tcl_syntax::naming::textmate_variable_name_body;

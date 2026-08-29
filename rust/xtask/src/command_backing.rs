@@ -482,7 +482,6 @@ enum Status {
 /// elsewhere for "is this gate compatible with dialect X or later"
 /// (`tcl-registry`'s `registry.rs`/`profile_queries.rs`).
 fn core_commands() -> BTreeSet<String> {
-    use tcl_dialect::DialectSet;
     tcl_registry::commands::tcl::tcl_command_specs()
         .iter()
         .filter(|s| s.required_package.is_none())

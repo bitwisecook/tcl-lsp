@@ -157,7 +157,7 @@ pub struct OperatorSpec {
     pub spelling: &'static str,
     /// The dialect(s) this operator is gated to, or `None` when it's
     /// available in every dialect since the expr grammar's own base version
-    /// (queried separately via `DialectSet::expr_grammar_base_version`).
+    /// (queried separately via `DialectProfile::expr_grammar_base`).
     pub surface: Option<&'static [SpecSurface]>,
     /// The `::tcl::mathop::*` command shape this operator shares, or `None`
     /// when the operator has no mathop command form at all (`&&`, `||`,

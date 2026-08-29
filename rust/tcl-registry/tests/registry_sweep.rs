@@ -55,8 +55,6 @@
 
 use tcl_dialect::model::{Family};
 use std::collections::BTreeSet;
-
-use tcl_dialect::DialectSet;
 use tcl_registry::arity::{Arity, ArityWindow};
 use tcl_registry::bigip::{BigipRegistry, ValueKind, default_registry};
 use tcl_registry::events::EventRegistry;
@@ -620,7 +618,7 @@ fn sweep_every_command_every_accessor() {
 
     for &dname in LOADABLE_DIALECTS {
         let reg = registry_for_dialect(dname);
-        let ds = DialectSet::parse(dname);
+        let ds = tcl_dialect::DialectProfile::find(dname).map(tcl_dialect::DialectProfile::surface_query);
         assert!(!reg.is_empty(), "{dname}: empty registry");
         dialects_seen += 1;
 
@@ -1662,7 +1660,7 @@ fn sweep_dialect_catalogue() {
         assert!(reg.get("set").is_some(), "{d}: missing core `set`");
         // The name either parses to a DialectSet bit, or is a config-only name
         // that collapses to plain Tcl (still a usable registry).
-        let _ = DialectSet::parse(d);
+        let _ = tcl_dialect::DialectProfile::find(d).map(tcl_dialect::DialectProfile::surface_query);
     }
     // An unparseable dialect collapses to a plain-Tcl registry.
     let junk = registry_for_dialect("definitely-not-a-dialect");

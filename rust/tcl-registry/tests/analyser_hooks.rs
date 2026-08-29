@@ -26,8 +26,6 @@
 //! changing alongside it.
 
 use std::collections::BTreeSet;
-
-use tcl_dialect::DialectSet;
 use tcl_registry::hooks::AnalyserHookId;
 use tcl_registry::{CommandRegistry, Traits};
 use tcl_dialect::model::Family;
@@ -67,7 +65,7 @@ fn bundled_packs() -> tcl_spectcl::PackSet {
 fn full_registry() -> CommandRegistry {
     let mut reg = CommandRegistry::build_default();
     for name in LOADABLE_DIALECTS {
-        let dialect = DialectSet::parse(name).expect("a compiled-in dialect name");
+        let dialect = tcl_dialect::DialectProfile::find(name).map(tcl_dialect::DialectProfile::surface_query).expect("a compiled-in dialect name");
         reg.load_surface(dialect);
     }
     let packs = bundled_packs();

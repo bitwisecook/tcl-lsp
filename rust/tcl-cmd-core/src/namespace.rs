@@ -227,7 +227,7 @@ pub fn variable_fqn_bytes<O: Namespaces + ?Sized>(
     // absolute name has no alternate in any release: it already names the
     // global-rooted namespace.
     let alternate = match qualifier(name) {
-        _ if !tcl_dialect::DialectSet::namespace_var_global_fallback(profile.name) => None,
+        _ if !profile.namespace_var_global_fallback() => None,
         Qualifier::Absolute(_) => None,
         Qualifier::Unqualified => ops.find_namespace_bytes(cur, b"::"),
         Qualifier::Relative(prefix) => {

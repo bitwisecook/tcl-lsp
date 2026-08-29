@@ -410,7 +410,7 @@ mod tests {
     use tcl_dialect::model::{SurfaceQuery, Family};
     use super::*;
     use crate::ir::Term;
-    use tcl_dialect::{DialectSet, NumberSyntax, TclVersion};
+    use tcl_dialect::{NumberSyntax, TclVersion};
     use tcl_syntax::number::{runtime_syntax, set_runtime_syntax};
 
     /// Regression and mutation proof for #1466: loading the BPF command pack

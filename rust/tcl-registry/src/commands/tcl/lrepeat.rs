@@ -72,7 +72,7 @@
 // irules/iapps/tk/expect/eda*/itcl spec file names `lrepeat` (grepped
 // every sibling dialect directory under commands/). iRules' own
 // runtime is a genuine embedded Tcl 8.4.6
-// (`DialectSet::expr_grammar_base_version`), which predates TIP 136,
+// (`DialectProfile::expr_grammar_base`), which predates TIP 136,
 // so `lrepeat` is correctly unreachable there simply because the
 // `IRULES` bit is absent from `TCL85_PLUS` — no extra dialect
 // restriction is needed on top of the version gate already in place.

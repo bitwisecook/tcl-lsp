@@ -247,7 +247,7 @@ mod tests {
     }
 
     /// **The D1 re-key equivalence sweep** (ledger C1). The retired semantic
-    /// key was `DialectSet::parse(profile.name)` — the *exact* bit a profile's
+    /// key was `tcl_dialect::DialectProfile::find(profile.name).map(tcl_dialect::DialectProfile::surface_query)` — the *exact* bit a profile's
     /// canonical name parses to, not the wider set of releases that dialect
     /// can reach. This pins what changed when the executable-IR path moved
     /// onto the resolved context, over every command name in every catalogue

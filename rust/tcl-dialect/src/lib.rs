@@ -51,7 +51,7 @@ pub mod model;
 mod profile;
 mod version;
 
-pub use dialect_set::{DialectSet, KNOWN_DIALECTS, available_dialects};
+pub use dialect_set::{KNOWN_DIALECTS, available_dialects};
 pub use expr_number::{
     ExprNumberLexeme, NanPayloadLexeme, expr_binary_word_operator_at,
     expr_word_operator_boundary_ok, expr_word_operator_right_boundary_ok, is_expr_bareword_byte,

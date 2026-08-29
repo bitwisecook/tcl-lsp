@@ -384,7 +384,7 @@ pub fn spec() -> CommandSpec {
 mod tests {
     use tcl_dialect::model::{SurfaceQuery, Family};
     use tcl_dialect::model::{SpecSurface};
-    use crate::{CommandRegistry, dialects::DialectSet};
+    use crate::{CommandRegistry};
 
     #[test]
     fn vsatisfies_arity_is_dialect_aware() {

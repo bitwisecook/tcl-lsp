@@ -29,7 +29,7 @@
 //! source text and therefore need `tcl_lexer` — they sit above the lexer,
 //! unlike the vocabulary itself.
 
-pub use tcl_dialect::{DialectSet, KNOWN_DIALECTS, available_dialects};
+pub use tcl_dialect::{KNOWN_DIALECTS, available_dialects};
 
 /// Number of leading lines scanned for a `# tcl-dialect:` directive.
 pub const DIALECT_DIRECTIVE_SCAN_LINES: usize = 5;

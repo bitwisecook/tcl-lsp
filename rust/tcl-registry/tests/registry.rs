@@ -23,8 +23,6 @@
 //! C-Tcl proof: the core command set is exactly what tclsh reports via
 //! `info commands` — the names below were taken from `info commands {[a-z]*}`
 //! on tclsh9.0 (and all exist on tclsh8.6 too).
-
-use tcl_dialect::DialectSet;
 use tcl_registry::model::ingress::static_context_for;
 use tcl_registry::{CommandRegistry, TclType, Traits, VarWriteTyping};
 

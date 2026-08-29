@@ -142,7 +142,6 @@ pub mod prelude {
         MemberSpec, MemberVisibility, RetractionWords,
     };
     pub use crate::deprecation::{DeprecationFixHook, DeprecationFixSafety};
-    pub use crate::dialects::DialectSet;
     pub use crate::dispatch_stability::{
         DispatchDependencies, DispatchDependencyComposition, DispatchDependencyDescriptor,
         DispatchDependencyDomain,

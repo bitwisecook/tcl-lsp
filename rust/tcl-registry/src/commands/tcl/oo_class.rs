@@ -295,7 +295,6 @@ pub fn spec() -> CommandSpec {
 mod tests {
     use tcl_dialect::model::{SurfaceQuery, Family};
     use tcl_dialect::model::{SpecSurface};
-    use crate::dialects::DialectSet;
     use crate::{
         CallbackKinds, CommandBindingTransition, CommandRegistry, ObjectDispatchKind,
         ObjectDispatchTarget, ObjectDispatchTransition, ObjectPrivateNamespace, StateTransition,

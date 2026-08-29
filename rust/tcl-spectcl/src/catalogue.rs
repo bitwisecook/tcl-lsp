@@ -390,7 +390,7 @@ pub static TAINT_COLOURS: LazyLock<Vec<Variant>> = LazyLock::new(|| {
         .collect()
 });
 
-/// Canonical dialect name ↔ primitive [`DialectSet`] bit — the vocabulary
+/// Canonical dialect name ↔ its surface rows — the vocabulary
 /// [`DIALECTS`] and [`dialect_surface`] both read.
 ///
 /// The names are the catalogue's own dialect ids, so a draft round-trips
@@ -418,7 +418,7 @@ const DIALECT_SURFACES: &[(&str, &[SpecSurface])] = &[
 /// `DialectProfile::find` never resolves it.
 const BIT_ONLY_LABELS: &[(&str, &str)] = &[("tk", "Tk")];
 
-/// Primitive [`DialectSet`] bits, by canonical dialect name.
+/// Surface rows, by canonical dialect name.
 ///
 /// Labelled from the dialect catalogue, so a profile's display name is the one
 /// the studio's picker shows and renaming a dialect renames it here too.
@@ -440,7 +440,7 @@ pub static DIALECTS: LazyLock<Vec<Variant>> = LazyLock::new(|| {
         .collect()
 });
 
-/// The primitive [`DialectSet`] bit for a canonical dialect name from
+/// The surface rows for a canonical dialect name from
 /// [`DIALECTS`].
 #[must_use]
 pub fn dialect_surface(name: &str) -> Option<&'static [SpecSurface]> {

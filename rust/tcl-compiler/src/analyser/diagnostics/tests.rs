@@ -4515,7 +4515,7 @@ fn w003_not_suppressed_by_a_later_proc_shadowing_if() {
 
 #[test]
 fn w003_correctly_gates_eda_vendor_dialects_by_documented_base_version() {
-    // Regression for the registry fix (`DialectSet::expr_grammar_base_version`):
+    // Regression for the registry fix (`DialectProfile::expr_grammar_base`):
     // these vendor dialects are documented as running on top of a real
     // Tcl 8.5+ core (`docs/design/compiler/dialects-events.md`), so
     // `in`/`ni` (TIP 201, 8.5+) must NOT be flagged for them — the old

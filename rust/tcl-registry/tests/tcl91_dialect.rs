@@ -25,7 +25,7 @@
 //! by the `lsp_e2e` suite.
 
 use tcl_dialect::model::{SurfaceQuery, Family};
-use tcl_dialect::{DialectSet, available_dialects};
+use tcl_dialect::{available_dialects};
 use tcl_registry::CommandRegistry;
 use tcl_dialect::model::{SpecSurface};
 
@@ -35,7 +35,7 @@ fn reg() -> CommandRegistry {
 
 #[test]
 fn tcl91_is_a_known_parseable_dialect() {
-    assert_eq!(DialectSet::parse("tcl9.1"), Some(SpecSurface::TCL91));
+    assert_eq!(tcl_dialect::DialectProfile::find("tcl9.1").map(tcl_dialect::DialectProfile::surface_query), Some(SpecSurface::TCL91));
     assert!(available_dialects().contains(&"tcl9.1"));
 }
 

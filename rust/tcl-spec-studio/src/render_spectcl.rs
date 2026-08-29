@@ -1009,7 +1009,7 @@ fn unwrap_some(text: &str) -> Option<&str> {
     between(text, "Some(", ")")
 }
 
-/// The dialect member names behind a rendered `DialectSet` expression.
+/// The dialect member names behind a rendered surface expression.
 ///
 /// [`crate::render_rs::dialect_set`] writes the readable aggregates
 /// (`SpecSurface::ALL_TCL_AND_IRULES`); this reads them back so

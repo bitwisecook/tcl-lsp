@@ -38,7 +38,6 @@ use tcl_compiler::realm::{CommandBindingRealm, RealmBinding, document_realm_bind
 use tcl_compiler::registry_invocation::effective_command_arguments;
 use tcl_registry::CommandRegistry;
 use tcl_registry::InvocationArguments;
-use tcl_registry::dialects::DialectSet;
 use tcl_registry::events::EventRegistry;
 use tcl_registry::registry::{
     ExactInvocationCompletion, InvocationCompletion, InvocationCompletionKnowledge,

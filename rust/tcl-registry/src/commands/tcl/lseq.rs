@@ -33,7 +33,7 @@
 //
 // No dialect directory (irules/, iapps/, tk/, expect/, eda_*/, itcl/)
 // references `lseq`, and none of those dialects model a base Tcl core
-// version of 9.0 or later (`DialectSet::expr_grammar_base_version` tops
+// version of 9.0 or later (`DialectProfile::expr_grammar_base` tops
 // out at 8.6 for every one of them — iRules is a genuine embedded Tcl
 // 8.4.6), so the plain `TCL90_PLUS` gate below already excludes every one
 // of them; no extra dialect restriction is needed.

@@ -33,7 +33,6 @@ use std::process::ExitCode;
 use anyhow::{Context, Result, bail};
 use regex::Regex;
 use serde_json::Value;
-use tcl_dialect::DialectSet;
 use tcl_dialect::model::{SpecSurface};
 
 const DIALECT: &str = "f5-irules";

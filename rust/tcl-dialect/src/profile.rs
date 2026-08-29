@@ -1261,6 +1261,27 @@ static TK_PROFILE: DialectProfile = DialectProfile {
 };
 
 impl DialectProfile {
+    /// Whether `name` denotes the F5 iRules dialect — resolved through the
+    /// profile catalogue, so the canonical `f5-irules` and every registered
+    /// alias (`irules`, `tcl-irule`) agree with the profile predicates by
+    /// construction (dialect-profile-model.md §2.4). The single source of
+    /// truth for the "is this iRules?" check compiler and LSP passes need.
+    #[must_use]
+    pub fn name_is_irules(name: Option<&str>) -> bool {
+        name.and_then(Self::find).is_some_and(Self::is_irules)
+    }
+
+    /// Whether `name`'s ensemble commands are *fixed* — the dialect ships a
+    /// closed set of subcommands with no user-extensible ensembles — so the
+    /// minifier may safely shorten subcommands to their unambiguous prefix.
+    /// True for the F5 dialect family, resolved through the catalogue so
+    /// alias spellings agree with the canonical name (§2.4).
+    #[must_use]
+    pub fn name_has_fixed_ensembles(name: Option<&str>) -> bool {
+        name.and_then(Self::find)
+            .is_some_and(|profile| profile.has_fixed_ensembles)
+    }
+
     /// Whether this dialect keeps the TIP 278 namespace-scope global
     /// variable fallback (Tcl 8.x yes, 9.0+ no).
     ///

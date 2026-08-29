@@ -32,7 +32,7 @@
 
 use tcl_dialect::model::{SurfaceQuery};
 use tcl_dialect::model::{SurfaceLayer, Family};
-use tcl_dialect::{DialectProfile, DialectSet, NumberSyntax, TclVersion};
+use tcl_dialect::{DialectProfile, NumberSyntax, TclVersion};
 use tcl_registry::model::ingress::{
     static_context_for, static_document_context_for, static_document_context_for_profile as ctx_for,
 };

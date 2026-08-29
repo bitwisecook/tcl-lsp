@@ -5230,7 +5230,6 @@ mod tests {
 
     #[test]
     fn leading_zero_is_octal_tracks_tcl_version() {
-        use crate::dialects::DialectSet;
         // Plain default registry (no Tcl version bit) defaults to octal.
         assert!(CommandRegistry::build_default().leading_zero_is_octal());
         // tcl9.0 (TIP 114) reads leading zeros as decimal; everything else
@@ -5260,7 +5259,6 @@ mod tests {
 
     #[test]
     fn irules_command_legality_matrix() {
-        use crate::dialects::DialectSet;
         use crate::events::EventRegistry;
         use crate::profiles::ProfileRegistry;
         let mut reg = CommandRegistry::build_default();
@@ -5319,7 +5317,6 @@ mod tests {
 
     #[test]
     fn switch_names_is_dialect_filtered() {
-        use crate::dialects::DialectSet;
         let reg = CommandRegistry::build_default();
         let regsub = reg.get("regsub").expect("regsub spec");
         // `-command` is Tcl 9.0+ (TIP 463); the always-available
@@ -5377,7 +5374,6 @@ mod tests {
 
     #[test]
     fn tcl9_commands_gated_to_tcl90() {
-        use crate::dialects::DialectSet;
         let reg = CommandRegistry::build_default();
         // `const` (Tcl 9.0, TIP 677) joins the list: it used to carry
         // `surface: None` as a workaround to reach iRules events, which

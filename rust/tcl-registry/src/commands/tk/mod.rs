@@ -766,7 +766,7 @@ mod tests {
     #[test]
     #[allow(clippy::too_many_lines)]
     fn zero_argument_treeview_and_notebook_queries_are_sources_only_in_query_form() {
-        use crate::{CommandRegistry, Traits, dialects::DialectSet};
+        use crate::{CommandRegistry, Traits};
 
         let registry = CommandRegistry::build_default();
         let cases = [
@@ -877,7 +877,7 @@ mod tests {
 
     #[test]
     fn instance_method_forms_resolve_query_and_mutation_effects_exactly() {
-        use crate::{CommandRegistry, Traits, dialects::DialectSet, prelude::SideEffectTarget};
+        use crate::{CommandRegistry, Traits, prelude::SideEffectTarget};
 
         let registry = CommandRegistry::build_default();
         let cases: &[(&str, &[&str], &[&str])] = &[
@@ -981,7 +981,7 @@ mod tests {
 
     #[test]
     fn literal_operation_forms_cover_tk_nested_method_tables() {
-        use crate::{CommandRegistry, dialects::DialectSet};
+        use crate::{CommandRegistry};
 
         let registry = CommandRegistry::build_default();
         let cases: &[(&str, &[&str], &[&str])] = &[
@@ -1077,7 +1077,7 @@ mod tests {
 
     #[test]
     fn literal_operation_selection_abstains_for_dynamic_unknown_and_ambiguous_words() {
-        use crate::{CommandRegistry, InvocationWord, InvocationWords, dialects::DialectSet};
+        use crate::{CommandRegistry, InvocationWord, InvocationWords};
 
         let registry = CommandRegistry::build_default();
         let dynamic = [
@@ -1123,7 +1123,7 @@ mod tests {
     #[test]
     #[allow(clippy::too_many_lines)]
     fn classic_widget_instance_apis_model_configuration_and_callbacks() {
-        use crate::{CommandRegistry, Traits, dialects::DialectSet, prelude::SideEffectTarget};
+        use crate::{CommandRegistry, Traits, prelude::SideEffectTarget};
 
         let specs = tk_command_specs();
         let registry = CommandRegistry::build_default();

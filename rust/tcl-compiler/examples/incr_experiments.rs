@@ -288,7 +288,7 @@ fn e6_e7_lattice_costs(root: &Path, dialect: &str) {
         return;
     };
     let mut reg = tcl_registry::CommandRegistry::build_default();
-    if let Some(d) = tcl_dialect::DialectSet::parse(dialect) {
+    if let Some(d) = tcl_dialect::DialectProfile::find(dialect).map(tcl_dialect::DialectProfile::surface_query) {
         reg.load_surface(d);
     }
     let n = 3;

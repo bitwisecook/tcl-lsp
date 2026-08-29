@@ -164,7 +164,6 @@ fn leak_slice<T>(v: Vec<T>) -> &'static [T] {
 mod tests {
     use tcl_dialect::model::{SpecSurface};
     use super::specs;
-    use crate::prelude::DialectSet;
 
     /// Issue #1035: `specs()` `Box::leak`s its `&'static` name / synopsis /
     /// snippet strings, so it must build them **once per process** — every

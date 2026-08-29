@@ -42,7 +42,7 @@
 // No dialect directory (irules/, expect/, eda_*/, iapps/, tk/, itcl/)
 // references `build-info`/`build_info`, and none of those dialects model a
 // base Tcl core version of 9.0 or later
-// (`DialectSet::expr_grammar_base_version` tops out at 8.6 for every one
+// (`DialectProfile::expr_grammar_base` tops out at 8.6 for every one
 // of them; f5-tmsh in particular runs an 8.5 base per
 // `tcl-dialect/src/profile.rs`), so a `TCL90_PLUS` gate below already
 // excludes every one of them on the version axis alone — the same

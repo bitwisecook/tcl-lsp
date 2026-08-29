@@ -1252,7 +1252,6 @@ mod tests {
         namespace_path_state_transitions,
     };
     use crate::InvocationArguments;
-    use crate::dialects::DialectSet;
 
     #[test]
     fn namespace_path_keeps_its_tcl_list_operand_whole() {

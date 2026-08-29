@@ -32,7 +32,7 @@
 //! it is implemented in `tcl-compiler` / `tcl-lsp-core`, which are out of
 //! scope for this crate's tests. The
 //! dialect-name surface that *is* in `tcl-registry` (`KNOWN_DIALECTS`,
-//! `available_dialects()`, `DialectSet::parse`, `DialectSet::is_irules_dialect`)
+//! `available_dialects()`, `DialectSet::parse`, `tcl_dialect::DialectProfile::name_is_irules`)
 //! is covered below instead.
 //!
 //! ## C-Tcl proof
@@ -47,7 +47,6 @@
 
 use tcl_dialect::model::{SurfaceQuery};
 use tcl_dialect::model::{SurfaceLayer, Family};
-use tcl_dialect::DialectSet;
 use tcl_registry::arity::Arity;
 use tcl_registry::events::EventRegistry;
 use tcl_registry::model::ingress::static_context_for;
@@ -1414,12 +1413,12 @@ fn proc_marks_body_argument() {
 /// registry-metadata: dialect-name predicate.
 #[test]
 fn is_irules_dialect_predicate() {
-    assert!(DialectSet::is_irules_dialect(Some("f5-irules")));
-    assert!(DialectSet::is_irules_dialect(Some("irules")));
-    assert!(!DialectSet::is_irules_dialect(Some("tcl8.6")));
-    assert!(!DialectSet::is_irules_dialect(Some("f5-iapps")));
-    assert!(!DialectSet::is_irules_dialect(Some("f5-bigip")));
-    assert!(!DialectSet::is_irules_dialect(None));
+    assert!(tcl_dialect::DialectProfile::name_is_irules(Some("f5-irules")));
+    assert!(tcl_dialect::DialectProfile::name_is_irules(Some("irules")));
+    assert!(!tcl_dialect::DialectProfile::name_is_irules(Some("tcl8.6")));
+    assert!(!tcl_dialect::DialectProfile::name_is_irules(Some("f5-iapps")));
+    assert!(!tcl_dialect::DialectProfile::name_is_irules(Some("f5-bigip")));
+    assert!(!tcl_dialect::DialectProfile::name_is_irules(None));
 }
 
 // ===========================================================================
@@ -1446,7 +1445,7 @@ fn detection_target_dialects_are_known() {
         "f5-irules",
         "expect",
     ] {
-        assert!(DialectSet::parse(d).is_some(), "{d} should parse");
+        assert!(tcl_dialect::DialectProfile::find(d).map(tcl_dialect::DialectProfile::surface_query).is_some(), "{d} should parse");
     }
     // The detection targets are catalogued names.
     for d in [
@@ -1460,7 +1459,7 @@ fn detection_target_dialects_are_known() {
         assert!(KNOWN_DIALECTS.contains(&d), "{d} should be a known dialect");
     }
     // `tcl-dialect: unknown` has no parse — the analogue of returning `None`.
-    assert!(DialectSet::parse("unknown").is_none());
+    assert!(tcl_dialect::DialectProfile::find("unknown").map(tcl_dialect::DialectProfile::surface_query).is_none());
 }
 
 /// `available_dialects()` is the sorted catalog backing the CLI `--dialect`
@@ -1484,11 +1483,11 @@ fn available_dialects_is_sorted_and_complete() {
 /// registry-metadata.
 #[test]
 fn dialect_parse_roundtrip() {
-    assert_eq!(DialectSet::parse("tcl8.6"), Some(SpecSurface::TCL86));
-    assert_eq!(DialectSet::parse("tcl9.0"), Some(SpecSurface::TCL90));
-    assert_eq!(DialectSet::parse("f5-irules"), Some(SpecSurface::IRULES));
-    assert_eq!(DialectSet::parse("expect"), Some(SpecSurface::EXPECT));
-    assert_eq!(DialectSet::parse("definitely-not-a-dialect"), None);
+    assert_eq!(tcl_dialect::DialectProfile::find("tcl8.6").map(tcl_dialect::DialectProfile::surface_query), Some(SpecSurface::TCL86));
+    assert_eq!(tcl_dialect::DialectProfile::find("tcl9.0").map(tcl_dialect::DialectProfile::surface_query), Some(SpecSurface::TCL90));
+    assert_eq!(tcl_dialect::DialectProfile::find("f5-irules").map(tcl_dialect::DialectProfile::surface_query), Some(SpecSurface::IRULES));
+    assert_eq!(tcl_dialect::DialectProfile::find("expect").map(tcl_dialect::DialectProfile::surface_query), Some(SpecSurface::EXPECT));
+    assert_eq!(tcl_dialect::DialectProfile::find("definitely-not-a-dialect").map(tcl_dialect::DialectProfile::surface_query), None);
 }
 
 // ===========================================================================
