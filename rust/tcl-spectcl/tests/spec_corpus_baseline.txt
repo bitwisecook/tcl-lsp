@@ -56,12 +56,10 @@
 # Adding a line here is therefore an admission with a reason attached. Adding
 # one for a file under `specs/` would be a regression in the only tier that
 # ships.
-docs/design/spec-dsl-examples/external/SpiceGenTcl.tclspec	Warning	pack	`0.71` is not a SpecTcl vocabulary version (this loader knows 2.0); if it is the library's own version, it belongs in `introduced_version`, not the `speclib` slot
 docs/design/spec-dsl-examples/external/apave.tclspec	Warning	command ::apave::APaveBase / object_class ::apave::APaveBase / method Window	unknown flag `-body-kind` on `arg` dropped
 docs/design/spec-dsl-examples/external/apave.tclspec	Warning	command ::apave::APaveBase / object_class ::apave::APaveBase / method Window	unknown flag `-repeats` on `arg` dropped
 docs/design/spec-dsl-examples/external/apave.tclspec	Warning	command ::apave::APaveBase / object_class ::apave::APaveBase / method Window	unknown flag `Plain` on `arg` dropped
 docs/design/spec-dsl-examples/external/apave.tclspec	Warning	command ::apave::APaveBase / object_class ::apave::APaveBase / method Window	unknown flag `row {…` on `arg` dropped
-docs/design/spec-dsl-examples/external/tclinterp.tclspec	Warning	pack	`0.15` is not a SpecTcl vocabulary version (this loader knows 2.0); if it is the library's own version, it belongs in `introduced_version`, not the `speclib` slot
 docs/design/spec-dsl-examples/external/tcllib.tclspec	Warning	command fileutil::traverse	unknown flag `-readonly` on `option` dropped
 docs/design/spec-dsl-examples/external/tcllib.tclspec	Warning	command fileutil::traverse	unknown flag `-readonly` on `option` dropped
 docs/design/spec-dsl-examples/external/tcllib.tclspec	Warning	command fileutil::traverse	unknown flag `-readonly` on `option` dropped

@@ -4,7 +4,7 @@
 # regression fixture under tests/fixtures/spec-packs/ is deliberately
 # synthetic. Source evidence is pinned in tclinterp-validation-report.md.
 
-speclib tclinterp 0.15 {
+speclib tclinterp 1.2 {
 
 command ::tclinterp::interpolation::lin1d {
     dialects {tcl9.0 tcl9.1}

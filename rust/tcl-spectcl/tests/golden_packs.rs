@@ -120,11 +120,77 @@ fn every_shipped_pack_still_loads_to_its_golden_snapshot() {
     assert!(commands >= 800, "only {commands} commands covered");
 }
 
+/// The rendering with the three facts the upgrade is *meant* to move masked
+/// out, so everything else — every command's `spec`, `hooks` and `grammar`
+/// digest included — is the comparison.
+///
+/// - `dsl 1.1` → `dsl 2.0` is the whole point of the rewrite.
+/// - A `file_extension … -dialect NAME` row is pack-scope data in 1.x and an
+///   `environment NAME -extend { … }` claim in 2.0, so the pack-level list
+///   empties and the environment list gains a claim. The two are checked
+///   against each other by [`the_extension_claims_moved`] rather than
+///   ignored.
+/// - Every declaration's source line moves when the rewrite spends more
+///   lines saying the same thing. It is provenance, not meaning.
+fn same_but_the_moved_facts(rendered: &str) -> String {
+    rendered
+        .lines()
+        .filter(|line| !line.starts_with("file_extensions ") && !line.starts_with("environments "))
+        .map(|line| mask_after(&mask_after(line, " dsl "), " line "))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// `line` with the word following `key` replaced by `<any>`.
+fn mask_after(line: &str, key: &str) -> String {
+    let Some((head, tail)) = line.split_once(key) else {
+        return line.to_owned();
+    };
+    match tail.split_once(' ') {
+        Some((_, rest)) => format!("{head}{key}<any> {rest}"),
+        None => format!("{head}{key}<any>"),
+    }
+}
+
+/// Every extension a 1.x pack claimed still reaches the same environment
+/// after the rewrite — at pack scope when the row named no dialect, and as
+/// that environment's own `-extend` claim when it did.
+fn the_extension_claims_moved(legacy: &tcl_spectcl::Pack, modern: &tcl_spectcl::Pack) {
+    for claim in &legacy.file_extensions {
+        let Some(dialect) = claim.dialect.as_deref() else {
+            assert!(
+                modern
+                    .file_extensions
+                    .iter()
+                    .any(|c| c.extension == claim.extension),
+                "`{}` lost its pack-scope extension claim",
+                claim.extension
+            );
+            continue;
+        };
+        let moved = modern.environments.iter().any(|environment| {
+            environment.id == dialect
+                && environment.extends
+                && environment
+                    .file_extensions
+                    .iter()
+                    .any(|c| *c.extension == *claim.extension)
+        });
+        assert!(
+            moved,
+            "`{}`'s claim on `{dialect}` did not become an `-extend` block",
+            claim.extension
+        );
+    }
+}
+
 /// **The upgrade is a spelling change, and this is what says so.** Every
 /// shipped pack, rewritten to the 2.0 vocabulary by `tcl spec upgrade`,
 /// loads to the same registry as the 1.x source it came from — the same
 /// exhaustive rendering the golden holds a digest of, not merely the same
-/// command count.
+/// command count. The facts the rewrite is *meant* to move are checked
+/// as a translation instead of as equality; see
+/// [`same_but_the_moved_facts`].
 ///
 /// It runs the 2.0 source **through the interpreter** as well, with the
 /// static fast path off, because "a pack is a Tcl program" is only true if
@@ -134,8 +200,18 @@ fn every_shipped_pack_upgrades_to_2_0_and_loads_identically() {
     use tcl_spectcl::{EvalOptions, UpgradeOptions, UpgradeStatus, upgrade_source};
 
     let root = repo_root();
+    // The interpreter route is what the fast path exists to avoid: 20k
+    // statements of pure vocabulary blow the production wall clock by
+    // design. This gate wants the comparison, not the budget behaviour
+    // (`a_budget_blowing_loop_fails_closed_naming_the_axis` covers that),
+    // so it buys the time.
     let interpreted = EvalOptions {
         static_fast_path: false,
+        config: tcl_spec_hooks::pack_eval::PackEvalConfig {
+            budget: tcl_engine_api::Budget::of_commands(2_000_000_000)
+                .with_wall_clock(std::time::Duration::from_mins(30))
+                .with_max_value_bytes(512 * 1024 * 1024),
+        },
         ..EvalOptions::default()
     };
     let mut upgraded_packs = 0_usize;
@@ -162,20 +238,25 @@ fn every_shipped_pack_upgrades_to_2_0_and_loads_identically() {
             upgraded_packs += 1;
         }
 
-        let was = golden::render(&tcl_spectcl::evaluate_pack(&legacy));
+        let before = tcl_spectcl::evaluate_pack(&legacy);
+        let was = same_but_the_moved_facts(&golden::render(&before));
         let now = tcl_spectcl::evaluate_pack(&outcome.source);
+        the_extension_claims_moved(&before, &now);
+        let rendered = same_but_the_moved_facts(&golden::render(&now));
         assert!(
-            was == golden::render(&now),
+            was == rendered,
             "{}: the 2.0 rewrite loads differently.\n{}",
             path.display(),
-            explain(&was, &golden::render(&now), &now)
+            explain(&was, &rendered, &now)
         );
         let run = tcl_spectcl::evaluate_pack_with(&outcome.source, &interpreted);
+        the_extension_claims_moved(&before, &run);
+        let rendered = same_but_the_moved_facts(&golden::render(&run));
         assert!(
-            was == golden::render(&run),
+            was == rendered,
             "{}: the 2.0 rewrite loads differently through the interpreter.\n{}",
             path.display(),
-            explain(&was, &golden::render(&run), &run)
+            explain(&was, &rendered, &run)
         );
     }
     assert!(

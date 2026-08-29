@@ -28,7 +28,7 @@
 #
 # Full evidence and gap numbering: ../external/README.md
 
-speclib SpiceGenTcl 0.71 {
+speclib SpiceGenTcl 1.2 {
 
 # ---------------------------------------------------------------------------
 # ::SpiceGenTcl::Ngspice::BasicDevices::Resistor
