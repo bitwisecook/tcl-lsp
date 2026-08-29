@@ -104,10 +104,17 @@ pub fn spec() -> CommandSpec {
         // Documented return is the current process's identifier (an
         // int) for the bare form. `pid fileId` actually yields a
         // *list* of decimal-string process identifiers (empty if
-        // fileId is not a pipeline) — a per-form refinement deferred
-        // to per-form return typing, the same Int/List split already
+        // fileId is not a pipeline) — the `return_forms` entry below is
+        // that per-form refinement, the same Int/List split already
         // documented on `scan` (`commands/tcl/scan_.rs`).
         return_type: Some(TclType::Int),
+        // One positional (`fileId`) is the pipeline form, whose result is a
+        // list of decimal-string pids — empty when the channel is not a
+        // pipeline, which is still a list.
+        return_forms: &[ReturnForm::WhenPositionals {
+            count: 1,
+            then: Some(TclType::List),
+        }],
         hover: Some(HoverSnippet {
             summary: "Return the process identifier of the current process, or of a command pipeline's processes.",
             synopsis: &["pid ?fileId?"],
@@ -119,5 +126,21 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `pid fileId` yields the pipeline's process ids as a list (empty when
+    /// the channel is not a pipeline, which is still a list); bare `pid` is
+    /// this process's id.  The per-form refinement `return_type`'s comment
+    /// defers to; confirmed against tclsh 9.0.4.
+    #[test]
+    fn the_pipeline_form_returns_a_list_of_pids() {
+        let s = spec();
+        assert_eq!(s.return_type_for_call(&[]), Some(TclType::Int));
+        assert_eq!(s.return_type_for_call(&["$chan"]), Some(TclType::List));
     }
 }

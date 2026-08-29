@@ -52,7 +52,7 @@ use crate::state_transition::StateTransitionDescriptor;
 use crate::symbol_def::SymbolDef;
 use crate::taint::{SetterConstraint, TaintColour};
 use crate::traits::Traits;
-use crate::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
+use crate::types::{ReturnElements, ReturnForm, TclType, VarElementsEffect, VarWriteTyping};
 use crate::world_effect::WorldEffectDescriptor;
 
 /// Dynamic argument role resolver.
@@ -1365,7 +1365,20 @@ pub struct CommandSpec {
     pub callback_taint_inputs: &'static [(u8, &'static [CallbackTaintInput])],
 
     /// Return type of the command.
+    ///
+    /// One fact per command — the result of the shape the command is usually
+    /// called in. A command whose result *kind* moves with the call declares
+    /// the exceptions in [`Self::return_forms`], which win over this.
     pub return_type: Option<TclType>,
+
+    /// Per-call refinements of [`Self::return_type`], first match winning.
+    ///
+    /// Empty for almost every command: a result shape that never moves needs
+    /// no forms, and `return_type` alone describes it. Non-empty for the few
+    /// whose switches or positional count change what they hand back
+    /// (`regexp -inline`, `regsub` without a `varName`). Resolved by
+    /// [`Self::return_type_for_call`]; see [`ReturnForm`].
+    pub return_forms: &'static [ReturnForm],
 
     /// How the command types the variable(s) it writes as a side effect —
     /// distinct from [`Self::return_type`], which types the value `[cmd …]`
@@ -2163,6 +2176,7 @@ impl CommandSpec {
         script_timing_resolver: None,
         callback_taint_inputs: &[],
         return_type: None,
+        return_forms: &[],
         var_write_typing: VarWriteTyping::ReturnValue,
         return_elements: None,
         var_elements_effect: None,
@@ -2492,6 +2506,65 @@ impl CommandSpec {
     ) -> KeywordMatch<'static> {
         self.subcommand_table(dialect, package_version, prefix_override)
             .resolve(word)
+    }
+
+    /// The type `[<this command> args…]` produces for *this* call.
+    ///
+    /// The single entry point for "what does this call return" — SSA type
+    /// propagation, the taint sanitiser test, and the shimmer byte-array
+    /// check all resolve a call through here rather than reading
+    /// [`Self::return_type`] raw, so none of them can disagree about a
+    /// per-form result.
+    ///
+    /// `args` excludes the command name. `None` means the result's intrep is
+    /// unknown for this call — the honest answer for an untypeable form, and
+    /// one every caller already handles; a confidently wrong type is what
+    /// issue #1720 was.
+    ///
+    /// A [`Self::return_forms`] entry wins over `return_type`, first match in
+    /// declaration order. Subcommands resolve to their own static
+    /// `return_type`: no subcommand needs per-form typing yet, so
+    /// [`SubCommand`] carries no `return_forms` to keep the authoring surface
+    /// (and the `SpecTcl` grammar) no wider than the facts require.
+    #[must_use]
+    pub fn return_type_for_call(&self, args: &[&str]) -> Option<TclType> {
+        if !self.subcommands.is_empty() {
+            return args
+                .first()
+                .and_then(|word| self.resolve_subcommand(word))
+                .and_then(|sub| sub.return_type);
+        }
+        // A matched form wins outright, including when it answers "unknown"
+        // — falling back to `return_type` there would reinstate exactly the
+        // confidently-wrong typing the form exists to prevent.
+        if let Some(form) = self.matching_return_form(args) {
+            return form.then();
+        }
+        self.return_type
+    }
+
+    /// The first [`ReturnForm`] this call matches, or `None` when it matches
+    /// none.
+    fn matching_return_form(&self, args: &[&str]) -> Option<ReturnForm> {
+        // Switch words are resolved through the command's own option table,
+        // so an abbreviation counts exactly when the real command accepts one
+        // (`lsearch -al` is `-all`; `regexp -inl` is an error, because
+        // `Tcl_RegexpObjCmd` reads its table with `TCL_EXACT`).
+        if self.return_forms.is_empty() {
+            return None;
+        }
+        let switch_count = leading_option_word_count_with(self.options, args, self.prefix_matching);
+        self.return_forms.iter().copied().find(|form| match *form {
+            ReturnForm::WhenSwitch { switch, .. } => args[..switch_count]
+                .iter()
+                .filter_map(|word| {
+                    resolve_option_prefix_with(self.options, word, self.prefix_matching)
+                })
+                .any(|option| option.name == switch),
+            ReturnForm::WhenPositionals { count, .. } => {
+                args.len().saturating_sub(switch_count) == usize::from(count)
+            }
+        })
     }
 
     /// Resolve an option word against this command's option table.

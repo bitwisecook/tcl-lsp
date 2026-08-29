@@ -74,7 +74,7 @@ use tcl_registry::spec::{
 use tcl_registry::symbol_def::SymbolDef;
 use tcl_registry::taint::{SetterConstraint, TaintColour};
 use tcl_registry::traits::Traits;
-use tcl_registry::types::{ReturnElements, VarElementsEffect, VarWriteTyping};
+use tcl_registry::types::{ReturnElements, ReturnForm, TclType, VarElementsEffect, VarWriteTyping};
 
 use crate::catalogue;
 use crate::render_rs::rust_string;
@@ -620,6 +620,35 @@ fn var_write_typing_expr(value: VarWriteTyping) -> String {
             format!("VarWriteTyping::ElementsOf {{ container_arg: {container_arg} }}")
         }
     }
+}
+
+/// The Rust expression for a `return_forms` slice, `&[]` when empty.
+fn return_forms_expr(forms: &[ReturnForm]) -> String {
+    if forms.is_empty() {
+        return "&[]".to_owned();
+    }
+    let entries: Vec<String> = forms
+        .iter()
+        .map(|form| match *form {
+            ReturnForm::WhenSwitch { switch, then } => format!(
+                "ReturnForm::WhenSwitch {{ switch: {switch:?}, then: {} }}",
+                option_tcl_type_expr(then)
+            ),
+            ReturnForm::WhenPositionals { count, then } => format!(
+                "ReturnForm::WhenPositionals {{ count: {count}, then: {} }}",
+                option_tcl_type_expr(then)
+            ),
+        })
+        .collect();
+    format!("&[{}]", entries.join(", "))
+}
+
+/// `Some(TclType::List)` / `None` — a [`ReturnForm`]'s answer as Rust source.
+fn option_tcl_type_expr(value: Option<TclType>) -> String {
+    value.map_or_else(
+        || "None".to_owned(),
+        |t| format!("Some(TclType::{})", catalogue::variant_name(&t)),
+    )
 }
 
 /// The Rust expression for a [`ReturnElements`], wrapped in `Some(…)` for the
@@ -1267,6 +1296,10 @@ fn command_types(d: &mut Draft, spec: &CommandSpec, _lost: &mut Unrecovered) {
     d.insert(
         "var_write_typing".into(),
         json!(var_write_typing_expr(spec.var_write_typing)),
+    );
+    d.insert(
+        "return_forms".into(),
+        json!(return_forms_expr(spec.return_forms)),
     );
     d.insert(
         "return_elements".into(),

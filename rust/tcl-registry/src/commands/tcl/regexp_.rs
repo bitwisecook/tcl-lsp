@@ -170,6 +170,21 @@ pub fn spec() -> CommandSpec {
         // Tcl_GetIndexFromObj tables, `-sta` is an error rather than -start.
         prefix_matching: PrefixMatching::Strict,
         return_type: Some(TclType::Int),
+        // `-inline` returns the match data as a list instead of writing match
+        // variables, and `-about` a two-element {subexpressionCount
+        // propertyList}; both are lists in every release 8.4 through 9.1.
+        // Without these, iterating a `regexp -all -inline` result drew a
+        // shimmer warning claiming the list "has int intrep" (issue #1720).
+        return_forms: &[
+            ReturnForm::WhenSwitch {
+                switch: "-inline",
+                then: Some(TclType::List),
+            },
+            ReturnForm::WhenSwitch {
+                switch: "-about",
+                then: Some(TclType::List),
+            },
+        ],
         // `regexp` writes matched substrings to its capture variables while
         // returning the match *count* (or 0/1).  The captures are strings, not
         // the count, so they must not be typed `Int` (issue #867).
@@ -228,5 +243,57 @@ mod tests {
                 option.name
             );
         }
+    }
+
+    /// Issue #1720: `-inline` returns the matched substrings as a list, so a
+    /// call carrying it must not be typed by the bare command's int result.
+    /// Ground truth `tclsh 9.0.4`: `llength [regexp -all -inline {(\d+)\.(\d+)}
+    /// "tcl 8.6 tk 8.6"]` is 6.
+    #[test]
+    fn inline_and_about_return_lists_but_a_bare_match_returns_int() {
+        let s = spec();
+        assert_eq!(
+            s.return_type_for_call(&["-all", "-inline", "{(\\d+)}", "$s"]),
+            Some(TclType::List)
+        );
+        assert_eq!(
+            s.return_type_for_call(&["-inline", "{(\\d+)}", "$s"]),
+            Some(TclType::List)
+        );
+        assert_eq!(
+            s.return_type_for_call(&["-about", "{(\\d+)}"]),
+            Some(TclType::List)
+        );
+        assert_eq!(
+            s.return_type_for_call(&["{(\\d+)}", "$s"]),
+            Some(TclType::Int)
+        );
+        assert_eq!(
+            s.return_type_for_call(&["-all", "{(\\d+)}", "$s"]),
+            Some(TclType::Int),
+            "-all without -inline is a match count"
+        );
+    }
+
+    /// The `--` terminator ends switch parsing, so a following `-inline` is
+    /// the pattern and the call still returns a match flag.
+    #[test]
+    fn inline_past_the_terminator_is_the_pattern() {
+        assert_eq!(
+            spec().return_type_for_call(&["--", "-inline", "$s"]),
+            Some(TclType::Int)
+        );
+    }
+
+    /// `Tcl_RegexpObjCmd` reads its switch table with `TCL_EXACT`, so `-inl`
+    /// is not `-inline` — verified against tclsh 8.6 and 9.0.4, both of which
+    /// answer `bad option "-inl"`. The per-form typing must honour that
+    /// rather than guessing the abbreviation the way `lsearch` allows.
+    #[test]
+    fn abbreviated_inline_is_not_a_switch_under_strict_matching() {
+        assert_eq!(
+            spec().return_type_for_call(&["-inl", "{(\\d+)}", "$s"]),
+            Some(TclType::Int)
+        );
     }
 }

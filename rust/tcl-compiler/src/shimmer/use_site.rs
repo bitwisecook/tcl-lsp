@@ -1480,4 +1480,82 @@ mod tests {
             "unexpected shimmer through non-shimmering alias: {warnings:?}"
         );
     }
+
+    /// Issue #1720: `regexp -all -inline` returns the matched substrings as a
+    /// list, so iterating the result converts nothing.  The reporter's own
+    /// code, trimmed: it drew "variable 'vinfo' has int intrep but 'foreach'
+    /// expects list (argument 1)".
+    #[test]
+    fn no_shimmer_iterating_a_regexp_inline_result() {
+        let src = "proc f {s} {\n\
+                   set vinfo [regexp -all -inline {(?:^|\\s)(\\d+)(?:\\.(\\d+))?} $s]\n\
+                   foreach {match v1 v2} $vinfo { lappend out $v1$v2 }\n\
+                   }";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::f").unwrap();
+        let warnings = use_site_shimmers(fu, &registry());
+        let on_vinfo: Vec<_> = warnings.iter().filter(|w| w.variable == "vinfo").collect();
+        assert!(
+            on_vinfo.is_empty(),
+            "regexp -inline returns a list — iterating it is not a shimmer: {on_vinfo:?}"
+        );
+    }
+
+    /// The control for the case above: a bare `regexp` really does return a
+    /// match flag, so consuming it as a list is a genuine conversion.  Proves
+    /// the per-form typing reads the switches rather than blanket-silencing
+    /// `regexp`.
+    #[test]
+    fn shimmer_still_detected_iterating_a_bare_regexp_result() {
+        let src = "proc f {s} {\n\
+                   set m [regexp {(\\d+)} $s]\n\
+                   foreach v $m { lappend out $v }\n\
+                   }";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::f").unwrap();
+        let warnings = use_site_shimmers(fu, &registry());
+        let w = warnings.iter().find(|w| w.variable == "m");
+        assert!(
+            w.is_some(),
+            "an int match flag used as a list must still shimmer: {warnings:?}"
+        );
+        assert_eq!(w.unwrap().from_type, TclType::Int);
+        assert_eq!(w.unwrap().to_type, TclType::List);
+    }
+
+    /// The same defect on `lsearch`: `-all` returns the list of matching
+    /// indices, not one index.
+    #[test]
+    fn no_shimmer_iterating_an_lsearch_all_result() {
+        let src = "proc f {l} {\n\
+                   set hits [lsearch -all $l a]\n\
+                   foreach i $hits { lappend out $i }\n\
+                   }";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::f").unwrap();
+        let warnings = use_site_shimmers(fu, &registry());
+        let on_hits: Vec<_> = warnings.iter().filter(|w| w.variable == "hits").collect();
+        assert!(
+            on_hits.is_empty(),
+            "lsearch -all returns a list of indices: {on_hits:?}"
+        );
+    }
+
+    /// And on `regsub`: with no `varName` the result is the substituted
+    /// string, so measuring its length converts nothing.
+    #[test]
+    fn no_shimmer_measuring_a_varname_less_regsub_result() {
+        let src = "proc f {s} {\n\
+                   set out [regsub -all a $s b]\n\
+                   set n [string length $out]\n\
+                   }";
+        let cu = CompilationUnit::build_for(src, &registry(), false);
+        let fu = cu.function("::f").unwrap();
+        let warnings = use_site_shimmers(fu, &registry());
+        let on_out: Vec<_> = warnings.iter().filter(|w| w.variable == "out").collect();
+        assert!(
+            on_out.is_empty(),
+            "a varName-less regsub returns the substituted string: {on_out:?}"
+        );
+    }
 }

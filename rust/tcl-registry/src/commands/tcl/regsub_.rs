@@ -206,8 +206,16 @@ pub fn spec() -> CommandSpec {
         // same way `scan`'s inline (no-`varName`) form is (see
         // `commands/tcl/scan_.rs`). True in every fetched release from 8.4
         // through 9.1 alike — the manpage's "returns *string* if *varName*
-        // is not present" sentence is unchanged across all five.
+        // is not present" sentence is unchanged across all five.  The
+        // `return_forms` entry below is that deferred per-form refinement.
         return_type: Some(TclType::Int),
+        // Three positionals (`exp string subSpec`) is the `varName`-omitted
+        // form, which returns the substituted string; four is the counting
+        // form already typed by `return_type`.
+        return_forms: &[ReturnForm::WhenPositionals {
+            count: 3,
+            then: Some(TclType::String),
+        }],
         // The `varName` form writes the substituted *string* to its target
         // while returning the replacement *count*.  The result is always a
         // string (not a format-/element-dependent piece like `scan`/`lassign`),
@@ -356,5 +364,29 @@ mod tests {
                 "{abbrev} must not enable command-prefix mode"
             );
         }
+    }
+
+    /// The `varName`-omitted form returns the substituted string, not the
+    /// replacement count — the per-form refinement `return_type`'s comment
+    /// defers to.  True in every release 8.4 through 9.1
+    /// (`Tcl_RegsubObjCmd`: "no varname supplied, so just return the
+    /// modified string"); tclsh 9.0.4 gives `regsub -all {8} "tcl 8.6" 9`
+    /// as `tcl 9.6` and the four-word form as `1`.
+    #[test]
+    fn omitting_varname_returns_the_substituted_string() {
+        let s = spec();
+        assert_eq!(
+            s.return_type_for_call(&["-all", "a", "$s", "b"]),
+            Some(TclType::String)
+        );
+        assert_eq!(
+            s.return_type_for_call(&["a", "$s", "b"]),
+            Some(TclType::String)
+        );
+        assert_eq!(
+            s.return_type_for_call(&["-all", "a", "$s", "b", "out"]),
+            Some(TclType::Int),
+            "the varName form counts replacements"
+        );
     }
 }

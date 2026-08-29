@@ -524,6 +524,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "How the command types the variables it writes, when that differs from its return value.",
     ),
     f(
+        "return_forms",
+        "Return forms",
+        TYPES,
+        FieldKind::RustExpr {
+            hint: "&[ReturnForm::WhenSwitch { switch: \"-inline\", then: Some(TclType::List) }]",
+        },
+        "Per-call refinements of the return type, first match winning.",
+    ),
+    f(
         "return_elements",
         "Return elements",
         TYPES,

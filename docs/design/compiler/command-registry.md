@@ -213,9 +213,48 @@ execution trace is absent.
 | `option_constraints` | `&'static [OptionConstraint]` | `&[]` | Relationships between otherwise valid leading options, including dialect gates. Drives generic W147 without naming the command. |
 | `literal_argument_validator` | `Option<LiteralArgumentValidator>` | `None` | Registry callback for literal argument relationships or collection members whose legal domain depends on surrounding words. It returns Valid, Invalid with an optional replacement Tcl value, or a typed Abstain. |
 | `arg_types` | `&'static [(u8, ArgTypeHint)]` | `&[]` | Per-argument type expectations (e.g. `Int`, `List`).  Drives shimmer detection |
-| `return_type` | `Option<TclType>` | `None` | Return type of the command |
+| `return_type` | `Option<TclType>` | `None` | Return type of the command — one fact, right for the shape the command is usually called in |
+| `return_forms` | `&'static [ReturnForm]` | `&[]` | Per-call refinements of `return_type`, first match winning. See below |
 | `completion` | `Option<CompletionDescriptor>` | `None` | Tcl *completion-code* semantics: which return codes (`CompletionCodeDomain::Exact` / `Any`) the call can complete with, and its result / return-options payload obligations.  A resolved subcommand or invocation form may supply a more specific descriptor; `None` stays conservative |
 | `body_kind` | `BodyKind` | `Plain` | Whether body arguments run in the caller's frame or a separate definition context |
+
+#### Per-form return typing
+
+`return_type` is one fact per command, which is right only while the result
+shape holds still.  Several core commands hand back a different *kind* of
+value depending on how they were called, and typing every call by the usual
+result makes the compiler confidently wrong about the others — issue #1720,
+where iterating a `regexp -all -inline` result drew a shimmer warning saying
+the list "has int intrep".
+
+`return_forms` declares the exceptions.  Entries are tried in order and the
+first match wins, so the more specific shape goes first:
+
+```rust
+// lsearch: -all is a list of indices, or of elements with -inline; a bare
+// -inline is one element lifted out of the source list.
+return_forms: &[
+    ReturnForm::WhenSwitch { switch: "-all",    then: Some(TclType::List) },
+    ReturnForm::WhenSwitch { switch: "-inline", then: None },
+],
+```
+
+| Variant | Matches when | Declared by |
+|---|---|---|
+| `WhenSwitch { switch, then }` | `switch` is among the call's leading switches, resolved through the command's own option table — so a legal abbreviation counts (`lsearch -al` is `-all`) and a word past `--` does not | `regexp` (`-inline`, `-about`), `lsearch` (`-all`, `-inline`) |
+| `WhenPositionals { count, then }` | the call supplies exactly `count` positional words after its switches — the optional-trailing-argument split | `regsub` (no `varName`), `scan` (inline form), `pid` (`fileId`) |
+
+`then: None` means the result's intrep is unknown for that form, which is the
+honest answer when a command hands back a value the caller supplied
+(`lsearch -inline` returns an element whose intrep is whatever was put in the
+list).  Every consumer already handles an unknown type; a confidently wrong
+one is the bug this fact exists to prevent.
+
+Read it through `CommandSpec::return_type_for_call`, never off the field: that
+one entry point resolves subcommands, applies the forms, and is what SSA type
+propagation, the taint sanitiser test (`tcl_registry::taint::is_sanitiser`),
+and the shimmer byte-array check all call, so none of them can disagree about
+a per-form result.
 
 #### Variable assignment
 

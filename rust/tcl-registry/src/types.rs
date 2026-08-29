@@ -99,6 +99,61 @@ pub enum VarWriteTyping {
     },
 }
 
+/// A per-call refinement of [`crate::CommandSpec::return_type`] — the
+/// "per-form return typing" the specs of `regexp`, `regsub`, `scan`, and
+/// `pid` each defer to.
+///
+/// `return_type` is one fact per command, which is right only for a command
+/// whose result shape never moves. Several core commands hand back a
+/// different *kind* of value depending on how they were called: `regexp`
+/// counts matches but `regexp -inline` returns the matched substrings as a
+/// list, `regsub` returns a replacement count until its `varName` is omitted
+/// and it returns the substituted string instead. Typing every call by the
+/// command's usual result makes the compiler confidently wrong about the
+/// others — issue #1720, where iterating a `regexp -all -inline` result drew
+/// a shimmer warning saying the list "has int intrep".
+///
+/// Forms are tried in declaration order and the first match wins, so declare
+/// the more specific shape first (`lsearch` declares `-all` ahead of
+/// `-inline`, because `-all -inline` is a list of elements while a bare
+/// `-inline` is one element).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ReturnForm {
+    /// The call returns `then` when `switch` appears among its leading
+    /// switches. The switch is matched through the command's own option
+    /// table, so a legal abbreviation counts (`lsearch -al` is `-all`) and a
+    /// word past the `--` terminator does not.
+    WhenSwitch {
+        /// Canonical spelling of the switch, as declared in the command's
+        /// option table.
+        switch: &'static str,
+        /// The type the call produces, or `None` when the result's intrep is
+        /// whatever the caller already put there — `lsearch -inline` lifts an
+        /// element straight out of the source list.
+        then: Option<TclType>,
+    },
+    /// The call returns `then` when it supplies exactly `count` positional
+    /// arguments after its leading switches — the optional-trailing-argument
+    /// split (`regsub`'s `varName`, `pid`'s `fileId`, `scan`'s inline form).
+    WhenPositionals {
+        /// Number of positional words, switches and their values excluded.
+        count: u8,
+        /// The type the call produces, or `None` when it can't be typed.
+        then: Option<TclType>,
+    },
+}
+
+impl ReturnForm {
+    /// What this form says the call returns — `None` when the form matches
+    /// but the result's intrep still can't be named.
+    #[must_use]
+    pub const fn then(self) -> Option<TclType> {
+        match self {
+            Self::WhenSwitch { then, .. } | Self::WhenPositionals { then, .. } => then,
+        }
+    }
+}
+
 /// How a command's *result value* relates to container element structure —
 /// the registry fact behind per-element type inference
 /// (`docs/design/compiler/type-tracking.md`, P3). Read by the compiler's

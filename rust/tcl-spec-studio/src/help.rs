@@ -204,6 +204,19 @@ typed statically. Getting this right avoids false \"wrong type\" warnings \
 on the written variables.",
     ),
     (
+        "return_forms",
+        "Exceptions to `return_type`, for a command that hands back a \
+different *kind* of value depending on how it was called — `regexp` counts \
+matches but `regexp -inline` returns a list of the matched substrings, and \
+`regsub` returns a replacement count until its `varName` is omitted and it \
+returns the substituted string instead. `WhenSwitch` keys on a switch word \
+(resolved through the command's own option table, so a legal abbreviation \
+counts); `WhenPositionals` keys on how many positional words follow the \
+switches. Forms are tried in order and the first match wins, so declare the \
+more specific shape first. Leave it empty unless the result shape really \
+moves — a wrong type here is worse than none.",
+    ),
+    (
         "return_elements",
         "How the result relates to its arguments *as a container* — for \
 example, `list a b c` returns a list whose elements are exactly the \

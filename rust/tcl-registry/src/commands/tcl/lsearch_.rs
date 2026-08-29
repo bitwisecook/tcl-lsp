@@ -294,6 +294,21 @@ pub fn spec() -> CommandSpec {
             | Traits::CSE_CANDIDATE,
         arity: Arity::at_least(2),
         return_type: Some(TclType::Int),
+        // `-all` returns every match rather than the first: a list of indices,
+        // or of the matching elements when combined with `-inline`. Declared
+        // first so `-all -inline` resolves to the list, not the element. A
+        // bare `-inline` hands back one element lifted out of the source list,
+        // whose intrep is whatever the caller put there — unknown, not int.
+        return_forms: &[
+            ReturnForm::WhenSwitch {
+                switch: "-all",
+                then: Some(TclType::List),
+            },
+            ReturnForm::WhenSwitch {
+                switch: "-inline",
+                then: None,
+            },
+        ],
         // Default matching style is glob (`-glob`) in every version;
         // `PatternType::Glob`'s own doc comment names `lsearch` as the
         // canonical example. `-exact`/`-regexp` can select a different
@@ -317,5 +332,56 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `-all` returns every match rather than the first: a list of indices,
+    /// or of the matching elements when combined with `-inline`.  A bare
+    /// `-inline` hands back one element out of the source list, whose intrep
+    /// is the caller's — unknown, not the int an index would be.
+    #[test]
+    fn all_returns_a_list_and_a_bare_inline_is_untypeable() {
+        let s = spec();
+        assert_eq!(
+            s.return_type_for_call(&["$l", "a"]),
+            Some(TclType::Int),
+            "plain lsearch is an index"
+        );
+        assert_eq!(
+            s.return_type_for_call(&["-all", "$l", "a"]),
+            Some(TclType::List)
+        );
+        assert_eq!(
+            s.return_type_for_call(&["-all", "-inline", "$l", "a"]),
+            Some(TclType::List)
+        );
+        assert_eq!(s.return_type_for_call(&["-inline", "$l", "a"]), None);
+    }
+
+    /// `Tcl_LsearchObjCmd` resolves its switches with the abbreviating
+    /// `Tcl_GetIndexFromObj` default, so `-al` really is `-all` and really
+    /// does return a list — confirmed against tclsh 9.0.4, where
+    /// `lsearch -al {a b a} a` yields `0 2`.  Contrast `regexp`, whose table
+    /// is `TCL_EXACT`.
+    #[test]
+    fn an_abbreviated_switch_resolves_like_tcl_resolves_it() {
+        assert_eq!(
+            spec().return_type_for_call(&["-al", "$l", "a"]),
+            Some(TclType::List)
+        );
+    }
+
+    /// A `-start`/`-index` value word is consumed by its switch, so it can
+    /// neither be mistaken for a switch nor counted as a positional.
+    #[test]
+    fn a_switch_value_word_does_not_shift_the_result() {
+        assert_eq!(
+            spec().return_type_for_call(&["-start", "2", "$l", "a"]),
+            Some(TclType::Int)
+        );
     }
 }
