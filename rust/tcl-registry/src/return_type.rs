@@ -32,6 +32,17 @@
 //! does this call return", so SSA type propagation, the taint sanitiser test
 //! and the shimmer byte-array check cannot disagree about a per-form result.
 //!
+//! **Known limitation — `{*}` expansion.** The words reaching these
+//! algorithms have already had any `{*}` prefix stripped by the lexer, so
+//! `regexp {*}$opts $s` arrives as `["$opts", "$s"]` and is indistinguishable
+//! from a call with one literal positional. An expansion that supplies
+//! `-inline` at run time is therefore still typed from the switches visible
+//! statically. This predates per-call typing — `regexp` was unconditionally
+//! `Int` before — and closing it needs the expansion marker preserved through
+//! `tcl_compiler::value_shapes::parse_command_substitution`, which every
+//! command-substitution consumer shares. Guarding here alone cannot work: the
+//! marker is gone before the call is made.
+//!
 //! Every algorithm may answer `None`, meaning the result's intrep is unknown
 //! for that call. That is the honest answer whenever a command hands back a
 //! value the caller supplied (`lsearch -inline` returns an element whose
