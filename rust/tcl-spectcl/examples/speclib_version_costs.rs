@@ -18,14 +18,15 @@
 
 //! What the `SpecTcl` 2.0 vocabulary costs the bundled corpus.
 //!
-//! Every shipped pack is written in the 1.x vocabulary. The 2.0 rewrite says
+//! Every shipped pack declares 1.1 — the newest vocabulary any of them uses,
+//! on a ladder that runs 1.0, 1.1, 1.2, 2.0. The 2.0 rewrite says
 //! the same facts in the algebra (`available {tcl 8.6-}` for `dialects
 //! tcl8.6+`), so the two files must load to the same registry — and the
 //! question this answers is what the second spelling costs to read.
 //!
 //! Three numbers per pack, each over the *same* source read twice:
 //!
-//!   - **1.x** — the file as it ships.
+//!   - **1.x** — the file as it ships (1.1, for every pack here).
 //!   - **2.0** — `tcl spec upgrade`'s rewrite of it, evaluated the same way.
 //!   - **2.0 (VM)** — the same 2.0 source with the static fast path off, so
 //!     the pack really is executed as a Tcl program by `tcl-vm` rather than

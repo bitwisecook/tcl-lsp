@@ -121,12 +121,18 @@ code that uses it.
 ### Measured: what the 2.0 vocabulary costs
 
 `cargo run --release -p tcl-spectcl --example speclib_version_costs`
-loads every bundled pack three ways over the same source — as it ships
-(1.x), as `tcl spec upgrade` rewrites it (2.0), and as 2.0 with the
-static fast path off, so the pack really is executed as a Tcl program by
-`tcl-vm` rather than captured from its CST. All three register the same
-commands; the example asserts that before it times anything. Median of 15
-loads, release build:
+loads every bundled pack three ways over the same source — as it ships,
+as `tcl spec upgrade` rewrites it (2.0), and as 2.0 with the static fast
+path off, so the pack really is executed as a Tcl program by `tcl-vm`
+rather than captured from its CST. All three register the same commands;
+the example asserts that before it times anything.
+
+The "1.x" column is **1.1**: that is what all eight bundled packs declare,
+and it is the newest vocabulary any of them uses. The ladder is 1.0 → 1.1
+→ 1.2 → 2.0, so there is no 1.3 to compare against; 1.2's additions
+(versioned `arity`/`arg` rows, `ambient_package`, second-level option
+blocks) are words no shipped pack needed. Median of 15 loads, release
+build:
 
 | pack | lines | commands | 1.x ms | 2.0 ms | Δ | 2.0 VM ms | 1.x KiB | 2.0 KiB | 2.0 VM KiB |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
