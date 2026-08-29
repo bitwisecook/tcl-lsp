@@ -10,7 +10,8 @@ asked.
 Usage: gen-context-parity.py <cases-file> <outdir>
 """
 
-import sys, os
+import os
+import sys
 
 cases = []
 for line in open(sys.argv[1]):
