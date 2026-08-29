@@ -2553,7 +2553,17 @@ impl CommandSpec {
         if self.return_forms.is_empty() {
             return None;
         }
-        let switch_count = leading_option_word_count_with(self.options, args, self.prefix_matching);
+        // …and the scan stops short of the operands C Tcl reserves, so a
+        // mandatory word is never read as a switch.  `Tcl_LsearchObjCmd`
+        // scans `i < objc - 2`, which makes `lsearch -all foo` a search for
+        // `foo` in the one-element list `-all` — it returns -1, an int, not
+        // the list `-all` would otherwise select (verified on tclsh 9.0.4).
+        let option_scan_end = args.len().saturating_sub(self.reserved_trailing_words);
+        let switch_count = leading_option_word_count_with(
+            self.options,
+            &args[..option_scan_end],
+            self.prefix_matching,
+        );
         self.return_forms.iter().copied().find(|form| match *form {
             ReturnForm::WhenSwitch { switch, .. } => args[..switch_count]
                 .iter()
