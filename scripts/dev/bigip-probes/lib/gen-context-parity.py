@@ -9,6 +9,7 @@ asked.
 
 Usage: gen-context-parity.py <cases-file> <outdir>
 """
+
 import sys, os
 
 cases = []
@@ -19,14 +20,18 @@ for line in open(sys.argv[1]):
     # Un-escape here rather than in Tcl: the case list is emitted inside {...},
     # which performs no substitution, so the file must already hold real braces
     # and real newlines. $ and [ deliberately survive to eval time.
-    src = (src.replace("\\{", "{").replace("\\}", "}")
-              .replace('\\"', '"').replace("\\n", "\n"))
+    src = (
+        src.replace("\\{", "{")
+        .replace("\\}", "}")
+        .replace('\\"', '"')
+        .replace("\\n", "\n")
+    )
     cases.append((cid, cat, src))
 out = sys.argv[2]
 os.makedirs(out, exist_ok=True)
 
 # Shared Tcl body. $EMIT is replaced per context with a one-argument logger.
-BODY = r'''
+BODY = r"""
 set ::probe_cases [list \
 %CASES%]
 set ::acc {}
@@ -53,31 +58,40 @@ foreach chunkstart [list 0 8 16 24 32 40] {
     set part [lrange $::acc $chunkstart [expr {$chunkstart + 7}]]
     if {[llength $part]} { EMIT "TCLLSPPROBE|CTXNAME|$i| [join $part " ;; "]" ; incr i }
 }
-'''
+"""
+
 
 def body_for(ctxname, emit):
-    lit = "".join('    {%s} {%s} {%s} \\\n' % (c, k, s) for c, k, s in cases)
+    lit = "".join("    {%s} {%s} {%s} \\\n" % (c, k, s) for c, k, s in cases)
     b = BODY.replace("%CASES%", lit).replace("CTXNAME", ctxname)
     return b.replace("EMIT ", emit + " ")
+
 
 # 1. iRule — RULE_INIT, logs to /var/log/ltm
 open(os.path.join(out, "ctx_irule.conf"), "w").write(
     "ltm rule __tcl_lsp_probe_ctx_irule {\nwhen RULE_INIT {"
-    + body_for("TmmIRule", "log local0.") + "}\n}\n")
+    + body_for("TmmIRule", "log local0.")
+    + "}\n}\n"
+)
 
 # 2. tmsh cli script — puts to stdout
 open(os.path.join(out, "ctx_cli.conf"), "w").write(
     "cli script __tcl_lsp_probe_ctx_cli {\nproc script::run {} {"
-    + body_for("TmshCliScript", "puts") + "}\n}\n")
+    + body_for("TmshCliScript", "puts")
+    + "}\n}\n"
+)
 
 # 3. iApp implementation — tmsh::log err (info level never reaches /var/log/ltm)
 open(os.path.join(out, "ctx_iapp.conf"), "w").write(
     "sys application template __tcl_lsp_probe_ctx_iapp {\n  actions {\n    definition {\n"
-    "      implementation {" + body_for("IAppImplementation", "tmsh::log err")
-    + "      }\n      presentation {\n      }\n    }\n  }\n}\n")
+    "      implementation {"
+    + body_for("IAppImplementation", "tmsh::log err")
+    + "      }\n      presentation {\n      }\n    }\n  }\n}\n"
+)
 open(os.path.join(out, "ctx_iapp_svc.conf"), "w").write(
     "sys application service __tcl_lsp_probe_ctx_iapp_svc {\n"
-    "  template __tcl_lsp_probe_ctx_iapp\n}\n")
+    "  template __tcl_lsp_probe_ctx_iapp\n}\n"
+)
 
 # 4. host tclsh control
 open(os.path.join(out, "ctx_host.tcl"), "w").write(body_for("HostShellTcl", "puts"))
