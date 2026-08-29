@@ -1659,7 +1659,7 @@ pub const EVENT_CONTEXT_VECTORS: &[EventContextVector] = &[
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SpecSurface, SurfaceQuery, surface_admits};
+    use tcl_dialect::model::{SurfaceQuery, surface_admits};
     use super::*;
     use crate::events::EventRegistry;
     use crate::f5::evidence::{BigIpBuild, RuntimeFact, RuntimeFactKind, measured_fact};

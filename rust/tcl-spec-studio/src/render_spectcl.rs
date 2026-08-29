@@ -411,10 +411,10 @@ fn str_list_word(value: &Value) -> Option<String> {
 /// `None` when the set has no faithful spelling in the algebra, and the
 /// caller keeps `dialects`. Two cases, both real:
 ///
-/// - **A bit with no provider.** `f5-iapps`, `expect`, `bpf`, `f5-tmsh`,
-///   `f5-bigip`, and `spectcl` are dialect bits the algebra's closed
-///   provider list (`tcl`, `f5-irules`, `jim`, `package NAME`) does not
-///   name. §6.1 keeps `dialects` loading forever precisely so a set the new
+/// - **A dialect with no provider.** `f5-iapps`, `expect`, `bpf`,
+///   `f5-tmsh`, `f5-bigip`, and `spectcl` are dialect names the algebra's
+///   closed provider list (`tcl`, `f5-irules`, `jim`, `package NAME`) does
+///   not name. §6.1 keeps `dialects` loading forever precisely so a set the new
 ///   word cannot say is still sayable.
 /// - **The empty set.** `dialects {}` is *declared unavailable*, and
 ///   `available` with no rows is an error rather than an empty set.
@@ -439,9 +439,8 @@ fn availability_rows(members: &[&str]) -> Option<Vec<String>> {
         }
         let low = release_of(versions[at]);
         rows.push(if at == end {
-            // A bare `X.Y` names that release line only, which is exactly
-            // what one `tclX.Y` bit means — an open window would claim a
-            // release the set does not hold.
+            // A bare `X.Y` names that release line only — an open window
+            // would claim a release the set does not hold.
             format!("tcl {low}")
         } else if versions[end] + 1 == TCL_LADDER.len() {
             // A run that reaches the newest release is written open, the way
@@ -463,8 +462,8 @@ fn availability_rows(members: &[&str]) -> Option<Vec<String>> {
         match *member {
             "f5-irules" => rows.push("f5-irules".to_owned()),
             // The exact inverse of `tcl spec upgrade`'s U2 `tk` →
-            // `{package Tk}`, and the loader's `PACKAGE_DIALECT_BITS` maps it
-            // straight back onto the same bit.
+            // `{package Tk}`, and the loader's `PACKAGE_DIALECT_SURFACES`
+            // maps it straight back.
             "tk" => rows.push("package Tk".to_owned()),
             _ => return None,
         }
@@ -3192,7 +3191,7 @@ mod tests {
             rows(&["tcl8.4", "tcl8.5"]),
             Some(vec!["tcl 8.4-8.6".to_owned()])
         );
-        // A bare `X.Y` names that release line only — exactly one bit.
+        // A bare `X.Y` names that release line only.
         assert_eq!(rows(&["tcl8.5"]), Some(vec!["tcl 8.5".to_owned()]));
         // A hole in the ladder is two rows, which the loader unions.
         assert_eq!(
@@ -3206,8 +3205,8 @@ mod tests {
         // `tk` is a package pin, and the algebra says so.
         assert_eq!(rows(&["tk"]), Some(vec!["package Tk".to_owned()]));
 
-        // A bit the closed provider list does not name keeps `dialects`, and
-        // so does the empty (declared-unavailable) set.
+        // A dialect the closed provider list does not name keeps
+        // `dialects`, and so does the empty (declared-unavailable) set.
         assert_eq!(rows(&["f5-iapps"]), None);
         assert_eq!(rows(&["tcl9.0", "bpf"]), None);
         assert_eq!(rows(&[]), None);

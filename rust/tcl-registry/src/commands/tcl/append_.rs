@@ -53,8 +53,8 @@ pub fn spec() -> CommandSpec {
         arg_roles: &[(0, ArgRole::VarWrite)],
         assigns_variable_at: Some(0),
         // iRules embeds Tcl 8.4.6 and retains append's documented
-        // auto-creation behaviour. Its bare availability mask therefore
-        // needs an explicit membership bit alongside the ordinary Tcl cores.
+        // auto-creation behaviour. Its bare availability point therefore needs
+        // an explicit iRules row alongside the ordinary Tcl cores.
         safe_on_uninit: Some(SpecSurface::ALL_TCL_AND_IRULES),
         return_type: Some(TclType::String),
         arg_types: &[(

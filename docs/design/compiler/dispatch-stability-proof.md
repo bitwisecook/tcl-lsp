@@ -415,8 +415,8 @@ which can verify, rather than accept caller assertions about, all of these
 facts together:
 
 - a fresh interpreter sealed for the complete analysed lifetime;
-- exact `DialectProfile` identity (not only an availability mask: profiles
-  such as Mentor, Synopsys, and Tcl 8.6 may share command availability while
+- exact `DialectProfile` identity (not only a surface point: profiles such
+  as Mentor, Synopsys, and Tcl 8.6 may share command availability while
   differing semantically);
 - exact content identities and evaluation order for every workspace unit,
   resolved `source`, selected package implementation, and preload;

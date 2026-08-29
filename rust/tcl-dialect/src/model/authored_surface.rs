@@ -24,11 +24,11 @@
 //! `const` can build. Lowering happens once per spec, in the registry's
 //! `declarations_for_spec`.
 //!
-//! This replaces the retired `SpecSurface` bitmask (Q13). The bits could name
-//! only whole Tcl lines and a fixed vendor list, which is why Jim's own
-//! commands were unexpressible: there was no Jim bit, and one bit could not
-//! have carried `{jim 0.81-}` anyway. A row names its provider and its window
-//! on *that provider's* axis, so both fall out.
+//! This replaces the retired `DialectSet` bitmask (Q13), which could name only
+//! whole Tcl lines and a fixed vendor list — which is why Jim's own commands
+//! were unexpressible: there was no Jim bit, and one bit could not have
+//! carried `{jim 0.81-}` anyway. A row names its provider and its window on
+//! *that provider's* axis, so both fall out.
 
 use crate::model::Family;
 
@@ -99,11 +99,10 @@ impl SpecSurface {
 
 /// Ladder and vendor shorthands.
 ///
-/// Each names exactly the rows the retired `SpecSurface` bit or union
-/// lowered to, so a spec that said `surface: Some(SpecSurface::TCL85_PLUS)`
-/// now says `surface: Some(SpecSurface::TCL85_PLUS)` and gets the same
-/// answer. They exist because ~1,800 compiled specs spell one of a dozen
-/// windows, and naming each once keeps the data readable.
+/// Each names exactly the rows the retired `DialectSet` bit or union lowered
+/// to, so a migrated spec gets the same answer it always did. They exist
+/// because ~1,800 compiled specs spell one of a dozen windows, and naming
+/// each once keeps the data readable.
 ///
 /// The upper bounds are the ladder's, not infinity: `TCL85_PLUS` is
 /// `8.5-9.2`, because the bitmask it replaces was a union of the five
@@ -195,8 +194,8 @@ macro_rules! surface {
     }};
 }
 
-/// The point a surface question is asked at — the replacement for the
-/// retired availability mask (Q13).
+/// The point a surface question is asked at — the replacement for the retired
+/// availability point (Q13).
 ///
 /// A mask conflated two different facts in one word: which Tcl *line* a
 /// context is, and which vendor surface it carries. A point states both

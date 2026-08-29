@@ -23,7 +23,6 @@
 //! are structural (string → dialect-name), so no tclsh proof applies.
 
 use tcl_registry::detect_dialect_from_source as detect;
-use tcl_dialect::model::{SpecSurface};
 
 #[test]
 fn shebang_tclsh84() {

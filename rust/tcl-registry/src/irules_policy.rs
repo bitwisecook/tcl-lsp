@@ -135,7 +135,7 @@ pub fn irules_disabled_class(command: &str) -> Option<IrulesDisabledClass> {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{Family, SpecSurface, SurfaceQuery, surface_admits};
+    use tcl_dialect::model::{Family, SurfaceQuery, surface_admits};
     use super::*;
 
     /// The §4b split is exact: 16 + 15 disjoint commands, together the
@@ -205,9 +205,9 @@ mod tests {
         assert!(!IrulesDisabledClass::CompilerRefused.is_language_fact());
     }
 
-    /// Every classified command exists in the compiled universe as a Tcl
-    /// spec that does NOT carry the `IRULES` bit — the two lists refine
-    /// the spec-level exclusion, they never contradict it.
+    /// Every classified command exists in the compiled universe as a Tcl spec
+    /// that does NOT carry an iRules row — the two lists refine the spec-level
+    /// exclusion, they never contradict it.
     #[test]
     fn the_classes_refine_the_spec_level_exclusion() {
         let registry = crate::CommandRegistry::build_default();

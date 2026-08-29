@@ -953,7 +953,7 @@ pub fn spec() -> CommandSpec {
 #[cfg(test)]
 mod tests {
     use tcl_dialect::model::{SurfaceQuery, Family};
-    use tcl_dialect::model::{SpecSurface};
+    
     use super::*;
     use crate::{CommandRegistry, InvocationWord, InvocationWordKind, InvocationWords};
 

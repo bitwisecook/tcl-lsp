@@ -41,7 +41,7 @@ Special variables differ from user variables in ways the analysis must respect:
   attacker-influenced external input, so `exec $env(CMD)` is a tainted flow.
 
 The set is **dialect-versioned**, exactly like `CommandSpec`: it is a
-`DialectSet` membership table, because standard Tcl, iRules, Tk, Expect, and the
+`SpecSurface` membership table, because standard Tcl, iRules, Tk, Expect, and the
 EDA shells expose slightly different sets.
 
 ## Data model
@@ -54,35 +54,41 @@ Each entry is a `SpecialVarSpec`:
 | `kind` | `Scalar`, `Array`, or `Namespace` (iRules `static::`). |
 | `access` | `ReadOnly` vs `ReadWrite` — informational (hover). |
 | `origin` | Provenance for hover grouping (`Interpreter`, `AutoLoader`, `Platform`, `Environment`, `Dialect`). |
-| `dialects` | `DialectSet` in which the variable exists. |
+| `surface` | The `SpecSurface` rows on which the variable exists. |
 | `initially_bound` | Dialects in which the default host has bound the global before user code. |
 | `lazily_readable` | Dialects where a core read trace materialises an otherwise-unbound value. |
 | `startup_binding` | Why the entry is readable (`Interpreter`, `TclInit`, `TclMain`, `AppInit`, `ReadTrace`, or `None`). |
-| `keys` | Known array keys, each with its own `DialectSet` (per-key version gating). |
+| `keys` | Known array keys, each with its own surface (per-key version gating). |
 | `externally_read` | A write is runtime-observed → not a dead store / unused variable. |
 | `cmp_unsafe` | iRules: plain access demotes the virtual server from CMP; use `static::`. |
 | `write_effect` | `Option<SideEffectTarget>` — the interpreter state a write mutates. |
 | `read_taint` | `Option<TaintColour>` — the taint a read produces (external input). |
 | `summary` | One-line hover prose. |
 
-Array keys carry their own `DialectSet`, so `tcl_platform(pointerSize)` is Tcl
+Array keys carry their own surface, so `tcl_platform(pointerSize)` is Tcl
 8.5+, `tcl_platform(pathSeparator)` is Tcl 8.6+, and
 `tcl_platform(tmmVersion)` is iRules-only. Build-only keys such as `threaded`
 and `debug` are not advertised by a release-only profile.
 
-## Dialect resolution
+## Where the query point comes from
 
-`resolve_dialect(name) -> DialectSet` maps a dialect string to the membership
-flag used by the query helpers:
+The query helpers take a **point** — one family at one release, plus the
+packages in play — never a dialect string. `surface_query_for_profile` is
+the one door: the LSP/CLI ingress resolves the dialect name once (through
+`tcl_registry::model::ingress`) and threads the resolved
+`&'static DialectProfile`; the name-keyed `resolve_dialect` validator this
+table used to carry is deleted (ledger C2, P1-G).
 
-- An unrecognised name (empty, generic `"tcl"`, config-only `"f5-bigip"`)
-  resolves to every standard Tcl version.
-- The **restricted** F5 iRules runtime resolves to its own bit — it provides
-  none of the command-line / auto-loader / environment globals, so `env` /
-  `argv` / `auto_path` are not recognised there. iApps instead resolves with
-  its documented host-Tcl base, so standard Tcl facts apply where evidenced.
-- A specific Tcl version (`tcl8.6`) keeps its exact bit, so per-key version
-  gating stays precise.
+- No profile resolved — an unrecognised name, empty, generic `"tcl"`,
+  config-only `"f5-bigip"` — answers the permissive `PLAIN_TCL` profile's
+  own point.
+- The **restricted** F5 iRules runtime asks at its own family's point — it
+  provides none of the command-line / auto-loader / environment globals, so
+  `env` / `argv` / `auto_path` are not recognised there. iApps instead asks
+  at its documented host-Tcl release, so standard Tcl facts apply where
+  evidenced.
+- A specific Tcl version (`tcl8.6`) asks at exactly that release, so per-key
+  version gating stays precise.
 - Every other parseable dialect is a Tcl **superset** (Tk, Expect, EDA shells,
   BPF): its bit is widened with `ALL_TCL` so the standard globals are recognised
   there in addition to its own.
@@ -125,8 +131,8 @@ The crate exposes name + dialect queries; consumers never hold their own list:
 
 Adding a variable — or a dialect's variant of one — is an edit to
 `SPECIAL_VARS`, not a new branch in a consumer. A new dialect's globals are new
-rows with that dialect's `DialectSet` bit; a version-gated array key is a new
-`SpecialVarKey` with the version's `DialectSet`. A new startup binding must
+rows carrying that dialect's surface; a version-gated array key is a new
+`SpecialVarKey` with the version's own surface rows. A new startup binding must
 also state whether it comes from interpreter creation, `Tcl_Init`, `Tcl_Main`,
 application initialisation, or a lazy read trace; availability alone must not
 silence W210.

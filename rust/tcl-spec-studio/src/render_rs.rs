@@ -1629,8 +1629,8 @@ mod tests {
         );
     }
 
-    /// Every dialect the catalogue offers must have a Rust constant to render,
-    /// or a spec carrying that bit produces a file that will not compile.
+    /// Every dialect the catalogue offers must have a Rust constant to
+    /// render, or a spec naming it produces a file that will not compile.
     #[test]
     fn every_catalogued_dialect_renders_to_a_constant() {
         for entry in crate::catalogue::DIALECTS.iter() {

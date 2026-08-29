@@ -27,11 +27,10 @@
 //! section (confirmed identical option surface) rather than from
 //! `fconfigure.n` itself for those two versions.
 //!
-//! The `ALL_TCL` `dialects` group on the command spec below is
-//! deliberate, not an oversight: iRules bans `fconfigure`, and `ALL_TCL`
-//! does not carry the `IRULES` bit, so this spec never intersects the
-//! bare `IRULES` availability mask — the same pattern `chan_.rs`
-//! documents for `chan`.
+//! The `ALL_TCL` surface on the command spec below is deliberate, not an
+//! oversight: iRules bans `fconfigure`, and `ALL_TCL` does not carry an iRules
+//! row, so this spec is simply absent under iRules — the same pattern
+//! `chan_.rs` documents for `chan`.
 
 use crate::prelude::*;
 use tcl_dialect::model::{SpecSurface};

@@ -861,18 +861,17 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "chan",
         traits: Traits::BYTE_COMPILED | Traits::CONFIGURES_CHANNEL | Traits::HAS_DESTRUCTIVE_OPS,
-        // `chan` is a Tcl 8.5+ ensemble: no chan.n manual page and no
-        // `chan` entry in the 8.4 command index (confirmed: the 8.4 URL
-        // 404s and the 8.4 command index lists only the pre-ensemble
-        // standalone commands it later wraps). Narrower than `ALL_TCL`,
-        // and — since iRules availability is explicit per spec (§9 of the
-        // dialect-profile model), a version-gated spec is excluded from
-        // iRules purely because its non-`IRULES` `dialects` group never
-        // intersects iRules' bare `IRULES` mask (iRules is pinned to an
-        // 8.4 base), the same way `dict`/`lmap` are — this also correctly
-        // removes `chan` from iRules, which already separately excludes
-        // the standalone commands it wraps (`open`, `gets`, `fconfigure`,
-        // `flush`, `seek`, `tell`, `eof`).
+        // `chan` is a Tcl 8.5+ ensemble: no chan.n manual page and no `chan`
+        // entry in the 8.4 command index (confirmed: the 8.4 URL 404s and the
+        // 8.4 command index lists only the pre-ensemble standalone commands it
+        // later wraps). Narrower than `ALL_TCL`, and — since iRules
+        // availability is explicit per spec (§9 of the dialect-profile model),
+        // a version-gated spec is excluded from iRules purely because its
+        // non-`IRULES` surface never intersects iRules' bare `IRULES` mask
+        // (iRules is pinned to an 8.4 base), the same way `dict`/`lmap` are —
+        // this also correctly removes `chan` from iRules, which already
+        // separately excludes the standalone commands it wraps (`open`,
+        // `gets`, `fconfigure`, `flush`, `seek`, `tell`, `eof`).
         surface: Some(SpecSurface::TCL85_PLUS),
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,

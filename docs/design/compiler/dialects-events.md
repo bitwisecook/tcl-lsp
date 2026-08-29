@@ -42,9 +42,9 @@ bitflags! {
 ```
 
 The EDA shells (Synopsys, Cadence, Xilinx/AMD, Intel Quartus,
-Mentor/Siemens) have no dialect bit: they are modelled as a base Tcl
-version plus `required_package`-gated command libraries, loaded by profile
-name through `CommandRegistry::load_eda_packs`.
+Mentor/Siemens) have no surface of their own: they are modelled as a base
+Tcl release plus `required_package`-gated command libraries, installed by
+profile name from the bundled `specs/*.tclspec` packs.
 
 ### Dialect base versions
 

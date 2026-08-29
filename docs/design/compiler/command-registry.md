@@ -1257,23 +1257,24 @@ This fact is set on `CommandSpec` (for top-level commands) or `SubCommand`
 | Value | Meaning |
 |-------|---------|
 | `None` | Not safe -- W210 fires if variable is read before set |
-| `Some(DialectSet::ALL_TCL)` | Safe in every Tcl dialect (`append`, `lappend`, `dict set`) |
-| `Some(DialectSet::TCL85_PLUS)` | Safe only from 8.5 onwards (`incr`, which errors in 8.4 and iRules) |
-| `Some(…)` any other set | Safe only in exactly those dialects |
+| `Some(SpecSurface::ALL_TCL)` | Safe on every Tcl release (`append`, `lappend`, `dict set`) |
+| `Some(SpecSurface::TCL85_PLUS)` | Safe only from 8.5 onwards (`incr`, which errors in 8.4 and iRules) |
+| `Some(…)` any other rows | Safe only where those rows admit the point |
 
-The version-gated sets are `DialectSet` constants
-(`rust/tcl-dialect/src/dialect_set.rs`), so a derived dialect inherits the
-right answer from the bits it contains rather than from a name comparison.
+The version-gated rows are `SpecSurface` shorthands
+(`rust/tcl-dialect/src/model/authored_surface.rs`), so a derived dialect
+inherits the right answer from the point it asks at rather than from a name
+comparison.
 
 **Current state (verified 2026-08-15):** the registry resolves the most
 specific declared value (matched subcommand, otherwise command) into
-`InvocationSemantics`. Lowering evaluates that `DialectSet` against the
-active profile and writes the result to `Statement::Call` (including
-structured `dict` writers) or the specialised `Statement::Incr`.
+`InvocationSemantics`. Lowering asks that surface at the active profile's
+point and writes the result to `Statement::Call` (including structured
+`dict` writers) or the specialised `Statement::Incr`.
 `use_site_safe_initialises` consumes the resulting IR flag when deciding
 whether W210 applies to the command's own read-before-write. A profile-less
-registry is deliberately conservative: its availability mask is a union,
-not a runtime guarantee, so lowering writes `false`. `ArgRole::VarWrite`
+registry is deliberately conservative: it holds every layer at once, which
+is not a runtime guarantee, so lowering writes `false`. `ArgRole::VarWrite`
 still records the eventual definition; it is distinct from this
 read-before-write safety fact.
 
@@ -1282,19 +1283,19 @@ read-before-write safety fact.
 `CommandRegistry::build_default` builds the always-present surface: the
 `tcl`, `stdlib`, `tcllib`, `argparse`, `ticklecharts`, and `itcl` packs, plus
 `tk` (folded in because a script may `package require Tk` at run time, so Tk
-commands must be recognised under every Tcl dialect; the `TK` bit is marked
-loaded so a later `load_dialect` call is a no-op rather than a double
+commands must be recognised under every Tcl dialect; the `Tk` layer is marked
+loaded so a later `load_surface` call is a no-op rather than a double
 insert).
 
 The remaining packs load on demand:
 
-1. **`load_dialect(DialectSet)`** matches the dialect bit to its pack
-   collector — `BPF`, `IRULES`, `IAPPS`, `TMSH` (the `tmsh::` subset of the
-   iApps pack), `TK`, and `EXPECT`. It is idempotent: `loaded_dialects`
-   records what is already in, and an unrecognised bit loads nothing.
+1. **`load_surface(SurfaceLayer)`** matches the layer to its pack
+   collector — `bpf`, `f5-irules`, `f5-iapps`, `f5-tmsh` (the `tmsh::` subset
+   of the iApps pack), `Tk`, and `Expect`. It is idempotent: `loaded_layers`
+   records what is already in, and an unrecognised layer loads nothing.
 2. **`tcl_spectcl::bundled::registry_for_dialect(name)`** handles the EDA
    shells, which are modelled as a base Tcl version plus
-   `required_package`-gated libraries rather than a dialect bit — and whose
+   `required_package`-gated libraries rather than a surface of their own — and whose
    libraries are **bundled `.tclspec` loadables**, not compiled-in Rust
    (`docs/design/spec-packs.md`). It installs the shared `sdc_base` library
    plus the vendor's own pack, filtered to the packages the profile ships

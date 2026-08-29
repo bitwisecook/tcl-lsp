@@ -98,9 +98,10 @@ into the right flags — for example `tcl8.4` disables `{*}` word
 expansion and `f5-irules` enables the iRules brace separator, while an
 unknown name falls back to the Tcl-8.5+ defaults so a typo never
 silently changes parsing. On the registry side, each command's
-availability is gated by a `DialectSet` bitflags value
-(`tcl_registry::dialects`); a `None` set on a `CommandSpec` means the
-command is available in every dialect.
+availability is stated as a `&[SpecSurface]` — rows saying which provider
+offers it over which release windows (`tcl_dialect::model`) — and answered
+against the document's point; `surface: None` on a `CommandSpec` means the
+command is available everywhere.
 
 See also: [Command registry](design/compiler/command-registry.md).
 KCS tag: `lexing`.

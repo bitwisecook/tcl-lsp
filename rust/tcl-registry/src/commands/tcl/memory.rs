@@ -194,16 +194,14 @@ pub fn spec() -> CommandSpec {
         // "debug build only" — captured in prose instead.
         //
         // Excluded from f5-irules (K36322151, which already covers
-        // `"memory"`): its own `dialects` group below is
-        // `Some(SpecSurface::ALL_TCL)`, which carries no `IRULES` bit and
-        // so never intersects the bare `IRULES` availability mask — the
-        // same fully-explicit, per-spec exclusion `cd`/`load`/`open`/
-        // `unload` now rely on. There is no disable list. No other
-        // modelled dialect (f5-iapps/f5-tmsh/Expect/the EDA vendor
-        // shells/Tk) excludes it, and none plausibly ships a
-        // `TCL_MEM_DEBUG` build either, but there is no evidence (and no
-        // available mechanism) to model that here per-dialect, so this
-        // stays available across every real-Tcl surface.
+        // `"memory"`): its own surface below is `Some(SpecSurface::ALL_TCL)`,
+        // which names only Tcl and so is simply absent under iRules — the same
+        // fully-explicit, per-spec exclusion `cd`/`load`/`open`/ `unload` now
+        // rely on. There is no disable list. No other modelled dialect
+        // (f5-iapps/f5-tmsh/Expect/the EDA vendor shells/Tk) excludes it, and
+        // none plausibly ships a `TCL_MEM_DEBUG` build either, but there is no
+        // evidence (and no available mechanism) to model that here
+        // per-dialect, so this stays available across every real-Tcl surface.
         surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,

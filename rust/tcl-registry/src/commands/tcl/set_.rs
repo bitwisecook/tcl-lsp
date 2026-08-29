@@ -90,18 +90,16 @@ fn set_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "set",
-        // A core variable primitive with no filesystem/process/network
-        // access, present unmodified in every dialect that hosts a real
-        // Tcl core (irules, iapps, tmsh, the EDA shells, expect, tk,
-        // itcl) — its `dialects` group carries the `IRULES` bit explicitly
-        // (`ALL_TCL.union(IRULES)`), so it resolves under the bare `IRULES`
-        // availability mask, and no dialect grants it extra options or an
-        // alternate form:
-        // every `"set"` hit under the irules/, expect/, iapps/, tk/,
-        // itcl/, and eda_*/ command packs is an unrelated subcommand of
-        // a different ensemble (`array set`, `dict set`, a Tk widget's
-        // `pathName set`, iRules' `table set`), never a redefinition of
-        // this command.
+        // A core variable primitive with no filesystem/process/network access,
+        // present unmodified in every dialect that hosts a real Tcl core
+        // (irules, iapps, tmsh, the EDA shells, expect, tk, itcl) — its
+        // surface carries an iRules row explicitly (`ALL_TCL.union(IRULES)`),
+        // so it resolves under the iRules point, and no dialect grants it
+        // extra options or an alternate form: every `"set"` hit under the
+        // irules/, expect/, iapps/, tk/, itcl/, and eda_*/ command packs is an
+        // unrelated subcommand of a different ensemble (`array set`, `dict
+        // set`, a Tk widget's `pathName set`, iRules' `table set`), never a
+        // redefinition of this command.
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY

@@ -320,17 +320,16 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "package",
-        // Universal core Tcl 8.4-9.1 (present, with the shape detailed on
-        // each subcommand above, on every fetched manpage). F5 iRules
-        // drops it (K36322151 — the TMM data-plane sandbox has no real
-        // package-loading surface): its own `dialects` group below is
-        // `Some(SpecSurface::ALL_TCL)`, which carries no `IRULES` bit and
-        // so never intersects the bare `IRULES` availability mask — the
-        // same fully-explicit, per-spec exclusion `cd`/`open`/`exec`/
-        // `load` now rely on, with no disable list. Every other modelled
-        // dialect that embeds a real Tcl core (Expect, f5-iapps, f5-tmsh,
-        // the EDA vendor shells) carries a Tcl-version bit that `ALL_TCL`
-        // intersects, so `package` is available there too.
+        // Universal core Tcl 8.4-9.1 (present, with the shape detailed on each
+        // subcommand above, on every fetched manpage). F5 iRules drops it
+        // (K36322151 — the TMM data-plane sandbox has no real package-loading
+        // surface): its own surface below is `Some(SpecSurface::ALL_TCL)`,
+        // which names only Tcl and so is simply absent under iRules — the same
+        // fully-explicit, per-spec exclusion `cd`/`open`/`exec`/ `load` now
+        // rely on, with no disable list. Every other modelled dialect that
+        // embeds a real Tcl core (Expect, f5-iapps, f5-tmsh, the EDA vendor
+        // shells) carries a Tcl release that `ALL_TCL` intersects, so
+        // `package` is available there too.
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::NOT_PROC_FACTORY | Traits::BYTE_COMPILED | Traits::LANGUAGE_KEYWORD,
         arity: Arity::at_least(1),
@@ -383,7 +382,7 @@ pub fn spec() -> CommandSpec {
 #[cfg(test)]
 mod tests {
     use tcl_dialect::model::{SurfaceQuery, Family};
-    use tcl_dialect::model::{SpecSurface};
+    
     use crate::{CommandRegistry};
 
     #[test]

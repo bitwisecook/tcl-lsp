@@ -26,7 +26,6 @@ use tcl_registry::ArgRole;
 use tcl_registry::definer::{DefinerFamily, SPECTCL_GRAMMARS};
 use tcl_registry::model::ingress::static_context_for;
 use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::model::Family;
 
 /// The pack loads by profile identity, through exactly the same
 /// `base_layers` path every other dialect pack takes — so the registry sweep

@@ -1570,7 +1570,7 @@ pub fn scan_unit_linkage(
     dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Traits {
     // The *exact* parsed bit for this profile's own name, deliberately not
-    // `availability_mask`: `unit_linkage` filters registry rows by the single
+    // `surface_query`: `unit_linkage` filters registry rows by the single
     // dialect the document is, not by the wider set of releases whose commands
     // that dialect makes available (`f5-iapps` composes `TCL85|IAPPS`).
     let dialect = dialect

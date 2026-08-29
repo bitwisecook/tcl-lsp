@@ -375,7 +375,7 @@ pub fn spec() -> CommandSpec {
 #[cfg(test)]
 mod tests {
     use tcl_dialect::model::{SurfaceQuery, Family};
-    use tcl_dialect::model::{SpecSurface};
+    
     use super::oo_define_arg_roles;
     use crate::arg_role::ArgRole;
     use crate::{

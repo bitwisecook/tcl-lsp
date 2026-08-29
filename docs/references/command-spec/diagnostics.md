@@ -46,7 +46,7 @@
 
 | Code | Reports | Registry drivers |
 |---|---|---|
-| W210 | Read before set | `ArgRole::VarWrite` records the eventual def; `safe_on_uninit` suppresses the command's own read-before-write only when its resolved `DialectSet` contains the active profile (and lowers conservatively to false without a profile); `Traits::CREATES_SCOPE_ALIAS` suppresses; `DESTROYS_VARIABLE` diverts to W213 |
+| W210 | Read before set | `ArgRole::VarWrite` records the eventual def; `safe_on_uninit` suppresses the command's own read-before-write only when its surface admits the document's point (and lowers conservatively to false without one); `Traits::CREATES_SCOPE_ALIAS` suppresses; `DESTROYS_VARIABLE` diverts to W213 |
 | W211 / W220 | Unused variable / dead store | `ArgRole::VarRead` records the read; `Traits::READS_BEFORE_WRITE` keeps the feeding store alive |
 | W212 | `$` where a name is expected | Any `VarWrite` / `VarRead` role position receiving `$var` causes |
 | W126 | Non-channel in a channel slot | `ArgRole::Channel` causes (and filters that position out of taint output sinks) |

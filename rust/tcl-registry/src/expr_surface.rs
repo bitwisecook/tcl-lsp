@@ -141,16 +141,16 @@ impl RuntimeExprSurface {
     /// Whether the closed `expr` grammar admits `op`.
     ///
     /// An operator with no version floor is part of the base Tcl grammar. A
-    /// dialect-only operator is instead gated by the descriptor's dialect
-    /// set — **or** by the profile's F5-family core [`ExprGrammar`] word
-    /// table: the word-form operators are an `f5-tcl` *trunk* fact,
-    /// measured valid in tmsh and iApp `expr` too, not iRules-only
+    /// dialect-only operator is instead gated by the descriptor's dialect set
+    /// — **or** by the profile's F5-family core [`ExprGrammar`] word table:
+    /// the word-form operators are an `f5-tcl` *trunk* fact, measured valid in
+    /// tmsh and iApp `expr` too, not iRules-only
     /// (`docs/design/bigip-irule-parser-measurements.md` §4a), so any
-    /// F5Tcl-cored profile accepts them by reading the family table
-    /// directly rather than duplicating rows (ledger C12/B6). This
-    /// contains no spelling-specific logic: every fact comes from the
-    /// syntax descriptor or the family grammar, while the profile
-    /// contributes the grammar base and availability mask.
+    /// F5Tcl-cored profile accepts them by reading the family table directly
+    /// rather than duplicating rows (ledger C12/B6). This contains no
+    /// spelling-specific logic: every fact comes from the syntax descriptor or
+    /// the family grammar, while the profile contributes the grammar base and
+    /// availability point.
     ///
     /// [`ExprGrammar`]: tcl_dialect::model::ExprGrammar
     #[must_use]

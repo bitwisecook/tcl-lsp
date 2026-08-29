@@ -45,13 +45,12 @@ const COMPLETION_CODES: &[CompletionCode] = &[CompletionCode::Error];
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "error",
-        // Present and unrestricted: its `dialects` group explicitly carries
-        // the `IRULES` bit (unlike the TMM-sandbox-banned commands, whose
-        // bare `ALL_TCL` group never intersects the `IRULES` mask) — `error`
-        // is a pure exception-raising primitive with no
-        // filesystem/process/network access, so every dialect that hosts a
-        // real Tcl core (irules, iapps, tmsh, the EDA shells, expect, tk)
-        // carries it unmodified.
+        // Present and unrestricted: its surface explicitly carries an iRules
+        // row (unlike the TMM-sandbox-banned commands, whose bare `ALL_TCL`
+        // surface never intersects the `IRULES` mask) — `error` is a pure
+        // exception-raising primitive with no filesystem/process/network
+        // access, so every dialect that hosts a real Tcl core (irules, iapps,
+        // tmsh, the EDA shells, expect, tk) carries it unmodified.
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         // `LANGUAGE_KEYWORD`, like its sibling `throw`: both raise an exception
         // and both are `TERMINATES_BLOCK`. `error` carried neither the trait nor

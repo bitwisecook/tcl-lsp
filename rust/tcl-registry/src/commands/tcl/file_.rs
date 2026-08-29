@@ -649,12 +649,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
 /// Command spec for `file`.
 ///
 /// `dialects` is `ALL_TCL` because `file` is unavailable in F5 iRules:
-/// `"file"` is one of the K36322151 bans (the F5 TMM sandbox). `ALL_TCL`
-/// does not carry the `IRULES` bit, so this spec never intersects the
-/// bare `IRULES` availability mask — the exclusion is expressed directly
-/// by the `dialects` group, with no disable list involved. No other
-/// dialect here (Tk, Expect, tmsh, iApps, the EDA vendor shells) disables
-/// or restricts `file`.
+/// `"file"` is one of the K36322151 bans (the F5 TMM sandbox). `ALL_TCL` does
+/// not carry an iRules row, so this spec is simply absent under iRules — the
+/// exclusion is expressed directly by the surface, with no disable list
+/// involved. No other dialect here (Tk, Expect, tmsh, iApps, the EDA vendor
+/// shells) disables or restricts `file`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "file",

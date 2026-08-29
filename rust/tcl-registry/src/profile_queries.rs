@@ -23,10 +23,10 @@
 //! This extension trait gives the profile its availability API (design doc
 //! §5.1) at the registry layer: **every** availability consumer resolves
 //! commands through these methods, so the mask query and the profile-level
-//! operator-head exclusion (§9) are applied uniformly. iRules availability
-//! is fully explicit in each spec's `dialects` group, so a sandbox-banned
-//! command such as `exec` simply never carries the `IRULES` bit; there is
-//! no subtractive disable list left to bypass.
+//! operator-head exclusion (§9) are applied uniformly. iRules availability is
+//! fully explicit in each spec's surface, so a sandbox-banned command such as
+//! `exec` simply never carries an iRules row; there is no subtractive disable
+//! list left to bypass.
 
 use tcl_dialect::DialectProfile;
 
@@ -45,21 +45,21 @@ use tcl_dialect::model::{SpecSurface, surface_admits};
 /// registry data (design doc §5.1/§5.2). Implemented for `DialectProfile`
 /// here because the spec types live above the foundational crate.
 pub trait ProfileQueries {
-    /// Whether `spec` is available under this profile: the membership test
-    /// against [`DialectProfile::availability_mask`], and — for a profile
+    /// Whether `spec` is available under this profile: does the spec's
+    /// surface admit [`DialectProfile::surface_query`], and — for a profile
     /// whose math operators are not command heads (`f5-irules`) — the
     /// [`Traits::OPERATOR_COMMAND`] exclusion. iRules availability is fully
-    /// explicit in each spec's `dialects` now (the `IRULES` bit is present
-    /// iff iRules enables it), so there is no longer a subtractive ban list.
+    /// explicit in each spec's surface (an iRules row is present iff iRules
+    /// enables it), so there is no longer a subtractive ban list.
     ///
     /// This is the same trio [`CommandRegistry::spec_visible`] enforces
     /// inside profile-stamped registries; it lives here too so profile-side
-    /// queries agree with mask queries on any registry.
+    /// queries agree with point queries on any registry.
     fn is_available(&self, spec: &CommandSpec) -> bool;
 
     /// Resolve `name` to its command spec under this profile — the single
     /// availability primitive the diagnostics (W123/W002), completion,
-    /// and the CLI snapshot share. Mask query + disable filter.
+    /// and the CLI snapshot share. Point query + disable filter.
     fn resolve_command<'r>(
         &self,
         registry: &'r CommandRegistry,
@@ -73,14 +73,14 @@ pub trait ProfileQueries {
     /// This is the §5.2 option-gating semantics — a genuine change from
     /// the old `contains` rule:
     ///
-    /// - **membership** — `gate.intersects(availability_mask)`, so an
+    /// - **membership** — the gate must admit the profile's point, so an
     ///   option inherited from a vendor command resolves under that
     ///   vendor's composed profile (the old `contains` silently dropped
     ///   every inherited option on every vendor command), and
     /// - **upper bound** — the gate's [`core_tcl_floor`] must not
     ///   exceed [`DialectProfile::version_ceiling`], so a tcl9.0-only
-    ///   option cannot leak into an 8.5-superset profile whose mask
-    ///   happens to intersect its gate.
+    ///   option cannot leak into an 8.5-superset profile whose point its
+    ///   gate happens to admit.
     ///
     /// A gate of `None` on both the option and its parent means "no
     /// restriction".
@@ -117,43 +117,31 @@ pub struct VendorSurface {
     pub namespaces: Vec<(String, usize)>,
 }
 
-/// The set of package names some dialect profile ships **ambient** — an EDA
-/// vendor tool surface (`vivado`, `synopsys-dc`, …), an F5 command pack —
-/// computed once from the catalog. A command gated on such a package is a
-/// closed-world vendor command: available only under a profile that ships it.
-/// Hosted libraries that need `package require` (Tk, tcllib, the stdlib
-/// packages) are never in this set (design doc `eda-library-packages.md`).
-fn vendor_ambient_packages() -> &'static std::collections::HashSet<&'static str> {
-    static SET: std::sync::OnceLock<std::collections::HashSet<&'static str>> =
-        std::sync::OnceLock::new();
-    SET.get_or_init(|| {
-        DialectProfile::all()
-            .iter()
-            .flat_map(|p| p.libraries.iter())
-            .filter(|pin| pin.ambient)
-            .map(|pin| pin.package)
-            .collect()
-    })
-}
-
-/// Whether `required` is satisfied under `profile` (design doc
-/// `eda-library-packages.md`, the `is_available` package-loaded gate):
+/// Whether `required` is satisfied under `profile` — the profile-side face
+/// of the one closed-world rule, `ResolvedContext::required_package_available`.
 ///
 /// - `None` — no package gate, always satisfied.
-/// - a **hosted** library (never ambient in any profile — Tk, tcllib, stdlib):
-///   satisfied. The command stays known/available; a missing `package require`
-///   is reported separately by W120, not by hiding the command.
-/// - a **closed-world vendor** package (ambient in some profile): satisfied
-///   only when *this* profile ships it ambient — so a `vivado` command never
+/// - a **hosted** library (Tk, tcllib, the stdlib packages): satisfied. The
+///   command stays known; a missing `package require` is reported by W120,
+///   not by hiding the command.
+/// - a **closed-world** package — one some environment ships as part of its
+///   own runtime and no environment hosts for installation: satisfied only
+///   when *this* profile ships it ambient, so a `vivado` command never
 ///   resolves under a plain-Tcl or rival-vendor profile.
 ///
-/// Behaviour-preserving today (vendor packs are profile-scoped and each EDA
-/// profile ships its own tool packages ambient); the gate makes the model
-/// honest and future-proofs finer per-tool detection.
+/// The classification comes from
+/// [`is_closed_world_package`](crate::model::surface::is_closed_world_package),
+/// the same predicate `ResolvedContext` reads, so a profile and a resolved
+/// context cannot disagree about which packages are closed-world. What a
+/// profile *cannot* answer is the `AmbientPlusRequire` policy: that needs a
+/// document's `package require`s, which is a context fact, not a profile one.
 fn package_available(profile: &DialectProfile, required: Option<&'static str>) -> bool {
     match required {
         None => true,
-        Some(pkg) => profile.is_ambient_package(pkg) || !vendor_ambient_packages().contains(pkg),
+        Some(pkg) => {
+            !crate::model::surface::is_closed_world_package(pkg)
+                || profile.is_ambient_package(pkg)
+        }
     }
 }
 
@@ -250,8 +238,8 @@ impl ProfileQueries for DialectProfile {
 #[cfg(test)]
 pub(crate) trait LegacyProfileOracle {
     /// Whether `sub` (of `spec`) is available under this profile: the
-    /// subcommand's own dialect gate — falling back to the parent
-    /// command's — intersected with the availability mask (§5.1).
+    /// subcommand's own dialect gate — falling back to the parent command's —
+    /// intersected with the availability point (§5.1).
     fn is_subcommand_available(&self, spec: &CommandSpec, sub: &SubCommand) -> bool;
 
     /// Whether `sub_sub` (a second-level operation of `sub`, itself a
@@ -259,10 +247,10 @@ pub(crate) trait LegacyProfileOracle {
     /// `package_version`.
     ///
     /// Both axes apply, exactly as they do one level up: the dialect gate
-    /// `sub_sub.surface` inherits from `sub.surface.or(spec.surface)` and
-    /// is intersected with the availability mask, and the owning package's
-    /// [`crate::lifecycle::Lifecycle`] must admit `package_version`
-    /// (`None` = permissive).
+    /// `sub_sub.surface` inherits from `sub.surface.or(spec.surface)` and is
+    /// intersected with the availability point, and the owning package's
+    /// [`crate::lifecycle::Lifecycle`] must admit `package_version` (`None` =
+    /// permissive).
     fn is_sub_subcommand_available(
         &self,
         spec: &CommandSpec,

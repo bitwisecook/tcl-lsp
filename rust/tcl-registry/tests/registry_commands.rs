@@ -64,12 +64,12 @@ use tcl_registry::{
 /// pair it with the parsed `SpecSurface` for `get_for_surface`.
 fn reg_and_set(dialect: &str) -> (&'static CommandRegistry, Option<SurfaceQuery<'static>>) {
     // "Available under dialect D" is membership in D's *profile availability
-    // mask*, not the bare single dialect bit. For the additive vendor
+    // point*, not the bare single dialect bit. For the additive vendor
     // dialects the mask is `(base Tcl version | vendor bit)` — e.g. expect is
-    // `TCL86 | EXPECT` — so a core command (now an explicit `ALL_TCL` group,
-    // no longer universal `None`) resolves through the version half. Using
-    // the bare bit here would wrongly exclude the whole Tcl core from every
-    // vendor dialect.
+    // `TCL86 | EXPECT` — so a core command (now an explicit `ALL_TCL` surface,
+    // no longer universal `None`) resolves through the version half. Using the
+    // bare bit here would wrongly exclude the whole Tcl core from every vendor
+    // dialect.
     (
         static_context_for(dialect).commands(),
         Some(
@@ -1165,7 +1165,7 @@ fn tk_commands_are_gated_to_tcl_and_tk_not_irules_or_iapps() {
     }
 }
 
-/// `load_dialect` makes iRules commands resolvable and listed.
+/// `load_surface` makes iRules commands resolvable and listed.
 ///
 /// f5-dialect.
 #[test]
@@ -1178,7 +1178,7 @@ fn load_dialect_makes_irules_commands_visible() {
     assert!(names.contains("HTTP::header"));
 }
 
-/// `load_dialect` is idempotent.
+/// `load_surface` is idempotent.
 ///
 /// f5-dialect / registry behaviour.
 #[test]

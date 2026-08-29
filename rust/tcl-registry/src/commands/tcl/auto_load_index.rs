@@ -34,19 +34,18 @@ pub fn spec() -> CommandSpec {
         // `surface: Some(SpecSurface::ALL_TCL)` matches every sibling
         // autoloading proc (`auto_execok`, `auto_import`, `auto_load`,
         // `auto_mkindex`, `auto_mkindex_old`, `auto_qualify`, `auto_reset`):
-        // F5 iRules bans all seven, and that ban is now carried by each
-        // spec's own `dialects` group rather than any list. `ALL_TCL`
-        // spans every core Tcl version but not the `IRULES` bit, so none
-        // of these specs intersect iRules' bare `IRULES` availability mask
-        // — narrowing one to a `SpecSurface` that *did* carry `IRULES`
-        // would re-admit exactly what the ban excludes (same rationale
-        // documented on `auto_load`'s spec). Under the old subtractive
-        // disable list `auto_load_index` was conspicuously absent even
-        // though it is the proc every other listed one either calls or
-        // exists alongside — a gap that left it erroneously reachable in
-        // iRules; making availability explicit per spec closes that gap,
-        // since this `ALL_TCL` group now excludes iRules directly, just
-        // like its siblings.
+        // F5 iRules bans all seven, and that ban is now carried by each spec's
+        // own surface rather than any list. `ALL_TCL` spans every core Tcl
+        // version but not an iRules row, so none of these specs intersect
+        // iRules' bare `IRULES` availability point — narrowing one to a
+        // `SpecSurface` that *did* carry `IRULES` would re-admit exactly what
+        // the ban excludes (same rationale documented on `auto_load`'s spec).
+        // Under the old subtractive disable list `auto_load_index` was
+        // conspicuously absent even though it is the proc every other listed
+        // one either calls or exists alongside — a gap that left it
+        // erroneously reachable in iRules; making availability explicit per
+        // spec closes that gap, since this `ALL_TCL` surface now excludes
+        // iRules directly, just like its siblings.
         surface: Some(SpecSurface::ALL_TCL),
         // A Tcl-level library proc (`library/init.tcl`), not a
         // `Tcl_CreateObjCommand`-registered builtin, so it carries no

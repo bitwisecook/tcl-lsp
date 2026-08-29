@@ -97,18 +97,18 @@ pub fn spec() -> CommandSpec {
         // `Some(SpecSurface::ALL_TCL)` carries the same value as its sibling
         // autoloading procs (`auto_mkindex`/`auto_load_index`): under the
         // explicit-per-spec model `ALL_TCL` spans every core Tcl version but
-        // not the `IRULES` bit, so the spec never intersects iRules' bare
-        // `IRULES` availability mask and is unreachable there — there is no
-        // subtractive disable list. The modelled K36322151 iRules bans in
-        // this family are `package` and `pkg_mkindex` outright;
-        // `tclPkgUnknown` itself is not separately named among them. Every
-        // other dialect composes a real Tcl-version bit that `ALL_TCL` does
-        // intersect (Expect, Tk, the five EDA vendor shells, tmsh, iApps),
-        // so `tclPkgUnknown` stays reachable in each. Whether real iRules
-        // still exposes a working `tclPkgUnknown` given that `package`
-        // itself is banned there is not independently confirmed, so
-        // `Some(ALL_TCL)` — which excludes it from iRules while leaving it
-        // reachable everywhere else — stands as the conservative value here.
+        // not an iRules row, so the spec never intersects iRules' bare
+        // `IRULES` availability point and is unreachable there — there is no
+        // subtractive disable list. The modelled K36322151 iRules bans in this
+        // family are `package` and `pkg_mkindex` outright; `tclPkgUnknown`
+        // itself is not separately named among them. Every other dialect
+        // composes a real Tcl release that `ALL_TCL` does intersect (Expect,
+        // Tk, the five EDA vendor shells, tmsh, iApps), so `tclPkgUnknown`
+        // stays reachable in each. Whether real iRules still exposes a working
+        // `tclPkgUnknown` given that `package` itself is banned there is not
+        // independently confirmed, so `Some(ALL_TCL)` — which excludes it from
+        // iRules while leaving it reachable everywhere else — stands as the
+        // conservative value here.
         surface: Some(SpecSurface::ALL_TCL),
         // A redefinable Tcl library proc — see
         // `Traits::OVERRIDABLE_LIBRARY_PROC`. Not `SAFE_INTERP_HIDDEN`:

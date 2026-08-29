@@ -96,7 +96,7 @@ pub fn forward_range(dialect: &str) -> &'static [&'static str] {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SpecSurface};
+    
     use super::*;
 
     #[test]

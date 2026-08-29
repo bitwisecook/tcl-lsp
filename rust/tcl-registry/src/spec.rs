@@ -3820,7 +3820,7 @@ impl SubCommand {
 #[cfg(test)]
 mod tests {
     use tcl_dialect::model::{SurfaceQuery, Family};
-    use tcl_dialect::model::{SpecSurface};
+    
     use super::*;
     use crate::registry::CommandRegistry;
 

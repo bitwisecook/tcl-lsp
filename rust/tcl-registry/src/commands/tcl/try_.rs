@@ -164,22 +164,21 @@ pub fn spec() -> CommandSpec {
             | Traits::BRANCH_SELECTED_BODY,
         // `TCL86_PLUS`, via the mask-intersection rule
         // `CommandSpec::supports_dialect` / `ProfileQueries::is_available`,
-        // already resolves availability correctly for every non-core
-        // dialect with no extra gate needed: `f5-irules`'s profile mask is
-        // the bare `IRULES` bit (an embedded Tcl 8.4.6 core), and
-        // `f5-iapps`/`f5-tmsh`/the Quartus/Mentor/Xilinx EDA shells all
-        // mask in `TCL85` (their documented Tcl base) — none of those
-        // five intersect `TCL86_PLUS`, so `try` is correctly unavailable
-        // in all six (`tcl-dialect/src/profile.rs`). `f5-bigip`'s mask
-        // carries no Tcl-version bit at all (a config-file surface, not a
-        // Tcl command surface), so it is unaffected either way. Expect
-        // and the Cadence/Synopsys EDA shells mask in `TCL86`, and BPF
-        // masks in `TCL90` — all four intersect `TCL86_PLUS`, so `try`
-        // correctly resolves there too (each embeds a real 8.6+/9.0+ core
-        // with no disable list of its own touching it — confirmed by
-        // grepping `irules/`, `iapps/`, `expect/`, `eda_*/`, `tk/`, and
-        // `itcl/` for `"try"`: no hits at all, so no dialect overrides or
-        // bans it).
+        // already resolves availability correctly for every non-core dialect
+        // with no extra gate needed: `f5-irules`'s profile point is the iRules
+        // family alone (an embedded Tcl 8.4.6 core), and
+        // `f5-iapps`/`f5-tmsh`/the Quartus/Mentor/Xilinx EDA shells all mask
+        // in `TCL85` (their documented Tcl base) — none of those five
+        // intersect `TCL86_PLUS`, so `try` is correctly unavailable in all six
+        // (`tcl-dialect/src/profile.rs`). `f5-bigip`'s mask carries no Tcl
+        // release at all (a config-file surface, not a Tcl command surface),
+        // so it is unaffected either way. Expect and the Cadence/Synopsys EDA
+        // shells mask in `TCL86`, and BPF masks in `TCL90` — all four
+        // intersect `TCL86_PLUS`, so `try` correctly resolves there too (each
+        // embeds a real 8.6+/9.0+ core with no disable list of its own
+        // touching it — confirmed by grepping `irules/`, `iapps/`, `expect/`,
+        // `eda_*/`, `tk/`, and `itcl/` for `"try"`: no hits at all, so no
+        // dialect overrides or bans it).
         surface: Some(SpecSurface::TCL86_PLUS),
         // Minimum 1 (`body` is mandatory — `try` with no arguments is
         // "wrong # args: should be \"try body ?handler ...? ?finally

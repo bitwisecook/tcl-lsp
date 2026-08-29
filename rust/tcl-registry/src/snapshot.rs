@@ -481,8 +481,8 @@ pub fn event_graph_snapshot() -> Json {
     let events = EventRegistry::build();
     let profiles = ProfileRegistry::build();
     // The profile-stamped registry: the §9 operator-head exclusion and the
-    // specs' own `dialects` groups govern the per-event valid-command
-    // digests, exactly as they govern `event-info`.
+    // specs' own surfaces govern the per-event valid-command digests, exactly
+    // as they govern `event-info`.
     let cmds = crate::cache::registry_for_profile(tcl_dialect::DialectProfile::irules());
 
     // Sorted event names.

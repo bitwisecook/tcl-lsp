@@ -20,11 +20,11 @@
 //! shared seam, [`tcl_registry::model::ingress`] (centralisation contract
 //! R-a; P1-F wave 3, alongside the two engines these sweeps exercise).
 //!
-//! Every dialect **name** an `xtask` subcommand accepts — a `--dialect`
-//! flag, a projection target's canonical id, the fixed `f5-irules` the
-//! iRule-test generator simulates — resolves here, once, and the registry
-//! store, availability mask, and availability queries it then asks are
-//! derived from the resolved environment.
+//! Every dialect **name** an `xtask` subcommand accepts — a `--dialect` flag,
+//! a projection target's canonical id, the fixed `f5-irules` the iRule-test
+//! generator simulates — resolves here, once, and the registry store,
+//! availability point, and availability queries it then asks are derived from
+//! the resolved environment.
 //!
 //! Nothing here changes what a generator emits. The catalogue names these
 //! sweeps use resolve to their same-named environments, whose

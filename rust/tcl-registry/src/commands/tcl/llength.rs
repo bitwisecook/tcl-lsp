@@ -18,22 +18,20 @@
 
 //! `llength` — return the number of elements in a list.
 //
-// Manpage comparison across Tcl 8.4, 8.5, 8.6, 9.0, and 9.1
-// (tcl-lang.org's TclCmd/llength.html, `.htm` for the 8.6 tree): the
-// synopsis ("llength list"), the description paragraph, and the worked
-// examples are identical word-for-word in all five releases. llength
-// has taken exactly one list argument and returned its top-level
-// element count as a decimal string, with no option, no alternate
-// form, and no documented behaviour change anywhere across the whole
-// 8.4-9.1 span. The 9.0 and 9.1 pages grow a longer "See Also" list
-// (lassign, ledit, lmap, lpop, lremove, lrepeat, lreverse, lseq
-// alongside the 8.x set) purely because those commands did not exist
-// yet in 8.4-8.6 — cross-reference churn, not a change to llength
-// itself. Not disabled or overridden in any modelled dialect: `llength`
-// carries the `IRULES` bit explicitly (its `dialects` group is
-// `ALL_TCL.union(IRULES)`, resolving under the bare `IRULES` mask), and
-// no irules/iapps/tmsh/expect/eda/itcl spec file named `llength`
-// exists — so the command-level group is correct as-is.
+// Manpage comparison across Tcl 8.4, 8.5, 8.6, 9.0, and 9.1 (tcl-lang.org's
+// TclCmd/llength.html, `.htm` for the 8.6 tree): the synopsis ("llength
+// list"), the description paragraph, and the worked examples are identical
+// word-for-word in all five releases. llength has taken exactly one list
+// argument and returned its top-level element count as a decimal string, with
+// no option, no alternate form, and no documented behaviour change anywhere
+// across the whole 8.4-9.1 span. The 9.0 and 9.1 pages grow a longer "See
+// Also" list (lassign, ledit, lmap, lpop, lremove, lrepeat, lreverse, lseq
+// alongside the 8.x set) purely because those commands did not exist yet in
+// 8.4-8.6 — cross-reference churn, not a change to llength itself. Not
+// disabled or overridden in any modelled dialect: `llength` carries an iRules
+// row explicitly (its surface is `ALL_TCL.union(IRULES)`, resolving under the
+// bare `IRULES` mask), and no irules/iapps/tmsh/expect/eda/itcl spec file
+// named `llength` exists — so the command-level group is correct as-is.
 use crate::hooks::CodegenHookId;
 use crate::prelude::*;
 use tcl_dialect::model::{SpecSurface};

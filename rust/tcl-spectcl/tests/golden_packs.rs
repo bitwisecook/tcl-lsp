@@ -120,6 +120,70 @@ fn every_shipped_pack_still_loads_to_its_golden_snapshot() {
     assert!(commands >= 800, "only {commands} commands covered");
 }
 
+/// **The upgrade is a spelling change, and this is what says so.** Every
+/// shipped pack, rewritten to the 2.0 vocabulary by `tcl spec upgrade`,
+/// loads to the same registry as the 1.x source it came from — the same
+/// exhaustive rendering the golden holds a digest of, not merely the same
+/// command count.
+///
+/// It runs the 2.0 source **through the interpreter** as well, with the
+/// static fast path off, because "a pack is a Tcl program" is only true if
+/// the VM can execute one to the same answer. Three readings, one result.
+#[test]
+fn every_shipped_pack_upgrades_to_2_0_and_loads_identically() {
+    use tcl_spectcl::{EvalOptions, UpgradeOptions, UpgradeStatus, upgrade_source};
+
+    let root = repo_root();
+    let interpreted = EvalOptions {
+        static_fast_path: false,
+        ..EvalOptions::default()
+    };
+    let mut upgraded_packs = 0_usize;
+    for path in &golden::shipped_packs(&root) {
+        let legacy = std::fs::read_to_string(path).expect("readable pack");
+        let outcome = upgrade_source(&legacy, &UpgradeOptions::default());
+        assert!(
+            matches!(
+                outcome.status,
+                UpgradeStatus::Upgraded | UpgradeStatus::AlreadyCurrent
+            ),
+            "{}: {:?} {:?}",
+            path.display(),
+            outcome.status,
+            outcome.refusals
+        );
+        assert!(
+            outcome.above_target.is_empty(),
+            "{}: rows above the declared vocabulary: {:?}",
+            path.display(),
+            outcome.above_target
+        );
+        if matches!(outcome.status, UpgradeStatus::Upgraded) {
+            upgraded_packs += 1;
+        }
+
+        let was = golden::render(&tcl_spectcl::evaluate_pack(&legacy));
+        let now = tcl_spectcl::evaluate_pack(&outcome.source);
+        assert!(
+            was == golden::render(&now),
+            "{}: the 2.0 rewrite loads differently.\n{}",
+            path.display(),
+            explain(&was, &golden::render(&now), &now)
+        );
+        let run = tcl_spectcl::evaluate_pack_with(&outcome.source, &interpreted);
+        assert!(
+            was == golden::render(&run),
+            "{}: the 2.0 rewrite loads differently through the interpreter.\n{}",
+            path.display(),
+            explain(&was, &golden::render(&run), &run)
+        );
+    }
+    assert!(
+        upgraded_packs >= 8,
+        "only {upgraded_packs} packs had 1.x rows to rewrite"
+    );
+}
+
 /// A golden with no pack behind it would never be looked at again — a pack
 /// renamed or deleted without its snapshot. The regeneration verb removes
 /// them; this is the gate that notices.

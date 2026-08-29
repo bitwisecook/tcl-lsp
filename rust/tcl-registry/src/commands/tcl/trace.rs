@@ -1090,12 +1090,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         state_transitions: Some(TRACE_ADD_TRANSITIONS),
         literal_argument_validator: Some(validate_modern_trace_operations),
         // measurements §5 (`docs/design/bigip-irule-parser-measurements.md`,
-        // BIG-IP 21.1.0.1): TMM's `trace` is the 8.3-era form ONLY —
-        // `trace add variable …` fails with `wrong # args` — so the modern
-        // ensemble subcommands carry `ALL_TCL` (every real Tcl core, no
-        // `IRULES` bit) and never intersect the bare iRules mask. This is
-        // an arity/form gate on the embedded fork, not a command removal:
-        // `trace` itself stays present in iRules.
+        // BIG-IP 21.1.0.1): TMM's `trace` is the 8.3-era form ONLY — `trace
+        // add variable …` fails with `wrong # args` — so the modern ensemble
+        // subcommands carry `ALL_TCL` (every real Tcl core, no iRules row) and
+        // never intersect the bare iRules mask. This is an arity/form gate on
+        // the embedded fork, not a command removal: `trace` itself stays
+        // present in iRules.
         surface: Some(SpecSurface::ALL_TCL),
         ..SubCommand::DEFAULT
     },
@@ -1279,25 +1279,24 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "trace",
-        // Present and unrestricted: `trace` carries the `IRULES` bit
-        // explicitly (`ALL_TCL.union(IRULES)`), so it resolves under the
-        // bare `IRULES` mask, and every dialect that hosts a real Tcl core
-        // (irules, iapps, tmsh, the EDA shells, expect, tk, itcl) carries
-        // it. Its legal *subcommand* set narrows per Tcl version through
-        // each SubCommand's own `dialects` gate below — and, now
-        // MEASURED (`docs/design/bigip-irule-parser-measurements.md` §5,
-        // BIG-IP 21.1.0.1), per iRules too: TMM's `trace` is the 8.3-era
-        // form ONLY. `trace add variable …` fails with `wrong # args`, so
-        // the modern `add`/`info`/`remove` subcommands carry `ALL_TCL`
-        // (never intersecting the bare `IRULES` mask) while the legacy
-        // `variable`/`vdelete`/`vinfo` forms carry
-        // `TCL8X.union(IRULES)` — an arity/form gate on the embedded
-        // 8.4.6 fork, not a command removal. The `TCL8X` half still
-        // extends to every dialect whose `availability_mask` composes a
-        // real embedded Tcl-version bit with its vendor bit (f5-iapps and
-        // f5-tmsh on the fork's 8.4 line, the EDA shells at
-        // `TCL85`/`TCL86`, Expect at `TCL86`), per the same
-        // intersects-only membership rule `tests/dialect_profile.rs`'s
+        // Present and unrestricted: `trace` carries an iRules row explicitly
+        // (`ALL_TCL.union(IRULES)`), so it resolves under the bare `IRULES`
+        // mask, and every dialect that hosts a real Tcl core (irules, iapps,
+        // tmsh, the EDA shells, expect, tk, itcl) carries it. Its legal
+        // *subcommand* set narrows per Tcl version through each SubCommand's
+        // own `dialects` gate below — and, now MEASURED
+        // (`docs/design/bigip-irule-parser-measurements.md` §5, BIG-IP
+        // 21.1.0.1), per iRules too: TMM's `trace` is the 8.3-era form ONLY.
+        // `trace add variable …` fails with `wrong # args`, so the modern
+        // `add`/`info`/`remove` subcommands carry `ALL_TCL` (never
+        // intersecting the bare `IRULES` mask) while the legacy
+        // `variable`/`vdelete`/`vinfo` forms carry `TCL8X.union(IRULES)` — an
+        // arity/form gate on the embedded 8.4.6 fork, not a command removal.
+        // The `TCL8X` half still extends to every dialect whose
+        // `surface_query` composes a real embedded Tcl release with its vendor
+        // bit (f5-iapps and f5-tmsh on the fork's 8.4 line, the EDA shells at
+        // `TCL85`/`TCL86`, Expect at `TCL86`), per the same intersects-only
+        // membership rule `tests/dialect_profile.rs`'s
         // `option_gating_honours_the_version_ceiling` documents.
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::CREATES_BARRIER | Traits::CREATES_DYNAMIC_BARRIER | Traits::BYTE_COMPILED,
@@ -1323,7 +1322,7 @@ pub fn spec() -> CommandSpec {
 #[cfg(test)]
 mod tests {
     use tcl_dialect::model::{SurfaceQuery, Family};
-    use tcl_dialect::model::{SpecSurface};
+    
     use super::*;
     use crate::{
         CommandRegistry, InvocationWord, InvocationWordKind, StateTransitionFact,

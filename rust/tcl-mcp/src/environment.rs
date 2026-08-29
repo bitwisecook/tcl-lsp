@@ -14,12 +14,11 @@
 //! are answered by the resolved environment's [`ResolvedContext`] rather
 //! than by `ProfileQueries` over a threaded profile.
 //!
-//! Nothing here changes a tool's answer. The catalogue names the tools
-//! resolve map to their same-named environments, whose `unit_profile` is
-//! the profile the retired validators returned, and whose document context
-//! answers under the **document authoring mask** — test-pinned equal to
-//! the threaded profile's `availability_mask` for every profile an ingress
-//! can produce.
+//! Nothing here changes a tool's answer. The catalogue names the tools resolve
+//! map to their same-named environments, whose `unit_profile` is the profile
+//! the retired validators returned, and whose document context answers under
+//! the **document authoring mask** — test-pinned equal to the threaded
+//! profile's `surface_query` for every profile an ingress can produce.
 
 use tcl_dialect::DialectProfile;
 use tcl_registry::model::ResolvedContext;
@@ -68,9 +67,9 @@ pub fn context_for_dialect(name: &str) -> &'static ResolvedContext {
     tcl_registry::model::static_document_context_for(name)
 }
 
-/// The availability mask the **analyser** ingress gives a dialect name —
-/// resolved through the seam rather than read back off a registry
-/// generation's profile *stamp*.
+/// The availability point the **analyser** ingress gives a dialect name —
+/// resolved through the seam rather than read back off a registry generation's
+/// profile *stamp*.
 ///
 /// Deliberately not the document authoring point: it sinks `tk` to the
 /// permissive fallback's point instead of adding the `Tk` package, which

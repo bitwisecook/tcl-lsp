@@ -1725,17 +1725,16 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "string",
-        // Present and unrestricted: its `dialects` group carries the
-        // `IRULES` bit explicitly (`ALL_TCL.union(IRULES)`), so it resolves
-        // under the bare `IRULES` availability mask — a
-        // pure value-transform ensemble with no filesystem/process/network
-        // access, so every dialect that hosts a real Tcl core (irules,
-        // iapps, tmsh, the EDA shells, expect, tk, itcl) carries it
-        // unmodified. Individual subcommands and `string is` classes still
-        // narrow per Tcl version through their own `dialects`/`min_tcl`
-        // gates (enforced generically by the profile's `version_ceiling`,
-        // the same mechanism that keeps `return`'s `-level` out of
-        // iRules) — not a whole-command dialect gate.
+        // Present and unrestricted: its surface carries an iRules row
+        // explicitly (`ALL_TCL.union(IRULES)`), so it resolves under the
+        // iRules point — a pure value-transform ensemble with no
+        // filesystem/process/network access, so every dialect that hosts a
+        // real Tcl core (irules, iapps, tmsh, the EDA shells, expect, tk,
+        // itcl) carries it unmodified. Individual subcommands and `string is`
+        // classes still narrow per Tcl version through their own
+        // `dialects`/`min_tcl` gates (enforced generically by the profile's
+        // `version_ceiling`, the same mechanism that keeps `return`'s `-level`
+        // out of iRules) — not a whole-command dialect gate.
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
@@ -1760,7 +1759,7 @@ pub fn spec() -> CommandSpec {
 #[cfg(test)]
 mod tests {
     use tcl_dialect::model::{SurfaceQuery, Family};
-    use tcl_dialect::model::{SpecSurface};
+    
     use super::fold_is;
     use crate::hooks::TclVersion;
     use crate::{CommandRegistry, DispatchDependencies, DispatchDependencyDomain};

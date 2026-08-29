@@ -598,8 +598,8 @@ package-surface iapp {
 
 package-surface tmsh {
     # Listed as ambient by BOTH the iapps environment and the
-    # standalone tmsh shell environment — the DialectSet union
-    # (IAPPS ∪ TMSH) disappears into placement.
+    # standalone tmsh shell environment — the surface is stated once
+    # and each environment claims it, so there is no union to spell.
     command tmsh::begin_transaction {} \
         -context-transition {transaction open}
     command tmsh::commit_transaction {} \
@@ -621,10 +621,11 @@ but whose semantics are eBPF. Twenty-six commands in four layers, every
 one carrying a typed `BpfOpSpec` descriptor the front-end dispatches on
 — never the name (`spec.rs:1477`). Seven of its words (`when`, `drop`,
 `use`, `next`, `map`, `pass`, `loop`, `profile`) collide with
-iRules/Tcl/Tk/tcllib commands, and the *only* disambiguator is the
-dialect bit — which is exactly what the environment layer replaces: a
-`bpf` environment whose contributed language identity resolves the
-name to the BPF declaration, with no bit arithmetic anywhere (R-a).
+iRules/Tcl/Tk/tcllib commands, and the *only* disambiguator is which
+surface the caller is standing on — which is exactly what the
+environment layer supplies: a `bpf` environment whose contributed
+language identity resolves the name to the BPF declaration, with no set
+arithmetic anywhere (R-a).
 
 What the walk establishes for the spec surface:
 

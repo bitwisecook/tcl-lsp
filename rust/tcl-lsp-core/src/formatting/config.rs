@@ -257,7 +257,7 @@ pub struct FormatterConfig {
     /// the formatter carries (issue #1465).
     ///
     /// The formatter needs three dialect-derived facts: the lexer preset it
-    /// tokenises with ([`Self::lexer_config`]), the availability mask that
+    /// tokenises with ([`Self::lexer_config`]), the availability point that
     /// filters per-release rewrite candidates ([`Self::dialect_query`]), and
     /// the release range a rewrite must stay correct across
     /// ([`Self::target_range`]). All three are pure projections of this
@@ -380,7 +380,7 @@ impl FormatterConfig {
         LexerConfig::from_grammar(self.profile.grammar)
     }
 
-    /// The availability mask the profile's own release(s) contribute, or
+    /// The availability point the profile's own release(s) contribute, or
     /// `None` when the profile is the permissive fallback — i.e. no dialect
     /// was declared, so every keyword the handed registry declares stays a
     /// rewrite candidate (the pre-#1257 conservative direction).

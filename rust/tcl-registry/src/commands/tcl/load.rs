@@ -64,17 +64,16 @@ const FORMS: &[FormSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "load",
-        // Universal core Tcl 8.4-9.1 (present, with an unchanged basic
-        // shape, on every fetched manpage). F5 iRules drops it under the
-        // K36322151 bans (no dynamic-linking surface in the TMM data-plane
-        // sandbox): this explicit `dialects` group is `ALL_TCL`, which omits
-        // the `IRULES` bit, so `load` never intersects the bare `IRULES`
-        // mask — the same way `cd`/`open`/`exec` are excluded. There is no
-        // disable list anymore; the ban is simply the absent bit. Every
-        // other modelled dialect that embeds a real Tcl core (Expect,
-        // f5-iapps, f5-tmsh, the EDA vendor shells) has a mask carrying a
-        // Tcl-version bit that `ALL_TCL` intersects, so `load` is available
-        // there too.
+        // Universal core Tcl 8.4-9.1 (present, with an unchanged basic shape,
+        // on every fetched manpage). F5 iRules drops it under the K36322151
+        // bans (no dynamic-linking surface in the TMM data-plane sandbox):
+        // this explicit surface is `ALL_TCL`, which omits an iRules row, so
+        // `load` never intersects the bare `IRULES` mask — the same way
+        // `cd`/`open`/`exec` are excluded. There is no disable list anymore;
+        // the ban is simply the absent bit. Every other modelled dialect that
+        // embeds a real Tcl core (Expect, f5-iapps, f5-tmsh, the EDA vendor
+        // shells) has a mask carrying a Tcl release that `ALL_TCL` intersects,
+        // so `load` is available there too.
         surface: Some(SpecSurface::ALL_TCL),
         // `TAINT_SINK`: fileName is dlopen'd/LoadLibrary'd unconditionally
         // — attacker-influenced input reaching it is arbitrary native code

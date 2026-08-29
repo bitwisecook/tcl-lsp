@@ -48,23 +48,22 @@ pub fn spec() -> CommandSpec {
         name: "throw",
         // `TCL86_PLUS`, via the mask-intersection rule
         // `CommandSpec::supports_dialect` / `ProfileQueries::is_available`,
-        // already resolves availability correctly for every non-core
-        // dialect with no extra gate needed: `f5-irules`'s profile mask is
-        // the bare `IRULES` bit (an embedded Tcl 8.4.6 core), and
-        // `f5-iapps`/`f5-tmsh`/the Quartus/Mentor/Xilinx EDA shells all
-        // mask in `TCL85` (their documented Tcl base) — none of those five
-        // intersect `TCL86_PLUS`, so `throw` is correctly unavailable in
-        // all six (`tcl-dialect/src/profile.rs`). Expect and the
-        // Cadence/Synopsys EDA shells mask in `TCL86`, and BPF masks in
-        // `TCL90` — all four intersect `TCL86_PLUS`, so `throw` correctly
-        // resolves there too (each embeds a real 8.6+ core with no disable
-        // list of its own touching it — confirmed by grepping `irules/`,
-        // `iapps/`, `expect/`, `eda_*/`, `tk/`, and `itcl/` for `"throw"`:
-        // the only hits are unrelated prose — "an exception is thrown" —
-        // inside other iRules commands' own hover text, no dialect
-        // overrides or bans it). `f5-bigip`'s mask carries no Tcl-version
-        // bit at all (a config-file surface, not a Tcl command surface),
-        // so it is unaffected either way.
+        // already resolves availability correctly for every non-core dialect
+        // with no extra gate needed: `f5-irules`'s profile point is the iRules
+        // family alone (an embedded Tcl 8.4.6 core), and
+        // `f5-iapps`/`f5-tmsh`/the Quartus/Mentor/Xilinx EDA shells all mask
+        // in `TCL85` (their documented Tcl base) — none of those five
+        // intersect `TCL86_PLUS`, so `throw` is correctly unavailable in all
+        // six (`tcl-dialect/src/profile.rs`). Expect and the Cadence/Synopsys
+        // EDA shells mask in `TCL86`, and BPF masks in `TCL90` — all four
+        // intersect `TCL86_PLUS`, so `throw` correctly resolves there too
+        // (each embeds a real 8.6+ core with no disable list of its own
+        // touching it — confirmed by grepping `irules/`, `iapps/`, `expect/`,
+        // `eda_*/`, `tk/`, and `itcl/` for `"throw"`: the only hits are
+        // unrelated prose — "an exception is thrown" — inside other iRules
+        // commands' own hover text, no dialect overrides or bans it).
+        // `f5-bigip`'s mask carries no Tcl release at all (a config-file
+        // surface, not a Tcl command surface), so it is unaffected either way.
         surface: Some(SpecSurface::TCL86_PLUS),
         // `cmd_throw` (`tcl-vm/src/cmd_try.rs`) takes its two already-
         // substituted arguments, validates `type` as a non-empty Tcl list,

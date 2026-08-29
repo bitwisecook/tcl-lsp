@@ -50,7 +50,7 @@ them into an op bitset (and back through the same fixed order on the way out).
 Tcl 9.0 dropped `trace variable`, `trace vdelete`, and `trace vinfo` (C
 compiles them behind `#ifndef TCL_REMOVE_OBSOLETE_TRACES`). Neither runtime
 carries a list of its own: both filter the `trace` spec's subcommands by the
-pinned profile's availability mask, so the three `DialectSet::TCL8X` entries
+pinned profile's point, so the three 8.x-only subcommands
 vanish at 9.0+ — the forms stop working *and* the `bad option` enumeration
 shortens to `add, info, or remove`, in one step. A spec edit moves both
 runtimes with it.

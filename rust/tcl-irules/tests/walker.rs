@@ -24,7 +24,6 @@
 use tcl_dialect::model::{SurfaceLayer, Family};
 use tcl_irules::extract_irules_object_references;
 use tcl_registry::CommandRegistry;
-use tcl_dialect::model::{SpecSurface};
 
 #[test]
 fn walker_matches_golden() {

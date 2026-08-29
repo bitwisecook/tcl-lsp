@@ -319,6 +319,12 @@ fn ladder_window(first: &str, last: &str) -> SpecWindow {
 }
 
 /// `8.6` → `8.7`, `0.84` → `0.85`.
+///
+/// Deliberately arithmetic rather than
+/// [`Family::next_release`](tcl_dialect::model::Family::next_release):
+/// this closes the window at the **top** of the ladder too, where there is
+/// no next release to name. A row that ran open-ended there would admit a
+/// release nobody has measured.
 fn next_minor(release: &str) -> String {
     match release.rsplit_once('.') {
         Some((major, minor)) => minor

@@ -51,7 +51,7 @@ pub fn profile_for_dialect(name: &str) -> &'static DialectProfile {
 /// catalogue entry — the environment-model form of `DialectProfile::find`,
 /// for the two readers that must render *nothing* rather than the
 /// fallback's placeholder: a `file_extension -dialect` routing claim and
-/// the studio's dialect-bit labels.
+/// the studio's dialect labels.
 #[must_use]
 pub fn catalogue_profile_for_dialect(name: &str) -> Option<&'static DialectProfile> {
     tcl_registry::model::resolve_environment(name).catalogue_profile()

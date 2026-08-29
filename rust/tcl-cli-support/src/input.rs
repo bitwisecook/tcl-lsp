@@ -35,7 +35,6 @@ use tcl_lsp_core::source_style::StyleDiagnostic;
 /// idx 10 / idx 27. The CLI's own copy had additionally drifted from the
 /// server's by `exp` / `apl` (issue #1242).
 use tcl_registry::dialects::TCL_SOURCE_EXTENSIONS as SOURCE_SUFFIXES;
-use tcl_dialect::model::{SpecSurface};
 
 /// Directory names skipped during recursive discovery.
 const SKIP_DIRECTORY_NAMES: &[&str] = &[
@@ -453,7 +452,7 @@ fn expand_user(path: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SpecSurface};
+    
     use super::resolve_dialect;
     use tcl_dialect::{DialectProfile};
 

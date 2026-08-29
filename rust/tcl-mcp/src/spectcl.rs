@@ -89,7 +89,6 @@ use tcl_registry::pack_hooks::HookInputs;
 use tcl_registry::spec::CommandSpec;
 use tcl_spec_studio::draft::{self, Draft, UNRENDERABLE_KEY};
 use tcl_spectcl::{HookDecl, HookFamily, HookOwner, HookSource, PackCommand, Tier, evaluate_pack};
-use tcl_dialect::model::Family;
 
 /// Every key the hook calling convention puts in `ctx`, exactly as
 /// `tcl_spec_hooks`'s `ctx_value` builds it. A `dict get $ctx` on anything

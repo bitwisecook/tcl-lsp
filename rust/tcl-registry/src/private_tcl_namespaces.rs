@@ -218,7 +218,7 @@ pub fn classify_private_tcl_namespace_call(
 #[cfg(test)]
 mod tests {
     use tcl_dialect::model::{SurfaceQuery, Family};
-    use tcl_dialect::model::{SpecSurface};
+    
     use super::*;
 
     fn classify(cmd: &str) -> Option<PrivateTclNamespaceCall> {

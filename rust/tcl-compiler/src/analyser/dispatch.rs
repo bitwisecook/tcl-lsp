@@ -245,9 +245,9 @@ pub fn signature_for_command(
     if !spec.subcommands.is_empty() {
         let mut subs: HashMap<String, CommandSig> = HashMap::new();
         for sub in spec.subcommands {
-            // The profile filters out subcommands not available in the
-            // current dialect (own gate falling back to the parent's,
-            // intersected with the availability mask).
+            // The profile filters out subcommands not available in the current
+            // dialect (own gate falling back to the parent's, intersected with
+            // the availability point).
             if !context.subcommand_available(spec, sub) {
                 continue;
             }

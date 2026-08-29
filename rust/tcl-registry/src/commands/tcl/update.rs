@@ -72,21 +72,20 @@ const IDLETASKS_VALUES: &[ArgValue] = &[ArgValue {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "update",
-        // `ALL_TCL` (no `IRULES` bit) is deliberate, not an oversight:
-        // F5's TMM interpreter does ban `update` — it is one of the
-        // K36322151 event-loop bans — and that ban is now encoded directly
-        // here, as an explicit `dialects` group that omits the `IRULES`
-        // bit. `ALL_TCL` never intersects the bare `IRULES` mask, so
-        // `update` falls out of iRules by plain intersection, with no
-        // subtractive disable list; the
+        // `ALL_TCL` (no iRules row) is deliberate, not an oversight: F5's TMM
+        // interpreter does ban `update` — it is one of the K36322151
+        // event-loop bans — and that ban is now encoded directly here, as an
+        // explicit surface that omits an iRules row. `ALL_TCL` never
+        // intersects the bare `IRULES` mask, so `update` falls out of iRules
+        // by plain intersection, with no subtractive disable list; the
         // `irules_banned_commands_lack_the_irules_bit` contract test
         // (`tcl-registry/tests/dialect_profile.rs`) pins that every banned
-        // name's spec lacks the `IRULES` bit. No other dialect profile
-        // (iApps, tmsh, the EDA vendor shells, Expect, Tk, itcl) bans it or
-        // registers a competing spec of its own (none of their command
-        // directories define an `update`), and `ALL_TCL` intersects each of
-        // their version|vendor masks, so it stays reachable — and, for Tk
-        // in particular, essential — in every one of them.
+        // name's spec lacks an iRules row. No other dialect profile (iApps,
+        // tmsh, the EDA vendor shells, Expect, Tk, itcl) bans it or registers
+        // a competing spec of its own (none of their command directories
+        // define an `update`), and `ALL_TCL` intersects each of their
+        // version|vendor masks, so it stays reachable — and, for Tk in
+        // particular, essential — in every one of them.
         surface: Some(SpecSurface::ALL_TCL),
         // BYTE_COMPILED only — this codebase's "recognised core builtin"
         // convention, not literal bytecode emission (see traits.rs). Not

@@ -29,7 +29,6 @@
 
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
-use tcl_dialect::model::{SpecSurface};
 
 pub mod config_ini;
 pub mod path_glob;

@@ -21,14 +21,14 @@
 //! (`docs/design/dialect-profile-model.md` §5/§9).
 //!
 //! iRules availability is fully explicit in the spec data: the profile is a
-//! bare `IRULES` mask and every command carries an explicit `dialects` group
-//! (universal `surface: None` was eliminated registry-wide), with the
-//! `IRULES` bit present iff iRules enables the command. A sandbox-banned
-//! command such as `exec` is `ALL_TCL` and simply never intersects the mask —
-//! there is no subtractive disable list any more; the math-operator heads are
-//! the one remaining profile-level exclusion (`OPERATOR_COMMAND` +
-//! `operators_as_commands`). These tests pin that banned surface stays banned
-//! and the retired `NON_IRULES_OPERATORS` union never creeps back as a gate.
+//! bare `IRULES` mask and every command carries an explicit surface (universal
+//! `surface: None` was eliminated registry-wide), with an iRules row present
+//! iff iRules enables the command. A sandbox-banned command such as `exec` is
+//! `ALL_TCL` and simply never intersects the mask — there is no subtractive
+//! disable list any more; the math-operator heads are the one remaining
+//! profile-level exclusion (`OPERATOR_COMMAND` + `operators_as_commands`).
+//! These tests pin that banned surface stays banned and the retired
+//! `NON_IRULES_OPERATORS` union never creeps back as a gate.
 
 use tcl_dialect::surface;
 use tcl_dialect::model::{SurfaceQuery};
@@ -54,10 +54,10 @@ fn is_mathop_spelling(name: &str) -> bool {
 /// Pins the invariant that no spec gate at any level (command, subcommand,
 /// option, form option, subcommand option) in any profile's registry is the
 /// retired `NON_IRULES_OPERATORS` union — "every dialect except
-/// iRules/Tk/BPF", reconstructed here because the constant itself was
-/// deleted from `SpecSurface`. Exclusion from iRules is modelled on the
-/// profile (spec `dialects` group / operator trait), never by enumerating
-/// the complement of the excluded dialects.
+/// iRules/Tk/BPF", reconstructed here because the constant itself was deleted
+/// from `SpecSurface`. Exclusion from iRules is modelled on the profile (spec
+/// surface / operator trait), never by enumerating the complement of the
+/// excluded dialects.
 #[test]
 fn retired_non_irules_operators_union_never_reappears_as_a_gate() {
     // Reconstructed from the non-iRules/Tk/BPF providers that still exist;
@@ -107,9 +107,9 @@ fn retired_non_irules_operators_union_never_reappears_as_a_gate() {
 /// The commands F5's TMM interpreter removes from iRules (the K36322151
 /// sandbox bans plus the project-modelled iRules-excluded internals). This
 /// used to be a subtractive `DialectProfile::disabled_commands` list; it is
-/// now encoded directly in each spec's explicit `dialects` group (a banned
-/// command carries `ALL_TCL`, never the `IRULES` bit), so the list lives
-/// here only as the test oracle for the contract below.
+/// now encoded directly in each spec's explicit surface (a banned command
+/// carries `ALL_TCL`, never an iRules row), so the list lives here only as the
+/// test oracle for the contract below.
 const IRULES_BANNED: &[&str] = &[
     "auto_execok",
     "auto_import",
@@ -166,11 +166,11 @@ const IRULES_BANNED: &[&str] = &[
     "vwait",
 ];
 
-/// The banned-command exclusion is now encoded in the specs themselves:
-/// every banned name still exists as registered spec data (so the LSP can
-/// tell "exists, but not in iRules" from "unknown"), but each carries an
-/// explicit `dialects` group WITHOUT the `IRULES` bit — so the bare `IRULES`
-/// mask excludes it by plain intersection, with no subtractive ban list.
+/// The banned-command exclusion is now encoded in the specs themselves: every
+/// banned name still exists as registered spec data (so the LSP can tell
+/// "exists, but not in iRules" from "unknown"), but each carries an explicit
+/// surface WITHOUT an iRules row — so the bare `IRULES` mask excludes it by
+/// plain intersection, with no subtractive ban list.
 #[test]
 fn irules_banned_commands_lack_the_irules_bit() {
     let reg = static_context_for("f5-irules").commands();
@@ -271,16 +271,16 @@ fn irules_subcommands_named_like_banned_commands_stay_available() {
 }
 
 /// The user-facing contract: the banned commands never resolve under the
-/// iRules profile, while the F5 surface and the universal 8.4 core still
-/// do. The ban is carried by each spec's explicit `dialects` group, which
-/// simply omits the `IRULES` bit.
+/// iRules profile, while the F5 surface and the universal 8.4 core still do.
+/// The ban is carried by each spec's explicit surface, which simply omits an
+/// iRules row.
 #[test]
 fn irules_banned_commands_never_resolve() {
     let reg = static_context_for("f5-irules").commands();
     let irules = DialectProfile::irules();
 
-    // TP: genuinely banned commands do not resolve (excluded by their
-    // explicit non-IRULES `dialects` group, not a ban list).
+    // TP: genuinely banned commands do not resolve (excluded by their explicit
+    // non-IRULES surface, not a ban list).
     for banned in IRULES_BANNED {
         assert!(
             ctx_for(irules).resolve_spec(reg, banned).is_none(),
@@ -489,7 +489,7 @@ fn option_gating_blocks_later_version_leaks_into_supersets() {
 }
 
 /// §5.1 `available_subcommands` — the completion gap: version-gated
-/// subcommands follow the profile mask.
+/// subcommands follow the profile point.
 #[test]
 fn available_subcommands_follow_the_profile_mask() {
     let reg = static_context_for("tcl8.6").commands();
@@ -516,14 +516,14 @@ fn available_subcommands_follow_the_profile_mask() {
     }
 }
 
-/// A bare `IRULES` mask query never admits a sandbox-banned command,
-/// enforced BY CONSTRUCTION via the spec tags themselves: exclusion is pure
-/// mask intersection inside `get_for_surface`, so every low-level consumer
+/// A bare `IRULES` mask query never admits a sandbox-banned command, enforced
+/// BY CONSTRUCTION via the spec tags themselves: exclusion is pure mask
+/// intersection inside `get_for_surface`, so every low-level consumer
 /// (`defines_symbol` / `resolve_call` / `resolve_terminator` / the CLI
 /// snapshot's `command_names`) is covered without per-caller audits. Because
-/// the exclusion lives in each spec's `dialects` group (a banned command is
-/// `ALL_TCL`, with no `IRULES` bit) rather than in a profile-side disable
-/// list, it holds uniformly on a raw, un-stamped registry too.
+/// the exclusion lives in each spec's surface (a banned command is `ALL_TCL`,
+/// with no iRules row) rather than in a profile-side disable list, it holds
+/// uniformly on a raw, un-stamped registry too.
 #[test]
 fn bare_irules_mask_queries_exclude_non_irules_commands() {
     let reg = static_context_for("f5-irules").commands();
@@ -599,7 +599,7 @@ fn vendor_surface_summarises_the_registry_truth() {
 
 /// The iRules event/command cross-product never lists banned commands —
 /// `commands_for_event` resolves through the same explicit-tag intersection,
-/// so a command that lacks the `IRULES` bit is excluded there too.
+/// so a command that lacks an iRules row is excluded there too.
 #[test]
 fn commands_for_event_excludes_banned_commands() {
     let reg = static_context_for("f5-irules").commands();

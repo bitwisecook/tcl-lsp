@@ -91,11 +91,11 @@
 // two sibling files — it models the 8.5+ grammar unconditionally and
 // the 8.4 restriction is documentation-only here.
 //
-// Not disabled or overridden in any modelled dialect: `lreplace` carries
-// the `IRULES` bit explicitly (its `dialects` group is
-// `ALL_TCL.union(IRULES)`, resolving under the bare `IRULES` mask), and
-// no irules/iapps/tmsh/expect/eda*/tk/itcl spec file registers its own
-// `lreplace` — so the command-level group is correct.
+// Not disabled or overridden in any modelled dialect: `lreplace` carries an
+// iRules row explicitly (its surface is `ALL_TCL.union(IRULES)`, resolving
+// under the bare `IRULES` mask), and no irules/iapps/tmsh/expect/eda*/tk/itcl
+// spec file registers its own `lreplace` — so the command-level group is
+// correct.
 //
 // `tcl-vm/src/cmd_list.rs::cmd_lreplace` requires exactly `list first
 // last` plus any number of trailing elements — matching

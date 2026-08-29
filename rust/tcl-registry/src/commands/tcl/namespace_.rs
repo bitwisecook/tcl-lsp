@@ -1245,7 +1245,7 @@ pub fn spec() -> CommandSpec {
 #[cfg(test)]
 mod tests {
     use tcl_dialect::model::{SurfaceQuery, Family};
-    use tcl_dialect::model::{SpecSurface, surface_admits};
+    use tcl_dialect::model::surface_admits;
     use super::{
         NamespaceTransition, NamespaceTransitionTarget, StateTransition, TransitionSubject,
         fold_qualifiers, fold_tail, namespace_delete_state_transitions,

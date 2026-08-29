@@ -42,24 +42,21 @@ use tcl_dialect::model::{SpecSurface};
 // stated as current, version-independent truth in the hover text below
 // rather than gated to 9.0+.
 //
-// Excluded from f5-irules, like every *other* library.n sibling
-// documented on the same manpage (auto_execok, auto_import, auto_load,
-// auto_mkindex, auto_mkindex_old, auto_qualify, auto_reset,
-// tcl_findLibrary): `parray`'s own command-level `dialects` group below
-// is `Some(SpecSurface::ALL_TCL)`, which carries no `IRULES` bit and so
-// never intersects the bare `IRULES` availability mask — there is no
-// disable list. It stays reachable in every real-Tcl-hosting dialect
-// (whose mask carries a version bit `ALL_TCL` intersects), and no
-// irules/iapps/tk/expect/eda/itcl override file registers a variant of
-// its own. `parray` is also a Tcl-level library
-// proc — shipped as its own `library/parray.tcl` (confirmed internally:
-// both `runtime/rust/src/embedded_stdlib.rs`'s seed file list and
-// `xtask/src/command_backing.rs`'s `STDLIB` table name it separately
-// from `init.tcl`) — not a `Tcl_CreateObjCommand`-registered builtin, so
-// it carries no `CmdInfo` row and is absent from the exact C Tcl
-// safe-interpreter hidden-command table `Traits::SAFE_INTERP_HIDDEN`
-// documents; that trait does not apply here, matching `auto_execok`'s
-// identical reasoning.
+// Excluded from f5-irules, like every *other* library.n sibling documented on
+// the same manpage (auto_execok, auto_import, auto_load, auto_mkindex,
+// auto_mkindex_old, auto_qualify, auto_reset, tcl_findLibrary): `parray`'s own
+// command-level surface below is `Some(SpecSurface::ALL_TCL)`, which names
+// only Tcl and so is simply absent under iRules — there is no disable list. It
+// stays reachable in every real-Tcl-hosting dialect (whose mask carries a
+// release row `ALL_TCL` intersects), and no irules/iapps/tk/expect/eda/itcl
+// override file registers a variant of its own. `parray` is also a Tcl-level
+// library proc — shipped as its own `library/parray.tcl` (confirmed
+// internally: both `runtime/rust/src/embedded_stdlib.rs`'s seed file list and
+// `xtask/src/command_backing.rs`'s `STDLIB` table name it separately from
+// `init.tcl`) — not a `Tcl_CreateObjCommand`-registered builtin, so it carries
+// no `CmdInfo` row and is absent from the exact C Tcl safe-interpreter
+// hidden-command table `Traits::SAFE_INTERP_HIDDEN` documents; that trait does
+// not apply here, matching `auto_execok`'s identical reasoning.
 const FORMS: &[FormSpec] = &[
     FormSpec {
         synopsis: "parray arrayName ?pattern?",

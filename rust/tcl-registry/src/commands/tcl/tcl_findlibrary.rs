@@ -71,21 +71,20 @@ pub fn spec() -> CommandSpec {
         name: "tcl_findLibrary",
         // `surface: Some(SpecSurface::ALL_TCL)` is deliberate, not an
         // oversight: F5 iRules bans this proc (it is one of the K36322151
-        // filesystem/process bans), and under the explicit-per-spec model
-        // that ban is carried by this very `dialects` group. `ALL_TCL`
-        // spans every core Tcl version but not the `IRULES` bit, so the
-        // spec never intersects iRules' bare `IRULES` availability mask and
-        // `tcl_findLibrary` is simply unreachable there — no disable list is
-        // involved. Widening this to a `TCL84|IRULES`-style union would
-        // re-admit exactly the command the ban exists to exclude. The
-        // `irules_banned_commands_never_resolve` contract test
+        // filesystem/process bans), and under the explicit-per-spec model that
+        // ban is carried by this very surface. `ALL_TCL` spans every core Tcl
+        // version but not an iRules row, so the spec never intersects iRules'
+        // bare `IRULES` availability point and `tcl_findLibrary` is simply
+        // unreachable there — no disable list is involved. Adding an iRules
+        // row would re-admit exactly the command the ban exists to exclude.
+        // The `irules_banned_commands_never_resolve` contract test
         // (`tcl-registry/tests/dialect_profile.rs`) enforces this directly:
-        // `tcl_findLibrary` is in its banned set and must not carry the
-        // `IRULES` bit nor resolve under f5-irules. Every other dialect
-        // profile (Expect, the EDA vendor shells, tmsh, iApps, BPF) carries
-        // a core-version bit that `ALL_TCL` does intersect, so it stays
-        // reachable in each; and no dialect (Tk and itcl included) registers
-        // a competing spec or otherwise bans it.
+        // `tcl_findLibrary` is in its banned set and must not carry an iRules
+        // row nor resolve under f5-irules. Every other dialect profile
+        // (Expect, the EDA vendor shells, tmsh, iApps, BPF) runs a Tcl core
+        // that `ALL_TCL` does admit, so it stays reachable in each; and no
+        // dialect (Tk and itcl included) registers a competing spec or
+        // otherwise bans it.
         surface: Some(SpecSurface::ALL_TCL),
         // A Tcl-level library proc (`library/auto.tcl` — confirmed by
         // name in every one of the five fetched release tags, never

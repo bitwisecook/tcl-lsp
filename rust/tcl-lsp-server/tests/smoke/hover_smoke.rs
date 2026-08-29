@@ -168,9 +168,9 @@ async fn hover_smoke() {
 /// A `tk` document hovers under the Tk surface — a characterisation pin.
 ///
 /// `tk` is an additive command surface with no catalogue profile of its own,
-/// so the analyser ingress form of `"tk"` sinks to the plain-Tcl fallback while
-/// `profile_for_dialect("tk")` keeps the `TK` bit. The hover ingress now uses
-/// the latter, for consistency with every other ingress.
+/// so the analyser ingress form of `"tk"` sinks to the plain-Tcl fallback
+/// while `profile_for_dialect("tk")` keeps the Tk package. The hover ingress
+/// now uses the latter, for consistency with every other ingress.
 ///
 /// It is worth being precise about what that did **not** fix: this test passes
 /// against both resolutions. Hover was never broken for `tk`, because the

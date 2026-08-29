@@ -50,28 +50,27 @@
 //! prose rather than modelled as a new dialect gate, since the option
 //! itself, not just this detail of it, is already present in 9.0.
 //!
-//! iRules bans `vwait` outright: it is one of the K36322151 event-loop
-//! bans, encoded directly in the spec's `dialects` group — `vwait`
-//! carries `ALL_TCL` with no `IRULES` bit (see `spec()` below), so it
-//! never intersects the bare `IRULES` availability mask and falls out of
-//! iRules by plain intersection, with no subtractive disable list
+//! iRules bans `vwait` outright: it is one of the K36322151 event-loop bans,
+//! encoded directly in the spec's surface — `vwait` carries `ALL_TCL` with no
+//! iRules row (see `spec()` below), so it is simply absent under iRules and
+//! falls out of iRules by plain intersection, with no subtractive disable list
 //! (contract-tested by `irules_banned_commands_lack_the_irules_bit`,
-//! `tcl-registry/tests/dialect_profile.rs`). No other dialect profile
-//! (iApps, tmsh, the EDA vendor shells, Expect, Tk) bans `vwait` or
-//! registers a competing spec of its own — the `irules/`, `iapps/`,
-//! `expect/`, `tk/`, and `eda_*/` command directories were all grepped
-//! for `vwait` with no hits (`tmsh` has no directory of its own; its
-//! specs live alongside iApps', tagged with the `TMSH` bit, so the
-//! `iapps/` grep already covers it) — so it stays reachable there,
-//! gated only by each profile's own `version_ceiling`
+//! `tcl-registry/tests/dialect_profile.rs`). No other dialect profile (iApps,
+//! tmsh, the EDA vendor shells, Expect, Tk) bans `vwait` or registers a
+//! competing spec of its own — the `irules/`, `iapps/`, `expect/`, `tk/`, and
+//! `eda_*/` command directories were all grepped for `vwait` with no hits
+//! (`tmsh` has no directory of its own; its specs live alongside iApps',
+//! tagged with the `TMSH` bit, so the `iapps/` grep already covers it) — so it
+//! stays reachable there, gated only by each profile's own `version_ceiling`
 //! (all of iApps/tmsh/Quartus/Mentor/Xilinx at Tcl 8.5, Cadence/Synopsys/
-//! Expect at Tcl 8.6) intersecting each new option's own `TCL90_PLUS`
-//! gate below — none of them reach it, matching their real embedded
-//! cores. `bpf` is the one profile whose mask does reach Tcl 9.0
-//! (`surface![SpecSurface::core_in(Family::Tcl, &[("9.0", Some("9.1"))]), SpecSurface::package("bpf")]`, a genuine embedded Tcl
-//! 9.0 core, and it does not ban `vwait`), so it resolves both the command
-//! and the new options today, the same way `tcl::process`'s identical
-//! `TCL90_PLUS` gate does (`commands/tcl/tcl_process.rs`).
+//! Expect at Tcl 8.6) intersecting each new option's own `TCL90_PLUS` gate
+//! below — none of them reach it, matching their real embedded cores. `bpf` is
+//! the one profile whose mask does reach Tcl 9.0
+//! (`surface![SpecSurface::core_in(Family::Tcl, &[("9.0", Some("9.1"))]),
+//! SpecSurface::package("bpf")]`, a genuine embedded Tcl 9.0 core, and it does
+//! not ban `vwait`), so it resolves both the command and the new options
+//! today, the same way `tcl::process`'s identical `TCL90_PLUS` gate does
+//! (`commands/tcl/tcl_process.rs`).
 use crate::prelude::*;
 use tcl_dialect::model::{SpecSurface};
 use tcl_dialect::surface;
@@ -191,10 +190,10 @@ const FORMS: &[FormSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "vwait",
-        // Present everywhere except iRules: `ALL_TCL` carries no `IRULES`
-        // bit, so this spec never intersects the bare `IRULES` mask and is
-        // banned there by plain intersection, with no disable list — see
-        // the module doc comment.
+        // Present everywhere except iRules: `ALL_TCL` carries no iRules row,
+        // so this spec never intersects the bare `IRULES` mask and is banned
+        // there by plain intersection, with no disable list — see the module
+        // doc comment.
         surface: Some(SpecSurface::ALL_TCL),
         // BYTE_COMPILED only in the "recognised core builtin" sense this
         // codebase's convention uses (traits.rs's doc comment) — real

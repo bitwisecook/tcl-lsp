@@ -25,7 +25,6 @@
 use tcl_dialect::model::{SurfaceQuery, Family};
 use tcl_registry::model::ingress::static_document_context_for;
 use tcl_registry::CommandRegistry;
-use tcl_dialect::model::{SpecSurface};
 
 fn reg() -> CommandRegistry {
     CommandRegistry::build_default()

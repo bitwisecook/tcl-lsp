@@ -29,11 +29,11 @@
 //!
 //! Nothing here changes what a verb prints. The catalogue names the CLI
 //! resolves map to their same-named environments, whose
-//! [`unit_profile`](tcl_registry::model::DocumentEnvironment::unit_profile)
-//! is the profile the retired validators returned, and whose document
-//! context answers availability under the **document authoring mask** —
-//! test-pinned equal to the threaded profile's `availability_mask` for
-//! every profile an ingress can produce.
+//! [`unit_profile`](tcl_registry::model::DocumentEnvironment::unit_profile) is
+//! the profile the retired validators returned, and whose document context
+//! answers availability under the **document authoring mask** — test-pinned
+//! equal to the threaded profile's `surface_query` for every profile an
+//! ingress can produce.
 //!
 //! Two ingress forms, deliberately distinct, because the CLI used both:
 //!

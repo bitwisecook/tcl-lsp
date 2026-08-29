@@ -32,12 +32,11 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// `dialects` restriction of its own.
 ///
 /// `fcopy` itself is banned in F5 iRules (it is one of the 42 K36322151
-/// commands — the TMM event sandbox has no general channel/filesystem
-/// model), and that ban is expressed directly by its `dialects` group
-/// below: `ALL_TCL` does not carry the `IRULES` bit, so the spec never
-/// intersects the bare `IRULES` availability mask — the same treatment
-/// `open` (also banned from the TMM sandbox) gets in `open_.rs`. Every
-/// other modelled dialect (iApps, tmsh, Expect, the EDA vendor shells,
+/// commands — the TMM event sandbox has no general channel/filesystem model),
+/// and that ban is expressed directly by its surface below: `ALL_TCL` does not
+/// carry an iRules row, so the spec is simply absent under iRules — the same
+/// treatment `open` (also banned from the TMM sandbox) gets in `open_.rs`.
+/// Every other modelled dialect (iApps, tmsh, Expect, the EDA vendor shells,
 /// Tk) is covered by `ALL_TCL`, so `fcopy` resolves there normally.
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {

@@ -52,12 +52,12 @@
 //! carry arbitrary trailing data after its Tcl script (a "scripted
 //! document") — a restriction `read`/`gets` do not share.
 //!
-//! `source` is one of the K36322151 bans (no real per-request filesystem
-//! in the iRules TMM data plane), so it is unreachable under `f5-irules`:
-//! its `dialects` group below is `ALL_TCL` (no `IRULES` bit), so it never
-//! intersects the bare `IRULES` availability mask — the ban falls straight
-//! out of that omission, with no separate disable list, the same `ALL_TCL`
-//! convention `open`/`cd` rely on (see their own specs).
+//! `source` is one of the K36322151 bans (no real per-request filesystem in
+//! the iRules TMM data plane), so it is unreachable under `f5-irules`: its
+//! surface below is `ALL_TCL` (no iRules row), so it is simply absent under
+//! iRules — the ban falls straight out of that omission, with no separate
+//! disable list, the same `ALL_TCL` convention `open`/`cd` rely on (see their
+//! own specs).
 
 use crate::prelude::*;
 use tcl_dialect::model::{SpecSurface};
@@ -132,16 +132,14 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "source",
         // Core Tcl 8.4-9.1 (present in every fetched manpage, only its
-        // SYNOPSIS/option set shifts — see the module doc comment and
-        // FORMS above). Unavailable under `f5-irules` because its
-        // `dialects` group is `ALL_TCL` (no `IRULES` bit) — `source` is
-        // one of the K36322151 bans, alongside `open`/`cd`/`exec`/`file`/
-        // `glob`/… (no real per-request filesystem in the TMM data
-        // plane) — so it never intersects the bare `IRULES` availability
-        // mask, the same `ALL_TCL` convention `open`/`cd` rely on. Adding
-        // the `IRULES` bit here would re-admit `source` under `f5-irules`,
-        // the exact trap this omission avoids; there is no separate
-        // disable list.
+        // SYNOPSIS/option set shifts — see the module doc comment and FORMS
+        // above). Unavailable under `f5-irules` because its surface is
+        // `ALL_TCL` (no iRules row) — `source` is one of the K36322151 bans,
+        // alongside `open`/`cd`/`exec`/`file`/ `glob`/… (no real per-request
+        // filesystem in the TMM data plane) — so it is simply absent under
+        // iRules, the same `ALL_TCL` convention `open`/`cd` rely on. Adding an
+        // iRules row here would re-admit `source` under `f5-irules`, the exact
+        // trap this omission avoids; there is no separate disable list.
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED

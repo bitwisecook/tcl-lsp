@@ -48,7 +48,7 @@
 //! resolution needs — the [`ResolvedContext`] availability view and the
 //! generation's command store — without a second lookup. Resolving one costs
 //! a name ingress; the compiler resolves it **once per module build** and
-//! threads the handle, where the retired `SpecSurface` projection ran per
+//! threads the handle, where the retired `DialectSet` projection ran per
 //! function unit.
 //!
 //! # The selection rule is C7/I4's, not a second one

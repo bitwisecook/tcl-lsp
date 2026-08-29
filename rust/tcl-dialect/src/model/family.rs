@@ -180,6 +180,18 @@ impl Family {
         }
     }
 
+    /// The next release after `release` on this family's ladder — `None` at
+    /// the top.
+    ///
+    /// The one place "what comes after this release" is answered, so a
+    /// half-open release line is the same window wherever it is built.
+    #[must_use]
+    pub fn next_release(self, release: Release) -> Option<Release> {
+        let ladder = self.releases();
+        let position = ladder.iter().position(|step| *step == release)?;
+        ladder.get(position + 1).copied()
+    }
+
     /// The derivation edge this family's grammar/axis/surface resolution
     /// walks up when it does not override an axis itself (§3.1). `None`
     /// for a root family — only [`Family::Tcl`] is one.

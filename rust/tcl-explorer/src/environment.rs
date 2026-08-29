@@ -78,11 +78,11 @@ pub fn analyser_profile_for_dialect(name: &str) -> &'static DialectProfile {
 /// (unlike [`catalogue_profile_for_dialect`]) promoting `tk` to its typed
 /// additive profile.
 ///
-/// The serialiser views that thread `Option<&DialectProfile>` into the
-/// GVN / taint / optimiser / irules-flow finders read it here; a `None`
-/// still maps to `None` at each `availability_mask` read,
-/// not to the fallback's permissive mask, exactly as the retired
-/// `DialectProfile::resolve_known` ingress left it.
+/// The serialiser views that thread `Option<&DialectProfile>` into the GVN /
+/// taint / optimiser / irules-flow finders read it here; a `None` still maps
+/// to `None` at each `surface_query` read, not to the fallback's permissive
+/// mask, exactly as the retired `DialectProfile::resolve_known` ingress left
+/// it.
 ///
 /// Deliberately **not** `resolve_known_environment(name).map(unit_profile)`:
 /// that seam helper answers `Some(&PLAIN_TCL)` for the literal name `"tcl"`

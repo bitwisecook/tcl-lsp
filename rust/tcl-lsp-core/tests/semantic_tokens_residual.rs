@@ -56,7 +56,6 @@ use tcl_lsp_core::definition::LspRange;
 use tcl_lsp_core::semantic_tokens::{full, legend_token_types, range};
 use tcl_registry::model::ingress::static_context_for;
 use tcl_registry::{ArgRole, Arity, CommandRegistry, CommandSpec, Traits};
-use tcl_dialect::model::{SpecSurface};
 
 fn reg() -> &'static CommandRegistry {
     static_context_for("tcl8.6").commands()

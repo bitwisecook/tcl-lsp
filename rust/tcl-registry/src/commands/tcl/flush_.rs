@@ -21,14 +21,13 @@
 use crate::prelude::*;
 use tcl_dialect::model::{SpecSurface};
 
-// `channelId` is mandatory in every version's synopsis — 8.4/8.5/8.6's
-// flush.n gives only `flush channelId`, and 9.0/9.1's abbreviated flush.n
-// (see below) still gives only `flush channel`. There is no bare/optional
-// form; a missing or extra argument is `wrong # args`, matching the
-// `Arity::exact(1)` below. iRules disables `flush` outright (one of the
-// K36322151 bans), so its `dialects` group below is `ALL_TCL`, which omits
-// the `IRULES` bit and never intersects the bare `IRULES` availability
-// mask — deliberate, not an oversight.
+// `channelId` is mandatory in every version's synopsis — 8.4/8.5/8.6's flush.n
+// gives only `flush channelId`, and 9.0/9.1's abbreviated flush.n (see below)
+// still gives only `flush channel`. There is no bare/optional form; a missing
+// or extra argument is `wrong # args`, matching the `Arity::exact(1)` below.
+// iRules disables `flush` outright (one of the K36322151 bans), so its surface
+// below is `ALL_TCL`, which omits an iRules row and is simply absent under
+// iRules — deliberate, not an oversight.
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "flush channelId",
     ..FormSpec::DEFAULT

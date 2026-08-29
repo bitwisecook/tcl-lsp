@@ -53,13 +53,12 @@ pub fn spec() -> CommandSpec {
         // satisfied for it regardless of a profile's setting — it never
         // actually gates this entry either way. The real reason iRules is
         // excluded is the plain dialect-intersection rule: `f5-irules`'s
-        // `availability_mask` is the bare `IRULES` bit with no Tcl-core
-        // version bit unioned in, so it never intersects `TCL85_PLUS`.
-        // Every other modelled dialect (iApps, tmsh, the five EDA vendor
-        // shells, Expect, bpf) mixes a Tcl-core version bit >= 8.5 into its
-        // `availability_mask` alongside its vendor bit, so that same plain
-        // intersection resolves them available without needing to name
-        // any of them explicitly.
+        // `surface_query` is the iRules family alone with no Tcl-core release
+        // row unioned in, so it never intersects `TCL85_PLUS`. Every other
+        // modelled dialect (iApps, tmsh, the five EDA vendor shells, Expect,
+        // bpf) mixes a Tcl-core release row >= 8.5 into its `surface_query`
+        // alongside its vendor bit, so that same plain intersection resolves
+        // them available without needing to name any of them explicitly.
         surface: Some(SpecSurface::TCL85_PLUS),
         arity: Arity::at_least(0),
         // No single `TclType` describes the family: the arithmetic and

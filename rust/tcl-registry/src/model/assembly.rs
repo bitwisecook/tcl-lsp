@@ -32,7 +32,7 @@
 //! hash, pack-overlay key)` — the same identity the environment layer
 //! resolves, plus the pack-overlay content key the old
 //! `registry_for_profile_if_built` door threads. The spec *sources* are
-//! the very `&'static` groups `build_default`/`load_dialect` draw from
+//! the very `&'static` groups `build_default`/`load_surface` draw from
 //! (statics stay `&'static`, shared with the old registries, no second
 //! leak): each generation's [`ContextRegistry::commands`] store **is** the
 //! old cache's `(profile, overlay)` `Arc`, shared by handle through the
@@ -64,7 +64,7 @@ use crate::resolved_invocation::ResolvedInvocation;
 use crate::spec::CommandSpec;
 
 /// The compiled spec universe: every group `build_default` and
-/// `load_dialect` can reach, loaded once behind the same shared `&'static`
+/// `load_surface` can reach, loaded once behind the same shared `&'static`
 /// spec slices the old per-profile registries use.
 ///
 /// The `TMSH` layer is deliberately not loaded: `tmsh_command_specs` is a
@@ -507,11 +507,11 @@ pub(crate) mod tests {
     }
 
     /// The old model's availability answer, **minus the enumerated
-    /// package-gate delta**: a world that is not **open** no longer
-    /// resolves a package-gated spec the environment neither ships nor
-    /// requires. The old profile mask admitted such specs because the
-    /// spec's Tcl surface unions the whole ladder and the old package gate
-    /// only subtracted *other* environments' ambient surfaces.
+    /// package-gate delta**: a world that is not **open** no longer resolves a
+    /// package-gated spec the environment neither ships nor requires. The old
+    /// profile point admitted such specs because the spec's Tcl surface unions
+    /// the whole ladder and the old package gate only subtracted *other*
+    /// environments' ambient surfaces.
     ///
     /// Two policies land in the delta, for two reasons. `package require`
     /// is not part of the language in `bpf`, `spectcl` or `f5-irules`, so

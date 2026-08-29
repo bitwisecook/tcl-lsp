@@ -36,7 +36,6 @@ use tcl_registry::invocation_words::{CommandPrefixArguments, InvocationArguments
 use tcl_registry::literal_validation::{LiteralArgumentIssueReason, LiteralArgumentValidation};
 use tcl_registry::pack_hooks::{self, HookFamily, HookInputs};
 use tcl_spec_hooks::{HookProgram, PackPrograms, tclvm_host};
-use tcl_dialect::model::Family;
 
 /// Install a one-hook pack and return its slot.
 fn one_hook(program: HookProgram) -> pack_hooks::HookSlot {

@@ -57,23 +57,22 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 fn make_spec(name: &'static str) -> CommandSpec {
     CommandSpec {
         name,
-        // `TCL90_PLUS` alone already excludes every modelled non-core
-        // dialect: irules/iapps/tmsh/the EDA vendor shells all cap
-        // below Tcl 9.0 (`tcl-dialect/src/profile.rs`'s per-profile
-        // `version_ceiling`), and expect/tk/itcl have no
-        // `process`-named registration of their own (grepped each
-        // `commands/<dialect>/` directory — no matches). `bpf` is the
-        // one profile whose `availability_mask` does reach Tcl 9.0
-        // (`surface![SpecSurface::core_in(Family::Tcl, &[("9.0", Some("9.1"))]), SpecSurface::package("bpf")]` — a genuine
-        // embedded Tcl 9.0 core), so this spec's `TCL90_PLUS` gate
-        // intersects it and `tcl::process` resolves there today — just as
-        // the sandbox-banned `exec`/`open`/`socket` (each now `ALL_TCL`,
-        // whose Tcl-9.0 bit that same mask intersects) also resolve there,
-        // even though
-        // eBPF's kernel-verified execution model has no process/fork/
-        // exec facility of its own. That gap predates this spec and
-        // spans more than one command, so it is left alone here rather
-        // than narrowed unilaterally for `tcl::process` alone.
+        // `TCL90_PLUS` alone already excludes every modelled non-core dialect:
+        // irules/iapps/tmsh/the EDA vendor shells all cap below Tcl 9.0
+        // (`tcl-dialect/src/profile.rs`'s per-profile `version_ceiling`), and
+        // expect/tk/itcl have no `process`-named registration of their own
+        // (grepped each `commands/<dialect>/` directory — no matches). `bpf`
+        // is the one profile whose `surface_query` does reach Tcl 9.0
+        // (`surface![SpecSurface::core_in(Family::Tcl, &[("9.0",
+        // Some("9.1"))]), SpecSurface::package("bpf")]` — a genuine embedded
+        // Tcl 9.0 core), so this spec's `TCL90_PLUS` gate intersects it and
+        // `tcl::process` resolves there today — just as the sandbox-banned
+        // `exec`/`open`/`socket` (each now `ALL_TCL`, whose Tcl-9.0 bit that
+        // same mask intersects) also resolve there, even though eBPF's
+        // kernel-verified execution model has no process/fork/ exec facility
+        // of its own. That gap predates this spec and spans more than one
+        // command, so it is left alone here rather than narrowed unilaterally
+        // for `tcl::process` alone.
         surface: Some(SpecSurface::TCL90_PLUS),
         // BYTE_COMPILED follows this codebase's convention (see
         // `traits.rs`'s doc comment): "recognised core builtin", not

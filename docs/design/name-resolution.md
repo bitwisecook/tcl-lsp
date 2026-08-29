@@ -383,7 +383,7 @@ The only cross-version *resolution-semantics* change in the whole 8.4 → 9.1
 range. For an unqualified, undefined name at namespace scope, 8.4/8.5/8.6
 fall back to the global cell; **9.0 removed the fallback** and raises "no
 such variable". One registry knob is the single source of truth:
-`DialectSet::namespace_var_global_fallback` derives the behaviour from the
+`DialectProfile::namespace_var_global_fallback` derives the behaviour from the
 dialect's *runtime base version*, so `f5-irules` follows its embedded 8.4 and
 EDA shells follow their embedded cores; an unknown base takes the stricter
 9.0 reading. No dialect strings appear anywhere else in the stack.

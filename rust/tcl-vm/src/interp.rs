@@ -509,7 +509,7 @@ pub struct InterpState {
     runtime_version: tcl_dialect::TclVersion,
     /// The dialect profile this VM validates its builtin command surface
     /// against (issue #1463): [`Self::builtin_command_visible_for_surface`]
-    /// consults this profile's availability mask, so a command the emulated
+    /// consults this profile's availability point, so a command the emulated
     /// release does not have (`lassign` at 8.4, `lpop` before 9.0) resolves
     /// like C Tcl — to `invalid command name`. Defaults to the permissive
     /// fallback profile, which hides nothing; `set_runtime_version` pins the
@@ -527,14 +527,14 @@ pub struct InterpState {
     /// consulted on every command resolution). `None` for the permissive
     /// fallback profile, which gates nothing.
     profile_registry: Option<&'static tcl_registry::CommandRegistry>,
-    /// The availability mask [`Self::command_surface_profile`]'s
-    /// environment answers the builtin-surface gate under — its **document
-    /// authoring mask** ([`crate::environment::surface_point`]), resolved at
-    /// pin time for the same reason [`Self::profile_registry`] is: the
-    /// generation lookup takes a lock and this is read on every command
-    /// resolution, where the retired `profile.surface_query()` was a
-    /// field read. Equal to that mask for every profile an ingress can
-    /// produce, pinned by the seam's own sweep.
+    /// The availability point [`Self::command_surface_profile`]'s environment
+    /// answers the builtin-surface gate under — its **document authoring
+    /// mask** ([`crate::environment::surface_point`]), resolved at pin time
+    /// for the same reason [`Self::profile_registry`] is: the generation
+    /// lookup takes a lock and this is read on every command resolution, where
+    /// the retired `profile.surface_query()` was a field read. Equal to that
+    /// mask for every profile an ingress can produce, pinned by the seam's own
+    /// sweep.
     command_surface_point: Option<SurfaceQuery<'static>>,
     /// Monotonic invalidation generation for bytecode that depends on the
     /// selected profile's grammar or command surface. It is deliberately
@@ -1057,7 +1057,7 @@ impl Vm {
     pub fn set_runtime_version(&mut self, version: tcl_dialect::TclVersion) {
         // A bare release pin is the matching plain-Tcl profile: the emulated
         // release is one fact carrying both the runtime semantics and the
-        // command-surface availability mask (issue #1463). The release name
+        // command-surface availability point (issue #1463). The release name
         // is a dialect *name*, so it resolves through the one ingress seam
         // (`crate::environment`) rather than through `by_name`.
         self.set_dialect_profile(crate::environment::profile_for_dialect(
@@ -1069,7 +1069,7 @@ impl Vm {
     /// [`Self::set_runtime_version`], for hosts whose dialect is a vendor
     /// profile rather than a plain Tcl release. The runtime version follows
     /// the profile's pinned `vm_runtime_version`, and the profile's
-    /// availability mask becomes the builtin command-surface filter
+    /// availability point becomes the builtin command-surface filter
     /// ([`Self::builtin_command_visible_for_surface`]).
     pub fn set_dialect_profile(&mut self, profile: &'static tcl_dialect::DialectProfile) {
         // The 8.4 `namespace path` tier gate (M10.1) and the availability
@@ -1169,10 +1169,10 @@ impl Vm {
         if surface.is_fallback() {
             return true;
         }
-        // Both halves are per-environment generations now (ledger row B1):
-        // the store is the generation's, and the mask each side is checked
-        // under is its environment's document authoring mask, which the
-        // ingress seam pins equal to the profile mask this read used.
+        // Both halves are per-environment generations now (ledger row B1): the
+        // store is the generation's, and the mask each side is checked under
+        // is its environment's document authoring mask, which the ingress seam
+        // pins equal to the profile point this read used.
         let compiled_registry = crate::environment::store_for_profile(dialect);
         let surface_registry = crate::environment::store_for_profile(surface);
         let compiled_mask = Some(crate::environment::surface_point(dialect));

@@ -86,15 +86,14 @@ const ORIGIN_VALUES: &[ArgValue] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "seek",
-        // Core Tcl command whose `dialects` group is `ALL_TCL` (no
-        // `IRULES` bit). Its absence from F5 iRules — the sandboxed TMM
-        // interpreter has no real filesystem/channel-seek support — falls
-        // straight out of that omission: an `ALL_TCL` group never
-        // intersects the bare `IRULES` availability mask, so no separate
-        // disable list is needed — the established pattern for this whole
-        // class of command (`open` is likewise `ALL_TCL`, banned from
-        // iRules for the identical reason). No other dialect (iApps, tmsh,
-        // Tk, Expect, the EDA shells, itcl) disables or overrides `seek`.
+        // Core Tcl command whose surface is `ALL_TCL` (no iRules row). Its
+        // absence from F5 iRules — the sandboxed TMM interpreter has no real
+        // filesystem/channel-seek support — falls straight out of that
+        // omission: an `ALL_TCL` surface is simply absent under iRules, so no
+        // separate disable list is needed — the established pattern for this
+        // whole class of command (`open` is likewise `ALL_TCL`, banned from
+        // iRules for the identical reason). No other dialect (iApps, tmsh, Tk,
+        // Expect, the EDA shells, itcl) disables or overrides `seek`.
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED,
         arity: Arity::new(2, 3),

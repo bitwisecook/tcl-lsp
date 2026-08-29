@@ -477,8 +477,8 @@ pub fn run(check: bool) -> Result<ExitCode> {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::surface;
-    use tcl_dialect::model::{SpecSurface, Family};
+    
+    use tcl_dialect::model::Family;
     use super::*;
 
     #[test]

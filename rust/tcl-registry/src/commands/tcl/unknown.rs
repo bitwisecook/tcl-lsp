@@ -55,16 +55,15 @@
 //!
 //! `unknown` is one of the K36322151 bans: the iRules TMM sandbox has no
 //! default `unknown` at all — banned alongside the filesystem/process
-//! primitives its own default implementation depends on to do anything
-//! useful (`auto_load`, `auto_execok`, `source`, `exec`, `file`, `glob`,
-//! `open`, `namespace`, `package`, …). That ban is now encoded directly
-//! in the spec below: `unknown` carries an explicit `dialects` group of
-//! `ALL_TCL` with no `IRULES` bit, so it never intersects the bare
-//! `IRULES` availability mask — no subtractive disable list, the same
-//! explicit-per-spec model `source`/`auto_load`/`auto_execok` follow (see
-//! their own specs). The `ALL_TCL` group still intersects every other
-//! dialect profile's mask (Expect, the EDA vendor shells, tmsh, iApps,
-//! BPF each carry a Tcl-version bit), so `unknown` stays reachable there.
+//! primitives its own default implementation depends on to do anything useful
+//! (`auto_load`, `auto_execok`, `source`, `exec`, `file`, `glob`, `open`,
+//! `namespace`, `package`, …). That ban is now encoded directly in the spec
+//! below: `unknown` carries an explicit surface of `ALL_TCL` with no iRules
+//! row, so it is simply absent under iRules — no subtractive disable list, the
+//! same explicit-per-spec model `source`/`auto_load`/`auto_execok` follow (see
+//! their own specs). The `ALL_TCL` surface still intersects every other
+//! dialect profile's mask (Expect, the EDA vendor shells, tmsh, iApps, BPF
+//! each carry a Tcl release), so `unknown` stays reachable there.
 //!
 //! Attempted, for extra rigour beyond the manpage text, to cross-check
 //! the auto-exec/interactive-only wording against the real
@@ -128,12 +127,12 @@ const SIDE_EFFECTS: &[SideEffect] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "unknown",
-        // Universal core Tcl 8.4-9.1 (present, arity- and
-        // synopsis-unchanged, in every fetched manpage — see the module
-        // doc comment). `ALL_TCL` here — with no `IRULES` bit — is what
-        // encodes the iRules ban documented above: the bare `IRULES` mask
-        // never intersects it, so `unknown` falls out of iRules by plain
-        // intersection, with no subtractive disable list involved. See
+        // Universal core Tcl 8.4-9.1 (present, arity- and synopsis-unchanged,
+        // in every fetched manpage — see the module doc comment). `ALL_TCL`
+        // here — with no iRules row — is what encodes the iRules ban
+        // documented above: the bare `IRULES` mask never intersects it, so
+        // `unknown` falls out of iRules by plain intersection, with no
+        // subtractive disable list involved. See
         // `source_.rs`/`auto_load.rs`/`auto_execok.rs` for the identical
         // explicit-per-spec reasoning on their own specs.
         surface: Some(SpecSurface::ALL_TCL),

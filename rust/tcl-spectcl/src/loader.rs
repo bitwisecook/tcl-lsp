@@ -6574,7 +6574,7 @@ mod tests {
     use super::*;
 
     /// A pack can declare `DEFERS_BODY` for its own definer, and — the half
-    /// that matters — a pack that says nothing leaves the bit **unset**.
+    /// that matters — a pack that says nothing leaves the trait **unset**.
     ///
     /// The flag tells a static walk that an unreadable body word costs it
     /// nothing about the call's completion (issue #1571), so the silent
@@ -7899,7 +7899,7 @@ mod tests {
     }
 
     /// A Jim-only window names the Jim family directly (Q13): the retired
-    /// bitmask had no Jim bit, so such a row used to gate the command off
+    /// bitmask had no Jim member, so such a row used to gate the command off
     /// entirely rather than say what it meant (ledger D17-J).
     #[test]
     fn a_jim_only_window_names_the_jim_family() {

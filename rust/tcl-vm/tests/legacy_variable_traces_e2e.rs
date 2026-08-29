@@ -42,7 +42,6 @@ use tcl_compiler::codegen::codegen_module;
 use tcl_dialect::{DialectProfile, TclVersion};
 use tcl_registry::CommandRegistry;
 use tcl_vm::{CompileError, CompileService, Vm};
-use tcl_dialect::model::{SpecSurface};
 
 struct CompilerSvc;
 

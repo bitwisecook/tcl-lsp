@@ -41,19 +41,18 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// Tcl 8.5 leaves `errorCode` as `NONE`.  The detailed evidence and the
 /// unavailable source-tree record live in the command-oracle audit.
 ///
-/// `surface: ALL_TCL` (no `IRULES` bit) here is deliberate, not an
-/// oversight: F5 iRules is the one modelled dialect that drops `rename` —
-/// it is one of the K36322151 commands F5 bans from direct command-table
-/// surgery in the TMM event sandbox alongside its `namespace`/`interp`
-/// siblings — and that exclusion is enforced simply by this group's
-/// omission of the `IRULES` bit: an `ALL_TCL` group never intersects the
-/// bare `IRULES` availability mask, so `rename` falls out by plain
+/// `surface: ALL_TCL` (no iRules row) here is deliberate, not an oversight: F5
+/// iRules is the one modelled dialect that drops `rename` — it is one of the
+/// K36322151 commands F5 bans from direct command-table surgery in the TMM
+/// event sandbox alongside its `namespace`/`interp` siblings — and that
+/// exclusion is enforced simply by this group's surface naming only Tcl:
+/// iRules is not among its providers, so `rename` falls out by plain
 /// intersection with no separate disable list, the same treatment
-/// `pwd`/`cd`/`open`/`glob`/`exec` get in their own spec files. Every
-/// other modelled dialect (Expect, Tk, the EDA vendor consoles, F5 iApps,
-/// F5 tmsh, incr Tcl) hosts a real Tcl core whose availability mask
-/// intersects this `ALL_TCL` group and adds no dedicated `rename` override
-/// of its own, so the command resolves there identically to plain Tcl.
+/// `pwd`/`cd`/`open`/`glob`/`exec` get in their own spec files. Every other
+/// modelled dialect (Expect, Tk, the EDA vendor consoles, F5 iApps, F5 tmsh,
+/// incr Tcl) hosts a real Tcl core whose point this Tcl surface admits, and
+/// which adds no dedicated `rename` override of its own, so the command
+/// resolves there identically to plain Tcl.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "rename",

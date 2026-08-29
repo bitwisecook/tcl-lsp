@@ -103,16 +103,16 @@ fn unset_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "unset",
-        // A core variable primitive with no filesystem/process/network
-        // access, present unmodified in every dialect that hosts a real Tcl
-        // core (irules, iapps, tmsh, the EDA shells, expect, tk, itcl) —
-        // iRules enables it, so it carries the `IRULES` bit explicitly
-        // (`ALL_TCL.union(IRULES)`) and resolves under the bare `IRULES`
-        // mask, and no dialect grants it extra options or an alternate
-        // form: every `"unset"` hit under the irules/, expect/, iapps/,
-        // tk/, itcl/, and eda_*/ command packs is an unrelated subcommand
-        // of a different ensemble (`array unset`, `dict unset`) or a
-        // `trace` operation name, never a redefinition of this command.
+        // A core variable primitive with no filesystem/process/network access,
+        // present unmodified in every dialect that hosts a real Tcl core
+        // (irules, iapps, tmsh, the EDA shells, expect, tk, itcl) — iRules
+        // enables it, so it carries an iRules row explicitly
+        // (`ALL_TCL.union(IRULES)`) and resolves under the bare `IRULES` mask,
+        // and no dialect grants it extra options or an alternate form: every
+        // `"unset"` hit under the irules/, expect/, iapps/, tk/, itcl/, and
+        // eda_*/ command packs is an unrelated subcommand of a different
+        // ensemble (`array unset`, `dict unset`) or a `trace` operation name,
+        // never a redefinition of this command.
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         // `FIRE_AND_FORGET_TEARDOWN`: `Tcl_UnsetObjCmd` (tclCmdMZ.c) removes the
         // variable and errors ("can't unset …: no such variable") when the

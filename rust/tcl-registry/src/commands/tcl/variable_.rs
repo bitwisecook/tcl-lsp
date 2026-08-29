@@ -124,15 +124,14 @@ static REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout::strided(ArgRole::Va
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "variable",
-        // Present and unrestricted: iRules enables `variable`, so it
-        // carries the `IRULES` bit explicitly (`ALL_TCL.union(IRULES)`) and
-        // resolves under the bare `IRULES` mask; no dialect pack under
+        // Present and unrestricted: iRules enables `variable`, so it carries
+        // an iRules row explicitly (`ALL_TCL.union(IRULES)`) and resolves
+        // under the bare `IRULES` mask; no dialect pack under
         // `tcl-registry/src/commands/` (irules/, iapps/, tk/, expect/, the
-        // eda_*/ vendor packs, itcl/, bpf/) defines its own `variable`
-        // spec either, so every dialect inherits this one unmodified.
-        // Only the minimum argument count narrows per Tcl version —
-        // captured on the individual FORMS entries above, not as a
-        // whole-command dialect gate.
+        // eda_*/ vendor packs, itcl/, bpf/) defines its own `variable` spec
+        // either, so every dialect inherits this one unmodified. Only the
+        // minimum argument count narrows per Tcl version — captured on the
+        // individual FORMS entries above, not as a whole-command dialect gate.
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY

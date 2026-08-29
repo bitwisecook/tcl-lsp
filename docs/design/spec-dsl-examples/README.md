@@ -69,11 +69,12 @@ is what the `speclib` version word already does. A pack containing
 `pragma` therefore hits the ordinary unknown-property rule below: dropped
 with a logged notice.
 
-The current vocabulary is **1.2**. `1`, `1.0`, `1.1` and `1.2` all name a
-vocabulary the loader reads in full; any other word still loads the pack,
-with a notice saying which vocabulary the loader knows — a pack is never
-refused for being newer than the server, it only loses the words that
-server has never heard of.
+The current vocabulary is **2.0**. `1`, `1.0`, `1.1`, `1.2` and `2.0` all
+name a vocabulary the loader reads in full. A pack declaring a newer
+*minor* of a major the loader knows still loads, with a notice saying
+which vocabulary the loader knows — it only loses the words that server
+has never heard of. A newer **major** is the one case that fails closed;
+the two rules below say why.
 
 ### Vocabulary changelog
 

@@ -41,7 +41,7 @@ pub fn spec() -> CommandSpec {
         arg_roles: &[(0, ArgRole::VarWrite)],
         assigns_variable_at: Some(0),
         // iRules embeds Tcl 8.4.6 and retains lappend's documented
-        // auto-creation behaviour; its bare profile mask needs explicit
+        // auto-creation behaviour; its bare profile point needs explicit
         // membership alongside the ordinary Tcl cores.
         safe_on_uninit: Some(SpecSurface::ALL_TCL_AND_IRULES),
         return_type: Some(TclType::List),

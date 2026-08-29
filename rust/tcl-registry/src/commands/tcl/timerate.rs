@@ -176,16 +176,15 @@ const SIDE_EFFECTS: &[SideEffect] = &[
 /// of the sandbox bans; it is kept out of iRules purely on the version
 /// axis, and there is no disable list for it ever to have been on.
 ///
-/// For the additive vendor dialects, each profile's own
-/// `availability_mask` settles it the same way: `expect` (`TCL86 |
-/// EXPECT`), `synopsys-eda-tcl` (`TCL86`), and `mentor-eda-tcl`
-/// (`TCL86`) all carry the `TCL86` bit, so `timerate` resolves there;
-/// `f5-iapps`, `f5-tmsh`, `xilinx-eda-tcl`, and `intel-quartus-eda-tcl`
-/// are pinned to `TCL85`, and `cadence-eda-tcl` to `TCL84` (its
-/// documented 8.4-safe core), so it does not — the same way `lmap`
-/// (8.6) is unavailable there. Tk and incr Tcl have no `DialectProfile` of their
-/// own (`tk` is a library pin layered on a host Tcl version; `itcl` is
-/// not a `SpecSurface` bit at all), so both simply inherit whatever host
+/// For the additive vendor dialects, each profile's own `surface_query`
+/// settles it the same way: `expect` (`TCL86 | EXPECT`), `synopsys-eda-tcl`
+/// (`TCL86`), and `mentor-eda-tcl` (`TCL86`) all carry the `TCL86` bit, so
+/// `timerate` resolves there; `f5-iapps`, `f5-tmsh`, `xilinx-eda-tcl`, and
+/// `intel-quartus-eda-tcl` are pinned to `TCL85`, and `cadence-eda-tcl` to
+/// `TCL84` (its documented 8.4-safe core), so it does not — the same way
+/// `lmap` (8.6) is unavailable there. Tk and incr Tcl have no `DialectProfile`
+/// of their own (`tk` is a library pin layered on a host Tcl version; `itcl`
+/// is not a `SpecSurface` bit at all), so both simply inherit whatever host
 /// Tcl version they run under, exactly like plain Tcl.
 pub fn spec() -> CommandSpec {
     CommandSpec {

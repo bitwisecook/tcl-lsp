@@ -58,19 +58,19 @@ use tcl_dialect::model::{SpecSurface};
 // interpreter.
 //
 // No sibling dialect directory (irules/iapps/tmsh/expect/tk/itcl/eda_*)
-// registers its own `yieldto` spec or override, so availability outside
-// plain Tcl follows the bare version gate below: iRules (embedded Tcl
-// 8.4.6), iApps/tmsh/Quartus/Mentor/Xilinx (Tcl 8.5) all predate 8.6 and so
-// never reach it; Expect and the Cadence/Synopsys EDA shells embed a real
-// 8.6+ core with no disable list of their own touching it, so they resolve
-// it like any other Tcl 8.6+ command. The `bpf` dialect's profile mask
-// nominally intersects `TCL86_PLUS` too (it tracks Tcl 9.0), but
-// `bpf-tcl-ir`'s own front-end (`is_concurrency_command`,
-// `bpf-tcl-ir/src/lower.rs`) separately and deliberately rejects
+// registers its own `yieldto` spec or override, so availability outside plain
+// Tcl follows the bare version gate below: iRules (embedded Tcl 8.4.6),
+// iApps/tmsh/Quartus/Mentor/Xilinx (Tcl 8.5) all predate 8.6 and so never
+// reach it; Expect and the Cadence/Synopsys EDA shells embed a real 8.6+ core
+// with no disable list of their own touching it, so they resolve it like any
+// other Tcl 8.6+ command. The `bpf` dialect's profile point nominally
+// intersects `TCL86_PLUS` too (it tracks Tcl 9.0), but `bpf-tcl-ir`'s own
+// front-end (`is_concurrency_command`, `bpf-tcl-ir/src/lower.rs`) separately
+// and deliberately rejects
 // `coroutine`/`yield`/`yieldto`/`coroinject`/`coroprobe` with a dedicated
-// `OutOfSubset` diagnostic — coroutine suspension has no meaning for an
-// eBPF program, which is a single bounded run to a verdict — so no
-// additional dialect exclusion belongs on this spec.
+// `OutOfSubset` diagnostic — coroutine suspension has no meaning for an eBPF
+// program, which is a single bounded run to a verdict — so no additional
+// dialect exclusion belongs on this spec.
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "yieldto command ?arg ...?",
     ..FormSpec::DEFAULT

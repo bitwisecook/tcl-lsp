@@ -440,7 +440,7 @@ pub struct CommandRegistry {
     /// The dialect profile this registry was built for, when it came from
     /// `registry_for_profile` / `registry_for_dialect`. `None` for
     /// hand-assembled registries (tests, ad-hoc tools), which fall back to
-    /// the `loaded_dialects`-derived behaviour answers.
+    /// the `loaded_layers`-derived behaviour answers.
     profile: Option<&'static tcl_dialect::DialectProfile>,
     /// Packages a `SpecTcl` pack declared **ambient** in this registry's
     /// dialect, with the version the runtime provides — `(package, version)`,
@@ -464,7 +464,7 @@ pub struct CommandRegistry {
 /// cached.  Backs [`CommandRegistry::known_in_any_dialect`] — the
 /// dialect-agnostic existence check over every loaded dialect.
 /// Built from the same spec functions [`CommandRegistry::build_default`]
-/// and [`CommandRegistry::load_dialect`] draw from, so it stays in lock-step
+/// and [`CommandRegistry::load_surface`] draw from, so it stays in lock-step
 /// with the registry's command universe.
 fn all_dialect_command_names() -> &'static FxHashSet<&'static str> {
     static NAMES: OnceLock<FxHashSet<&'static str>> = OnceLock::new();
@@ -814,7 +814,7 @@ impl CommandRegistry {
         // are part of the always-known command universe: a `.tcl` script may
         // `package require Tk` at runtime, and the diagnostics treat them as
         // recognised under every Tcl dialect, so Tk is folded into the base
-        // registry.  Mark the dialect loaded so a later `load_dialect(TK)` is
+        // registry.  Mark the layer loaded so a later `load_surface(Tk)` is
         // a no-op rather than a double-insert.
         for spec in tk_specs() {
             registry.insert_static(spec);
@@ -876,10 +876,10 @@ impl CommandRegistry {
     /// TIP 114 lands in tcl9.0 and stays in tcl9.1 (and any later 9.x), so the
     /// decimal rule applies to *every* Tcl 9 dialect, not tcl9.0 alone. The
     /// per-dialect registry built by `registry_for_dialect` records its Tcl
-    /// version via [`Self::load_dialect`], so a registry whose `loaded_dialects`
-    /// intersects [`SpecSurface::TCL90_PLUS`] (tcl9.0, tcl9.1, …) is decimal;
-    /// every other dialect (8.4/8.5/8.6 and the F5/EDA registries, which never
-    /// load a Tcl-9 version bit) reads leading zeros as octal.
+    /// version via [`Self::load_surface`], so a registry whose
+    /// `loaded_layers` names a 9.x core release (tcl9.0, tcl9.1, …) is
+    /// decimal; every other dialect (8.4/8.5/8.6 and the F5/EDA registries,
+    /// which never load a Tcl-9 release row) reads leading zeros as octal.
     #[must_use]
     pub fn leading_zero_is_octal(&self) -> bool {
         self.octal_fold_policy().unwrap_or(true)
@@ -919,8 +919,8 @@ impl CommandRegistry {
     /// included, D7), `None` = abstain — no Tcl runtime to have an opinion
     /// (`f5-bigip`, the unknown-dialect fallback; §11.1 of the
     /// dialect-profile model). A hand-assembled registry keeps the
-    /// historical `loaded_dialects` derivation (a version pack records its
-    /// bit, so a 9.x load reads decimal).
+    /// historical `loaded_layers` derivation (a version pack records its
+    /// release, so a 9.x load reads decimal).
     #[must_use]
     pub fn octal_fold_policy(&self) -> Option<bool> {
         match self.profile {
@@ -4863,7 +4863,7 @@ impl std::fmt::Debug for CommandRegistry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CommandRegistry")
             .field("commands", &self.by_name.len())
-            .field("loaded_dialects", &self.loaded_layers)
+            .field("loaded_layers", &self.loaded_layers)
             .field("profile", &self.profile.map(|p| p.name))
             .field("ambient_packages", &self.ambient_packages)
             .finish()
@@ -5227,7 +5227,7 @@ mod tests {
 
     #[test]
     fn leading_zero_is_octal_tracks_tcl_version() {
-        // Plain default registry (no Tcl version bit) defaults to octal.
+        // Plain default registry (no Tcl release row) defaults to octal.
         assert!(CommandRegistry::build_default().leading_zero_is_octal());
         // tcl9.0 (TIP 114) reads leading zeros as decimal; everything else
         // (8.4/8.5/8.6 and the 8.x-derived F5 dialects) stays octal.
@@ -8653,7 +8653,7 @@ mod tests {
     #[test]
     fn load_tk_dialect() {
         // Tk is part of the always-known base registry now, so it is present
-        // by default and a later `load_dialect(TK)` is an idempotent no-op.
+        // by default and a later `load_surface(Tk)` is an idempotent no-op.
         let reg = CommandRegistry::build_default();
         assert!(
             reg.get("grid").is_some(),

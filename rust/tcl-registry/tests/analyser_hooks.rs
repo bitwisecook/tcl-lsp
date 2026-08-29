@@ -28,7 +28,6 @@
 use std::collections::BTreeSet;
 use tcl_registry::hooks::AnalyserHookId;
 use tcl_registry::{CommandRegistry, Traits};
-use tcl_dialect::model::Family;
 
 /// Every dialect name that loads a non-trivial *compiled-in* command pack —
 /// the same list `registry_sweep.rs` uses — so the sweep sees every spec,

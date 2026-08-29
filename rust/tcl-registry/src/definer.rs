@@ -2296,7 +2296,7 @@ pub const SPECTCL_GRAMMARS: &[&DefinitionBodyGrammar] = &[
 #[cfg(test)]
 mod tests {
     use tcl_dialect::model::{SurfaceQuery, Family};
-    use tcl_dialect::model::{SpecSurface};
+    
     use super::{
         DeclaredMemberVisibility, MemberRetraction, MemberVisibility, SlotOp, SlotSpec,
         TCLOO_GRAMMAR,

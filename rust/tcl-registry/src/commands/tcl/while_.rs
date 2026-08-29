@@ -49,12 +49,11 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "while",
-        // Present and unrestricted — `while` carries the `IRULES` bit
-        // explicitly (`ALL_TCL.union(IRULES)`), resolving under the bare
-        // `IRULES` mask; a pure control-flow keyword with no
-        // filesystem/process/network access, so every dialect that hosts a
-        // real Tcl core (irules, iapps, tmsh, the EDA shells, expect, tk)
-        // carries it unmodified.
+        // Present and unrestricted — `while` carries an iRules row explicitly
+        // (`ALL_TCL.union(IRULES)`), resolving under the bare `IRULES` mask; a
+        // pure control-flow keyword with no filesystem/process/network access,
+        // so every dialect that hosts a real Tcl core (irules, iapps, tmsh,
+        // the EDA shells, expect, tk) carries it unmodified.
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED

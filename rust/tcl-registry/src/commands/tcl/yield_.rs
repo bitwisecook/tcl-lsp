@@ -61,17 +61,17 @@ pub fn spec() -> CommandSpec {
         // everywhere, via the mask-intersection rule
         // (`CommandSpec::supports_dialect` / `ProfileQueries::is_available`):
         // iRules/iApps/tmsh/the Xilinx/Quartus/Mentor EDA shells all mask in
-        // an 8.4 or 8.5 Tcl-version bit only (`tcl-dialect/src/profile.rs`),
-        // none of which intersects `TCL86_PLUS`, so `yield` is correctly
+        // an 8.4 or 8.5 Tcl release only (`tcl-dialect/src/profile.rs`), none
+        // of which intersects `TCL86_PLUS`, so `yield` is correctly
         // unavailable in all six (their embedded cores predate coroutines).
-        // Expect and the Cadence/Synopsys EDA shells mask in `TCL86`, and
-        // BPF masks in `TCL90` — all four intersect `TCL86_PLUS`, so `yield`
-        // correctly resolves there too (each embeds a real 8.6+/9.0+ core
-        // with no override of its own: grepping `irules/`, `iapps/`,
-        // `expect/`, `eda_*/`, `tk/`, and `itcl/` for "yield" finds no
-        // dialect-specific form, ban, or extra option anywhere). `f5-bigip`'s
-        // mask carries no Tcl-version bit at all (a config-file surface, not
-        // a Tcl command surface).
+        // Expect and the Cadence/Synopsys EDA shells mask in `TCL86`, and BPF
+        // masks in `TCL90` — all four intersect `TCL86_PLUS`, so `yield`
+        // correctly resolves there too (each embeds a real 8.6+/9.0+ core with
+        // no override of its own: grepping `irules/`, `iapps/`, `expect/`,
+        // `eda_*/`, `tk/`, and `itcl/` for "yield" finds no dialect-specific
+        // form, ban, or extra option anywhere). `f5-bigip`'s mask carries no
+        // Tcl release at all (a config-file surface, not a Tcl command
+        // surface).
         surface: Some(SpecSurface::TCL86_PLUS),
         traits: Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD

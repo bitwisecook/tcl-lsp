@@ -37,7 +37,7 @@
 // `deprecated_replacement_drop_in: false`.
 //
 // The iRules TMM interpreter is an embedded Tcl 8.4.6 and provides `case`
-// exactly as its base release does, so the group carries the `IRULES` bit
+// exactly as its base release does, so the group carries an iRules row
 // alongside `TCL8X`.
 use crate::prelude::*;
 use tcl_dialect::model::{SpecSurface};

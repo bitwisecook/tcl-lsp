@@ -65,21 +65,19 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// `surface: Some(SpecSurface::ALL_TCL)` is deliberate, not an oversight:
 /// `time` is one of the K36322151 commands F5 iRules excludes — unlike
 /// `exec`/`open`/`socket`'s filesystem-and-process rationale or
-/// `vwait`/`update`'s event-loop one, no equivalent documented reason
-/// carries over to a pure CPU-timing command, so only the verified fact of
-/// the ban is recorded here, not an invented mechanism. Under the
-/// explicit-per-spec model that exclusion is carried by this very
-/// `dialects` group: `ALL_TCL` spans every core Tcl version but not the
-/// `IRULES` bit, so the spec never intersects iRules' bare `IRULES` mask
-/// and `time` is unreachable there — there is no subtractive disable list.
-/// The `irules_banned_commands_never_resolve` contract test
-/// (`tcl-registry/tests/dialect_profile.rs`) pins that `time` does not
-/// resolve under f5-irules, exactly as `exec_.rs`/`pid.rs` document for
-/// their own banned entries. (Its Tcl 8.6+ sibling `timerate` is likewise
-/// absent from iRules, but through its `TCL86_PLUS` version gate rather
-/// than a ban — see `timerate.rs`.) No other modelled dialect (Expect,
-/// f5-iapps, f5-tmsh, the EDA vendor shells, Tk, incr Tcl) disables or
-/// alters `time`.
+/// `vwait`/`update`'s event-loop one, no equivalent documented reason carries
+/// over to a pure CPU-timing command, so only the verified fact of the ban is
+/// recorded here, not an invented mechanism. Under the explicit-per-spec model
+/// that exclusion is carried by this very surface: `ALL_TCL` spans every core
+/// Tcl version but not an iRules row, so the spec never intersects iRules'
+/// bare `IRULES` mask and `time` is unreachable there — there is no
+/// subtractive disable list. The `irules_banned_commands_never_resolve`
+/// contract test (`tcl-registry/tests/dialect_profile.rs`) pins that `time`
+/// does not resolve under f5-irules, exactly as `exec_.rs`/`pid.rs` document
+/// for their own banned entries. (Its Tcl 8.6+ sibling `timerate` is likewise
+/// absent from iRules, but through its `TCL86_PLUS` version gate rather than a
+/// ban — see `timerate.rs`.) No other modelled dialect (Expect, f5-iapps,
+/// f5-tmsh, the EDA vendor shells, Tk, incr Tcl) disables or alters `time`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "time",

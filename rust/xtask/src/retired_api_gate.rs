@@ -401,6 +401,19 @@ const OWNED: &[OwnedPattern] = &[
         needle: "all_dialect_command_names",
         owners: &["rust/tcl-registry/src/"],
     },
+    // **Is this package's presence a placement question?** — the one
+    // closed-world classification (Q7). A profile-side gate and a resolved
+    // context must not disagree about which packages a runtime ships, so the
+    // two predicates that answer it live with the surface model; a caller
+    // that recomputes the set from the catalogue is a second rule.
+    OwnedPattern {
+        needle: "is_closed_world_package",
+        owners: &["rust/tcl-registry/src/"],
+    },
+    OwnedPattern {
+        needle: "is_placement_gated_package",
+        owners: &["rust/tcl-registry/src/"],
+    },
     // **What did this call do to the command table?** — ledger C8's one
     // vocabulary. The registry resolves the facts; `tcl_compiler::alias` is
     // the single bridge from reconstructed source words to that resolution.

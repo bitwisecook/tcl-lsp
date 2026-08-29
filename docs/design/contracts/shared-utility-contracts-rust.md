@@ -157,14 +157,15 @@ entry point, or gate moves without this contract being updated.
   A consumer that restates either list rather than projecting it is the drift
   issue #1625 catalogued: six hand-maintained surfaces, three of them wrong.
 
-- The command-availability mask for a *document* is the resolved
-  environment's **document authoring mask**
-  (`tcl_registry::model::ingress::DocumentEnvironment::document_authoring_mask`,
-  carried by `static_document_context_for`'s `ResolvedContext`). It is what
-  keeps the additive `tk` ingress working: the `tk` environment's unit
-  profile carries the `TK` bit even though the analyser-facing fallback's
-  mask has none — the union the retired `availability_for_name` used to
-  compute at the string boundary, now a fact of the resolved environment.
+- Command availability for a *document* is asked at one **point** — the
+  resolved environment's authoring query
+  (`tcl_registry::model::ingress::DocumentEnvironment::document_context`,
+  then `ResolvedContext::authoring_query`, as
+  `static_document_context_for` returns it). It is what keeps the additive
+  `tk` ingress working: the `tk` environment's point names `Tk` among its
+  packages even though the analyser-facing fallback's does not — the union
+  the retired `availability_for_name` used to compute at the string
+  boundary, now a fact of the resolved environment.
 
 ### `tcl-lexer` — source-text decoding
 

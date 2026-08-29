@@ -35,14 +35,13 @@
 //! absent from every 8.4/8.5/8.6 fetch, where no such profile concept
 //! existed and malformed input was never rejected this way.
 //!
-//! The `ALL_TCL` `dialects` group on the command spec below is
-//! deliberate, not an oversight: iRules bans `gets` outright (one of the
-//! K36322151 bans, alongside `open`/`fconfigure`/`flush`/…), and
-//! `ALL_TCL` does not carry the `IRULES` bit, so the spec never
-//! intersects the bare `IRULES` availability mask — the same pattern
-//! `flush_.rs` / `cd.rs` / `fconfigure_.rs` document for their own bans.
-//! No other modelled dialect (Expect, the EDA vendor shells, F5
-//! iApps/tmsh, Tk, incr Tcl) restricts or extends `gets`.
+//! The `ALL_TCL` surface on the command spec below is deliberate, not an
+//! oversight: iRules bans `gets` outright (one of the K36322151 bans,
+//! alongside `open`/`fconfigure`/`flush`/…), and `ALL_TCL` does not carry an
+//! iRules row, so the spec is simply absent under iRules — the same pattern
+//! `flush_.rs` / `cd.rs` / `fconfigure_.rs` document for their own bans. No
+//! other modelled dialect (Expect, the EDA vendor shells, F5 iApps/tmsh, Tk,
+//! incr Tcl) restricts or extends `gets`.
 
 use crate::prelude::*;
 use tcl_dialect::model::{SpecSurface};

@@ -1158,10 +1158,8 @@ fn release_line(
     release: tcl_dialect::model::Release,
     start: &Version,
 ) -> Option<VersionSet> {
-    let ladder = family.releases();
-    let position = ladder.iter().position(|step| *step == release)?;
-    let end = ladder
-        .get(position + 1)
+    let end = family
+        .next_release(release)
         .and_then(|next| Version::parse(next.as_str()).ok());
     let requirement = match end {
         Some(end) => format!("{}-{}", start.as_str(), end.as_str()),
@@ -1605,7 +1603,7 @@ mod tests {
     use tcl_dialect::model::{surface_breadth};
     use tcl_dialect::model::{SurfaceQuery};
     use tcl_dialect::surface;
-    use tcl_dialect::model::{SpecSurface, SpecProvider};
+    use tcl_dialect::model::SpecSurface;
     use super::*;
     use crate::model::surface::declarations_for_spec;
     use crate::spec::CommandSpec;
@@ -1900,13 +1898,13 @@ mod tests {
         assert!(!context("f5-iapps").is_available(&declarations));
     }
 
-    /// The **one enumerated delta** from the old model, pinned directly
-    /// rather than only as an allowlist in the P1-E sweeps: a world that
-    /// is not open stops resolving the Tk surface on its own. `package
-    /// require` is not part of the `bpf`, `spectcl` or `f5-irules`
-    /// language, and an iApp gets only what it requires, so `wm` was never
-    /// callable in any of them; the retired profile mask admitted it only
-    /// because `TK_AND_TCL` unions the whole Tcl ladder.
+    /// The **one enumerated delta** from the old model, pinned directly rather
+    /// than only as an allowlist in the P1-E sweeps: a world that is not open
+    /// stops resolving the Tk surface on its own. `package require` is not
+    /// part of the `bpf`, `spectcl` or `f5-irules` language, and an iApp gets
+    /// only what it requires, so `wm` was never callable in any of them; the
+    /// retired profile point admitted it only because `TK_AND_TCL` unions the
+    /// whole Tcl ladder.
     ///
     /// The two policies part company on the require: it cannot open a
     /// closed world, but it is exactly how a package joins an

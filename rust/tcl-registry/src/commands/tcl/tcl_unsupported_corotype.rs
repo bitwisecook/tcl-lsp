@@ -75,16 +75,16 @@ fn make_spec(name: &'static str) -> CommandSpec {
         traits: Traits::FRAMELESS_RUNTIME,
         // TCL86_PLUS, not TCL90_PLUS: present (mid-series) in 8.6 and
         // unchanged in 9.0/9.1 — see the module doc comment for the exact
-        // patch-level evidence. Not universal (`surface: None`) either:
-        // absent from 8.4/8.5 (no coroutines at all there), and — being a
+        // patch-level evidence. Not universal (`surface: None`) either: absent
+        // from 8.4/8.5 (no coroutines at all there), and — being a
         // standard-Tcl-core internal with no sibling registration anywhere
         // under `commands/irules|iapps|expect|tk|itcl|eda_*` — absent from
         // every non-Tcl-version dialect too, all of which fall outside
         // `TCL86_PLUS`. That same version gate is all that is needed to
-        // exclude this command from iRules: `TCL86_PLUS` carries no
-        // `IRULES` bit, so the spec never intersects iRules' bare `IRULES`
-        // mask and is excluded on the version axis alone — no separate
-        // per-dialect exclusion, and no disable list.
+        // exclude this command from iRules: `TCL86_PLUS` carries no iRules
+        // row, so the spec never intersects iRules' bare `IRULES` mask and is
+        // excluded on the version axis alone — no separate per-dialect
+        // exclusion, and no disable list.
         surface: Some(SpecSurface::TCL86_PLUS),
         arity: Arity::new(1, 1),
         return_type: Some(TclType::String),

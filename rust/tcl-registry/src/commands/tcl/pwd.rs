@@ -37,18 +37,17 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// EXAMPLE prose, which carries no behavioural meaning. `pwd` takes no
 /// arguments and has no options/switches in any of the five versions.
 ///
-/// `surface: Some(SpecSurface::ALL_TCL)` here is deliberate, not an
-/// oversight: F5 iRules is the one modelled dialect that drops `pwd` — it
-/// is one of the K36322151 commands the TMM event sandbox excludes,
-/// having no real per-request filesystem/cwd concept, the same reasoning
-/// that drops `cd`/`open`/`glob`/`exec`/`fcopy`/`pid`. That exclusion now
-/// falls straight out of this `dialects` gate: `ALL_TCL` carries no
-/// `IRULES` bit, so it never intersects the bare `IRULES` mask — the same
-/// treatment those commands get in their own spec files, with no disable
-/// list. Every other modelled dialect (Expect, Tk, the EDA vendor
-/// consoles, F5 iApps, F5 tmsh, incr Tcl) hosts a real filesystem-backed
-/// Tcl whose mask carries a version bit `ALL_TCL` intersects, so `pwd`
-/// resolves there normally.
+/// `surface: Some(SpecSurface::ALL_TCL)` here is deliberate, not an oversight:
+/// F5 iRules is the one modelled dialect that drops `pwd` — it is one of the
+/// K36322151 commands the TMM event sandbox excludes, having no real
+/// per-request filesystem/cwd concept, the same reasoning that drops
+/// `cd`/`open`/`glob`/`exec`/`fcopy`/`pid`. That exclusion now falls straight
+/// out of this `dialects` gate: `ALL_TCL` carries no iRules row, so it never
+/// intersects the bare `IRULES` mask — the same treatment those commands get
+/// in their own spec files, with no disable list. Every other modelled dialect
+/// (Expect, Tk, the EDA vendor consoles, F5 iApps, F5 tmsh, incr Tcl) hosts a
+/// real filesystem-backed Tcl whose mask carries a release row `ALL_TCL`
+/// intersects, so `pwd` resolves there normally.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "pwd",

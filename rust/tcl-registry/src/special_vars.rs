@@ -220,12 +220,12 @@ impl SpecialVarSpec {
     }
 }
 
-/// The availability set the special-variable membership tests answer under
-/// for an already-resolved profile — the profile's
-/// [`availability_mask`](tcl_dialect::DialectProfile::availability_mask).
-/// The LSP/CLI ingress resolves the dialect name once (through
-/// `tcl_registry::model::ingress`) and threads the profile; the old
-/// name-keyed `resolve_dialect` validator is deleted (ledger C2, P1-G).
+/// The availability set the special-variable membership tests answer under for
+/// an already-resolved profile — the profile's
+/// [`surface_query`](tcl_dialect::DialectProfile::surface_query). The
+/// LSP/CLI ingress resolves the dialect name once (through
+/// `tcl_registry::model::ingress`) and threads the profile; the old name-keyed
+/// `resolve_dialect` validator is deleted (ledger C2, P1-G).
 ///
 /// `None` (no dialect resolved) answers the permissive `PLAIN_TCL`
 /// profile's own point.
@@ -249,7 +249,7 @@ pub fn special_var(name: &str) -> Option<&'static SpecialVarSpec> {
 }
 
 /// Look up a special variable that is available in `dialect` (the resolved
-/// availability mask, from [`surface_query_for_profile`]).
+/// availability point, from [`surface_query_for_profile`]).
 #[must_use]
 pub fn special_var_in_dialect(name: &str, dialect: Option<SurfaceQuery<'_>>) -> Option<&'static SpecialVarSpec> {
     special_var(name).filter(|v| v.available_in(dialect))
@@ -866,7 +866,7 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
 mod tests {
     use tcl_dialect::model::{Family};
     use tcl_dialect::model::{SurfaceQuery};
-    use tcl_dialect::model::{SpecSurface};
+    
     use super::*;
 
     /// The catalogue point the tests exercise these queries under — the

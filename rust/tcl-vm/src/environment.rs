@@ -22,21 +22,21 @@
 //!
 //! Every dialect **name** the VM accepts (there is exactly one kind: the
 //! release name a [`TclVersion`] pin spells, [`Vm::set_runtime_version`])
-//! resolves here, once, through
-//! [`tcl_registry::model::resolve_environment`], and every registry
-//! access and availability mask the engine reads is derived from the
-//! resolved environment rather than from a second lookup of the string.
+//! resolves here, once, through [`tcl_registry::model::resolve_environment`],
+//! and every registry access and availability point the engine reads is
+//! derived from the resolved environment rather than from a second lookup of
+//! the string.
 //!
-//! Nothing in this module changes what the VM admits. The names it
-//! resolves are the closed set [`TclVersion::dialect_name`] spells, whose
-//! environments are their same-named catalogue entries, so
-//! [`profile_for_dialect`] returns the very profile `DialectProfile::by_name`
-//! did; the generation's command store is the very `Arc` the old
-//! `(profile, overlay)` cache owns, so [`store_for_profile`] returns the
-//! allocation `registry_for_profile` returned; and the document authoring
-//! mask is test-pinned to the threaded profile's `availability_mask` for
-//! every profile an ingress can produce, so [`surface_point`] answers the
-//! command-availability gate exactly as the mask read did.
+//! Nothing in this module changes what the VM admits. The names it resolves
+//! are the closed set [`TclVersion::dialect_name`] spells, whose environments
+//! are their same-named catalogue entries, so [`profile_for_dialect`] returns
+//! the very profile `DialectProfile::by_name` did; the generation's command
+//! store is the very `Arc` the old `(profile, overlay)` cache owns, so
+//! [`store_for_profile`] returns the allocation `registry_for_profile`
+//! returned; and the document authoring mask is test-pinned to the threaded
+//! profile's `surface_query` for every profile an ingress can produce, so
+//! [`surface_point`] answers the command-availability gate exactly as the mask
+//! read did.
 //!
 //! Post-P1-G (which deleted the name validators and old cache doors):
 //! the `&'static DialectProfile` these helpers take and hand back

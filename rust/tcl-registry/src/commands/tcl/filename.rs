@@ -25,10 +25,10 @@ use tcl_dialect::model::{SpecSurface};
 /// command — there is no `filename ...` call to arity-check, so `traits`,
 /// `forms`, `options`, and `arg_values` stay empty and `hover` carries the
 /// entire fact set as prose. `xtask::command_backing::NOT_REQUIRED` lists
-/// `"filename"` explicitly (there is no runtime command to back). Its
-/// `dialects` group is `ALL_TCL`, which does not carry the `IRULES` bit,
-/// so it never intersects the bare `IRULES` availability mask — excluded
-/// from iRules exactly as `cd`/`open` are, with no disable list involved.
+/// `"filename"` explicitly (there is no runtime command to back). Its surface
+/// is `ALL_TCL`, which does not carry an iRules row, so it is simply absent
+/// under iRules — excluded from iRules exactly as `cd`/`open` are, with no
+/// disable list involved.
 ///
 /// Fetched and compared word-for-word across all five manpages
 /// (tcl8.4/8.5/8.6/9.0/9.1 `TclCmd/filename.html`, 8.6 via the `.htm`

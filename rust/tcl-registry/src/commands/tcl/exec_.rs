@@ -35,15 +35,13 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "exec",
         // `Some(SpecSurface::ALL_TCL)` is deliberate, not an oversight: F5
-        // iRules is the one modelled dialect that drops `exec` (the
-        // K36322151 TMM sandbox ban — no real process model), and that
-        // exclusion is expressed directly by this `dialects` group:
-        // `ALL_TCL` does not carry the `IRULES` bit, so this spec never
-        // intersects the bare `IRULES` availability mask. Every other
-        // modelled dialect that embeds a real Tcl runtime (Expect,
-        // f5-iapps, f5-tmsh, the EDA vendor shells) is included in
-        // `ALL_TCL` and keeps a real process model, so `exec` is available
-        // there too.
+        // iRules is the one modelled dialect that drops `exec` (the K36322151
+        // TMM sandbox ban — no real process model), and that exclusion is
+        // expressed directly by this surface: `ALL_TCL` does not carry an
+        // iRules row, so this spec is simply absent under iRules. Every other
+        // modelled dialect that embeds a real Tcl runtime (Expect, f5-iapps,
+        // f5-tmsh, the EDA vendor shells) is included in `ALL_TCL` and keeps a
+        // real process model, so `exec` is available there too.
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED
             | Traits::TAINT_SINK

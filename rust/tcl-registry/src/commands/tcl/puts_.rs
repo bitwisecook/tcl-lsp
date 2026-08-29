@@ -51,12 +51,12 @@
 //! `puts` to be gated by.
 //!
 //! `surface: Some(SpecSurface::ALL_TCL)` on the command spec below is
-//! deliberate, not an oversight: `puts` is excluded from iRules, just
-//! like `gets`/`flush`/`open`/`fconfigure` (K36322151) — its `ALL_TCL`
-//! group carries no `IRULES` bit, so it never intersects the bare
-//! `IRULES` availability mask and falls out by plain intersection, with
-//! no disable list involved. No other modelled dialect (Expect, the EDA
-//! vendor shells, F5 iApps/tmsh, Tk, incr Tcl) restricts or extends it.
+//! deliberate, not an oversight: `puts` is excluded from iRules, just like
+//! `gets`/`flush`/`open`/`fconfigure` (K36322151) — its `ALL_TCL` surface
+//! carries no iRules row, so it is simply absent under iRules and falls out by
+//! plain intersection, with no disable list involved. No other modelled
+//! dialect (Expect, the EDA vendor shells, F5 iApps/tmsh, Tk, incr Tcl)
+//! restricts or extends it.
 
 use crate::prelude::*;
 use tcl_dialect::model::{SpecSurface};

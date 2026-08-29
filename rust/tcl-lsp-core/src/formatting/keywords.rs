@@ -188,15 +188,15 @@ enum RangeTable<'a> {
 /// shortened what `string c…` could mean), and expanding it would rewrite
 /// source that a newer interpreter reads differently.
 ///
-/// An empty range (the default, and every vendor dialect with no core version
-/// bit) means "no range was declared", so the target's own answer stands —
-/// the pre-existing behaviour. A release that no longer carries the command
+/// An empty range (the default, and every vendor dialect with no core release
+/// row) means "no range was declared", so the target's own answer stands — the
+/// pre-existing behaviour. A release that no longer carries the command
 /// contributes an empty table, which can never vouch for the word, so the
-/// rewrite is abandoned.
-/// The keyword table `scope` names on `cmd_name`'s spec in one specific
-/// `release`, filtered by that release's own dialect bit — empty when
-/// `registry` has no such spec (or, for [`RangeTable::SubcommandOptions`], no
-/// such named subcommand), which can never vouch for any word.
+/// rewrite is abandoned. The keyword table `scope` names on `cmd_name`'s spec
+/// in one specific `release`, filtered by that release's own dialect bit —
+/// empty when `registry` has no such spec (or, for
+/// [`RangeTable::SubcommandOptions`], no such named subcommand), which can
+/// never vouch for any word.
 ///
 /// Takes the release's registry as a parameter rather than reaching for
 /// [`crate::context_for_dialect`] itself, so the range machinery can
@@ -208,11 +208,11 @@ fn release_table(
     cmd_name: &str,
     scope: RangeTable<'_>,
 ) -> tcl_registry::abbrev::KeywordTable<'static> {
-    // The release's own authoring bits, derived from its environment
+    // The release's own authoring point, derived from its environment
     // rather than re-parsed from the name (ledger C1/C2): for the five
     // core ladder names this is exactly the single release bit
     // `DialectProfile::find` produced, sweep-pinned in the registry model.
-    let bits = Some(crate::document_context_for_dialect(release).authoring_query());
+    let point = Some(crate::document_context_for_dialect(release).authoring_query());
     let empty =
         || tcl_registry::abbrev::KeywordTable::new(std::iter::empty(), PrefixMatching::Enabled);
     // Each release's table is filtered by *its own* dialect bit — a keyword
@@ -222,13 +222,13 @@ fn release_table(
         return empty();
     };
     match scope {
-        RangeTable::Subcommands => spec.subcommand_table(bits, None, None),
-        RangeTable::CommandOptions => spec.option_table(bits, None, None),
+        RangeTable::Subcommands => spec.subcommand_table(point, None, None),
+        RangeTable::CommandOptions => spec.option_table(point, None, None),
         RangeTable::SubcommandOptions(name) => spec
             .subcommands
             .iter()
             .find(|s| s.name == name)
-            .map_or_else(empty, |sub| sub.option_table(bits, None, None)),
+            .map_or_else(empty, |sub| sub.option_table(point, None, None)),
     }
 }
 
@@ -260,9 +260,9 @@ fn resolves_in_release(
 /// shortened what `string c…` could mean), and expanding it would rewrite
 /// source that a newer interpreter reads differently.
 ///
-/// An empty range (the default, and every vendor dialect with no core version
-/// bit) means "no range was declared", so the target's own answer stands —
-/// the pre-existing behaviour: `releases` is already empty in that case
+/// An empty range (the default, and every vendor dialect with no core release
+/// row) means "no range was declared", so the target's own answer stands — the
+/// pre-existing behaviour: `releases` is already empty in that case
 /// ([`tcl_registry::version_range::core_releases_in`]), and `.all()` over an
 /// empty iterator is vacuously `true`. A release that no longer carries the
 /// command contributes an empty table, which can never vouch for the word, so
@@ -307,7 +307,7 @@ fn options_for_scope<'a>(spec: &'a CommandSpec, scope: RangeTable<'_>) -> &'a [O
 /// the range or it rewrites nothing.
 ///
 /// An empty `releases` (the default, and every vendor dialect with no core
-/// version bit) means "no range was declared", so the target's own verdict
+/// release row) means "no range was declared", so the target's own verdict
 /// stands — `fold` over an empty slice returns `target` unchanged.
 fn boolean_site_across_range(
     releases: &[(&str, &CommandRegistry)],
@@ -317,11 +317,11 @@ fn boolean_site_across_range(
     target: BooleanSite,
 ) -> BooleanSite {
     releases.iter().fold(target, |site, &(release, registry)| {
-        let bits = Some(crate::document_context_for_dialect(release).authoring_query());
+        let point = Some(crate::document_context_for_dialect(release).authoring_query());
         let found = registry.get(cmd_name).and_then(|spec| {
             options_for_scope(spec, scope)
                 .iter()
-                .find(|opt| opt.matches(canonical) && opt.supports_dialect(bits, spec.surface))
+                .find(|opt| opt.matches(canonical) && opt.supports_dialect(point, spec.surface))
                 .map(|opt| BooleanSite::of(opt.value_role()))
         });
         site.min(found.unwrap_or(BooleanSite::None))
@@ -381,7 +381,7 @@ fn declared_boolean_site_at(
 /// release can disagree.
 ///
 /// An empty `releases` (the default, and every vendor dialect with no core
-/// version bit) means "no range was declared", so the target's own verdict
+/// release row) means "no range was declared", so the target's own verdict
 /// stands, exactly as [`boolean_site_across_range`] does.
 fn positional_site_across_range(
     releases: &[(&str, &CommandRegistry)],

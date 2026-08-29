@@ -151,20 +151,19 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "glob",
         // `Some(SpecSurface::ALL_TCL)`, deliberately: `glob` is banned in F5
-        // iRules (the TMM sandbox has no real filesystem), and that
-        // exclusion is now modelled by this explicit `dialects` group —
-        // `ALL_TCL` does NOT carry the `IRULES` bit, so `glob` simply never
-        // intersects the bare `IRULES` availability mask; there is no
-        // disable list. iRules availability is fully explicit per spec now:
-        // a command resolves under iRules iff its own `dialects` group
-        // carries the `IRULES` bit. `tests/dialect_profile.rs`'s
+        // iRules (the TMM sandbox has no real filesystem), and that exclusion
+        // is now modelled by this explicit surface — `ALL_TCL` does NOT carry
+        // an iRules row, so `glob` simply is simply absent under iRules; there
+        // is no disable list. iRules availability is fully explicit per spec
+        // now: a command resolves under iRules iff its own surface carries an
+        // iRules row. `tests/dialect_profile.rs`'s
         // `irules_banned_commands_lack_the_irules_bit` asserts exactly this:
-        // every banned name must lack the `IRULES` bit, so adding it to this
+        // every banned name must lack an iRules row, so adding it to this
         // field would silently break that contract. Every other modelled
         // dialect (Expect, Tk, the EDA vendor consoles, F5 iApps, F5 tmsh,
         // incr Tcl) hosts a real filesystem-backed Tcl and carries `glob`
-        // unrestricted (its `ALL_TCL` group intersects the Tcl-version bit
-        // in each of those masks).
+        // unrestricted (its `ALL_TCL` surface intersects the Tcl release in
+        // each of those masks).
         surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED | Traits::SAFE_INTERP_HIDDEN,
         // 8.4/8.5 require at least one `pattern` word; Tcl 8.6+ (TIP 323)

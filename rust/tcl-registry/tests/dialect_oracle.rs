@@ -34,7 +34,6 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::process::{Command, Stdio};
 use tcl_registry::CommandRegistry;
-use tcl_dialect::model::{SpecSurface};
 use tcl_dialect::model::{SurfaceQuery, surface_admits};
 
 /// Run `script` on `tclsh` via stdin, returning stdout (or `None` on spawn

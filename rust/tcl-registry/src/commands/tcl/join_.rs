@@ -27,16 +27,15 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "join",
-        // `Some(SpecSurface::ALL_TCL_AND_IRULES)` is
-        // deliberate, not an oversight: `join` is a pure list-manipulation
-        // command — none of the filesystem/process/interp surface (`open`,
-        // `exec`, `file`, `glob`, `namespace`, …) that iRules bans — so it
-        // carries the `IRULES` bit explicitly and resolves under the bare
-        // `IRULES` mask, rather than being one of the sandbox-banned
-        // commands whose group is a bare `ALL_TCL` (no `IRULES` bit). None of
-        // the irules/, expect/, tk/, itcl/, iapps/, or eda_*/ command packs
-        // declares an override or an extra form for it, so it resolves
-        // identically everywhere.
+        // `Some(SpecSurface::ALL_TCL_AND_IRULES)` is deliberate, not an
+        // oversight: `join` is a pure list-manipulation command — none of the
+        // filesystem/process/interp surface (`open`, `exec`, `file`, `glob`,
+        // `namespace`, …) that iRules bans — so it carries an iRules row
+        // explicitly and resolves under the bare `IRULES` mask, rather than
+        // being one of the sandbox-banned commands whose group is a bare
+        // `ALL_TCL` (no iRules row). None of the irules/, expect/, tk/, itcl/,
+        // iapps/, or eda_*/ command packs declares an override or an extra
+        // form for it, so it resolves identically everywhere.
         surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         byte_array_effect: ByteArrayEffect::Coerces,
         const_fold: Some(crate::const_fold::fold_join),

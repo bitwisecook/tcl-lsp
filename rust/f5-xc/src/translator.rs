@@ -1557,10 +1557,10 @@ fn walk_call(
 
 // Public API
 
-/// The profile-stamped iRules [`CommandRegistry`], suitable for lowering
-/// and translating an iRule (the §9 operator-head exclusion applies to
-/// every dialect-availability query made through it, and every spec's own
-/// `dialects` group decides the rest).
+/// The profile-stamped iRules [`CommandRegistry`], suitable for lowering and
+/// translating an iRule (the §9 operator-head exclusion applies to every
+/// dialect-availability query made through it, and every spec's own surface
+/// decides the rest).
 fn irules_registry() -> &'static CommandRegistry {
     tcl_registry::model::ingress::static_context_for_profile(tcl_dialect::DialectProfile::irules())
         .commands()

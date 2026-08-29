@@ -297,12 +297,7 @@ impl PackEnvironment {
 /// `[R·a0, next·a0)` window the compiled definitions use.
 fn release_line(family: Family, release: Release) -> VersionSet {
     let axis = VersionAxisId::core(family);
-    let requirement = match family
-        .releases()
-        .iter()
-        .position(|candidate| *candidate == release)
-        .and_then(|index| family.releases().get(index + 1))
-    {
+    let requirement = match family.next_release(release) {
         Some(next) => format!("{}-{}", release.as_str(), next.as_str()),
         None => format!("{}-", release.as_str()),
     };

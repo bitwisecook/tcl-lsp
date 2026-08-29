@@ -135,16 +135,14 @@ const FORMS: &[FormSpec] = &[
 /// and configuration entry checked here (confirmed via two independent
 /// full-page fetches) — no 9.1-specific delta found for this command.
 ///
-/// `socket` is present in every dialect that hosts a real Tcl core
-/// (checked against `tcl-dialect/src/profile.rs`'s per-profile
-/// `availability_mask`, which unions in a real Tcl-version bit for
-/// every additive dialect — f5-iapps, f5-tmsh, expect, and the EDA
-/// vendor shells all resolve it normally) except F5 iRules, which bans
-/// it outright: its `dialects` group is `ALL_TCL` (no `IRULES` bit), so
-/// it never intersects the bare `IRULES` availability mask — the
-/// K36322151 ban falls straight out of that omission, with no separate
-/// disable list, the same `ALL_TCL` convention `open` already uses for
-/// its own, identical iRules ban.
+/// `socket` is present in every dialect that hosts a real Tcl core (checked
+/// against `tcl-dialect/src/profile.rs`'s per-profile `surface_query`, which
+/// names a real Tcl release for every additive dialect — f5-iapps, f5-tmsh,
+/// expect, and the EDA vendor shells all resolve it normally) except F5
+/// iRules, which bans it outright: its surface names only Tcl, so it is simply
+/// absent under iRules — the K36322151 ban falls straight out of that
+/// omission, with no separate disable list, the same `ALL_TCL` convention
+/// `open` already uses for its own, identical iRules ban.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "socket",
