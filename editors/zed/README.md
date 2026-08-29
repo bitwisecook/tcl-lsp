@@ -160,7 +160,7 @@ Add to your Zed `settings.json` to configure the language server:
 ### Full settings reference
 
 See the [VS Code extension
-documentation](https://github.com/bitwisecook/tcl-lsp/blob/main/editors/vscode/package.json)
+documentation](https://github.com/bitwisecook/tcl-lsp/blob/rust/editors/vscode/package.json)
 for the complete list of `tclLsp.*` settings — all are supported in Zed via
 the `lsp.tcl-lsp.settings` path.
 
