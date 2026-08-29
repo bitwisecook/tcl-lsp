@@ -2574,7 +2574,7 @@ impl CommandSpec {
     }
 
     /// Words consumed by the leading switch run, values included.
-    fn switch_word_count(&self, args: &[&str]) -> usize {
+    pub(crate) fn switch_word_count(&self, args: &[&str]) -> usize {
         let option_scan_end = args.len().saturating_sub(self.reserved_trailing_words);
         leading_option_word_count_with(self.options, &args[..option_scan_end], self.prefix_matching)
     }

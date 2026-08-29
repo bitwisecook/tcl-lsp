@@ -239,22 +239,43 @@ return_type_hook: Some(ReturnTypeHookId::Lsearch),
 
 | Hook | Command | What moves |
 |---|---|---|
-| `Regexp` | `regexp` | `-inline` returns the matched substrings as a list, `-about` a two-element `{subexpressionCount propertyList}` |
-| `Lsearch` | `lsearch` | `-all` a list; a bare `-inline` one element out of the source list; `-subindices` the full index path |
+| `Regexp` | `regexp` | `-about` is a guaranteed two-element list; `-inline` is *not* the match count, but not a guaranteed list either |
+| `Lsearch` | `lsearch` | `-all` and `-inline` leave the result untypeable; `-subindices` is a guaranteed index path; otherwise an index |
 | `Regsub` | `regsub` | the substituted string until a `varName` makes it a replacement count |
-| `Scan` | `scan` | the inline (no-`varName`) form yields the converted values as a list |
-| `Pid` | `pid` | the `fileId` form yields the pipeline's process ids as a list |
+| `Scan` | `scan` | the variable-writing form is a conversion count; the inline form is untypeable |
+| `Pid` | `pid` | bare `pid` is this process's id; the `fileId` form is untypeable |
 
 It is a hook rather than a table of switch/type pairs because the rules are
 programs: `lsearch` has to know that `-inline` beats `-subindices` (the former
 yields an *element*, the latter only reshapes an *index*), which no pair list
 expresses without smuggling the precedence into its ordering.
 
-An algorithm may answer `None`, meaning the result's intrep is unknown for
-that call.  That is the honest answer when a command hands back a value the
-caller supplied — `lsearch -inline` returns an element whose intrep is
-whatever was put in the list — and every consumer already handles it.  A
-confidently wrong type is the bug this fact exists to prevent.
+An algorithm names a type only where the intrep is **guaranteed**; otherwise
+it answers `None`, "unknown for this call", which every consumer already
+handles.  A confidently wrong type is the bug this fact exists to prevent, and
+three things stop a type being guaranteed:
+
+* **The value is the caller's.** `lsearch -inline` hands back an element out
+  of the source list, whose intrep is whatever was put there.
+* **The empty result is a pure string.** Several list-returning forms build a
+  list object only when they find something.  Checked with
+  `tcl::unsupported::representation` on tclsh 9.0.4: `regexp -inline z a`,
+  `lsearch -all {a b} z`, `scan "" {%d %d}` and `pid` on a non-pipeline
+  channel are each a *pure string*, while their matching counterparts are
+  lists.  Typing those `List` would hide a real string→list conversion *and*
+  invent list→string ones.  (`regexp -about` and `lsearch -subindices` are
+  guaranteed — `-about` never matches at all, and `-subindices` answers
+  `-1 0` rather than a bare `-1`.)
+* **A switch could be hiding in a substitution.** Tcl parses options after
+  substitution, so `set mode -inline; regexp $mode {.+} $x` really does return
+  the matched text.  A dynamic word where a switch could still go makes the
+  call unknown — unless a `--` has already closed the switch run, which is
+  exactly what W304 tells authors to write.  A switch the scan *did* resolve
+  stays authoritative, since substitution adds words but never removes them.
+
+Note that "unknown" is enough to fix #1720: the false positive came from
+*claiming int*, and declining to answer removes it just as a correct `List`
+would, without asserting an intrep only a successful match produces.
 
 Read the answer through `CommandSpec::return_type_for_call`, never off the
 field: that one entry point resolves subcommands, dispatches the hook, and is
