@@ -18,7 +18,7 @@
 
 //! `X509::subject_public_key_RSA_bits` iRules command.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "X509::subject_public_key_RSA_bits",

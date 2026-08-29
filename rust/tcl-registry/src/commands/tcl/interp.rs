@@ -18,12 +18,12 @@
 
 //! `interp` — create and manipulate Tcl interpreters.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
 use crate::world_effect::{
     EffectAccess, EffectAccessMode, EffectFootprint, InterpreterScope, NamespaceScope,
     StaticEffectAccess, StaticEffectFootprint, StaticInterpreterScope, StaticNamespaceScope,
     StaticSubjectScope, SubjectScope,
 };
+use tcl_dialect::model::SpecSurface;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
@@ -952,8 +952,8 @@ pub fn spec() -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SurfaceQuery, Family};
-    
+    use tcl_dialect::model::{Family, SurfaceQuery};
+
     use super::*;
     use crate::{CommandRegistry, InvocationWord, InvocationWordKind, InvocationWords};
 

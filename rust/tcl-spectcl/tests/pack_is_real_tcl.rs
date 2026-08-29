@@ -58,7 +58,10 @@ fn repo_root() -> PathBuf {
 fn every_shipped_pack_is_a_tcl_script_a_real_tclsh_accepts() {
     let root = repo_root();
     let packs = tcl_spectcl::golden::shipped_packs(&root);
-    assert!(packs.len() >= 24, "the inventory must cover the shipped packs");
+    assert!(
+        packs.len() >= 24,
+        "the inventory must cover the shipped packs"
+    );
 
     let mut child = Command::new("tclsh9.0")
         .arg("-")

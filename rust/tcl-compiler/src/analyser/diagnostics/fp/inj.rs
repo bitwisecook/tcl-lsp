@@ -28,9 +28,7 @@ use super::{D, codes, fires};
 
 const IRULES: &str = "f5-irules";
 
-// ---------------------------------------------------------------------------
 // FP-INJ-01 — `uplevel 1 $body` is the safe canonical idiom.
-// ---------------------------------------------------------------------------
 
 const FP_INJ_01_REPRO: &str = "\
 proc f {body} {
@@ -61,9 +59,7 @@ fn fp_inj_01_quoted_interpolation_still_w301() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-INJ-02 — `eval [list ...]` is the canonical safe form.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_inj_02_eval_list_clean() {
@@ -98,9 +94,7 @@ fn fp_inj_02_eval_string_concat_still_w101() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-INJ-03 — T102 suppression for HTTP::uri / HTTP::path (PATH_PREFIXED).
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_inj_03_http_uri_no_t102() {
@@ -146,9 +140,7 @@ fn fp_inj_03_literal_non_dash_prefix_no_t102() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-INJ-04 — TP controls: literal `-` prefix and generic taint still warn.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_inj_04_dash_prefix_still_warns() {
@@ -172,12 +164,10 @@ fn fp_inj_04_generic_taint_still_warns() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-INJ-05 — `eval "$cmd $x"` (TP) → W101.
 // The paired quick-fix rewrite (to `eval [list ...]`) is an LSP code-action
 // contract, tested at the code-action layer rather than on the analyser
 // diagnostic — see the lsp code-action tests.
-// ---------------------------------------------------------------------------
 
 const FP_INJ_05_REPRO: &str = "\
 set x foo
@@ -194,10 +184,8 @@ fn fp_inj_05_eval_string_fires_w101() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-INJ-06 — a `PATH_PREFIXED` proof must not survive an unclassified
 // (shape-changing) command it passes through — `TaintLattice::shape_unproven`.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_inj_06_string_range_strips_path_prefixed_proof() {
@@ -243,11 +231,9 @@ fn fp_inj_06_pure_copy_still_suppresses() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-INJ-07 — `exec -encoding <name>` must not mask the option-injection
 // scan for the arguments that follow it — the registry was missing
 // `-encoding` from `exec`'s option list entirely.
-// ---------------------------------------------------------------------------
 
 const FP_INJ_07_REPRO: &str = "\
 proc run {} {

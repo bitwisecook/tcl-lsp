@@ -74,7 +74,7 @@
 //! that trait's docs for why `link`, which likewise only *prepares* a call,
 //! is kept out of the family too.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const CALLBACK_FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "callback methodName ?arg ...?",
@@ -165,8 +165,8 @@ pub fn mymethod_spec_ooutil_86() -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SpecSurface};
     use super::*;
+    use tcl_dialect::model::SpecSurface;
 
     /// The version dimension of issue #923's `ticklecharts` idx 51: a bare
     /// `callback` in a method body is a genuine core command on 9.0+ and a

@@ -25,12 +25,12 @@
 //! `exists`) operate on canonical names; `export`/`import` are accepted as
 //! no-ops for now (the codegen already records export/import metadata).
 
-use tcl_dialect::model::{SurfaceQuery};
+use tcl_dialect::model::SurfaceQuery;
 use tcl_runtime_api::{Code, Completion};
 
 use crate::interp::{Vm, canonical_cmd_key, err, ok};
 use crate::value::Value;
-use tcl_dialect::model::{surface_admits};
+use tcl_dialect::model::surface_admits;
 
 /// Run `body` as a script in namespace `target`, absorbing a top-level
 /// `return` at the boundary (a namespace body completes like a proc body).
@@ -307,7 +307,9 @@ fn ns_upvar(
 ) -> Completion<Value> {
     let argc = u16::try_from(rest.len()).unwrap_or(u16::MAX);
     let valid_arity = subcommand.subcommand_forms.iter().any(|form| {
-        form.surface.is_none_or(|gate| surface_admits(gate, dialect.as_ref())) && form.arity.accepts(argc)
+        form.surface
+            .is_none_or(|gate| surface_admits(gate, dialect.as_ref()))
+            && form.arity.accepts(argc)
     });
     if !valid_arity {
         return err("wrong # args: should be \"namespace upvar ns ?otherVar myVar ...?\"");

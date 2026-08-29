@@ -58,9 +58,7 @@ fn fires_with_msg(src: &str, code: &str, needle: &str) -> bool {
         .any(|(c, m)| c == code && m.contains(needle))
 }
 
-// ---------------------------------------------------------------------------
 // FP-BND-01 — W231 dynamic loop-index past append-slot fires.
-// ---------------------------------------------------------------------------
 
 const FP_BND_01_REPRO: &str = "\
 proc f {v} {
@@ -81,9 +79,7 @@ fn fp_bnd_01_loop_index_past_append_slot_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-BND-02 — W231 append-slot ($j == length) IS silent.
-// ---------------------------------------------------------------------------
 
 const FP_BND_02_REPRO: &str = "\
 proc f {v} {
@@ -115,9 +111,7 @@ fn fp_bnd_02_in_range_dynamic_silent() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-BND-03 — W232 string index past end fires.
-// ---------------------------------------------------------------------------
 
 const FP_BND_03_REPRO: &str = "\
 proc f {} {
@@ -171,9 +165,7 @@ fn fp_bnd_03_unknown_string_silent() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-BND-04 — W233 division by provably-zero divisor fires.
-// ---------------------------------------------------------------------------
 
 const FP_BND_04_REPRO: &str = "\
 proc f {} {
@@ -228,9 +220,7 @@ fn fp_bnd_04_unknown_divisor_silent() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-BND-05 — W233 short-circuit / dead arm is silent.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_bnd_05_dead_ternary_arm_silent() {
@@ -274,9 +264,7 @@ fn fp_bnd_05_guard_excludes_zero_silent() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-BND-06 — W233 fires when a NON-INTEGER constant guard forces the lazy arm.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_bnd_06_float_guard_forces_arm_fires() {

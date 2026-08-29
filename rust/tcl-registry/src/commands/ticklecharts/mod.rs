@@ -37,7 +37,7 @@
 //! its `-option value` pairs fall through to the generic option highlighting.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// A value-taking option (`-name value`) — the ticklecharts norm (even
 /// booleans are written `-opt True`).

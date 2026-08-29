@@ -18,7 +18,7 @@
 
 //! `unload` — unload a shared library extension.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 // `unload` does not exist before Tcl 8.5 — introduced by TIP 100 (George
 // Petasis, 2003). Confirmed three independent ways: Tcl 8.4's

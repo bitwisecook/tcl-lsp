@@ -179,14 +179,12 @@ fn taint_of_code(src: &str, dialect: &str, code: &str) -> Vec<(String, Severity)
         .collect()
 }
 
-// ===========================================================================
 // W100 — unbraced expr argument to expr/if/while/for.
 //
 // tclsh ground truth: `expr $x + 1` double-substitutes `$x` and re-parses the
 // result as an expression — the canonical "always brace your expr" footgun
 // (`expr {$x + 1}` is the safe form). A `$`/`[` substitution makes it dangerous
 // → Error severity; a quoted literal with no substitution is style-only → Warning.
-// ===========================================================================
 mod unbraced_expr {
     use super::*;
 
@@ -275,14 +273,12 @@ mod unbraced_expr {
     }
 }
 
-// ===========================================================================
 // W101 — eval with substituted/concatenated arguments (injection).
 //
 // tclsh ground truth: `eval "puts $x"` builds a string then re-parses it as a
 // script, so a hostile `$x` (`x={; exec rm -rf /}`) executes. `eval [list …]`
 // and other canonical list-returning idioms cannot inject (the list is a single
 // already-quoted argument). Heuristic for the "safe idiom" recognition.
-// ===========================================================================
 mod eval_injection {
     use super::*;
 
@@ -337,13 +333,11 @@ mod eval_injection {
     }
 }
 
-// ===========================================================================
 // W102 — subst on variable input (injection).
 //
 // tclsh: `subst $template` performs command/variable/backslash substitution on
 // the template's value; a `[exec …]` inside it runs. `-nocommands -novariables`
 // disables both substitution classes → safe.
-// ===========================================================================
 mod subst_injection {
     use super::*;
 
@@ -385,13 +379,11 @@ mod subst_injection {
     }
 }
 
-// ===========================================================================
 // W103 — open with pipeline or variable argument.
 //
 // tclsh: `open "|cmd"` runs `cmd` as a subprocess. A literal pipeline is a
 // known-shape hint; a pipeline with substitution or a bare variable (whose
 // value might begin with `|`) is a warning.
-// ===========================================================================
 mod open_pipeline {
     use super::*;
 
@@ -423,7 +415,6 @@ mod open_pipeline {
     }
 }
 
-// ===========================================================================
 // W104 — string/list confusion (append with space-prefixed values).
 //
 // Pure style heuristic (no runtime analogue): `append items " item"` builds a
@@ -433,7 +424,6 @@ mod open_pipeline {
 // The heuristic is coarse: it does not suppress pure separators
 // (`", "` / `": "`) or usage notation (`" ?opt?..."`, `" <value>"`) — W104
 // fires on those too. Each case below is pinned to the actual verdict.
-// ===========================================================================
 mod string_list_confusion {
     use super::*;
 
@@ -480,13 +470,11 @@ mod string_list_confusion {
     }
 }
 
-// ===========================================================================
 // W110 — ==/!= used for string comparison in an expr.
 //
 // tclsh: `expr {$x == "foo"}` compares numerically-then-stringwise; `eq`/`ne`
 // are the explicit string operators. Fires only when one operand is a string
 // literal (two variables might both be ints → no warning).
-// ===========================================================================
 mod string_compare_in_expr {
     use super::*;
 
@@ -538,14 +526,12 @@ mod string_compare_in_expr {
     }
 }
 
-// ===========================================================================
 // W201 — manual path concatenation (taint-pipeline style heuristic).
 //
 // `set path "$dir/file.txt"` builds a path by string concat; `[file join]` is
 // the portable form. No runtime analogue (it is valid Tcl) — pure portability
 // style. URLs (`scheme://…`) are explicitly excluded ([file join] would emit
 // native separators).
-// ===========================================================================
 mod path_concatenation {
     use super::*;
 
@@ -594,12 +580,10 @@ mod path_concatenation {
     }
 }
 
-// ===========================================================================
 // W300 — source with a variable path (code-execution vector).
 //
 // tclsh: `source $p` executes the file named by `$p` as Tcl. A literal path is
 // fixed and safe; a variable / option-prefixed variable is a warning.
-// ===========================================================================
 mod source_variable {
     use super::*;
 
@@ -622,7 +606,6 @@ mod source_variable {
     }
 }
 
-// ===========================================================================
 // W301 — uplevel with unbraced / multi-arg / interpolated scripts.
 //
 // tclsh: `uplevel 1 "set x $y"` substitutes `$y` in the *current* frame then
@@ -630,7 +613,6 @@ mod source_variable {
 // other list-returning commands are the canonical safe form; a *single pure
 // variable* (`$body` / `${body}` / `$cmds(init)`) is also safe (the value is
 // the script — verified vs tclsh) and cannot be braced.
-// ===========================================================================
 mod uplevel_injection {
     use super::*;
 
@@ -697,7 +679,6 @@ mod uplevel_injection {
     }
 }
 
-// ===========================================================================
 // W302 — catch without a result variable (silently swallows errors).
 //
 // tclsh ground truth: the destructive "fire-and-forget" commands below all
@@ -707,7 +688,6 @@ mod uplevel_injection {
 // them — capturing the rc would just yield a discarded value. Constructive
 // siblings (`file copy`, `interp create`, `dict set`, `chan configure`,
 // `after <ms> <script>`) genuinely shouldn't swallow errors → still fire.
-// ===========================================================================
 mod catch_ignore {
     use super::*;
 
@@ -765,13 +745,11 @@ mod catch_ignore {
     }
 }
 
-// ===========================================================================
 // W303 — ReDoS (catastrophic-backtracking regex shapes).
 //
 // Pure static heuristic over the pattern literal: nested quantifiers
 // `(a+)+`/`(a*)*` and overlapping alternation `(a|a)+`. `switch -glob` patterns
 // are NOT regexes → never checked.
-// ===========================================================================
 mod redos {
     use super::*;
 
@@ -832,14 +810,12 @@ mod redos {
     }
 }
 
-// ===========================================================================
 // W304 — missing option terminator (--) before a substituted value.
 //
 // tclsh: option-bearing commands (`regexp`, `regsub`, `exec`, `file delete`,
 // `unset`, `load`, …) parse a leading `-` as an option, so `regexp $pat …` with
 // `pat="-nocase"` is mis-parsed. Commands that don't support `--`
 // (`subst`, `string match`, `lsearch`) are not checked.
-// ===========================================================================
 mod missing_option_terminator {
     use super::*;
 
@@ -904,13 +880,11 @@ mod missing_option_terminator {
     }
 }
 
-// ===========================================================================
 // W217 — `unset` whose options consume every argument, so nothing is unset.
 //
 // `unset` recognises only `-nocomplain` / `--`; any other word (even `-foo`) is
 // a variable name. When leading options eat all the arguments, the call is a
 // silent no-op — usually a variable named `-nocomplain` that needs a `--`.
-// ===========================================================================
 mod unset_option_only {
     use super::*;
 
@@ -959,14 +933,12 @@ mod unset_option_only {
     }
 }
 
-// ===========================================================================
 // W306 — literal-expected position contains a substitution.
 //
 // A bare single `$var`/`${ns::v}` regex pattern is the canonical parameterised-
 // regex idiom (no braced equivalent) → silent. But `[cmd]` patterns (`[a-z]`
 // parses as a *command substitution*, a classic footgun) and quoted patterns
 // with a *live* `$var` are flagged.
-// ===========================================================================
 mod literal_expected {
     use super::*;
 
@@ -1039,7 +1011,6 @@ mod literal_expected {
     }
 }
 
-// ===========================================================================
 // W307 — non-literal command name.
 //
 // tclsh: `$cmd arg` dispatches on the *value* of `$cmd` as a command word — a
@@ -1050,7 +1021,6 @@ mod literal_expected {
 // `$cmd` in a `foreach` over a list of *known* command names is not suppressed
 // here — that known-command-list provenance is absent on this surface, so W307
 // fires there (pinned below).
-// ===========================================================================
 mod non_literal_command {
     use super::*;
 
@@ -1115,7 +1085,6 @@ mod non_literal_command {
     }
 }
 
-// ===========================================================================
 // W308 — TclOO unknown-method validation.
 //
 // `$obj nonexistent` where the class is statically known and has no such
@@ -1125,7 +1094,6 @@ mod non_literal_command {
 // NOTE — `W308` here is solely the TclOO method check; the analyser does not
 // emit a `subst`-without-`-nocommands` HINT on this surface, so those cases are
 // out-of-surface.
-// ===========================================================================
 mod tcloo_unknown_method {
     use super::*;
 
@@ -1170,12 +1138,10 @@ mod tcloo_unknown_method {
     }
 }
 
-// ===========================================================================
 // W309 — eval/uplevel with [subst] (double substitution).
 //
 // `eval [subst $template]` substitutes the template, then evaluates the result
 // as a script → two rounds of substitution, an injection vector → Error.
-// ===========================================================================
 mod eval_subst_double_substitution {
     use super::*;
 
@@ -1208,13 +1174,11 @@ mod eval_subst_double_substitution {
     }
 }
 
-// ===========================================================================
 // W105 / W106 — unbraced code-block / switch-arm bodies.
 //
 // tclsh: `if {1} "puts $x"` substitutes `$x` before the body runs as code → a
 // double-substitution / injection risk (Error). A single bare variable body
 // (`eval $script`) is a script-valued reference, not an inline block → silent.
-// ===========================================================================
 mod unbraced_body {
     use super::*;
 
@@ -1274,13 +1238,11 @@ mod unbraced_body {
     }
 }
 
-// ===========================================================================
 // W108 — non-ASCII token content (confusables mode).
 //
 // Pure style/security heuristic: in the default "confusables" mode, smart
 // quotes and homoglyphs (Cyrillic А) are flagged with an ASCII auto-fix;
 // non-confusable symbols (© °) are allowed.
-// ===========================================================================
 mod non_ascii {
     use super::*;
 
@@ -1309,14 +1271,12 @@ mod non_ascii {
     }
 }
 
-// ===========================================================================
 // W212 — variable substitution where a variable *name* is expected.
 //
 // tclsh: `set $x 1` sets the variable *named by the value of* `$x` — almost
 // never intended (the writer meant `set x 1`). Same for incr/append/lappend/
 // unset/info-exists/upvar's local slot. `upvar`'s *remote* slot legitimately
 // takes a `$var`; `info commands` is not name-taking.
-// ===========================================================================
 mod name_vs_value {
     use super::*;
 
@@ -1374,12 +1334,10 @@ mod name_vs_value {
     }
 }
 
-// ===========================================================================
 // E100 — unmatched close bracket.
 //
 // `set x foo]` has a stray `]` (the lexer flags it ESC, not a structural
 // closer). A properly matched `[cmd]` or a `]` inside braces is fine.
-// ===========================================================================
 mod unmatched_close_bracket {
     use super::*;
 
@@ -1466,7 +1424,6 @@ mod unmatched_close_bracket {
     }
 }
 
-// ===========================================================================
 // E102 — unmatched close brace.
 //
 // A bare `}` has no special meaning to Tcl outside a `{…}` word, so — like
@@ -1474,7 +1431,6 @@ mod unmatched_close_bracket {
 // must fire wherever the `}` is stray, whether it is the whole token
 // (`puts foo\n}`) or embedded in a larger word (`set x foo}bar`); a matched
 // `{…}` or a `}` inside a quoted/braced word is fine.
-// ===========================================================================
 mod unmatched_close_brace {
     use super::*;
 
@@ -1523,13 +1479,11 @@ mod unmatched_close_brace {
     }
 }
 
-// ===========================================================================
 // W213 — unset without -nocomplain on a possibly-undefined variable.
 //
 // tclsh ground truth: `unset x` on a never-set var → `can't unset "x": no such
 // variable`. `unset -nocomplain` opts out (tclsh suppresses the error too);
 // unsetting a previously-set var is fine.
-// ===========================================================================
 mod unset_nocomplain {
     use super::*;
 
@@ -1549,12 +1503,10 @@ mod unset_nocomplain {
     }
 }
 
-// ===========================================================================
 // W121 — invalid subnet mask (non-contiguous bits).
 //
 // Heuristic over dotted-quad literals: `255.255.255.1` looks like a mask but has
 // non-contiguous one-bits. Valid CIDR masks (/0…/32) are clean.
-// ===========================================================================
 mod invalid_subnet_mask {
     use super::*;
 
@@ -1607,7 +1559,6 @@ mod invalid_subnet_mask {
     }
 }
 
-// ===========================================================================
 // W124 — mistyped IPv4 address.
 //
 // tclsh: `192.168.1.256` is not a valid IP (octet > 255). The SSA-traced
@@ -1619,7 +1570,6 @@ mod invalid_subnet_mask {
 // a W122 producer would still be counted here rather than silently going
 // unnoticed by this suite. Octet > 255 → Error; octal-ambiguous leading zero
 // → Warning. OIDs / version numbers are excluded.
-// ===========================================================================
 mod mistyped_ipv4 {
     use super::*;
 
@@ -1699,14 +1649,12 @@ mod mistyped_ipv4 {
     }
 }
 
-// ===========================================================================
 // W126 — channel-type validation.
 //
 // SCCP-typed: a value whose inferred type cannot be a channel handle
 // (INT/LIST) passed to a channel slot (`close`/`gets`/…), or a non-standard
 // string literal, is flagged. Channels from open/socket, stdout/stderr, opaque
 // STRING-typed handles, and conservatively-typed params are clean.
-// ===========================================================================
 mod channel_validation {
     use super::*;
 
@@ -1755,13 +1703,11 @@ mod channel_validation {
     }
 }
 
-// ===========================================================================
 // W125 — orphaned control-flow keyword used as a standalone command.
 //
 // `else`/`elseif`/`then`/`finally`/`on`/`trap` on their own line (not `} else
 // {` on the same line) parse as separate commands. A user proc named after the
 // keyword suppresses it.
-// ===========================================================================
 mod orphaned_keyword {
     use super::*;
 
@@ -1848,13 +1794,11 @@ mod orphaned_keyword {
     }
 }
 
-// ===========================================================================
 // W113 — proc shadows a core built-in.
 //
 // Redefining an unqualified core builtin (`set`, `exit`) is a real shadow. A
 // namespace-qualified library command (`::snit::type`, `::base64::encode`) is
 // not a builtin → not flagged.
-// ===========================================================================
 mod builtin_shadow {
     use super::*;
 
@@ -1915,7 +1859,6 @@ mod builtin_shadow {
     }
 }
 
-// ===========================================================================
 // W200 — binary format signed/unsigned modifier requires Tcl 8.5+ (TIP 275).
 //
 // Version-gated on the dialect's *effective Tcl version* (the §6
@@ -1923,7 +1866,6 @@ mod builtin_shadow {
 // whole F5 trunk — iRules, iApps and tmsh all ride the fork of Tcl at
 // 8.4.6, measured in bigip-irule-parser-measurements.md §4a) and is clean
 // from 8.5 up.
-// ===========================================================================
 mod binary_format_modifiers {
     use super::*;
 
@@ -1952,13 +1894,11 @@ mod binary_format_modifiers {
     }
 }
 
-// ===========================================================================
 // W310 — hardcoded credentials.
 //
 // Heuristic: a literal value after a credential-bearing flag (`-password`,
 // `-token`) or sensitive header (`Authorization`) is a likely secret. A
 // variable value is not hardcoded → clean.
-// ===========================================================================
 mod hardcoded_credentials {
     use super::*;
 
@@ -1999,12 +1939,10 @@ mod hardcoded_credentials {
     }
 }
 
-// ===========================================================================
 // W311 — unsafe channel encoding mismatch.
 //
 // `-encoding binary` with a non-binary `-translation` (auto/crlf) corrupts
 // binary data. Matching `-translation binary` (or no translation) is clean.
-// ===========================================================================
 mod encoding_mismatch {
     use super::*;
 
@@ -2044,12 +1982,10 @@ mod encoding_mismatch {
     }
 }
 
-// ===========================================================================
 // W312 — interp eval / interp invokehidden injection.
 //
 // Same shape as W301 for child interpreters: an unbraced / multi-arg script
 // risks injection; `[list …]` is the safe canonical form.
-// ===========================================================================
 mod interp_eval_injection {
     use super::*;
 
@@ -2087,13 +2023,11 @@ mod interp_eval_injection {
     }
 }
 
-// ===========================================================================
 // W313 — destructive file operations with a variable path (taint-aware).
 //
 // `file delete/rename/mkdir $path` risks path traversal. A literal path / a
 // non-destructive op (`file exists`/`file join`) is clean. (Bounds-check
 // suppression lives in the taint pipeline; the basic firing surface is here.)
-// ===========================================================================
 mod destructive_file_ops {
     use super::*;
 
@@ -2122,13 +2056,11 @@ mod destructive_file_ops {
     }
 }
 
-// ===========================================================================
 // IRULE2002 / IRULE2003 / IRULE3102 / IRULE1002 — F5 iRules checks.
 //
 // Dialect-gated to f5-irules (silent under plain Tcl). IRULE2002: deprecated
 // command → modern replacement. IRULE2003: unsafe command (Error). IRULE3102:
 // HTTP getters should use -normalized. IRULE1002: unknown event name.
-// ===========================================================================
 mod irules_checks {
     use super::*;
 
@@ -2191,13 +2123,11 @@ mod irules_checks {
     }
 }
 
-// ===========================================================================
 // W214 — unused proc parameter (pure static heuristic), checks-specific angles.
 //
 // Empty-body signature stubs and dispatch-protocol params (≥3 peers sharing a
 // signature *plus* a dispatcher) are recognised and suppressed; a `switch`
 // subject counts as a use; genuinely-unused params still fire.
-// ===========================================================================
 mod unused_proc_parameters {
     use super::*;
 
@@ -2309,12 +2239,10 @@ mod unused_proc_parameters {
     }
 }
 
-// ===========================================================================
 // W210 — read-before-set, checks-specific shapes that are handled correctly.
 //
 // These mirror tclsh ground truth and pass cleanly. (The catch-body case is
 // pinned in `catch_body_defs_no_false_w210` below.)
-// ===========================================================================
 mod read_before_set_correct {
     use super::*;
 
@@ -2454,7 +2382,6 @@ mod read_before_set_correct {
     }
 }
 
-// ===========================================================================
 // W210 — catch-body variable definitions suppress the false positive.
 //
 // tclsh ground truth (8.6 + 9.0): `if {![catch {set x 1}]} { puts $x }` prints
@@ -2465,7 +2392,6 @@ mod read_before_set_correct {
 // therefore also scans the catch body, and the read-before-set suppression
 // scans branch conditions (not just `set x [expr …]` assignments), so these
 // guard-safe reads stay unflagged.
-// ===========================================================================
 mod catch_body_defs_no_false_w210 {
     use super::*;
 
@@ -2487,7 +2413,6 @@ mod catch_body_defs_no_false_w210 {
     }
 }
 
-// ===========================================================================
 // W210 — `unset` of a global does NOT suppress a later read (FIXED).
 //
 // tclsh ground truth: `proc clear {} {unset ::x}` then top-level `puts $x`
@@ -2495,7 +2420,6 @@ mod catch_body_defs_no_false_w210 {
 // real W210 is warranted. `globals_written_by_procs` now excludes `unset`
 // (it removes a variable, never assigns one, unlike `set`/`global`-then-`set`),
 // so the warranted top-level W210 fires instead of being suppressed.
-// ===========================================================================
 mod unset_global_does_not_suppress_w210 {
     use super::*;
 
@@ -2518,14 +2442,12 @@ mod unset_global_does_not_suppress_w210 {
     }
 }
 
-// ===========================================================================
 // W220 / W211 — dead-store & unused, checks-specific read-recovery cases.
 //
 // Read-modify-write reads (incr/append/lappend), reads inside command-
 // substituted exprs, and reads inside braced `eval {…}` bodies must be
 // recovered so the feeding assignment is not falsely dead/unused. Array
 // elements are distinguished by overlap. Genuine dead stores still fire.
-// ===========================================================================
 mod dead_store_and_unused {
     use super::*;
 
@@ -2608,7 +2530,6 @@ mod dead_store_and_unused {
     }
 }
 
-// ===========================================================================
 // Structural-body scope isolation (issue #250).
 //
 // An OO / snit body is STRUCTURAL — it must not contribute reads/writes to the
@@ -2619,7 +2540,6 @@ mod dead_store_and_unused {
 // than W211 ("set but never used") — the structural-isolation intent (all three
 // findings survive) holds, so the assertion is pinned to the code set
 // {W210, W214, W220}.
-// ===========================================================================
 mod structural_body_isolation {
     use super::*;
 
@@ -2663,13 +2583,11 @@ mod structural_body_isolation {
     }
 }
 
-// ===========================================================================
 // namespace eval body scope (caller-frame vs child-namespace).
 //
 // `namespace eval ns {…}` runs in ns, NOT the caller frame, so an unqualified
 // `$x` inside it is not a use of the caller's local `x` (param stays unused).
 // Plain `eval {…}` DOES run in the current frame → recovers the read.
-// ===========================================================================
 mod namespace_eval_body_scope {
     use super::*;
 
@@ -2712,9 +2630,7 @@ mod namespace_eval_body_scope {
     }
 }
 
-// ===========================================================================
 // Integration — multiple checks on realistic code.
-// ===========================================================================
 mod integration {
     use super::*;
 
@@ -2785,9 +2701,7 @@ mod integration {
     }
 }
 
-// ===========================================================================
 // Edge cases.
-// ===========================================================================
 mod edge_cases {
     use super::*;
 
@@ -2816,7 +2730,6 @@ mod edge_cases {
     }
 }
 
-// ===========================================================================
 // Call-by-name suppression precision — the `DynamicNameLocal` refinement.
 //
 // A callee whose parameter's *value* names a CALLEE-LOCAL variable
@@ -2827,7 +2740,6 @@ mod edge_cases {
 // it.  These pin the `DYNAMIC_NAME_LOCAL` refinement (PR #498 / #499
 // findings 10 / 6); the absence of that refinement would re-open the
 // caller-side false negatives (gap #6) it guards against.
-// ===========================================================================
 mod call_by_name_dynamic_name_local {
     use super::*;
 
@@ -3106,7 +3018,6 @@ mod private_tcl_namespace {
     }
 }
 
-// ===========================================================================
 // The `Tcl_ConcatObj` eval family — issue #1051.
 //
 // `eval`, `uplevel`, `namespace eval`, `namespace inscope`, and `interp eval`
@@ -3116,7 +3027,6 @@ mod private_tcl_namespace {
 // Every expectation here was pinned against tclsh8.6.14 and tclsh9.0.4 (both
 // agree on every shape); the transcript is quoted per test where the answer
 // is not obvious.
-// ===========================================================================
 mod script_concatenation {
     use super::*;
 

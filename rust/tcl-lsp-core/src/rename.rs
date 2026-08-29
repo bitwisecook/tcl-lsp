@@ -2240,9 +2240,9 @@ fn dedup_edits(edits: &mut Vec<TextEdit>) {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SurfaceLayer, Family};
     use super::*;
     use tcl_compiler::analyser::Analyser;
+    use tcl_dialect::model::{Family, SurfaceLayer};
 
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();

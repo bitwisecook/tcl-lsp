@@ -1152,9 +1152,9 @@ pub fn existence_constant_branches(
     // already covered by the scope-alias skip above.
     if frame.initial_global {
         aliased.extend(
-            tcl_registry::special_vars::special_vars_for_dialect(
-                Some(tcl_registry::special_vars::surface_query_for_profile(registry.profile())),
-            )
+            tcl_registry::special_vars::special_vars_for_dialect(Some(
+                tcl_registry::special_vars::surface_query_for_profile(registry.profile()),
+            ))
             .map(|spec| spec.name.to_owned()),
         );
     }

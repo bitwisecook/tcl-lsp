@@ -19,7 +19,7 @@
 //! `uplevel` — execute a script in a different stack frame.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// `uplevel`'s script can do literally anything once evaluated in the
 /// target frame — set variables, open files, spawn processes — none of

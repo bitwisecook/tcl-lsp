@@ -32,7 +32,7 @@
 use crate::prelude::*;
 
 use super::SOURCE;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// A row statement: a leading subject word, then flags.
 fn row(

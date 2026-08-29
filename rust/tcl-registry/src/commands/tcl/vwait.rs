@@ -72,9 +72,9 @@
 //! today, the same way `tcl::process`'s identical `TCL90_PLUS` gate does
 //! (`commands/tcl/tcl_process.rs`).
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::surface;
 use tcl_dialect::model::Family;
+use tcl_dialect::model::SpecSurface;
+use tcl_dialect::surface;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
@@ -175,7 +175,12 @@ const FORMS: &[FormSpec] = &[
     // syntax under `f5-irules` at all.
     FormSpec {
         synopsis: "vwait varName",
-        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.7"))]), SpecSurface::package("iapps"), SpecSurface::package("tmsh"), SpecSurface::package("expect")]),
+        surface: Some(surface![
+            SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.7"))]),
+            SpecSurface::package("iapps"),
+            SpecSurface::package("tmsh"),
+            SpecSurface::package("expect")
+        ]),
         ..FormSpec::DEFAULT
     },
     // Tcl 9.0+ (and `bpf`, whose mask reaches Tcl 9.0 automatically

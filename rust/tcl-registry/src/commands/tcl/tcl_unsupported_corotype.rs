@@ -46,7 +46,7 @@
 //! matching the `tcl::process`/`tcl::zipfs`/`tcl::idna` sibling 9.0-era
 //! additions — both spellings are registered here explicitly.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "::tcl::unsupported::corotype coroName",

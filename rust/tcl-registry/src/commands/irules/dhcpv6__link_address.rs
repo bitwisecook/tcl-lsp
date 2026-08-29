@@ -18,7 +18,7 @@
 
 //! `DHCPv6::link_address` iRules command.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DHCPv6::link_address",

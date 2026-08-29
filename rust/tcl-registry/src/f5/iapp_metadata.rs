@@ -282,7 +282,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    
+
     use super::*;
 
     fn version(text: &str) -> Version {

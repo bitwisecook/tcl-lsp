@@ -212,8 +212,8 @@ fn tk_command_specs_raw() -> Vec<CommandSpec> {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SurfaceQuery, Family};
-    
+    use tcl_dialect::model::{Family, SurfaceQuery};
+
     use super::tk_command_specs;
 
     fn assert_complete_prose(owner: &str, prose: &str) {
@@ -942,12 +942,7 @@ mod tests {
         }
 
         let configure = registry
-            .resolve_instance_invocation(
-                "button",
-                ".w",
-                &["configure", "-text", "Save"],
-                None,
-            )
+            .resolve_instance_invocation("button", ".w", &["configure", "-text", "Save"], None)
             .unwrap();
         assert!(
             configure
@@ -957,12 +952,7 @@ mod tests {
         );
 
         let switchstate = registry
-            .resolve_instance_invocation(
-                "ttk::toggleswitch",
-                ".w",
-                &["switchstate", "1"],
-                None,
-            )
+            .resolve_instance_invocation("ttk::toggleswitch", ".w", &["switchstate", "1"], None)
             .unwrap();
         assert!(
             switchstate
@@ -981,7 +971,7 @@ mod tests {
 
     #[test]
     fn literal_operation_forms_cover_tk_nested_method_tables() {
-        use crate::{CommandRegistry};
+        use crate::CommandRegistry;
 
         let registry = CommandRegistry::build_default();
         let cases: &[(&str, &[&str], &[&str])] = &[
@@ -1207,12 +1197,7 @@ mod tests {
                     .all(|effect| !effect.writes)
             );
             let setter = registry
-                .resolve_instance_invocation(
-                    command,
-                    ".w",
-                    &["configure", "-text", "value"],
-                    None,
-                )
+                .resolve_instance_invocation(command, ".w", &["configure", "-text", "value"], None)
                 .unwrap();
             assert!(setter.semantics.mutator);
             assert!(

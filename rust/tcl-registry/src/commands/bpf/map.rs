@@ -19,7 +19,7 @@
 //! `map` — declare a BPF map
 //! (`map NAME hash|array KEYSZ VALSZ MAX ?shared|percpu?`).
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 pub fn spec() -> CommandSpec {
     const OP: BpfOpSpec = BpfOpSpec::structural(BpfOpKind::MapDeclare);

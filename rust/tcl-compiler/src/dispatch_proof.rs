@@ -2162,11 +2162,11 @@ fn apply_domain_widening(
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SurfaceQuery, Family};
-    
+    use tcl_dialect::model::{Family, SurfaceQuery};
+
     use tcl_lexer::Span;
     use tcl_registry::model::semantic::SemanticContext;
-    
+
     use tcl_registry::{CommandRegistry, DispatchDependencies};
 
     use super::*;
@@ -2243,7 +2243,11 @@ mod tests {
 
     fn llength_dependencies() -> DispatchDependencies {
         registry()
-            .resolve_invocation("llength", &["a b"], Some(SurfaceQuery::core(Family::Tcl, "9.0")))
+            .resolve_invocation(
+                "llength",
+                &["a b"],
+                Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+            )
             .expect("llength resolves")
             .facts()
             .dispatch_dependencies

@@ -94,7 +94,7 @@
 // `lreverse`, since every one of those masks intersects `TCL85_PLUS` through
 // its shared Tcl release.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "lreverse list",
     ..FormSpec::DEFAULT

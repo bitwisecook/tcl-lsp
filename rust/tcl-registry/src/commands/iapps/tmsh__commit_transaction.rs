@@ -18,7 +18,7 @@
 
 //! `tmsh::commit_transaction` command.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 use tcl_dialect::surface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "tmsh::commit_transaction",
@@ -28,7 +28,10 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tmsh::commit_transaction",
-        surface: Some(surface![SpecSurface::package("iapps"), SpecSurface::package("tmsh")]),
+        surface: Some(surface![
+            SpecSurface::package("iapps"),
+            SpecSurface::package("tmsh")
+        ]),
         arity: Arity::exact(0),
         hover: Some(HoverSnippet::brief(
             "Runs all commands issued since the last ``tmsh::begin_transaction``.",

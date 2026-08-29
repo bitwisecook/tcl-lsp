@@ -18,7 +18,7 @@
 
 //! `selection` command.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// Dynamic arg-role resolver for `selection handle`.
 ///

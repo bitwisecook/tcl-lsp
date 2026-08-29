@@ -55,9 +55,34 @@ const NOT_IN_JIM: &[&str] = &[
 /// across the core table, the extensions and the `stdlib`/`tclcompat`
 /// procs, so a regression that dropped one source of names would show.
 const IN_JIM: &[&str] = &[
-    "append", "array", "catch", "clock", "dict", "exec", "file", "foreach", "format", "if",
-    "info", "lassign", "lmap", "lsort", "namespace", "package", "proc", "regexp", "set",
-    "string", "subst", "switch", "tailcall", "throw", "try", "uplevel", "upvar", "while",
+    "append",
+    "array",
+    "catch",
+    "clock",
+    "dict",
+    "exec",
+    "file",
+    "foreach",
+    "format",
+    "if",
+    "info",
+    "lassign",
+    "lmap",
+    "lsort",
+    "namespace",
+    "package",
+    "proc",
+    "regexp",
+    "set",
+    "string",
+    "subst",
+    "switch",
+    "tailcall",
+    "throw",
+    "try",
+    "uplevel",
+    "upvar",
+    "while",
 ];
 
 fn jim_offers(name: &str) -> bool {
@@ -93,7 +118,10 @@ fn a_jim_document_is_not_offered_what_jim_does_not_have() {
 #[test]
 fn a_jim_document_keeps_the_surface_jim_does_have() {
     for name in IN_JIM {
-        assert!(jim_offers(name), "`{name}` is in jimsh and must still resolve");
+        assert!(
+            jim_offers(name),
+            "`{name}` is in jimsh and must still resolve"
+        );
     }
 }
 

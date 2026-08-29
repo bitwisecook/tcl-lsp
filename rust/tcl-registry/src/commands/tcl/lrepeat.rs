@@ -80,7 +80,7 @@
 // gate via their additive vendor-bit composition — no dialect adds or removes
 // a form or option here.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[
     FormSpec {

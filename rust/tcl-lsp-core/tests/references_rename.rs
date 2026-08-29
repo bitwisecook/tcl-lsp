@@ -26,7 +26,6 @@
 //! (tclsh8.6 / tclsh9.0 via `scripts/dev/tclsh_check.sh`).
 //!
 //! C-Tcl proof model
-//! -----------------
 //! A "reference" is a genuine call/use site in runnable Tcl, and a rename is
 //! correct exactly when the renamed script still resolves the same way Tcl
 //! itself would. Every snippet below is a COMPLETE runnable Tcl script in
@@ -87,9 +86,7 @@ fn edit_lines(edits: &[TextEdit]) -> Vec<u32> {
     v
 }
 
-// ---------------------------------------------------------------------------
 // references — procs
-// ---------------------------------------------------------------------------
 
 #[test]
 fn references_proc_from_definition_includes_decl_and_both_calls() {
@@ -336,9 +333,7 @@ fn references_proc_only_at_real_call_sites_not_substrings() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // references — variables
-// ---------------------------------------------------------------------------
 
 #[test]
 fn references_var_includes_definition_and_every_read() {
@@ -410,9 +405,7 @@ fn references_var_scoped_to_its_proc_not_a_same_named_local_elsewhere() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // references — namespaces (qualified vs short, cross-namespace isolation)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn references_namespaced_proc_matches_qualified_and_short_calls() {
@@ -546,7 +539,6 @@ fn references_namespaced_proc_does_not_leak_to_same_name_in_other_namespace() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // references — nested namespaces (2+ levels): qualified, relative, and the
 // exact `bind`-callback shape from
 // https://github.com/bitwisecook/tcl-lsp/issues/923
@@ -564,7 +556,6 @@ fn references_namespaced_proc_does_not_leak_to_same_name_in_other_namespace() {
 // routing through `Analyser::command_resolution_namespace` /
 // `command_resolution_namespace_at`, the single accumulating implementation
 // shared by the analyser and every `tcl-lsp-core` provider.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn references_two_level_nested_namespace_bare_call_matches_from_same_namespace() {
@@ -860,11 +851,9 @@ fn references_relative_name_with_embedded_colons_prefers_current_namespace() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // references — classes in nested namespaces (parity with the proc cases
 // above): a bare class-name match must be gated by namespace, never
 // cross-attributed across namespaces unconditionally
-// ---------------------------------------------------------------------------
 
 #[test]
 fn references_class_two_level_nested_namespace_isolates_same_named_classes() {
@@ -959,9 +948,7 @@ fn references_class_and_method_two_level_nested_namespace_dollar_dispatch() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // rename — nested namespaces (parity with the reference fixes above)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn rename_proc_two_level_nested_namespace_scoped_correctly() {
@@ -1073,9 +1060,7 @@ fn rename_class_rewrites_its_superclass_and_mixin_sites() {
     assert!(edits.iter().all(|e| e.new_text == "Base2"));
 }
 
-// ---------------------------------------------------------------------------
 // references — known limitation: a command name held in a variable
-// ---------------------------------------------------------------------------
 
 #[test]
 fn references_variable_held_command_name_is_not_resolved_documented_limitation() {
@@ -1105,9 +1090,7 @@ fn references_variable_held_command_name_is_not_resolved_documented_limitation()
     );
 }
 
-// ---------------------------------------------------------------------------
 // references — non-symbols / robustness
-// ---------------------------------------------------------------------------
 
 #[test]
 fn references_builtin_command_yields_nothing() {
@@ -1188,9 +1171,7 @@ fn references_out_of_range_and_empty_file_do_not_panic() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // rename — procs
-// ---------------------------------------------------------------------------
 
 #[test]
 fn rename_proc_updates_definition_and_all_call_sites() {
@@ -1298,9 +1279,7 @@ fn rename_proc_rejected_when_new_name_collides_with_existing_proc() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // rename — variables (scoping is the load-bearing correctness fact)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn rename_var_updates_definition_and_reads_with_dollar_preserved() {
@@ -1420,9 +1399,7 @@ fn rename_var_rejected_on_same_scope_collision() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // rename — namespaces (qualified call keeps its qualifier; isolation holds)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn rename_namespaced_proc_rewrites_qualified_and_short_forms() {
@@ -1535,9 +1512,7 @@ fn rename_second_same_named_proc_resolves_to_that_proc_not_the_first() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // rename — safety gating (shape + builtin shadow)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn rename_rejects_syntactically_unsafe_new_names() {
@@ -1655,9 +1630,7 @@ fn rename_var_to_builtin_name_is_allowed() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // rename — non-symbols / robustness
-// ---------------------------------------------------------------------------
 
 #[test]
 fn rename_unknown_word_yields_no_edits() {
@@ -1741,9 +1714,7 @@ fn rename_out_of_range_and_empty_file_do_not_panic() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // prepare_rename — gates the rename UI
-// ---------------------------------------------------------------------------
 
 #[test]
 fn prepare_rename_offers_proc_name_and_placeholder() {
@@ -1803,9 +1774,7 @@ fn prepare_rename_out_of_range_and_empty_file_return_none() {
     assert!(prepare_rename("", 0, 0, &empty).is_none());
 }
 
-// ---------------------------------------------------------------------------
 // is_safe_symbol_name — the shape predicate behind the gate
-// ---------------------------------------------------------------------------
 
 #[test]
 fn is_safe_symbol_name_accepts_identifiers_and_rejects_the_rest() {
@@ -1825,10 +1794,8 @@ fn is_safe_symbol_name_accepts_identifiers_and_rejects_the_rest() {
     }
 }
 
-// ===================================================================
 // Renaming a TclOO instance variable must NOT rewrite the method body, and
 // `uplevel #0` var resolution must skip proc locals.  TP/FP/TN/FN coverage.
-// ===================================================================
 
 /// The `oo::class create C { variable n; method get {} {return $n} … }`
 /// fixture used across the object-variable tests.  `$n` in `get` sits at line 2.
@@ -2065,12 +2032,10 @@ fn uplevel_nonzero_body_local_resolves_within_body() {
     );
 }
 
-// ===================================================================
 // Target selection: rename / references triggered from a bareword
 // CALL SITE must resolve namespace-aware (the proc/class C Tcl would
 // dispatch), never a namespace-blind `name == word` scan that picks an
 // arbitrary same-named symbol in another namespace.
-// ===================================================================
 
 /// Two same-named procs in disjoint namespaces; `::a::run` calls `helper`.
 const NS_COLLISION_PROC_SRC: &str = "namespace eval ::a {\n    proc helper {} { return 1 }\n    proc run {} { helper }\n}\nnamespace eval ::b {\n    proc helper {} { return 2 }\n}\n";
@@ -2368,9 +2333,7 @@ fn namespace_variables_in_different_namespaces_do_not_unify() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // M7 — command names carried in variables / dispatch tables
-// ---------------------------------------------------------------------------
 
 #[test]
 fn references_include_a_const_cmd_dispatch_site_m7() {
@@ -2607,9 +2570,7 @@ fn rename_rewrites_a_consumed_dispatch_table_literal_m7() {
     assert_eq!(table_edit.new_text, "sum");
 }
 
-// ---------------------------------------------------------------------------
 // rename — [incr Tcl] `Factory::make` class-proc dispatch (issue #990)
-// ---------------------------------------------------------------------------
 
 /// TP: renaming an itcl class-scoped `proc` rewrites its declaration, its
 /// bare sibling call, and the tail of every `::`-qualified dispatch — the
@@ -2707,9 +2668,7 @@ fn rename_plain_namespace_qualified_proc_is_unaffected() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // rename — namespace-scoped bare class dispatch (issue #981)
-// ---------------------------------------------------------------------------
 
 /// Two classes sharing a simple name in different namespaces, one bare
 /// `Factory make` dispatch each.  Oracle (tclsh 8.6.14 and 9.0.4): the
@@ -2783,9 +2742,7 @@ fn rename_classmethod_is_scoped_in_the_other_direction_too() {
     assert_eq!(edit_lines(&edits), vec![8, 10], "{edits:?}");
 }
 
-// ---------------------------------------------------------------------------
 // Issue #1078 — a brace-quoted `$`-bearing name is its own variable
-// ---------------------------------------------------------------------------
 //
 // tclsh 9.0.4 and 8.6.14, byte-identical:
 //
@@ -2899,10 +2856,8 @@ fn rename_of_an_ordinary_name_is_still_allowed() {
     assert_eq!(edit_lines(&edits), vec![2, 3], "{edits:?}");
 }
 
-// ---------------------------------------------------------------------------
 // PR #1106 review, P2 — every variable provider resolves a brace-literal
 // cursor to the literal cell (the cursor half of issue #1108)
-// ---------------------------------------------------------------------------
 //
 // The character scan behind `find_var_at_position` reports `n` for a cursor on
 // the `n` of `set {$n} 1`.  That word is brace-quoted, so Tcl substitutes
@@ -3174,9 +3129,7 @@ fn genuinely_inert_dollar_shapes_still_resolve_to_nothing() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Issue #1108 — a registry `VarRead`-role name word is a navigable use site
-// ---------------------------------------------------------------------------
 //
 // A variable is read by more than `$name`.  tclsh 9.0.4 / 8.6.16, identical:
 //
@@ -3264,9 +3217,7 @@ fn tn_a_value_word_of_the_same_spelling_is_not_a_reference() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Issue #1138 idx 102 — a read inside a `[list …]`-built script argument
-// ---------------------------------------------------------------------------
 //
 // `::tk::SourceLibFile` in Tk's `library/tk.tcl`:
 //

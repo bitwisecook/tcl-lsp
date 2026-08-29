@@ -21,7 +21,7 @@
 //! bodies, `if` conditions, and GTM pool fan-out against fixed expected outputs.
 //! Self-contained — runs entirely in-process.
 
-use tcl_dialect::model::{SurfaceLayer, Family};
+use tcl_dialect::model::{Family, SurfaceLayer};
 use tcl_irules::extract_irules_object_references;
 use tcl_registry::CommandRegistry;
 

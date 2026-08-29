@@ -323,9 +323,7 @@ pub(crate) fn highlight_json(source: &str) -> Value {
     )
 }
 
-// ---------------------------------------------------------------------------
 // Hover
-// ---------------------------------------------------------------------------
 
 /// Grammar keywords and option-row flags that are DSL structure rather than
 /// `CommandSpec`/`SubCommand` fields, so [`tcl_spec_studio::help::field_help`]

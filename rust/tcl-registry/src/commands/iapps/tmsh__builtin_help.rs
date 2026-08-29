@@ -18,7 +18,7 @@
 
 //! `tmsh::builtin_help` command.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 use tcl_dialect::surface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "tmsh::builtin_help ?args?",
@@ -28,7 +28,10 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tmsh::builtin_help",
-        surface: Some(surface![SpecSurface::package("iapps"), SpecSurface::package("tmsh")]),
+        surface: Some(surface![
+            SpecSurface::package("iapps"),
+            SpecSurface::package("tmsh")
+        ]),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet::brief(
             "Presents the same results as typing ``?`` while entering a tmsh command.",

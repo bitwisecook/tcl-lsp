@@ -37,7 +37,8 @@ use tcl_registry::model::ingress::static_context_for;
 fn string_length_abbreviations_resolve_and_l_is_ambiguous() {
     let reg = static_context_for("tcl8.6").commands();
     let spec = reg.get("string").expect("string command");
-    let dialect = tcl_dialect::DialectProfile::find("tcl8.6").map(tcl_dialect::DialectProfile::surface_query);
+    let dialect =
+        tcl_dialect::DialectProfile::find("tcl8.6").map(tcl_dialect::DialectProfile::surface_query);
 
     for word in ["le", "len", "leng", "lengt", "length"] {
         assert_eq!(
@@ -66,7 +67,8 @@ fn string_length_abbreviations_resolve_and_l_is_ambiguous() {
 fn an_exact_subcommand_wins_over_the_prefix_it_shares() {
     let reg = static_context_for("tcl8.6").commands();
     let spec = reg.get("string").expect("string command");
-    let dialect = tcl_dialect::DialectProfile::find("tcl8.6").map(tcl_dialect::DialectProfile::surface_query);
+    let dialect =
+        tcl_dialect::DialectProfile::find("tcl8.6").map(tcl_dialect::DialectProfile::surface_query);
     assert_eq!(
         spec.resolve_subcommand_word("trim", dialect, None, None),
         KeywordMatch::Unique("trim")
@@ -89,11 +91,21 @@ fn a_prefix_unique_in_one_version_is_ambiguous_for_a_range_that_adds_a_keyword()
     let t85 = reg85
         .get("string")
         .expect("string in 8.5")
-        .subcommand_table(tcl_dialect::DialectProfile::find("tcl8.5").map(tcl_dialect::DialectProfile::surface_query), None, None);
+        .subcommand_table(
+            tcl_dialect::DialectProfile::find("tcl8.5")
+                .map(tcl_dialect::DialectProfile::surface_query),
+            None,
+            None,
+        );
     let t86 = reg86
         .get("string")
         .expect("string in 8.6")
-        .subcommand_table(tcl_dialect::DialectProfile::find("tcl8.6").map(tcl_dialect::DialectProfile::surface_query), None, None);
+        .subcommand_table(
+            tcl_dialect::DialectProfile::find("tcl8.6")
+                .map(tcl_dialect::DialectProfile::surface_query),
+            None,
+            None,
+        );
 
     // `cat` exists only from 8.6, so it is not resolvable for an 8.5–8.6 range.
     assert_eq!(t86.resolve("cat"), KeywordMatch::Unique("cat"));
@@ -113,11 +125,21 @@ fn a_prefix_unique_in_one_version_is_ambiguous_for_a_range_that_adds_a_keyword()
     let t85 = reg85
         .get("string")
         .expect("string in 8.5")
-        .subcommand_table(tcl_dialect::DialectProfile::find("tcl8.5").map(tcl_dialect::DialectProfile::surface_query), None, None);
+        .subcommand_table(
+            tcl_dialect::DialectProfile::find("tcl8.5")
+                .map(tcl_dialect::DialectProfile::surface_query),
+            None,
+            None,
+        );
     let t86 = reg86
         .get("string")
         .expect("string in 8.6")
-        .subcommand_table(tcl_dialect::DialectProfile::find("tcl8.6").map(tcl_dialect::DialectProfile::surface_query), None, None);
+        .subcommand_table(
+            tcl_dialect::DialectProfile::find("tcl8.6")
+                .map(tcl_dialect::DialectProfile::surface_query),
+            None,
+            None,
+        );
     assert_eq!(
         resolve_over_versions(&[t85, t86], "le"),
         KeywordMatch::Unique("length")
@@ -132,7 +154,8 @@ fn a_prefix_unique_in_one_version_is_ambiguous_for_a_range_that_adds_a_keyword()
 fn option_abbreviations_resolve_over_the_real_option_table() {
     let reg = static_context_for("tcl8.6").commands();
     let spec = reg.get("lsearch").expect("lsearch command");
-    let dialect = tcl_dialect::DialectProfile::find("tcl8.6").map(tcl_dialect::DialectProfile::surface_query);
+    let dialect =
+        tcl_dialect::DialectProfile::find("tcl8.6").map(tcl_dialect::DialectProfile::surface_query);
 
     assert_eq!(
         spec.resolve_option_word("-noc", dialect, None, None),
@@ -154,7 +177,8 @@ fn option_abbreviations_resolve_over_the_real_option_table() {
 fn a_strict_override_disables_prefix_matching_at_the_call_site() {
     let reg = static_context_for("tcl8.6").commands();
     let spec = reg.get("string").expect("string command");
-    let dialect = tcl_dialect::DialectProfile::find("tcl8.6").map(tcl_dialect::DialectProfile::surface_query);
+    let dialect =
+        tcl_dialect::DialectProfile::find("tcl8.6").map(tcl_dialect::DialectProfile::surface_query);
     let strict = Some(PrefixMatching::Strict);
 
     assert_eq!(
@@ -186,7 +210,8 @@ fn a_strict_override_disables_prefix_matching_at_the_call_site() {
 fn every_minimal_prefix_round_trips_to_its_keyword() {
     for dname in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "f5-irules"] {
         let reg = static_context_for(dname).commands();
-        let dialect = tcl_dialect::DialectProfile::find(dname).map(tcl_dialect::DialectProfile::surface_query);
+        let dialect = tcl_dialect::DialectProfile::find(dname)
+            .map(tcl_dialect::DialectProfile::surface_query);
         let names: Vec<String> = reg.command_names().map(ToOwned::to_owned).collect();
         for name in &names {
             let Some(spec) = reg.get(name) else { continue };

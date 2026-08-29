@@ -137,9 +137,7 @@ const NAMED_CONSTANT: &str = "the studio edits the whole descriptor as one Rust 
      registry constant (`Some(&definer::SNIT_GRAMMAR)`); authoring a new one is an edit \
      to the registry module that owns it, not a form field";
 
-// ---------------------------------------------------------------------------
 // CommandSpec
-// ---------------------------------------------------------------------------
 
 /// Compile-time witness that [`COMMAND_SPEC`] accounts for every
 /// [`CommandSpec`] field.
@@ -451,9 +449,7 @@ pub const COMMAND_SPEC: &[Field] = &[
     f("self_receiver_words", Surface::Key("self_receiver_words")),
 ];
 
-// ---------------------------------------------------------------------------
 // SubCommand
-// ---------------------------------------------------------------------------
 
 /// Compile-time witness that [`SUB_COMMAND`] accounts for every
 /// [`SubCommand`] field — see [`witness_command_spec`] for what to do when it
@@ -646,7 +642,6 @@ pub const SUB_COMMAND: &[Field] = &[
     ),
 ];
 
-// ---------------------------------------------------------------------------
 // The nested types a draft carries structurally.
 //
 // These have no `FieldSchema` entry of their own: they are edited inside the
@@ -654,7 +649,6 @@ pub const SUB_COMMAND: &[Field] = &[
 // `side_effects`, …), so their draft keys are keys of the JSON object
 // `crate::draft` builds for the type.  Same gate, same rule — a new field on
 // any of them fails to compile until it is carried or excluded.
-// ---------------------------------------------------------------------------
 
 /// Compile-time witness for [`SUB_SUB_COMMAND`].
 pub fn witness_sub_sub_command(sub: &SubSubCommand) {
@@ -894,7 +888,6 @@ pub const LIFECYCLE: &[Field] = &[
     f("deprecation_fix", Surface::Key("deprecation_fix")),
 ];
 
-// ---------------------------------------------------------------------------
 // Plain-data descriptors.
 //
 // Each of these is pure data, so `crate::draft` renders it back out as a full
@@ -902,7 +895,6 @@ pub const LIFECYCLE: &[Field] = &[
 // that carries it, and
 // `descriptor_literals_name_every_field` proves the rendered literal really
 // mentions each one.
-// ---------------------------------------------------------------------------
 
 /// Compile-time witness for [`REPEATED_ARG_LAYOUT`].
 pub fn witness_repeated_arg_layout(layout: &RepeatedArgLayout) {
@@ -1038,14 +1030,12 @@ pub const VERSIONED_ARG_VALUE: &[Field] = &[
     f("lifecycle", Surface::Expression("versioned_arg_values")),
 ];
 
-// ---------------------------------------------------------------------------
 // Shared `&'static` descriptors.
 //
 // A grammar / class / clause-list descriptor is written once in the registry
 // module that owns it and referenced by every command that needs it, so the
 // studio's editor takes the *constant's path* rather than its contents.  Every
 // field is still listed here: the gate makes a new one a stated decision.
-// ---------------------------------------------------------------------------
 
 /// Compile-time witness for [`DEFINITION_BODY_GRAMMAR`].
 pub fn witness_definition_body_grammar(grammar: &DefinitionBodyGrammar) {

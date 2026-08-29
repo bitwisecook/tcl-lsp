@@ -69,7 +69,7 @@
 //! (identical option tables and error paths on both), since that is
 //! real per-mode behaviour the prose alone under-specifies.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "zlib subcommand ?arg ...?",

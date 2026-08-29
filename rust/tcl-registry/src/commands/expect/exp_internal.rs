@@ -18,7 +18,7 @@
 
 //! `exp_internal` command.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 const OPTIONS: &[OptionSpec] = &[OptionSpec {
     name: "-f",
     value: OptionValue::value("file"),

@@ -5579,7 +5579,7 @@ impl<'a> CallSite<'a> {
 
 #[cfg(test)]
 mod tests {
-    
+
     use super::*;
     use tcl_compiler::analyser::Analyser;
 
@@ -7285,7 +7285,6 @@ mod tests {
         );
     }
 
-    // -----------------------------------------------------------------
     // The `package require` half of the load order (issue #1279).
     //
     // Every test below builds the index with `WorkspaceIndex::from_documents`
@@ -7310,7 +7309,6 @@ mod tests {
     // …and the second script, byte-identical, answers NO ALIAS when some
     // other file required `mymod` before it ran.  That flip is the whole
     // reason the second shape abstains.
-    // -----------------------------------------------------------------
 
     /// The provider document every `package require` order test shares: it
     /// defines and exports `helper`, and provides the package.
@@ -10208,7 +10206,6 @@ mod tests {
         );
     }
 
-    // ---------------------------------------------------------------------
     // Issue #1297 — the settlement walk's cost must not scale with
     // (invocations x in-scope imports x export rows).
     //
@@ -10226,7 +10223,6 @@ mod tests {
     // so that whole question is now decided once per recorded import at
     // index-build time (`ExportGate`), leaving a hash probe and a glob match
     // on the per-call path.
-    // ---------------------------------------------------------------------
 
     /// A workspace of the #1297 shape, sized so the pre-fix cost is seconds
     /// and the post-fix cost is milliseconds.
@@ -10343,7 +10339,6 @@ mod tests {
         );
     }
 
-    // ---------------------------------------------------------------------
     // Issue #1302 — the import-conflict rule's "already exists" side must
     // include the commands the *registry* declares, not only the procs and
     // classes the workspace declares.
@@ -10360,7 +10355,6 @@ mod tests {
     //                               -> namespace origin ::Bar::set == ::Foo::set
     //   # …and `+` is NOT a global command, so it does not conflict:
     //   info commands ::+           -> {}      (+ 1 2 -> invalid command name)
-    // ---------------------------------------------------------------------
 
     /// TP: the defect itself.  `::Foo` exports `set`; real Tcl refuses the
     /// import, so the bare `set x 1` reaches the builtin and is **not** a
@@ -10519,7 +10513,6 @@ mod tests {
         );
     }
 
-    // ---------------------------------------------------------------------
     // Issue #1319 — `import_hop` must not scan a namespace's whole import
     // list per call.
     //
@@ -10533,7 +10526,6 @@ mod tests {
     // position *within the filtered sequence*, so a reordering — or a
     // duplicate from a row carrying both literal and glob export patterns —
     // would silently change which import wins. These pin that.
-    // ---------------------------------------------------------------------
 
     /// The admitted sequence must be exactly what a full scan would yield,
     /// in the same order, over every shape the gate can take: literal-only,

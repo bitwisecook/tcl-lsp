@@ -20,7 +20,7 @@
 //! when the key is present, 0 when absent — the way to distinguish a missing
 //! key from a stored zero (`map_get` folds both to 0).
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 pub fn spec() -> CommandSpec {
     const OP: BpfOpSpec = BpfOpSpec::gated(BpfOpKind::MapHas, BpfEffects::MAP_READ);

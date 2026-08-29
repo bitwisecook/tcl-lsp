@@ -62,7 +62,7 @@
 //! extends it.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 // Both forms are unchanged, word-for-word (bar the cosmetic
 // channelId/channel rename noted in the module doc comment), across

@@ -22,7 +22,7 @@
 //! collapses them into one row per index, which is the single biggest
 //! readability win the format has over the `.rs` form.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {

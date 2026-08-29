@@ -38,7 +38,7 @@
 // out at 8.6 — so the plain `TCL90_PLUS` gate below already excludes every one
 // of them and no extra dialect restriction is needed.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "fpclassify value",

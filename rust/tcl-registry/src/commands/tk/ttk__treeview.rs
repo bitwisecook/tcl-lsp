@@ -19,7 +19,7 @@
 //! `ttk::treeview` command.
 use crate::arity::ArityWindow;
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const USER_EVENT_INPUTS: &[CallbackTaintInput] = &[CallbackTaintInput::TK_EVENT_CHAR];
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {

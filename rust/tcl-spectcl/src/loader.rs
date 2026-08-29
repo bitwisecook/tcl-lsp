@@ -147,7 +147,7 @@ use tcl_registry::world_effect::WorldStateDomain;
 use tcl_registry::{CommandPrefixArguments, InvocationArguments};
 
 use crate::catalogue;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 mod available;
 mod dialect_block;
@@ -157,18 +157,16 @@ mod surface_roster;
 mod vocabulary_class;
 
 pub use dialect_block::{PackDialect, PackDialectAxis};
-pub use surface_roster::{PackRosterName, PackSurfaceRoster, family_named};
 pub(crate) use environment_block::reserved_name as reserved_environment_name;
 pub use environment_block::{PackCore, PackEnvironment, PackEnvironmentTier};
 pub use eval::{
     EvalOptions, EvalSnapshotKey, LOADER_EVAL_VERSION, eval_snapshot_key, evaluate_pack,
     evaluate_pack_in, evaluate_pack_with, provenance_violation,
 };
+pub use surface_roster::{PackRosterName, PackSurfaceRoster, family_named};
 pub use vocabulary_class::VocabularyClass;
 
-// ---------------------------------------------------------------------------
 // Notices
-// ---------------------------------------------------------------------------
 
 /// One thing the loader dropped, with enough context to fix the pack.
 ///
@@ -390,9 +388,7 @@ fn quotable(word: &str) -> String {
     format!("{cut}…")
 }
 
-// ---------------------------------------------------------------------------
 // The statement reader — CST in, words out
-// ---------------------------------------------------------------------------
 
 /// One word of a statement, with the text the CST resolved for it.
 ///
@@ -601,9 +597,7 @@ pub fn speclib_version_span(source: &str) -> Option<(std::ops::Range<usize>, Str
     None
 }
 
-// ---------------------------------------------------------------------------
 // Leaking — a loaded pack lives as long as the process, like a shipped spec
-// ---------------------------------------------------------------------------
 
 /// Leak `text` as `&'static str`, **interned**: the same string is leaked once
 /// for the life of the process however many pack generations contain it.
@@ -651,9 +645,7 @@ fn leak_one<T>(value: T) -> &'static T {
     Box::leak(Box::new(value))
 }
 
-// ---------------------------------------------------------------------------
 // Hook bodies — carried as text, never run
-// ---------------------------------------------------------------------------
 
 /// Which of the ten hook families a body belongs to.
 ///
@@ -800,9 +792,7 @@ fn consume_one_word(_args: &[&str], _start: usize) -> OptionValueOutcome {
     }
 }
 
-// ---------------------------------------------------------------------------
 // The loaded pack
-// ---------------------------------------------------------------------------
 
 /// One command a pack declares.
 #[derive(Debug, Clone)]
@@ -1476,9 +1466,7 @@ fn file_extension_row(stmt: &Stmt, log: &mut Log) -> Option<FileExtension> {
     Some(row)
 }
 
-// ---------------------------------------------------------------------------
 // `include` — pack-file inclusion under the determinism contract (2.0, Q6)
-// ---------------------------------------------------------------------------
 
 /// Resolves `include NAME` rows to source text.
 ///
@@ -1646,9 +1634,7 @@ fn check_vocabulary_version(declared: &str, line: u32, log: &mut Log) -> bool {
     false
 }
 
-// ---------------------------------------------------------------------------
 // Pack-level tables
-// ---------------------------------------------------------------------------
 
 /// The pack-wide availability / identity defaults a command inherits.
 #[derive(Debug, Default, Clone)]
@@ -1813,9 +1799,7 @@ fn value_rows(stmts: &[Stmt], log: &mut Log) -> Vec<ArgValue> {
     out
 }
 
-// ---------------------------------------------------------------------------
 // Small word / value parsers
-// ---------------------------------------------------------------------------
 
 /// Advance past a flag and return its value word's text.
 fn next_text(words: &[Word], i: &mut usize) -> String {
@@ -2973,9 +2957,7 @@ fn object_class_row(
     })
 }
 
-// ---------------------------------------------------------------------------
 // Per-argument rows — six schema keys, one statement
-// ---------------------------------------------------------------------------
 
 /// The `u8` argument tables cap the index; an index above 255 is dropped with
 /// a notice rather than wrapping.
@@ -3174,9 +3156,7 @@ impl ArgRows {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Option rows
-// ---------------------------------------------------------------------------
 
 const fn is_variable_role(role: ArgRole) -> bool {
     matches!(role, ArgRole::VarRead | ArgRole::VarWrite)
@@ -3561,9 +3541,7 @@ fn option_row(
     (option, hook)
 }
 
-// ---------------------------------------------------------------------------
 // Hover
-// ---------------------------------------------------------------------------
 
 fn hover_block(stmts: &[Stmt], log: &mut Log) -> HoverSnippet {
     let mut summary = String::new();
@@ -3597,9 +3575,7 @@ fn hover_block(stmts: &[Stmt], log: &mut Log) -> HoverSnippet {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Block-valued descriptors
-// ---------------------------------------------------------------------------
 
 fn event_requires_block(stmts: &[Stmt], log: &mut Log) -> EventRequires {
     let mut requires = EventRequires {
@@ -4210,9 +4186,7 @@ fn shipped_body_scope(name: &str) -> Option<&'static ScopedCommandEnv> {
     }
 }
 
-// ---------------------------------------------------------------------------
 // The ratified words (design §6.2)
-// ---------------------------------------------------------------------------
 //
 // Seven words the DSL memo's coverage matrix has always documented and the
 // loader had no reader for — the `DraftOpaque`-masks-`LoaderGap` blind spot
@@ -4556,9 +4530,7 @@ fn scoped_command_row(
     Some(command)
 }
 
-// ---------------------------------------------------------------------------
 // Command loading
-// ---------------------------------------------------------------------------
 
 /// Everything a command body accumulates before the spec is sealed.
 #[derive(Default)]
@@ -5877,9 +5849,7 @@ fn state_transitions_value(
     Some(descriptor)
 }
 
-// ---------------------------------------------------------------------------
 // `refine` — invocation refinement (2.0, design Q12/D2)
-// ---------------------------------------------------------------------------
 
 /// The rows a `refine` body accumulates before the form is sealed.
 #[derive(Default)]
@@ -6066,9 +6036,7 @@ fn selector_row(stmt: &Stmt, log: &mut Log) -> Option<LiteralArgumentPrefix> {
     })
 }
 
-// ---------------------------------------------------------------------------
 // Subcommands
-// ---------------------------------------------------------------------------
 
 #[derive(Default)]
 struct SubAcc {
@@ -6209,13 +6177,7 @@ fn apply_subcommand_stmt(
         "available" => {
             log.v20(stmt.line, "available");
             let availability = available::from_statement(stmt, 1, log);
-            apply_availability(
-                &mut sub.surface,
-                availability,
-                "subcommand",
-                stmt.line,
-                log,
-            );
+            apply_availability(&mut sub.surface, availability, "subcommand", stmt.line, log);
         }
         "safe_on_uninit" => sub.safe_on_uninit = parse_dialects(&value, stmt.line, log),
         "introduced_version" => sub.lifecycle.introduced = Some(leak_str(&value)),
@@ -6565,10 +6527,10 @@ fn versioned_arg_value_row(
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SpecProvider, SurfaceQuery, surface_admits, Family};
-    
-    use tcl_dialect::model::{SpecSurface};
+    use tcl_dialect::model::{Family, SpecProvider, SurfaceQuery, surface_admits};
+
     use tcl_dialect::BracedVarStyle;
+    use tcl_dialect::model::SpecSurface;
     use tcl_dialect::model::{BuildProfileId, Provenance, Release, WorldPolicy};
 
     use super::*;
@@ -7801,10 +7763,7 @@ mod tests {
             pack.notices
         );
         assert_eq!(
-            pack.command("demo")
-                .expect("demo still loads")
-                .spec
-                .surface,
+            pack.command("demo").expect("demo still loads").spec.surface,
             None,
             "a dropped row narrows nothing"
         );

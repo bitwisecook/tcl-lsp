@@ -17,9 +17,9 @@
 //!
 //! Serialised with stock `serde_json` 2-space pretty-printing (raw UTF-8).
 
-use tcl_dialect::model::{SurfaceQuery, Family};
 use std::fs;
 use std::process::ExitCode;
+use tcl_dialect::model::{Family, SurfaceQuery};
 
 use anyhow::{Context, Result};
 use serde::Serialize;

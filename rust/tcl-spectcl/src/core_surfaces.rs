@@ -56,10 +56,8 @@ use crate::loader::PackSurfaceRoster;
 
 /// The core surface packs' `SpecTcl` sources, by the name their notices
 /// report against.
-const CORE_SURFACES: &[(&str, &str)] = &[(
-    "jim.tclspec",
-    include_str!("../core-surfaces/jim.tclspec"),
-)];
+const CORE_SURFACES: &[(&str, &str)] =
+    &[("jim.tclspec", include_str!("../core-surfaces/jim.tclspec"))];
 
 /// The roster rows the compiled-in sources declare, parsed once.
 fn rows() -> &'static [PackSurfaceRoster] {
@@ -129,8 +127,19 @@ mod tests {
             assert!(jim.admits(present, None), "{present}");
         }
         for absent in [
-            "coroutine", "trace", "yield", "yieldto", "chan", "encoding", "fblocked", "fcopy",
-            "unload", "case", "unknown", "tclLog", "auto_load",
+            "coroutine",
+            "trace",
+            "yield",
+            "yieldto",
+            "chan",
+            "encoding",
+            "fblocked",
+            "fcopy",
+            "unload",
+            "case",
+            "unknown",
+            "tclLog",
+            "auto_load",
         ] {
             assert!(
                 !jim.admits(absent, None),

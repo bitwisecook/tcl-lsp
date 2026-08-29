@@ -974,9 +974,7 @@ mod tests {
         );
     }
 
-    // =================================================================
     // TIP 582 `#` comments
-    // =================================================================
 
     /// A comment is never the reported fault: it is skipped like whitespace, so
     /// the diagnosis names whatever *else* is wrong — and `#` must never come

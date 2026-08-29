@@ -20,7 +20,7 @@
 //! `auto_path` for `pkgIndex.tcl` files.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 // Tcl 8.4's real formal parameter list (`library/package.tcl`:
 // `proc tclPkgUnknown {name version {exact {}}}`, selected whenever the

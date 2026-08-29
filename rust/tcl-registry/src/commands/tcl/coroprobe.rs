@@ -19,7 +19,7 @@
 //! `coroprobe` — run a command inside a suspended coroutine without
 //! resuming it.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "coroprobe coroName command ?arg ...?",
     ..FormSpec::DEFAULT

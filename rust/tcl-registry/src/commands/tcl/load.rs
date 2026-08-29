@@ -18,9 +18,9 @@
 
 //! `load` — load a shared library extension and initialize new commands.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::surface;
 use tcl_dialect::model::Family;
+use tcl_dialect::model::SpecSurface;
+use tcl_dialect::surface;
 
 const SIDE_EFFECTS: &[SideEffect] = &[
     // Reads fileName off disk (dlopen/LoadLibrary) before anything else
@@ -51,7 +51,10 @@ const SIDE_EFFECTS: &[SideEffect] = &[
 const FORMS: &[FormSpec] = &[
     FormSpec {
         synopsis: "load fileName ?packageName? ?interp?",
-        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.6"))])]),
+        surface: Some(surface![SpecSurface::core_in(
+            Family::Tcl,
+            &[("8.4", Some("8.6"))]
+        )]),
         ..FormSpec::DEFAULT
     },
     FormSpec {

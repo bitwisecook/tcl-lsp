@@ -37,7 +37,7 @@
 //! names, so the plain `TCL91` command-level gate is the whole story.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// Build a pure 9.1 math command returning a two-element list.  `args` is
 /// the exact argument count after the command word (`divmod x y` ⇒ 2,

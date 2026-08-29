@@ -18,7 +18,7 @@
 
 //! `CRYPTO::decrypt` iRules command.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 /// The command's option table, hoisted out of the spec literal so the
 /// builder stays inside the line budget.
 const OPTIONS: &[OptionSpec] = &[

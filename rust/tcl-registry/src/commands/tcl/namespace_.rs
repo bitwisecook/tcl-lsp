@@ -19,7 +19,7 @@
 //! `namespace` — create and manipulate contexts for commands and variables.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "namespace subcommand ?arg ...?",
@@ -45,9 +45,7 @@ const NAMESPACE_UPVAR_FORMS: &[SubCommandForm] = &[
     },
 ];
 
-// ---------------------------------------------------------------------------
 // `namespace ensemble`'s two option tables
-// ---------------------------------------------------------------------------
 // `namespace ensemble create` and `namespace ensemble configure` are two
 // **different** option tables, not one shared table (issue #1610).
 //
@@ -1244,14 +1242,14 @@ pub fn spec() -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SurfaceQuery, Family};
-    use tcl_dialect::model::surface_admits;
     use super::{
         NamespaceTransition, NamespaceTransitionTarget, StateTransition, TransitionSubject,
         fold_qualifiers, fold_tail, namespace_delete_state_transitions,
         namespace_path_state_transitions,
     };
     use crate::InvocationArguments;
+    use tcl_dialect::model::surface_admits;
+    use tcl_dialect::model::{Family, SurfaceQuery};
 
     #[test]
     fn namespace_path_keeps_its_tcl_list_operand_whole() {
@@ -1425,14 +1423,19 @@ mod tests {
             .expect("upvar subcommand");
         let accepts = |dialect: Option<SurfaceQuery<'_>>, argc| {
             upvar.subcommand_forms.iter().any(|form| {
-                form.surface.is_none_or(|gate| surface_admits(gate, dialect.as_ref()))
+                form.surface
+                    .is_none_or(|gate| surface_admits(gate, dialect.as_ref()))
                     && form.arity.accepts(argc)
             })
         };
 
         assert!(!accepts(Some(SurfaceQuery::core(Family::Tcl, "8.5")), 1));
         assert!(accepts(Some(SurfaceQuery::core(Family::Tcl, "8.5")), 3));
-        for dialect in [Some(SurfaceQuery::core(Family::Tcl, "8.6")), Some(SurfaceQuery::core(Family::Tcl, "9.0")), Some(SurfaceQuery::core(Family::Tcl, "9.1"))] {
+        for dialect in [
+            Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+            Some(SurfaceQuery::core(Family::Tcl, "9.1")),
+        ] {
             assert!(accepts(dialect, 1));
             assert!(accepts(dialect, 3));
             assert!(!accepts(dialect, 2));
@@ -1459,19 +1462,28 @@ mod tests {
 
         assert_eq!(
             ensemble
-                .resolve_sub_subcommand_for_dialect("cre", Some(SurfaceQuery::core(Family::Tcl, "9.0")))
+                .resolve_sub_subcommand_for_dialect(
+                    "cre",
+                    Some(SurfaceQuery::core(Family::Tcl, "9.0"))
+                )
                 .map(|sub| sub.name),
             Some("create")
         );
         assert_eq!(
             ensemble
-                .resolve_sub_subcommand_for_dialect("conf", Some(SurfaceQuery::core(Family::Tcl, "8.5")))
+                .resolve_sub_subcommand_for_dialect(
+                    "conf",
+                    Some(SurfaceQuery::core(Family::Tcl, "8.5"))
+                )
                 .map(|sub| sub.name),
             Some("configure")
         );
         assert!(
             ensemble
-                .resolve_sub_subcommand_for_dialect("e", Some(SurfaceQuery::core(Family::Tcl, "8.4")))
+                .resolve_sub_subcommand_for_dialect(
+                    "e",
+                    Some(SurfaceQuery::core(Family::Tcl, "8.4"))
+                )
                 .is_none()
         );
         assert!(ensemble.resolve_sub_subcommand("c").is_none());

@@ -63,8 +63,8 @@
 //! rows both forms load to — so a translation that moved a row's home
 //! must still mean the same thing to the registry.
 
-use tcl_dialect::model::{SpecProvider};
 use std::ops::Range;
+use tcl_dialect::model::SpecProvider;
 
 use tcl_compiler::parsing::syntax::build::build_document;
 use tcl_compiler::parsing::syntax::segment::segments_from_document;
@@ -507,9 +507,7 @@ const MARKER_U5: &str = "TODO(spectcl 2.0): this `file_extension` row's `-dialec
                          catalogue environment, so its detection row has no `environment` block\n\
                          to move into; upgrade spec U5.";
 
-// ---------------------------------------------------------------------------
 // Pack-level rows (U4/U5/U6) — located through the same lexer as the sites
-// ---------------------------------------------------------------------------
 
 /// One pack-level statement, with the ranges a replacement edit needs.
 struct PackRow {
@@ -919,9 +917,7 @@ fn apply(source: &str, mut edits: Vec<Edit>) -> String {
     out
 }
 
-// ---------------------------------------------------------------------------
 // The environment-effect snapshot (the U5 extension of the U9 gate)
-// ---------------------------------------------------------------------------
 
 /// The environment-scoped rows a loaded pack means to the registry —
 /// detection routing and package placements — normalised so the 1.x
@@ -1067,9 +1063,8 @@ fn pack_owner(
         .iter()
         .copied()
         .filter(|token| {
-            crate::catalogue::dialect_surface(token).is_some_and(|rows| {
-                rows.iter().any(|row| providers.contains(&row.provider))
-            })
+            crate::catalogue::dialect_surface(token)
+                .is_some_and(|rows| rows.iter().any(|row| providers.contains(&row.provider)))
         })
         .collect();
     match members.as_slice() {

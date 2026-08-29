@@ -40,7 +40,7 @@ use tcl_runtime_api::Completion;
 
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
-use tcl_dialect::model::{surface_admits};
+use tcl_dialect::model::surface_admits;
 
 pub(crate) fn register(vm: &mut Vm) {
     vm.register("trace", cmd_trace);
@@ -56,8 +56,9 @@ fn visible_options(vm: &Vm) -> Vec<&'static str> {
     // the option table is gated on the resolved environment's document
     // authoring mask (ledger row B1), which is the mask the retired
     // `by_name(name).surface_query()` read handed back.
-    let dialect =
-        Some(crate::environment::surface_point_for_dialect(vm.runtime_version().dialect_profile_name()));
+    let dialect = Some(crate::environment::surface_point_for_dialect(
+        vm.runtime_version().dialect_profile_name(),
+    ));
     let registry = tcl_registry::default_registry();
     let Some(spec) = registry.get_for_surface("trace", dialect) else {
         return Vec::new();

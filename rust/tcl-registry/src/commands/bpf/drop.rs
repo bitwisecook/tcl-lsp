@@ -18,7 +18,7 @@
 
 //! `drop` — drop the packet (verdict 0).
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 pub fn spec() -> CommandSpec {
     const OP: BpfOpSpec = BpfOpSpec::verdict(BpfVerdictKind::Drop, BpfProgTypeSet::ALL);

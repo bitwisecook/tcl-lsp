@@ -204,7 +204,10 @@ pub fn classify_private_tcl_namespace_call(
     let is_ensemble_subcommand = registry
         .get_for_surface(public_command, dialect)
         .and_then(|spec| spec.subcommand(tail))
-        .is_some_and(|sub| sub.surface.is_none_or(|d| surface_admits(d, dialect.as_ref())));
+        .is_some_and(|sub| {
+            sub.surface
+                .is_none_or(|d| surface_admits(d, dialect.as_ref()))
+        });
     if entry.tail_rule == TailRule::EnsembleSubcommandsOnly && !is_ensemble_subcommand {
         return None;
     }
@@ -217,13 +220,17 @@ pub fn classify_private_tcl_namespace_call(
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SurfaceQuery, Family};
-    
+    use tcl_dialect::model::{Family, SurfaceQuery};
+
     use super::*;
 
     fn classify(cmd: &str) -> Option<PrivateTclNamespaceCall> {
         let registry = crate::model::ingress::static_context_for("tcl9.0").commands();
-        classify_private_tcl_namespace_call(cmd, registry, Some(SurfaceQuery::core(Family::Tcl, "9.0")))
+        classify_private_tcl_namespace_call(
+            cmd,
+            registry,
+            Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+        )
     }
 
     #[test]

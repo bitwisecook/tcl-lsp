@@ -34,7 +34,7 @@
 // named `llength` exists — so the command-level group is correct as-is.
 use crate::hooks::CodegenHookId;
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "llength list",
     ..FormSpec::DEFAULT

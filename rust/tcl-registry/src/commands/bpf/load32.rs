@@ -18,7 +18,7 @@
 
 //! `load32` — load a 32-bit value from the packet (`load32 DST SRC OFFSET ?be|le|native?`).
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 pub fn spec() -> CommandSpec {
     const OP: BpfOpSpec = BpfOpSpec::gated(

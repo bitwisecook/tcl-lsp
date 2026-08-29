@@ -398,11 +398,7 @@ fn extract_wrapped_prefix_head(
     let seg = segs.pop()?;
     let args: Vec<&str> = seg.texts.get(1..)?.iter().map(String::as_str).collect();
     if !registry
-        .invocation_traits(
-            &seg.texts[0],
-            &args,
-            None,
-        )
+        .invocation_traits(&seg.texts[0], &args, None)
         .contains(tcl_registry::Traits::WRAPS_COMMAND_PREFIX)
     {
         return None;

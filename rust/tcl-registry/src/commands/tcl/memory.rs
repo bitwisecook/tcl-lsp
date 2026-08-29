@@ -19,7 +19,7 @@
 //! `memory` — control Tcl's built-in memory-debugging capabilities (debug
 //! builds only).
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "memory option ?arg arg ...?",

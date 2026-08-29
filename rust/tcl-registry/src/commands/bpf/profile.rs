@@ -18,7 +18,7 @@
 
 //! `profile` — select a built-in profile or declare one (`profile NAME { … }`).
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 pub fn spec() -> CommandSpec {
     const OP: BpfOpSpec = BpfOpSpec::framework(BpfDeclKind::Profile);

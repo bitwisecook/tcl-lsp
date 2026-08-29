@@ -202,21 +202,11 @@ fn a_pack_timing_hook_controls_a_live_command_prefix_position() {
 
     let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &packs);
     assert_eq!(
-        registry.script_timing(
-            "mylib::callback",
-            &["now", "callback"],
-            1,
-            None,
-        ),
+        registry.script_timing("mylib::callback", &["now", "callback"], 1, None,),
         Some(ScriptTiming::SameInvocation),
     );
     assert_eq!(
-        registry.script_timing(
-            "mylib::callback",
-            &["later", "callback"],
-            1,
-            None,
-        ),
+        registry.script_timing("mylib::callback", &["later", "callback"], 1, None,),
         Some(ScriptTiming::Deferred),
     );
     pack_hooks::clear_host();

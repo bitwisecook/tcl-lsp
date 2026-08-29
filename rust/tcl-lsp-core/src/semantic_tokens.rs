@@ -84,21 +84,21 @@
 //! taxonomy) applies inside embedded rule bodies exactly as it does in a
 //! standalone `.irul`.
 
-use tcl_dialect::model::{surface_admits};
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::types::{ProcArgTrait, ProcDef};
 use tcl_compiler::analyser::{AnalysisResult, ClassHierarchy};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::registry_invocation::segmented_command_arguments;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+use tcl_dialect::model::surface_admits;
 use tcl_lexer::{LineIndex, Span, Token, TokenType};
 
 use crate::definition::utf16_len;
 use tcl_dialect::NumberSyntax;
+use tcl_dialect::model::SpecSurface;
+use tcl_dialect::model::SurfaceQuery;
 use tcl_registry::definer::{DefinerFamily, DefinitionBodyGrammar, MemberKind};
 use tcl_registry::{CommandRegistry, InvocationArguments};
-use tcl_dialect::model::{SurfaceQuery};
-use tcl_dialect::model::{SpecSurface};
 
 /// Encoded semantic-tokens response.  The `data` array is
 /// the LSP packed integer encoding (5 ints per token: line
@@ -2749,8 +2749,7 @@ fn collection_head_element_classes<'a>(
 
     let (cmd, args) = tcl_compiler::value_shapes::parse_command_substitution(head_text)?;
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    let resolved =
-        registry.resolve_call(&cmd, &arg_refs, None)?;
+    let resolved = registry.resolve_call(&cmd, &arg_refs, None)?;
     let ReturnElements::ElementOf { container_arg } = resolved.return_elements()? else {
         return None;
     };
@@ -6608,8 +6607,8 @@ pub fn diff(old: &[u32], new: &[u32]) -> Option<TokenEdit> {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SurfaceLayer, Family};
     use super::*;
+    use tcl_dialect::model::{Family, SurfaceLayer};
 
     /// The plain-Tcl profile these tests tokenise under. A named helper keeps
     /// the 140-odd call sites readable — spelling the resolution out at each

@@ -131,9 +131,7 @@ use tcl_spectcl::pack::{MergedPack, PackSet};
 use crate::draft::{self, Draft};
 use crate::render_spectcl;
 
-// ---------------------------------------------------------------------------
 // Built-ins — the immutable model
-// ---------------------------------------------------------------------------
 
 /// The shipped command registry for one dialect: reference material the studio
 /// reads and never writes.
@@ -182,9 +180,7 @@ impl Builtins {
     }
 }
 
-// ---------------------------------------------------------------------------
 // The pack store — the DSL text is the model
-// ---------------------------------------------------------------------------
 
 /// How a write-back reached the document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1427,9 +1423,7 @@ fn merged(name: &str, pack: &Pack, tier: Tier) -> MergedPack {
     }
 }
 
-// ---------------------------------------------------------------------------
 // The resolution facade
-// ---------------------------------------------------------------------------
 
 /// Where a name's *effective* definition comes from once the collision policy
 /// has been applied.
@@ -1762,9 +1756,7 @@ impl<'a> Resolution<'a> {
     }
 }
 
-// ---------------------------------------------------------------------------
 // JSON helpers
-// ---------------------------------------------------------------------------
 
 /// The pack's `file_extension` rows as a surface reads them: what the file
 /// type is called and where a file of it routes, minus the declaring line
@@ -1899,9 +1891,7 @@ fn hook_json(hook: &loader::HookDecl) -> Value {
     })
 }
 
-// ---------------------------------------------------------------------------
 // The CST side: finding a statement's bytes
-// ---------------------------------------------------------------------------
 
 /// The byte range of the `speclib` body's **contents** — everything between
 /// its braces.

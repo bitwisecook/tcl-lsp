@@ -6119,11 +6119,11 @@ fn w210_uses_registry_owned_startup_lifecycle_facts() {
     // default global gains W210 coverage automatically; the registry's own
     // exact fixture guards the audited release-by-release inventory.
     for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-        let source: String = tcl_registry::special_vars::special_vars_for_dialect(
-            Some(tcl_registry::special_vars::surface_query_for_profile(Some(
+        let source: String = tcl_registry::special_vars::special_vars_for_dialect(Some(
+            tcl_registry::special_vars::surface_query_for_profile(Some(
                 tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
-            ))),
-        )
+            )),
+        ))
         .filter(|spec| {
             tcl_registry::special_vars::is_readable_at_startup(
                 spec.name,
@@ -8513,9 +8513,7 @@ fn apply_expand_args_abstains_too_few() {
     assert_eq!(e00x_codes_for(src), Vec::<String>::new());
 }
 
-// ---------------------------------------------------------------------
 // E001 (`TclOO` form): `$obj` invoked with no method word at all.
-// ---------------------------------------------------------------------
 
 #[test]
 fn tp_e001_bare_tcloo_object_dispatch_requires_method() {
@@ -12908,7 +12906,6 @@ fn global_seed_is_the_plain_analysis_m9() {
     assert!(r.all_procs.contains_key("::helper"));
 }
 
-// ===========================================================================
 // M11 (TIP 278) — cross-version namespace-scope variable fallback.
 //
 // C-Tcl facts, pinned live against tclsh8.6 (8.6.16) and tclsh9.0 (9.0.4)
@@ -12921,7 +12918,6 @@ fn global_seed_is_the_plain_analysis_m9() {
 //     both → error (an *intermediate* namespace is never consulted)
 //   * `set g 1; proc p {} { set g }; p`            both → error
 //     (proc frames never had the fallback)
-// ===========================================================================
 
 /// The recorded reference spans of the global-scope variable `name`.
 fn global_var_refs(result: &crate::analyser::AnalysisResult, name: &str) -> usize {
@@ -14032,7 +14028,6 @@ fn dynamic_apply_lambda_word_is_still_a_caller_frame_read() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Issue #1329 — bareword `my <method>` was never recorded as a dispatch site,
 // so W308 ("unknown method") could not fire for `TclOO`'s commonest
 // same-object spelling. Issue #1330 — the spans every `CmdCommandSite`- and
@@ -14041,7 +14036,6 @@ fn dynamic_apply_lambda_word_is_still_a_caller_frame_read() {
 // The #1330 assertions are deliberately *exact ranges*: those diagnostics
 // already fired before the fix and only their span was wrong, so a test that
 // checked the code alone would have passed against the bug.
-// ---------------------------------------------------------------------------
 
 /// Analyse `src` on both the whole-file and the per-item (incremental) path
 /// and return the `(code, text-under-span)` pairs for the dispatch codes,

@@ -18,7 +18,7 @@
 
 //! `ANTIFRAUD::disable_app_layer_encryption` iRules command.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ANTIFRAUD::disable_app_layer_encryption",

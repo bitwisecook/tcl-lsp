@@ -26,12 +26,12 @@
 //! callbacks) exactly as C Tcl's shared-C-stack, different-`Tcl_Interp*`
 //! model does (issue #946).
 
-use tcl_dialect::model::{SurfaceQuery};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::io::{self, Write};
 use std::rc::{Rc, Weak};
 use std::sync::atomic::{AtomicU64, Ordering};
+use tcl_dialect::model::SurfaceQuery;
 
 use tcl_bytecode::{FunctionAsm, ModuleAsm};
 use tcl_core_types::RecursionLimit;

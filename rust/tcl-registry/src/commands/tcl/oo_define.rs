@@ -18,7 +18,7 @@
 
 //! `oo::define` — define class members.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const OO_DEFINE_TRANSITION_DOMAINS: &[StateTransitionDomain] =
     &[StateTransitionDomain::ObjectDispatch];
@@ -374,8 +374,8 @@ pub fn spec() -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SurfaceQuery, Family};
-    
+    use tcl_dialect::model::{Family, SurfaceQuery};
+
     use super::oo_define_arg_roles;
     use crate::arg_role::ArgRole;
     use crate::{

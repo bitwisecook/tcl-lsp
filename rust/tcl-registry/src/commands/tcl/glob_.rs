@@ -19,9 +19,9 @@
 //! `glob` — return names of files that match patterns.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::surface;
 use tcl_dialect::model::Family;
+use tcl_dialect::model::SpecSurface;
+use tcl_dialect::surface;
 
 /// Tcl 8.6 (TIP 323, "Do Nothing Gracefully") made the pattern list itself
 /// optional — `glob ?switches?` with zero patterns is syntactically legal
@@ -39,7 +39,10 @@ const FORMS: &[FormSpec] = &[
     },
     FormSpec {
         synopsis: "glob ?switches? pattern ?pattern ...?",
-        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.6"))])]),
+        surface: Some(surface![SpecSurface::core_in(
+            Family::Tcl,
+            &[("8.4", Some("8.6"))]
+        )]),
         ..FormSpec::DEFAULT
     },
 ];

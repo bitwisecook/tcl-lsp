@@ -31,7 +31,7 @@ use crate::traits::Traits;
 use crate::types::TclType;
 use bitflags::bitflags;
 use tcl_core_types::DiagCode;
-use tcl_dialect::model::{SurfaceQuery};
+use tcl_dialect::model::SurfaceQuery;
 
 bitflags! {
     /// Properties carried by a tainted value — the taint *colour* lattice.
@@ -679,8 +679,8 @@ pub fn setter_constraints(
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SurfaceQuery, Family};
-    
+    use tcl_dialect::model::{Family, SurfaceQuery};
+
     use super::*;
 
     #[test]
@@ -694,23 +694,13 @@ mod tests {
     #[test]
     fn gets_is_a_taint_source() {
         let registry = CommandRegistry::build_default();
-        assert!(is_taint_source(
-            &registry,
-            "gets",
-            &["stdin"],
-            None
-        ));
+        assert!(is_taint_source(&registry, "gets", &["stdin"], None));
     }
 
     #[test]
     fn chan_gets_is_a_taint_source() {
         let registry = CommandRegistry::build_default();
-        assert!(is_taint_source(
-            &registry,
-            "chan",
-            &["gets", "stdin"],
-            None
-        ));
+        assert!(is_taint_source(&registry, "chan", &["gets", "stdin"], None));
     }
 
     #[test]
@@ -744,12 +734,7 @@ mod tests {
         // is what lets the generic option-injection / sink checks fire on
         // iRules data regardless of the document's declared dialect.
         let registry = CommandRegistry::build_default();
-        assert!(is_taint_source(
-            &registry,
-            "HTTP::uri",
-            &[],
-            None
-        ));
+        assert!(is_taint_source(&registry, "HTTP::uri", &[], None));
     }
 
     #[test]
@@ -757,8 +742,7 @@ mod tests {
         // The getter form carries `PATH_PREFIXED`, augmented to
         // `NON_DASH_PREFIXED` — the option-injection-safe colour set.
         let registry = CommandRegistry::build_default();
-        let colour =
-            taint_source_colour(&registry, "HTTP::path", &[], None).unwrap();
+        let colour = taint_source_colour(&registry, "HTTP::path", &[], None).unwrap();
         assert!(colour.contains(TaintColour::TAINTED));
         assert!(colour.contains(TaintColour::PATH_PREFIXED));
         assert!(colour.contains(TaintColour::NON_DASH_PREFIXED));
@@ -769,13 +753,11 @@ mod tests {
         // IP / port getters prove NON_DASH_PREFIXED + CRLF_FREE +
         // SHELL_ATOM on top of their IP_ADDRESS / PORT colour.
         let registry = CommandRegistry::build_default();
-        let ip =
-            taint_source_colour(&registry, "IP::client_addr", &[], None).unwrap();
+        let ip = taint_source_colour(&registry, "IP::client_addr", &[], None).unwrap();
         assert!(
             ip.contains(TaintColour::IP_ADDRESS | TaintColour::CRLF_FREE | TaintColour::SHELL_ATOM)
         );
-        let port =
-            taint_source_colour(&registry, "TCP::remote_port", &[], None).unwrap();
+        let port = taint_source_colour(&registry, "TCP::remote_port", &[], None).unwrap();
         assert!(port.contains(TaintColour::PORT | TaintColour::NON_DASH_PREFIXED));
     }
 
@@ -784,18 +766,14 @@ mod tests {
         // A prefix-matched getter without a special colour is plain
         // TAINTED — no mitigating colours.
         let registry = CommandRegistry::build_default();
-        let colour =
-            taint_source_colour(&registry, "HTTP::header", &["host"], None).unwrap();
+        let colour = taint_source_colour(&registry, "HTTP::header", &["host"], None).unwrap();
         assert_eq!(colour, TaintColour::TAINTED);
     }
 
     #[test]
     fn non_source_has_no_source_colour() {
         let registry = CommandRegistry::build_default();
-        assert!(
-            taint_source_colour(&registry, "string", &["length", "$x"], None)
-                .is_none()
-        );
+        assert!(taint_source_colour(&registry, "string", &["length", "$x"], None).is_none());
     }
 
     #[test]
@@ -822,12 +800,7 @@ mod tests {
     #[test]
     fn encoding_system_is_not_a_taint_source() {
         let registry = CommandRegistry::build_default();
-        assert!(!is_taint_source(
-            &registry,
-            "encoding",
-            &["system"],
-            None,
-        ));
+        assert!(!is_taint_source(&registry, "encoding", &["system"], None,));
     }
 
     /// `SubCommand::DEFAULT` carries no traits; this guards against

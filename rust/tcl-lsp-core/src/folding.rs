@@ -34,8 +34,8 @@
 //!
 //! [`AnalysisResult`]: tcl_compiler::analyser::AnalysisResult
 
-use tcl_dialect::model::{SurfaceQuery};
 use std::collections::BTreeSet;
+use tcl_dialect::model::SurfaceQuery;
 
 use rustc_hash::FxHashSet;
 
@@ -852,8 +852,8 @@ pub fn normalise_overlaps(ranges: Vec<FoldingRange>) -> Vec<FoldingRange> {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SurfaceLayer};
     use std::collections::HashSet;
+    use tcl_dialect::model::SurfaceLayer;
 
     use super::*;
 

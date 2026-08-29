@@ -18,7 +18,7 @@
 
 //! `itcl::find` command ([incr Tcl] runtime).
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "itcl::find classes|objects ?pattern?",

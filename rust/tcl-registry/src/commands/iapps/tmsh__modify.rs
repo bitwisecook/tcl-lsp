@@ -18,7 +18,7 @@
 
 //! `tmsh::modify` command.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 use tcl_dialect::surface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "tmsh::modify <component> <name> ?options?",
@@ -28,7 +28,10 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tmsh::modify",
-        surface: Some(surface![SpecSurface::package("iapps"), SpecSurface::package("tmsh")]),
+        surface: Some(surface![
+            SpecSurface::package("iapps"),
+            SpecSurface::package("tmsh")
+        ]),
         arity: Arity::at_least(2),
         hover: Some(HoverSnippet::brief(
             "Runs the ``modify`` command using the specified arguments.",

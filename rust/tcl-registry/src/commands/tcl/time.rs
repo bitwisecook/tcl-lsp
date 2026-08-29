@@ -19,7 +19,7 @@
 //! `time` — measure the execution time of a script.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// `time`'s script can do literally anything once evaluated — the same
 /// "unknowable statically" placeholder `eval`/`apply` declare for their own

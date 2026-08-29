@@ -37,7 +37,7 @@ use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode};
-use tcl_dialect::model::{SpecProvider};
+use tcl_dialect::model::SpecProvider;
 
 impl Analyser {
     /// **W105.** Emit "unbraced code block" warnings for body

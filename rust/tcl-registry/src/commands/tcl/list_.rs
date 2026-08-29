@@ -19,7 +19,7 @@
 //! `list` — create a Tcl list.
 use crate::hooks::InlineCodegenHookId;
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "list ?arg arg ...?",
     ..FormSpec::DEFAULT

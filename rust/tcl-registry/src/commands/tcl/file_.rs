@@ -19,7 +19,7 @@
 //! `file` — manipulate file names and attributes.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "file option name ?arg arg ...?",

@@ -78,7 +78,7 @@ use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope};
 use tcl_registry::CommandRegistry;
 
 use crate::definition::utf16_col_to_char_col;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// LSP completion-item kind for our surface.  Keep narrow —
 /// extend as richer completion is added.
@@ -2378,9 +2378,9 @@ fn fuzzy_command_fallback(
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SurfaceLayer, Family};
     use super::*;
     use tcl_compiler::analyser::Analyser;
+    use tcl_dialect::model::{Family, SurfaceLayer};
 
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();

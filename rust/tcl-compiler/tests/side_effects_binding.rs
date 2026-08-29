@@ -59,7 +59,6 @@
 //! hint — pure subcommands win, so the class-lookup assertions check purity
 //! (documented at the site).
 
-use tcl_dialect::model::{SurfaceLayer, Family};
 use tcl_compiler::command_binding::{
     Binding, BindingKind, analyse_command_binding, scan_module_command_mutations,
 };
@@ -69,12 +68,11 @@ use tcl_compiler::side_effects::{
     CommandSideEffects, ConnectionSide, EffectRegion, SideEffect, SideEffectTarget, StorageScope,
     StorageType, classify_side_effects,
 };
+use tcl_dialect::model::{Family, SurfaceLayer};
 use tcl_registry::CommandRegistry;
 use tcl_registry::model::ingress::static_context_for;
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /// A registry with the iRules dialect loaded, making the F5 command metadata
 /// available. `classify_side_effects` still gates per call via its `dialect`
@@ -109,9 +107,7 @@ fn only_effect(cse: &CommandSideEffects) -> &SideEffect {
     &cse.effects[0]
 }
 
-// ===========================================================================
 // Side-effect classification
-// ===========================================================================
 
 // --- TestEnums -------------------------------------------------------------
 
@@ -892,9 +888,7 @@ fn hinted_tcl_commands_return_structured_effects() {
     }
 }
 
-// ===========================================================================
 // Command binding
-// ===========================================================================
 
 /// Build a `CompilationUnit` for the binding tests with the `tcl9.0` dialect.
 fn build_top(src: &str) -> CompilationUnit {

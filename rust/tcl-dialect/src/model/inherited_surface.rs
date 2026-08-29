@@ -203,9 +203,7 @@ pub struct InheritedSurfaceRegistration {
 /// register. The last roster for a `(target, source)` pair wins, so a
 /// bundled pack can restate a built-in one.
 #[must_use]
-pub fn register_inherited_surfaces(
-    rosters: Vec<InheritedSurface>,
-) -> InheritedSurfaceRegistration {
+pub fn register_inherited_surfaces(rosters: Vec<InheritedSurface>) -> InheritedSurfaceRegistration {
     let mut accepted: Vec<Arc<InheritedSurface>> = Vec::new();
     let mut rejected = Vec::new();
     for roster in rosters {
@@ -235,9 +233,7 @@ pub fn register_inherited_surfaces(
             });
             continue;
         }
-        accepted.retain(|prior| {
-            prior.target != roster.target || prior.source != roster.source
-        });
+        accepted.retain(|prior| prior.target != roster.target || prior.source != roster.source);
         accepted.push(Arc::new(roster));
     }
     let mut guard = state_cell().lock().expect("inherited surface lock");
@@ -332,7 +328,9 @@ mod tests {
     /// the descendant, while one it carries still does.
     #[test]
     fn a_roster_narrows_the_inherited_surface() {
-        let _serial = SERIAL.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _serial = SERIAL
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let outcome = register_inherited_surfaces(vec![jim_roster(&[("proc", &["0.76-"])])]);
         assert!(outcome.changed);
         assert_eq!(outcome.rosters, 1);
@@ -350,7 +348,9 @@ mod tests {
     /// edge that is not a reimplementation.
     #[test]
     fn an_unrostered_pair_inherits_wholesale() {
-        let _serial = SERIAL.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _serial = SERIAL
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         clear();
         assert!(admits(Family::Jim, Family::Tcl, "coroutine", None));
         assert!(admits(Family::F5Tcl, Family::Tcl, "coroutine", None));
@@ -361,7 +361,9 @@ mod tests {
     /// does. A document naming no release keeps the permissive answer.
     #[test]
     fn a_window_is_read_on_the_descendants_ladder() {
-        let _serial = SERIAL.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _serial = SERIAL
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let _ = register_inherited_surfaces(vec![jim_roster(&[("interp", &["0.77-"])])]);
         let at = |text: &str| Version::parse(text).expect("test version");
 
@@ -371,7 +373,12 @@ mod tests {
             "interp",
             Some(&at("0.76"))
         ));
-        assert!(admits(Family::Jim, Family::Tcl, "interp", Some(&at("0.84"))));
+        assert!(admits(
+            Family::Jim,
+            Family::Tcl,
+            "interp",
+            Some(&at("0.84"))
+        ));
         assert!(admits(Family::Jim, Family::Tcl, "interp", None));
         clear();
     }
@@ -381,7 +388,9 @@ mod tests {
     /// enumerated, and only a trusted tier may narrow a compiled family.
     #[test]
     fn a_roster_is_refused_off_its_edge_or_below_the_trust_floor() {
-        let _serial = SERIAL.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _serial = SERIAL
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let fork = InheritedSurface {
             target: Family::F5Tcl,
             ..jim_roster(&[("proc", &["0.76-"])])
@@ -398,8 +407,7 @@ mod tests {
             provenance: Provenance::WorkspaceUntrusted,
             ..jim_roster(&[("proc", &["0.76-"])])
         };
-        let outcome =
-            register_inherited_surfaces(vec![fork, root, wrong_ancestor, untrusted]);
+        let outcome = register_inherited_surfaces(vec![fork, root, wrong_ancestor, untrusted]);
         assert_eq!(outcome.rosters, 0);
         assert_eq!(outcome.rejected.len(), 4);
         assert!(matches!(
@@ -437,7 +445,9 @@ mod tests {
     /// set does not move the generation (the reload answer).
     #[test]
     fn registration_is_a_sync_with_a_stable_generation() {
-        let _serial = SERIAL.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _serial = SERIAL
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         clear();
         let first = register_inherited_surfaces(vec![jim_roster(&[("proc", &["0.76-"])])]);
         let again = register_inherited_surfaces(vec![jim_roster(&[("proc", &["0.76-"])])]);

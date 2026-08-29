@@ -19,7 +19,7 @@
 //! `concat` — concatenate lists.
 use crate::hooks::CodegenHookId;
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "concat ?arg arg ...?",
     ..FormSpec::DEFAULT

@@ -28,8 +28,8 @@
 //! plus its phi-undef index that the dataflow read-before-set emitters
 //! consult.
 
-use tcl_dialect::model::{SurfaceQuery};
 use std::collections::HashSet;
+use tcl_dialect::model::SurfaceQuery;
 
 use rustc_hash::{FxHashMap, FxHashSet};
 

@@ -19,7 +19,7 @@
 //! `pid` — return the process identifier of the current process, or of a
 //! command pipeline's processes.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// `pid` reads process/channel-table state it never writes, but that
 /// state lives outside the argument list — the OS process table for the

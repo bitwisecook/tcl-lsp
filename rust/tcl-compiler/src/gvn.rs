@@ -2117,8 +2117,8 @@ pub fn find_loop_invariants_for_cu(
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SurfaceQuery, Family};
-    
+    use tcl_dialect::model::{Family, SurfaceQuery};
+
     /// The default document's `${…}` close rule — these unit tests build no
     /// dialect profile, so they exercise the same style the lexer would use.
     const STYLE: tcl_dialect::BracedVarStyle = tcl_dialect::BracedVarStyle::Tcl9Nesting;

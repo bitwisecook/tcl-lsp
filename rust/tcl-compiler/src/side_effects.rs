@@ -928,7 +928,9 @@ fn classify_variable_assignment(
         let base = crate::naming::normalise_var_name(varname);
         if let Some(target) = tcl_registry::special_vars::special_var_write_effect(
             base,
-            Some(tcl_registry::special_vars::surface_query_for_profile(dialect)),
+            Some(tcl_registry::special_vars::surface_query_for_profile(
+                dialect,
+            )),
         ) {
             let mut extra = SideEffect::new(lift_registry_target(target), false, true);
             extra.dialect = dialect.map(|profile| profile.name.to_owned());
@@ -1072,8 +1074,8 @@ fn fallback_unknown_write(dialect: Option<&tcl_dialect::DialectProfile>) -> Comm
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SurfaceLayer, Family};
     use super::*;
+    use tcl_dialect::model::{Family, SurfaceLayer};
 
     #[test]
     fn http_targets_map_to_http_state_region() {

@@ -19,7 +19,7 @@
 //! `lmap` — iterate over all elements in one or more lists and collect results.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: true,

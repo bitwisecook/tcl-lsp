@@ -59,7 +59,7 @@
 // now that file is derived directly from `tcl_syntax::expr::operators`.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 // `?field?` is Tcl 9.0+ only (see the module doc comment above for the full
 // version evidence) — the form's own `dialects` says so directly, and it

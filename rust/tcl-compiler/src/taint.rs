@@ -120,10 +120,10 @@ use crate::regex_source::regexp_pattern_index;
 use crate::rendered_properties::{RenderedProperties, RenderedValueProps};
 use crate::sccp::{SccpResult, cfg_order};
 use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey, Version};
-use tcl_dialect::model::{SurfaceQuery};
 use crate::value_shapes::{
     is_pure_var_ref, parse_command_substitution, parse_command_substitution_with_spans,
 };
+use tcl_dialect::model::SurfaceQuery;
 
 // Colour lattice
 
@@ -1831,9 +1831,9 @@ fn seed_entry_taints(
     // local `set env …` writes a higher SSA version, so a read that resolves
     // to the local (version > 0) is unaffected; shadowing falls out of the SSA
     // versioning, not a check here.
-    for spec in tcl_registry::special_vars::special_vars_for_dialect(
-        Some(tcl_registry::special_vars::surface_query_for_profile(dialect)),
-    ) {
+    for spec in tcl_registry::special_vars::special_vars_for_dialect(Some(
+        tcl_registry::special_vars::surface_query_for_profile(dialect),
+    )) {
         let Some(colour) = spec.read_taint else {
             continue;
         };
@@ -2012,12 +2012,7 @@ fn classify_sink(
     }
 
     let subcommand = args.first().map(String::as_str);
-    let info = tcl_registry::taint::classify_taint_sinks(
-        registry,
-        command,
-        subcommand,
-        None,
-    );
+    let info = tcl_registry::taint::classify_taint_sinks(registry, command, subcommand, None);
 
     if let Some(code_str) = info.output_sink.or(info.log_sink) {
         let code: DiagCode = code_str.parse().unwrap_or_else(|_| {
@@ -5890,9 +5885,9 @@ pub fn find_setter_constraint_warnings<S: std::hash::BuildHasher, E: std::hash::
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SurfaceLayer, Family};
     use super::*;
     use crate::sccp::SccpResult;
+    use tcl_dialect::model::{Family, SurfaceLayer};
 
     fn simple_sccp(blocks: &[BlockId]) -> SccpResult {
         SccpResult {

@@ -146,13 +146,16 @@ fn surface_json(surface: Option<&'static [SpecSurface]>) -> Json {
     }
 }
 
-
 /// Whether the subcommand is available under `profile` (own gate wins;
 /// else inherit the parent `CommandSpec.surface`; else available) — the
 /// same §5.1 intersects membership every other availability consumer uses
 /// (the old `contains` rule hid a vendor profile's embedded-core
 /// subcommands from the dump).
-fn sub_available(profile: &DialectProfile, sub: &SubCommand, parent: Option<&'static [SpecSurface]>) -> bool {
+fn sub_available(
+    profile: &DialectProfile,
+    sub: &SubCommand,
+    parent: Option<&'static [SpecSurface]>,
+) -> bool {
     sub.surface
         .or(parent)
         .is_none_or(|gate| surface_admits(gate, Some(&profile.surface_query())))
@@ -448,8 +451,8 @@ pub fn command_registry_snapshots(registry: &CommandRegistry, dialects: &[&str])
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SpecSurface};
     use super::*;
+    use tcl_dialect::model::SpecSurface;
 
     /// The rendered dialect-name strings for a set.
     fn names(set: &'static [SpecSurface]) -> Vec<String> {

@@ -736,11 +736,9 @@ fn hash_inside_multiline_literal_is_string_not_overlapping_comment() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Issue #774 — `variable a b c` inside a TclOO definition body declares every
 // name as an instance variable (the namespace-level `variable name ?value?`
 // pairs only mark the leading name). All names must highlight as variables.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn oo_body_variable_highlights_every_name() {
@@ -770,12 +768,10 @@ fn plain_variable_command_keeps_pair_classification() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Issue #776 — a tcltest command imported into the global scope
 // (`namespace import tcltest::*`) resolves to its `tcltest::` spec, so bare
 // `test`'s options/body are recognised: `-body`/`-result` become options and
 // the `-body` script is recursed.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn imported_tcltest_test_options_are_recognised() {
@@ -836,12 +832,10 @@ fn import_does_not_retroactively_resolve_earlier_command() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Issue #775 — the argument to `source` is still tokenised: a command
 // substitution `[...]` in the file-name argument is highlighted as a command
 // sequence (its head + args), not left as one opaque string.  (No behaviour
 // change on the rust branch — this locks the already-correct classification.)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn source_command_substitution_argument_is_tokenised() {
@@ -867,12 +861,10 @@ fn source_command_substitution_argument_is_tokenised() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Peer bugs of #774 — other multi-name variable-declaring commands whose
 // trailing names the registry's single leading VarWrite role leaves as
 // strings.  The analyser already tracks these correctly (via lowering hooks);
 // only the highlighting lagged.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn global_highlights_every_name() {
@@ -914,11 +906,9 @@ fn namespace_variable_pairs_highlight_names_not_values() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Loop-variable highlighting — `foreach` / `lmap` / `dict for` bind their
 // iteration variables, which must read as variable declarations, whether a
 // single bareword or the elements of a braced list.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn foreach_single_loop_var_is_variable() {
@@ -989,13 +979,11 @@ fn non_loop_command_first_arg_stays_string() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Parameter-list highlighting — proc / method / constructor / apply-lambda
 // parameters, and the registry `LoopVarList` role for `dict map` (peer of
 // `dict for`).  A *parameter* carries the standard LSP `parameter` type (#898
 // §4), so a theme can tell an argument from an ordinary local; a *loop*
 // variable stays a plain variable declaration.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn proc_parameters_are_parameters() {
@@ -1086,11 +1074,9 @@ fn dict_map_loop_vars_are_variables() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // By-reference local variable highlighting — `upvar` / `namespace upvar`
 // locals and `dict update` var names read as declarations; the "other" names,
 // the level word, and dict keys stay strings.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn upvar_local_names_are_variables() {
@@ -1162,11 +1148,9 @@ fn dict_update_var_names_are_variables() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // snit — the definition-body grammar is registry data (tcl_registry::definer),
 // so `snit::type` / `snit::widget` bodies recurse and highlight like TclOO
 // without any snit-specific code in the token walk.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn snit_type_members_highlight() {
@@ -1236,12 +1220,10 @@ fn snit_member_keyword_only_inside_body() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // [incr Tcl] — `itcl::class` definition bodies. Members (method / proc /
 // variable / common / constructor / destructor / inherit) plus the access
 // modifiers public / protected / private (prefix wrappers) all resolve from the
 // registry's ITCL grammar, like TclOO/snit.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn itcl_class_members_highlight() {
@@ -1364,13 +1346,11 @@ fn itcl_body_external_definition_highlights() {
     }
 }
 
-// ===========================================================================
 // Issue #806 — report::defstyle scoped command environment.
 //
 // Inside a report::defstyle style script the report configuration methods
 // (top/data/columns/…) highlight as library functions and their ensemble
 // operations (`top set`) as subcommand keywords — all from registry data.
-// ===========================================================================
 
 #[test]
 fn scoped_report_line_command_is_function() {
@@ -1414,7 +1394,6 @@ fn scoped_report_command_not_highlighted_outside_body() {
     let _ = src;
 }
 
-// ---------------------------------------------------------------------------
 // Issue #862 — "set"/"lassign"/"incr"/"lappend"/"append"/"expr" (and every
 // other plain builtin) rendered unstyled for users whose theme had no rule
 // for the `support.function.tcl` scope a `semanticTokenScopes` override
@@ -1428,7 +1407,6 @@ fn scoped_report_command_not_highlighted_outside_body() {
 // `function` with the `defaultLibrary` modifier, so the naming
 // infrastructure that drives the fix stays correct generally, not just for
 // the specific commands the report happened to list.
-// ---------------------------------------------------------------------------
 
 /// The reported commands, plus `lset` (the command bitwisecook's own
 /// investigation on the issue checked) and `puts` as a non-regressed control.
@@ -1573,9 +1551,7 @@ fn bigip_conf_embedded_rule_body_is_tokenised_as_irules() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Issue #1078 — a brace-quoted variable-name word is a variable, not a string
-// ---------------------------------------------------------------------------
 //
 // tclsh 9.0.4 / 8.6.14, byte-identical: `set {$n} v; info exists {$n}` → 1
 // while `info exists n` → 0, so `{$n}` names a real variable — and quoting is
@@ -1635,10 +1611,8 @@ fn brace_quoted_variable_name_word_paints_as_a_variable() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Issue #1138 — a script argument built with `list` highlights like the
 // command it provably is.
-// ---------------------------------------------------------------------------
 //
 // Tk's `library/tk.tcl:289` is `uplevel #0 [list upvar #0 ::tk::Priv.$disp
 // ::tk::Priv]`, and the very next line declares the same cell as `variable
@@ -1779,13 +1753,11 @@ fn tcl86_leading_bom_stays_part_of_the_first_command_token() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // SpecTcl — a `.tclspec` command pack. Every statement word below is
 // registry data (the `spectcl` pack plus the `SPECTCL_*` definition-body
 // grammars in `tcl_registry::definer`); this walk contains no SpecTcl code
 // at all, which is the whole point of `spec-packs.md`'s "authoring a pack
 // gets highlighting … from the same machinery it configures".
-// ---------------------------------------------------------------------------
 
 /// The nesting chain, painted: a `speclib` body's `command` word is a member
 /// keyword, that command's body's `arity` / `arg` words are keywords too, and

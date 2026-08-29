@@ -105,7 +105,6 @@ fn collect_names<'a>(symbols: &'a [DocumentSymbol], out: &mut Vec<&'a str>) {
     }
 }
 
-// =========================================================================
 // code_lens
 //
 // The Rust `code_lenses` provider already resolves the count eagerly, so the
@@ -114,7 +113,6 @@ fn collect_names<'a>(symbols: &'a [DocumentSymbol], out: &mut Vec<&'a str>) {
 // `command` string are editor-presentation — asserted structurally. The
 // reference COUNT is the Tcl-semantic fact: it is the number of real call
 // sites of the proc in the script.
-// =========================================================================
 
 const TEST_URI: &str = "file:///test.tcl";
 
@@ -342,7 +340,6 @@ fn code_lens_degenerate_inputs_do_not_panic() {
     }
 }
 
-// =========================================================================
 // document_symbols — proc / namespace / variable / class symbol tree
 //
 // The symbol TREE STRUCTURE (which names nest under which) mirrors the real
@@ -351,7 +348,6 @@ fn code_lens_degenerate_inputs_do_not_panic() {
 // `namespace children` / `info class methods` below. SymbolKind icon strings
 // ("Function", "Namespace", …) are editor-presentation, asserted structurally
 // via the kind enum.
-// =========================================================================
 
 #[test]
 fn doc_symbols_empty_file_is_empty() {
@@ -552,7 +548,6 @@ fn doc_symbols_multiple_top_level_procs() {
     assert!(names.contains(&"bar"));
 }
 
-// =========================================================================
 // code_actions — quick-fixes offered for diagnostics
 //
 // These exercise the analyser→quick-fix path. The TRIGGER conditions are
@@ -561,7 +556,6 @@ fn doc_symbols_multiple_top_level_procs() {
 // a runtime error without `-nocomplain` (W213). The quick-fix EDIT (the
 // inserted text, the title wording) is editor-presentation, asserted
 // structurally on the resulting `TextEdit`.
-// =========================================================================
 
 /// A code-action range spanning a whole line — the editor sends the cursor's
 /// line/selection; a quick-fix is offered when the diagnostic overlaps it.
@@ -692,7 +686,6 @@ fn code_actions_degenerate_inputs_do_not_panic() {
     }
 }
 
-// =========================================================================
 // declaration — jump to a proc / var declaration
 //
 // The DECLARATION SITE is a Tcl-semantic fact. `global counter` inside a proc
@@ -700,7 +693,6 @@ fn code_actions_degenerate_inputs_do_not_panic() {
 // variable); a `$counter` reference resolves there. A bare proc call resolves
 // to the proc's definition site. tclsh proof: `info args` confirms a proc has
 // a real definition with a real parameter list.
-// =========================================================================
 
 #[test]
 fn declaration_global_decl_in_proc_body() {
@@ -822,13 +814,11 @@ fn declaration_on_blank_position_does_not_panic() {
     );
 }
 
-// =========================================================================
 // type_definition — TclOO: jump to the class that types a symbol
 //
 // tclsh proof: `[Dog new]` constructs a Dog instance; `info object class $d`
 // → `::Dog`. So an inferred `$d` of class Dog has its type at the `Dog` class
 // definition. A method word inside a class body belongs to that class.
-// =========================================================================
 
 #[test]
 fn type_definition_var_jumps_to_inferred_class() {
@@ -882,14 +872,12 @@ fn type_definition_unrelated_word_is_empty_and_no_panic() {
     assert!(type_definition(src, 9, 9, &analysis).is_empty());
 }
 
-// =========================================================================
 // implementation — TclOO subclass / method-override fan-out
 //
 // tclsh proof: `info class subclasses Base` → `::Sub` (who realises Base);
 // `info class methods` per class tells which classes define a method. The
 // provider answers "who realises this": subclasses for a class name, all
 // definers for a free method name, self + descendant overrides inside a class.
-// =========================================================================
 
 #[test]
 fn implementation_class_name_returns_direct_subclasses() {
@@ -954,14 +942,12 @@ fn implementation_unknown_word_is_empty_and_no_panic() {
     assert!(implementation(src, 8, 8, &analysis).is_empty());
 }
 
-// =========================================================================
 // type_hierarchy — resolve the TclOO class at the cursor (prepare)
 //
 // tclsh proof: `info class superclass` / `info class subclasses` confirm the
 // class is a real TclOO type. The `prepare` step resolves the class whose
 // name is under the cursor; super/subtype walks are stubbed in this provider,
 // so this covers the prepare surface (the part that is implemented).
-// =========================================================================
 
 #[test]
 fn type_hierarchy_resolves_class_at_cursor() {
@@ -1015,14 +1001,12 @@ fn type_hierarchy_degenerate_inputs_do_not_panic() {
     let _ = type_hierarchy_prepare(src, 9, 9, &analysis);
 }
 
-// =========================================================================
 // linked_editing_range — link a proc declaration to its recursive self-calls
 //
 // The LINKED set is a Tcl-semantic fact: a recursive proc calls *itself*, so
 // renaming the proc must rename the self-call too. tclsh proof: a real proc
 // with a self-call exists (`info body factorial` contains `factorial`). The
 // WORD_PATTERN regex is editor-presentation, asserted structurally.
-// =========================================================================
 
 #[test]
 fn linked_editing_links_recursive_self_call() {

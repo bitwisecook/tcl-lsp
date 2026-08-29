@@ -19,7 +19,7 @@
 //! `parray` — print an array's contents to standard output.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 // Manpage comparison across Tcl 8.4, 8.5, 8.6, 9.0, and 9.1
 // (tcl-lang.org's TclCmd/library.html, `.htm` for the 8.6 tree — `parray`

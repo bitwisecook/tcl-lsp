@@ -19,7 +19,7 @@
 //! `after` — execute a command after a time delay.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "after ms ?script script script ...?",

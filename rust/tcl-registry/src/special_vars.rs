@@ -51,8 +51,8 @@
 
 use crate::side_effects::SideEffectTarget;
 use crate::taint::TaintColour;
+use tcl_dialect::model::SpecSurface;
 use tcl_dialect::model::{SurfaceQuery, surface_admits};
-use tcl_dialect::model::{SpecSurface};
 
 /// The value shape a special variable holds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -209,11 +209,15 @@ impl SpecialVarSpec {
     /// lazy read trace; callers must still account for scope and later writes.
     #[must_use]
     pub fn readable_at_startup_in(&self, dialect: Option<SurfaceQuery<'_>>) -> bool {
-        surface_admits(self.initially_bound, dialect.as_ref()) || surface_admits(self.lazily_readable, dialect.as_ref())
+        surface_admits(self.initially_bound, dialect.as_ref())
+            || surface_admits(self.lazily_readable, dialect.as_ref())
     }
 
     /// The known keys of this array that are present in `dialect`.
-    pub fn keys_in(&self, dialect: Option<SurfaceQuery<'_>>) -> impl Iterator<Item = &SpecialVarKey> {
+    pub fn keys_in(
+        &self,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> impl Iterator<Item = &SpecialVarKey> {
         self.keys
             .iter()
             .filter(move |k| surface_admits(k.surface, dialect.as_ref()))
@@ -251,7 +255,10 @@ pub fn special_var(name: &str) -> Option<&'static SpecialVarSpec> {
 /// Look up a special variable that is available in `dialect` (the resolved
 /// availability point, from [`surface_query_for_profile`]).
 #[must_use]
-pub fn special_var_in_dialect(name: &str, dialect: Option<SurfaceQuery<'_>>) -> Option<&'static SpecialVarSpec> {
+pub fn special_var_in_dialect(
+    name: &str,
+    dialect: Option<SurfaceQuery<'_>>,
+) -> Option<&'static SpecialVarSpec> {
     special_var(name).filter(|v| v.available_in(dialect))
 }
 
@@ -311,7 +318,10 @@ pub fn is_externally_read(name: &str, dialect: Option<SurfaceQuery<'_>>) -> bool
 /// special variable there. Lets the side-effect analysis treat
 /// `set auto_path …` as an [`SideEffectTarget::InterpState`] mutation.
 #[must_use]
-pub fn special_var_write_effect(name: &str, dialect: Option<SurfaceQuery<'_>>) -> Option<SideEffectTarget> {
+pub fn special_var_write_effect(
+    name: &str,
+    dialect: Option<SurfaceQuery<'_>>,
+) -> Option<SideEffectTarget> {
     special_var_in_dialect(name, dialect).and_then(|v| v.write_effect)
 }
 
@@ -319,7 +329,10 @@ pub fn special_var_write_effect(name: &str, dialect: Option<SurfaceQuery<'_>>) -
 /// or `None` if reading it is not a taint source there. `env` / `argv` /
 /// `argv0` are attacker-influenced external input.
 #[must_use]
-pub fn special_var_read_taint(name: &str, dialect: Option<SurfaceQuery<'_>>) -> Option<TaintColour> {
+pub fn special_var_read_taint(
+    name: &str,
+    dialect: Option<SurfaceQuery<'_>>,
+) -> Option<TaintColour> {
     special_var_in_dialect(name, dialect).and_then(|v| v.read_taint)
 }
 
@@ -864,9 +877,9 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{Family};
-    use tcl_dialect::model::{SurfaceQuery};
-    
+    use tcl_dialect::model::Family;
+    use tcl_dialect::model::SurfaceQuery;
+
     use super::*;
 
     /// The catalogue point the tests exercise these queries under — the

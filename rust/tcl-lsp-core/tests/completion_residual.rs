@@ -44,8 +44,8 @@
 //! yields no completion) are asserted directly — tclsh has no opinion on
 //! editor presentation.
 
-use tcl_dialect::model::{SurfaceLayer, Family};
 use tcl_compiler::analyser::{Analyser, AnalysisResult};
+use tcl_dialect::model::{Family, SurfaceLayer};
 use tcl_lsp_core::completion::{CompletionKind, completions};
 use tcl_lsp_core::workspace_index::WorkspaceIndex;
 use tcl_registry::CommandRegistry;
@@ -92,11 +92,9 @@ fn smoke_completion_binary_exists() {
     assert!(items.iter().any(|i| i.label == "puts"), "{items:?}");
 }
 
-// ===========================================================================
 // Variable completion — braced `${…}` form, the forward-scan that swallows an
 // existing reference, cross-namespace qualified vars, and the substitutable
 // filter. Lines ~412, 488-520, 597, 628-656.
-// ===========================================================================
 
 #[test]
 fn var_brace_trigger_emits_braced_text_edit() {
@@ -322,9 +320,7 @@ fn var_bare_forward_scan_crosses_namespace_separator() {
     }
 }
 
-// ===========================================================================
 // Array-element completion — `$arr(` / `$arr(prefix`. Lines 533-579.
-// ===========================================================================
 
 #[test]
 fn array_element_completion_lists_recorded_indices() {
@@ -434,11 +430,9 @@ fn array_element_completion_unknown_array_yields_nothing() {
     );
 }
 
-// ===========================================================================
 // Switch / option completion — the text-edit range and documentation.
 // Lines around 720 (the `start == 0` guard is exercised by the dash-at-col-0
 // path) and switch_completions' edit.
-// ===========================================================================
 
 #[test]
 fn switch_completion_attaches_replacement_edit_over_dash_partial() {
@@ -500,10 +494,8 @@ fn switch_partial_at_col_zero_is_not_a_switch() {
     );
 }
 
-// ===========================================================================
 // Command-level positional arg-value completion (iRules) — `when … timing` and
 // `HTTP::respond <status> content|noserver|…`. Lines 271-288.
-// ===========================================================================
 
 #[test]
 fn http_respond_status_offers_bareword_option_values() {
@@ -649,10 +641,8 @@ fn when_value_slot_suppressed_after_priority_keyword() {
     );
 }
 
-// ===========================================================================
 // Subcommand argument-value completion — `string is <class>` exercising the
 // subcommand (not command-level) arg-value path. Lines 255-264.
-// ===========================================================================
 
 #[test]
 fn string_is_class_completion_uses_subcommand_arg_values() {
@@ -687,10 +677,8 @@ fn string_is_class_completion_uses_subcommand_arg_values() {
     }
 }
 
-// ===========================================================================
 // iRules event-name completion (the `event_name_completions` body) and `call`
 // proc completion under the iRules dialect. Lines 232, 244-245, 773-809.
-// ===========================================================================
 
 #[test]
 fn event_name_completion_documents_event_from_registry_props() {
@@ -788,10 +776,8 @@ fn call_completion_lists_user_procs_under_irules() {
     }
 }
 
-// ===========================================================================
 // Workspace-wide proc enumeration — the cross-document fallback and its
 // `workspace_proc_detail` ("1 param" vs "N params"). Lines 302-325, 364-371.
-// ===========================================================================
 
 #[test]
 fn workspace_proc_detail_uses_singular_for_one_param() {
@@ -904,10 +890,8 @@ fn workspace_completion_dedupes_against_local_and_builtins() {
     }
 }
 
-// ===========================================================================
 // `is_bare_var_name` edges via observable completion behaviour — empty name
 // guards (lines 131, 135) and the brace-vs-bare choice for qualified names.
-// ===========================================================================
 
 #[test]
 fn qualified_global_var_completes_in_bare_form() {
@@ -939,10 +923,8 @@ fn qualified_global_var_completes_in_bare_form() {
     }
 }
 
-// ===========================================================================
 // Snippet surface in the iRules dialect — the `current_event` / `file_events`
 // segmentation that only runs for `f5-irules`. Lines 341-344.
-// ===========================================================================
 
 #[test]
 fn irules_dialect_runs_event_segmentation_for_snippets() {
@@ -1001,10 +983,8 @@ fn plain_tcl_dialect_skips_irules_event_segmentation() {
     );
 }
 
-// ===========================================================================
 // Built-in `command_detail` provenance — proc signature rendering with params
 // and defaults (the proc fallback). Lines 970-983.
-// ===========================================================================
 
 #[test]
 fn proc_completion_renders_param_signature_detail() {
@@ -1083,11 +1063,9 @@ fn proc_completion_variadic_detail_includes_args() {
     assert!(detail.contains("args"), "{detail:?}");
 }
 
-// ===========================================================================
 // Structural edges — comment/string suppression is not a special case here
 // (the provider is position-based), but empty / no-completion edges and the
 // command-position fallback are. These need no tclsh proof.
-// ===========================================================================
 
 #[test]
 fn no_matching_command_or_proc_yields_no_symbols() {

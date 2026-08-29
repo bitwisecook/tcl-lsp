@@ -549,7 +549,6 @@ impl TclVersion {
 /// (`8.6.16.2` orders below `8.6.<ceiling>` at the third component).
 const PATCH_CEILING: &str = "99999999999999999999";
 
-// ---------------------------------------------------------------------------
 // The package version comparator — a port of C Tcl's `generic/tclPkg.c`.
 //
 // One implementation, shared by the bytecode VM's `package vcompare` /
@@ -565,7 +564,6 @@ const PATCH_CEILING: &str = "99999999999999999999";
 // | `CompareVersions`         | [`compare_internal`]       |
 // | `RequirementSatisfied`    | [`satisfies_internal`]     |
 // | `SelectPackage` (best/best-stable loop) | [`select_package_version`] |
-// ---------------------------------------------------------------------------
 
 /// One element of a version's internal representation.
 ///

@@ -82,10 +82,10 @@
 //!   in [`crate::cache`], which is the one door production code loads a pack
 //!   through. Target-dependent packs (E-R1) are never stored.
 
-use tcl_dialect::model::surfaces_overlap;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+use tcl_dialect::model::surfaces_overlap;
 
 use tcl_dialect::model::environment::Provenance;
 use tcl_spec_hooks::pack_eval::{
@@ -100,7 +100,7 @@ use super::{
 };
 use crate::discovery::Tier;
 use crate::export::{Registration, synth_word};
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// The evaluation loader's own version, part of the snapshot cache key: a
 /// change to how evaluation captures or replays invalidates every cached
@@ -174,9 +174,7 @@ pub fn evaluate_pack(source: &str) -> Pack {
     evaluate_pack_with(source, &EvalOptions::default())
 }
 
-// ---------------------------------------------------------------------------
 // Capture
-// ---------------------------------------------------------------------------
 
 /// Every statement word that is a plain **row** at some scope: captured
 /// verbatim and replayed through the scope's own reader, which is also what
@@ -1348,9 +1346,7 @@ fn unknown_handler(state: &Rc<RefCell<State>>) -> UnknownHandler {
     )
 }
 
-// ---------------------------------------------------------------------------
 // Evaluate
-// ---------------------------------------------------------------------------
 
 /// Evaluate a `.tclspec` source as a Tcl program (design E).
 ///
@@ -1510,9 +1506,7 @@ fn failed_pack(state: &State, failure: &PackEvalFailure) -> Pack {
     pack
 }
 
-// ---------------------------------------------------------------------------
 // Replay
-// ---------------------------------------------------------------------------
 
 /// Whether this tier's registrations are gated by E-R2's untrusted rules.
 ///

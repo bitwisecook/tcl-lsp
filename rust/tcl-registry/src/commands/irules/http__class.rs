@@ -18,7 +18,7 @@
 
 //! `HTTP::class` iRules command.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// The command's iRules subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[SubCommand {

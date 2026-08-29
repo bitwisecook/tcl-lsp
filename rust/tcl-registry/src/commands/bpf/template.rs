@@ -19,7 +19,7 @@
 //! `template` — declare a reusable parameterised handler
 //! (`template NAME { params } { body }`), expanded at each `use` site.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 pub fn spec() -> CommandSpec {
     const OP: BpfOpSpec = BpfOpSpec::framework(BpfDeclKind::Template);

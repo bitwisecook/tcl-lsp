@@ -21,7 +21,7 @@
 //! contrast `regex__quote.rs`, which doubles the underscore for the
 //! shorter `regex::quote` spelling).
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "regexp::quote STRING",
     ..FormSpec::DEFAULT

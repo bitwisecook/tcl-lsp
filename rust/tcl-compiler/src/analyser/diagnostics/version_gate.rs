@@ -59,8 +59,8 @@
 //!
 //! [`ArgValue::min_tcl`]: tcl_registry::ArgValue
 
-use tcl_dialect::model::{SpecProvider, Family};
 use tcl_core_types::DiagCode;
+use tcl_dialect::model::{Family, SpecProvider};
 use tcl_lexer::{Span, Token, TokenType};
 use tcl_registry::deprecation::{
     DeprecationFixContext, DeprecationFixSafety, DeprecationFixTarget, DeprecationFixWord,
@@ -69,7 +69,7 @@ use tcl_registry::lifecycle::{Lifecycle, LifecycleState};
 
 use super::super::state::Analyser;
 use super::super::types::{Diagnostic, Severity};
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// A lifecycle-bearing registry use, recorded during the walk and checked
 /// post-walk against its package or core-Tcl version floor.

@@ -191,9 +191,7 @@ pub fn tcllibpath_dirs() -> Vec<PathBuf> {
         .collect()
 }
 
-// ---------------------------------------------------------------------------
 // Config-file `libraryPaths`.
-// ---------------------------------------------------------------------------
 
 /// The platform-native user config file (`config.ini`):
 ///

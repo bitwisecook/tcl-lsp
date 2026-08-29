@@ -27,7 +27,7 @@
 //! `commands/stdlib/http__*.rs`.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// Command spec for the `http` package identifier.
 pub fn spec() -> CommandSpec {

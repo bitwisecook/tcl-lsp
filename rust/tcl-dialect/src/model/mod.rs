@@ -51,7 +51,8 @@ pub mod inherited_surface;
 pub mod version_set;
 
 pub use authored_surface::{
-    SpecProvider, SpecSurface, SpecWindow, SurfaceLayer, SurfaceQuery, surface_admits, surface_admits_from, surface_breadth, surface_provided_by, surfaces_overlap,
+    SpecProvider, SpecSurface, SpecWindow, SurfaceLayer, SurfaceQuery, surface_admits,
+    surface_admits_from, surface_breadth, surface_provided_by, surfaces_overlap,
 };
 pub use dynamic::{
     DynamicCore, DynamicFamily, DynamicFamilyError, DynamicFamilyId, DynamicRegistration,

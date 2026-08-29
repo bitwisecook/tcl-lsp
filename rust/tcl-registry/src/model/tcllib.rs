@@ -60,8 +60,8 @@
 //!
 //! [`Provider::Package`]: crate::model::surface::Provider::Package
 
+use tcl_dialect::model::SpecSurface;
 use tcl_dialect::model::{VersionAxisId, VersionSet};
-use tcl_dialect::model::{SpecSurface};
 
 /// One tcllib module's package identity, as the bundled tcllib 2.0
 /// sources state it.
@@ -1449,7 +1449,7 @@ pub fn core_floor_surface(package: &str) -> &'static [SpecSurface] {
 
 #[cfg(test)]
 mod tests {
-    
+
     use super::*;
     use tcl_dialect::model::Version;
 

@@ -50,7 +50,6 @@ pub mod model;
 mod profile;
 mod version;
 
-pub use profile::{KNOWN_DIALECTS, available_dialects};
 pub use expr_number::{
     ExprNumberLexeme, NanPayloadLexeme, expr_binary_word_operator_at,
     expr_word_operator_boundary_ok, expr_word_operator_right_boundary_ok, is_expr_bareword_byte,
@@ -62,6 +61,7 @@ pub use grammar::{
 };
 pub use library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
 pub use profile::{DialectFileExtension, DialectProfile};
+pub use profile::{KNOWN_DIALECTS, available_dialects};
 pub use version::{
     ByteStringEncoding, CorePackage, PackagePrefer, StringCharacterModel, TclVersion, Ternary,
     compare_versions, exact_requirement, select_package_version, version_is_stable,

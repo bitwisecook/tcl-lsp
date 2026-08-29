@@ -24,9 +24,7 @@
 //! Tcl semantics, with the Tcl-semantic facts pinned to real C-Tcl
 //! (tclsh8.6 / tclsh9.0 via `scripts/dev/tclsh_check.sh`).
 //!
-//! ----------------------------------------------------------------------------
 //! The presentation/structure split (read this first)
-//! ----------------------------------------------------------------------------
 //! A document SYMBOL, a code LENS, a document LINK, and a code ACTION are
 //! editor-presentation artefacts: their *shape* (which `SymbolKind`, the lens
 //! title text, the link's `file://` URI, the action's edit range) is an LSP
@@ -58,10 +56,8 @@ use tcl_lsp_core::definition::LspRange;
 use tcl_lsp_core::document_links::{DocumentLink, document_links, document_links_with_home};
 use tcl_lsp_core::document_symbols::{DocumentSymbol, LineRange, SymbolKind, document_symbols};
 
-// ---------------------------------------------------------------------------
 // Shared harness — mirrors the existing port files
 // (`call_hierarchy.rs`, `references_rename.rs`).
-// ---------------------------------------------------------------------------
 
 /// Build an analysis exactly the way the other port files do.
 fn analyse(source: &str) -> AnalysisResult {
@@ -112,9 +108,7 @@ fn selection(line: u32, start: u32, end: u32) -> LspRange {
     }
 }
 
-// ===========================================================================
 // document_symbols
-// ===========================================================================
 
 #[test]
 fn symbols_empty_file_yields_nothing() {
@@ -435,9 +429,7 @@ fn symbols_mixed_document_collects_all_top_level_definitions() {
     );
 }
 
-// ===========================================================================
 // code_lens — reference-count lenses on procs / classes / methods
-// ===========================================================================
 
 /// Parse a `"N reference(s)"` lens title back into its integer count.
 fn lens_count(lens: &CodeLens) -> usize {
@@ -609,9 +601,7 @@ fn lens_counts_method_calls_inside_class_body() {
     );
 }
 
-// ===========================================================================
 // document_links — `source <path>` and `package require <pkg>`
-// ===========================================================================
 
 /// Source-range start `(line, character)` of a link.
 fn link_start(link: &DocumentLink) -> (u32, u32) {
@@ -875,9 +865,7 @@ fn tn_a_plain_literal_path_still_links() {
 // extraction (e.g. `include`/`source` of a tmsh config fragment) — those would
 // be a separate concern and are not surfaced here. // bigip
 
-// ===========================================================================
 // code_actions — quick-fixes / refactors at a position
-// ===========================================================================
 
 /// Every action's edits must be well-formed: each replacement range has its
 /// start at or before its end (a valid LSP edit range).

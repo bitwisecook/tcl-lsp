@@ -30,7 +30,7 @@
 //! core entry below plus [`spec_ooutil_86`] — mirroring `mymethod`'s
 //! [`super::oo_callback::mymethod_spec_ooutil_86`].
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "classvariable variableName ?...?",
@@ -123,8 +123,8 @@ pub fn spec_ooutil_86() -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SpecSurface};
     use super::*;
+    use tcl_dialect::model::SpecSurface;
 
     /// The version dimension: a bare `classvariable` in a method body is a
     /// genuine core command on 9.0+ with no `package require` needed

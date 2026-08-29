@@ -192,9 +192,7 @@ pub(crate) fn parse(words: &[&str], line: u32, log: &mut Log) -> Option<PackSurf
 /// The compiled [`Family`] `name` spells, when it spells one.
 #[must_use]
 pub fn family_named(name: &str) -> Option<Family> {
-    Family::ALL
-        .into_iter()
-        .find(|family| family.name() == name)
+    Family::ALL.into_iter().find(|family| family.name() == name)
 }
 
 /// Parse a whole statement's worth of words — the replay-side entry, for
@@ -230,7 +228,10 @@ mod tests {
         assert_eq!(row.source, "tcl");
         assert_eq!(row.target, "jim");
         assert_eq!(
-            row.names.iter().map(|n| n.name.as_str()).collect::<Vec<_>>(),
+            row.names
+                .iter()
+                .map(|n| n.name.as_str())
+                .collect::<Vec<_>>(),
             ["set", "proc", "if"]
         );
         assert!(row.names.iter().all(|n| n.window.is_empty()));

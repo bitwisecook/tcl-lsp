@@ -452,9 +452,9 @@ fn expand_user(path: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    
+
     use super::resolve_dialect;
-    use tcl_dialect::{DialectProfile};
+    use tcl_dialect::DialectProfile;
 
     #[test]
     fn explicit_irules_alias_resolves_to_the_canonical_profile() {

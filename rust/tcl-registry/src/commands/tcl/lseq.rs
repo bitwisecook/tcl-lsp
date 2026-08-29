@@ -70,7 +70,7 @@
 // cmd_lseq`), so `FRAMELESS_RUNTIME` still holds, matching `expr`'s own
 // classification for the identical reason.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[
     FormSpec {

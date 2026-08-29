@@ -73,7 +73,7 @@
 //! data-over-assumption call `parray.rs` made.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "tclLog string",

@@ -407,9 +407,9 @@ fn is_decl(stmt: &Statement, registry: &CommandRegistry) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SurfaceQuery, Family};
     use super::*;
     use crate::ir::Term;
+    use tcl_dialect::model::{Family, SurfaceQuery};
     use tcl_dialect::{NumberSyntax, TclVersion};
     use tcl_syntax::number::{runtime_syntax, set_runtime_syntax};
 

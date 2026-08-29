@@ -451,9 +451,7 @@ fn local_snapshots(args: &[String]) -> anyhow::Result<Vec<VersionedSnapshot>> {
     Ok(snapshots)
 }
 
-// ---------------------------------------------------------------------------
 // GitHub mode
-// ---------------------------------------------------------------------------
 
 /// A validated `OWNER/REPO`.
 ///

@@ -93,9 +93,7 @@ fn hl_lines(h: &[(LspRange, HighlightKind)]) -> Vec<u32> {
     v
 }
 
-// ===========================================================================
 // references — class names (decl + `<Class> new` instantiations).
-// ===========================================================================
 
 #[test]
 fn references_class_includes_decl_and_every_instantiation() {
@@ -278,9 +276,7 @@ fn references_class_from_qualified_name_at_decl_resolves() {
     assert_eq!(ref_lines(&refs), vec![0, 3], "{refs:?}");
 }
 
-// ===========================================================================
 // document_highlights — variables (Write at def, Read at uses; dedup).
-// ===========================================================================
 
 #[test]
 fn document_highlights_var_marks_def_write_and_reads_read() {
@@ -374,9 +370,7 @@ fn document_highlights_dedup_keeps_write_over_read_on_collision() {
     );
 }
 
-// ===========================================================================
 // document_highlights — class names (all Text; mirror of the class ref block).
-// ===========================================================================
 
 #[test]
 fn document_highlights_class_decl_and_instantiations_are_text() {
@@ -410,10 +404,8 @@ fn document_highlights_class_decl_and_instantiations_are_text() {
     );
 }
 
-// ===========================================================================
 // references / document_highlights — class members (methods, classmethods,
 // properties) and external `$obj method` call sites.
-// ===========================================================================
 
 #[test]
 fn references_external_obj_method_two_instances_both_sites() {
@@ -586,9 +578,7 @@ fn document_highlights_method_decl_and_external_site_all_text() {
     );
 }
 
-// ===========================================================================
 // references / document_highlights — robustness.
-// ===========================================================================
 
 #[test]
 fn references_unknown_word_and_out_of_range_do_not_panic() {
@@ -757,11 +747,9 @@ fn references_method_with_destructor_resolves_external_site() {
     );
 }
 
-// ===========================================================================
 // BUG WITNESSES — the intra-class member scan does not match real TclOO call
 // forms.  These tests assert the CORRECT behaviour and are expected to FAIL
 // until the provider is fixed; do not "fix" them by asserting today's output.
-// ===========================================================================
 
 // BUG (false negative): the intra-class method-reference scan looks for the
 // member name at command-HEAD position, but a real intra-class call is

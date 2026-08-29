@@ -18,7 +18,7 @@
 
 //! `apply` — apply an anonymous procedure.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// `apply` never binds a name in the interpreter's command table — the
 /// temporary `Proc` structure TIP 194 builds for the lambda is discarded

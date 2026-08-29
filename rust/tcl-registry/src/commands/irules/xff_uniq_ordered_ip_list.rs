@@ -18,7 +18,7 @@
 
 //! `xff_uniq_ordered_ip_list` iRules command.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "xff_uniq_ordered_ip_list",

@@ -19,7 +19,7 @@
 //! `oo::singleton` — metaclass for classes that permit at most one instance.
 use super::oo_class::{CLASS_FACTORY_SUBCOMMANDS, oo_class_arg_roles};
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 // `oo::singleton create` / `createWithNamespace` mint a new class as a
 // command in the interpreter's command table; no file I/O, process, or

@@ -177,7 +177,7 @@ const OO_OBJDEFINE_SUBCOMMAND_VALUES: &[ArgValue] = &[
 ];
 
 use super::oo_define::oo_define_arg_roles;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 pub fn spec() -> CommandSpec {
     CommandSpec {

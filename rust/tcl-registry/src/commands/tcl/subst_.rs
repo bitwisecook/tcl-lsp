@@ -18,7 +18,7 @@
 
 //! `subst` — perform Tcl substitutions on a string.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// `subst`'s embedded `[command]` substitutions can do literally anything
 /// once evaluated, the same "unknowable statically" reasoning `eval` /

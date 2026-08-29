@@ -60,7 +60,7 @@
 //! own specs).
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 // Tcl 8.4's SYNOPSIS documents `source -rsrc resourceName ?fileName?` and
 // `source -rsrcid resourceId ?fileName?` alongside the plain `source
@@ -254,8 +254,8 @@ pub fn spec() -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SpecSurface};
     use super::*;
+    use tcl_dialect::model::SpecSurface;
 
     #[test]
     fn nopkg_is_a_tcl9_only_flag_without_a_value() {

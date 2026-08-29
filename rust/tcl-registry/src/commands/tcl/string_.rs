@@ -205,7 +205,7 @@ fn fold_totitle(args: &[&str]) -> Option<String> {
 }
 
 use crate::const_fold::{clamp_range, parse_index};
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// Fold `string match` for literal arguments.  The glob implementation is
 /// shared with the runtime-facing command core, so this callback is command
@@ -1758,8 +1758,8 @@ pub fn spec() -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SurfaceQuery, Family};
-    
+    use tcl_dialect::model::{Family, SurfaceQuery};
+
     use super::fold_is;
     use crate::hooks::TclVersion;
     use crate::{CommandRegistry, DispatchDependencies, DispatchDependencyDomain};
@@ -2096,7 +2096,10 @@ mod tests {
     #[test]
     fn string_length_dispatch_uses_only_irreducible_live_domains() {
         let registry = CommandRegistry::build_default();
-        for dialect in [Some(SurfaceQuery::core(Family::Tcl, "8.6")), Some(SurfaceQuery::core(Family::Tcl, "9.0"))] {
+        for dialect in [
+            Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+        ] {
             let facts = registry
                 .resolve_invocation("string", &["length", "value"], dialect)
                 .expect("string length resolves")

@@ -23,12 +23,12 @@
 //! `cargo xtask registry-oracle --irules-root /path/to/bigip-extract`; pass
 //! `--check --output ...` to verify a checked-in or CI-produced report.
 
-use tcl_dialect::model::{SurfaceQuery, surface_admits, Family};
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use tcl_dialect::model::{Family, SurfaceQuery, surface_admits};
 
 use anyhow::{Context, Result, bail};
 use regex::Regex;

@@ -1207,12 +1207,7 @@ mod tests {
         // shape a roster may narrow, which is why the lineage assertion
         // above is load-bearing rather than descriptive.
         assert!(
-            super::super::inherited_surface::admits(
-                Family::Jim,
-                Family::Tcl,
-                "coroutine",
-                None
-            ),
+            super::super::inherited_surface::admits(Family::Jim, Family::Tcl, "coroutine", None),
             "with no roster registered the edge inherits wholesale — the \
              fail-open contract this family's surface degrades to"
         );

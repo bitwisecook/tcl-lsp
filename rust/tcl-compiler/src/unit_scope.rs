@@ -1573,8 +1573,7 @@ pub fn scan_unit_linkage(
     // `surface_query`: `unit_linkage` filters registry rows by the single
     // dialect the document is, not by the wider set of releases whose commands
     // that dialect makes available (`f5-iapps` composes `TCL85|IAPPS`).
-    let dialect = dialect
-        .map(tcl_dialect::DialectProfile::surface_query);
+    let dialect = dialect.map(tcl_dialect::DialectProfile::surface_query);
     let mut found = Traits::empty();
 
     let mut visit = |stmt: &crate::ir::Statement| {

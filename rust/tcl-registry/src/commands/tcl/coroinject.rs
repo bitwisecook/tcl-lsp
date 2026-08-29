@@ -25,7 +25,7 @@
 //! `yieldto`) and unchanged, word-for-word, between the 9.0.4 and 9.1b0
 //! pages.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 fn coroinject_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
     (args.len() >= 2)

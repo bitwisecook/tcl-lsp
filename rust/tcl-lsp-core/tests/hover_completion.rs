@@ -60,9 +60,7 @@ use tcl_lsp_core::hover::{HoverKind, hover};
 use tcl_lsp_core::signature_help::signature_help;
 use tcl_registry::CommandRegistry;
 
-// ------------------------------------------------------------------
 // harness — mirrors call_hierarchy.rs / semantic_tokens.rs
-// ------------------------------------------------------------------
 
 /// Analyse `source` under the `tcl8.6` dialect (the shared harness shape
 /// across these integration tests).
@@ -77,9 +75,7 @@ fn registry() -> CommandRegistry {
     CommandRegistry::build_default()
 }
 
-// ==================================================================
 // hover
-// ==================================================================
 
 #[test]
 fn hover_on_user_proc_shows_signature_and_params() {
@@ -286,9 +282,7 @@ fn hover_user_proc_shadows_builtin_of_same_name() {
     );
 }
 
-// ==================================================================
 // signature_help
-// ==================================================================
 
 #[test]
 fn signature_on_user_proc_first_argument() {
@@ -441,9 +435,7 @@ fn signature_unknown_subcommand_is_none() {
     );
 }
 
-// ==================================================================
 // completion
-// ==================================================================
 
 #[test]
 fn completion_of_command_prefix_lists_matching_builtins() {
@@ -765,13 +757,11 @@ fn completion_on_empty_source_does_not_panic() {
 // completion.rs's in-crate tests; they are out of this plain-Tcl port's
 // surface.
 
-// ==================================================================
 // Issue #806 — report::defstyle scoped command environment.
 //
 // Inside a report::defstyle style script, the report configuration
 // methods (top/data/columns/…) are available as commands.  Hover and
 // completion resolve them from the registry-declared scoped environment.
-// ==================================================================
 
 const DEFSTYLE_BODY: &str =
     "::report::defstyle simpletable {} {\n    top set foo\n    columns\n}\n";
@@ -894,10 +884,8 @@ fn completion_scoped_heads_not_offered_outside_body() {
     );
 }
 
-// ===========================================================================
 // M11 (TIP 278) — completion qualifies globals per the dialect's
 // namespace-scope semantics.
-// ===========================================================================
 
 #[test]
 fn completion_ns_scope_global_qualification_follows_the_dialect_m11() {
@@ -987,7 +975,6 @@ fn completion_proc_scope_still_qualifies_globals_in_every_dialect_m11() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Issue #1256 — completion and hover read the declared boolean argument role.
 //
 // tclsh (8.6.16 / 9.0.4): `fconfigure` / `chan configure -blocking` accepts
@@ -996,7 +983,6 @@ fn completion_proc_scope_still_qualifies_globals_in_every_dialect_m11() {
 //     -> 1
 // so the whole boolean vocabulary is legal at the position; the registry now
 // declares that with `ArgRole::Boolean` rather than leaving it implicit.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn completion_offers_the_boolean_vocabulary_at_a_boolean_option_value() {
@@ -1053,7 +1039,6 @@ fn hover_on_a_boolean_option_names_the_vocabulary() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Issue #1610 — `namespace ensemble create` and `configure` are two different
 // option tables, and the consumers must take the operation's own.
 //
@@ -1067,7 +1052,6 @@ fn hover_on_a_boolean_option_names_the_vocabulary() {
 //       or -unknown
 // A merged table offered `configure` a `-command` that always errors and hid
 // the `-namespace` it accepts.
-// ---------------------------------------------------------------------------
 
 /// The option labels offered where the cursor sits after `-` on `src`'s line 0.
 fn ensemble_option_labels(src: &str, col: u32) -> Vec<String> {

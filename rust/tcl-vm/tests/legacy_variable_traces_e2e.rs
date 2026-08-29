@@ -293,7 +293,8 @@ fn the_registry_owns_the_release_boundary() {
             .surface_query();
         for name in ["variable", "vdelete", "vinfo"] {
             assert!(
-                spec.resolve_subcommand_for_dialect(name, Some(mask)).is_some(),
+                spec.resolve_subcommand_for_dialect(name, Some(mask))
+                    .is_some(),
                 "{version:?} should carry trace {name}"
             );
         }
@@ -304,7 +305,8 @@ fn the_registry_owns_the_release_boundary() {
             .surface_query();
         for name in ["variable", "vdelete", "vinfo"] {
             assert!(
-                spec.resolve_subcommand_for_dialect(name, Some(mask)).is_none(),
+                spec.resolve_subcommand_for_dialect(name, Some(mask))
+                    .is_none(),
                 "{version:?} should not carry trace {name}"
             );
         }

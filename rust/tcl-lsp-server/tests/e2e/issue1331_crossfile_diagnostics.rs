@@ -160,9 +160,7 @@ fn replace_and_wait_for_index(lsp: &mut Lsp, uri: &str, version: i64, text: &str
     );
 }
 
-// ---------------------------------------------------------------------------
 // #1331
-// ---------------------------------------------------------------------------
 
 /// **The reported bug.** Default configuration — nothing opted into — and the
 /// two files joined only by living in the same workspace. The cross-file call
@@ -377,9 +375,7 @@ fn a_cross_file_args_tailed_proc_abstains_from_arity() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // #1332
-// ---------------------------------------------------------------------------
 
 /// **The reported bug, literal form.** `main.tcl` sources a file that requires
 /// Tk, so `winfo` is satisfied and must draw no W120.

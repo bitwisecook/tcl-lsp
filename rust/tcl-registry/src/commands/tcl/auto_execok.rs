@@ -20,7 +20,7 @@
 //! runnable, and return the `exec` argument list for it.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "auto_execok cmd",

@@ -18,7 +18,7 @@
 
 //! Placeholder for commands disabled in the iRules dialect.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "disabled_in_irules",

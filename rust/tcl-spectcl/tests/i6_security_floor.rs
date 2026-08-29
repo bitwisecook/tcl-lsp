@@ -51,7 +51,8 @@ fn a_workspace_override_cannot_strip_exec_taint() {
     );
     // … and the security floor survived it.
     assert!(
-        spec.traits.contains(tcl_registry::traits::Traits::TAINT_SINK),
+        spec.traits
+            .contains(tcl_registry::traits::Traits::TAINT_SINK),
         "I6: an override must not drop TAINT_SINK"
     );
     assert!(
@@ -69,9 +70,13 @@ fn the_floor_does_not_invent_facts_for_a_new_command() {
         "speclib probe 2.0 {\n  command probe::fresh {\n    arity 1..\n  }\n}\n",
     );
     let registry = registry_for_dialect_with_packs("tcl8.6", &packs);
-    let spec = registry.get("probe::fresh").expect("the pack command loads");
+    let spec = registry
+        .get("probe::fresh")
+        .expect("the pack command loads");
     assert!(
-        !spec.traits.contains(tcl_registry::traits::Traits::TAINT_SINK),
+        !spec
+            .traits
+            .contains(tcl_registry::traits::Traits::TAINT_SINK),
         "a command that overrides nothing inherits no floor"
     );
 }

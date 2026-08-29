@@ -344,10 +344,8 @@ fn slot_of_obj(o: &mut Object, writable: bool) -> &mut BTreeSet<String> {
     }
 }
 
-// ---------------------------------------------------------------------------
 // TIP 558 configurable layer: the `property` definition command, `private`
 // prefix, and the `configure` instance method.
-// ---------------------------------------------------------------------------
 
 /// Build an `ERROR` completion carrying an explicit `-errorcode` list (the
 /// `Tcl_GetIndexFromObj` / `TclOO` tags the `ooProp-4.x` tests check).
@@ -890,9 +888,7 @@ fn bootstrap(vm: &mut Vm) {
     vm.declare_registry_object_root("oo::configurable");
 }
 
-// ---------------------------------------------------------------------------
 // Dispatch entry (called from the engine for a `Command::Object`).
-// ---------------------------------------------------------------------------
 
 /// Dispatch `argv` against the object/class `key` (canonical). `invoked` is the
 /// word the command was called under (for the `wrong # args` usage).
@@ -921,9 +917,7 @@ pub(crate) fn oo_dispatch(
     oo_invoke(vm, key, &method, rest, true, invoked)
 }
 
-// ---------------------------------------------------------------------------
 // Object / class creation.
-// ---------------------------------------------------------------------------
 
 /// The `create objectName ?arg…?` / `new ?arg…?` factory built-ins of a class.
 /// `class_invoked` is the class as the caller named it (for the constructor's
@@ -1072,9 +1066,7 @@ fn oo_new(
     ok(Value::string(display(obj_key)))
 }
 
-// ---------------------------------------------------------------------------
 // Method resolution + execution.
-// ---------------------------------------------------------------------------
 
 impl OoState {
     /// Build the `(supers, mixins)` maps `tcloo_linearise` consumes from the
@@ -1536,9 +1528,7 @@ fn builtin_method(vm: &mut Vm, obj_key: &str, method: &str, args: &[Value]) -> C
     }
 }
 
-// ---------------------------------------------------------------------------
 // self / my / next / nextto
-// ---------------------------------------------------------------------------
 
 fn cmd_my(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some(fr) = vm.oo.call_stack.last() else {
@@ -1687,9 +1677,7 @@ pub(crate) fn cmd_nextto(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     ))
 }
 
-// ---------------------------------------------------------------------------
 // destroy / destructor
-// ---------------------------------------------------------------------------
 
 /// Run the destructor chain, then tear the object (and, if a class, its
 /// descendants) down.
@@ -1766,9 +1754,7 @@ fn teardown(vm: &mut Vm, obj_key: &str) {
     vm.oo.classes.remove(obj_key);
 }
 
-// ---------------------------------------------------------------------------
 // oo::define / oo::objdefine and the definition-body commands.
-// ---------------------------------------------------------------------------
 
 fn cmd_oo_define(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     run_define(vm, args, true)
@@ -2115,14 +2101,10 @@ fn empty_body(vm: &mut Vm) -> Rc<FunctionAsm> {
     vm.compile_dynamic_body("").expect("empty body compiles")
 }
 
-// ---------------------------------------------------------------------------
 // oo::class create — the metaclass factory, handled specially so the new
 // class's definition body runs with a Class def target.
-// ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
 // info object / info class introspection (a common subset).
-// ---------------------------------------------------------------------------
 
 impl OoState {
     /// Whether `class_key` is reachable in the linearisation of object `obj`'s

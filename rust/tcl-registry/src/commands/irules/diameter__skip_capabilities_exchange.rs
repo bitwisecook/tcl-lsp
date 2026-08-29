@@ -18,7 +18,7 @@
 
 //! `DIAMETER::skip_capabilities_exchange` iRules command.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DIAMETER::skip_capabilities_exchange",

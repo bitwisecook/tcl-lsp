@@ -2636,9 +2636,7 @@ fn w123_silent_for_create_named_object_literal_dispatch() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Issue #806 — report::defstyle scoped command environment.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn defstyle_body_scoped_commands_no_w123() {

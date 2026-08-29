@@ -119,13 +119,11 @@ fn of_code(src: &str, dialect: &str, code: &str) -> Vec<TaintWarning> {
         .collect()
 }
 
-// ===========================================================================
 // Lattice join semantics (`taint_join` → `TaintLattice::join`).
 //
 // Pure lattice algebra: taint is a may-have (union), mitigating colours are a
 // must-have (intersection). No tclsh analogue — this is the analyser's internal
 // data structure.
-// ===========================================================================
 mod taint_join {
     use super::*;
 
@@ -229,9 +227,7 @@ mod taint_join {
     }
 }
 
-// ===========================================================================
 // Join semantics for the extended colour set.
-// ===========================================================================
 mod lattice_join_new_colours {
     use super::*;
 
@@ -347,12 +343,10 @@ mod lattice_join_new_colours {
     }
 }
 
-// ===========================================================================
 // Clean code produces no taint warnings.
 //
 // tclsh: each snippet is ordinary, side-effect-free Tcl with no attacker
 // source, so flagging it would be a false positive.
-// ===========================================================================
 mod no_false_positives {
     use super::*;
 
@@ -389,10 +383,8 @@ mod no_false_positives {
     }
 }
 
-// ===========================================================================
 // Tcl-core I/O commands taint their results (T100 at the
 // eval sink). `read`/`gets`/`exec`/`socket`/`chan` are real tclsh commands.
-// ===========================================================================
 mod tcl_taint_sources {
     use super::*;
 
@@ -740,12 +732,10 @@ set x [gets stdin]
     }
 }
 
-// ===========================================================================
 // Registry object-instance sources.  Widget paths and object variables are
 // commands at runtime, so the constructor's `object_class` / `creates_instance_at`
 // metadata must carry the `TAINT_SOURCE` trait on `get` through that dispatch.
 // These cases deliberately name no widget or getter in compiler code.
-// ===========================================================================
 mod object_instance_taint_sources {
     use super::*;
 
@@ -1542,10 +1532,8 @@ mod object_instance_taint_sources {
     }
 }
 
-// ===========================================================================
 // iRules I/O getters taint their results.
 // f5-dialect: HTTP::*, TCP::*, IP::* are not core-tclsh commands.
-// ===========================================================================
 mod irules_taint_sources {
     use super::*;
 
@@ -1587,9 +1575,7 @@ mod irules_taint_sources {
     }
 }
 
-// ===========================================================================
 // Taint flows through assignments and interpolation.
-// ===========================================================================
 mod taint_propagation {
     use super::*;
 
@@ -1643,9 +1629,7 @@ mod taint_propagation {
     }
 }
 
-// ===========================================================================
 // Proc summaries propagate taint across calls.
-// ===========================================================================
 mod interprocedural_taint {
     use super::*;
 
@@ -1688,13 +1672,11 @@ mod interprocedural_taint {
     }
 }
 
-// ===========================================================================
 // Dangerous sinks (T100) — tainted data in eval/expr/exec/uplevel/subst.
 //
 // tclsh: each of these re-parses/executes its argument, so a tainted value is a
 // code-execution vector. (eval/uplevel/subst/exec run the value; unbraced expr
 // re-parses it.)
-// ===========================================================================
 mod dangerous_sinks {
     use super::*;
 
@@ -1759,9 +1741,7 @@ mod dangerous_sinks {
     }
 }
 
-// ===========================================================================
 // The T100 message names the sink and the variable.
-// ===========================================================================
 mod warning_messages {
     use super::*;
 
@@ -1774,13 +1754,11 @@ mod warning_messages {
     }
 }
 
-// ===========================================================================
 // Output sinks (T101) — tainted data flowing into `puts`.
 //
 // tclsh: `puts ?-nonewline? ?channelId? string` — only the trailing content
 // word is output content; a tainted channel id is a destination handle and must
 // not flag T101.
-// ===========================================================================
 mod output_sinks {
     use super::*;
 
@@ -1962,7 +1940,6 @@ mod output_sinks {
     }
 }
 
-// ===========================================================================
 // Option injection (T102) — tainted value in option position, no `--`.
 //
 // tclsh: option-bearing commands (`regexp`, `glob`, …) parse a leading `-` as a
@@ -1970,7 +1947,6 @@ mod output_sinks {
 // option-injection vector unless a `--` terminator ends switch scanning. A
 // later *literal* positional also ends scanning (a tainted *subject* after a
 // literal pattern is safe). Verified: `regexp -- -foo bar` → `0` (-- ends scan).
-// ===========================================================================
 mod option_injection {
     use super::*;
 
@@ -2070,10 +2046,8 @@ mod option_injection {
     }
 }
 
-// ===========================================================================
 // IRULE3001 (HTTP::respond body) / IRULE3002
 // (HTTP::header|cookie insert|replace). f5-dialect; gated on the iRules dialect.
-// ===========================================================================
 mod irules_output_sinks {
     use super::*;
 
@@ -2138,9 +2112,7 @@ mod irules_output_sinks {
     }
 }
 
-// ===========================================================================
 // Log injection (IRULE3003) — tainted data in `log`. f5-dialect.
-// ===========================================================================
 mod log_injection {
     use super::*;
 
@@ -2163,10 +2135,8 @@ mod log_injection {
     }
 }
 
-// ===========================================================================
 // PATH_PREFIXED / NON_DASH colours propagate through copies
 // and interpolation, keeping later T102 suppressed. f5-dialect sources.
-// ===========================================================================
 mod taint_colours {
     use super::*;
 
@@ -2237,10 +2207,8 @@ mod taint_colours {
     }
 }
 
-// ===========================================================================
 // TestT102Suppression — PATH_PREFIXED / IP / PORT / FQDN colours suppress T102
 // (cannot start with `-`); generic taint still fires it. f5-dialect sources.
-// ===========================================================================
 mod t102_suppression {
     use super::*;
 
@@ -2361,10 +2329,8 @@ mod t102_suppression {
     }
 }
 
-// ===========================================================================
 // Setter constraints (IRULE3101) — HTTP::uri / HTTP::path set to a value not
 // provably starting with `/`. f5-dialect.
-// ===========================================================================
 mod setter_constraints {
     use super::*;
 
@@ -2416,10 +2382,8 @@ mod setter_constraints {
     }
 }
 
-// ===========================================================================
 // CRLF_FREE colour suppresses IRULE3002 (header) and IRULE3003
 // (log). Produced by IP/PORT/FQDN sources and URI::/HTML::encode. f5-dialect.
-// ===========================================================================
 mod crlf_free {
     use super::*;
 
@@ -2531,10 +2495,8 @@ mod crlf_free {
     }
 }
 
-// ===========================================================================
 // SHELL_ATOM augmented from IP/PORT/FQDN; does NOT suppress
 // T100. f5-dialect sources.
-// ===========================================================================
 mod shell_atom {
     use super::*;
 
@@ -2564,14 +2526,12 @@ mod shell_atom {
     }
 }
 
-// ===========================================================================
 // [list]/concat produce LIST_CANONICAL, but `eval $lst`
 // still fires T100: the tainted first list element becomes the command word.
 //
 // tclsh (8.6 + 9.0): `proc marker args {puts EXECUTED}; set raw marker;
 // set lst [list $raw]; eval $lst` prints `EXECUTED`. LIST_CANONICAL proves
 // list-quoting, NOT that the synthesised command word is trusted (D5-T100).
-// ===========================================================================
 mod list_canonical {
     use super::*;
 
@@ -2677,10 +2637,8 @@ mod list_canonical {
     }
 }
 
-// ===========================================================================
 // regex::quote / regexp::quote produce REGEX_LITERAL, lost
 // on interpolation, propagated through copies. (Does not suppress T100.)
-// ===========================================================================
 mod regex_literal {
     use super::*;
 
@@ -2725,10 +2683,8 @@ mod regex_literal {
     }
 }
 
-// ===========================================================================
 // `file normalize` produces PATH_NORMALISED, lost on
 // interpolation, propagated through copies. (Does not suppress T100.)
-// ===========================================================================
 mod path_normalised {
     use super::*;
 
@@ -2763,10 +2719,8 @@ mod path_normalised {
     }
 }
 
-// ===========================================================================
 // HTML::encode / html_encode produce HTML_ESCAPED (+ CRLF_FREE);
 // suppress IRULE3001; lost on interpolation; T106 on double-encode. f5-dialect.
-// ===========================================================================
 mod html_escaped {
     use super::*;
 
@@ -2859,10 +2813,8 @@ mod html_escaped {
     }
 }
 
-// ===========================================================================
 // URI::encode / encode_component / escape produce URL_ENCODED
 // (+ CRLF_FREE); lost on interpolation; propagated through copies. f5-dialect.
-// ===========================================================================
 mod url_encoded {
     use super::*;
 
@@ -2929,10 +2881,8 @@ mod url_encoded {
     }
 }
 
-// ===========================================================================
 // CRLF_FREE in header/cookie value position suppresses
 // IRULE3002; generic taint fires it. f5-dialect.
-// ===========================================================================
 mod header_token_safe {
     use super::*;
 
@@ -2971,10 +2921,8 @@ mod header_token_safe {
     }
 }
 
-// ===========================================================================
 // IP/PORT/FQDN/PATH sources suppress T102;
 // generic taint does not. f5-dialect sources.
-// ===========================================================================
 mod source_colour_augmentation {
     use super::*;
 
@@ -3005,10 +2953,8 @@ mod source_colour_augmentation {
     }
 }
 
-// ===========================================================================
 // Leading literal char of an interpolated
 // word controls NON_DASH_PREFIXED / PATH_PREFIXED. f5-dialect sources.
-// ===========================================================================
 mod non_dash_prefixed_interpolation {
     use super::*;
 
@@ -3082,10 +3028,8 @@ mod non_dash_prefixed_interpolation {
     }
 }
 
-// ===========================================================================
 // Colour-aware interprocedural propagation.
 // f5-dialect helpers.
-// ===========================================================================
 mod interprocedural_colours {
     use super::*;
 
@@ -3146,10 +3090,8 @@ mod interprocedural_colours {
     }
 }
 
-// ===========================================================================
 // Structural colours stripped on
 // interpolation; CRLF_FREE preserved (no literal CRLF). f5-dialect sources.
-// ===========================================================================
 mod interpolation_colour_invalidation {
     use super::*;
 
@@ -3208,10 +3150,8 @@ mod interpolation_colour_invalidation {
     }
 }
 
-// ===========================================================================
 // Transforms on untainted input stay clean;
 // concat of mixed canonicality still propagates taint. f5-dialect sources.
-// ===========================================================================
 mod transform_colour_edge_cases {
     use super::*;
 
@@ -3246,10 +3186,8 @@ mod transform_colour_edge_cases {
     }
 }
 
-// ===========================================================================
 // The colour→diagnostic suppression matrix.
 // f5-dialect sources.
-// ===========================================================================
 mod sink_suppression_matrix {
     use super::*;
 
@@ -3305,7 +3243,6 @@ mod sink_suppression_matrix {
     }
 }
 
-// ===========================================================================
 // TestT100SinkSuppression — exec+SHELL_ATOM and eval+literal-[list-head]
 // suppress T100; generic taint and propagated lists do not.
 //
@@ -3314,7 +3251,6 @@ mod sink_suppression_matrix {
 //     its argument) → suppressed.
 //   * `eval [list $raw]`      → prints `EXECUTED` ($raw becomes the cmd word) →
 //     fires.
-// ===========================================================================
 mod t100_sink_suppression {
     use super::*;
 
@@ -3405,13 +3341,11 @@ mod t100_sink_suppression {
     }
 }
 
-// ===========================================================================
 // TestT103RegexpPatternInjection — tainted data in a regexp/regsub pattern.
 //
 // tclsh: the pattern argument of regexp/regsub is compiled as a regex; a tainted
 // pattern is a regex-injection / ReDoS vector. The string (subject) position is
 // not a pattern → no T103. REGEX_LITERAL (regex::quote) suppresses.
-// ===========================================================================
 mod t103_regexp_pattern_injection {
     use super::*;
 
@@ -3486,10 +3420,8 @@ mod t103_regexp_pattern_injection {
     }
 }
 
-// ===========================================================================
 // PATH_NORMALISED / PATH_PREFIXED satisfy
 // the IRULE3101 setter constraint. f5-dialect.
-// ===========================================================================
 mod path_normalised_setter_constraint {
     use super::*;
 
@@ -3512,10 +3444,8 @@ mod path_normalised_setter_constraint {
     }
 }
 
-// ===========================================================================
 // HTTP::redirect with a tainted URL. f5-dialect.
 // PATH_PREFIXED / PATH_NORMALISED (same-origin) suppress; HTML_ESCAPED does not.
-// ===========================================================================
 mod irule3004_open_redirect {
     use super::*;
 
@@ -3589,10 +3519,8 @@ mod irule3004_open_redirect {
     }
 }
 
-// ===========================================================================
 // TestT106DoubleEncoding — re-encoding already-encoded data fires T106;
 // cross-encode / first-encode / untainted do not. f5-dialect encoders.
-// ===========================================================================
 mod t106_double_encoding {
     use super::*;
 
@@ -3685,10 +3613,8 @@ mod t106_double_encoding {
     }
 }
 
-// ===========================================================================
 // TestT104NetworkSinks — tainted data in a network-address argument (SSRF).
 // `socket` / `http::geturl` are core-tclsh commands.
-// ===========================================================================
 mod t104_network_sinks {
     use super::*;
 
@@ -3736,11 +3662,9 @@ mod t104_network_sinks {
     }
 }
 
-// ===========================================================================
 // TestT105InterpEvalSinks — tainted data in an interp eval/invokehidden script.
 // `interp eval` is a core-tclsh command. LIST_CANONICAL does NOT suppress; a
 // literal [list <known-cmd> …] head does (same tclsh facts as the eval cases).
-// ===========================================================================
 mod t105_interp_eval_sinks {
     use super::*;
 
@@ -3797,10 +3721,8 @@ mod t105_interp_eval_sinks {
     }
 }
 
-// ===========================================================================
 // Splitting HTTP::uri on `?` / `&` instead of using
 // HTTP::path / HTTP::query. f5-dialect.
-// ===========================================================================
 mod irule3103_uri_split {
     use super::*;
 
@@ -3903,10 +3825,8 @@ mod irule3103_uri_split {
     }
 }
 
-// ===========================================================================
 // Expression operators on HTTP::uri suggesting
 // HTTP::path / HTTP::query. f5-dialect.
-// ===========================================================================
 mod irule3103_expr_operators {
     use super::*;
 
@@ -4009,10 +3929,8 @@ mod irule3103_expr_operators {
     }
 }
 
-// ===========================================================================
 // string match / string first on HTTP::uri.
 // f5-dialect.
-// ===========================================================================
 mod irule3103_string_match {
     use super::*;
 
@@ -4091,7 +4009,6 @@ mod irule3103_string_match {
     }
 }
 
-// ===========================================================================
 // glob/regex classifier edge cases and SSA correctness.
 // f5-dialect.
 //
@@ -4099,7 +4016,6 @@ mod irule3103_string_match {
 // single-char wildcard (not a query delimiter); regex `?` is a quantifier; an
 // escaped `\?` / `\&` is a literal char (query signal). These are about how a
 // pattern's characters classify, not a runtime side-effect to observe.
-// ===========================================================================
 mod irule3103_edge_cases {
     use super::*;
 
@@ -4262,14 +4178,12 @@ mod irule3103_edge_cases {
     }
 }
 
-// ===========================================================================
 // Interpreter special-variable taint sources (`env`, `argv`, `argv0`).
 //
 // Reading the process environment or the command line is attacker-influenced
 // external input, seeded from the dialect-aware special-variable registry
 // (`tcl_registry::special_vars`). The restricted iRules interpreter provides
 // none of them, so they are sources only in the standard Tcl dialects.
-// ===========================================================================
 mod special_variable_sources {
     use super::*;
 

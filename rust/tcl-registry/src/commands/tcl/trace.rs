@@ -22,9 +22,9 @@ use crate::world_effect::{
     EffectAccess, EffectAccessMode, EffectFootprint, InterpreterScope, NamespaceScope, SubjectScope,
 };
 use tcl_cmd_core::trace::{TraceKind, parse_legacy_variable_ops, parse_ops, resolve_type};
-use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::surface;
 use tcl_dialect::model::Family;
+use tcl_dialect::model::SpecSurface;
+use tcl_dialect::surface;
 
 const VARIABLE_TRACE_OPERATIONS: &[&str] = &["array", "read", "unset", "write"];
 const COMMAND_TRACE_OPERATIONS: &[&str] = &["delete", "rename"];
@@ -1190,7 +1190,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // (measurements §5, BIG-IP 21.1.0.1): TMM's `trace` accepts the
         // 8.3-era forms ONLY — this one works where `trace add` is
         // `wrong # args` — an arity/form gate, not a removal.
-        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.7"))]), SpecSurface::core(Family::F5Irules)]),
+        surface: Some(surface![
+            SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.7"))]),
+            SpecSurface::core(Family::F5Irules)
+        ]),
         lifecycle: Lifecycle::deprecated_in("8.4").retired_from("9.0"),
         ..SubCommand::DEFAULT
     },
@@ -1218,7 +1221,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // Deprecated legacy form; removed in Tcl 9.0 (8.4-8.6 only) — see
         // `variable` above for why both `dialects` and `lifecycle` state
         // it, and for the measured iRules 8.3-form-only gate.
-        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.7"))]), SpecSurface::core(Family::F5Irules)]),
+        surface: Some(surface![
+            SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.7"))]),
+            SpecSurface::core(Family::F5Irules)
+        ]),
         lifecycle: Lifecycle::deprecated_in("8.4").retired_from("9.0"),
         ..SubCommand::DEFAULT
     },
@@ -1243,7 +1249,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // Deprecated legacy form; removed in Tcl 9.0 (8.4-8.6 only) — see
         // `variable` above for why both `dialects` and `lifecycle` state
         // it, and for the measured iRules 8.3-form-only gate.
-        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.7"))]), SpecSurface::core(Family::F5Irules)]),
+        surface: Some(surface![
+            SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.7"))]),
+            SpecSurface::core(Family::F5Irules)
+        ]),
         lifecycle: Lifecycle::deprecated_in("8.4").retired_from("9.0"),
         ..SubCommand::DEFAULT
     },
@@ -1321,8 +1330,8 @@ pub fn spec() -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SurfaceQuery, Family};
-    
+    use tcl_dialect::model::{Family, SurfaceQuery};
+
     use super::*;
     use crate::{
         CommandRegistry, InvocationWord, InvocationWordKind, StateTransitionFact,
@@ -1357,7 +1366,11 @@ mod tests {
         ] {
             let arguments = ["add", kind, "target", operations, "callback"];
             let invocation = registry
-                .resolve_invocation("trace", &arguments, Some(SurfaceQuery::core(Family::Tcl, "9.0")))
+                .resolve_invocation(
+                    "trace",
+                    &arguments,
+                    Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+                )
                 .expect("modern trace form resolves");
             assert_eq!(
                 invocation.validate_literal_arguments(),
@@ -1411,7 +1424,11 @@ mod tests {
             ),
         ] {
             let invocation = registry
-                .resolve_invocation("trace", arguments, Some(SurfaceQuery::core(Family::Tcl, "9.0")))
+                .resolve_invocation(
+                    "trace",
+                    arguments,
+                    Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+                )
                 .expect("literal trace head resolves even when an argument is invalid");
             assert_eq!(
                 invocation.validate_literal_arguments(),
@@ -1426,7 +1443,11 @@ mod tests {
         for operations in ["", "bogus nope"] {
             let arguments = ["remove", "command", "target", operations, "callback"];
             let invocation = registry
-                .resolve_invocation("trace", &arguments, Some(SurfaceQuery::core(Family::Tcl, "9.0")))
+                .resolve_invocation(
+                    "trace",
+                    &arguments,
+                    Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+                )
                 .expect("modern trace remove resolves");
             let Some(LiteralArgumentValidation::Invalid(issue)) =
                 invocation.validate_literal_arguments()
@@ -1440,7 +1461,11 @@ mod tests {
     #[test]
     fn legacy_validator_exists_only_on_tcl8_forms() {
         let registry = CommandRegistry::build_default();
-        for dialect in [Some(SurfaceQuery::core(Family::Tcl, "8.4")), Some(SurfaceQuery::core(Family::Tcl, "8.5")), Some(SurfaceQuery::core(Family::Tcl, "8.6"))] {
+        for dialect in [
+            Some(SurfaceQuery::core(Family::Tcl, "8.4")),
+            Some(SurfaceQuery::core(Family::Tcl, "8.5")),
+            Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+        ] {
             let invocation = registry
                 .resolve_invocation("trace", &["variable", "target", "rwx", "callback"], dialect)
                 .expect("legacy trace variable resolves in Tcl 8.x");
@@ -1723,7 +1748,11 @@ mod tests {
     #[test]
     fn oracle_profiles_keep_legacy_forms_in_tcl8_only() {
         let registry = CommandRegistry::build_default();
-        for dialect in [Some(SurfaceQuery::core(Family::Tcl, "8.4")), Some(SurfaceQuery::core(Family::Tcl, "8.5")), Some(SurfaceQuery::core(Family::Tcl, "8.6"))] {
+        for dialect in [
+            Some(SurfaceQuery::core(Family::Tcl, "8.4")),
+            Some(SurfaceQuery::core(Family::Tcl, "8.5")),
+            Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+        ] {
             for (arguments, expected) in [
                 (&["variable", "item", "rw", "prefix"][..], "variable"),
                 (&["vdelete", "item", "rw", "prefix"][..], "vdelete"),
@@ -1741,7 +1770,10 @@ mod tests {
                 assert_eq!(canonical.as_deref(), Some(expected));
             }
         }
-        for dialect in [Some(SurfaceQuery::core(Family::Tcl, "9.0")), Some(SurfaceQuery::core(Family::Tcl, "9.1"))] {
+        for dialect in [
+            Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+            Some(SurfaceQuery::core(Family::Tcl, "9.1")),
+        ] {
             for arguments in [
                 &["variable", "item", "rw", "prefix"][..],
                 &["vdelete", "item", "rw", "prefix"][..],

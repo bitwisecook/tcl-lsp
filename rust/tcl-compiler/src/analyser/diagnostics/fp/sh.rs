@@ -20,9 +20,7 @@
 
 use super::{D, codes, fires};
 
-// ---------------------------------------------------------------------------
 // FP-SH-01 — OVERDEFINED values do not trigger shimmer
-// ---------------------------------------------------------------------------
 
 /// FP-SH-01: OVERDEFINED value (cmd return) in arithmetic must NOT fire any
 /// shimmer code — the type is unknown so any verdict would be unsound.
@@ -54,9 +52,7 @@ fn fp_sh_01_string_arith_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-SH-02 — scope-alias declarations typed OVERDEFINED (not STRING)
-// ---------------------------------------------------------------------------
 
 /// FP-SH-02: `variable v` is a scope-alias — its intrep is externally
 /// determined so it cannot be confidently typed STRING.  S100 here would be
@@ -101,9 +97,7 @@ fn fp_sh_02_global_alias_no_shimmer() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-SH-03 — phi joins are hash-seed-independent (determinism property)
-// ---------------------------------------------------------------------------
 
 /// FP-SH-03: a phi-merged value where both incoming branches are INT must
 /// come out INT — no S101 from an unsound STRING join.
@@ -149,9 +143,7 @@ fn fp_sh_03_genuine_phi_string_int_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-SH-04 — hex/binary integer literals typed as INT (not STRING)
-// ---------------------------------------------------------------------------
 
 /// FP-SH-04: hex literal `0x80` is recognised as INT by `Tcl_GetIntFromObj`;
 /// the analyser must also recognise it as INT so incr on a hex-init variable
@@ -200,10 +192,8 @@ fn fp_sh_04_genuine_string_increment_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-SH-05 — destructure foreach (`foreach VARS LIST break`) excluded from
 // loop body types
-// ---------------------------------------------------------------------------
 
 /// FP-SH-05: `foreach VARS LIST break` is the pre-`lassign` destructure
 /// idiom — the binding runs once, not per iteration.  S102 on $sv must NOT
@@ -249,9 +239,7 @@ fn fp_sh_05_real_iter_foreach_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-SH-06 — per-loop body_types (sibling loops do not pollute each other)
-// ---------------------------------------------------------------------------
 
 /// FP-SH-06: sibling loops in the same proc must not pollute each other's
 /// S102 `body_types` map.
@@ -296,10 +284,8 @@ fn fp_sh_06_real_oscillation_within_one_loop_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-SH-07 — `find_expr_shimmers` covers standalone expr/if/while/for
 // expr contexts (D5-SH-EXPR)
-// ---------------------------------------------------------------------------
 
 /// FP-SH-07 TP: `if {$s + 1}` — expr in if-cond promotes $s from STRING to
 /// INT.  `find_expr_shimmers` walks `Terminator::Branch.condition` as well
@@ -349,10 +335,8 @@ fn fp_sh_07_pure_numeric_if_no_shimmer() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-SH-08 — `==`/`!=` falsely flagged as numeric shimmer when both
 // operands are provably non-numeric (D5-SH-EQ)
-// ---------------------------------------------------------------------------
 
 /// FP-SH-08: `expr {$s == "hello"}` with `s = "hello"` — both operands are
 /// non-numeric text.  tclsh takes the STRING compare path (no coercion
@@ -397,11 +381,9 @@ fn fp_sh_08_add_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-SH-12 — a `trace add variable … write …` callback can rewrite a value's
 // type on every access, so a traced variable's `set`-only literal types must
 // not drive S102
-// ---------------------------------------------------------------------------
 
 /// FP-SH-12: a variable under a write trace must not fire S102 from its
 /// visible `set` literals alone — the trace callback can rewrite the value
@@ -453,11 +435,9 @@ proc f {} {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-SH-13 — array-element writes collapse onto one SSA symbol per array;
 // two individually-stable-but-different elements must not be reported as
 // one variable oscillating
-// ---------------------------------------------------------------------------
 
 /// FP-SH-13: `normalise_var_name` strips the `(key)` suffix before SSA
 /// interning, so every element of an array shares one symbol / version
@@ -604,12 +584,10 @@ proc f {} {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-SH-14 — a self-referential variable that oscillates through an
 // intermediate branch merge (not a direct loop-header incoming edge) is
 // still genuine thunking; a non-self-referential reset through the same
 // branch shape is not
-// ---------------------------------------------------------------------------
 
 /// FP-SH-14 TP: `if {...} {set x [string range $x 0 end]} else {set x [list
 /// 1 2]}` inside a loop — one branch reads `$x`'s own prior value, so the
@@ -670,12 +648,10 @@ proc f {n} {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-SH-15 — tricky command/variable indirection stays silent (conservative,
 // no false positives): `rename`, `interp alias`, a safe sub-interpreter's
 // `eval`, TclOO instance variables, and `args`/positional parameters as the
 // oscillation seed
-// ---------------------------------------------------------------------------
 
 /// FP-SH-15 (detection gap now closed): a command renamed onto `set`
 /// (`rename set myset`) resolves back to the registry's `set` spec. The
@@ -957,11 +933,9 @@ proc f {} {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-SH-16 — global/namespace aliasing protects a name even once it has a
 // local prior version, matching the externally-mutable guard SCCP/O102
 // already apply to their own lattices
-// ---------------------------------------------------------------------------
 
 /// FP-SH-16: `global x; set x 0` before the loop gives the header phi a
 /// real, versioned `Known(Int)` entry type — but `x` stays externally
@@ -1045,9 +1019,7 @@ namespace eval ::foo {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-SH-09 — a variable under a live write-trace is not confidently typed
-// ---------------------------------------------------------------------------
 
 /// FP-SH-09: `trace add variable v write cb` registers a callback that can
 /// rewrite `v`'s value — and so its intrep — on every subsequent write. A
@@ -1212,12 +1184,10 @@ fn fp_sh_17_regsub_output_in_arithmetic_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-SH-18 — a numeric loop-body oscillation seeded by an Int entry was
 // masked: `type_join`'s exact-equality Known-vs-Shimmered rule degraded
 // `Known(Int) ⊔ SHIMMERED(Numeric, String)` to OVERDEFINED, so the genuine
 // thunk went undetected. The numeric-refinement join keeps it SHIMMERED.
-// ---------------------------------------------------------------------------
 
 /// FP-SH-18 (detection gap now closed): a self-referential loop whose body
 /// oscillates between `Numeric` (from `expr {$x + …}` on the loop-carried
@@ -1319,9 +1289,7 @@ proc f {n} {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-SH-19 — byte-array-transparent `string` ops on a payload getter
-// ---------------------------------------------------------------------------
 
 /// FP-SH-19: `string range`/`index`/`reverse` keep the byte-array
 /// representation (tclsh 8.6.14-verified; 9.0.1 `tclStringObj.c` has the same
@@ -1377,9 +1345,7 @@ fn fp_sh_19_coercing_string_ops_on_payload_still_fire() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // FP-SH-20 — ordering comparisons on non-numeric operands do not shimmer
-// ---------------------------------------------------------------------------
 
 /// FP-SH-20: `<`/`<=`/`>`/`>=` compare numerically only when an operand is
 /// provably numeric. `expr {$s < "banana"}` on a String var takes Tcl's string
@@ -1413,9 +1379,7 @@ fn fp_sh_20_ordering_compare_numeric_literal_stays_silent() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-SH-21 — a pure value's first conversion is free (issue #940)
-// ---------------------------------------------------------------------------
 
 /// FP-SH-21 (issue #940): a braced list literal used as a list must NOT fire
 /// S100. `{10.0 12.0 16.0 24.0}` is a pure string (oracle: `typePtr == NULL`),
@@ -1510,9 +1474,7 @@ fn fp_sh_21_committed_list_as_string_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-SH-22 — first-use commit: a second conversion is a genuine shimmer
-// ---------------------------------------------------------------------------
 
 /// FP-SH-22 TP: a pure literal's *first* use commits its intrep; a later use
 /// as a different type re-represents on every execution. `expr` commits the
@@ -1581,9 +1543,7 @@ fn fp_sh_22_merge_use_matching_neither_arm_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-SH-23 — element-tracked containers and the union lattice (P2/P3)
-// ---------------------------------------------------------------------------
 
 /// FP-SH-23: a committed element retrieved from a tracked container keeps its
 /// intrep — `lindex` on `[list [expr {…}] …]` yields the numeric element, so

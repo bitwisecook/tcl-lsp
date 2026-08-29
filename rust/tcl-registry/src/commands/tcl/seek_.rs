@@ -19,7 +19,7 @@
 //! `seek` — set the access position for a channel.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 // Tcl 8.4's seek.n synopsis and body ("seek channelId offset ?origin?",
 // the three start/current/end origins, the empty-string return, the

@@ -18,7 +18,7 @@
 
 //! `tcl::tm::path` command (Tcl Modules, TIP 189 — added in Tcl 8.5).
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[

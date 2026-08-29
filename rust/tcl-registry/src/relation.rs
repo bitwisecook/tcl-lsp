@@ -41,10 +41,10 @@
 //! ([`crate::pack_hooks::HookFamily::Constraints`]) remains the escape hatch
 //! for what this cannot phrase, and reaching for it is the exception.
 
-use tcl_dialect::model::{surface_admits};
 use crate::lifecycle::{Lifecycle, LifecycleState};
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 use tcl_dialect::model::SurfaceQuery;
+use tcl_dialect::model::surface_admits;
 
 /// A term type some [`Relation`] ranges over.
 ///

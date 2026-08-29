@@ -29,9 +29,7 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use tcl_dialect::model::{
-    Family, InheritedSurface, Provenance, VersionAxisId, VersionSet,
-};
+use tcl_dialect::model::{Family, InheritedSurface, Provenance, VersionAxisId, VersionSet};
 
 use crate::loader::{PackSurfaceRoster, family_named};
 
@@ -80,9 +78,9 @@ pub fn to_inherited_surfaces(
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{Family};
     use super::*;
     use crate::loader::{PackRosterName, PackSurfaceRoster};
+    use tcl_dialect::model::Family;
 
     fn row(names: &[(&str, &[&str])]) -> PackSurfaceRoster {
         PackSurfaceRoster {
@@ -102,7 +100,10 @@ mod tests {
     #[test]
     fn rows_for_one_pair_merge_into_one_roster() {
         let surfaces = to_inherited_surfaces(
-            &[row(&[("set", &[]), ("proc", &[])]), row(&[("interp", &["0.77-"])])],
+            &[
+                row(&[("set", &[]), ("proc", &[])]),
+                row(&[("interp", &["0.77-"])]),
+            ],
             Provenance::BuiltIn,
         );
         let [surface] = surfaces.as_slice() else {

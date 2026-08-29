@@ -44,9 +44,9 @@
 //! `tcl-lsp-server::Backend::hover`; this module is the pure-CPU
 //! computation, no I/O, no async.
 
-use tcl_dialect::model::{SurfaceQuery};
-use tcl_dialect::model::{surface_admits};
 use std::collections::HashMap;
+use tcl_dialect::model::SurfaceQuery;
+use tcl_dialect::model::surface_admits;
 
 use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::{AnalysisResult, ClassDef, ProcDef, VarDef};
@@ -58,7 +58,7 @@ use tcl_lexer::{LexerConfig, Token, TokenType};
 use tcl_registry::{CommandRegistry, InvocationArguments};
 
 use crate::definition::utf16_col_to_char_col;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// LSP markup-content kind for a hover body.
 ///
@@ -3861,8 +3861,8 @@ fn oo_resolution_note_for_provider(
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SurfaceQuery};
-    use tcl_dialect::model::{SurfaceLayer, Family};
+    use tcl_dialect::model::SurfaceQuery;
+    use tcl_dialect::model::{Family, SurfaceLayer};
 
     use super::*;
     use tcl_compiler::analyser::Analyser;
@@ -4641,7 +4641,6 @@ mod tests {
 
     #[test]
     fn special_var_hover_is_dialect_aware() {
-        
         let analysis = analyse("puts $auto_path\n");
         let mut registry = CommandRegistry::build_default();
         registry.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
@@ -5487,25 +5486,57 @@ mod tests {
 
     #[test]
     fn subcommand_hover_prefix_is_dialect_aware() {
-        
         let registry = tcl_registry::CommandRegistry::build_default();
         // `info class def` is `definition` in 8.6 (unique) but ambiguous with
         // `definitionnamespace` in 9.0 (verified against tclsh).
         let src = "info class def ::C\n";
-        let t86 = sub_subcommand_hover_text(src, 0, 11, &registry, "def", Some(SurfaceQuery::core(Family::Tcl, "8.6")));
+        let t86 = sub_subcommand_hover_text(
+            src,
+            0,
+            11,
+            &registry,
+            "def",
+            Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+        );
         assert!(
             t86.is_some_and(|t| t.contains("`info class definition`")),
             "8.6 should resolve `def` to definition",
         );
         assert!(
-            sub_subcommand_hover_text(src, 0, 11, &registry, "def", Some(SurfaceQuery::core(Family::Tcl, "9.0"))).is_none(),
+            sub_subcommand_hover_text(
+                src,
+                0,
+                11,
+                &registry,
+                "def",
+                Some(SurfaceQuery::core(Family::Tcl, "9.0"))
+            )
+            .is_none(),
             "9.0 `def` is ambiguous — no hover",
         );
         // `string rev` (reverse, 8.5+) hovers in 8.6 but not in 8.4.
         let src = "string rev abc\n";
-        assert!(subcommand_hover_text(src, 0, 8, &registry, "rev", Some(SurfaceQuery::core(Family::Tcl, "8.6"))).is_some(),);
         assert!(
-            subcommand_hover_text(src, 0, 8, &registry, "rev", Some(SurfaceQuery::core(Family::Tcl, "8.4"))).is_none(),
+            subcommand_hover_text(
+                src,
+                0,
+                8,
+                &registry,
+                "rev",
+                Some(SurfaceQuery::core(Family::Tcl, "8.6"))
+            )
+            .is_some(),
+        );
+        assert!(
+            subcommand_hover_text(
+                src,
+                0,
+                8,
+                &registry,
+                "rev",
+                Some(SurfaceQuery::core(Family::Tcl, "8.4"))
+            )
+            .is_none(),
             "`string rev` is unknown in 8.4",
         );
     }

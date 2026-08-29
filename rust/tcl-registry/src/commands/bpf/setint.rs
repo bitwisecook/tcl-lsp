@@ -18,7 +18,7 @@
 
 //! `setint` — assign a 64-bit integer from an expression.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 pub fn spec() -> CommandSpec {
     const OP: BpfOpSpec = BpfOpSpec::structural(BpfOpKind::ScalarSet(BpfScalarWidth::I64));

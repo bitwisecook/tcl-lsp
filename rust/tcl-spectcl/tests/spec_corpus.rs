@@ -128,9 +128,7 @@ use tcl_spectcl::discovery::{Origin, PackFile, Tier};
 use tcl_spectcl::hooks;
 use tcl_spectcl::pack::PackSet;
 
-// ---------------------------------------------------------------------------
 // Where things are
-// ---------------------------------------------------------------------------
 
 /// The repository root — this crate is `rust/tcl-spectcl`.
 fn repo_root() -> PathBuf {
@@ -152,9 +150,7 @@ fn relative(path: &Path, root: &Path) -> String {
         .replace('\\', "/")
 }
 
-// ---------------------------------------------------------------------------
 // The inventory: every `.tclspec` the repo ships
-// ---------------------------------------------------------------------------
 
 /// One pack file under test, with the tier it ships at and the dialect its
 /// commands belong to.
@@ -246,9 +242,7 @@ fn inventory(root: &Path) -> Vec<PackUnderTest> {
     packs
 }
 
-// ---------------------------------------------------------------------------
 // The corpus
-// ---------------------------------------------------------------------------
 
 /// Which corpus a dialect draws from: iRules read `.irul`, everything else
 /// reads `.tcl`.
@@ -409,9 +403,7 @@ fn mentions(file: &CorpusFile, name: &str) -> bool {
     file.tokens.contains(name)
 }
 
-// ---------------------------------------------------------------------------
 // Synthesising an exercising script for a command with no corpus
-// ---------------------------------------------------------------------------
 
 /// A valid argument count for `arity`, biased towards two so a resolver has
 /// something to resolve.
@@ -494,10 +486,8 @@ fn synthesise(spec: &CommandSpec) -> Vec<String> {
 /// making any single script large enough to hide a failure.
 const SYNTHESISED_CALLS_PER_SCRIPT: usize = 25;
 
-// ---------------------------------------------------------------------------
 // The engine wrapper: counts invocations, and injects the one panic no Tcl
 // body can be trusted to produce
-// ---------------------------------------------------------------------------
 
 /// A body carrying this marker panics at the engine boundary.
 ///
@@ -569,9 +559,7 @@ fn counting_host(stats: &Rc<EngineStats>) -> HookHost<CountingEngine> {
     })
 }
 
-// ---------------------------------------------------------------------------
 // The per-pack result
-// ---------------------------------------------------------------------------
 
 struct PackReport {
     file: String,
@@ -680,9 +668,7 @@ fn render(reports: &[PackReport], tmp: TmpCorpus) -> String {
     out
 }
 
-// ---------------------------------------------------------------------------
 // The harness proper
-// ---------------------------------------------------------------------------
 
 fn load_one(pack: &PackUnderTest) -> (PackSet, Duration) {
     let file = PackFile {
@@ -942,9 +928,7 @@ fn run_pack(pack: &PackUnderTest, root: &Path, corpus: &[CorpusFile]) -> PackRep
     }
 }
 
-// ---------------------------------------------------------------------------
 // The notice baseline
-// ---------------------------------------------------------------------------
 
 const BASELINE_HEADER: &str = "\
 # SpecTcl corpus-validation harness — accepted load notices.
@@ -1030,9 +1014,7 @@ fn write_baseline(notices: &[String]) {
     std::fs::write(baseline_path(), out).expect("write the notice baseline");
 }
 
-// ---------------------------------------------------------------------------
 // The watchdog
-// ---------------------------------------------------------------------------
 
 /// Run `body` on a worker thread and fail — rather than wedge — if it does not
 /// finish inside `budget`.
@@ -1080,9 +1062,7 @@ fn with_watchdog<T: Send + 'static>(
     }
 }
 
-// ---------------------------------------------------------------------------
 // The tests
-// ---------------------------------------------------------------------------
 
 /// Every shipped `.tclspec`: loaded, installed, analysed against corpus, with
 /// its hooks run through the sandboxed host — and the per-pack report.

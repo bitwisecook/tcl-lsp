@@ -2299,12 +2299,10 @@ mod tests {
         );
     }
 
-    // -----------------------------------------------------------------------
     // Slash-form path arithmetic (PR #1086 finding 1).
     //
     // Pure string math, so the Windows shapes are exercised on any host — the
     // evaluator has no `cfg(windows)` branch to skip.
-    // -----------------------------------------------------------------------
 
     #[test]
     fn dirname_join_normalise_are_root_aware() {
@@ -2429,9 +2427,7 @@ mod tests {
         );
     }
 
-    // -----------------------------------------------------------------------
     // `set` vs `lappend` arity (PR #1086 finding 2).
-    // -----------------------------------------------------------------------
 
     /// Fold every entry a source records, in order.
     fn fold_all(src: &str, info_script: &str) -> Vec<String> {

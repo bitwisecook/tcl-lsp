@@ -140,9 +140,7 @@ fn err_eq(src: &str, want: &str) {
     assert_eq!(result, want, "for script: {src}");
 }
 
-// ===========================================================================
 // string length / index / range / repeat / reverse / cat
-// ===========================================================================
 
 /// `string length`, `index`, `range`, `repeat`, `reverse`, `cat` — the
 /// core-backed subcommands, exercised through the VM's `string` dispatcher.
@@ -196,9 +194,7 @@ fn string_repeat_bad_count() {
     err_eq("string repeat ab x", "expected integer but got \"x\"");
 }
 
-// ===========================================================================
 // append (registered alongside `string` in cmd_string.rs)
-// ===========================================================================
 
 /// `append varName ?value ...?` — concatenation, the no-values read form
 /// (returns the current value, or errors when unset), array elements, and the
@@ -227,9 +223,7 @@ fn append_command() {
     );
 }
 
-// ===========================================================================
 // string compare / equal — options (-nocase, -length, abbreviations) + errors
-// ===========================================================================
 
 /// `string compare` / `string equal` with `-nocase` / `-length` and their
 /// abbreviations.
@@ -303,9 +297,7 @@ fn string_compare_equal_errors() {
     );
 }
 
-// ===========================================================================
 // string match
-// ===========================================================================
 
 /// `string match ?-nocase? pattern string` including glob metacharacters,
 /// `-nocase`, escaped metacharacters, and the option/arity errors.
@@ -353,9 +345,7 @@ fn bug_string_match_bad_option() {
     err_eq("string match -- a a", "bad option \"--\": must be -nocase");
 }
 
-// ===========================================================================
 // string first / string last (with start/last indices)
-// ===========================================================================
 
 /// `string first needle haystack ?startIndex?`.
 #[test]
@@ -400,9 +390,7 @@ fn string_last_command() {
     );
 }
 
-// ===========================================================================
 // string tolower / toupper / totitle — with ?first? ?last? ranges
-// ===========================================================================
 
 /// Case conversion with the optional `?first? ?last?` range form.
 #[test]
@@ -455,9 +443,7 @@ fn string_case_conversion_errors() {
     );
 }
 
-// ===========================================================================
 // string trim / trimleft / trimright
-// ===========================================================================
 
 /// The `string trim` family, default and custom trim sets.
 #[test]
@@ -493,9 +479,7 @@ fn string_trim_family() {
     );
 }
 
-// ===========================================================================
 // string map
-// ===========================================================================
 
 /// `string map ?-nocase? charMap string`.
 #[test]
@@ -523,9 +507,7 @@ fn string_map_command() {
     );
 }
 
-// ===========================================================================
 // string replace / string insert
-// ===========================================================================
 
 /// `string replace string first last ?newstring?`.
 #[test]
@@ -576,9 +558,7 @@ fn string_insert_command() {
     );
 }
 
-// ===========================================================================
 // string subcommand dispatch — prefix resolution + bad subcommand
-// ===========================================================================
 
 /// `string` subcommand resolution: unique-prefix abbreviation, the
 /// ambiguous/unknown error, and the no-subcommand error.
@@ -614,9 +594,7 @@ fn string_subcommand_dispatch() {
     );
 }
 
-// ===========================================================================
 // string is — class membership
-// ===========================================================================
 
 /// `string is class str` — character and value class membership. The class set
 /// follows Tcl 9 (`dict`, arbitrary-precision `integer`), so the divergent
@@ -815,9 +793,7 @@ fn bug_string_is_integer_failindex_internal_space() {
     res_eq("string is integer -failindex fi {12 x}; set fi", "3");
 }
 
-// ===========================================================================
 // format — conversions, flags, width, precision, positional specifiers
-// ===========================================================================
 
 /// `format` integer conversions with flags, width, precision, and `*`.
 #[test]
@@ -1048,9 +1024,7 @@ fn bug_format_trailing_incomplete_specifier() {
     );
 }
 
-// ===========================================================================
 // puts-captured output forms (exercise the dispatch through stdout too)
-// ===========================================================================
 
 /// A spot-check that the same results flow through `puts` to captured stdout
 /// (the form many real scripts use), covering the `string`/`format` adapters

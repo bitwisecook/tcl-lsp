@@ -58,7 +58,7 @@
 //! hover snippet and field comments instead of a version gate.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "tcl_findLibrary basename version patch initScript enVarName varName",

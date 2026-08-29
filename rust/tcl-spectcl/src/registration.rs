@@ -312,9 +312,8 @@ pub fn retire_pack_environments() -> PackSetRegistration {
     let outcome = tcl_registry::model::sync_environment_sources(Vec::new());
     let _ = tcl_dialect::model::register_dynamic_families(Vec::new(), Vec::new());
     // The compiled-in core surfaces are not the pack channel's to retire.
-    let _ = tcl_dialect::model::register_inherited_surfaces(
-        crate::core_surfaces::builtin_rosters(),
-    );
+    let _ =
+        tcl_dialect::model::register_inherited_surfaces(crate::core_surfaces::builtin_rosters());
     PackSetRegistration {
         generation: outcome.generation,
         changed: outcome.changed,

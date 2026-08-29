@@ -90,9 +90,7 @@ use tcl_compiler::var_escape::{
 };
 use tcl_registry::CommandRegistry;
 
-// ---------------------------------------------------------------------------
 // Shared helpers
-// ---------------------------------------------------------------------------
 
 fn reg() -> CommandRegistry {
     CommandRegistry::build_default()
@@ -161,9 +159,7 @@ fn summary_for<'a>(
     summaries.get(qname)
 }
 
-// ===========================================================================
 // Proc classification
-// ===========================================================================
 
 // --- TestStatementCount ----------------------------------------------------
 
@@ -294,9 +290,7 @@ fn classify_missing_summary_is_never() {
     assert_eq!(classify_proc(proc, None, 0), InlineDecision::Never);
 }
 
-// ===========================================================================
 // The inline transform
-// ===========================================================================
 
 // --- TestEmptyBodySplice ---------------------------------------------------
 
@@ -926,9 +920,7 @@ fn namespace_eval_body_is_opaque_barrier_not_a_block() {
     );
 }
 
-// ===========================================================================
 // Inlining ↔ GVN interaction
-// ===========================================================================
 //
 // The GVN pass itself has no public integration entry point. The single
 // behavioural fact GVN and the inliner SHARE is the splice-safe /
@@ -957,9 +949,7 @@ fn gvn_shared_allowlist_user_call_is_opaque() {
     assert_eq!(top_calls_to(&out, "w"), 1);
 }
 
-// ===========================================================================
 // Whole-callee uplevel-passthrough inlining
-// ===========================================================================
 
 // --- TestPassthroughRecognition --------------------------------------------
 

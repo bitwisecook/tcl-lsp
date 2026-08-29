@@ -19,7 +19,7 @@
 //! `filename` — file name conventions supported by Tcl commands.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// `filename` is `filename(n)`: a conventions reference, not an invocable
 /// command — there is no `filename ...` call to arity-check, so `traits`,

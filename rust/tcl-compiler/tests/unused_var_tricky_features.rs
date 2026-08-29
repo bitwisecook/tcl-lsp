@@ -96,7 +96,6 @@ fn lifecycle_silent(src: &str) -> bool {
         .any(|c| matches!(c.as_str(), "W210" | "W211" | "W213" | "W220"))
 }
 
-// ===========================================================================
 // upvar — dynamic-target pass-by-reference (the #941 headline FP)
 //
 // `upvar ?level? otherVar myVar` binds the *local* `myVar` to the caller-frame
@@ -104,7 +103,6 @@ fn lifecycle_silent(src: &str) -> bool {
 // value (`$name`); the two are semantically identical — each errors only when
 // the caller variable is missing. The analyser used to flag the dynamic form
 // alone, firing on the single most common Tcl pass-by-reference idiom.
-// ===========================================================================
 mod upvar_dynamic_target {
     use super::*;
 
@@ -174,11 +172,9 @@ mod upvar_dynamic_target {
     }
 }
 
-// ===========================================================================
 // Cross-scope globals — the top-level script and every proc share the global
 // namespace, so a top-level `set` is "used" when a proc reads it (and the
 // existing reverse direction, a proc write feeding a top-level read).
-// ===========================================================================
 mod cross_scope_globals {
     use super::*;
 
@@ -255,11 +251,9 @@ mod cross_scope_globals {
     }
 }
 
-// ===========================================================================
 // Tricky surfaces the analyser already models — regression guards (TN).
 // Each `set` here is consumed through a feature that is NOT a plain `$var`
 // read in the same frame; the analyser must keep recognising the use.
-// ===========================================================================
 mod already_modelled_surfaces {
     use super::*;
 
@@ -345,10 +339,8 @@ mod already_modelled_surfaces {
     }
 }
 
-// ===========================================================================
 // Read-before-set TPs on tricky surfaces — the FP suppressions above must not
 // leak into genuine errors.
-// ===========================================================================
 mod read_before_set_tps {
     use super::*;
 

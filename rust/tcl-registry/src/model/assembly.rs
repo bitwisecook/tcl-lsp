@@ -53,8 +53,8 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
-use tcl_dialect::model::{EnvironmentDefinition, EnvironmentIdentity};
 use tcl_dialect::DialectProfile;
+use tcl_dialect::model::{EnvironmentDefinition, EnvironmentIdentity};
 
 use crate::model::context::{ContextQueries, KeyedVersions, ResolvedContext, specificity_breadth};
 use crate::model::surface::{SurfaceDeclaration, declarations_for_spec};
@@ -491,13 +491,13 @@ pub fn side_effect_hints_in_context<'r>(
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use tcl_dialect::model::{SpecSurface};
     use super::*;
     use crate::cache::registry_for_profile;
     use crate::profile_queries::ProfileQueries;
     use std::collections::BTreeSet;
     use tcl_dialect::DialectProfile;
     use tcl_dialect::model::EnvironmentRegistry;
+    use tcl_dialect::model::SpecSurface;
 
     fn new_registry_for(profile_name: &str) -> Arc<ContextRegistry> {
         let environments = EnvironmentRegistry::compiled();
@@ -1006,4 +1006,3 @@ pub(crate) mod tests {
         assert!(spectcl.resolve_command("option").is_some(), "spectcl word");
     }
 }
-

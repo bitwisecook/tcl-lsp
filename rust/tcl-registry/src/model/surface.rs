@@ -41,8 +41,8 @@ use std::sync::{Arc, OnceLock};
 
 use smallvec::SmallVec;
 use tcl_dialect::model::{
-    SpecProvider, SpecSurface, SpecWindow, SurfaceQuery, surface_admits,
-    Family, ItemHistory, Provenance, Version, VersionAxisId, VersionSet, compiled_definitions,
+    Family, ItemHistory, Provenance, SpecProvider, SpecSurface, SpecWindow, SurfaceQuery, Version,
+    VersionAxisId, VersionSet, compiled_definitions, surface_admits,
 };
 
 use crate::lifecycle::Lifecycle;
@@ -552,10 +552,10 @@ fn window_set(axis: VersionAxisId, windows: &[SpecWindow]) -> VersionSet {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::surface;
-    use tcl_dialect::model::{SpecSurface, Family};
     use super::*;
     use crate::spec::CommandSpec;
+    use tcl_dialect::model::{Family, SpecSurface};
+    use tcl_dialect::surface;
 
     fn spec_with(surface: Option<&'static [SpecSurface]>) -> CommandSpec {
         CommandSpec {
@@ -595,8 +595,10 @@ mod tests {
 
     #[test]
     fn a_ladder_gap_stays_two_ranges() {
-        let rows =
-            declarations_for_spec(&spec_with(Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.5")), ("8.6", Some("8.7"))])])));
+        let rows = declarations_for_spec(&spec_with(Some(surface![SpecSurface::core_in(
+            Family::Tcl,
+            &[("8.4", Some("8.5")), ("8.6", Some("8.7"))]
+        )])));
         let core = core_tcl_row(&rows);
         assert_eq!(core.applicable.ranges().len(), 2);
         assert!(core.applicable.contains(&v("8.4")));
@@ -624,8 +626,10 @@ mod tests {
 
     #[test]
     fn vendor_bits_translate_to_full_axis_package_rows() {
-        let rows =
-            declarations_for_spec(&spec_with(Some(surface![SpecSurface::package("iapps"), SpecSurface::package("tmsh")])));
+        let rows = declarations_for_spec(&spec_with(Some(surface![
+            SpecSurface::package("iapps"),
+            SpecSurface::package("tmsh")
+        ])));
         let packages: Vec<&str> = rows
             .iter()
             .filter_map(|row| match &row.provider {
@@ -681,8 +685,9 @@ mod tests {
         );
         // Every row carries the require; a lenient world reads it
         // leniently, an ambient-plus-require world literally.
-        assert!(rows.iter().all(|row| row.predicate
-            == CapabilityPredicate::RequiresPackage(PackageId::new("csv"))));
+        assert!(rows.iter().all(
+            |row| row.predicate == CapabilityPredicate::RequiresPackage(PackageId::new("csv"))
+        ));
     }
 
     /// **P5.** A tcllib module's package row is applicable over the

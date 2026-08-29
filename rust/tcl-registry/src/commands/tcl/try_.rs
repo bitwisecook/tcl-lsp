@@ -19,7 +19,7 @@
 //! `try` — trap and process errors and exceptions.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 // `body`, every handler `script`, and `finally` can do literally anything
 // (`cmd_try` in `tcl-vm/src/cmd_try.rs` evaluates each one with

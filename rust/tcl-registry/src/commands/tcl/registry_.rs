@@ -21,7 +21,7 @@
 //! Module name has a trailing underscore to avoid a collision with the
 //! crate's [`crate::registry`] module.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[
     FormSpec {

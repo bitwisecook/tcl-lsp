@@ -26,7 +26,7 @@
 // TIP 631 landing for the 9.0 release.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "ledit listVar first last ?value value ...?",

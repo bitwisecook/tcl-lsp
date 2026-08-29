@@ -19,7 +19,7 @@
 //! `lindex` — retrieve an element from a list.
 use crate::hooks::InlineCodegenHookId;
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "lindex list ?index ...?",
     ..FormSpec::DEFAULT

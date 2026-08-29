@@ -467,9 +467,7 @@ fn spec_upgrade_defers_environment_membership_tokens() {
     assert!(written.contains("speclib demo 2.0"), "{written}");
 }
 
-// ---------------------------------------------------------------------------
 // `tcl spec export` — the canonical renderer (design E §15.1, E-R11)
-// ---------------------------------------------------------------------------
 
 /// A templated pack — the shape `spec export` exists for.
 const PROGRAM: &str = "speclib fleet 2.0 {

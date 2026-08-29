@@ -122,10 +122,10 @@
 //! Run `cargo xtask gen-tmlanguage-keywords` to (re)write the files;
 //! `--check` verifies the committed files match, exiting non-zero on drift.
 
-use tcl_dialect::model::{SurfaceQuery, Family};
 use std::collections::BTreeSet;
 use std::fs;
 use std::process::ExitCode;
+use tcl_dialect::model::{Family, SurfaceQuery};
 
 use anyhow::{Context, Result, bail};
 use tcl_dialect::{EscapeSyntax, NumberSyntax};

@@ -272,9 +272,7 @@ pub fn import_package_versions(
     )
 }
 
-// ---------------------------------------------------------------------------
 // The pack store — the DSL document is the model
-// ---------------------------------------------------------------------------
 //
 // Every export here takes the `.tclspec` **source** and returns JSON, so the
 // browser holds exactly one piece of state — the document — and the Rust side
@@ -509,9 +507,7 @@ pub fn pack_validate(source: &str, dialect: &str) -> String {
     })
 }
 
-// ---------------------------------------------------------------------------
 // The Test tab — the pack, installed, under the real analyser
-// ---------------------------------------------------------------------------
 
 /// Analyse `sample` with `source`'s pack installed over the `dialect`
 /// registry.
@@ -554,9 +550,7 @@ pub fn pack_test_inspect(source: &str, sample: &str, dialect: &str, offset: usiz
     })
 }
 
-// ---------------------------------------------------------------------------
 // The Pack DSL tab — client-side highlight and hover for the DSL itself
-// ---------------------------------------------------------------------------
 
 /// Classified byte-span tokens for `.tclspec` `source` — what the Pack DSL
 /// editor's overlay paints. `[{start, end, class, text}, …]`, non-overlapping

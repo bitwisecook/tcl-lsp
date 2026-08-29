@@ -18,7 +18,7 @@
 
 //! `BIGTCP::release_flow` iRules command.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "BIGTCP::release_flow",

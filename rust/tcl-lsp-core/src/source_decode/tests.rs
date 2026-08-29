@@ -36,9 +36,7 @@ fn from_bytes(bytes: &[u8]) -> (String, Vec<StyleDiagnostic>) {
     (text, diags)
 }
 
-// ---------------------------------------------------------------------------
 // W107 — ill-formed UTF-8.  True positives, one per malformation class.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn w107_fires_on_every_malformation_class() {
@@ -113,9 +111,7 @@ fn w107_is_one_diagnostic_per_file_however_broken() {
     assert!(diags[0].message.contains("20 ill-formed sequences"));
 }
 
-// ---------------------------------------------------------------------------
 // W107 — false-positive guards.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn w107_silent_on_valid_utf8_including_non_ascii() {
@@ -219,9 +215,7 @@ fn positions_are_utf16_code_units_not_bytes_or_chars() {
     assert_eq!(super::position_of(&text, clef + 2), (0, 7));
 }
 
-// ---------------------------------------------------------------------------
 // W109 — this is not UTF-8 text.
-// ---------------------------------------------------------------------------
 
 /// The body the encoding fixtures wrap, as a `&str`.
 const BODY: &str = "when HTTP_REQUEST {\n    log local0. \"hit\"\n}\n";
@@ -304,9 +298,7 @@ fn w109_needs_both_a_nul_floor_and_a_ratio() {
     assert!(!should_abstain(Some(&report)));
 }
 
-// ---------------------------------------------------------------------------
 // #1325 regression guard — the complementary path.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn positions_never_panic_on_offsets_inside_a_multi_byte_character() {

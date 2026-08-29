@@ -11,10 +11,10 @@
 //! normal body arguments, clause-list arm bodies, lambda bodies, definition
 //! members, and live command substitutions.
 
-use tcl_dialect::model::{SurfaceQuery};
 use tcl_compiler::lambda_literal::split_lambda_literal;
 use tcl_compiler::realm::CommandBindingRealm;
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
+use tcl_dialect::model::SurfaceQuery;
 use tcl_lexer::{Lexer, LexerConfig, SourceMap, Token, TokenType};
 use tcl_registry::definer::DefinitionBodyGrammar;
 use tcl_registry::{ArgRole, CommandRegistry, ScriptTiming};

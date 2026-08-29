@@ -337,9 +337,7 @@ fn fn_inscope_target_is_a_reference_not_a_declaration() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Review of PR #1112 — three P2 tier-completeness findings.
-// ---------------------------------------------------------------------------
 
 // TN (finding 1) — a namespace-name position is **definitive**: it must never
 // fall through to command resolution.  `namespace exists string` with
@@ -595,7 +593,6 @@ fn tp_a_braced_namespace_name_is_navigable() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Issue #1246 — implicit parents at the **workspace** tier.
 //
 // `namespace eval ::p::q::r {}` really creates `::p` and `::p::q`, so a
@@ -609,7 +606,6 @@ fn tp_a_braced_namespace_name_is_navigable() {
 //   namespace exists ::p::q   -> 1
 //   namespace exists ::p      -> 1
 //   namespace children ::p    -> ::p::q
-// ---------------------------------------------------------------------------
 
 /// The `(line, start-character, end-character)` of every definition target in
 /// `uri` — the implicit answer is a **sub-range** of a name word, so the

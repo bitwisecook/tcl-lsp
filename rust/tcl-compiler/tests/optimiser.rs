@@ -53,9 +53,7 @@ use tcl_compiler::optimiser::manager::{
 };
 use tcl_registry::model::ingress::static_context_for;
 
-// ---------------------------------------------------------------------------
 // Shared helpers (mirror fp/opt.rs: opt_fires / optimised / opt_codes)
-// ---------------------------------------------------------------------------
 
 const TCL: &str = "tcl8.6";
 
@@ -110,9 +108,7 @@ fn int_x(body: &str) -> String {
     )
 }
 
-// ---------------------------------------------------------------------------
 // Constant propagation / folding / DSE core
-// ---------------------------------------------------------------------------
 
 #[test]
 fn propagation_and_constant_folding_core() {
@@ -328,9 +324,7 @@ fn dead_store_and_dead_code_elimination() {
     assert!(opt_fires(dce, TCL, "O112"));
 }
 
-// ---------------------------------------------------------------------------
 // O110 InstCombine — algebraic / boolean / De-Morgan / ternary simplification
-// ---------------------------------------------------------------------------
 
 #[test]
 fn instcombine_reassociation_and_identity_annihilator() {
@@ -472,9 +466,7 @@ fn instcombine_ternary_and_boolean_context() {
     //  - `$x ? 0 : 1` → `!$x` — not folded.
 }
 
-// ---------------------------------------------------------------------------
 // Structure elimination — O112 constant-condition compound statements
-// ---------------------------------------------------------------------------
 
 /// The iRules word operators fold through **SCCP** — not just through the
 /// expression-simplification passes that already carried a dialect.
@@ -656,9 +648,7 @@ fn structure_elimination_nesting_via_multipass() {
     assert!(fixed.contains("set alive 2"));
 }
 
-// ---------------------------------------------------------------------------
 // Unused variable elimination — O126
-// ---------------------------------------------------------------------------
 
 #[test]
 fn unused_variable_elimination_o126() {
@@ -676,9 +666,7 @@ fn unused_variable_elimination_o126() {
     assert!(optimised(braced, TCL).contains("return 42") || opt_fires(braced, TCL, "O126"));
 }
 
-// ---------------------------------------------------------------------------
 // Cross-event DSE — stores consumed by a later event must survive
-// ---------------------------------------------------------------------------
 
 // NOTE — this group of cross-event DSE cases is OMITTED here (they were a
 // GENUINE bug at the time). A `set` in one iRule event whose value
@@ -691,9 +679,7 @@ fn unused_variable_elimination_o126() {
 // soundness bug. They were reported rather than asserted, since asserting the
 // output at the time would have pinned a miscompile.
 
-// ---------------------------------------------------------------------------
 // Constant var-ref propagation — O100 / O105 (string interpolation)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn branch_condition_ending_in_a_nested_empty_pair_rewrites_the_whole_word() {
@@ -813,7 +799,6 @@ fn constant_propagation_into_strings_o105() {
     assert_eq!(optimised(combo, TCL), "puts \"x=5\"\nputs 6");
 }
 
-// ---------------------------------------------------------------------------
 // Pattern-match simplification — O110 matches_regex / matches_glob (f5-irules)
 //
 // OMISSION: the entire matches_regex/matches_glob → string-op simplification
@@ -822,7 +807,6 @@ fn constant_propagation_into_strings_o105() {
 // unchanged is sound (no miscompile), just not optimised, so rather than assert
 // a rewrite we pin the conservative behaviour: the negative cases (which must NOT
 // simplify) all hold, and the "positive" cases are a known optimiser gap.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn pattern_match_simplification_negatives_hold() {
@@ -854,9 +838,7 @@ fn pattern_match_simplification_negatives_hold() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Strength reduction — O113
-// ---------------------------------------------------------------------------
 
 #[test]
 fn strength_reduction_o113() {
@@ -875,9 +857,7 @@ fn strength_reduction_o113() {
     assert!(opt_fires(modp, TCL, "O113"));
 }
 
-// ---------------------------------------------------------------------------
 // Incr idiom — O114 (needs SSA-known INT type on the loop var)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn incr_idiom_o114() {
@@ -899,9 +879,7 @@ fn incr_idiom_o114() {
     assert!(opt_fires(sub3, TCL, "O114"));
 }
 
-// ---------------------------------------------------------------------------
 // Nested expr unwrap — O115
-// ---------------------------------------------------------------------------
 
 #[test]
 fn nested_expr_unwrap_o115() {
@@ -922,9 +900,7 @@ fn nested_expr_unwrap_o115() {
     // fire). Sound to leave unchanged; a known gap.
 }
 
-// ---------------------------------------------------------------------------
 // List folding / lindex folding — O116 / O118
-// ---------------------------------------------------------------------------
 
 #[test]
 fn list_and_lindex_folding() {
@@ -960,9 +936,7 @@ fn list_and_lindex_folding() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Strlen zero-check — O117
-// ---------------------------------------------------------------------------
 
 #[test]
 fn strlen_zero_check_o117() {
@@ -988,9 +962,7 @@ fn strlen_zero_check_o117() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // String compare eq/ne — O120
-// ---------------------------------------------------------------------------
 
 #[test]
 fn string_compare_eq_ne_o120() {
@@ -1053,9 +1025,7 @@ fn string_compare_o120_conservative_non_rewrites() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Multi-set packing — O119
-// ---------------------------------------------------------------------------
 
 #[test]
 fn multi_set_packing_o119() {
@@ -1083,9 +1053,7 @@ fn multi_set_packing_o119() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // End-offset index rewrite — O128
-// ---------------------------------------------------------------------------
 
 #[test]
 fn end_offset_rewrites_o128() {
@@ -1215,9 +1183,7 @@ fn end_offset_o128_must_not_fire() {
     assert!(opt_fires(braced_arr, TCL, "O128"));
 }
 
-// ---------------------------------------------------------------------------
 // Variable-shape optimisation guardrails — variable-shape forms not conflated
-// ---------------------------------------------------------------------------
 
 #[test]
 fn variable_shape_guardrails() {
@@ -1234,13 +1200,11 @@ fn variable_shape_guardrails() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Tail-call optimisation — O121 (tailcall) / O122 (loop) / O123 (accumulator)
 //
 // The optimise_with_dialect set is post-overlap; selection makes O122 subsume
 // per-site O121. For a tail call we therefore assert the disjunction
 // "O121 or O122" on the applied set.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn tail_call_detection_o121_o122() {
@@ -1383,9 +1347,7 @@ fn accumulator_hint_o123() {
     assert!(opt_fires(coexist, TCL, "O123"));
 }
 
-// ---------------------------------------------------------------------------
 // Unused iRule procs — O124 (f5-irules only)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn unused_irule_procs_o124() {
@@ -1473,9 +1435,7 @@ fn unused_irule_procs_o124_eval_suppression() {
     assert!(opt_fires(unreach, IR, "O124"));
 }
 
-// ---------------------------------------------------------------------------
 // Code sinking — O125
-// ---------------------------------------------------------------------------
 
 #[test]
 fn code_sinking_o125_positive() {
@@ -1536,9 +1496,7 @@ fn code_sinking_o125_negatives() {
     // A real miscompile, so it is reported rather than asserted.
 }
 
-// ---------------------------------------------------------------------------
 // Load forwarding — O127 (single-use store-to-load forwarding)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn load_forwarding_o127() {
@@ -1571,9 +1529,7 @@ fn load_forwarding_o127() {
     //    is not treated as a barrier).
 }
 
-// ---------------------------------------------------------------------------
 // Profile directive / multipass — profile survival + string-build collapse
-// ---------------------------------------------------------------------------
 
 #[test]
 fn profile_directive_survives_structure_elimination() {
@@ -1669,14 +1625,12 @@ mod cross_event_dse {
     }
 }
 
-// ===========================================================================
 // Issues #1374 / #1377 / #1402 — the dynamic-name value-motion barrier and
 // the whole-module variable-trace fact. Every source below currently
 // miscompiled (or mis-reported) before the shared
 // `FunctionUnit::dynamic_barrier_blocks_value_motion` gate and the
 // `Module::traced_variables` widening landed; each pin asserts the
 // optimiser abstains. tclsh oracles cited per test.
-// ===========================================================================
 
 // tclsh 8.6/9.0: `f acc` returns `zzz b` — folding the chain to
 // `set acc {a b}` (O130) walks straight past the dynamic write.
@@ -1756,7 +1710,6 @@ fn barrier_reference_blocks_o125_issue_1402() {
     assert!(!opt_fires(eval_src, TCL, "O125"));
 }
 
-// ===========================================================================
 // Issue #1385 — code motion and deletion must share one "is this block
 // executable" fact.
 //
@@ -1773,7 +1726,6 @@ fn barrier_reference_blocks_o125_issue_1402() {
 //
 // `find_loop_invariants` / `find_partial_redundancies` now take that set,
 // and `*_for_function` seed it from `fu.sccp.executable_blocks`.
-// ===========================================================================
 
 /// `src` compiled to a unit whose top level carries the SCCP result the
 /// deletion passes read.

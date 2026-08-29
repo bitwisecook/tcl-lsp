@@ -195,7 +195,6 @@ fn formatting_never_changes_a_range_it_was_not_asked_about() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Issue #1256 — the boolean consumption site is a declared registry fact
 // (`ArgRole::Boolean`), not something inferred from an option's value set.
 //
@@ -204,7 +203,6 @@ fn formatting_never_changes_a_range_it_was_not_asked_about() {
 //   set c [open /dev/null]
 //   chan configure $c -blocking yes ; chan configure $c -blocking   ;# -> 1
 //   chan configure $c -blocking off ; chan configure $c -blocking   ;# -> 0
-// ---------------------------------------------------------------------------
 
 #[test]
 fn a_declared_boolean_option_value_normalises() {
@@ -360,7 +358,6 @@ fn a_dynamic_boolean_option_value_abstains() {
     assert!(out.contains("-blocking $flag"), "{out}");
 }
 
-// ---------------------------------------------------------------------------
 // Issue #1257 — the formatter config carries the document's dialect and target
 // version range, so a version-range-aware rewrite can apply it.
 //
@@ -370,7 +367,6 @@ fn a_dynamic_boolean_option_value_abstains() {
 //   tclsh8.6: string c abc abc  -> ambiguous subcommand "c": must be ...
 // so expanding `string c` to `string compare` in a file that may be run on
 // 8.6 changes what a newer interpreter does with the source.
-// ---------------------------------------------------------------------------
 
 /// Format `src` against `dialect`'s registry, with the target range set to
 /// that release and every later one.
@@ -490,11 +486,7 @@ fn a_boolean_option_present_across_the_range_still_normalises() {
     // check costs the ordinary rewrite nothing.
     //
     // tclsh-proof (8.6.14): `clock format 0 -gmt yes -format %Y` -> 1970.
-    let out = fmt_in_range(
-        "clock scan $s -gmt yes\n",
-        "tcl9.0",
-        &["tcl8.6", "tcl9.0"],
-    );
+    let out = fmt_in_range("clock scan $s -gmt yes\n", "tcl9.0", &["tcl8.6", "tcl9.0"]);
     assert!(out.contains("-gmt true"), "{out}");
     for dialect in ["tcl8.5", "tcl8.6", "tcl9.0"] {
         let out = fmt_over_range("fconfigure $c -blocking tru\n", dialect);

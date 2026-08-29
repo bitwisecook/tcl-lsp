@@ -18,7 +18,7 @@
 
 //! `tcltest::customMatch` command.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 fn custom_match_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
     (args.len() >= 2)

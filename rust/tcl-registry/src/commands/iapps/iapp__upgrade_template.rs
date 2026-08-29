@@ -18,7 +18,7 @@
 
 //! `iapp::upgrade_template` command.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "iapp::upgrade_template ?arg ...?",
     ..FormSpec::DEFAULT

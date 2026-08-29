@@ -21,9 +21,9 @@
 use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::prelude::*;
 use crate::state_transition::local_alias_name;
-use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::surface;
 use tcl_dialect::model::Family;
+use tcl_dialect::model::SpecSurface;
+use tcl_dialect::surface;
 
 const GLOBAL_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
     StateTransitionDomain::VariableCells,
@@ -76,7 +76,10 @@ const FORMS: &[FormSpec] = &[
     // they follow this form too.
     FormSpec {
         synopsis: "global ?varname ...?",
-        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.6", Some("9.2"))]), SpecSurface::package("expect")]),
+        surface: Some(surface![
+            SpecSurface::core_in(Family::Tcl, &[("8.6", Some("9.2"))]),
+            SpecSurface::package("expect")
+        ]),
         ..FormSpec::DEFAULT
     },
     // Tcl 8.4 and 8.5 require at least one varname: `Tcl_GlobalObjCmd`
@@ -88,7 +91,12 @@ const FORMS: &[FormSpec] = &[
     // so they inherit the same requirement.
     FormSpec {
         synopsis: "global varname ?varname ...?",
-        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.6"))]), SpecSurface::core(Family::F5Irules), SpecSurface::package("iapps"), SpecSurface::package("tmsh")]),
+        surface: Some(surface![
+            SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.6"))]),
+            SpecSurface::core(Family::F5Irules),
+            SpecSurface::package("iapps"),
+            SpecSurface::package("tmsh")
+        ]),
         ..FormSpec::DEFAULT
     },
 ];

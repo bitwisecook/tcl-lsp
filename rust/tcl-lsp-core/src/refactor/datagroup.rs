@@ -706,8 +706,8 @@ pub fn extract_to_datagroup(
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SurfaceLayer, Family};
     use super::*;
+    use tcl_dialect::model::{Family, SurfaceLayer};
 
     fn reg() -> CommandRegistry {
         let mut r = CommandRegistry::build_default();

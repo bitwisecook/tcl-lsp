@@ -169,9 +169,7 @@ fn workers_inherit_a_separate_host_command_surface_in_release() {
     assert_workers_inherit_a_separate_host_command_surface();
 }
 
-// ===========================================================================
 // Basics: identity, platform flag, availability
-// ===========================================================================
 
 #[test]
 fn thread_id_and_platform_flag() {
@@ -194,9 +192,7 @@ fn thread_package_absent_without_enable() {
     assert_eq!(&*c.result.to_str(), "0");
 }
 
-// ===========================================================================
 // thread::create / send / release
-// ===========================================================================
 
 #[test]
 fn sync_send_returns_the_eval_result() {
@@ -260,9 +256,7 @@ fn exists_names_and_release() {
     );
 }
 
-// ===========================================================================
 // True parallelism over shared `tsv`
-// ===========================================================================
 
 #[test]
 fn tsv_counter_is_atomic_across_threads() {
@@ -297,9 +291,7 @@ fn async_send_result_observed_via_tsv() {
     );
 }
 
-// ===========================================================================
 // tsv::* element operations
-// ===========================================================================
 
 #[test]
 fn tsv_element_operations() {
@@ -339,9 +331,7 @@ fn tsv_get_missing_key_errors_but_with_var_reports_presence() {
     );
 }
 
-// ===========================================================================
 // thread::mutex / cond / rwmutex — synchronisation primitives
-// ===========================================================================
 //
 // Worker bodies are passed as *braced* scripts (no send-time interpolation) and
 // read handles back from `tsv`, so the whole body runs in the worker. Each test
@@ -480,9 +470,7 @@ fn mutex_missing_handle_errors() {
     );
 }
 
-// ===========================================================================
 // tpool::* — worker pools
-// ===========================================================================
 
 #[test]
 fn tpool_posts_and_collects_results() {

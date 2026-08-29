@@ -51,8 +51,8 @@
 //! - ``initialise`` / ``initialize`` — recognised; the body is
 //!   walked in the enclosing scope for variable tracking.
 
+use tcl_dialect::model::SurfaceQuery;
 use tcl_dialect::model::surface_admits;
-use tcl_dialect::model::{SurfaceQuery};
 use tcl_lexer::{Span, Token, TokenType};
 use tcl_registry::arg_role::ArgRole;
 use tcl_registry::definer::{DefinitionBodyGrammar, MemberRefKind, MemberSpec, MemberVisibility};
@@ -500,9 +500,10 @@ impl Analyser {
         if definer_disabled {
             return false;
         }
-        let Some(option) =
-            member.unavailable_option_for(args, Some(self.analysis_context().context().authoring_query()))
-        else {
+        let Some(option) = member.unavailable_option_for(
+            args,
+            Some(self.analysis_context().context().authoring_query()),
+        ) else {
             return false;
         };
         let Some(position) = member.optional_argument.map(|optional| optional.position) else {
@@ -3082,13 +3083,7 @@ pub(super) fn apply_oo_subcommand(
     argv: &[Token],
     class_def: &mut ClassDef,
 ) {
-    apply_oo_subcommand_in(
-        grammar,
-        texts,
-        argv,
-        class_def,
-        None,
-    );
+    apply_oo_subcommand_in(grammar, texts, argv, class_def, None);
 }
 
 /// Apply one registry member using the selected dialect's concrete layout.

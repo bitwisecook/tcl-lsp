@@ -54,7 +54,7 @@ use crate::arity::Arity;
 use crate::hover::HoverSnippet;
 use crate::spec::CommandSpec;
 use crate::traits::Traits;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 mod arg;
 mod blocks;

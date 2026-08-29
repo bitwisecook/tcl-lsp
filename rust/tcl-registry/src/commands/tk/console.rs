@@ -25,7 +25,7 @@
 //! argument and the semantic-token walker left `script` as an opaque string
 //! instead of recursing into it (issue #925).
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,

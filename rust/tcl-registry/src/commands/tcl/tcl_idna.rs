@@ -43,7 +43,7 @@
 //! package, not subcommands of this ensemble.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "tcl::idna subcommand ?arg ...?",

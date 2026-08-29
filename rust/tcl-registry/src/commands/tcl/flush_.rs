@@ -19,7 +19,7 @@
 //! `flush` — flush buffered output for a channel.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 // `channelId` is mandatory in every version's synopsis — 8.4/8.5/8.6's flush.n
 // gives only `flush channelId`, and 9.0/9.1's abbreviated flush.n (see below)

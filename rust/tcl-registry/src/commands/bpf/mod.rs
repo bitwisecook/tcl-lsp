@@ -101,8 +101,8 @@ pub fn bpf_command_specs() -> Vec<CommandSpec> {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SpecSurface};
     use super::*;
+    use tcl_dialect::model::SpecSurface;
 
     #[test]
     fn all_bpf_commands_present_and_tagged() {

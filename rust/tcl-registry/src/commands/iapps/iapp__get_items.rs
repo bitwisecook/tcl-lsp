@@ -18,7 +18,7 @@
 
 //! `iapp::get_items` command.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "iapp::get_items ?arg ...?",
     ..FormSpec::DEFAULT

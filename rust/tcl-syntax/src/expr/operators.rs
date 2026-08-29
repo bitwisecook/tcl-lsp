@@ -40,7 +40,7 @@
 use tcl_dialect::TclVersion;
 
 use super::ast::{BinOp, UnaryOp};
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// A command's argument-count contract — deliberately not `tcl_registry::Arity`
 /// (`tcl-registry` depends on `tcl-syntax`, never the reverse).
@@ -182,7 +182,11 @@ pub struct OperatorSpec {
 
 /// The `(surface, mathop_shape, summary)` triple `BinOp::spec()`/
 /// `UnaryOp::spec()` each assemble into a full [`OperatorSpec`].
-type SpecFacts = (Option<&'static [SpecSurface]>, Option<OperatorShape>, &'static str);
+type SpecFacts = (
+    Option<&'static [SpecSurface]>,
+    Option<OperatorShape>,
+    &'static str,
+);
 
 impl BinOp {
     /// Static metadata for this operator — see the module docs for how
@@ -604,8 +608,8 @@ pub const ALL_UNARY_OPS: &[UnaryOp] = &[
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SpecSurface};
     use super::*;
+    use tcl_dialect::model::SpecSurface;
 
     /// Adding a `BinOp` variant without extending this match is a compile
     /// error — the actual exhaustiveness guard. The length assert on

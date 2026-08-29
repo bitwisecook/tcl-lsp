@@ -341,9 +341,7 @@ fn ratio(num: usize, den: usize) -> f64 {
         / f64::from(u32::try_from(den).unwrap_or(u32::MAX))
 }
 
-// ---------------------------------------------------------------------------
 // Builder
-// ---------------------------------------------------------------------------
 
 /// Classify how a variable was assigned, for ⊤-reason attribution.
 #[derive(Debug, Clone, PartialEq, Eq)]

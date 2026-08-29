@@ -31,9 +31,9 @@
 //! event. The authoritative source remains the command documentation linked by
 //! each registry spec.
 
-use tcl_dialect::model::{SurfaceQuery, Family};
 use tcl_compiler::analyser::Analyser;
 use tcl_core_types::{DiagCode, Severity};
+use tcl_dialect::model::{Family, SurfaceQuery};
 use tcl_registry::model::ingress::static_context_for;
 use tcl_registry::{events::EventRegistry, profiles::ProfileRegistry};
 

@@ -45,8 +45,8 @@
 //! arg-role classification are registry-internal metadata, marked
 //! `// registry-metadata`.
 
-use tcl_dialect::model::{SurfaceQuery};
-use tcl_dialect::model::{SurfaceLayer, Family};
+use tcl_dialect::model::SurfaceQuery;
+use tcl_dialect::model::{Family, SurfaceLayer};
 use tcl_registry::arity::Arity;
 use tcl_registry::events::EventRegistry;
 use tcl_registry::model::ingress::{static_context_for, static_document_context_for};
@@ -56,9 +56,7 @@ use tcl_registry::{
     PayloadCollectionRequirement, SideSwitchTarget, Traits, available_dialects,
 };
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /// `static_context_for(name).commands()` returns a registry with that dialect loaded;
 /// pair it with the parsed `SpecSurface` for `get_for_surface`.
@@ -86,9 +84,7 @@ fn present_in(dialect: &str, cmd: &str) -> bool {
     reg.get_for_surface(cmd, ds).is_some()
 }
 
-// ===========================================================================
 // Registry structure
-// ===========================================================================
 
 /// `socket` carries `-server` and `-myaddr`.
 ///
@@ -276,9 +272,7 @@ fn validation_metadata_is_available() {
     assert!(acl.arity.is_unlimited());
 }
 
-// ===========================================================================
 // Control-flow and needs-start-cmd traits
-// ===========================================================================
 
 /// registry-metadata: the `CONTROL_FLOW` trait is our classification. (`if`,
 /// `for`, `while`, `foreach` and `set`, `puts` are all real tclsh commands —
@@ -525,9 +519,7 @@ fn fire_and_forget_teardown_membership() {
     }
 }
 
-// ===========================================================================
 // Commands-for-event / command legality (iRules event ⇄ command cross-product)
-// ===========================================================================
 
 /// `HTTP::header` is valid/legal in `HTTP_REQUEST`.
 ///
@@ -658,9 +650,7 @@ fn excluded_events_are_respected() {
     assert!(!legal_events.contains(&excluded));
 }
 
-// ===========================================================================
 // Registry info helpers (event_info)
-// ===========================================================================
 
 /// `event_info` resolves a known event with a side label, ≥1 valid command,
 /// and serialises a dual transport as `tcp/udp`.
@@ -708,9 +698,7 @@ fn event_info_for_unknown_event() {
     assert!(info.transport.is_none());
 }
 
-// ===========================================================================
 // Form kind and form resolution
-// ===========================================================================
 
 /// The `FormKind` variants exist.
 ///
@@ -742,9 +730,7 @@ fn http_uri_getter_setter_forms() {
     assert_eq!(setter.spec.name, "HTTP::uri");
 }
 
-// ===========================================================================
 // Subcommand form resolution
-// ===========================================================================
 
 /// `HTTP::header lws` takes zero args.
 ///
@@ -773,9 +759,7 @@ fn http_header_value_subcommand_takes_one_arg() {
     assert_eq!(value.arity, Arity::exact(1));
 }
 
-// ===========================================================================
 // Closed value arguments
-// ===========================================================================
 
 /// `HTTP::version` arg 0 is a closed value set of exactly the HTTP/1.x version
 /// strings.
@@ -809,9 +793,7 @@ fn set_has_no_closed_value_args() {
     assert!(spec.closed_value_args.is_empty());
 }
 
-// ===========================================================================
 // `when` argument values cover the event corpus
-// ===========================================================================
 
 /// Event-name completion is driven by `Traits::IS_EVENT_HANDLER` + the
 /// `EventRegistry` rather than baked into `when`'s `arg_values`. Assert that
@@ -833,9 +815,7 @@ fn when_is_event_handler_and_events_are_known() {
     }
 }
 
-// ===========================================================================
 // CFG-rewrite alias resolution (`cfg_rewrite_name`)
-// ===========================================================================
 
 /// `dict for` / `dict map` declare their CFG-rewrite qualified names on the
 /// subcommand.
@@ -857,9 +837,7 @@ fn dict_iteration_subcommands_declare_cfg_rewrite_names() {
     );
 }
 
-// ===========================================================================
 // Body kind / namespace export
-// ===========================================================================
 
 /// `proc`'s body argument is structural.
 ///
@@ -953,9 +931,7 @@ fn when_body_is_structural() {
     assert_eq!(when.body_kind, BodyKind::Structural);
 }
 
-// ===========================================================================
 // iRules nesting script bodies (side switches)
-// ===========================================================================
 
 /// `clientside`, `serverside`, `peer` are side-switches.
 ///
@@ -1064,9 +1040,7 @@ fn side_switch_arities() {
     assert_eq!(peer.arity.max, 1);
 }
 
-// ===========================================================================
 // Dialect-differentiated side effects
-// ===========================================================================
 
 /// `close` is a file-I/O op in plain Tcl and a connection-control op in iRules
 /// (two specs under one name).
@@ -1102,9 +1076,7 @@ fn close_side_effects_differ_by_dialect() {
     );
 }
 
-// ===========================================================================
 // Lazy dialect loading
-// ===========================================================================
 
 /// A freshly built default registry has core commands but not iRules / non-Tk
 /// dialect commands.
@@ -1149,7 +1121,9 @@ fn tk_commands_are_gated_to_tcl_and_tk_not_irules_or_iapps() {
             "{name} available under tcl9.0"
         );
         assert!(
-            spec.supports_dialect(Some(SurfaceQuery::any_release(Family::Tcl).with_packages(&["Tk"]))),
+            spec.supports_dialect(Some(
+                SurfaceQuery::any_release(Family::Tcl).with_packages(&["Tk"])
+            )),
             "{name} available under the tk dialect"
         );
         // NOT available in the F5 embedded environments.  Tk's rows admit
@@ -1194,9 +1168,7 @@ fn load_dialect_is_idempotent() {
     );
 }
 
-// ===========================================================================
 // Signature membership per dialect
-// ===========================================================================
 
 /// `dict`/`try`/`tailcall` are absent in 8.4.
 ///
@@ -1404,9 +1376,7 @@ fn proc_marks_body_argument() {
     assert_eq!(bodies, vec![2]);
 }
 
-// ===========================================================================
 // `is_irules_dialect` predicate
-// ===========================================================================
 
 /// The iRules predicate accepts `f5-irules` and the legacy `irules` alias,
 /// rejects everything else and `None`.
@@ -1414,22 +1384,26 @@ fn proc_marks_body_argument() {
 /// registry-metadata: dialect-name predicate.
 #[test]
 fn is_irules_dialect_predicate() {
-    assert!(tcl_dialect::DialectProfile::name_is_irules(Some("f5-irules")));
+    assert!(tcl_dialect::DialectProfile::name_is_irules(Some(
+        "f5-irules"
+    )));
     assert!(tcl_dialect::DialectProfile::name_is_irules(Some("irules")));
     assert!(!tcl_dialect::DialectProfile::name_is_irules(Some("tcl8.6")));
-    assert!(!tcl_dialect::DialectProfile::name_is_irules(Some("f5-iapps")));
-    assert!(!tcl_dialect::DialectProfile::name_is_irules(Some("f5-bigip")));
+    assert!(!tcl_dialect::DialectProfile::name_is_irules(Some(
+        "f5-iapps"
+    )));
+    assert!(!tcl_dialect::DialectProfile::name_is_irules(Some(
+        "f5-bigip"
+    )));
     assert!(!tcl_dialect::DialectProfile::name_is_irules(None));
 }
 
-// ===========================================================================
 // Dialect-name surface (the part that lives in this crate)
 //
 // `detect_dialect_from_source` itself is implemented in tcl-compiler /
 // tcl-lsp-core, not tcl-registry, so the source-scanning behaviour is out of
 // scope here. The dialect *vocabulary* it resolves into — and which this
 // crate owns — is covered instead.
-// ===========================================================================
 
 /// The detection targets (`tcl8.4`, `tcl8.5`, `tcl8.6`, `tcl9.0`, `f5-irules`,
 /// `expect`) that dialect detection produces as outputs are all
@@ -1446,7 +1420,12 @@ fn detection_target_dialects_are_known() {
         "f5-irules",
         "expect",
     ] {
-        assert!(tcl_dialect::DialectProfile::find(d).map(tcl_dialect::DialectProfile::surface_query).is_some(), "{d} should parse");
+        assert!(
+            tcl_dialect::DialectProfile::find(d)
+                .map(tcl_dialect::DialectProfile::surface_query)
+                .is_some(),
+            "{d} should parse"
+        );
     }
     // The detection targets are catalogued names.
     for d in [
@@ -1460,7 +1439,11 @@ fn detection_target_dialects_are_known() {
         assert!(KNOWN_DIALECTS.contains(&d), "{d} should be a known dialect");
     }
     // `tcl-dialect: unknown` has no parse — the analogue of returning `None`.
-    assert!(tcl_dialect::DialectProfile::find("unknown").map(tcl_dialect::DialectProfile::surface_query).is_none());
+    assert!(
+        tcl_dialect::DialectProfile::find("unknown")
+            .map(tcl_dialect::DialectProfile::surface_query)
+            .is_none()
+    );
 }
 
 /// `available_dialects()` is the sorted catalog backing the CLI `--dialect`
@@ -1484,21 +1467,36 @@ fn available_dialects_is_sorted_and_complete() {
 /// registry-metadata.
 #[test]
 fn dialect_name_resolves_to_its_point() {
-    assert_eq!(tcl_dialect::DialectProfile::find("tcl8.6").map(tcl_dialect::DialectProfile::surface_query), Some(SurfaceQuery::core(Family::Tcl, "8.6")));
-    assert_eq!(tcl_dialect::DialectProfile::find("tcl9.0").map(tcl_dialect::DialectProfile::surface_query), Some(SurfaceQuery::core(Family::Tcl, "9.0")));
-    assert_eq!(tcl_dialect::DialectProfile::find("f5-irules").map(tcl_dialect::DialectProfile::surface_query), Some(SurfaceQuery::any_release(Family::F5Irules)));
-    assert_eq!(tcl_dialect::DialectProfile::find("expect").map(tcl_dialect::DialectProfile::surface_query), Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])));
-    assert_eq!(tcl_dialect::DialectProfile::find("definitely-not-a-dialect").map(tcl_dialect::DialectProfile::surface_query), None);
+    assert_eq!(
+        tcl_dialect::DialectProfile::find("tcl8.6").map(tcl_dialect::DialectProfile::surface_query),
+        Some(SurfaceQuery::core(Family::Tcl, "8.6"))
+    );
+    assert_eq!(
+        tcl_dialect::DialectProfile::find("tcl9.0").map(tcl_dialect::DialectProfile::surface_query),
+        Some(SurfaceQuery::core(Family::Tcl, "9.0"))
+    );
+    assert_eq!(
+        tcl_dialect::DialectProfile::find("f5-irules")
+            .map(tcl_dialect::DialectProfile::surface_query),
+        Some(SurfaceQuery::any_release(Family::F5Irules))
+    );
+    assert_eq!(
+        tcl_dialect::DialectProfile::find("expect").map(tcl_dialect::DialectProfile::surface_query),
+        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+    );
+    assert_eq!(
+        tcl_dialect::DialectProfile::find("definitely-not-a-dialect")
+            .map(tcl_dialect::DialectProfile::surface_query),
+        None
+    );
 }
 
-// ===========================================================================
 // C-Tcl ground-truth: subcommand sets of string / dict / info match tclsh.
 //
 // These are direct tclsh facts. The registry must register at least the
 // subcommands common to tclsh8.6 AND tclsh9.0 (the version-specific extras —
 // 8.6's `string bytelength`, 9.0's `string insert` / `dict getdef` /
 // `info cmdtype` — are registry-superset entries and are not required here).
-// ===========================================================================
 
 /// `string` subcommands.
 ///
@@ -1685,9 +1683,7 @@ fn const_is_present_in_tcl90_and_absent_before() {
     );
 }
 
-// ===========================================================================
 // Registry construction basics (the `build_default` checks)
-// ===========================================================================
 
 /// The cached per-dialect registries are non-empty and round-trip a lookup.
 ///
@@ -1716,9 +1712,7 @@ fn cached_dialect_registries_are_populated() {
     );
 }
 
-// ===========================================================================
 // Issue #806 — report package command specs + scoped-body / object model.
-// ===========================================================================
 
 /// `report::defstyle` carries the scoped style-definition environment, with the
 /// report configuration methods and their operations as registry data.
@@ -2081,9 +2075,7 @@ fn tcl_namespace_commands_gated_to_their_real_introduction_version() {
     }
 }
 
-// ===========================================================================
 // defines_command_at — spec-declared "argument names a new command" facts.
-// ===========================================================================
 
 /// `coroutine NAME cmd ?arg …?` creates the command NAME
 /// (`TclNRCoroutineObjCmd`, `tclBasic.c`) — the spec carries the name index
@@ -2118,9 +2110,7 @@ fn interp_create_defines_command_at_its_name_argument() {
     assert_eq!(eval.defines_command_at, None);
 }
 
-// ===========================================================================
 // TclOO method-context keywords + the `Tcl_ConcatObj` eval family (#1050, #1051)
-// ===========================================================================
 
 /// The `TclOO` method-context keyword set is exactly `my` / `next` / `nextto`
 /// / `self`, and `CommandRegistry::method_dispatch_keyword` answers with the
@@ -2392,10 +2382,7 @@ fn tcloo_method_frame_membership() {
 fn qualified_oo_helpers_spellings_track_their_bare_twin_per_dialect() {
     for dialect in ["tcl8.5", "tcl8.6", "tcl8.7", "tcl9.0"] {
         let reg = static_context_for(dialect).commands();
-        let mask = reg
-            .profile()
-            .expect("built for a dialect")
-            .surface_query();
+        let mask = reg.profile().expect("built for a dialect").surface_query();
         let mask = Some(mask);
         for bare in ["link", "next", "nextto", "self", "classvariable"] {
             let qualified = format!("oo::Helpers::{bare}");
@@ -2596,7 +2583,6 @@ fn script_append_list_refinement_is_inscope_only() {
     }
 }
 
-// ===========================================================================
 // issue #923 idx 3/4 — tcllib `textutil::adjust` submodule vs the `textutil`
 // umbrella package's flattened re-export aliases.
 //
@@ -2613,7 +2599,6 @@ fn script_append_list_refinement_is_inscope_only() {
 //     umbrella, never after requiring the submodule alone.
 // The same shape recurs in `textutil::trim` (trim/trimleft/trimright) and
 // `textutil::tabify` (tabify/untabify/tabify2/untabify2).
-// ===========================================================================
 mod textutil_submodule_vs_umbrella {
     use super::*;
 
@@ -2896,11 +2881,9 @@ fn only_namespace_eval_declares_a_namespace() {
     assert_eq!(declarers, vec!["namespace"]);
 }
 
-// ---------------------------------------------------------------------------
 // Object-handle bindings (issue #1185) — which argument of a call becomes a
 // handle, and of what class, is registry data rather than a walker's
 // command-name match.
-// ---------------------------------------------------------------------------
 
 /// `set` declares the handle-binding layout its value word implies, and the
 /// query resolves it through the same `get` path every other registry query

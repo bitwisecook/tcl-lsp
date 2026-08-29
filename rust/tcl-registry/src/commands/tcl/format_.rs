@@ -127,11 +127,11 @@ fn fold_format(args: &[&str], version: Option<TclVersion>) -> Option<String> {
     Some(out)
 }
 
+use tcl_dialect::model::SpecSurface;
 /// The specifier *grammar* (flags / width / `.precision` / verb parsing) lives
 /// in the shared `tcl-syntax` crate so the WASM runtime reuses it; the
 /// version-aware renderers below are this const-folder's own.
 use tcl_syntax::format::{FmtFlags, Spec, parse_spec};
-use tcl_dialect::model::{SpecSurface};
 
 /// A single parsed `%…` conversion — the render input. Matches
 /// [`tcl_syntax::format::Spec`]; kept local so the version-aware `render*`

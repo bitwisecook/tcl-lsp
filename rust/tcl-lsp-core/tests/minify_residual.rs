@@ -52,9 +52,7 @@
 //!   * Whitespace / quote-stripping edges (`{*}` expansion, multibyte UTF-8,
 //!     `${var}` kept when the next token would extend it).
 //!
-//! ----------------------------------------------------------------------------
 //! Proof discipline (read first)
-//! ----------------------------------------------------------------------------
 //! The DEFAULT minify tier and the SCCP static fold are **semantics-preserving
 //! transforms**: the BEFORE and AFTER scripts must compute the same value in
 //! real C-Tcl. Every such test ran both forms through
@@ -118,9 +116,7 @@ fn agg(src: &str, isolated: bool) -> MinifyResult {
     )
 }
 
-// ===========================================================================
 // SymbolMap::format / parse / reverse — internal serialization (structural).
-// ===========================================================================
 
 #[test]
 fn symbol_map_format_emits_every_populated_section() {
@@ -225,9 +221,7 @@ fn symbol_map_reverse_covers_aliases() {
     assert_eq!(rev.get("r").map(String::as_str), Some("lit"));
 }
 
-// ===========================================================================
 // unminify_error — empty map, var ($x), quoted ("x"), and non-matching idents.
-// ===========================================================================
 
 #[test]
 fn unminify_error_empty_map_returns_unchanged() {
@@ -263,10 +257,8 @@ fn unminify_error_unterminated_quote_ident_is_passed_through() {
     assert_eq!(unminify_error("oops \"a", &sm), "oops \"a");
 }
 
-// ===========================================================================
 // remap_line_references — guard branches (line 1, line 0, out-of-range,
 // all-comment original, word-bounded `line`).
-// ===========================================================================
 
 #[test]
 fn remap_line_one_is_not_rewritten() {
@@ -327,7 +319,6 @@ fn remap_word_bounded_line_keyword_is_not_matched() {
     );
 }
 
-// ===========================================================================
 // Aggressive pipeline constant interpolation — end-to-end semantics.
 //
 // NOTE on layering: the aggressive tier runs the OPTIMISER (phase 1) BEFORE the
@@ -337,7 +328,6 @@ fn remap_word_bounded_line_keyword_is_not_matched() {
 // `puts n=5`. (The standalone `fold_static_substrings` branches are covered by
 // the in-file unit tests, which call it directly.) These tests assert the
 // PUBLIC `minify_tcl_aggressive` output is semantics-preserving in real C-Tcl.
-// ===========================================================================
 
 #[test]
 fn aggressive_constant_interpolation_in_set_value_preserves_value() {
@@ -414,10 +404,8 @@ fn aggressive_does_not_fold_undefined_or_namespaced_var() {
     );
 }
 
-// ===========================================================================
 // Aggressive aliasing — repeated arguments inside nested braces / quotes, and
 // the control-flow-keyword skip.
-// ===========================================================================
 
 #[test]
 fn aggressive_aliases_argument_inside_braced_body() {
@@ -463,10 +451,8 @@ fn aggressive_does_not_alias_control_flow_keyword() {
     );
 }
 
-// ===========================================================================
 // switch case-list edges (-matchvar option, `--` terminator, quoted body,
 // fall-through `-`).
-// ===========================================================================
 
 #[test]
 fn switch_matchvar_option_consumes_value_and_minifies_bodies() {
@@ -556,10 +542,8 @@ fn switch_quoted_body_keeps_quotes() {
     assert_eq!(out, "switch x {x \"puts a\"}");
 }
 
-// ===========================================================================
 // expr AST shrinking — comparison inversion (all operator families),
 // De Morgan reverse on &&, De Morgan forward on ||, ternary recurse.
-// ===========================================================================
 
 #[test]
 fn expr_comparison_inversion_string_equal() {
@@ -643,10 +627,8 @@ fn expr_ternary_operands_are_recursed() {
     );
 }
 
-// ===========================================================================
 // expr tokeniser robustness — unbalanced `[` char-boundary guard (must NOT
 // panic, must NOT corrupt).
-// ===========================================================================
 
 #[test]
 fn expr_unbalanced_bracket_with_multibyte_does_not_panic() {
@@ -662,9 +644,7 @@ fn expr_unbalanced_bracket_with_multibyte_does_not_panic() {
     assert!(out.starts_with("if {1}"), "outer structure intact: {out:?}");
 }
 
-// ===========================================================================
 // Ensemble-subcommand abbreviation.
-// ===========================================================================
 
 #[test]
 fn clock_subcommand_abbreviated_in_irules_dialect() {
@@ -686,9 +666,7 @@ fn clock_subcommand_not_abbreviated_in_plain_tcl() {
     assert_eq!(min("clock seconds\n"), "clock seconds");
 }
 
-// ===========================================================================
 // Whitespace / quote-stripping / reconstruction edges.
-// ===========================================================================
 
 #[test]
 fn expand_operator_is_preserved() {

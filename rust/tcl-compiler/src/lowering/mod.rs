@@ -37,10 +37,10 @@ use crate::ir::{
 };
 use crate::lowering_hooks::{ArgTokenKind, LoweringCommand, try_lower_hook};
 use crate::naming::normalise_var_name;
-use tcl_dialect::model::{surface_admits};
 use crate::segmenter::{
     SegmentedCommand, segment_commands, segment_commands_with_offset_and_config,
 };
+use tcl_dialect::model::surface_admits;
 
 pub(crate) mod hooks;
 mod structured;

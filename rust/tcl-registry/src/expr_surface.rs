@@ -38,7 +38,7 @@ use crate::mathfunc::MATHFUNC_NAMESPACE;
 use crate::mathfunc::available_in_expr;
 use crate::registry::CommandRegistry;
 use crate::spec::CommandSpec;
-use tcl_dialect::model::{surface_admits};
+use tcl_dialect::model::surface_admits;
 
 /// The dispatch mechanism an `expr` math-function call uses in this profile.
 ///

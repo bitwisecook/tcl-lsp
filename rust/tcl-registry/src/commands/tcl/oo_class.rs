@@ -18,7 +18,7 @@
 
 //! `oo::class` — the class of all classes; the `TclOO` metaclass.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const CLASS_NAMED_CREATE_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
     StateTransitionDomain::CommandBindings,
@@ -293,8 +293,8 @@ pub fn spec() -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SurfaceQuery, Family};
-    
+    use tcl_dialect::model::{Family, SurfaceQuery};
+
     use crate::{
         CallbackKinds, CommandBindingTransition, CommandRegistry, ObjectDispatchKind,
         ObjectDispatchTarget, ObjectDispatchTransition, ObjectPrivateNamespace, StateTransition,
@@ -305,7 +305,11 @@ mod tests {
     fn class_create_records_command_dispatch_and_independent_private_namespace() {
         let registry = CommandRegistry::build_default();
         let invocation = registry
-            .resolve_invocation("oo::class", &["create", "::C", "{}"], Some(SurfaceQuery::core(Family::Tcl, "8.6")))
+            .resolve_invocation(
+                "oo::class",
+                &["create", "::C", "{}"],
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            )
             .expect("oo::class create must resolve");
         let transitions = invocation.state_transitions();
         assert!(
@@ -364,8 +368,14 @@ mod tests {
         for (metaclass, dialect) in [
             ("oo::class", Some(SurfaceQuery::core(Family::Tcl, "8.6"))),
             ("oo::abstract", Some(SurfaceQuery::core(Family::Tcl, "9.0"))),
-            ("oo::configurable", Some(SurfaceQuery::core(Family::Tcl, "9.0"))),
-            ("oo::singleton", Some(SurfaceQuery::core(Family::Tcl, "9.0"))),
+            (
+                "oo::configurable",
+                Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+            ),
+            (
+                "oo::singleton",
+                Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+            ),
         ] {
             let transitions = registry
                 .resolve_invocation(metaclass, &["create", "::C", "{}"], dialect)

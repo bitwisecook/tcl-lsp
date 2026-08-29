@@ -119,7 +119,8 @@ pub fn is_available(spec: &Spec, profile: &tcl_dialect::DialectProfile) -> bool 
     // Release-invariant verbs remain recognisable for the permissive
     // profile; a version-gated verb must abstain until a release is resolved.
     required.is_empty()
-        || (profile.runtime_base.is_some() && surface_admits(required, Some(&profile.surface_query())))
+        || (profile.runtime_base.is_some()
+            && surface_admits(required, Some(&profile.surface_query())))
 }
 
 /// The outcome of parsing a width / `.precision` field.

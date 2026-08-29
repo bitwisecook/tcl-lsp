@@ -19,7 +19,7 @@
 //! `throw` — generate a machine-readable error.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 // `throw` is a Tcl 8.6 addition (TIP 90, alongside `try`): throw.html 404s
 // with a genuine "URL Not Found" page — not a redirect quirk — on both the

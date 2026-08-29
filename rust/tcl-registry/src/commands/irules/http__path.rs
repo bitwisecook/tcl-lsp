@@ -19,7 +19,7 @@
 //! `HTTP::path` iRules command.
 use crate::prelude::*;
 use crate::taint::SetterConstraint;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// The setter form of `HTTP::path` requires its value to start
 /// with `/` (IRULE3101). Registry-driven replacement for the hardcoded

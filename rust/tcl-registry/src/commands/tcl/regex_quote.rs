@@ -18,7 +18,7 @@
 
 //! `regex_quote` — regex quoting helper alias (underscore spelling).
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "regex_quote STRING",
     ..FormSpec::DEFAULT

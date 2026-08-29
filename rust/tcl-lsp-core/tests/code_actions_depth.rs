@@ -39,9 +39,7 @@
 //!   * Multi-action positions, `only`-style kind filtering by the caller,
 //!     and empty / whitespace / out-of-range positions (no panic).
 //!
-//! ----------------------------------------------------------------------------
 //! Presentation vs Tcl-semantic split (read first)
-//! ----------------------------------------------------------------------------
 //! A code ACTION is an editor-presentation artefact: its *title*, its LSP
 //! *kind*, and the *shape* of its `TextEdit` range are an LSP wire contract,
 //! NOT a Tcl runtime value. Those are asserted STRUCTURALLY here (title text,
@@ -72,9 +70,7 @@ use tcl_lsp_core::code_actions::{
 };
 use tcl_lsp_core::definition::LspRange;
 
-// ---------------------------------------------------------------------------
 // Harness — same shape as call_hierarchy.rs / lsp_lens_links_symbols.rs.
-// ---------------------------------------------------------------------------
 
 /// Analyse `source` for the vanilla Tcl 8.6 dialect.
 fn analyse(source: &str) -> AnalysisResult {
@@ -183,9 +179,7 @@ fn find<'a>(actions: &'a [CodeAction], needle: &str) -> Option<&'a CodeAction> {
     actions.iter().find(|a| a.title.contains(needle))
 }
 
-// ===========================================================================
 // continuation_comment_actions — W115 "Convert to per-line comments"
-// ===========================================================================
 
 #[test]
 fn w115_continued_comment_offers_per_line_conversion() {
@@ -280,9 +274,7 @@ fn w115_no_conversion_on_continued_code_line() {
     );
 }
 
-// ===========================================================================
 // expr_rewrite_actions — invert comparison + De Morgan (reverse direction)
-// ===========================================================================
 
 #[test]
 fn invert_comparison_flips_equality_operator() {
@@ -480,9 +472,7 @@ fn demorgan_reverse_recognises_irules_word_operators() {
     );
 }
 
-// ===========================================================================
 // ip_conversion_actions — IPv6-mapped → IPv4 (the reverse direction)
-// ===========================================================================
 
 #[test]
 fn ipv6_mapped_literal_offers_ipv4_conversion() {
@@ -539,9 +529,7 @@ fn ip_conversion_absent_on_non_ip_word() {
     );
 }
 
-// ===========================================================================
 // inline_proc_action — "Inline proc 'X'" (+ decline + a known BUG repro)
-// ===========================================================================
 
 #[test]
 fn inline_single_command_proc_substitutes_args() {
@@ -626,9 +614,7 @@ fn inline_braced_expr_body_keeps_closing_brace() {
     );
 }
 
-// ===========================================================================
 // refactor-engine: switch -> dict lookup (via the code-actions surface)
-// ===========================================================================
 
 #[test]
 fn switch_to_dict_offered_for_uniform_assignment_switch() {
@@ -679,9 +665,7 @@ fn switch_to_dict_absent_at_inert_cursor() {
     );
 }
 
-// ===========================================================================
 // check_diagnostic_actions — IRULE5004 (DNS::return without return)
-// ===========================================================================
 
 #[test]
 fn check_actions_surface_irule5004_dns_return_fix() {
@@ -738,9 +722,7 @@ fn check_actions_irule5004_suppressed_when_disabled() {
     );
 }
 
-// ===========================================================================
 // context_diagnostic_actions — iRules taint encode-wrap / redundant-encoder
-// ===========================================================================
 
 #[test]
 fn context_t106_removes_redundant_encoder_wrapper() {
@@ -1012,9 +994,7 @@ fn context_actions_empty_for_unrelated_code() {
     assert!(context_diagnostic_actions(src, &[]).is_empty());
 }
 
-// ===========================================================================
 // profiles_action — iRules `# Profiles:` header (insert / update / no-op)
-// ===========================================================================
 
 #[test]
 fn profiles_action_inserts_header_when_missing() {
@@ -1114,9 +1094,7 @@ fn profiles_action_none_for_non_irules_content() {
     );
 }
 
-// ===========================================================================
 // Multi-action positions, kind ("only") filtering, robustness
-// ===========================================================================
 
 #[test]
 fn multi_action_position_offers_several_families() {

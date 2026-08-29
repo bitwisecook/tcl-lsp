@@ -11,8 +11,8 @@
 //! constructor shape, geometry-manager membership and nested executable bodies
 //! all come from the shared registry and executable-region walker.
 
-use tcl_dialect::model::{SurfaceQuery};
 use std::collections::{BTreeMap, BTreeSet};
+use tcl_dialect::model::SurfaceQuery;
 
 use serde::{Deserialize, Serialize};
 use tcl_compiler::realm::document_realm_bindings;
@@ -26,7 +26,7 @@ use tcl_registry::tk_geometry::TkGeometryContainerPolicy;
 use tcl_registry::{CommandRegistry, CommandSpec, InvocationWord, InvocationWords, Traits};
 
 use crate::executable_regions::{ExecutableContext, visit_executable_commands};
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// The current JSON-compatible Tk UI model schema version.
 pub const TK_UI_SCHEMA_VERSION: u32 = 1;

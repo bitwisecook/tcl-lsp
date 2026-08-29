@@ -28,7 +28,7 @@
 //! command `OptionSpec` entries.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// Element-definition switches valid *inside* a definition element (not as
 /// command switches).  Data for definition-aware completion / harvesting.

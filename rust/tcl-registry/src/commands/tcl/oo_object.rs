@@ -18,7 +18,7 @@
 
 //! `oo::object` — the root class of the `TclOO` object hierarchy.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const OBJECT_CREATE_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
     StateTransitionDomain::CommandBindings,
@@ -251,8 +251,8 @@ pub fn spec() -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SurfaceQuery, Family};
-    
+    use tcl_dialect::model::{Family, SurfaceQuery};
+
     use crate::{
         CallbackKinds, CommandBindingTransition, CommandRegistry, ObjectDispatchKind,
         ObjectDispatchTarget, ObjectDispatchTransition, Reentrancy, StateTransition,
@@ -263,7 +263,11 @@ mod tests {
     fn object_factories_keep_named_and_fresh_lifecycle_distinct() {
         let registry = CommandRegistry::build_default();
         let named = registry
-            .resolve_invocation("oo::object", &["create", "::obj"], Some(SurfaceQuery::core(Family::Tcl, "8.6")))
+            .resolve_invocation(
+                "oo::object",
+                &["create", "::obj"],
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            )
             .expect("oo::object create must resolve");
         let named_transitions = named.state_transitions();
         assert!(
@@ -287,7 +291,11 @@ mod tests {
         )));
 
         let fresh = registry
-            .resolve_invocation("oo::object", &["new"], Some(SurfaceQuery::core(Family::Tcl, "8.6")))
+            .resolve_invocation(
+                "oo::object",
+                &["new"],
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            )
             .expect("oo::object new must resolve");
         assert!(
             fresh
@@ -323,7 +331,11 @@ mod tests {
     fn destroy_is_not_misstamped_as_a_factory_lifecycle() {
         let registry = CommandRegistry::build_default();
         let facts = registry
-            .resolve_invocation("oo::object", &["destroy"], Some(SurfaceQuery::core(Family::Tcl, "8.6")))
+            .resolve_invocation(
+                "oo::object",
+                &["destroy"],
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            )
             .expect("oo::object destroy must resolve")
             .facts();
         assert!(matches!(

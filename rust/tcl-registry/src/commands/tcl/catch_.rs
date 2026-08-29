@@ -19,9 +19,9 @@
 //! `catch` — evaluate script and trap exceptional returns.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::surface;
 use tcl_dialect::model::Family;
+use tcl_dialect::model::SpecSurface;
+use tcl_dialect::surface;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: true,
@@ -51,7 +51,10 @@ const FORMS: &[FormSpec] = &[
     // shape too.
     FormSpec {
         synopsis: "catch script ?varName?",
-        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.5"))]), SpecSurface::core(Family::F5Irules)]),
+        surface: Some(surface![
+            SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.5"))]),
+            SpecSurface::core(Family::F5Irules)
+        ]),
         ..FormSpec::DEFAULT
     },
 ];

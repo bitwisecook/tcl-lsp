@@ -64,9 +64,7 @@ fn o107_fires(src: &str, dialect: &str) -> bool {
         .any(|o| o.code == DiagCode::O107)
 }
 
-// ---------------------------------------------------------------------------
 // FP-RCH-01 — `while 1 { ... break }`: the post-loop block is reachable.
-// ---------------------------------------------------------------------------
 
 const FP_RCH_01_REPRO: &str = "\
 proc f {c} {
@@ -110,9 +108,7 @@ fn fp_rch_01_nested_loop_break_reachable() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-RCH-02 — try handler body is reachable.
-// ---------------------------------------------------------------------------
 
 const FP_RCH_02_REPRO: &str = "\
 proc f {} {
@@ -149,9 +145,7 @@ fn fp_rch_02_handler_var_not_unset() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-RCH-03 — `on ok` inherits body-defined SSA versions.
-// ---------------------------------------------------------------------------
 
 const FP_RCH_03_REPRO: &str = "\
 proc f {} {
@@ -195,9 +189,7 @@ proc f {} {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-RCH-04 — genuine infinite loop (no break) → O107 IS reported.
-// ---------------------------------------------------------------------------
 
 const FP_RCH_04_REPRO: &str = "\
 proc f {} {
@@ -218,10 +210,8 @@ fn fp_rch_04_infinite_loop_dead_code_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-RCH-05 — a dynamic-name write / destroy weakens the existence fold
 // (issue #923 audit idx 1)
-// ---------------------------------------------------------------------------
 //
 // `set $switch {}` defines whatever variable `$switch` names, so
 // `[info exists mixed]` cannot be folded to a constant `false` and neither

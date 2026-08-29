@@ -53,8 +53,11 @@
 //! versions cited for those are well-known Tcl history consistent with the
 //! 8.6/9.0 probes.
 
-use tcl_dialect::model::{Family};
 use std::collections::BTreeSet;
+use tcl_dialect::model::Family;
+use tcl_dialect::model::SpecSurface;
+use tcl_dialect::model::SurfaceQuery;
+use tcl_dialect::model::surface_admits;
 use tcl_registry::arity::{Arity, ArityWindow};
 use tcl_registry::bigip::{BigipRegistry, ValueKind, default_registry};
 use tcl_registry::events::EventRegistry;
@@ -63,9 +66,6 @@ use tcl_registry::lifecycle::Lifecycle;
 use tcl_registry::profiles::ProfileRegistry;
 use tcl_registry::side_effects::SideEffectTarget;
 use tcl_registry::taint::TaintColour;
-use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::model::SurfaceQuery;
-use tcl_dialect::model::{surface_admits};
 // `registry_for_dialect` is deliberately *not* imported: this file defines its
 // own below, routing the sweep through the shipped `.tclspec` loadables so the
 // EDA specs are present. The tests `origin/rust` added here call it too, and
@@ -77,9 +77,7 @@ use tcl_registry::{
     WorldEffectComposition, WorldEffectDescriptor, available_dialects,
 };
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /// The registry for `dialect` **with the shipped `.tclspec` loadables
 /// installed** — the sweep's stand-in for [`tcl_registry::registry_for_dialect`].
@@ -359,9 +357,7 @@ fn arity_window_gate_rejects_each_malformed_shape() {
     );
 }
 
-// ===========================================================================
 // SWEEP 1 — every command in every dialect, every accessor.
-// ===========================================================================
 /// Exercise every accessor on one command spec (and its subcommands)
 /// for a given dialect. Extracted from `sweep_every_command_every_accessor`
 /// to keep that test within the line budget.
@@ -431,7 +427,12 @@ fn check_subcommand_accessors(
     }
 }
 
-fn check_command_accessors(reg: &CommandRegistry, ds: Option<SurfaceQuery<'_>>, dname: &str, name: &str) {
+fn check_command_accessors(
+    reg: &CommandRegistry,
+    ds: Option<SurfaceQuery<'_>>,
+    dname: &str,
+    name: &str,
+) {
     // `get` (dialect-agnostic) must resolve a name the registry lists.
     let spec = reg
         .get(name)
@@ -618,7 +619,8 @@ fn sweep_every_command_every_accessor() {
 
     for &dname in LOADABLE_DIALECTS {
         let reg = registry_for_dialect(dname);
-        let ds = tcl_dialect::DialectProfile::find(dname).map(tcl_dialect::DialectProfile::surface_query);
+        let ds = tcl_dialect::DialectProfile::find(dname)
+            .map(tcl_dialect::DialectProfile::surface_query);
         assert!(!reg.is_empty(), "{dname}: empty registry");
         dialects_seen += 1;
 
@@ -783,7 +785,11 @@ fn sweep_dialect_resolution_is_consistent() {
 ///
 /// `None` on either side is trivially valid (`None` child = inherit; `None`
 /// parent = universal).
-fn assert_dialects_nest(parent: Option<&'static [SpecSurface]>, child: Option<&'static [SpecSurface]>, context: &str) {
+fn assert_dialects_nest(
+    parent: Option<&'static [SpecSurface]>,
+    child: Option<&'static [SpecSurface]>,
+    context: &str,
+) {
     let (Some(child), Some(parent)) = (child, parent) else {
         return;
     };
@@ -918,9 +924,7 @@ fn sweep_nested_dialects_are_subsets_of_parent() {
     assert!(checked > 1000, "sweep unexpectedly small: {checked} specs");
 }
 
-// ===========================================================================
 // SWEEP 2 — BIG-IP object specs and property specs.
-// ===========================================================================
 
 /// Recursively touch every accessor on a property spec and its block.
 fn visit_property(p: &tcl_registry::bigip::BigipPropertySpec, kind: &str) -> usize {
@@ -1122,9 +1126,7 @@ fn bigip_lookup_misses_are_graceful() {
     );
 }
 
-// ===========================================================================
 // SWEEP 3 — iRules event ⇄ command cross-product accessors over the corpus.
-// ===========================================================================
 
 /// Drive `event_info`, `valid_irules_commands_for_event`,
 /// `is_irules_command_legal_in_event`, and `irules_events_for_command` across
@@ -1220,9 +1222,7 @@ fn sweep_event_command_legality_consistent() {
     assert_eq!(unknown.side, "unknown");
 }
 
-// ===========================================================================
 // SWEEP 4 — taint-source / colour metadata across the source corpus.
-// ===========================================================================
 
 /// Every command the registry reports as a taint source resolves to a spec
 /// whose `taint_source` colour is set; the colour includes TAINTED (a source is
@@ -1269,9 +1269,7 @@ fn sweep_taint_source_colours() {
     }
 }
 
-// ===========================================================================
 // TARGETED — representative commands across families (distinct spec shapes).
-// ===========================================================================
 
 /// Control flow: `if` / `while` / `for` / `foreach` / `switch` carry the
 /// control-flow + boolean-condition + loop-body trait shapes.
@@ -1303,7 +1301,11 @@ fn family_control_flow_shapes() {
     );
     // tclsh: `switch --` terminator is real — `switch -- abc {abc {...}}` runs.
     // The registry models the terminator via resolve_option_terminator.
-    let term = reg.resolve_option_terminator("switch", &["--", "abc"], Some(SurfaceQuery::core(Family::Tcl, "8.6")));
+    let term = reg.resolve_option_terminator(
+        "switch",
+        &["--", "abc"],
+        Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+    );
     if let Some(t) = term {
         assert!(
             t.options.iter().any(|o| o.name == "--"),
@@ -1320,14 +1322,22 @@ fn terminator_resolves_subcommand_prefix() {
     let reg = registry_for_dialect("f5-irules");
     // `class match` (F5 iRules) declares a subcommand-scoped `--` terminator.
     let exact = reg
-        .resolve_option_terminator("class", &["match", "-nocase", "--"], Some(SurfaceQuery::any_release(Family::F5Irules)))
+        .resolve_option_terminator(
+            "class",
+            &["match", "-nocase", "--"],
+            Some(SurfaceQuery::any_release(Family::F5Irules)),
+        )
         .expect("class match declares a -- terminator");
     assert_eq!(exact.subcommand, Some("match"));
     assert!(exact.options.iter().any(|o| o.name == "--"));
 
     // The unique prefix `ma` must resolve to the same `match` profile.
     let abbrev = reg
-        .resolve_option_terminator("class", &["ma", "-nocase", "--"], Some(SurfaceQuery::any_release(Family::F5Irules)))
+        .resolve_option_terminator(
+            "class",
+            &["ma", "-nocase", "--"],
+            Some(SurfaceQuery::any_release(Family::F5Irules)),
+        )
         .expect("abbreviated `class ma` must keep the -- terminator");
     assert_eq!(abbrev.subcommand, Some("match"));
     assert_eq!(abbrev.scan_start, exact.scan_start);
@@ -1641,9 +1651,7 @@ fn family_f5_irules_shapes() {
     );
 }
 
-// ===========================================================================
 // Dialect-catalogue sweep (the name surface this crate owns).
-// ===========================================================================
 
 /// Every catalogued dialect name parses-or-is-config-only, and each loadable
 /// dialect's cached registry round-trips a core lookup. Touches the cache /
@@ -1660,7 +1668,8 @@ fn sweep_dialect_catalogue() {
         assert!(reg.get("set").is_some(), "{d}: missing core `set`");
         // The name either names a catalogue profile, or is a config-only
         // name that collapses to plain Tcl (still a usable registry).
-        let _ = tcl_dialect::DialectProfile::find(d).map(tcl_dialect::DialectProfile::surface_query);
+        let _ =
+            tcl_dialect::DialectProfile::find(d).map(tcl_dialect::DialectProfile::surface_query);
     }
     // An unparseable dialect collapses to a plain-Tcl registry.
     let junk = registry_for_dialect("definitely-not-a-dialect");

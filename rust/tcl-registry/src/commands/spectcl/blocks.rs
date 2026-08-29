@@ -38,7 +38,7 @@
 use crate::prelude::*;
 
 use super::SOURCE;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// A bare-block statement: `hover { … }` / `NAME` / `none`.
 fn block(

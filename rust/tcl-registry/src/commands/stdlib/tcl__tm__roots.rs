@@ -18,7 +18,7 @@
 
 //! `tcl::tm::roots` command (Tcl Modules, TIP 189 — added in Tcl 8.5).
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::tm::roots",

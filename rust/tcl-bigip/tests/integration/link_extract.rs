@@ -54,10 +54,8 @@ use tcl_bigip::graph::{
 };
 use tcl_bigip::parser::parse_bigip_conf;
 
-// ---------------------------------------------------------------------------
 // Harness: a faithful reimplementation of `extract_linked_bigip_objects`'s BFS
 // over the public graph, returning enough of its result shape for assertions.
-// ---------------------------------------------------------------------------
 
 /// One reached node, mirroring an entry of `result["nodes"]`.
 struct ReachedNode<'a> {
@@ -289,9 +287,7 @@ fn offset_of(hay: &str, needle: &str, add: usize) -> usize {
         + add
 }
 
-// ---------------------------------------------------------------------------
 // Tests.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn extract_linked_objects_traverses_incoming_and_outgoing_links() {

@@ -18,7 +18,7 @@
 
 //! `exec` — invoke subprocesses.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 // The trailing `?&?` background marker is spelled out in the SYNOPSIS line
 // only from the 8.6 manpage onward (8.4/8.5 show `exec ?switches? arg

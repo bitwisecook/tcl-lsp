@@ -19,7 +19,7 @@
 //! `command` / `subcommand` — the two `SpecTcl` statements that open a
 //! per-command declaration block.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const OPTIONS: &[OptionSpec] = &[OptionSpec {
     name: "-override",

@@ -220,8 +220,8 @@ fn build_dict_replacement(arms: &ParsedArms, subject: &str, indent: &str) -> Str
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SurfaceLayer, Family};
     use super::*;
+    use tcl_dialect::model::{Family, SurfaceLayer};
 
     fn run(source: &str, cursor: u32) -> Option<Refactoring> {
         let reg = super::super::test_registry();

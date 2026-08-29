@@ -49,7 +49,7 @@ use crate::traits::Traits;
 use crate::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 use crate::world_effect::TransitionEffectCoverages;
 use crate::world_effect::{EffectFootprint, ResolvedWorldEffects};
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 pub(crate) fn descriptor_operation(
     semantic: Option<SemanticOperationId>,
@@ -894,8 +894,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SurfaceQuery, Family};
-    use tcl_dialect::model::{SpecSurface};
     use super::*;
     use crate::InvocationArguments;
     use crate::world_effect::{
@@ -911,6 +909,8 @@ mod tests {
         StateTransition, StateTransitionCommit, StateTransitionDescriptor, StateTransitionDomain,
         StateTransitionKnowledge, TransitionSubject, VariableAliasTarget,
     };
+    use tcl_dialect::model::SpecSurface;
+    use tcl_dialect::model::{Family, SurfaceQuery};
 
     const COMMAND_CODES: &[CompletionCode] = &[CompletionCode::Error];
     const SUBCOMMAND_CODES: &[CompletionCode] = &[CompletionCode::Break];
@@ -1167,11 +1167,7 @@ mod tests {
             ..CommandSpec::DEFAULT
         });
         let explicit_transitions = registry
-            .resolve_invocation(
-                "explicit-closed-transition-fixture",
-                &[],
-                None,
-            )
+            .resolve_invocation("explicit-closed-transition-fixture", &[], None)
             .expect("explicitly transition-free fixture resolves")
             .facts()
             .state_transitions;
@@ -1282,11 +1278,7 @@ mod tests {
         );
 
         let form = registry
-            .resolve_invocation(
-                "world-effect-fixture",
-                &["sub", "targetCell"],
-                None,
-            )
+            .resolve_invocation("world-effect-fixture", &["sub", "targetCell"], None)
             .expect("fixture form resolves");
         let form_effects = form.effect_footprint();
         assert!(
@@ -1307,11 +1299,7 @@ mod tests {
         }));
 
         let refined = registry
-            .resolve_invocation(
-                "world-effect-fixture",
-                &["refine", "targetCell"],
-                None,
-            )
+            .resolve_invocation("world-effect-fixture", &["refine", "targetCell"], None)
             .expect("refining fixture form resolves");
         let refined_effects = refined.effect_footprint();
         assert_eq!(refined_effects.accesses().len(), 1);
@@ -1380,11 +1368,7 @@ mod tests {
             ..CommandSpec::DEFAULT
         });
         let invocation = registry
-            .resolve_invocation(
-                "world-effect-fixture",
-                &["sub", "targetCell"],
-                None,
-            )
+            .resolve_invocation("world-effect-fixture", &["sub", "targetCell"], None)
             .expect("literal fixture command resolves");
         let facts = invocation.facts();
 
@@ -1435,7 +1419,11 @@ mod tests {
 
         for (command, arguments) in cases {
             let facts = registry
-                .resolve_invocation(command, arguments, Some(SurfaceQuery::core(Family::Tcl, "9.1")))
+                .resolve_invocation(
+                    command,
+                    arguments,
+                    Some(SurfaceQuery::core(Family::Tcl, "9.1")),
+                )
                 .unwrap_or_else(|| panic!("{command} resolves"))
                 .facts();
 
@@ -1465,7 +1453,11 @@ mod tests {
     fn clock_result_dependencies_are_selected_by_subcommand() {
         let registry = CommandRegistry::build_default();
         let seconds = registry
-            .resolve_invocation("clock", &["seconds"], Some(SurfaceQuery::core(Family::Tcl, "9.0")))
+            .resolve_invocation(
+                "clock",
+                &["seconds"],
+                Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+            )
             .expect("clock seconds resolves")
             .facts();
         assert_eq!(seconds.result_stability, ResultStability::Volatile);
@@ -1481,7 +1473,11 @@ mod tests {
         );
 
         let add = registry
-            .resolve_invocation("clock", &["add", "0", "1", "day"], Some(SurfaceQuery::core(Family::Tcl, "9.0")))
+            .resolve_invocation(
+                "clock",
+                &["add", "0", "1", "day"],
+                Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+            )
             .expect("clock add resolves")
             .facts();
         assert!(matches!(
@@ -1586,7 +1582,11 @@ mod tests {
     fn namespace_eval_and_dynamic_delete_materialise_closed_namespace_facts() {
         let registry = CommandRegistry::build_default();
         let eval = registry
-            .resolve_invocation("namespace", &["eval", "::a", "error x"], Some(SurfaceQuery::core(Family::Tcl, "8.6")))
+            .resolve_invocation(
+                "namespace",
+                &["eval", "::a", "error x"],
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            )
             .expect("namespace eval resolves")
             .facts();
         let [ensure] = eval
@@ -1650,7 +1650,11 @@ mod tests {
     fn interp_alias_query_and_delete_do_not_claim_alias_creation() {
         let registry = CommandRegistry::build_default();
         let query = registry
-            .resolve_invocation("interp", &["alias", "", "shortcut"], Some(SurfaceQuery::core(Family::Tcl, "8.6")))
+            .resolve_invocation(
+                "interp",
+                &["alias", "", "shortcut"],
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            )
             .expect("interp alias query resolves")
             .facts();
         assert!(
@@ -1663,7 +1667,11 @@ mod tests {
         );
 
         let delete = registry
-            .resolve_invocation("interp", &["alias", "", "shortcut", ""], Some(SurfaceQuery::core(Family::Tcl, "8.6")))
+            .resolve_invocation(
+                "interp",
+                &["alias", "", "shortcut", ""],
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            )
             .expect("interp alias delete resolves")
             .facts();
         let [transition] = delete
@@ -1691,7 +1699,11 @@ mod tests {
     fn frame_and_namespace_alias_transitions_follow_registry_layouts() {
         let registry = CommandRegistry::build_default();
         let upvar = registry
-            .resolve_invocation("upvar", &["1", "other", "local"], Some(SurfaceQuery::core(Family::Tcl, "8.6")))
+            .resolve_invocation(
+                "upvar",
+                &["1", "other", "local"],
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            )
             .expect("upvar resolves")
             .facts();
         assert!(matches!(
@@ -1756,11 +1768,7 @@ mod tests {
             ..CommandSpec::DEFAULT
         });
         let facts = registry
-            .resolve_invocation(
-                "resolver-backed-roles-fixture",
-                &["first", "second"],
-                None,
-            )
+            .resolve_invocation("resolver-backed-roles-fixture", &["first", "second"], None)
             .expect("fixture command resolves")
             .facts();
 
@@ -1867,11 +1875,7 @@ mod tests {
                 ..CommandSpec::DEFAULT
             });
             registry
-                .resolve_invocation(
-                    "dispatch-composition-fixture",
-                    &["run"],
-                    None,
-                )
+                .resolve_invocation("dispatch-composition-fixture", &["run"], None)
                 .expect("fixture command resolves")
                 .facts()
         };
@@ -1896,7 +1900,11 @@ mod tests {
     fn transition_coverage_replaces_only_the_duplicate_legacy_write() {
         let registry = CommandRegistry::build_default();
         let invocation = registry
-            .resolve_invocation("rename", &["old", "new"], Some(SurfaceQuery::core(Family::Tcl, "8.6")))
+            .resolve_invocation(
+                "rename",
+                &["old", "new"],
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            )
             .expect("core registry command resolves");
         let footprint = invocation.effect_footprint();
 
@@ -1939,7 +1947,11 @@ mod tests {
     fn transition_coverage_does_not_hide_an_uncovered_variable_value_write() {
         let registry = CommandRegistry::build_default();
         let variable = registry
-            .resolve_invocation("variable", &["name", "value"], Some(SurfaceQuery::core(Family::Tcl, "8.6")))
+            .resolve_invocation(
+                "variable",
+                &["name", "value"],
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            )
             .expect("variable resolves")
             .facts();
         assert!(

@@ -52,7 +52,6 @@
 //! // script widens the realm state (`tcl-compiler`'s
 //! // `analyser::diagnostics::validity` / `analyser::commands`).
 
-
 /// Which of the two measured mechanisms keeps one stock builtin out of
 /// iRules source (§4b).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -135,8 +134,8 @@ pub fn irules_disabled_class(command: &str) -> Option<IrulesDisabledClass> {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{Family, SurfaceQuery, surface_admits};
     use super::*;
+    use tcl_dialect::model::{Family, SurfaceQuery, surface_admits};
 
     /// The §4b split is exact: 16 + 15 disjoint commands, together the
     /// §5 31-command disabled list.

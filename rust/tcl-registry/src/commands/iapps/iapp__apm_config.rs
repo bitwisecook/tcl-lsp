@@ -18,7 +18,7 @@
 
 //! `iapp::apm_config` command.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "iapp::apm_config ?arg ...?",
     ..FormSpec::DEFAULT

@@ -80,9 +80,7 @@ use tcl_compiler::var_escape::{
 use tcl_registry::CommandRegistry;
 use tcl_registry::model::ingress::static_context_for;
 
-// ---------------------------------------------------------------------------
 // Shared helpers
-// ---------------------------------------------------------------------------
 
 const TCL: &str = "tcl8.6";
 
@@ -173,9 +171,7 @@ fn var_escape_subst(template: &str, m: &HashMap<String, String>) -> Option<Strin
     tcl_compiler::subst_nocommands::subst_nocommands(template, m)
 }
 
-// ===========================================================================
 // PART 1 — var_escape: escape via scope-crossing constructs
-// ===========================================================================
 
 #[test]
 fn upvar_escapes_local_alias_and_records_source() {
@@ -360,9 +356,7 @@ fn plain_set_at_top_level_no_escape() {
     assert!(!top.dynamic_barrier());
 }
 
-// ===========================================================================
 // PART 2 — var_escape: interprocedural propagation
-// ===========================================================================
 
 #[test]
 fn interprocedural_caller_inherits_upvar_pessimism() {
@@ -486,9 +480,7 @@ fn solve_interprocedural_escape_on_synthetic_summaries() {
     assert!(solve_interprocedural_escape(&HashMap::<String, ProcEscapeSummary>::new()).is_empty());
 }
 
-// ===========================================================================
 // PART 3 — var_escape: CFG/SSA path (analyse_var_escape_cu)
-// ===========================================================================
 
 #[test]
 fn cu_path_upvar_escapes_alias() {
@@ -525,9 +517,7 @@ fn cu_path_includes_top_level_key() {
     assert!(s.contains_key("::p"));
 }
 
-// ===========================================================================
 // PART 4 — var_escape: slot resolution
-// ===========================================================================
 
 #[test]
 fn slot_resolution_assigns_params_then_locals() {
@@ -569,9 +559,7 @@ fn assign_local_slots_direct_api() {
     assert!((slots.len() as usize) <= LOCALS_ARRAY_CAP);
 }
 
-// ===========================================================================
 // PART 5 — var_escape: info-subcommand classification
-// ===========================================================================
 
 #[test]
 fn info_subcommand_classification_sets() {
@@ -622,9 +610,7 @@ fn info_body_in_proc_is_safe() {
     );
 }
 
-// ===========================================================================
 // PART 6 — var_escape: ProcEscapeSummary / types unit surface
-// ===========================================================================
 
 #[test]
 fn summary_join_and_default_tag() {
@@ -697,9 +683,7 @@ fn summary_explicit_reason_passthrough_and_flags() {
     assert!(s.reasons_for("unknown").is_empty());
 }
 
-// ===========================================================================
 // PART 7 — type_infer: literal classification (set-statement context)
-// ===========================================================================
 
 #[test]
 fn literal_scalar_types() {
@@ -741,9 +725,7 @@ fn incr_result_is_int() {
     assert_eq!(ty("set c 5\nincr c 3", "c"), TclType::Int);
 }
 
-// ===========================================================================
 // PART 8 — type_infer: command return types (via `set v [cmd …]`)
-// ===========================================================================
 
 #[test]
 fn command_return_type_llength_is_int() {
@@ -808,9 +790,7 @@ fn unknown_command_result_is_unknown() {
     );
 }
 
-// ===========================================================================
 // PART 9 — type_infer: expr results (the `expr {…}` lowered form)
-// ===========================================================================
 
 #[test]
 fn expr_integer_arithmetic_is_int() {
@@ -919,9 +899,7 @@ fn expr_arithmetic_over_untyped_var_is_numeric() {
     assert_eq!(lat.tcl_type(), Some(TclType::Numeric));
 }
 
-// ===========================================================================
 // PART 10 — type_infer: propagation through pure copies and scope aliases
-// ===========================================================================
 
 #[test]
 fn pure_var_copy_inherits_source_type() {
@@ -969,9 +947,7 @@ fn global_alias_def_widens_to_overdefined() {
     );
 }
 
-// ===========================================================================
 // PART 11 — subst_nocommands: the compile-time `-nocommands` evaluator
-// ===========================================================================
 
 #[test]
 fn subst_nocommands_leaves_brackets_literal_and_substitutes_var() {

@@ -24,11 +24,11 @@
 //! observable over LSP; the observable completion / W003 behaviour is covered
 //! by the `lsp_e2e` suite.
 
+use tcl_dialect::available_dialects;
+use tcl_dialect::model::SpecSurface;
 use tcl_dialect::model::surface_admits;
-use tcl_dialect::model::{SurfaceQuery, Family};
-use tcl_dialect::{available_dialects};
+use tcl_dialect::model::{Family, SurfaceQuery};
 use tcl_registry::CommandRegistry;
-use tcl_dialect::model::{SpecSurface};
 
 fn reg() -> CommandRegistry {
     CommandRegistry::build_default()
@@ -37,8 +37,7 @@ fn reg() -> CommandRegistry {
 #[test]
 fn tcl91_is_a_known_catalogued_dialect() {
     assert_eq!(
-        tcl_dialect::DialectProfile::find("tcl9.1")
-            .map(tcl_dialect::DialectProfile::surface_query),
+        tcl_dialect::DialectProfile::find("tcl9.1").map(tcl_dialect::DialectProfile::surface_query),
         Some(SurfaceQuery::core(Family::Tcl, "9.1"))
     );
     assert!(available_dialects().contains(&"tcl9.1"));
@@ -149,7 +148,10 @@ fn tcl91_math_commands_are_pure_and_91_only() {
     let r = reg();
     for name in ["divmod", "frexp", "modf", "remquo"] {
         let spec = r.get(name).unwrap_or_else(|| panic!("{name} registered"));
-        assert!(spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.1"))), "{name} in 9.1");
+        assert!(
+            spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.1"))),
+            "{name} in 9.1"
+        );
         assert!(
             !spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.0"))),
             "{name} NOT in 9.0"

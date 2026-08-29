@@ -40,9 +40,7 @@
 
 use std::time::{Duration, Instant};
 
-use tcl_spectcl::{
-    EvalOptions, UpgradeOptions, UpgradeStatus, evaluate_pack_with, upgrade_source,
-};
+use tcl_spectcl::{EvalOptions, UpgradeOptions, UpgradeStatus, evaluate_pack_with, upgrade_source};
 
 /// Resident bytes, from `/proc/self/statm`.
 ///
@@ -129,7 +127,9 @@ fn main() {
         .collect();
     packs.sort();
 
-    println!("| pack | lines | commands | 1.x ms | 2.0 ms | Δ | 2.0 VM ms | 1.x KiB | 2.0 KiB | 2.0 VM KiB |");
+    println!(
+        "| pack | lines | commands | 1.x ms | 2.0 ms | Δ | 2.0 VM ms | 1.x KiB | 2.0 KiB | 2.0 VM KiB |"
+    );
     println!("|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|");
     let mut totals = [Duration::ZERO; 3];
     let mut retained = [0usize; 3];
@@ -138,7 +138,10 @@ fn main() {
         let legacy = std::fs::read_to_string(path).expect("a readable pack");
         let outcome = upgrade_source(&legacy, &UpgradeOptions::default());
         assert!(
-            matches!(outcome.status, UpgradeStatus::Upgraded | UpgradeStatus::AlreadyCurrent),
+            matches!(
+                outcome.status,
+                UpgradeStatus::Upgraded | UpgradeStatus::AlreadyCurrent
+            ),
             "{name}: {:?} {:?}",
             outcome.status,
             outcome.refusals

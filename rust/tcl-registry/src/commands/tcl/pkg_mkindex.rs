@@ -42,7 +42,7 @@
 //! under `"pkg_mkIndex"` alongside `commands/stdlib/pkg_mkindex.rs` — out of
 //! scope for a single-file audit.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 // The 8.4 and 8.5 manpages spell the four switches out in the SYNOPSIS
 // line itself (`?-direct? ?-lazy? ?-load pkgPat? ?-verbose?`); 8.6, 9.0,

@@ -22,7 +22,7 @@
 //! so the BPF-Tcl front-end keeps it a generic call and re-lowers the body in
 //! its own (BPF-native) event space.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 pub fn spec() -> CommandSpec {
     const OP: BpfOpSpec = BpfOpSpec::framework(BpfDeclKind::When);

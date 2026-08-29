@@ -82,9 +82,7 @@ use tcl_registry::CommandRegistry;
 use tcl_registry::model::ingress::static_context_for;
 use tcl_registry::model::semantic::SemanticContext;
 
-// ---------------------------------------------------------------------------
 // Shared helpers
-// ---------------------------------------------------------------------------
 
 const TCL: &str = "tcl8.6";
 
@@ -145,9 +143,7 @@ fn graph_for(source: &str) -> DataFlowGraph {
     build_graph(&cu)
 }
 
-// ===========================================================================
 // Def-use chains
-// ===========================================================================
 
 // -- TestDefUseBasic --
 
@@ -376,9 +372,7 @@ fn def_use_foreach_loop() {
     assert!(!reaching_defs(fu, "item").is_empty());
 }
 
-// ===========================================================================
 // The SSA data-flow graph
-// ===========================================================================
 
 // -- TestDataFlowGraphExtraction --
 
@@ -538,7 +532,6 @@ fn dataflow_empty_source() {
     assert_eq!(g.total_defs(), 0);
 }
 
-// ===========================================================================
 // dead_stores::liveness_dead_stores  +  DefUseChain::is_dead
 //
 // See the module-level note: the liveness pass answers "is the value unread",
@@ -546,7 +539,6 @@ fn dataflow_empty_source() {
 // tclsh-anchored invariants (globals/side-effects kept) hold directly; the
 // terminal/multi-write/param cases where liveness flags a store a deletion pass
 // would keep are noted at each site.
-// ===========================================================================
 
 /// Variable names `liveness_dead_stores` flags as dead stores in `qname`.
 fn dead_store_vars(source: &str, qname: &str) -> Vec<String> {

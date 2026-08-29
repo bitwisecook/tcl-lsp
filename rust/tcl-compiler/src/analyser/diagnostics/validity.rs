@@ -29,9 +29,9 @@
 //! The disabled-command, arity, and W304 emitters buffer their candidates
 //! and flush them after the walk.
 
-use tcl_dialect::model::{SpecProvider};
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_core_types::DiagCode;
+use tcl_dialect::model::SpecProvider;
 use tcl_registry::Arity;
 use tcl_registry::lifecycle::Lifecycle;
 
@@ -39,7 +39,7 @@ use super::helpers::{has_substitution, is_ident_continue};
 use crate::analyser::state::Analyser;
 use crate::analyser::types::{PendingUserCallArity, Severity};
 use crate::expr_ast::{ExprNode, render_expr};
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// The argument words of one command invocation, scoped to the prefix the
 /// caller has already consumed: `args` / `arg_tokens` / `arg_expand` are the
@@ -1338,7 +1338,6 @@ impl Analyser {
         scope_path: &[usize],
     ) {
         use super::dispatch::CommandSignature;
-        
 
         if self.registry.is_none() {
             return;
@@ -3373,8 +3372,6 @@ impl Analyser {
         cmd_tok: tcl_lexer::Token,
         arg_tokens: &[tcl_lexer::Token],
     ) {
-        
-
         let Some(registry) = self.registry.as_deref() else {
             return;
         };
@@ -3389,9 +3386,7 @@ impl Analyser {
         // here would over-filter via `get_for_surface` and silently drop
         // those W304s.
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let Some(profile) =
-            registry.resolve_option_terminator(cmd_name, &arg_strs, None)
-        else {
+        let Some(profile) = registry.resolve_option_terminator(cmd_name, &arg_strs, None) else {
             return;
         };
 
@@ -4658,7 +4653,6 @@ fn is_builtin_math_function(name: &str) -> bool {
 /// dialect-*identity*-gated — both count as "built-in" here; only the nine
 /// iRules word operators are excluded).
 fn is_builtin_expr_op(name: &str) -> bool {
-    
     tcl_syntax::expr::operators::ALL_BIN_OPS.iter().any(|op| {
         let spec = op.spec();
         spec.spelling == name && spec.surface != Some(SpecSurface::IRULES)
@@ -4672,7 +4666,6 @@ fn is_builtin_expr_op(name: &str) -> bool {
 /// `contains`, `not`, …) — see [`is_builtin_expr_op`]'s doc for the
 /// derivation and why these are excluded there.
 fn is_irules_only_expr_op(name: &str) -> bool {
-    
     tcl_syntax::expr::operators::ALL_BIN_OPS.iter().any(|op| {
         let spec = op.spec();
         spec.spelling == name && spec.surface == Some(SpecSurface::IRULES)
@@ -4867,7 +4860,6 @@ fn w003_tip_string(spelling: &str) -> &'static str {
 fn gated_expr_ops() -> &'static [GatedExprOp] {
     static TABLE: std::sync::OnceLock<Vec<GatedExprOp>> = std::sync::OnceLock::new();
     TABLE.get_or_init(|| {
-        
         let version_gated = tcl_syntax::expr::operators::ALL_BIN_OPS
             .iter()
             .filter_map(|op| {

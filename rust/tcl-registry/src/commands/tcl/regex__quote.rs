@@ -20,7 +20,7 @@
 //! `regex_quote`, and `regexp::quote` are recognised aliases of the same
 //! idiom, `::` being the canonical spelling).
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "regex::quote STRING",
     ..FormSpec::DEFAULT

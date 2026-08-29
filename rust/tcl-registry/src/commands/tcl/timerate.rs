@@ -19,7 +19,7 @@
 //! `timerate` — measure the calibrated rate of execution of a script.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 // All three forms are unchanged, synopsis-for-synopsis, across Tcl 8.6,
 // 9.0, and 9.1 (see the `spec` doc comment below) — mirroring the real

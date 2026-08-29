@@ -41,8 +41,8 @@
 //! set t {plain $level here}              ;# prints: plain $level here
 //! ```
 
-use tcl_dialect::model::{SurfaceQuery, Family};
 use tcl_compiler::analyser::{Analyser, AnalysisResult};
+use tcl_dialect::model::{Family, SurfaceQuery};
 use tcl_registry::model::ingress::static_context_for;
 
 fn analyse(source: &str) -> AnalysisResult {
@@ -105,9 +105,7 @@ fn pos_of(src: &str, needle: &str) -> (u32, u32) {
     )
 }
 
-// ---------------------------------------------------------------------------
 // Issue #974 defect 1 — hover on a bare mathfunc call inside `expr`
-// ---------------------------------------------------------------------------
 
 /// TP (the reported FN): `set a [expr {sin(1.0)}]` drew nothing at any column
 /// of `sin`; it must now render the same registry data the qualified spelling
@@ -256,9 +254,7 @@ fn mathfunc_hover_is_version_gated() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Issue #974 defect 2 — completion inside `expr`
-// ---------------------------------------------------------------------------
 
 /// TP (the reported FN): `set a [expr {si` offered only same-prefixed procs
 /// (`simulation::*` in the audited corpus) and no math functions at all.
@@ -330,9 +326,7 @@ fn completion_math_functions_are_version_gated() {
     assert!(!completion_labels(g, "tcl9.0", 0, 15).contains(&"gamma".to_owned()));
 }
 
-// ---------------------------------------------------------------------------
 // Issue #923 idx 30 — mathfunc call sites as first-class references
-// ---------------------------------------------------------------------------
 
 /// The audit's own six-consumer sweep shape: a namespace-local
 /// `proc ::ns::tcl::mathfunc::f` override plus an *unrelated* same-named
@@ -561,9 +555,7 @@ puts [li 10 20]
     assert_eq!(locs[0].start_line, 3, "the global decoy: {:?}", locs[0]);
 }
 
-// ---------------------------------------------------------------------------
 // Issue #923 idx 103 — mathfunc as a first-class command
-// ---------------------------------------------------------------------------
 
 /// The registry data the finding asked for is present and dialect-gated, so
 /// the generic per-dispatch-site availability check sees it: the qualified
@@ -578,20 +570,24 @@ fn mathfunc_command_spellings_are_registered_and_gated() {
         );
     }
     assert!(
-        reg.get_for_surface("::tcl::mathfunc::isinf", Some(SurfaceQuery::core(Family::Tcl, "8.6")))
-            .is_none(),
+        reg.get_for_surface(
+            "::tcl::mathfunc::isinf",
+            Some(SurfaceQuery::core(Family::Tcl, "8.6"))
+        )
+        .is_none(),
         "isinf is 9.0+"
     );
     assert!(
-        reg.get_for_surface("::tcl::mathfunc::sin", Some(SurfaceQuery::core(Family::Tcl, "8.4")))
-            .is_none(),
+        reg.get_for_surface(
+            "::tcl::mathfunc::sin",
+            Some(SurfaceQuery::core(Family::Tcl, "8.4"))
+        )
+        .is_none(),
         "the command table itself is 8.5+ (TIP 232)"
     );
 }
 
-// ---------------------------------------------------------------------------
 // Audit C4 — sigil-free / colon word recognition (idx 24, 48, 54, 104)
-// ---------------------------------------------------------------------------
 
 /// idx 48 (TP, regression pin): a variable's bare **declaring** token —
 /// `cmd` in `foreach cmd $list`, and a `set` left-hand side.
@@ -880,9 +876,7 @@ fn fp_guard_idx24_qualified_reads_still_resolve() {
     assert_eq!(locs[0].start_line, 1, "{:?}", locs[0]);
 }
 
-// ---------------------------------------------------------------------------
 // Codex review of PR #1073 — the two conservative proofs, sharpened
-// ---------------------------------------------------------------------------
 
 /// Finding 1 (TP): a `{` **inside a bare word** is an ordinary character, so a
 /// `#` after it is not in command position and the `$v` following it is a
@@ -1035,10 +1029,8 @@ proc s {a {b 1} args} { return \"s got $a $b $args\" }
     );
 }
 
-// ---------------------------------------------------------------------------
 // Issue #1079 — a computed parameter list declares nothing the analyser can
 // model, so it registers no per-parameter `VarDef` and no arity
-// ---------------------------------------------------------------------------
 //
 // Oracle (tclsh 9.0.4 and 8.6.16, identical):
 //
@@ -1139,9 +1131,7 @@ fn tp_literal_parameter_lists_still_model_formals_and_arity() {
     assert_eq!(r.params.len(), 2, "{:?}", r.params);
 }
 
-// ---------------------------------------------------------------------------
 // Issue #1054 — hover type inference must be built for the document's dialect
-// ---------------------------------------------------------------------------
 
 /// TP: an f5-iRules word operator (`contains`) inside an `if` condition is a
 /// dialect-specific construct.  Under the iRules dialect the hover's inferred

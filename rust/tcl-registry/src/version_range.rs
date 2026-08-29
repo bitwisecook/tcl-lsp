@@ -35,7 +35,6 @@
 //! formatter's version-blind resolution were two copies of the same list, and
 //! a new core release had to be remembered in both.
 
-
 use crate::CommandRegistry;
 
 /// Every core-Tcl release the registry ships a pack for, oldest first.
@@ -96,7 +95,7 @@ pub fn forward_range(dialect: &str) -> &'static [&'static str] {
 
 #[cfg(test)]
 mod tests {
-    
+
     use super::*;
 
     #[test]

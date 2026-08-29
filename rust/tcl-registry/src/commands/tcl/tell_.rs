@@ -19,7 +19,7 @@
 //! `tell` — return current access position for an open channel.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 // Tcl 8.4's tell.n SYNOPSIS/DESCRIPTION ("tell channelId": an integer
 // byte offset that can be passed to seek, -1 for a channel that does not

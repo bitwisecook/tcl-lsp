@@ -30,8 +30,8 @@
 
 use tcl_dialect::DialectProfile;
 
-use crate::model::context::core_tcl_floor;
 use crate::hover::OptionSpec;
+use crate::model::context::core_tcl_floor;
 use crate::registry::CommandRegistry;
 #[cfg(test)]
 use crate::spec::SubSubCommand;
@@ -84,7 +84,11 @@ pub trait ProfileQueries {
     ///
     /// A gate of `None` on both the option and its parent means "no
     /// restriction".
-    fn is_option_available(&self, opt: &OptionSpec, parent_gate: Option<&'static [SpecSurface]>) -> bool;
+    fn is_option_available(
+        &self,
+        opt: &OptionSpec,
+        parent_gate: Option<&'static [SpecSurface]>,
+    ) -> bool;
 
     /// Declared option / switch names of `spec` available under this
     /// profile, in declaration order with duplicates removed — the
@@ -139,8 +143,7 @@ fn package_available(profile: &DialectProfile, required: Option<&'static str>) -
     match required {
         None => true,
         Some(pkg) => {
-            !crate::model::surface::is_closed_world_package(pkg)
-                || profile.is_ambient_package(pkg)
+            !crate::model::surface::is_closed_world_package(pkg) || profile.is_ambient_package(pkg)
         }
     }
 }
@@ -162,7 +165,11 @@ impl ProfileQueries for DialectProfile {
             .filter(|spec| self.is_available(spec))
     }
 
-    fn is_option_available(&self, opt: &OptionSpec, parent_gate: Option<&'static [SpecSurface]>) -> bool {
+    fn is_option_available(
+        &self,
+        opt: &OptionSpec,
+        parent_gate: Option<&'static [SpecSurface]>,
+    ) -> bool {
         let Some(gate) = opt.surface.or(parent_gate) else {
             // No restriction on the option or its parent.
             return true;
@@ -390,14 +397,12 @@ impl LegacyProfileOracle for DialectProfile {
             return keyed_ambient(&pin).then_some(pin);
         }
         let vendor = self.vendor_surface?;
-        let vendor_own = spec
-            .surface
-            .is_some_and(|rows| {
-                rows.iter().any(|row| row.provider == vendor)
-                    && !rows
-                        .iter()
-                        .any(|row| row.provider == SpecProvider::Core(Family::Tcl))
-            });
+        let vendor_own = spec.surface.is_some_and(|rows| {
+            rows.iter().any(|row| row.provider == vendor)
+                && !rows
+                    .iter()
+                    .any(|row| row.provider == SpecProvider::Core(Family::Tcl))
+        });
         if !vendor_own {
             return None;
         }

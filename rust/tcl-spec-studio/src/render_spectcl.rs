@@ -125,9 +125,7 @@ const WRAP_COLUMN: usize = 92;
 /// would cost the file its one-screen shape for nothing.
 const ONE_LINE_COLUMN: usize = 144;
 
-// ---------------------------------------------------------------------------
 // Why a field did not survive
-// ---------------------------------------------------------------------------
 
 /// Why a draft key cannot be written as `SpecTcl`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -300,9 +298,7 @@ pub fn gap(key: &str) -> Option<&'static Gap> {
     GAPS.iter().find(|gap| gap.key == key)
 }
 
-// ---------------------------------------------------------------------------
 // Tcl words
-// ---------------------------------------------------------------------------
 
 /// Whether `text` can be written as a bare word.
 fn bare_safe(text: &str) -> bool {
@@ -655,9 +651,7 @@ fn as_array(value: &Value) -> &[Value] {
     value.as_array().map_or(&[], Vec::as_slice)
 }
 
-// ---------------------------------------------------------------------------
 // The output buffer
-// ---------------------------------------------------------------------------
 
 /// An indented line buffer with a one-slot blank-line separator.
 ///
@@ -790,9 +784,7 @@ impl Out {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Shared `values` tables
-// ---------------------------------------------------------------------------
 
 /// The pack-level `values NAME { … }` tables a render needs.
 ///
@@ -905,9 +897,7 @@ fn str_of(value: &Value) -> &str {
     value.as_str().unwrap_or_default()
 }
 
-// ---------------------------------------------------------------------------
 // Rust-expression fields the draft *can* recover
-// ---------------------------------------------------------------------------
 
 /// Split `text` on top-level `sep`, honouring `{}` / `[]` / `()` nesting and
 /// Rust string literals.
@@ -1452,9 +1442,7 @@ fn versioned_arg_value_rows(expr: &str) -> Option<Vec<Vec<String>>> {
     Some(rows)
 }
 
-// ---------------------------------------------------------------------------
 // Field-level emission
-// ---------------------------------------------------------------------------
 
 /// Everything one command or subcommand body needs while rendering.
 struct Ctx<'a> {
@@ -2245,9 +2233,7 @@ fn hover_block(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
     out.line("}");
 }
 
-// ---------------------------------------------------------------------------
 // Command and subcommand bodies
-// ---------------------------------------------------------------------------
 
 /// Render the body of one `command NAME { … }` block.
 #[allow(clippy::too_many_lines)]
@@ -3001,9 +2987,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
     out.line("}");
 }
 
-// ---------------------------------------------------------------------------
 // Entry points
-// ---------------------------------------------------------------------------
 
 /// Render one draft as a complete single-command `.tclspec` pack.
 ///
@@ -3115,8 +3099,7 @@ pub fn render_pack_reporting_with_version(
 
 #[cfg(test)]
 mod tests {
-    
-    
+
     use super::*;
     use serde_json::json;
 

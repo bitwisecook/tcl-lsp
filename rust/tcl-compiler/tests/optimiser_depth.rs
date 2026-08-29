@@ -75,9 +75,7 @@ use tcl_registry::model::ingress::static_context_for;
 const TCL: &str = "tcl8.6";
 const IR: &str = "f5-irules";
 
-// ---------------------------------------------------------------------------
 // Shared helpers (mirror the existing suites' harness exactly).
-// ---------------------------------------------------------------------------
 
 /// Every `Oxxx` code emitted by a single optimiser pass over `src`.
 fn opt_codes(src: &str, dialect: &str) -> Vec<String> {
@@ -111,7 +109,6 @@ fn optimised(src: &str, dialect: &str) -> String {
     apply_optimisations(src, &optimise_with_dialect(src, registry, d))
 }
 
-// ===========================================================================
 // elimination.rs — O107 unreachable code via the after-`return` path
 //
 // The existing suites only ever reach O112 (structure elimination) for `if {0}`
@@ -119,7 +116,6 @@ fn optimised(src: &str, dialect: &str) -> String {
 // per-statement O107. Dead code *after a `return`* is not owned by any
 // structural collapse, so it is the clean way to drive the O107
 // `emit_unreachable` branch through to the selected output.
-// ===========================================================================
 
 #[test]
 fn elimination_o107_dead_code_after_return() {
@@ -166,13 +162,11 @@ fn elimination_o107_dead_code_after_return() {
     );
 }
 
-// ===========================================================================
 // elimination.rs — multi-step O108 ADCE fixpoint
 //
 // The existing suites assert a 1-link transitive chain; here a 4-deep
 // `a → b → c → d` chain where only the unused links collapse, exercising the
 // `run_adce_fixpoint` loop iterating more than once.
-// ===========================================================================
 
 #[test]
 fn elimination_o108_deep_transitive_chain() {
@@ -202,7 +196,6 @@ fn elimination_o108_deep_transitive_chain() {
     );
 }
 
-// ===========================================================================
 // elimination.rs — scope-alias suppression (`scan_scope_aliases` branches the
 // existing suites never reach: `trace`, `namespace upvar`, `variable`).
 //
@@ -210,7 +203,6 @@ fn elimination_o108_deep_transitive_chain() {
 // dead/unused store IS removed, so the suppression is the load-bearing delta.
 // These are compiler-internal (a write through an alias escapes the frame, so
 // the optimiser keeps it) — structural assertions only.
-// ===========================================================================
 
 #[test]
 fn elimination_trace_variable_suppresses_dead_store() {
@@ -279,12 +271,10 @@ fn elimination_namespace_upvar_and_variable_alias_suppress() {
     );
 }
 
-// ===========================================================================
 // elimination.rs — RMW-hidden-read keep-alive (`collect_rmw_hidden_reads` /
 // `dollar_reads_in_cmd_subs`). A read-modify-write command's target buried in a
 // substitution keeps a feeding `set` alive even though the shallow word scan
 // (and name-level SSA) sees no read.
-// ===========================================================================
 
 #[test]
 fn elimination_rmw_hidden_read_keeps_feeding_set() {
@@ -328,13 +318,11 @@ fn elimination_rmw_hidden_read_keeps_feeding_set() {
     );
 }
 
-// ===========================================================================
 // elimination.rs — a `::`-qualified / traced global write survives cross-scope.
 // `scan_module_traced_globals` closes the gap where the `trace` lives in a
 // different proc than the write; the `var.starts_with("::")` guard also keeps a
 // fully-qualified global write. Either way the write must not be eliminated —
 // a soundness (semantics-preserving) requirement.
-// ===========================================================================
 
 #[test]
 fn elimination_cross_proc_global_write_survives() {
@@ -357,13 +345,11 @@ fn elimination_cross_proc_global_write_survives() {
     );
 }
 
-// ===========================================================================
 // code_sinking.rs (O125) — sink into a `switch` arm.
 //
 // The existing suites only sink into `if` branches; the `Statement::Switch` arm
 // is the untested decision shape in `decision_branch_bodies` /
 // `any_decision_body_uses_var`.
-// ===========================================================================
 
 #[test]
 fn code_sinking_o125_into_switch_arm() {
@@ -393,11 +379,9 @@ fn code_sinking_o125_into_switch_arm() {
     );
 }
 
-// ===========================================================================
 // code_sinking.rs (O125) — `try_deeper_sink` declines when a *nested* decision
 // reads the variable in its condition (so descending past it is unsound). The
 // def then sinks only to the outer branch body, not into the inner arm.
-// ===========================================================================
 
 #[test]
 fn code_sinking_o125_declines_deeper_when_inner_condition_reads_var() {
@@ -418,11 +402,9 @@ fn code_sinking_o125_declines_deeper_when_inner_condition_reads_var() {
     );
 }
 
-// ===========================================================================
 // code_sinking.rs (O125) — multi-use branch anchors at the first using
 // statement (`find_deepest_targets` with `using.len() > 1`, which skips the
 // descend-into-decision optimisation and prepends at the first use).
-// ===========================================================================
 
 #[test]
 fn code_sinking_o125_multi_use_anchors_at_first() {
@@ -440,11 +422,9 @@ fn code_sinking_o125_multi_use_anchors_at_first() {
     );
 }
 
-// ===========================================================================
 // code_sinking.rs (O125) — recursion into compound bodies. A sink target inside
 // a `for` / `while` body exercises `walk_script`'s loop-body recursion (the
 // existing suites only test top-level / proc-body sinks).
-// ===========================================================================
 
 #[test]
 fn code_sinking_o125_inside_loop_body() {
@@ -467,11 +447,9 @@ fn code_sinking_o125_inside_loop_body() {
     assert!(optimised(while_body, TCL).contains("set x 1; puts $x"));
 }
 
-// ===========================================================================
 // code_sinking.rs (O125) — declines when the branch *conditionally redefines*
 // the variable before its use, so sinking the def in would be observed
 // differently. A clean negative for the pass.
-// ===========================================================================
 
 #[test]
 fn code_sinking_o125_declines_on_conditional_redefine() {
@@ -493,10 +471,8 @@ fn code_sinking_o125_declines_on_conditional_redefine() {
     );
 }
 
-// ===========================================================================
 // chain_fold.rs — O130 list-build chain folding (the existing suites cover only
 // O104 string chains; O130 is entirely untested there).
-// ===========================================================================
 
 #[test]
 fn chain_fold_o130_list_build_chain() {
@@ -528,7 +504,6 @@ fn chain_fold_o130_list_build_chain() {
     assert!(opt_fires(inproc, TCL, "O130"));
 }
 
-// ===========================================================================
 // chain_fold.rs — the precise-flow branch: a build chain folds *across* a
 // static-literal write to a DIFFERENT variable (which cannot read/write the
 // accumulator). `optimiser.rs` asserts the opposite (the optimiser "does not
@@ -536,7 +511,6 @@ fn chain_fold_o130_list_build_chain() {
 // only true for a *dynamic*/reading statement. An inert literal `set` to
 // another var is the
 // uncovered case where the chain genuinely continues.
-// ===========================================================================
 
 #[test]
 fn chain_fold_o104_continues_past_interleaved_literal_set() {
@@ -553,13 +527,11 @@ fn chain_fold_o104_continues_past_interleaved_literal_set() {
     );
 }
 
-// ===========================================================================
 // branch_folding.rs — the in-condition rewrite cascade
 // (`propagate_into_branches` → `branch_cascade`: `strength_reduce` O113 →
 // `strlen` O117 → `streq` O120 → `instcombine`). Drives O113 and O117 via
 // `if` conditions, plus the De-Morgan-in-condition case the existing suites
 // note is carried under O113 rather than O110.
-// ===========================================================================
 
 #[test]
 fn branch_folding_condition_cascade() {
@@ -596,12 +568,10 @@ fn branch_folding_condition_cascade() {
     assert!(optimised(strlen, TCL).contains("$::g eq \"\""));
 }
 
-// ===========================================================================
 // structure_elimination.rs — loop edge cases the existing suites under-cover:
 // the `for {} {0} {}` all-empty form (whole loop deleted, trailing survives),
 // and the `while {1}` infinite loop that must NOT be eliminated (only the
 // constant condition folds; the loop body stays).
-// ===========================================================================
 
 #[test]
 fn structure_elimination_loop_edges() {
@@ -633,12 +603,10 @@ fn structure_elimination_loop_edges() {
     );
 }
 
-// ===========================================================================
 // tail_call.rs — O122 loop conversion driven from a `switch`-arm self-call.
 // The existing suite lists this body under the O121/O122 detection set; here we
 // pin the *applied* O122 loop rewrite (the switch-arm tail call becoming a
 // `set tree …` inside a `while {1}`).
-// ===========================================================================
 
 #[test]
 fn tail_call_o122_loop_conversion_from_switch_arm() {
@@ -669,14 +637,12 @@ fn tail_call_o122_loop_conversion_from_switch_arm() {
     );
 }
 
-// ===========================================================================
 // iRules cross-event O126/O109 — the connection-scope paths. A `set` in one
 // `when EVENT {…}` handler whose value is consumed by a *later* event must
 // survive (the `::when::*` lowering threads `connection_scope`'s
 // cross_event_defs/imports into `cross_event_vars`, so the elimination pass
 // skips them). Each survival case is paired with a control whose only
 // difference is whether the later event reads the variable.
-// ===========================================================================
 
 #[test]
 fn cross_event_direct_read_survives() {
@@ -745,11 +711,9 @@ fn cross_event_same_event_dead_store_still_eliminated() {
     );
 }
 
-// ===========================================================================
 // Structure elimination of a nested switch through the multipass fixpoint —
 // the first pass unwraps the outer `if {1}`, a later pass eliminates the inner
 // dead `switch` whose subject matches no arm and has no default.
-// ===========================================================================
 
 #[test]
 fn structure_elimination_nested_switch_via_multipass() {

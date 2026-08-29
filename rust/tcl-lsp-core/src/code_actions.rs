@@ -64,10 +64,10 @@
 //! * Cross-document refactors (move to file, split namespace)
 //!   are not supported.
 
-use tcl_dialect::model::{SurfaceLayer, Family};
 use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::compiler_checks::DiagCode;
+use tcl_dialect::model::{Family, SurfaceLayer};
 use tcl_lexer::{LineIndex, Utf16Col};
 use tcl_registry::events::{DataCollectionAction, EventRegistry};
 

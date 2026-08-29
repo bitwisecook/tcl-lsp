@@ -18,7 +18,7 @@
 
 //! `expect` command.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 const OPTIONS: &[OptionSpec] = &[
     // `-brace` is deliberately an exact-only outer-shape selector, not a
     // clause flag: it makes one braced word a pattern/action list.

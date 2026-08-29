@@ -20,9 +20,7 @@
 
 use super::{D, codes, fires};
 
-// ---------------------------------------------------------------------------
 // FP-DS-01 — incr/append/lappend inside cmd-sub keeps the init live
-// ---------------------------------------------------------------------------
 
 const FP_DS_01_REPRO: &str = "\
 proc f {} {
@@ -60,9 +58,7 @@ fn fp_ds_01_genuine_dead_store_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-DS-02 — reads inside [expr {...}] cmd-sub are real uses
-// ---------------------------------------------------------------------------
 
 const FP_DS_02_REPRO: &str = "\
 proc f {} {
@@ -101,9 +97,7 @@ fn fp_ds_02_no_expr_cmdsub_read_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-DS-03 — eval {literal-body} reads run in caller scope
-// ---------------------------------------------------------------------------
 
 const FP_DS_03_REPRO: &str = "\
 proc f {} {
@@ -140,9 +134,7 @@ fn fp_ds_03_eval_body_without_read_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-DS-04 — traced variables excluded (soundness)
-// ---------------------------------------------------------------------------
 
 const FP_DS_04_REPRO: &str = "\
 proc f {} {
@@ -211,9 +203,7 @@ fn fp_ds_04_cross_scope_namespace_global_trace() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-DS-05 — return value read counts as a use
-// ---------------------------------------------------------------------------
 
 const FP_DS_05_REPRO: &str = "\
 proc f {} {
@@ -238,9 +228,7 @@ fn fp_ds_05_return_read_counts() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-DS-06 — ARRAY_ELEM Place: distinct array elements are distinct stores
-// ---------------------------------------------------------------------------
 
 const FP_DS_06_REPRO: &str = "\
 proc f {} {
@@ -310,9 +298,7 @@ fn fp_ds_06_traced_array_same_element_overwrite_silent() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-DS-07 — namespace-eval body scope survives Statement::Block rebuild
-// ---------------------------------------------------------------------------
 
 const FP_DS_07_REPRO: &str = "\
 proc reset {} { uplevel 1 {set counter 0} }
@@ -347,9 +333,7 @@ fn fp_ds_07_plain_eval_body_read_is_caller_use_silent() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-DS-08 — dict with key-aware suppression on the return-terminator path
-// ---------------------------------------------------------------------------
 
 const FP_DS_08_REPRO: &str = "proc f {} { set d {}; dict with d {}; return $missing }\n";
 
@@ -386,9 +370,7 @@ fn fp_ds_08_unknown_dict_with_return_var_silent() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-DS-09 — interproc literal-dict propagation feeds the dict-with key check
-// ---------------------------------------------------------------------------
 
 const FP_DS_09_REPRO: &str = "proc f {d} { dict with d { return $missing } }\nf {}\n";
 
@@ -425,7 +407,6 @@ fn fp_ds_09_interproc_mixed_callers_conservative_silent() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-DS-10 — reads nested inside a `dict for`/`dict map` body keep the store
 //            live (issue #833)
 //
@@ -436,7 +417,6 @@ fn fp_ds_09_interproc_mixed_callers_conservative_silent() {
 // read one brace level deep — e.g. `$x` used as the command name of `$x a $key`
 // inside an `if` — was invisible, and the feeding `set x set` looked like a dead
 // store.  The fix makes such reads first-class SSA uses.
-// ---------------------------------------------------------------------------
 
 // The exact issue #833 reproducer: `$x` is read as the command name of the
 // dispatched call, nested inside `if {$value}` inside `dict for`.
@@ -603,7 +583,6 @@ fn fp_ds_10_clean_dict_for_is_silent() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-DS-11 — an `uplevel` body runs in another stack frame; its variable
 //            references belong to that frame, not the enclosing proc
 //            (issue #837)
@@ -617,7 +596,6 @@ fn fp_ds_10_clean_dict_for_is_silent() {
 // same name.  A value substituted at the enclosing level (`[list …]`, a
 // quoted body, or a plain local read) is evaluated in the enclosing frame and
 // keeps the local live, exactly as before.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_ds_11_caller_frame_write_is_not_an_enclosing_dead_store() {
@@ -698,10 +676,8 @@ fn fp_ds_11_clean_uplevel_body_is_silent() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-DS-12 — a dynamic-name read makes every store observable
 // (issue #923 audit idx 2 and 64)
-// ---------------------------------------------------------------------------
 //
 // `foreach v [info locals] { … [set $v] … }` reads every local through a name
 // no literal `$x` token spells, so neither "set but never used" (W211) nor
@@ -806,10 +782,8 @@ emitted: {:?}",
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-DS-13 — an unmatched `{` inside a double-quoted string does not hide
 // the `$var` read (issue #923 audit idx 64, `namespaces` corpus `pix`)
-// ---------------------------------------------------------------------------
 //
 // The dead-store read scan runs over the segmenter's already-dequoted word
 // text.  Re-lexing that text with ordinary top-level rules used to read a
@@ -867,10 +841,8 @@ emitted: {:?}",
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-DS-14 — a brace-quoted variable name does not blind the function
 // (PR #1076 review, P2)
-// ---------------------------------------------------------------------------
 //
 // `{$n}` is Tcl's literal spelling for a variable *called* `$n`; nothing is
 // computed, so the dynamic-name barrier must stay clear and every diagnostic

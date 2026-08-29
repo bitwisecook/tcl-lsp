@@ -29,12 +29,12 @@
 //! lexer grammar, the per-dialect predicates — and the versioned-library
 //! axis.
 
-use crate::model::{Family, SpecProvider, SurfaceLayer, SurfaceQuery};
 use crate::grammar::{
     BraceLineContinuation, BracedVarStyle, EscapeSyntax, ExprCommentStyle, LexerGrammar,
     NumberSyntax,
 };
 use crate::library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
+use crate::model::{Family, SpecProvider, SurfaceLayer, SurfaceQuery};
 use crate::version::{StringCharacterModel, TclVersion, Ternary};
 
 /// Library pins for the 8.4/8.5-era plain Tcl profiles: Tk tracks the
@@ -375,7 +375,10 @@ static CATALOG: [DialectProfile; 18] = [
         vendor_surface: Some(SpecProvider::Package("bpf")),
         surface_packages: &["bpf"],
         base_layers: &[SurfaceLayer::Package("bpf")],
-        grammar_union: &[SpecProvider::Core(Family::Tcl), SpecProvider::Package("bpf")],
+        grammar_union: &[
+            SpecProvider::Core(Family::Tcl),
+            SpecProvider::Package("bpf"),
+        ],
         version_ceiling: Some(TclVersion::V9_0),
         signature_base: Some(TclVersion::V9_0),
         runtime_base: Some(TclVersion::V9_0),
@@ -482,7 +485,10 @@ static CATALOG: [DialectProfile; 18] = [
         vendor_surface: Some(SpecProvider::Package("expect")),
         surface_packages: &["expect"],
         base_layers: &[SurfaceLayer::Package("expect")],
-        grammar_union: &[SpecProvider::Core(Family::Tcl), SpecProvider::Package("expect")],
+        grammar_union: &[
+            SpecProvider::Core(Family::Tcl),
+            SpecProvider::Package("expect"),
+        ],
         version_ceiling: Some(TclVersion::V8_6),
         signature_base: Some(TclVersion::V8_6),
         runtime_base: Some(TclVersion::V8_6),
@@ -581,7 +587,10 @@ static CATALOG: [DialectProfile; 18] = [
         vendor_surface: Some(SpecProvider::Package("iapps")),
         surface_packages: &["iapps"],
         base_layers: &[SurfaceLayer::Package("iapps")],
-        grammar_union: &[SpecProvider::Core(Family::Tcl), SpecProvider::Package("iapps")],
+        grammar_union: &[
+            SpecProvider::Core(Family::Tcl),
+            SpecProvider::Package("iapps"),
+        ],
         version_ceiling: Some(TclVersion::V8_4),
         signature_base: Some(TclVersion::V8_4),
         runtime_base: Some(TclVersion::V8_4),
@@ -675,7 +684,10 @@ static CATALOG: [DialectProfile; 18] = [
         vendor_surface: Some(SpecProvider::Package("tmsh")),
         surface_packages: &["tmsh"],
         base_layers: &[SurfaceLayer::Package("tmsh")],
-        grammar_union: &[SpecProvider::Core(Family::Tcl), SpecProvider::Package("tmsh")],
+        grammar_union: &[
+            SpecProvider::Core(Family::Tcl),
+            SpecProvider::Package("tmsh"),
+        ],
         version_ceiling: Some(TclVersion::V8_4),
         signature_base: Some(TclVersion::V8_4),
         runtime_base: Some(TclVersion::V8_4),
@@ -909,7 +921,10 @@ static CATALOG: [DialectProfile; 18] = [
         vendor_surface: Some(SpecProvider::Package("spectcl")),
         surface_packages: &["spectcl"],
         base_layers: &[SurfaceLayer::Package("spectcl")],
-        grammar_union: &[SpecProvider::Core(Family::Tcl), SpecProvider::Package("spectcl")],
+        grammar_union: &[
+            SpecProvider::Core(Family::Tcl),
+            SpecProvider::Package("spectcl"),
+        ],
         version_ceiling: Some(TclVersion::V9_0),
         signature_base: Some(TclVersion::V9_0),
         runtime_base: Some(TclVersion::V9_0),
@@ -1551,9 +1566,9 @@ impl DialectProfile {
 mod tests {
     use super::DialectProfile;
     use super::KNOWN_DIALECTS;
-    use crate::model::{Family, SpecProvider, SpecSurface, SurfaceQuery, surface_admits};
     use crate::grammar::{BracedVarStyle, EscapeSyntax, ExprCommentStyle, NumberSyntax};
     use crate::library::{LibraryVersion, LibraryVersionOverrides, VersionKey};
+    use crate::model::{Family, SpecProvider, SpecSurface, SurfaceQuery, surface_admits};
     use crate::version::{TclVersion, Ternary};
 
     #[test]
@@ -1829,7 +1844,10 @@ mod tests {
         // `dialect_profile.rs` suite, which has the registry; here we pin
         // only the point shape the scheme rests on.
         let p = DialectProfile::irules();
-        assert_eq!(p.surface_query(), SurfaceQuery::any_release(Family::F5Irules));
+        assert_eq!(
+            p.surface_query(),
+            SurfaceQuery::any_release(Family::F5Irules)
+        );
         assert_eq!(p.vendor_surface, Some(SpecProvider::Core(Family::F5Irules)));
     }
 

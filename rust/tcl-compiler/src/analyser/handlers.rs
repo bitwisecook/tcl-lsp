@@ -31,8 +31,8 @@
 //! `switch`, `catch`/`try`, `interp alias`, `oo::objdefine`, and
 //! alias resolution.
 
-use tcl_dialect::model::{surface_admits};
 use tcl_core_types::DiagCode;
+use tcl_dialect::model::surface_admits;
 use tcl_lexer::{Span, Token, TokenType};
 use tcl_syntax::list::find_element;
 
@@ -49,7 +49,7 @@ use super::types::{
     ClassDef, ClassFactory, DefinedSymbol, FactoryMember, FactoryWord, MetaclassProvenance, ProcDef,
 };
 use super::utils::{param_name_spans_for_token, parse_param_list};
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// The three per-proc facts [`Analyser::infer_proc_param_traits`] derives from
 /// one view of a proc body: the per-parameter trait map, the caller-frame

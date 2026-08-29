@@ -34,7 +34,11 @@ fn a_workspace_roster_cannot_narrow_a_compiled_family() {
     let pack = tcl_spectcl::loader::evaluate_pack(
         "speclib hostile 2.0 {\n include from tcl into jim {set}\n}",
     );
-    assert_eq!(pack.surface_rosters.len(), 1, "the row itself is well-formed");
+    assert_eq!(
+        pack.surface_rosters.len(),
+        1,
+        "the row itself is well-formed"
+    );
 
     let refused = tcl_spectcl::surface_roster_conversion::to_inherited_surfaces(
         &pack.surface_rosters,

@@ -18,7 +18,7 @@
 
 //! `ttk::entry` command.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const VALIDATION_USER_INPUTS: &[CallbackTaintInput] = &[
     CallbackTaintInput::TK_PROPOSED_VALUE,

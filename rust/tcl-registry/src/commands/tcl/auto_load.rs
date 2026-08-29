@@ -20,7 +20,7 @@
 //! `tclIndex` entry on `auto_path`.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "auto_load cmd ?namespace?",

@@ -39,13 +39,13 @@
 //! Run `cargo xtask gen-zed-queries` to (re)write the files; `--check` verifies
 //! the committed files match, exiting non-zero on drift.
 
-use tcl_dialect::model::{SpecProvider, surface_provided_by};
 use std::collections::BTreeSet;
 use std::fs;
 use std::process::ExitCode;
+use tcl_dialect::model::{SpecProvider, surface_provided_by};
 
 use anyhow::{Context, Result};
-use tcl_dialect::{DialectProfile};
+use tcl_dialect::DialectProfile;
 use tcl_registry::CommandRegistry;
 use tcl_registry::model::ResolvedContext;
 use tcl_registry::traits::Traits;
@@ -258,7 +258,10 @@ fn operator_spellings(providers: &'static [SpecProvider]) -> BTreeSet<String> {
                 .iter()
                 .map(|op| op.spec()),
         )
-        .filter(|spec| spec.surface.is_none_or(|rows| surface_provided_by(rows, providers)))
+        .filter(|spec| {
+            spec.surface
+                .is_none_or(|rows| surface_provided_by(rows, providers))
+        })
         .map(|spec| spec.spelling.to_owned())
         .collect()
 }
@@ -477,9 +480,9 @@ pub fn run(check: bool) -> Result<ExitCode> {
 
 #[cfg(test)]
 mod tests {
-    
-    use tcl_dialect::model::Family;
+
     use super::*;
+    use tcl_dialect::model::Family;
 
     #[test]
     fn tcl_bucket_dwarfs_the_old_hand_list_and_is_disjoint() {
@@ -511,8 +514,10 @@ mod tests {
         // core Tcl — the whole point of dialect scoping.
         let tcl_providers: &[SpecProvider] =
             &[SpecProvider::Core(Family::Tcl), SpecProvider::Package("Tk")];
-        let irules_providers: &[SpecProvider] =
-            &[SpecProvider::Core(Family::Tcl), SpecProvider::Core(Family::F5Irules)];
+        let irules_providers: &[SpecProvider] = &[
+            SpecProvider::Core(Family::Tcl),
+            SpecProvider::Core(Family::F5Irules),
+        ];
         let tcl = classify(
             registry_for(crate::environment::profile_for_dialect("tcl")),
             crate::environment::context_for_dialect("tcl"),
@@ -538,7 +543,8 @@ mod tests {
     /// other bucket in this file, each already scoped per-`SpecSurface`.
     #[test]
     fn operator_spellings_are_dialect_scoped_and_complete() {
-        let tcl_ops = operator_spellings(&[SpecProvider::Core(Family::Tcl), SpecProvider::Package("Tk")]);
+        let tcl_ops =
+            operator_spellings(&[SpecProvider::Core(Family::Tcl), SpecProvider::Package("Tk")]);
         for op in ["lt", "le", "gt", "ge", "!", "~", "eq", "ne", "in", "ni"] {
             assert!(tcl_ops.contains(op), "tcl: missing {op:?}: {tcl_ops:?}");
         }
@@ -558,7 +564,10 @@ mod tests {
             );
         }
 
-        let irules_ops = operator_spellings(&[SpecProvider::Core(Family::Tcl), SpecProvider::Core(Family::F5Irules)]);
+        let irules_ops = operator_spellings(&[
+            SpecProvider::Core(Family::Tcl),
+            SpecProvider::Core(Family::F5Irules),
+        ]);
         for op in [
             "contains",
             "starts_with",

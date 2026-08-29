@@ -1197,9 +1197,7 @@ mod tests {
         );
     }
 
-    // =================================================================
     // TIP 582 `#` comments (`tclCompExpr.c:1931-1942`)
-    // =================================================================
 
     /// The comment token's text, for each comment in `source`.
     fn comments(source: &str) -> Vec<String> {

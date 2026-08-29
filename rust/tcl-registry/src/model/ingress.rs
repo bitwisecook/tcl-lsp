@@ -431,7 +431,7 @@ pub fn irules_context() -> Arc<ContextRegistry> {
 
 #[cfg(test)]
 mod tests {
-    
+
     use super::*;
 
     #[test]

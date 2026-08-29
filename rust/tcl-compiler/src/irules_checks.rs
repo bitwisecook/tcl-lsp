@@ -33,10 +33,10 @@
 //! IRULE4004 (per-request set hoistable to once-per-connection) — build
 //! on the richer cross-event analysis in `connection_scope.rs`.
 
-use tcl_dialect::model::{Family};
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 use tcl_core_types::DiagCode;
+use tcl_dialect::model::Family;
 
 use tcl_lexer::Span;
 use tcl_registry::events::{
@@ -51,7 +51,7 @@ use crate::ir::{Script, Statement};
 use crate::lowering::lower_to_ir_with_config;
 use crate::sccp::cfg_order;
 use crate::value_shapes::parse_command_substitution;
-use tcl_dialect::model::{SurfaceQuery};
+use tcl_dialect::model::SurfaceQuery;
 
 /// Process-wide iRules command registry, used to derive the HTTP-flow command
 /// sets below.  Built once (the data is static).
@@ -1700,8 +1700,8 @@ fn check_generic_static(
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SurfaceQuery, Family};
-    
+    use tcl_dialect::model::{Family, SurfaceQuery};
+
     use super::*;
 
     fn registry() -> CommandRegistry {
@@ -1712,7 +1712,11 @@ mod tests {
 
     fn warnings_for_irules(source: &str) -> Vec<IrulesCheckWarning> {
         let cu = CompilationUnit::build_for(source, &registry(), false);
-        find_unnormalised_getter_warnings(&cu, &registry(), Some(SurfaceQuery::any_release(Family::F5Irules)))
+        find_unnormalised_getter_warnings(
+            &cu,
+            &registry(),
+            Some(SurfaceQuery::any_release(Family::F5Irules)),
+        )
     }
 
     #[test]
@@ -1770,11 +1774,14 @@ mod tests {
     #[test]
     fn irule3102_non_irules_dialect_returns_empty() {
         let cu = CompilationUnit::build_for("set u [HTTP::uri]", &registry(), false);
+        assert!(find_unnormalised_getter_warnings(&cu, &registry(), None).is_empty());
         assert!(
-            find_unnormalised_getter_warnings(&cu, &registry(), None).is_empty()
-        );
-        assert!(
-            find_unnormalised_getter_warnings(&cu, &registry(), Some(SurfaceQuery::any_release(Family::Tcl))).is_empty()
+            find_unnormalised_getter_warnings(
+                &cu,
+                &registry(),
+                Some(SurfaceQuery::any_release(Family::Tcl))
+            )
+            .is_empty()
         );
     }
 
@@ -1890,7 +1897,8 @@ mod tests {
         let cu = CompilationUnit::build_for("when CLIENT_ACCEPTED { drop }", &registry(), false);
         let none_dialect = find_unguarded_drop_warnings(&cu, None);
         assert!(none_dialect.is_empty(), "got {none_dialect:?}");
-        let tcl_dialect = find_unguarded_drop_warnings(&cu, Some(SurfaceQuery::any_release(Family::Tcl)));
+        let tcl_dialect =
+            find_unguarded_drop_warnings(&cu, Some(SurfaceQuery::any_release(Family::Tcl)));
         assert!(tcl_dialect.is_empty(), "got {tcl_dialect:?}");
     }
 
@@ -2736,7 +2744,8 @@ mod tests {
             "the control event must be guarded"
         );
 
-        let ws = find_hoistable_set_warnings(&cu, Some(SurfaceQuery::any_release(Family::F5Irules)));
+        let ws =
+            find_hoistable_set_warnings(&cu, Some(SurfaceQuery::any_release(Family::F5Irules)));
         assert!(
             !ws.iter().any(|w| w.code == DiagCode::Irule4004),
             "a guarded event's second write must suppress the hoist warning, got {ws:?}",
@@ -2791,12 +2800,20 @@ mod tests {
 
     fn generic_warnings(source: &str) -> Vec<IrulesCheckWarning> {
         let cu = CompilationUnit::build_for(source, &registry(), false);
-        find_generic_static_name_warnings(&cu, Some(SurfaceQuery::any_release(Family::F5Irules)), None)
+        find_generic_static_name_warnings(
+            &cu,
+            Some(SurfaceQuery::any_release(Family::F5Irules)),
+            None,
+        )
     }
 
     fn generic_warnings_with(source: &str, patterns: &[String]) -> Vec<IrulesCheckWarning> {
         let cu = CompilationUnit::build_for(source, &registry(), false);
-        find_generic_static_name_warnings(&cu, Some(SurfaceQuery::any_release(Family::F5Irules)), Some(patterns))
+        find_generic_static_name_warnings(
+            &cu,
+            Some(SurfaceQuery::any_release(Family::F5Irules)),
+            Some(patterns),
+        )
     }
 
     #[test]

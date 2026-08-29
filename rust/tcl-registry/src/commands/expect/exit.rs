@@ -18,7 +18,7 @@
 
 //! `exit` command.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 // `-onexit`/`-noexit` are Expect's own extensions to `exit`; core Tcl
 // `exit` takes only `?returnCode?` (exit(n)). They carry an explicit
 // `Some(EXPECT)` gate rather than inheriting the command's universal

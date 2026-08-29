@@ -133,10 +133,8 @@ fn run_flipping(steps: &[(&str, &str)]) -> String {
     last
 }
 
-// ===========================================================================
 // #1442 — `namespace which -variable` never answers with a call frame
 // (`NamespaceWhichCmd` → `Tcl_FindNamespaceVar`, tclNamesp.c:4657)
-// ===========================================================================
 
 #[test]
 fn which_variable_ignores_proc_locals() {
@@ -261,10 +259,8 @@ fn command_origin_reports_none_for_a_command_that_was_not_imported() {
     );
 }
 
-// ===========================================================================
 // #1446 — `namespace export` / `import` leading-option handling
 // (`NamespaceExportCmd`/`Tcl_Export`, `NamespaceImportCmd`/`Tcl_Import`)
-// ===========================================================================
 
 #[test]
 fn export_query_form_reports_the_pattern_list() {
@@ -364,9 +360,7 @@ fn only_the_first_word_is_the_import_flag() {
     );
 }
 
-// ===========================================================================
 // #1451 — namespace teardown (`TclTeardownNamespace`, tclNamesp.c:1084)
-// ===========================================================================
 
 #[test]
 fn deleting_a_namespace_clears_paths_in_both_directions() {
@@ -473,10 +467,8 @@ fn namespace_path_checks_that_every_entry_exists() {
     );
 }
 
-// ===========================================================================
 // #1453 — ensemble option tables and subcommand resolution
 // (`TclNamespaceEnsembleCmd` + `NsEnsembleImplementationCmd`, tclEnsemble.c)
-// ===========================================================================
 
 #[test]
 fn ensemble_create_options_abbreviate() {
@@ -828,9 +820,7 @@ fn ensemble_subcommand_scan_matches_c_on_the_empty_word() {
     );
 }
 
-// ===========================================================================
 // #1463 — the availability gate covers the TclOO root object commands
-// ===========================================================================
 
 #[test]
 fn tcloo_roots_follow_their_introducing_release() {

@@ -20,7 +20,7 @@
 //! e.g. `attach xdp eth0`). Part of the profile-based top layer's
 //! attach/deployment facet.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 pub fn spec() -> CommandSpec {
     const OP: BpfOpSpec = BpfOpSpec::framework(BpfDeclKind::Attach);

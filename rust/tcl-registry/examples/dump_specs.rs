@@ -89,10 +89,10 @@ fn json_str_list(items: &[&str]) -> String {
     format!("[{}]", parts.join(","))
 }
 
+use tcl_dialect::model::SpecSurface;
 use tcl_registry::side_effects::SideEffect;
 use tcl_registry::spec::SubCommand;
 use tcl_registry::traits::Traits;
-use tcl_dialect::model::{SpecSurface};
 
 /// Schema field name -> Rust trait, for the content audit's `bools`.
 const BOOL_TRAITS: &[(&str, Traits)] = &[

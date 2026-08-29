@@ -33,7 +33,7 @@
 //! `chan_.rs` documents for `chan`.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "fconfigure channelId ?optionName? ?value ...?",

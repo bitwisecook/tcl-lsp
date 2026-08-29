@@ -18,7 +18,7 @@
 
 //! `FTP::ftps_mode` iRules command.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "FTP::ftps_mode",

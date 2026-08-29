@@ -44,7 +44,7 @@
 //! incr Tcl) restricts or extends `gets`.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 // `channelId` is mandatory in every version's synopsis; `varName` is
 // always optional — there is no bare/no-argument form, matching

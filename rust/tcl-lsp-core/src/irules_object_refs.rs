@@ -28,8 +28,8 @@ pub use tcl_irules::object_ref_spans;
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SurfaceLayer, Family};
     use super::object_ref_spans;
+    use tcl_dialect::model::{Family, SurfaceLayer};
     use tcl_registry::CommandRegistry;
 
     fn spans(src: &str) -> Vec<(usize, &str)> {

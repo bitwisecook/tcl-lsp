@@ -18,7 +18,7 @@
 
 //! `menu` command.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// Options accepted by menu entries (shared by `add`, `insert`, and
 /// `entryconfigure`). Not every option applies to every entry type, but the

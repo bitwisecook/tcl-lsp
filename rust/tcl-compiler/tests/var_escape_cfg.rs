@@ -66,9 +66,7 @@ use tcl_compiler::var_escape::{
 use tcl_registry::CommandRegistry;
 use tcl_registry::model::ingress::static_context_for;
 
-// ---------------------------------------------------------------------------
 // Shared helpers
-// ---------------------------------------------------------------------------
 
 const TCL: &str = "tcl8.6";
 
@@ -123,14 +121,12 @@ fn ssa_frame(p: &ProcEscapeSummary, name: &str, version: Version) -> bool {
     p.ssa_tags.get(&(name.to_string(), version)) == Some(&EscapeTag::Frame)
 }
 
-// ===========================================================================
 // PART 1 — escape reached conditionally (one branch of an `if`)
 //
 // The CFG flattens the `if` into separate blocks; the block holding the
 // scope-crossing command is still walked, so the alias escapes even though it
 // is only reachable on one path. This drives the `analyse_cfg_function`
 // block_order + walk_block + handle_statement Call path through a branch.
-// ===========================================================================
 
 #[test]
 fn cu_upvar_on_one_if_branch_still_escapes() {
@@ -203,9 +199,7 @@ fn cu_pure_conditional_does_not_escape() {
     assert!(!p.dynamic_barrier());
 }
 
-// ===========================================================================
 // PART 2 — escape via a command inside a loop body
-// ===========================================================================
 
 #[test]
 fn cu_global_inside_while_loop_escapes() {
@@ -249,14 +243,12 @@ fn cu_global_inside_for_loop_body_escapes() {
     assert!(p.frame_needed);
 }
 
-// ===========================================================================
 // PART 3 — escape via a command inside a `switch` arm / `catch` body
 //
 // `switch` arms are flattened into CFG blocks and walked. `catch` bodies are
 // NOT walked on the CU path (the CFG builder collapses the body to a string
 // arg) — that gap is a documented BUG below; the working IR-path catch test
 // lives next to the BUG note.
-// ===========================================================================
 
 #[test]
 fn cu_variable_inside_switch_arm_escapes() {
@@ -351,13 +343,11 @@ fn ir_upvar_inside_catch_body_escapes() {
     assert!(p.frame_needed);
 }
 
-// ===========================================================================
 // PART 4 — escape through the terminator branch *condition*
 //
 // `walk_block` evaluates the terminator's branch condition so that an
 // `[info exists ...]` inside an `if` condition is not missed. This is the
 // `apply_expr_scan(Some(cond), …)` path in `walk_block`.
-// ===========================================================================
 
 #[test]
 fn cu_info_exists_in_if_condition_escapes_target() {
@@ -384,14 +374,12 @@ fn cu_info_exists_in_if_condition_escapes_target() {
     );
 }
 
-// ===========================================================================
 // PART 5 — per-SSA-version flow sensitivity
 //
 // The CFG path is per-`(name, version)`: it tags exactly the SSA version live
 // where the scope-crossing command runs. These tests pin which version is
 // `Frame`, which is the whole point of the flow-sensitive walker over the
 // flat IR walk.
-// ===========================================================================
 
 #[test]
 fn cu_upvar_first_tags_initial_version() {
@@ -442,13 +430,11 @@ fn cu_conditional_global_tags_def_version() {
     assert!(ssa_frame(p, "g", 1), "g#1 tagged: {:?}", p.ssa_tags);
 }
 
-// ===========================================================================
 // PART 6 — dynamic-name spill on the CFG path
 //
 // `set $n value` with an unresolved `$n` could write any local, so the CFG
 // walker's `dynamic_name_escape` → `escape_all_known` spills every known
 // proc-local at its current version, and marks the whole proc pessimistic.
-// ===========================================================================
 
 #[test]
 fn cu_dynamic_set_name_spills_all_known_locals() {
@@ -489,9 +475,7 @@ fn cu_dynamic_set_name_resolved_to_literal_escapes_just_that_name() {
     assert!(ssa_frame(p, "real", 0), "real#0 escaped: {:?}", p.ssa_tags);
 }
 
-// ===========================================================================
 // PART 7 — whole-proc pessimism through nested control flow (CFG path)
-// ===========================================================================
 
 #[test]
 fn cu_info_level_inside_loop_is_a_barrier() {
@@ -547,14 +531,12 @@ fn cu_expand_word_in_unknown_call_is_a_barrier() {
     assert!(p.is_frame("x"), "the barrier forces every local to Frame");
 }
 
-// ===========================================================================
 // PART 8 — interprocedural propagation folded over the CFG path
 //
 // `analyse_var_escape_cu(cu, true)` runs `solve_interprocedural_escape` after
 // the per-function CFG walk. These tests verify that callee-induced pessimism
 // and named upvar sources flow up call edges on the CU path, and that turning
 // the fixpoint off leaves the raw per-proc result.
-// ===========================================================================
 
 #[test]
 fn cu_caller_inherits_unbounded_upvar_pessimism() {
@@ -624,13 +606,11 @@ fn cu_interprocedural_off_keeps_raw_per_proc_result() {
     assert!(summary(&s, "::setit").unbounded_upvar_source());
 }
 
-// ===========================================================================
 // PART 9 — nested proc / namespace-eval bodies become their own CU functions
 //
 // A `proc` nested in a proc, and a `proc` inside `namespace eval`, are lifted
 // to separate qualified summaries. Their escape verdicts are independent of
 // the enclosing scope, which the CU path keys by qname.
-// ===========================================================================
 
 #[test]
 fn cu_nested_proc_gets_its_own_escape_summary() {
@@ -695,7 +675,6 @@ fn cu_apply_body_with_upvar_is_pessimistic() {
     assert!(p.dynamic_barrier());
 }
 
-// ===========================================================================
 // PART 10 — IR walker control-flow: literal `eval` body traversal
 //
 // `var_escape/walker.rs`'s `handle_eval` + `escape_every_name_touched` walk a
@@ -703,7 +682,6 @@ fn cu_apply_body_with_upvar_is_pessimistic() {
 // recursing through nested control flow. This is the IR-walk path (the CU path
 // flattens eval differently), so these drive `analyse_var_escape` /
 // `analyse_script`.
-// ===========================================================================
 
 #[test]
 fn ir_eval_literal_body_escapes_names_it_writes() {
@@ -812,14 +790,12 @@ fn ir_uplevel_global_zero_literal_body_escapes_touched_names() {
     assert!(p.has_fallback());
 }
 
-// ===========================================================================
 // PART 11 — IR-walk control-flow descent (the `walk` structural arms)
 //
 // `var_escape/walker.rs`'s `walk` recurses through every structured statement.
 // These confirm a scope-crossing command buried in each control-flow shape is
 // found on the IR-walk path too (the inliner's path), complementing the CU
 // flow-sensitive tests above.
-// ===========================================================================
 
 #[test]
 fn ir_upvar_in_if_branch_escapes() {
@@ -862,14 +838,12 @@ fn ir_upvar_in_try_handler_escapes() {
     assert!(p.upvar_source_names.contains("cv"));
 }
 
-// ===========================================================================
 // PART 12 — low-level CfgEscapeResult + cfg_result_to_summary surface
 //
 // Drive `analyse_cfg_function` directly and inspect the raw
 // `CfgEscapeResult` (per-version `ssa_tags`, the `name_tags` collapse), then
 // exercise `cfg_result_to_summary` — the `api.rs` adapter that turns it into a
 // `ProcEscapeSummary`.
-// ===========================================================================
 
 #[test]
 fn cfg_result_collapses_versions_to_name_tags() {
@@ -945,9 +919,7 @@ fn cfg_result_pure_script_is_empty() {
     assert!(!summ.frame_needed);
 }
 
-// ===========================================================================
 // PART 13 — the top-level key is present on the CU path
-// ===========================================================================
 
 #[test]
 fn cu_includes_top_level_and_proc_keys() {

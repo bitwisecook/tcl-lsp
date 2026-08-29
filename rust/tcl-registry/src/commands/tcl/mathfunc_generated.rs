@@ -45,8 +45,8 @@
 use std::sync::OnceLock;
 
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 use tcl_syntax::expr::mathfunc::{self, MathFuncSince};
-use tcl_dialect::model::{SpecSurface};
 
 /// All `tcl::mathfunc` math-function command specs (both qualified
 /// spellings).
@@ -153,8 +153,8 @@ fn leak_slice<T>(v: Vec<T>) -> &'static [T] {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SpecSurface};
     use super::specs;
+    use tcl_dialect::model::SpecSurface;
 
     /// Issue #1035, mathfunc half — see `mathop_generated`'s twin for the full
     /// rationale.  `specs()` leaks `&'static` strings, so it must memoise:

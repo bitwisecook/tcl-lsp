@@ -20,7 +20,7 @@
 
 use crate::documentation::{DocumentationAnnotation, DocumentationExample};
 use crate::lifecycle::{Lifecycle, LifecycleState};
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// What kind of external state a command affects.
 ///

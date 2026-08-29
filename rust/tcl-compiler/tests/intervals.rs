@@ -114,9 +114,7 @@ fn numbers() -> tcl_dialect::NumberSyntax {
     ))
 }
 
-// ===========================================================================
 // Diagnostic-surface helpers.
-// ===========================================================================
 
 /// How many diagnostics of `code` the analyser emits for `src`. The analyser
 /// pass owns W230/W231/W232/W233, so this single surface suffices (matches the
@@ -141,9 +139,7 @@ fn messages(src: &str, code: &str) -> Vec<String> {
         .collect()
 }
 
-// ===========================================================================
 // Lattice-surface helpers.
-// ===========================================================================
 
 /// Build `src` and return its `::f` `FunctionUnit` (the lower→cfg→ssa→sccp
 /// pipeline collapsed into the shared `CompilationUnit` build).
@@ -194,9 +190,7 @@ fn pred_counts(fu: &FunctionUnit) -> std::collections::HashMap<tcl_compiler::cfg
         .collect()
 }
 
-// ===========================================================================
 // Dynamic lindex out of range (W230).
-// ===========================================================================
 mod dynamic_lindex_out_of_range {
     use super::*;
 
@@ -288,9 +282,7 @@ mod dynamic_lindex_out_of_range {
     }
 }
 
-// ===========================================================================
 // Nested-position lindex (W230 in nested shapes).
-// ===========================================================================
 mod nested_position_lindex {
     use super::*;
 
@@ -372,9 +364,7 @@ mod nested_position_lindex {
     }
 }
 
-// ===========================================================================
 // Dynamic lset out of range (W231).
-// ===========================================================================
 mod dynamic_lset_out_of_range {
     use super::*;
 
@@ -407,9 +397,7 @@ mod dynamic_lset_out_of_range {
     }
 }
 
-// ===========================================================================
 // Dynamic string index (W232).
-// ===========================================================================
 mod dynamic_string_index {
     use super::*;
 
@@ -471,7 +459,6 @@ mod dynamic_string_index {
     }
 }
 
-// ===========================================================================
 // Divide by zero (W233).
 //
 // tclsh: `expr {1/0}` and `expr {5%0}` both raise *divide by zero* (8.6 + 9.0).
@@ -479,7 +466,6 @@ mod dynamic_string_index {
 // arm never execute, so a `1/0` there must NOT fire; but a lazy arm forced by a
 // *constant* guard is guaranteed to run and MUST fire. Every guard outcome
 // below is pinned to tclsh.
-// ===========================================================================
 mod divide_by_zero {
     use super::*;
 
@@ -669,13 +655,11 @@ mod divide_by_zero {
     }
 }
 
-// ===========================================================================
 // Unreachable bounds suppressed.
 //
 // Dynamic-bounds findings must not fire from statically unreachable blocks (the
 // same reachability discipline as divide-by-zero). tclsh: `expr {0}` → 0,
 // `expr {1}` → 1, so the dead arms below genuinely never run.
-// ===========================================================================
 mod unreachable_bounds_suppressed {
     use super::*;
 
@@ -700,12 +684,10 @@ mod unreachable_bounds_suppressed {
     }
 }
 
-// ===========================================================================
 // List-expansion length.
 //
 // `[list {*}{...}]` expands at runtime, so its element count is not the arg
 // count — `list_command_length` bails on any `{*}` expansion.
-// ===========================================================================
 mod list_expansion_length {
     use super::*;
 
@@ -734,7 +716,6 @@ mod list_expansion_length {
     }
 }
 
-// ===========================================================================
 // Interval fixpoint soundness.
 //
 // Forcing non-convergence requires patching `MAX_ITERS = 1`.
@@ -742,7 +723,6 @@ mod list_expansion_length {
 // the *unconverged* degrade-to-TOP branch is unreachable from an integration
 // test. We cover the *convergent* counterpart: a well-behaved loop fixpoint
 // yields sound, non-bottom intervals (and still fires the genuine OOR finding).
-// ===========================================================================
 mod interval_fixpoint_soundness {
     use super::*;
 
@@ -785,12 +765,10 @@ mod interval_fixpoint_soundness {
     }
 }
 
-// ===========================================================================
 // compute_intervals (lattice surface, end-to-end).
 //
 // These drive the public `compute_intervals` directly. The constant
 // values are Tcl-grounded; the widened loop-bound shape is structural.
-// ===========================================================================
 mod compute_intervals_suite {
     use super::*;
 
@@ -834,7 +812,6 @@ mod compute_intervals_suite {
     }
 }
 
-// ===========================================================================
 // Guard narrowing (refine_interval at a use site).
 //
 // `for` lowers to a *rotated* loop, so the body is dominated by the latch's
@@ -848,7 +825,6 @@ mod compute_intervals_suite {
 //
 // tclsh grounding: inside `for {set i 0} {$i < 10} {incr i}` the body runs with
 // i ∈ 0..9 (the guard excludes 10) — the upper bound of 9 is the real Tcl range.
-// ===========================================================================
 mod guard_narrowing {
     use super::*;
 
@@ -956,7 +932,6 @@ mod guard_narrowing {
     }
 }
 
-// ===========================================================================
 // Interval arithmetic / intersect (observable subset).
 //
 // The raw operators are private to `intervals.rs` (covered by its in-crate
@@ -965,7 +940,6 @@ mod guard_narrowing {
 // loop widening exercises `widen`/`join`, and the `set j [expr {$i + $n}]` fold
 // proves `add(const, const)` == const. These cover the
 // integration-reachable slice of the interval arithmetic.
-// ===========================================================================
 mod interval_arithmetic_observable {
     use super::*;
 
@@ -1018,7 +992,6 @@ mod interval_arithmetic_observable {
     }
 }
 
-// ===========================================================================
 // Dialect-dependent numerals (the threaded `NumberSyntax`).
 //
 // The interval domain reads every literal through the one shared numeral
@@ -1032,7 +1005,6 @@ mod interval_arithmetic_observable {
 //
 // so a dialect-blind read is *wrong*, not merely imprecise — hence these run
 // the same source under two grammars and assert two different constants.
-// ===========================================================================
 mod dialect_numerals {
     use super::*;
     use tcl_dialect::NumberSyntax;

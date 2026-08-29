@@ -29,9 +29,9 @@
 //! cross-event flow (IRULE4005), and the flow-sensitive renamed-command
 //! check (W128).
 
-use tcl_dialect::model::{SurfaceQuery};
 use std::collections::HashSet;
 use tcl_core_types::DiagCode;
+use tcl_dialect::model::SurfaceQuery;
 
 use rustc_hash::{FxHashMap, FxHashSet};
 

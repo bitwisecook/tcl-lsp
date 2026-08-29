@@ -18,7 +18,7 @@
 
 //! `call` iRules command.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 fn call_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     let index = u8::from(args.first() == Some(&"-debug"));

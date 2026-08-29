@@ -18,7 +18,7 @@
 
 //! `tcl::idna::encode` command (`cookiejar` package, bundled since Tcl 8.6).
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::idna::encode",

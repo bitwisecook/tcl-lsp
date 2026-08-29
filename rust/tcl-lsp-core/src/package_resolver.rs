@@ -178,9 +178,7 @@ pub struct AutoIndexEntry {
     pub source_file: PathBuf,
 }
 
-// ---------------------------------------------------------------------------
 // Tokeniser-based word/command walking.
-// ---------------------------------------------------------------------------
 
 /// Tokenise `text` and group tokens into commands of words.
 ///
@@ -393,9 +391,7 @@ fn is_version_word(word: &str) -> bool {
     !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())
 }
 
-// ---------------------------------------------------------------------------
 // Public parsers.
-// ---------------------------------------------------------------------------
 
 /// Parse a `pkgIndex.tcl`'s `content`, returning a [`PackageInfo`] per literal
 /// `package ifneeded NAME VERSION …` declaration.
@@ -638,9 +634,7 @@ pub fn package_requires_in(content: &str) -> Vec<String> {
     names
 }
 
-// ---------------------------------------------------------------------------
 // Name qualification (exact port of C Tcl's auto_qualify).
-// ---------------------------------------------------------------------------
 
 /// Faithful port of C Tcl's `auto_qualify` (`library/init.tcl:488`).
 ///
@@ -712,9 +706,7 @@ fn collapse_colons(cmd: &str) -> (String, usize) {
     (out, n)
 }
 
-// ---------------------------------------------------------------------------
 // PackageResolver — ties the parsers to a set of search paths (auto_path).
-// ---------------------------------------------------------------------------
 
 /// Resolves `package require` and auto-loaded command names to the files C
 /// Tcl would load, by scanning `pkgIndex.tcl` / `tclIndex` files across a set

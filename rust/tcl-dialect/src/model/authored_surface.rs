@@ -163,10 +163,8 @@ impl SpecSurface {
 
     /// Tk plus the whole Tcl ladder — a command `wish` has because Tcl has
     /// it, which also exists as a Tk-provided shape.
-    pub const TK_AND_TCL: &'static [Self] = &[
-        Self::core_in(Family::Tcl, &W_ALL_TCL),
-        Self::package("Tk"),
-    ];
+    pub const TK_AND_TCL: &'static [Self] =
+        &[Self::core_in(Family::Tcl, &W_ALL_TCL), Self::package("Tk")];
 }
 
 const W_ALL_TCL: [SpecWindow; 1] = [("8.4", Some("9.2"))];
@@ -265,11 +263,10 @@ impl SpecSurface {
         let Some(release) = release else {
             return true;
         };
-        self.windows
-            .iter()
-            .any(|&(from, until)| crate::version::version_satisfies(release, &requirement(from, until)))
+        self.windows.iter().any(|&(from, until)| {
+            crate::version::version_satisfies(release, &requirement(from, until))
+        })
     }
-
 }
 
 /// The requirement spelling for a half-open window.
@@ -309,9 +306,9 @@ pub fn surface_admits_from(rows: &[SpecSurface], family: Family, release: &str) 
     let Some(first) = ladder.iter().position(|r| r.as_str() == release) else {
         return false;
     };
-    ladder[first..].iter().any(|later| {
-        surface_admits(rows, Some(&SurfaceQuery::core(family, later.as_str())))
-    })
+    ladder[first..]
+        .iter()
+        .any(|later| surface_admits(rows, Some(&SurfaceQuery::core(family, later.as_str()))))
 }
 
 /// One command surface a registry can have loaded.

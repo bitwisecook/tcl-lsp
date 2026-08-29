@@ -21,9 +21,9 @@
 use crate::hooks::LoweringHookId;
 use crate::prelude::*;
 use crate::state_transition::local_alias_name;
-use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::surface;
 use tcl_dialect::model::Family;
+use tcl_dialect::model::SpecSurface;
+use tcl_dialect::surface;
 
 const VARIABLE_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
     StateTransitionDomain::VariableCells,
@@ -79,12 +79,18 @@ const FORMS: &[FormSpec] = &[
     // of forms too.
     FormSpec {
         synopsis: "variable name",
-        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.6", Some("9.2"))]), SpecSurface::package("expect")]),
+        surface: Some(surface![
+            SpecSurface::core_in(Family::Tcl, &[("8.6", Some("9.2"))]),
+            SpecSurface::package("expect")
+        ]),
         ..FormSpec::DEFAULT
     },
     FormSpec {
         synopsis: "variable ?name value...?",
-        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.6", Some("9.2"))]), SpecSurface::package("expect")]),
+        surface: Some(surface![
+            SpecSurface::core_in(Family::Tcl, &[("8.6", Some("9.2"))]),
+            SpecSurface::package("expect")
+        ]),
         ..FormSpec::DEFAULT
     },
     // Tcl 8.4 and 8.5 require at least one `name`: `Tcl_VariableObjCmd`
@@ -97,7 +103,12 @@ const FORMS: &[FormSpec] = &[
     // requirement.
     FormSpec {
         synopsis: "variable ?name value...? name ?value?",
-        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.6"))]), SpecSurface::core(Family::F5Irules), SpecSurface::package("iapps"), SpecSurface::package("tmsh")]),
+        surface: Some(surface![
+            SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.6"))]),
+            SpecSurface::core(Family::F5Irules),
+            SpecSurface::package("iapps"),
+            SpecSurface::package("tmsh")
+        ]),
         ..FormSpec::DEFAULT
     },
 ];

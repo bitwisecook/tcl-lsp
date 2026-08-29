@@ -33,10 +33,10 @@
 
 use std::sync::LazyLock;
 
+use tcl_dialect::model::SpecSurface;
 use tcl_registry::side_effects::SideEffectTarget;
 use tcl_registry::taint::{TaintColour, TaintColourAtom};
 use tcl_registry::traits::{Trait, Traits};
-use tcl_dialect::model::{SpecSurface};
 
 /// One selectable value in a picker — the Rust spelling plus a one-line
 /// description.

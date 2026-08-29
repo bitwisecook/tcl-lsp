@@ -273,9 +273,7 @@ fn every_shipped_pack_loads_identically_with_and_without_the_static_fast_path() 
     assert!(notices >= 10, "only {notices} notices compared");
 }
 
-// ---------------------------------------------------------------------------
 // Templating (design E's reason to exist)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn a_templated_pack_equals_its_hand_unrolled_twin() {
@@ -355,9 +353,7 @@ fn a_command_body_may_template_its_own_rows() {
     assert_eq!(options, vec!["-ascii", "-dictionary", "-integer", "-real"]);
 }
 
-// ---------------------------------------------------------------------------
 // Determinism and budgets (§1.2)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn a_pack_calling_clock_fails_closed_with_the_determinism_notice() {
@@ -426,9 +422,7 @@ fn a_wall_clock_blowing_loop_names_its_own_axis() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // E-R1: available? is a trap
-// ---------------------------------------------------------------------------
 
 #[test]
 fn available_query_marks_the_pack_target_dependent_and_uncacheable() {
@@ -485,9 +479,7 @@ fn available_query_answers_against_the_declared_union() {
     assert!(pack.command("right").is_some());
 }
 
-// ---------------------------------------------------------------------------
 // E-R2: provenance gates the registration call
-// ---------------------------------------------------------------------------
 
 #[test]
 fn an_untrusted_pack_touching_a_reserved_name_fails_with_the_provenance_error() {
@@ -554,9 +546,7 @@ fn an_untrusted_pack_declaring_dialect_axes_fails_with_the_provenance_error() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Unknown words degrade by vocabulary class, not as Tcl errors
-// ---------------------------------------------------------------------------
 
 #[test]
 fn an_unknown_registration_word_classifies_instead_of_erroring() {

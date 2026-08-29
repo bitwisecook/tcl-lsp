@@ -23,8 +23,8 @@
 //! `signature_scan::params` so the analyser can keep its imports
 //! flat.
 
-use tcl_dialect::model::SurfaceQuery;
 use std::collections::{HashMap, HashSet};
+use tcl_dialect::model::SurfaceQuery;
 
 use tcl_lexer::{SourceMap, Span, Token, TokenType};
 use tcl_registry::definer::DefinitionBodyGrammar;

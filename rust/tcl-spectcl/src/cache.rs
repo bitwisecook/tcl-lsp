@@ -150,9 +150,7 @@ const FORMAT: u8 = 2;
 /// File magic, so a stray file in the directory is never mistaken for an entry.
 const MAGIC: &[u8; 7] = b"TCLSPKC";
 
-// ---------------------------------------------------------------------------
 // The key
-// ---------------------------------------------------------------------------
 
 /// Mix the vocabulary version, crate version, loader build and format version
 /// into `hasher` — everything about *this server* that changes what a pack
@@ -237,9 +235,7 @@ fn disabled() -> bool {
         || std::env::var_os(DISABLE_ENV).is_some_and(|v| v == "1")
 }
 
-// ---------------------------------------------------------------------------
 // The public entry point
-// ---------------------------------------------------------------------------
 
 /// The in-memory snapshot tier: one finished [`Pack`] per snapshot identity.
 ///
@@ -355,9 +351,7 @@ pub fn clear() -> std::io::Result<()> {
     }
 }
 
-// ---------------------------------------------------------------------------
 // The memo — one segmentation table, live for one load
-// ---------------------------------------------------------------------------
 
 /// A memoised segmentation table.
 ///
@@ -462,9 +456,7 @@ fn with_memo<T>(seed: Memo, body: impl FnOnce() -> T) -> (T, Memo) {
     (out, memo.unwrap_or_default())
 }
 
-// ---------------------------------------------------------------------------
 // The on-disk format
-// ---------------------------------------------------------------------------
 //
 // A flat, length-prefixed little-endian encoding. Hand-rolled rather than
 // serde because the shape is four structs deep and the reader's real job is

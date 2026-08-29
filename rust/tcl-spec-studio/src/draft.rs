@@ -78,7 +78,7 @@ use tcl_registry::types::{ReturnElements, VarElementsEffect, VarWriteTyping};
 
 use crate::catalogue;
 use crate::render_rs::rust_string;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// Draft key listing the fields a live spec sets but whose defining Rust
 /// expression could not be recovered. Absent (or empty) when everything
@@ -830,10 +830,7 @@ fn relation_term_expr(term: tcl_registry::OptionTerm) -> String {
         ),
         T::Argument(index) => format!("OptionTerm::Argument({index})"),
         T::ArgumentValue(index, value) => {
-            format!(
-                "OptionTerm::ArgumentValue({index}, {})",
-                rust_string(value)
-            )
+            format!("OptionTerm::ArgumentValue({index}, {})", rust_string(value))
         }
     }
 }

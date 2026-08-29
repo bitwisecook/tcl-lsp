@@ -440,12 +440,10 @@ fn tk_scroll_callback_bareword_undefined_head_fires_w123() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Option-value callbacks — the prefix is the value of a named `-flag`, resolved
 // through the command's `OptionSpec` array (no `command_prefixes` table entry).
 // These flow through the identical generic substrate, so a bareword head lights
 // up call-graph / references / W123 / arity with zero per-command code.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn mime_getbody_command_option_is_a_callback_edge() {
@@ -527,10 +525,8 @@ fn halfpipe_write_command_option_records_callback() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Resolver-based prefix (`hook bind`) and script-vs-prefix disambiguation
 // (`processman::onexit`).
-// ---------------------------------------------------------------------------
 
 #[test]
 fn hook_bind_binding_is_a_callback_edge() {
@@ -599,12 +595,10 @@ fn processman_onexit_script_body_is_recursed_not_a_prefix() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Object-instance method callbacks — the prefix is on a method of a created
 // object command (`struct::graph name` / `set g [struct::graph]`), resolved
 // through the class's ObjectClassSpec + the receiver's tracked type.  Foreground
 // analysis (single-file diagnostics, call graph, in-file references).
-// ---------------------------------------------------------------------------
 
 #[test]
 fn struct_graph_walk_command_records_callback_with_arity() {

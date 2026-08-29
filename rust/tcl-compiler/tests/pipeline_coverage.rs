@@ -79,11 +79,9 @@ use tcl_registry::model::semantic::SemanticContext;
 /// Default dialect — 8.6 and 9.0 agree on every Tcl fact exercised here.
 const D: &str = "tcl8.6";
 
-// ===========================================================================
 // Shared diagnostic-surface helpers — the analyser pass owns W230/W231/W232/
 // W233/W210, so a single `analyse(...)` surface mirrors what every consumer
 // sees (matching `intervals.rs` / `analyser.rs`).
-// ===========================================================================
 
 /// How many diagnostics of `code` the analyser emits for `src`.
 fn count(src: &str, code: &str) -> usize {
@@ -130,7 +128,6 @@ fn build_irules(src: &str) -> CompilationUnit {
     CompilationUnit::build_for(src, &registry, false)
 }
 
-// ===========================================================================
 // interval_bounds.rs — the `classify` *negative*-index reason.
 //
 // `intervals.rs` exercises only the `past_end` / `past_append` reasons;
@@ -138,7 +135,6 @@ fn build_irules(src: &str) -> CompilationUnit {
 // negative const index drives it for each of the three readers/mutators.
 // tclsh: a negative index reads `""` (lindex / string index) and errors
 // (lset) — all out of range, so all three warnings are sound.
-// ===========================================================================
 mod negative_index_classify {
     use super::*;
 
@@ -178,13 +174,11 @@ mod negative_index_classify {
     }
 }
 
-// ===========================================================================
 // interval_bounds.rs — `list_command_length` (the `[list …]` arg-count path).
 //
 // `list_length_map` resolves a `set l [list a b c]` SSA version to the literal
 // element count via `list_command_length`; a past-end const index then fires.
 // tclsh: `list a b c` → a 3-element list, `lindex` past the end → "".
-// ===========================================================================
 mod list_command_length {
     use super::*;
 
@@ -223,14 +217,12 @@ mod list_command_length {
     }
 }
 
-// ===========================================================================
 // interval_bounds.rs — divide-by-zero matrix corners (W233).
 //
 // `intervals.rs` covers the flat `&&`/`||`/`?:` guard outcomes; these add
 // the corners it leaves cold: a *nested* forced ternary arm, modulo by a
 // const-zero variable, and the subtraction-to-zero inside a forced arm.
 // tclsh: `expr {…/0}` / `expr {…%0}` raise *divide by zero* (8.6 + 9.0).
-// ===========================================================================
 mod divide_by_zero_corners {
     use super::*;
 
@@ -279,13 +271,11 @@ mod divide_by_zero_corners {
     }
 }
 
-// ===========================================================================
 // interval_bounds.rs — `string_length_map` escape resolution.
 //
 // `string_length_map` resolves backslash escapes in a `"…"` literal before
 // counting chars; a `\t` (one resolved char) shifts the past-end boundary.
 // tclsh: `string length "a\tb\tc"` → 5, so index 6 is OOR and index 4 is valid.
-// ===========================================================================
 mod string_length_escape {
     use super::*;
 
@@ -304,13 +294,11 @@ mod string_length_escape {
     }
 }
 
-// ===========================================================================
 // ir_helpers.rs — `defs_from_expr` (public): command-substitution out-vars.
 //
 // `defs_from_expr` collects the VarWrite targets (and nested body writes) of
 // `[cmd …]` substitutions in an expression. Each Tcl out-var fact below is
 // pinned to tclsh; the helper must recover the same names.
-// ===========================================================================
 mod defs_from_expr_out_vars {
     use super::*;
 
@@ -405,9 +393,7 @@ mod defs_from_expr_out_vars {
     }
 }
 
-// ===========================================================================
 // ir_helpers.rs — `expr_has_command` (public): every node-kind arm.
-// ===========================================================================
 mod expr_has_command_shapes {
     use super::*;
 
@@ -445,12 +431,10 @@ mod expr_has_command_shapes {
     }
 }
 
-// ===========================================================================
 // ir_helpers.rs — `defs_from_ir_script` (public): the recursion arms the
 // in-crate tests skip (`While`, `For`, `Try`, `Switch`). Built directly as IR
 // so each `collect_defs_from_script` match arm is driven deterministically.
 // These assert IR-walk structure (compiler-internal), not a Tcl runtime value.
-// ===========================================================================
 mod defs_from_ir_script_arms {
     use super::*;
     use tcl_compiler::ir::{ForeachIterator, SwitchArm, TryHandler};
@@ -605,7 +589,6 @@ mod defs_from_ir_script_arms {
     }
 }
 
-// ===========================================================================
 // ir_helpers.rs — `condition_command_out_vars` chain (end-to-end).
 //
 // The `pub(crate)` condition-out-var extractor is reached through CFG lowering:
@@ -614,7 +597,6 @@ mod defs_from_ir_script_arms {
 // defs on the synthetic `<cond>` statement, so a read of one in the guarded body
 // is NOT flagged read-before-set (W210). Each suppression is a Tcl fact: the
 // command really does write the variable before the body runs.
-// ===========================================================================
 mod condition_out_vars_suppress_w210 {
     use super::*;
 
@@ -664,11 +646,9 @@ mod condition_out_vars_suppress_w210 {
     }
 }
 
-// ===========================================================================
 // compilation_unit.rs — `build_for` pipeline build paths.
 //
 // Structure of the built unit is compiler-internal (asserted structurally).
-// ===========================================================================
 mod compilation_unit_build {
     use super::*;
 
@@ -787,12 +767,10 @@ mod compilation_unit_build {
     }
 }
 
-// ===========================================================================
 // compilation_unit.rs — `decode_param_constants` (public memo round-trip).
 //
 // The encoder is `pub(crate)`; the decoder is public. Assert the decode
 // contract directly (compiler-internal — no Tcl observation).
-// ===========================================================================
 mod param_constants_codec {
     use super::*;
 
@@ -820,14 +798,12 @@ mod param_constants_codec {
     }
 }
 
-// ===========================================================================
 // connection_scope.rs — iRules cross-event variable scope (via `build_for`).
 //
 // `// f5-dialect`: `when EVENT { … }` handlers and cross-event variable lifetime
 // are an iRules concept, not core tclsh — they have no `tclsh_check.sh` analogue.
 // The connection scope is built from the `::when::*` procedures and cached on
 // `CompilationUnit::connection_scope`; we assert its contents structurally.
-// ===========================================================================
 mod connection_scope_cross_event {
     use super::*;
 

@@ -115,12 +115,10 @@ fn has(src: &str, dialect: &str, code: &str, var: &str) -> bool {
         .any(|w| w.variable == var)
 }
 
-// ===========================================================================
 // Colour-mask invariants — the public `TaintColour` masks that drive every
 // suppression decision. Pure lattice algebra (no tclsh analogue): asserts the
 // exact membership of REDIRECT_SAFE / CRLF_SAFE / T102_SAFE / ALL so a future
 // mask edit that silently widens a suppression set is caught here.
-// ===========================================================================
 mod colour_masks {
     use super::*;
 
@@ -183,11 +181,9 @@ mod colour_masks {
     }
 }
 
-// ===========================================================================
 // Lattice join — `sanitised()` / `with()` and join edges not pinned by
 // taint.rs (PATH_BOUNDED, HEADER_TOKEN_SAFE survival, the
 // REDIRECT_SAFE/CRLF pair, sanitised-then-rejoin).
-// ===========================================================================
 mod lattice_extra {
     use super::*;
 
@@ -248,13 +244,11 @@ mod lattice_extra {
     }
 }
 
-// ===========================================================================
 // Source breadth — every taint-source namespace and the colour it stamps.
 // Asserted at an `eval` sink (T100 fires regardless of colour) so the test
 // proves "this command is a source"; the colour itself is checked via its
 // suppression effect in the colour modules below.
 // f5-dialect for every iRules getter; `read`/`gets`/`exec`/`socket` are core.
-// ===========================================================================
 mod source_breadth {
     use super::*;
 
@@ -374,13 +368,11 @@ mod source_breadth {
     }
 }
 
-// ===========================================================================
 // T100 code-execution sinks — the full EVALUATES_CODE / TAINT_SINK family, and
 // the AssignValue-embedded-command-substitution path (`set _ [eval $x]`) that
 // classifies a sink inside an assignment RHS.
 //
 // tclsh: eval/uplevel/subst run their argument; unbraced expr re-parses it.
-// ===========================================================================
 mod t100_sink_family {
     use super::*;
 
@@ -434,12 +426,10 @@ mod t100_sink_family {
     }
 }
 
-// ===========================================================================
 // T100 SHELL_ATOM suppression at `exec` — the registry `taint_sink_safe_colour`
 // path (exec ← SHELL_ATOM). An IP/port/FQDN atom cannot word-split into a new
 // exec argument, so it clears T100 at exec; generic taint does not.
 // f5-dialect sources.
-// ===========================================================================
 mod exec_shell_atom {
     use super::*;
 
@@ -478,13 +468,11 @@ mod exec_shell_atom {
     }
 }
 
-// ===========================================================================
 // T101 output-sink position filter — `puts ?-nonewline? ?channelId? string`.
 // Only the trailing content word is the sink; a tainted channel handle is not
 // injectable. Exercises `sink_var_position_safe` for the `puts` case beyond the
 // single taint.rs example (stdout/stderr channel literals, both tainted).
 // tclsh: `puts $chan $str` writes $str to channel $chan.
-// ===========================================================================
 mod puts_position_filter {
     use super::*;
 
@@ -522,13 +510,11 @@ mod puts_position_filter {
     }
 }
 
-// ===========================================================================
 // T102 option-injection scan region — `-option value` consumption, the `--`
 // terminator inside the arg list, and `{*}`-expansion leading words. Exercises
 // `option_scan_region` / `arg_can_be_option` branches beyond taint.rs.
 // tclsh: `regexp -- -foo bar` → 0 (-- ends switch scan); `regexp -start N pat …`
 // consumes N as the -start value.
-// ===========================================================================
 mod t102_scan_region {
     use super::*;
 
@@ -580,7 +566,6 @@ mod t102_scan_region {
     }
 }
 
-// ===========================================================================
 // T103 regexp-pattern injection — `regexp` AND `regsub` (both PatternType::Regex),
 // the `-start`-consumes-value pattern index, and the REGEX_LITERAL suppression
 // via the four quote spellings. taint.rs covers `regexp`; this adds
@@ -588,7 +573,6 @@ mod t102_scan_region {
 //
 // tclsh: `regsub -all a banana X` → `bXnXnX` (regsub returns the substituted
 // string, so a tainted pattern is a live regex-injection vector).
-// ===========================================================================
 mod t103_regsub_and_quotes {
     use super::*;
 
@@ -661,12 +645,10 @@ mod t103_regsub_and_quotes {
     }
 }
 
-// ===========================================================================
 // T104 SSRF / network-address sinks — `socket` (slots 0,1), `http::geturl`
 // (slot 0), and iRules `connect` (empty positions ⇒ any tainted arg). Exercises
 // the `taint_network_sink_args` position filter and the IP/PORT/FQDN clearance.
 // `socket` is core tclsh; `connect` is f5-dialect.
-// ===========================================================================
 mod t104_network_sinks {
     use super::*;
 
@@ -742,11 +724,9 @@ mod t104_network_sinks {
     }
 }
 
-// ===========================================================================
 // T105 cross-interpreter eval — `interp eval` AND `interp invokehidden`, plus
 // the literal-`[list <known-cmd>]` head suppression vs the propagated-list case.
 // tclsh: `interp eval $i {expr 6*7}` → 42 (runs in the child).
-// ===========================================================================
 mod t105_cross_interp {
     use super::*;
 
@@ -802,14 +782,12 @@ mod t105_cross_interp {
     }
 }
 
-// ===========================================================================
 // T106 double-encode — every encoder family (URL via URI::encode /
 // URI::encode_component / URI::escape, HTML via HTML::encode / html_encode /
 // html_escape, regex via the four quote spellings) re-applied to its own
 // already-stamped colour. taint.rs covers URI::encode; this adds the
 // sibling spellings and the message label.
 // f5-dialect for URI::/HTML::; regex quotes are core/tcllib.
-// ===========================================================================
 mod t106_double_encode_breadth {
     use super::*;
 
@@ -905,10 +883,8 @@ mod t106_double_encode_breadth {
     }
 }
 
-// ===========================================================================
 // IRULE3001 (HTTP::respond body) — HTML_ESCAPED suppression, and the
 // AssignValue-embedded `[HTTP::respond …]` path. f5-dialect, IR-gated.
-// ===========================================================================
 mod irule3001_depth {
     use super::*;
 
@@ -953,11 +929,9 @@ mod irule3001_depth {
     }
 }
 
-// ===========================================================================
 // IRULE3002 (HTTP::header / HTTP::cookie insert|replace value) — the CRLF_SAFE
 // suppression family (CRLF_FREE / IP / PORT / FQDN), the `replace` subcommand,
 // and that `remove`/`at` are not value sinks. f5-dialect, IR-gated.
-// ===========================================================================
 mod irule3002_depth {
     use super::*;
 
@@ -1066,11 +1040,9 @@ mod irule3002_depth {
     }
 }
 
-// ===========================================================================
 // IRULE3003 (log) — the CRLF_SAFE suppression family and the URI::/HTML::encode
 // CRLF_FREE augmentation, exercised through `log` value positions beyond
 // taint.rs's IP/PORT/SNI/URI/HTML set. f5-dialect, IR-gated.
-// ===========================================================================
 mod irule3003_depth {
     use super::*;
 
@@ -1124,13 +1096,11 @@ mod irule3003_depth {
     }
 }
 
-// ===========================================================================
 // IRULE3004 (HTTP::redirect open-redirect) — the REDIRECT_SAFE family
 // (PATH_PREFIXED via HTTP::uri, PATH_NORMALISED via file normalize) vs a generic
 // tainted target. taint.rs has an irule3004 module; this adds the
 // file-normalize same-origin proof and the not-in-tcl86 gate.
 // f5-dialect, IR-gated.
-// ===========================================================================
 mod irule3004_depth {
     use super::*;
 
@@ -1178,11 +1148,9 @@ mod irule3004_depth {
     }
 }
 
-// ===========================================================================
 // IRULE3101 setter-constraint — the three argument shapes (literal / pure
 // var-ref / dynamic) and the PATH_NORMALISED/PATH_BOUNDED suppressors beyond
 // taint.rs's literal+PATH_PREFIXED cases. f5-dialect, IR-gated.
-// ===========================================================================
 mod irule3101_depth {
     use super::*;
 
@@ -1239,7 +1207,6 @@ mod irule3101_depth {
     }
 }
 
-// ===========================================================================
 // W313 destructive-file — the registry `destructive` subcommands (delete /
 // rename / mkdir), the `-force`/`--` path skip, multi-path source-order
 // determinism, the normalised-but-unguarded softened message, and the
@@ -1248,7 +1215,6 @@ mod irule3101_depth {
 // tclsh: `file delete -force /tmp/td` removes a dir (the `-force` switch and the
 // path are real `file delete` args); `file join /base ../x` → `/base/../x` (no
 // canonicalisation, so PATH_JOINED ≠ PATH_NORMALISED, does not clear W313).
-// ===========================================================================
 mod w313_destructive_file {
     use super::*;
 
@@ -1394,13 +1360,11 @@ mod w313_destructive_file {
     }
 }
 
-// ===========================================================================
 // Transform-colour propagation through copies and interpolation — PATH_JOINED
 // (file join), PATH_NORMALISED (file normalize), URL_ENCODED / HTML_ESCAPED
 // survive a plain `set y $x` copy but are cleared by interpolation
 // (`interpolation_carve_out`). These do NOT suppress T100 (the value still
 // reaches a code-execution sink). f5-dialect for URI::/HTML:: sources.
-// ===========================================================================
 mod transform_propagation {
     use super::*;
 
@@ -1457,7 +1421,6 @@ mod transform_propagation {
     }
 }
 
-// ===========================================================================
 // Sanitiser breadth — fixed-numeric-return subcommands strip taint so the
 // result clears every sink. taint.rs covers `string length` / `llength`;
 // this adds `string is`, `string match`, `string compare`, and confirms a
@@ -1465,7 +1428,6 @@ mod transform_propagation {
 //
 // tclsh: `string toupper "abc-def"` → `ABC-DEF` (a content string of the same
 // shape — preserves a leading `-`, so it cannot be a taint sanitiser).
-// ===========================================================================
 mod sanitiser_breadth {
     use super::*;
 
@@ -1541,12 +1503,10 @@ mod sanitiser_breadth {
     }
 }
 
-// ===========================================================================
 // Dialect gating — every iRules sink code is silent under plain tcl8.6 even
 // when the data is genuinely tainted, and every iRules SOURCE still taints
 // under tcl8.6 (registered globally). Pins the source/sink dialect asymmetry
 // that the whole-file premise relies on.
-// ===========================================================================
 mod dialect_gating {
     use super::*;
 
@@ -1586,14 +1546,12 @@ mod dialect_gating {
     }
 }
 
-// ===========================================================================
 // Interprocedural depth — colour-aware return summaries: a helper that
 // passes through its argument carries the argument's taint AND colour to the
 // caller; a helper that sanitises returns clean; a helper that introduces a
 // source taints regardless of arguments. taint.rs covers the basic
 // passthrough/sanitise/source cases; this pins colour transfer and the
 // option-injection suppression surviving a passthrough.
-// ===========================================================================
 mod interproc_depth {
     use super::*;
 

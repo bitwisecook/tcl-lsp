@@ -59,7 +59,7 @@
 //! restricts or extends it.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 // The single invocation form is unchanged, word-for-word (bar the
 // cosmetic channelId/channel rename noted above), across every fetched

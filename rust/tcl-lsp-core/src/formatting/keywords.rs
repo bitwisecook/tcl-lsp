@@ -68,7 +68,7 @@ use tcl_registry::hover::OptionSpec;
 use tcl_registry::{ArgRole, CommandRegistry, CommandSpec};
 
 use super::config::{BooleanForm, FormatterConfig};
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 use tcl_dialect::model::SurfaceQuery;
 
 /// A word the formatter would rewrite: the argument index (0-based, after the
@@ -750,9 +750,9 @@ pub(crate) fn rewrites_for_command(
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{Family};
-    use tcl_dialect::model::{SpecSurface, SurfaceQuery};
     use super::*;
+    use tcl_dialect::model::Family;
+    use tcl_dialect::model::{SpecSurface, SurfaceQuery};
 
     fn config(expand: bool, form: BooleanForm) -> FormatterConfig {
         FormatterConfig {
@@ -1107,7 +1107,8 @@ mod tests {
         let mut registry = CommandRegistry::build_default();
         registry.insert(spec);
 
-        let run = |dialect: Option<SurfaceQuery<'_>>, target_range: Option<&'static [&'static str]>| {
+        let run = |dialect: Option<SurfaceQuery<'_>>,
+                   target_range: Option<&'static [&'static str]>| {
             let cfg = FormatterConfig {
                 target_range_override: target_range,
                 ..config(false, BooleanForm::TrueFalse)

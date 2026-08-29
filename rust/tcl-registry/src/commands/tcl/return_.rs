@@ -20,9 +20,9 @@
 
 use crate::hooks::{InlineCodegenHookId, LoweringHookId};
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::surface;
 use tcl_dialect::model::Family;
+use tcl_dialect::model::SpecSurface;
+use tcl_dialect::surface;
 
 // Tcl 8.4's SYNOPSIS is the single line `return ?-code code? ?-errorinfo
 // info? ?-errorcode code? ?string?`: only -code, -errorinfo, and
@@ -62,7 +62,10 @@ const FORMS: &[FormSpec] = &[
         // read as invisible to iRules even though it's the form every
         // iRules proc actually uses.
         synopsis: "return ?-code code? ?-errorinfo info? ?-errorcode code? ?string?",
-        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.5"))]), SpecSurface::core(Family::F5Irules)]),
+        surface: Some(surface![
+            SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.5"))]),
+            SpecSurface::core(Family::F5Irules)
+        ]),
         ..FormSpec::DEFAULT
     },
     // F5 `return(1)`: directly inside a `when EVENT { … }` body, `return`

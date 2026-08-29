@@ -53,12 +53,11 @@ use tcl_dialect::model::{
 use tcl_dialect::{LibraryVersionOverrides, TclVersion};
 
 use crate::hover::OptionSpec;
-use tcl_dialect::model::{SurfaceQuery, surface_admits};
 use crate::model::surface::{
     BuildCapability, CapabilityPredicate, Provider, SurfaceDeclaration, VENDOR_SURFACE_PACKAGES,
-    is_closed_world_package, is_placement_gated_package,
-    vendor_surface_package,
+    is_closed_world_package, is_placement_gated_package, vendor_surface_package,
 };
+use tcl_dialect::model::{SurfaceQuery, surface_admits};
 // The vendor-surface summary payload: plain registry-derived data, not
 // part of the retiring profile trait, so both faces answer with the one
 // type and the parity pin can compare them directly. P1-G removed the
@@ -69,8 +68,8 @@ use crate::profile_queries::VendorSurface;
 use crate::registry::CommandRegistry;
 use crate::spec::{CommandSpec, SubCommand, SubSubCommand};
 use crate::traits::Traits;
-use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::model::{SpecProvider};
+use tcl_dialect::model::SpecProvider;
+use tcl_dialect::model::SpecSurface;
 
 /// The resolved externally-keyed axis versions — the new-model mirror of
 /// today's `LibraryVersionOverrides`. An unset key falls back to the D5
@@ -832,7 +831,11 @@ impl ResolvedContext {
     /// (§5.2): the gate admits the point, and its version floor is at or
     /// below the environment's ceiling.
     #[must_use]
-    pub fn option_available(&self, opt: &OptionSpec, parent_gate: Option<&'static [SpecSurface]>) -> bool {
+    pub fn option_available(
+        &self,
+        opt: &OptionSpec,
+        parent_gate: Option<&'static [SpecSurface]>,
+    ) -> bool {
         let Some(gate) = opt.surface.or(parent_gate) else {
             // No restriction on the option or its parent.
             return true;
@@ -874,8 +877,7 @@ impl ResolvedContext {
     pub fn available_option_specs(&self, spec: &CommandSpec) -> Vec<&'static OptionSpec> {
         let mut out: Vec<&'static OptionSpec> = Vec::new();
         let mut consider = |opt: &'static OptionSpec| {
-            if self.option_available(opt, spec.surface) && !out.iter().any(|o| o.name == opt.name)
-            {
+            if self.option_available(opt, spec.surface) && !out.iter().any(|o| o.name == opt.name) {
                 out.push(opt);
             }
         };
@@ -1115,7 +1117,10 @@ impl ResolvedContext {
     /// names no plain-Tcl line at all (the item is another provider's — its
     /// own axis governs it), or every declared target is covered.
     #[must_use]
-    pub fn targets_uncovered_by_gate(&self, gate: Option<&'static [SpecSurface]>) -> Option<VersionSet> {
+    pub fn targets_uncovered_by_gate(
+        &self,
+        gate: Option<&'static [SpecSurface]>,
+    ) -> Option<VersionSet> {
         let axis = VersionAxisId::core(Family::Tcl);
         let targets = self.declared_targets(&axis)?;
         let covered = crate::model::surface::core_tcl_set(gate?)?;
@@ -1188,7 +1193,10 @@ fn compute_authoring_scope(context: &ResolvedContext) -> AuthoringScope {
             // about the family's whole ladder.
             Family::Tcl => (
                 Family::Tcl,
-                context.floors.primary(&VersionAxisId::core(Family::Tcl)).cloned(),
+                context
+                    .floors
+                    .primary(&VersionAxisId::core(Family::Tcl))
+                    .cloned(),
             ),
             Family::F5Irules => (Family::F5Irules, None),
             // Every other family derives its Tcl-facing surface from an
@@ -1600,14 +1608,14 @@ pub fn specificity_breadth(declarations: &[SurfaceDeclaration]) -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{surface_breadth};
-    use tcl_dialect::model::{SurfaceQuery};
-    use tcl_dialect::surface;
-    use tcl_dialect::model::SpecSurface;
     use super::*;
     use crate::model::surface::declarations_for_spec;
     use crate::spec::CommandSpec;
     use tcl_dialect::model::EnvironmentRegistry;
+    use tcl_dialect::model::SpecSurface;
+    use tcl_dialect::model::SurfaceQuery;
+    use tcl_dialect::model::surface_breadth;
+    use tcl_dialect::surface;
 
     fn context(environment: &str) -> ResolvedContext {
         let registry = EnvironmentRegistry::compiled();
@@ -1715,7 +1723,10 @@ mod tests {
         let spectcl_only = rows(Some(SpecSurface::SPECTCL));
         assert!(context("spectcl").is_available(&spectcl_only));
         assert!(!context("tcl9.0").is_available(&spectcl_only));
-        let shared = rows(Some(surface![SpecSurface::package("iapps"), SpecSurface::package("tmsh")]));
+        let shared = rows(Some(surface![
+            SpecSurface::package("iapps"),
+            SpecSurface::package("tmsh")
+        ]));
         assert!(context("f5-iapps").is_available(&shared));
         assert!(context("f5-tmsh").is_available(&shared));
         assert!(!context("tcl8.5").is_available(&shared));
@@ -2001,7 +2012,10 @@ mod tests {
         );
 
         // The derived point, and what it admits.
-        assert_eq!(ctx.authoring_query(), SurfaceQuery::core(Family::Tcl, "8.6"));
+        assert_eq!(
+            ctx.authoring_query(),
+            SurfaceQuery::core(Family::Tcl, "8.6")
+        );
         for gate in [
             SpecSurface::ALL_TCL,
             SpecSurface::TCL85_PLUS,
@@ -2156,11 +2170,18 @@ mod tests {
             (SpecSurface::IRULES, 1),
             (SpecSurface::ALL_TCL_AND_IRULES, 6),
             (SpecSurface::TK_AND_TCL, 6),
-            (surface![SpecSurface::package("iapps"), SpecSurface::package("tmsh")], 2),
+            (
+                surface![SpecSurface::package("iapps"), SpecSurface::package("tmsh")],
+                2,
+            ),
             (SpecSurface::EXPECT, 1),
         ];
         for &(rows_of, expected) in cases {
-            assert_eq!(specificity_breadth(&rows(Some(rows_of))), expected, "{rows_of:?}");
+            assert_eq!(
+                specificity_breadth(&rows(Some(rows_of))),
+                expected,
+                "{rows_of:?}"
+            );
             assert_eq!(surface_breadth(rows_of), expected, "{rows_of:?} breadth");
         }
         // The universal translation is strictly wider than any explicit

@@ -20,7 +20,7 @@
 
 use crate::hooks::CodegenHookId;
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 // `tailcall` is a Tcl 8.6 addition (TIP 285, alongside the NRE engine):
 // tailcall.html 404s with a genuine "URL Not Found" page — not a redirect

@@ -39,9 +39,7 @@ fn run(src: &str) -> SignatureScanResult {
     extract_signatures(src, &registry)
 }
 
-// ---------------------------------------------------------------------------
 // Procs
-// ---------------------------------------------------------------------------
 
 #[test]
 fn top_level_proc() {
@@ -139,9 +137,7 @@ fn proc_with_defaults_and_args() {
     assert_eq!(pd.params[1].default_value.as_deref(), Some("2"));
 }
 
-// ---------------------------------------------------------------------------
 // package require
-// ---------------------------------------------------------------------------
 
 #[test]
 fn package_simple_require() {
@@ -175,9 +171,7 @@ fn package_other_subcommands_ignored() {
     assert!(r.package_requires.is_empty());
 }
 
-// ---------------------------------------------------------------------------
 // source
-// ---------------------------------------------------------------------------
 
 #[test]
 fn literal_source() {
@@ -201,9 +195,7 @@ fn source_with_encoding_flag() {
     assert_eq!(r.source_targets[0].raw_path, "foo.tcl");
 }
 
-// ---------------------------------------------------------------------------
 // interp alias
-// ---------------------------------------------------------------------------
 
 #[test]
 fn simple_alias() {
@@ -222,9 +214,7 @@ fn alias_with_prepended_args() {
     assert_eq!(alias.extras, ["double"]);
 }
 
-// ---------------------------------------------------------------------------
 // rename
-// ---------------------------------------------------------------------------
 
 #[test]
 fn simple_rename() {
@@ -250,9 +240,7 @@ fn rename_to_empty_string_deletes_and_is_not_recorded() {
     assert!(r.renames.is_empty());
 }
 
-// ---------------------------------------------------------------------------
 // oo::class
-// ---------------------------------------------------------------------------
 
 #[test]
 fn oo_class_create() {
@@ -276,9 +264,7 @@ fn fully_qualified_oo_class_head() {
     assert_eq!(r.classes["::Shape"].name, "Shape");
 }
 
-// ---------------------------------------------------------------------------
 // itcl::class
-// ---------------------------------------------------------------------------
 
 #[test]
 fn itcl_class() {
@@ -286,9 +272,7 @@ fn itcl_class() {
     assert!(r.classes.contains_key("::Widget"));
 }
 
-// ---------------------------------------------------------------------------
 // Conditional guards — procs under if / catch / try are still indexed.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn proc_in_if_then_branch() {
@@ -381,9 +365,7 @@ fn dynamic_body_is_skipped_not_crashed() {
     assert!(!r.procs.contains_key("::x"));
 }
 
-// ---------------------------------------------------------------------------
 // Absolute names inside namespace
-// ---------------------------------------------------------------------------
 
 #[test]
 fn absolute_namespace_eval_rebases_prefix() {
@@ -408,9 +390,7 @@ fn absolute_itcl_class_name_rebases() {
     assert!(!r.classes.contains_key("::a::Widget"));
 }
 
-// ---------------------------------------------------------------------------
 // interp alias filtering
-// ---------------------------------------------------------------------------
 
 #[test]
 fn non_local_slave_alias_ignored() {
@@ -434,9 +414,7 @@ fn local_alias_still_recorded() {
     assert!(r.command_aliases.contains_key("::myset"));
 }
 
-// ---------------------------------------------------------------------------
 // Conditional package require
-// ---------------------------------------------------------------------------
 
 #[test]
 fn if_body_require_marked_conditional() {
@@ -470,9 +448,7 @@ fn top_level_require_not_conditional() {
     assert!(!r.package_requires[0].conditional);
 }
 
-// ---------------------------------------------------------------------------
 // Command invocations
-// ---------------------------------------------------------------------------
 
 #[test]
 fn invocations_populated_top_level() {
@@ -511,9 +487,7 @@ fn resolved_qualified_name_left_none() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Segmenter recovery
-// ---------------------------------------------------------------------------
 
 #[test]
 fn unclosed_brace_does_not_swallow_later_procs() {
@@ -525,9 +499,7 @@ fn unclosed_brace_does_not_swallow_later_procs() {
     assert!(r.procs.contains_key("::late"));
 }
 
-// ---------------------------------------------------------------------------
 // Absence of heavy fields
-// ---------------------------------------------------------------------------
 
 #[test]
 fn no_heavy_fields() {
@@ -549,10 +521,8 @@ fn no_heavy_fields() {
     assert!(r.classes.is_empty());
 }
 
-// ---------------------------------------------------------------------------
 // Direct parse_param_list coverage — the param-shape facts, asserted
 // against the public `parse_param_list` entry point directly.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn param_list_defaults_and_args() {
@@ -573,9 +543,7 @@ fn param_list_empty() {
     assert!(parse_param_list("   \t\n ").is_empty());
 }
 
-// ---------------------------------------------------------------------------
 // Registry-driven class-definer recognition (walker `definer_family`)
-// ---------------------------------------------------------------------------
 //
 // The walker classifies class-definer heads from registry data — a
 // `definition_body` grammar plus, for TclOO, the `IS_OO_METACLASS` trait —
@@ -704,9 +672,7 @@ fn oo_class_method_words_do_not_abbreviate() {
     assert!(r.classes.is_empty());
 }
 
-// ---------------------------------------------------------------------------
 // Ensemble subcommand words resolve through the registry (canonical names)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn namespace_eval_abbreviation_discovers_body_procs() {

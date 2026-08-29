@@ -22,10 +22,10 @@
 //! registry-metadata: every assertion here reads registry data or the frozen
 //! syntax memo (`docs/design/spec-dsl-examples/README.md`), not C-Tcl
 //! behaviour — `SpecTcl` is our own DSL, so the memo *is* its oracle.
+use tcl_dialect::model::SpecSurface;
 use tcl_registry::ArgRole;
 use tcl_registry::definer::{DefinerFamily, SPECTCL_GRAMMARS};
 use tcl_registry::model::ingress::static_context_for;
-use tcl_dialect::model::{SpecSurface};
 
 /// The pack loads by profile identity, through exactly the same
 /// `base_layers` path every other dialect pack takes — so the registry sweep

@@ -18,7 +18,7 @@
 
 //! `map_get` — read a value from a map, 0 if absent (`map_get DST NAME {KEY}`).
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 pub fn spec() -> CommandSpec {
     const OP: BpfOpSpec = BpfOpSpec::gated(BpfOpKind::MapGet, BpfEffects::MAP_READ);

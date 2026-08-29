@@ -47,7 +47,7 @@
 //! so the analyser's class-body walk finds `link` calls through the registry
 //! rather than by spelling.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "link linkName ?linkName ...?",
     ..FormSpec::DEFAULT

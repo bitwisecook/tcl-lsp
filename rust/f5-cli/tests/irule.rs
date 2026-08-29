@@ -285,14 +285,12 @@ fn pgo_not_listed_in_irule_help() {
     );
 }
 
-// ===========================================================================
 // Native-stack safety (issue #996) — `irule minify` calls straight into
 // `tcl_lsp_core::minify`, which recurses into `tcl_compiler::analyser`
 // (`Analyser::analyse`), on caller-supplied `.irule` file content. Before
 // this fix, `f5_cli::run` had no stack-size guard at all (unlike
 // `tcl-lsp-server`/`tcl-mcp`/the `tcl` CLI), so deeply nested iRule input
 // crashed the process with an uncatchable SIGABRT.
-// ===========================================================================
 
 /// `irule minify --aggressive` on a deeply nested iRule (well past the
 /// analyser's `MAX_BODY_DEPTH` of 256) must exit cleanly — with a real

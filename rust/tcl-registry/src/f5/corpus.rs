@@ -1659,7 +1659,6 @@ pub const EVENT_CONTEXT_VECTORS: &[EventContextVector] = &[
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SurfaceQuery, surface_admits};
     use super::*;
     use crate::events::EventRegistry;
     use crate::f5::evidence::{BigIpBuild, RuntimeFact, RuntimeFactKind, measured_fact};
@@ -1667,6 +1666,7 @@ mod tests {
     use crate::model::ingress::{resolve_environment, static_context_for};
     use crate::profiles::ProfileRegistry;
     use tcl_dialect::model::family::{Family, Release, grammar};
+    use tcl_dialect::model::{SurfaceQuery, surface_admits};
     use tcl_dialect::model::{VersionAxisId, VersionSet};
 
     const F5_ENVIRONMENTS: [&str; 3] = ["f5-irules", "f5-tmsh", "f5-iapps"];
@@ -2141,7 +2141,12 @@ mod tests {
             .expect("tcl_platform is modelled")
             .keys
             .iter()
-            .filter(|key| surface_admits(key.surface, Some(&SurfaceQuery::any_release(Family::F5Irules))))
+            .filter(|key| {
+                surface_admits(
+                    key.surface,
+                    Some(&SurfaceQuery::any_release(Family::F5Irules)),
+                )
+            })
             .count();
         assert_eq!(irules_keys, 7, "§4: TMM reports 7 fabricated keys");
     }

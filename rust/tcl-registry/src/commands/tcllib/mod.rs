@@ -271,7 +271,7 @@ use crate::model::tcllib::core_floor_surface;
 #[cfg(test)]
 use crate::model::tcllib::tcllib_module;
 use crate::spec::CommandSpec;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// Return all `tcllib` command specifications.
 ///
@@ -661,8 +661,8 @@ fn tcllib_required_package(name: &str) -> Option<&'static str> {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SpecSurface, SurfaceQuery, surface_admits, Family};
     use super::*;
+    use tcl_dialect::model::{Family, SpecSurface, SurfaceQuery, surface_admits};
 
     #[test]
     fn every_tcllib_spec_has_required_package() {
@@ -767,7 +767,8 @@ mod tests {
                 continue;
             };
             assert!(
-                !surface_admits(rows, Some(&SurfaceQuery::core(Family::Tcl, "8.4"))) || floor == "8.4",
+                !surface_admits(rows, Some(&SurfaceQuery::core(Family::Tcl, "8.4")))
+                    || floor == "8.4",
                 "`{}` (package {package}) must not be offered below its declared Tcl floor",
                 spec.name,
             );
@@ -785,7 +786,8 @@ mod tests {
         assert!(!gated.is_empty(), "expected report::/stooop:: commands");
         for spec in gated {
             let rows = spec.surface.expect("a tcllib command carries a surface");
-            let at = |release| surface_admits(rows, Some(&SurfaceQuery::core(Family::Tcl, release)));
+            let at =
+                |release| surface_admits(rows, Some(&SurfaceQuery::core(Family::Tcl, release)));
             assert!(!at("8.4"), "{}", spec.name);
             assert!(at("8.6"), "{}", spec.name);
         }

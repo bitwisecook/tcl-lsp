@@ -75,7 +75,7 @@
 //! underlying C/Tcl behaviour.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     // Identical synopsis in every fetched manpage, Tcl 8.4 through 9.1.

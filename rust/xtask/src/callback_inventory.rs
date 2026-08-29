@@ -12,11 +12,11 @@
 //! facts which do not have a Tcl callback shape at all (notably iRulesLX
 //! remote dispatch) or whose value has an intentionally ambiguous shape.
 
-use tcl_dialect::model::{surface_admits};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::fs;
 use std::process::ExitCode;
+use tcl_dialect::model::surface_admits;
 
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
@@ -27,7 +27,7 @@ use tcl_registry::{
 };
 
 use crate::util::repo_root;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const SEED_PATH: &str = "docs/references/command-spec/callback-surface-catalogue.json";
 const JSON_PATH: &str = "docs/generated/callback-surfaces.json";

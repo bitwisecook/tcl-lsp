@@ -667,7 +667,6 @@ fn braced_var_close_rule_matches_real_tclsh() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // The COMPILED-WORD `${…}` path (issue #1568)
 //
 // The scripts above drive `subst`, an *interpreted* engine. These drive the
@@ -680,7 +679,6 @@ fn braced_var_close_rule_matches_real_tclsh() {
 // answer and 9.x substituted nothing at all.
 //
 // Keeping both sets in one file makes the two paths' agreement visible.
-// ---------------------------------------------------------------------------
 
 /// Assignment position — `set r ${a{b}c}`, the form #1568 was filed with.
 const COMPILED_BRACED_VAR_SCRIPT: &str = concat!(
@@ -968,7 +966,6 @@ fn compiled_array_index_braced_var_matches_real_tclsh() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Backslash-carrying `${…}` names (adversarial review of the #1568 fix)
 //
 // Every vector above uses a name whose only awkward character is a brace. A
@@ -983,7 +980,6 @@ fn compiled_array_index_braced_var_matches_real_tclsh() {
 //     it requires both rules to agree — at both releases;
 //   * declining a reference in `parse_simple_var_ref` is not free, because the
 //     runtime fallback does not round-trip such a name.
-// ---------------------------------------------------------------------------
 
 /// A whole `${…}` **array key** whose name carries an escaped close-brace.
 const COMPILED_KEY_ESCAPED_CLOSE_SCRIPT: &str = concat!(
@@ -1367,7 +1363,6 @@ fn compiled_composite_array_key_follows_the_emulated_release() {
     }
 }
 
-// ===========================================================================
 // Issue #1617 — `$={name}` is the user's literal text, not a compiler marker.
 //
 // The codegen used to decode a whole word spelt `$={name}` as an internal

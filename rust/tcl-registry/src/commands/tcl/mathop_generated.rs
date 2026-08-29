@@ -44,8 +44,8 @@
 use std::sync::OnceLock;
 
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 use tcl_syntax::expr::operators::{ALL_BIN_OPS, ALL_UNARY_OPS, CommandArity, OperatorSpec};
-use tcl_dialect::model::{SpecSurface};
 
 /// All `tcl::mathop` operator-command specs (every spelling).
 ///
@@ -162,8 +162,8 @@ fn leak_slice<T>(v: Vec<T>) -> &'static [T] {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SpecSurface};
     use super::specs;
+    use tcl_dialect::model::SpecSurface;
 
     /// Issue #1035: `specs()` `Box::leak`s its `&'static` name / synopsis /
     /// snippet strings, so it must build them **once per process** — every

@@ -59,7 +59,7 @@
 //! same-invocation in the sense a `struct::list map` callback is.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::NetworkIo,
     reads: true,
@@ -272,8 +272,8 @@ pub fn spec() -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SpecSurface};
     use super::*;
+    use tcl_dialect::model::SpecSurface;
 
     /// The four callbacks and their measured appended arities — the half
     /// of `geturl` that was invisible before P5.

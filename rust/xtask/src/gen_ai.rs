@@ -194,9 +194,7 @@ fn diagnostics_json() -> String {
     serde_json::to_string_pretty(&root).expect("serialise diagnostics.json") + "\n"
 }
 
-// ---------------------------------------------------------------------------
 // AI prompt / skill templates
-// ---------------------------------------------------------------------------
 
 /// Non-internal diagnostics in `sections` (each section's codes sorted by code,
 /// sections concatenated in order) as `(code, desc)` with the trailing `.`
@@ -392,9 +390,7 @@ fn render_template(template: &str, ctx: &AiContext) -> String {
     out
 }
 
-// ---------------------------------------------------------------------------
 // Dialect catalogue projections
-// ---------------------------------------------------------------------------
 
 /// Dialects that deliberately reach no prompt fragment, each with the reason.
 /// Empty today: a new profile either joins a fragment's `dialects` array or is

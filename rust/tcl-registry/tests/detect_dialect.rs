@@ -207,9 +207,7 @@ fn version_guard_in_braced_data_ignored() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // SpecTcl — `.tclspec` command packs (`docs/design/spec-packs.md`).
-// ---------------------------------------------------------------------------
 
 /// The extension is the registration `spec-packs.md` calls for: "the editor
 /// extensions and the LSP register it as Tcl in the `SpecTcl` dialect, so a

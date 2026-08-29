@@ -151,7 +151,7 @@ pub fn to_dynamic_core(environment: &PackEnvironment, pack: &str) -> Option<Dyna
 
 #[cfg(test)]
 mod tests {
-    
+
     use super::*;
     use crate::evaluate_pack;
 

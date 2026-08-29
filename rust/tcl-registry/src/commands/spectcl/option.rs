@@ -18,7 +18,7 @@
 
 //! `option` — one row of a command's / subcommand's option table.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// The option row's own flags.
 ///

@@ -24,7 +24,7 @@
 // 8.6 trees — the command genuinely does not exist before 9.0.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "const varName value",

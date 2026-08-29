@@ -48,13 +48,13 @@
 //! command that is neither backed nor classified (a genuinely new gap) or any
 //! stale classification entry (a name no longer in the registry, or now backed).
 
-use tcl_dialect::model::Family;
-use tcl_dialect::model::surface_admits_from;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::fs;
 use std::process::ExitCode;
 use std::sync::LazyLock;
+use tcl_dialect::model::Family;
+use tcl_dialect::model::surface_admits_from;
 
 use anyhow::{Context, Result};
 use regex::Regex;

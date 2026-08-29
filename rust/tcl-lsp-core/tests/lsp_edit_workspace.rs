@@ -36,7 +36,6 @@
 //! real C-Tcl (tclsh8.6 + tclsh9.0 via `scripts/dev/tclsh_check.sh`).
 //!
 //! C-Tcl proof model
-//! -----------------
 //! The load-bearing Tcl-semantic claim in this file is that **minification
 //! preserves the program's result**. Every minify round-trip test below
 //! takes a COMPLETE runnable Tcl script that `puts` a value, asserts the
@@ -84,9 +83,7 @@ use tcl_lsp_core::workspace_symbols::{
 use tcl_registry::CommandRegistry;
 use tcl_registry::model::ingress::static_context_for;
 
-// ---------------------------------------------------------------------------
 // shared helpers
-// ---------------------------------------------------------------------------
 
 fn analyse(source: &str) -> AnalysisResult {
     let mut a = Analyser::new();
@@ -128,7 +125,6 @@ fn no_suppress() -> HashMap<i32, HashSet<String>> {
     HashMap::new()
 }
 
-// ===========================================================================
 // workspace_symbols
 //
 // The provider lists procs / classes / methods / constructors from the
@@ -136,7 +132,6 @@ fn no_suppress() -> HashMap<i32, HashSet<String>> {
 // (`matches_query` => `name.to_lowercase().contains(query)`).  Which symbols
 // are genuine declarations is a Tcl fact (cited); kind / container / line is
 // editor-presentation, asserted structurally.
-// ===========================================================================
 
 /// A document with a top-level proc, a namespaced proc, and a `TclOO` class
 /// (with a method + a constructor). Reused by several symbol tests.
@@ -254,14 +249,12 @@ fn workspace_symbols_span_every_indexed_document() {
     assert_eq!(by_uri.get("file:///b.tcl"), Some(&"from_b"), "{syms:?}");
 }
 
-// ===========================================================================
 // minify — default tier (`minify_tcl`)
 //
 // The default tier strips comments and collapses whitespace WITHOUT renaming
 // anything, so the minified program is byte-for-byte semantically identical.
 // Each test pins the exact minifier output AND records the tclsh proof that
 // original and minified compute the same value.
-// ===========================================================================
 
 #[test]
 fn minify_strips_comments_and_collapses_whitespace_factorial() {
@@ -370,13 +363,11 @@ fn minify_is_idempotent_on_already_minified_source() {
     assert_eq!(once, twice, "minify must be idempotent");
 }
 
-// ===========================================================================
 // minify — compact tier (`minify_tcl_compact`) — the clean rename case
 //
 // The compact tier renames proc-local vars / params / proc names. The
 // rename is correct exactly when the renamed script still resolves the same
 // way Tcl does, which is the cited tclsh proof.
-// ===========================================================================
 
 #[test]
 fn minify_compact_isolated_renames_proc_everywhere_and_preserves_result() {
@@ -474,14 +465,12 @@ fn minify_compact_short_names_are_left_alone() {
     );
 }
 
-// ===========================================================================
 // minify — aggressive tier (`minify_tcl_aggressive`) — result metadata only
 //
 // We assert the MinifyResult bookkeeping (length / savings) rather than the
 // exact byte output, because the aggressive tier's varname-compaction has a
 // known correctness bug (see the `// BUG:` block below) that we must not
 // depend on. The savings arithmetic is pure and unaffected.
-// ===========================================================================
 
 #[test]
 fn minify_aggressive_reports_consistent_length_bookkeeping() {
@@ -587,12 +576,10 @@ fn minify_compact_preserves_append_accumulator() {
     );
 }
 
-// ===========================================================================
 // snippets — context-aware completion templates (structural)
 //
 // Snippet bodies / labels / filtering are editor-presentation; tclsh has no
 // opinion, so these are asserted structurally.
-// ===========================================================================
 
 fn tcl_ctx<'a>(partial: &'a str, vars: &'a [String]) -> SnippetContext<'a> {
     SnippetContext {
@@ -704,11 +691,9 @@ fn snippets_irules_event_template_declines_when_event_present() {
     );
 }
 
-// ===========================================================================
 // source_style — the source-text style checks (W111/W112/W115/W118)
 //
 // These read raw text columns; structural assertions throughout.
-// ===========================================================================
 
 #[test]
 fn style_w111_flags_overlong_line_only_past_the_limit() {
@@ -851,7 +836,6 @@ fn style_orchestrator_honours_line_suppression_for_line_codes() {
     );
 }
 
-// ===========================================================================
 // linked_editing_range — only scenarios NOT covered by lsp_providers.rs
 //
 // (That file already covers: recursive self-call linking, cursor-inside-body,
@@ -863,7 +847,6 @@ fn style_orchestrator_honours_line_suppression_for_line_codes() {
 // proof it's RIGHT is that the linked sites are real self-invocations Tcl
 // binds to the one proc, and the sites it keeps apart are calls Tcl resolves
 // to a *different* proc.
-// ===========================================================================
 
 use tcl_lsp_core::linked_editing_range::{WORD_PATTERN, linked_editing_ranges};
 

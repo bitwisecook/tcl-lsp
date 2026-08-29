@@ -92,9 +92,7 @@ fn result(src: &str) -> String {
     res
 }
 
-// ===========================================================================
 // Classes, methods, construction
-// ===========================================================================
 
 #[test]
 fn basic_class_and_method() {
@@ -180,9 +178,7 @@ fn tip558_property_all_walks_superclasses() {
     );
 }
 
-// ===========================================================================
 // TIP 558 configurable layer: oo::configurable, property, configure
-// ===========================================================================
 
 #[test]
 fn tip558_configurable_configure_get_set_list() {
@@ -438,9 +434,7 @@ fn empty_constructor_body_ignores_extra_args() {
     );
 }
 
-// ===========================================================================
 // Inheritance, next, nextto
-// ===========================================================================
 
 #[test]
 fn single_inheritance_next() {
@@ -516,9 +510,7 @@ fn constructor_next_chains_to_superclass() {
     assert_eq!(out, "B\nS\n");
 }
 
-// ===========================================================================
 // self / my
-// ===========================================================================
 
 #[test]
 fn self_returns_object_name() {
@@ -581,9 +573,7 @@ fn my_variable_links_instance_state() {
     );
 }
 
-// ===========================================================================
 // Export / unexport, unknown-method errors
-// ===========================================================================
 
 #[test]
 fn export_default_is_lowercase_initial() {
@@ -615,9 +605,7 @@ fn class_factory_names_in_unknown_error() {
     assert_eq!(msg, "unknown method \"new\": must be create or destroy");
 }
 
-// ===========================================================================
 // Destruction
-// ===========================================================================
 
 #[test]
 fn destroy_runs_destructor_and_removes_command() {
@@ -637,9 +625,7 @@ fn destructor_next_chains() {
     assert_eq!(out, "B-d\nD-d\n");
 }
 
-// ===========================================================================
 // oo::define / oo::objdefine
-// ===========================================================================
 
 #[test]
 fn oo_define_adds_method_later() {
@@ -672,9 +658,7 @@ fn oo_define_change_superclass() {
     );
 }
 
-// ===========================================================================
 // Method-context commands outside a method
-// ===========================================================================
 
 #[test]
 fn context_commands_outside_method_are_invalid() {
@@ -690,9 +674,7 @@ fn context_commands_outside_method_are_invalid() {
     }
 }
 
-// ===========================================================================
 // info object / info class
-// ===========================================================================
 
 #[test]
 fn info_object_class_and_isa() {
@@ -745,9 +727,7 @@ fn info_class_methods_lists_only_exported() {
     );
 }
 
-// ===========================================================================
 // forward, mixin
-// ===========================================================================
 
 #[test]
 fn forward_delegates_to_prefix() {
@@ -770,9 +750,7 @@ fn mixin_adds_methods() {
     );
 }
 
-// ===========================================================================
 // A realistic object: a stack
-// ===========================================================================
 
 #[test]
 fn realistic_stack_object() {
@@ -792,9 +770,7 @@ fn realistic_stack_object() {
     );
 }
 
-// ===========================================================================
 // Recursive method dispatch — issue #996 (native-stack safety).
-// ===========================================================================
 
 /// A recursive method call (or `next`/mixin chain) is a genuine native Rust
 /// call per level (`TclOO` method dispatch bypasses the proc trampoline that

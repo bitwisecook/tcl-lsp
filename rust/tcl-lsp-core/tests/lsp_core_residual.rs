@@ -60,10 +60,8 @@ fn reg() -> &'static CommandRegistry {
     static_context_for("tcl8.6").commands()
 }
 
-// ===========================================================================
 // formatting/engine.rs — layout edges (whitespace only; tclsh-cited where the
 // reflow could plausibly change meaning).
-// ===========================================================================
 
 fn fmt(src: &str) -> String {
     format_tcl(src, &FormatterConfig::default(), reg())
@@ -257,12 +255,10 @@ fn fmt_already_formatted_is_unchanged() {
     assert_eq!(fmt(canonical), canonical);
 }
 
-// ===========================================================================
 // refactor/inline_variable.rs — inline a `set x V` into its use(s).
 //
 // Each positive case pins the applied program text AND cites the tclsh proof
 // that BEFORE and AFTER print the same thing. Decline cases return `None`.
-// ===========================================================================
 
 fn inline(src: &str, cursor: u32) -> Option<String> {
     let analysis = Analyser::new().analyse(src, "tcl8.6").clone();
@@ -389,14 +385,12 @@ fn inline_declines_read_form_and_non_set() {
     assert!(inline("puts \"hello\"", 0).is_none());
 }
 
-// ===========================================================================
 // semantic_tokens.rs — the less-common token kinds + modifiers, delta
 // encoding, and the range variant.
 //
 // Token-kind classification is editor presentation (tclsh has no opinion), so
 // these decode the LSP stream and assert structurally against the
 // `legend_token_types` order.
-// ===========================================================================
 
 /// One decoded token: absolute `(line, char, length, type-name)`.
 #[derive(Debug, Clone)]
@@ -662,12 +656,10 @@ fn st_diff_appends_a_single_token_via_provider() {
     );
 }
 
-// ===========================================================================
 // minify.rs — continuation / brace-quote preservation / expr / decline edges.
 //
 // Default-tier minify is semantics-preserving; each pinned output cites the
 // tclsh proof that BEFORE and AFTER compute the same value.
-// ===========================================================================
 
 fn minc(src: &str) -> String {
     minify_tcl(
@@ -790,7 +782,6 @@ fn minify_expr_comparison_inversion_in_value_context_is_safe() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FIXED: minify's double-negation rewrite (`!!x` → `x`) was NOT semantics-
 // preserving in an `expr` VALUE context — it dropped the 0/1 boolean coercion.
 //

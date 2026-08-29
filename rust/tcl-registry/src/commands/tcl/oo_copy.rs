@@ -28,7 +28,7 @@
 // line's capitalisation ("create copies…" in 8.6, "Create copies…" from
 // 9.0 on) — neither affects this command's own arguments or behaviour.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const COPY_SOURCE_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
     StateTransitionDomain::ObjectDispatch,
@@ -202,8 +202,8 @@ pub fn spec() -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SurfaceQuery, Family};
-    
+    use tcl_dialect::model::{Family, SurfaceQuery};
+
     use crate::{
         CallbackKinds, CommandBindingTransition, CommandRegistry, EffectAccessMode,
         ObjectDispatchTarget, ObjectDispatchTransition, ObjectPrivateNamespace, StateTransition,
@@ -260,7 +260,11 @@ mod tests {
     fn omitted_copy_identities_remain_typed_fresh_values() {
         let registry = CommandRegistry::build_default();
         let transitions = registry
-            .resolve_invocation("oo::copy", &["::source"], Some(SurfaceQuery::core(Family::Tcl, "8.6")))
+            .resolve_invocation(
+                "oo::copy",
+                &["::source"],
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            )
             .expect("oo::copy must resolve")
             .state_transitions();
         assert!(transitions.facts().iter().any(|fact| matches!(

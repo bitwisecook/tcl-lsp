@@ -1334,9 +1334,9 @@ pub fn suggested_path(name: &str, pack: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    
-    use tcl_dialect::model::SpecSurface;
+
     use super::*;
+    use tcl_dialect::model::SpecSurface;
 
     fn invalid_non_write_taint_draft() -> Draft {
         let registry = tcl_registry::CommandRegistry::build_default();

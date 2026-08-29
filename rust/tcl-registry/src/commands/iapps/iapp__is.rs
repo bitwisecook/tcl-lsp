@@ -18,7 +18,7 @@
 
 //! `iapp::is` command.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "iapp::is ?arg ...?",
     ..FormSpec::DEFAULT

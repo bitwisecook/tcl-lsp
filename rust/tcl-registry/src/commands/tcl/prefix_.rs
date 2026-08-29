@@ -30,7 +30,7 @@
 //! documentation.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {

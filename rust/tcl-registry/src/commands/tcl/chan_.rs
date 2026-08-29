@@ -24,7 +24,7 @@
 //! `gets`/`open`/`puts`/`read`/`seek`/`tell` commands it later wraps), so
 //! the command-level `dialects` gate below is `TCL85_PLUS`, not `None`.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::FileIo,

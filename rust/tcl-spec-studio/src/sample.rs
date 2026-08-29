@@ -71,9 +71,7 @@ use crate::store::{Origin, Resolution};
 /// pathological input rather than an honest one.
 const MAX_DEPTH: usize = 12;
 
-// ---------------------------------------------------------------------------
 // The words of a sample
-// ---------------------------------------------------------------------------
 
 /// One word of the sample, with everything the Test tab paints it from.
 #[derive(Debug, Clone)]
@@ -158,9 +156,7 @@ fn walk(registry: &CommandRegistry, whole: &str, base: usize, depth: usize, out:
     }
 }
 
-// ---------------------------------------------------------------------------
 // Provenance — which declaration put this word here
-// ---------------------------------------------------------------------------
 
 /// What the spec says about one word: what kind of word it is, the spec
 /// property that says so, and a sentence an author can read.
@@ -373,9 +369,7 @@ fn describe(text: &str) -> String {
     }
 }
 
-// ---------------------------------------------------------------------------
 // The bench
-// ---------------------------------------------------------------------------
 
 /// The Test tab's world: the merged models, plus the live registry they
 /// install into.
@@ -694,9 +688,7 @@ impl<'a> Bench<'a> {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /// A byte offset as the line index takes it.
 ///

@@ -18,7 +18,7 @@
 
 //! `tcltest::configure` command.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// Levels accepted by `-verbose`.  A combination is given as a list (or a
 /// string of single-letter abbreviations), so the set is *not* closed.

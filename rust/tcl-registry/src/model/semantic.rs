@@ -203,7 +203,8 @@ pub fn resolve_structured_invocation_in_context<'r, 'w>(
         // A computed head selects nothing in either model; report it through
         // the ordinary path so the decline names the word kind rather than a
         // missing spec.
-        return commands.resolve_structured_invocation(words, Some(context.context().authoring_query()));
+        return commands
+            .resolve_structured_invocation(words, Some(context.context().authoring_query()));
     };
     if context.context().resolve_spec(commands, name).is_none() {
         return StructuredInvocationResolution::from_unresolved(

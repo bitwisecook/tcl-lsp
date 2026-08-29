@@ -54,13 +54,13 @@
 //! command off. A row names its family directly now (Q13), so a Jim window
 //! projects exactly as a Tcl one does.
 
-use tcl_dialect::model::{SpecWindow};
 use std::sync::LazyLock;
+use tcl_dialect::model::SpecWindow;
 
 use tcl_dialect::model::{Family, Version, VersionAxisId, VersionSet};
 
 use super::{Log, Stmt, leak_str, list_words};
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// What one `available` row set translates to in the 1.x fields.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -97,23 +97,23 @@ const PACKAGE_DIALECT_SURFACES: &[(&str, &[SpecSurface])] = &[("Tk", SpecSurface
 /// seeded environment cannot drift from its own translation.
 static ENVIRONMENT_PACKAGE_SURFACES: LazyLock<Vec<(String, &'static [SpecSurface])>> =
     LazyLock::new(|| {
-    tcl_dialect::model::compiled_definitions()
-        .into_iter()
-        .filter(|definition| definition.core.is_some())
-        .filter_map(|definition| {
-            let surface = crate::catalogue::dialect_surface(definition.id.as_str())?;
-            let ambient: Vec<_> = definition
-                .expected_packages
-                .iter()
-                .filter(|placement| placement.ambient)
-                .collect();
-            let [sole] = ambient.as_slice() else {
-                return None;
-            };
-            Some((sole.package.as_ref().to_owned(), surface))
-        })
-        .collect()
-});
+        tcl_dialect::model::compiled_definitions()
+            .into_iter()
+            .filter(|definition| definition.core.is_some())
+            .filter_map(|definition| {
+                let surface = crate::catalogue::dialect_surface(definition.id.as_str())?;
+                let ambient: Vec<_> = definition
+                    .expected_packages
+                    .iter()
+                    .filter(|placement| placement.ambient)
+                    .collect();
+                let [sole] = ambient.as_slice() else {
+                    return None;
+                };
+                Some((sole.package.as_ref().to_owned(), surface))
+            })
+            .collect()
+    });
 
 /// The 1.x dialect surface standing behind `package`, when one does.
 pub(crate) fn package_surface(package: &str) -> Option<&'static [SpecSurface]> {
@@ -411,4 +411,3 @@ fn window_of(
         }
     }
 }
-

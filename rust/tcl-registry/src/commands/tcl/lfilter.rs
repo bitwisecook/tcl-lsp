@@ -26,7 +26,7 @@
 //! manual-page trees at <https://www.tcl-lang.org/man/>.
 
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 // `lfilter` assigns to its loop variable(s) on every iteration it runs —
 // Tcl lfilter(n): "lfilter assigns the contents of the element to varname"

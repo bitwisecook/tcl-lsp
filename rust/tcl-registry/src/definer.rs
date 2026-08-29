@@ -37,9 +37,9 @@
 //! [`CommandSpec::definition_body`]: crate::CommandSpec::definition_body
 
 use crate::arg_role::ArgRole;
-use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::model::{surface_admits};
-use tcl_dialect::model::{SurfaceQuery};
+use tcl_dialect::model::SpecSurface;
+use tcl_dialect::model::SurfaceQuery;
+use tcl_dialect::model::surface_admits;
 
 /// How a member's argument layout is determined — most members are `Flat`
 /// (their `arg_roles` give the layout directly), but two irregular shapes recur
@@ -1242,14 +1242,12 @@ impl DefinitionBodyGrammar {
     }
 }
 
-// ---------------------------------------------------------------------------
 // TclOO — `oo::class` / `oo::configurable` / `oo::abstract` / `oo::singleton`
 // `create` bodies and the bare `oo::define` / `oo::objdefine` script form.
 //
 // The irregular `self …` (nested member) and `property … -get/-set …`
 // (flag-keyed bodies) forms are handled by the walker directly; every flat
 // member is described here.
-// ---------------------------------------------------------------------------
 
 /// `method NAME PARAMS BODY` — shared by `TclOO` and snit.
 const METHOD_ROLES: &[(u8, ArgRole)] = &[
@@ -1597,9 +1595,7 @@ const SNIT_MANUFACTURERS: &[ManufacturerMethod] = &[ManufacturerMethod {
 /// whole grammar) still reads the path from registry data.
 pub const TCLOO_MEMBER_BODY_NAMESPACE_PATH: &[&str] = &["::oo::Helpers"];
 
-// ---------------------------------------------------------------------------
 // snit — `snit::type` / `snit::widget` / `snit::widgetadaptor` bodies.
-// ---------------------------------------------------------------------------
 
 /// `onconfigure -option valueVar BODY` (snit 1.x) — the value var + body.
 const ONCONFIGURE_ROLES: &[(u8, ArgRole)] = &[(1, ArgRole::VarWrite), (2, ArgRole::Body)];
@@ -1789,7 +1785,6 @@ pub const SNIT_WIDGET_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     property_accessor_methods: &[],
 };
 
-// ---------------------------------------------------------------------------
 // [incr Tcl] — `itcl::class Name { … }` (and the bare `class` alias) bodies.
 //
 // The access modifiers `public` / `protected` / `private` are prefix wrappers
@@ -1797,7 +1792,6 @@ pub const SNIT_WIDGET_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
 // Wrapper`, handled generically like TclOO's `self`.  `inherit` lists base
 // classes (multiple inheritance).  `variable` declares an instance variable
 // (optionally with an init value + config body); `common` a class/static one.
-// ---------------------------------------------------------------------------
 
 /// itcl `variable NAME ?init? ?configbody?` — the declared name plus the
 /// optional trailing config body (the script run when the public variable is
@@ -1893,7 +1887,6 @@ pub const ITCL_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
     property_accessor_methods: &[],
 };
 
-// ---------------------------------------------------------------------------
 // SpecTcl — the `.tclspec` spec-pack DSL's own declaration bodies.
 //
 // `speclib NAME VERSION { … }` is a definition body in exactly the sense the
@@ -1912,7 +1905,6 @@ pub const ITCL_GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
 // empty here — a spec pack creates no objects — so consumers keyed on those
 // fields see nothing, and `DefinerFamily::SpecTcl` is the one-word way for a
 // consumer that must not treat this as a class system to say so.
-// ---------------------------------------------------------------------------
 
 /// A `SpecTcl` block statement that names something and then takes a block:
 /// `command NAME { … }`, `values NAME { … }`, `subcommand NAME { … }`.
@@ -2295,8 +2287,8 @@ pub const SPECTCL_GRAMMARS: &[&DefinitionBodyGrammar] = &[
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SurfaceQuery, Family};
-    
+    use tcl_dialect::model::{Family, SurfaceQuery};
+
     use super::{
         DeclaredMemberVisibility, MemberRetraction, MemberVisibility, SlotOp, SlotSpec,
         TCLOO_GRAMMAR,
@@ -2507,7 +2499,11 @@ mod tests {
         );
         assert_eq!(
             method
-                .indices_for_call_in(&private, Some(SurfaceQuery::core(Family::Tcl, "9.0")), ArgRole::Body)
+                .indices_for_call_in(
+                    &private,
+                    Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+                    ArgRole::Body
+                )
                 .collect::<Vec<_>>(),
             vec![3]
         );

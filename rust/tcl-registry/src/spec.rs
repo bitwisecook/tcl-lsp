@@ -54,9 +54,9 @@ use crate::taint::{SetterConstraint, TaintColour};
 use crate::traits::Traits;
 use crate::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 use crate::world_effect::WorldEffectDescriptor;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 use tcl_dialect::model::SurfaceQuery;
-use tcl_dialect::model::{surface_admits};
+use tcl_dialect::model::surface_admits;
 
 /// Dynamic argument role resolver.
 ///
@@ -794,11 +794,19 @@ impl CaseListSpec {
     /// release; the gate only applies when Tcl 8.4 would scan an option-like
     /// first word and consume it.
     #[must_use]
-    pub(crate) fn two_arg_body_roles_allowed(self, args: &[&str], dialect: Option<SurfaceQuery<'_>>) -> bool {
+    pub(crate) fn two_arg_body_roles_allowed(
+        self,
+        args: &[&str],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> bool {
         self.two_arg_optionless_form_is_available(args, dialect)
     }
 
-    fn two_arg_optionless_form_is_available(self, args: &[&str], dialect: Option<SurfaceQuery<'_>>) -> bool {
+    fn two_arg_optionless_form_is_available(
+        self,
+        args: &[&str],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> bool {
         args.len() != 2
             || self.subject_args != 1
             || args.first().is_none_or(|word| !word.starts_with('-'))
@@ -3819,8 +3827,8 @@ impl SubCommand {
 
 #[cfg(test)]
 mod tests {
-    use tcl_dialect::model::{SurfaceQuery, Family};
-    
+    use tcl_dialect::model::{Family, SurfaceQuery};
+
     use super::*;
     use crate::registry::CommandRegistry;
 
@@ -3921,11 +3929,17 @@ mod tests {
         // A quick fix must not offer to append `optionsVar` to a document
         // whose Fauxpkg is 1.x: that release has no argument slot for it.
         assert_eq!(
-            spec.optional_trailing_arg_names(Some(SurfaceQuery::core(Family::Tcl, "9.0")), Some("1.0")),
+            spec.optional_trailing_arg_names(
+                Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+                Some("1.0")
+            ),
             vec!["resultVar"]
         );
         assert_eq!(
-            spec.optional_trailing_arg_names(Some(SurfaceQuery::core(Family::Tcl, "9.0")), Some("2.0")),
+            spec.optional_trailing_arg_names(
+                Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+                Some("2.0")
+            ),
             vec!["resultVar", "optionsVar"]
         );
         assert_eq!(
@@ -3948,8 +3962,11 @@ mod tests {
         };
         assert!(spec.primary_synopsis(Some("3.0")).is_none());
         assert!(
-            spec.optional_trailing_arg_names(Some(SurfaceQuery::core(Family::Tcl, "9.0")), Some("3.0"))
-                .is_empty()
+            spec.optional_trailing_arg_names(
+                Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+                Some("3.0")
+            )
+            .is_empty()
         );
         // Retirement is exclusive, so 2.9 still documents it.
         assert_eq!(

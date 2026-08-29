@@ -20,7 +20,7 @@
 
 use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 const UPVAR_FRAME_EFFECT: FrameEffectSpec = FrameEffectSpec {
     level_word: FrameLevelWord::ArityParity,

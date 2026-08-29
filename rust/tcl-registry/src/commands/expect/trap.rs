@@ -18,7 +18,7 @@
 
 //! `trap` command.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "trap ?command? ?signal ...?",
     ..FormSpec::DEFAULT

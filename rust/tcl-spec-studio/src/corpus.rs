@@ -69,9 +69,7 @@ use crate::draft::{self, Draft};
 /// How deep the body walk follows nested scripts.
 const MAX_DEPTH: usize = 16;
 
-// ---------------------------------------------------------------------------
 // What a body can be made to admit
-// ---------------------------------------------------------------------------
 
 /// One option the body dispatches on.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -239,9 +237,7 @@ fn option_row(option: &OptionShape) -> Value {
     })
 }
 
-// ---------------------------------------------------------------------------
 // Reading the body
-// ---------------------------------------------------------------------------
 
 /// One statement of the body, flattened to its word texts.
 struct Stmt {
@@ -370,9 +366,7 @@ fn consumes_a_value(script: &str) -> bool {
         .any(|needle| script.contains(needle))
 }
 
-// ---------------------------------------------------------------------------
 // The scan
-// ---------------------------------------------------------------------------
 
 /// Read `body` — the text between a proc's braces — for the shapes above.
 ///

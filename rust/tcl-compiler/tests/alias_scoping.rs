@@ -162,14 +162,12 @@ fn fires(src: &str, code: &str) -> bool {
     codes(src).iter().any(|c| c == code)
 }
 
-// ===========================================================================
 // The memory-SSA alias lattice.
 //
 // STRUCTURAL: "alias set" is a compiler-internal artefact (memory-SSA union-
 // find). The *behaviour* it models — a write through one upvar name being
 // visible through another name aliasing the same caller cell — is C-Tcl-
 // observable and pinned once below in `aliased_write_visible_through_alias`.
-// ===========================================================================
 mod alias_lattice_merge {
     use super::*;
 
@@ -237,7 +235,6 @@ mod alias_lattice_merge {
     }
 }
 
-// ===========================================================================
 // Alias-escape lifecycle — an aliased write escapes the frame, so it is
 // neither a dead store (W220) nor a set-but-never-used local (W211).
 //
@@ -246,7 +243,6 @@ mod alias_lattice_merge {
 // cell that outlives the local frame), pinned with tclsh below. The control
 // (`plain_local_still_flagged`) shows a bare `set` is frame-local and DOES NOT
 // escape — also tclsh-pinned.
-// ===========================================================================
 mod alias_escapes_lifecycle {
     use super::*;
 
@@ -333,11 +329,9 @@ mod alias_escapes_lifecycle {
     }
 }
 
-// ===========================================================================
 // Taint through alias — only the direct (non-aliased) sink case maps to the
 // `run_all_checks` surface; see the module-level DIVERGENCE note for the two
 // alias-dependent cases.
-// ===========================================================================
 mod taint_through_alias {
     use super::*;
 
@@ -383,14 +377,12 @@ mod taint_through_alias {
     // T100 fires here. Not asserted against the wrong surface; see module note.
 }
 
-// ===========================================================================
 // global_declaration_indices — the declaration-index grammar.
 //
 // STRUCTURAL: these pin the declaration-index *grammar* the memory-SSA alias
 // detector and the LSP declaration provider share. The grammar exists to mirror
 // which words `global` actually binds in Tcl; that binding is pinned
 // behaviourally in `alias_escapes_lifecycle::global_write_only_*`.
-// ===========================================================================
 mod global_declaration_indices_tests {
     use super::*;
 
@@ -414,11 +406,9 @@ mod global_declaration_indices_tests {
     // pass arg *texts*, which every call site does.
 }
 
-// ===========================================================================
 // variable_declaration_indices — the declaration-index grammar.
 // STRUCTURAL grammar; the `variable` binding it models is tclsh-pinned in
 // `alias_escapes_lifecycle::variable_write_only_*`.
-// ===========================================================================
 mod variable_declaration_indices_tests {
     use super::*;
 
@@ -443,7 +433,6 @@ mod variable_declaration_indices_tests {
     }
 }
 
-// ===========================================================================
 // upvar_local_declaration_indices — the declaration-index grammar.
 //
 // STRUCTURAL: the index grammar across every level-word form (default / decimal
@@ -451,7 +440,6 @@ mod variable_declaration_indices_tests {
 // which token names the local alias in real Tcl; that alias binding is pinned
 // behaviourally in `alias_escapes_lifecycle` (upvar + namespace-upvar writes
 // escaping their caller / namespace cell).
-// ===========================================================================
 mod upvar_local_declaration_indices_tests {
     use super::*;
 

@@ -18,7 +18,7 @@
 
 //! `nextto` — invoke a specific class's implementation of the current method.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// `nextto` invokes a method implementation the registry cannot see into —
 /// an arbitrary, program-defined method body picked at runtime by the

@@ -40,9 +40,9 @@
 // exactly as its base release does, so the group carries an iRules row
 // alongside `TCL8X`.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
-use tcl_dialect::surface;
 use tcl_dialect::model::Family;
+use tcl_dialect::model::SpecSurface;
+use tcl_dialect::surface;
 
 const FORMS: &[FormSpec] = &[
     FormSpec {
@@ -105,7 +105,10 @@ pub fn spec() -> CommandSpec {
         name: "case",
         // Tcl 8.x only; removed in Tcl 9.0 (no `doc/case.n`, no command) —
         // see the module comment. iRules embeds Tcl 8.4.6 and keeps it.
-        surface: Some(surface![SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.7"))]), SpecSurface::core(Family::F5Irules)]),
+        surface: Some(surface![
+            SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.7"))]),
+            SpecSurface::core(Family::F5Irules)
+        ]),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::CONTROL_FLOW
             | Traits::LANGUAGE_KEYWORD

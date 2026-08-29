@@ -127,9 +127,7 @@ fn cmd_err(cmd: &str, msg: &str) {
     assert_eq!(result, msg, "{cmd}");
 }
 
-// =====================================================================
 // expr: arithmetic operators (+ - * / % ** integer path)
-// =====================================================================
 
 /// The *dynamic* `expr $e` form (the expression text comes from a variable) is
 /// compiled to `EXPR_STK` and evaluated at runtime through the [`ExprEval`]
@@ -196,9 +194,7 @@ fn expr_stk_dynamic_errors() {
     assert_eq!(result, "boom"); // command-subst error propagates
 }
 
-// =====================================================================
 // expr: an unparsable expression is a syntax error
-// =====================================================================
 
 /// C Tcl's syntax errors for expressions that do not parse, through the `expr`
 /// *command*.
@@ -278,9 +274,7 @@ fn expr_stk_rejects_an_unparsable_expression() {
     cmd_eq("set e {2+3}\nexpr $e", "5");
 }
 
-// =====================================================================
 // expr: TIP 582 `#` comments
-// =====================================================================
 
 /// A `#` comment inside an expression, which C has supported since TIP 582
 /// (`tclCompExpr.c:168` makes `COMMENT` a first-class lexeme; `:1931-1942`
@@ -477,9 +471,7 @@ fn expr_integer_promotion_on_overflow() {
     expr_eq("1000000000000 * 1000000000000", "1000000000000000000000000");
 }
 
-// =====================================================================
 // expr: floating-point arithmetic and formatting
-// =====================================================================
 
 #[test]
 fn expr_double_arithmetic() {
@@ -553,9 +545,7 @@ fn bug_double_nan_result_is_domain_error() {
     expr_err("Inf - Inf", "domain error: argument not in valid range");
 }
 
-// =====================================================================
 // expr: bitwise & shift operators (& | ^ ~ << >>)
-// =====================================================================
 
 #[test]
 fn expr_bitwise_operators() {
@@ -603,9 +593,7 @@ fn expr_integer_only_operator_rejects_float() {
     );
 }
 
-// =====================================================================
 // expr: comparison operators (< > <= >= == !=) and string forms (eq ne in ni)
-// =====================================================================
 
 #[test]
 fn expr_numeric_comparisons() {
@@ -655,9 +643,7 @@ fn expr_in_and_ni_operators() {
     expr_eq("\"a b\" in {{a b} c}", "1"); // multi-word element
 }
 
-// =====================================================================
 // expr: logical operators (! && ||) and the ternary ?:
-// =====================================================================
 
 #[test]
 fn expr_logical_operators() {
@@ -696,9 +682,7 @@ fn expr_ternary_operator() {
     expr_eq("1 ? 42 : (1/0)", "42");
 }
 
-// =====================================================================
 // expr: unary operand-type errors
-// =====================================================================
 
 #[test]
 fn expr_unary_operand_errors() {
@@ -732,9 +716,7 @@ fn expr_binary_operand_errors() {
     );
 }
 
-// =====================================================================
 // expr: literals — hex / octal / binary / scientific
-// =====================================================================
 
 #[test]
 fn expr_radix_literals() {
@@ -759,9 +741,7 @@ fn expr_scientific_notation() {
     expr_eq("6.022e23 > 1", "1");
 }
 
-// =====================================================================
 // expr: precedence & associativity
-// =====================================================================
 
 #[test]
 fn expr_precedence_and_associativity() {
@@ -777,9 +757,7 @@ fn expr_precedence_and_associativity() {
     expr_eq("2 * 3 ** 2", "18"); // ** before * : 2 * 9
 }
 
-// =====================================================================
 // expr: variable / command substitution / quoted-string operands
-// =====================================================================
 
 #[test]
 fn expr_variable_and_command_operands() {
@@ -799,12 +777,10 @@ fn expr_unknown_variable_errors() {
     assert_eq!(result, "can't read \"nope\": no such variable");
 }
 
-// ---------------------------------------------------------------------
 // expr with *variable* operands: these are NOT const-folded by the
 // compiler, so they drive the VM's runtime arithmetic tower in `expr.rs`
 // (`arith`/`int_arith`/`dbl_arith`/`ipow`/`unary`), not just the codegen
 // constant fold. Each value is pinned to tclsh 8.6/9.0 (which agree).
-// ---------------------------------------------------------------------
 
 /// Helper: run `expr {EXPR}` with `a`/`b` bound first.
 fn expr_ab(a: &str, b: &str, e: &str, want: &str) {
@@ -1101,9 +1077,7 @@ fn expr_read_trace_fires_on_operand() {
     assert_eq!(result, "can't read \"x\": nope"); // tclsh wraps the trace error
 }
 
-// =====================================================================
 // tcl::mathfunc: integer / rounding / conversion functions
-// =====================================================================
 
 #[test]
 fn mathfunc_abs() {
@@ -1292,9 +1266,7 @@ fn mathfunc_bool() {
     expr_eq("bool(2.5)", "1");
 }
 
-// =====================================================================
 // tcl::mathfunc: sqrt / pow / exp / log and the domain guard
-// =====================================================================
 
 #[test]
 fn mathfunc_sqrt_pow_exp_log() {
@@ -1334,9 +1306,7 @@ fn mathfunc_pow_negative_base_pole() {
     expr_eq("pow(0,-1)", "Inf");
 }
 
-// =====================================================================
 // tcl::mathfunc: trigonometric / two-arg functions
-// =====================================================================
 
 #[test]
 fn mathfunc_trigonometric() {
@@ -1369,9 +1339,7 @@ fn mathfunc_fmod_by_zero_is_domain_error() {
     expr_err("fmod(7, 0)", "domain error: argument not in valid range");
 }
 
-// =====================================================================
 // tcl::mathfunc: classification predicates (isfinite/isinf/isnan)
-// =====================================================================
 
 #[test]
 fn mathfunc_classification_predicates() {
@@ -1466,9 +1434,7 @@ fn bug_classification_predicate_rejects_nan_literal() {
     expr_eq("isunordered(NaN, 1.0)", "1"); // tclsh 9.0
 }
 
-// =====================================================================
 // tcl::mathfunc: max / min
-// =====================================================================
 
 #[test]
 fn mathfunc_max_min_integer() {
@@ -1508,9 +1474,7 @@ fn bug_max_min_mixed_preserves_winner_type() {
     expr_eq("max(2, 1.5)", "2");
 }
 
-// =====================================================================
 // tcl::mathfunc: arg-count and bad-argument errors
-// =====================================================================
 
 // BUG: the math-function arity error wording diverges across every function.
 // tclsh 9.0 says "not enough arguments for math function \"X\"" (too few) and
@@ -1562,9 +1526,7 @@ fn bug_mathfunc_arity_error_wording() {
     );
 }
 
-// =====================================================================
 // tcl::mathfunc: rand / srand (gap — not implemented in the VM)
-// =====================================================================
 
 // BUG: rand()/srand() are missing from the VM. tclsh implements both; the VM
 // has no `tcl::mathfunc::rand` / `::srand` registration, so an `expr` using
@@ -1592,9 +1554,7 @@ fn bug_rand_returns_unit_interval_and_missing() {
     assert_eq!(result, "1"); // tclsh 8.6/9.0
 }
 
-// =====================================================================
 // ::tcl::mathop::* operator commands
-// =====================================================================
 
 #[test]
 fn mathop_arithmetic_fold() {

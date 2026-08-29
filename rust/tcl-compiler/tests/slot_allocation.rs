@@ -100,9 +100,7 @@ fn interferes(graph: &Interference, a: &str, b: &str) -> bool {
     graph.get(a).is_some_and(|s| s.contains(b))
 }
 
-// ===========================================================================
 // Interference
-// ===========================================================================
 
 #[test]
 fn overlapping_locals_interfere() {
@@ -124,9 +122,7 @@ fn disjoint_locals_do_not_interfere() {
     );
 }
 
-// ===========================================================================
 // Coalescing
-// ===========================================================================
 
 #[test]
 fn disjoint_ranges_share_one_slot() {

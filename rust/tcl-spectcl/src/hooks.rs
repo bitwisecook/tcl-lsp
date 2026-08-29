@@ -64,9 +64,7 @@ use tcl_spec_hooks::{HookOwner, HookProgram, PackPrograms, tclvm_host};
 use crate::loader::{HookOwner as DeclOwner, HookSource, PackCommand};
 use crate::pack::PackSet;
 
-// ---------------------------------------------------------------------------
 // The adapter: HookDecl → HookProgram
-// ---------------------------------------------------------------------------
 
 /// One pack's declared hook **bodies**, as the host takes them.
 ///
@@ -120,9 +118,7 @@ fn owner_of(owner: &DeclOwner) -> HookOwner {
     }
 }
 
-// ---------------------------------------------------------------------------
 // The plan: one slot assignment per pack-set content
-// ---------------------------------------------------------------------------
 
 /// One pack set's hook bodies with the process-wide slot each is bound to.
 ///
@@ -218,9 +214,7 @@ pub fn plan_for(packs: &PackSet) -> Arc<HookPlan> {
     plan
 }
 
-// ---------------------------------------------------------------------------
 // Specialising a loaded spec with its slots' thunks
-// ---------------------------------------------------------------------------
 
 /// `command`'s spec with each declared hook body's thunk in place of the
 /// loader's abstaining placeholder.
@@ -368,9 +362,7 @@ fn bind_option(options: &mut [OptionSpec], name: &str, slot: HookSlot) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // The per-thread host
-// ---------------------------------------------------------------------------
 
 /// The plan a thread should be serving, and a generation to notice a change
 /// by. Generation `0` means "no pack hooks have ever been published", which is

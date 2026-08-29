@@ -46,7 +46,7 @@ use crate::spec::OptionRelation;
 use crate::state_transition::StateTransitionDescriptor;
 use crate::traits::Traits;
 use crate::world_effect::WorldEffectDescriptor;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// Literal words that select one invocation form from siblings with the same
 /// arity.

@@ -20,7 +20,7 @@
 
 use crate::hooks::InlineCodegenHookId;
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 // Confirmed byte-for-byte stable synopsis/switch text across the fetched
 // Tcl 8.4, 8.5, 8.6, 9.0, and 9.1 manpages: no switch was added, removed,

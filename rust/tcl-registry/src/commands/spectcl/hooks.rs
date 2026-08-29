@@ -38,7 +38,7 @@
 use crate::prelude::*;
 
 use super::SOURCE;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 
 /// A hook property statement.  `silence` is what the field's abstention
 /// means — the one thing an author most needs and most often assumes wrongly,

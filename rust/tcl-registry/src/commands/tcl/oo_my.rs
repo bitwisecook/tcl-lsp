@@ -18,7 +18,7 @@
 
 //! `my` — invoke a method on the current object.
 use crate::prelude::*;
-use tcl_dialect::model::{SpecSurface};
+use tcl_dialect::model::SpecSurface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "my methodName ?arg ...?",
     ..FormSpec::DEFAULT

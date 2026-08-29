@@ -21,9 +21,7 @@
 
 use super::{D, codes, fires};
 
-// ---------------------------------------------------------------------------
 // FP-STY-01 — W001 Tk geometry-manager shortcut form (grid/pack/place pathName)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_sty_01_grid_pathname_no_w001() {
@@ -66,9 +64,7 @@ fn fp_sty_01_genuine_unknown_subcommand_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-STY-02 — W306 escaped `\[` / `\$` in quoted regexp patterns
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_sty_02_escaped_bracket_no_w306() {
@@ -133,9 +129,7 @@ fn fp_sty_02_live_cmdsub_in_quoted_pattern_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-STY-03 — W104 usage / template notation (`?arg?`, `<placeholder>`, `...`)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_sty_03_optarg_question_marks_no_w104() {
@@ -182,9 +176,7 @@ fn fp_sty_03_genuine_list_building_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-STY-04 — W126 non-channel value: lattice fix for lassign destructure
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_sty_04_lassign_destructure_channels_no_w126() {
@@ -230,9 +222,7 @@ fn tn_sty_04_puts_single_arg_is_content_not_channel() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-STY-05 — W302 catch fire-and-forget (bare + subcommand-aware)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_sty_05_bare_close_fire_and_forget_no_w302() {
@@ -279,9 +269,7 @@ fn fp_sty_05_user_call_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-STY-06 — W124 OID-like dotted chains (not IPv4)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_sty_06_oid_chain_no_w124() {
@@ -309,9 +297,7 @@ fn fp_sty_06_real_ipv4_shaped_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-STY-07 — W120 package self-call (file is the provider)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_sty_07_provider_self_call_no_w120() {
@@ -338,9 +324,7 @@ fn fp_sty_07_no_provide_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-STY-08 — W214 empty-body proc stubs
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_sty_08_empty_body_stub_no_w214() {
@@ -395,9 +379,7 @@ fn fp_sty_08_bare_keyword_param_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-STY-09 — W214 dispatcher needs arity-compatible peer (D3-P9/D4-F4)
-// ---------------------------------------------------------------------------
 
 const FP_STY_09_REPRO: &str = "\
 namespace eval ::n {
@@ -442,9 +424,7 @@ namespace eval ::n {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-STY-10 — scan_provably_no_match soundness (%n / Inf / format whitespace, D4-F1)
-// ---------------------------------------------------------------------------
 
 const FP_STY_10_REPRO: &str = "proc f {} { scan {} %n n; puts $n }\n";
 
@@ -494,9 +474,7 @@ fn fp_sty_10_scan_genuine_no_match_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-STY-11 — variadic var-write resolver for scan / lassign / binary scan (D4-F2)
-// ---------------------------------------------------------------------------
 
 const FP_STY_11_REPRO: &str = "\
 proc f {} {
@@ -553,9 +531,7 @@ fn fp_sty_11_scan_fewer_specifiers_than_vars_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-STY-12 — W216 / W212 braced indirect-array-element idiom ${var}(idx)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_sty_12_set_indirect_array_no_w216_w212() {
@@ -674,9 +650,7 @@ fn fp_sty_12_index_less_brace_still_fires_w212() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-STY-13 — W113 redefining an overridable Tcl library procedure
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_sty_13_unknown_override_no_w113() {
@@ -746,9 +720,7 @@ fn fp_sty_13_non_bytecompiled_c_command_still_fires_w113() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // FP-STY-14 — W105 single bare-variable body is a script reference
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_sty_14_eval_single_var_body_no_w105() {
@@ -848,10 +820,8 @@ fn fp_sty_14_uplevel_body_participates_in_w105_like_eval() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-STY-15 — lexer: $ before a closing " merged the quoted word with the next
 // (E002 / E205 / W306)
-// ---------------------------------------------------------------------------
 //
 // NOTE: the direct lexer API test for this word-boundary case has no
 // diagnostic counterpart and is skipped here (bridge-only; 1 test omitted).
@@ -913,9 +883,7 @@ fn fp_sty_15_live_var_in_quoted_pattern_still_w306() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-STY-16 — W201 manual-path-concat on prose / protocol / display strings
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_sty_16_http_request_line_no_w201() {
@@ -982,10 +950,8 @@ fn fp_sty_16_path_with_command_sub_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-STY-17 — W001 same-file shadow suppression (proc / class / alias /
 // ensemble / stub redefining a registry ensemble command)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_sty_17_proc_shadow_no_w001() {
@@ -1086,9 +1052,7 @@ fn fp_sty_17_proc_body_call_shadowed_by_later_def_no_w001() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-STY-18 — W001 `{*}`-expanded subcommand position (`cmd {*}{subcmd args…}`)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_sty_18_expanded_literal_subcommand_no_w001() {
@@ -1115,10 +1079,8 @@ fn fp_sty_18_genuine_unknown_subcommand_without_expansion_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-STY-19 — missing Tk 9.0 subcommands (`wm iconbadge`, `grid`/`pack`/
 // `place content`)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_sty_19_wm_iconbadge_not_unknown() {

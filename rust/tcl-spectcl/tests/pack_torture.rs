@@ -50,9 +50,7 @@ use tcl_spectcl::discovery::{DiscoveryOptions, Origin, PackFile, Tier};
 use tcl_spectcl::loader::evaluate_pack;
 use tcl_spectcl::pack::{self, PackSet};
 
-// ---------------------------------------------------------------------------
 // Harness
-// ---------------------------------------------------------------------------
 
 /// A private on-disk workspace for one test.
 fn scratch(name: &str) -> PathBuf {
@@ -159,9 +157,7 @@ fn within<T: Send + 'static>(
     }
 }
 
-// ---------------------------------------------------------------------------
 // Axis 1a — the byte level
-// ---------------------------------------------------------------------------
 
 /// Every degenerate byte sequence a file can hold loads to *something* and
 /// never panics.
@@ -490,9 +486,7 @@ fn a_non_utf8_pack_file_is_a_notice_and_its_neighbour_still_loads() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
-// ---------------------------------------------------------------------------
 // Axis 1b — semantics
-// ---------------------------------------------------------------------------
 
 /// An invalid lifecycle ordering is a notice and drops that lifecycle, and the
 /// command carrying it still loads — the "notice-only for packs" rule from
@@ -1058,9 +1052,7 @@ fn a_pack_redefining_a_builtin_reports_and_does_not_silently_win() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
-// ---------------------------------------------------------------------------
 // Axis 2 — scale
-// ---------------------------------------------------------------------------
 
 /// A generated pack with thousands of commands loads, installs, and stays
 /// queryable in bounded time.
@@ -1210,9 +1202,7 @@ fn one_broken_pack_does_not_cost_the_others() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
-// ---------------------------------------------------------------------------
 // Axis 6 — adversarial content
-// ---------------------------------------------------------------------------
 
 /// Injection shapes inside spec *strings* are data, not code.
 ///
@@ -1301,9 +1291,7 @@ fn adversarial_pack_names_do_not_confuse_notice_routing() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
-// ---------------------------------------------------------------------------
 // Axis 4 — the version gate, at the loader/analyser altitude
-// ---------------------------------------------------------------------------
 
 /// Analyse `source` with `packs` overlaid, returning the version-gate codes and
 /// messages only.
@@ -1505,9 +1493,7 @@ fn editing_a_lifecycle_stamp_changes_the_verdict_on_reload() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
-// ---------------------------------------------------------------------------
 // Regressions for the notice gaps this sweep found (#1634, #1635, #1637, #1638)
-// ---------------------------------------------------------------------------
 
 /// A `.tclspec` saved with a UTF-8 BOM loads normally (#1635).
 ///

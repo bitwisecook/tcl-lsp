@@ -1609,12 +1609,10 @@ mod tests {
         assert_eq!(d.message, "missing close-brace");
     }
 
-    // -----------------------------------------------------------------
     // Span precision: the highlighted range must cover the stray `]` /
     // `}` character itself (issue: `span.end()` is exclusive per
     // `span_to_range`, so an end offset *at* the delimiter excludes it
     // from the editor's underline).
-    // -----------------------------------------------------------------
 
     fn e100_span(src: &str) -> tcl_lexer::Span {
         let mut a = Analyser::new();
@@ -1673,12 +1671,10 @@ mod tests {
         assert_eq!(&src[span.start() as usize..span.end() as usize], "}");
     }
 
-    // -----------------------------------------------------------------
     // Backslash-run parity: `\]` (odd run) is escaped and must not
     // fire; `\\]` (even run — a literal backslash followed by a bare
     // `]`) is NOT escaped and must fire. A naive "one preceding
     // backslash" check gets the even case wrong.
-    // -----------------------------------------------------------------
 
     #[test]
     fn single_backslash_escapes_the_bracket() {
@@ -1698,11 +1694,9 @@ mod tests {
         assert!(!codes(r"puts foo\\\]").contains(&"E100".to_string()));
     }
 
-    // -----------------------------------------------------------------
     // E102 embedded-`}` detection: a `}` need not be a token's entire
     // text to be stray — `foo}bar` is just as unmatched as a lone `}`,
     // matching E100's compound-token scan (`foo]bar`).
-    // -----------------------------------------------------------------
 
     #[test]
     fn embedded_close_brace_emits_e102() {
@@ -1729,12 +1723,10 @@ mod tests {
         assert!(d.fixes.is_empty());
     }
 
-    // -----------------------------------------------------------------
     // Known-name breadth: the bracket-insertion heuristic must
     // recognise a call to an already-declared user proc / tclOO class /
     // alias / ensemble, not just a registry builtin — the general form
     // of "unknown, aliasing, tclOO" command resolution.
-    // -----------------------------------------------------------------
 
     #[test]
     fn insertion_point_recognises_user_defined_proc() {
@@ -1780,13 +1772,11 @@ mod tests {
         assert_eq!(e100.fixes.len(), 1, "{:?}", e100.fixes);
     }
 
-    // -----------------------------------------------------------------
     // Recovery/diagnostic unification: the repair must never fire (and
     // corrupt downstream command-invocation recording) where E100 does
     // not — regression coverage for the drift between the old
     // independent `find_stray_close_bracket` and the escape-aware E100
     // scan.
-    // -----------------------------------------------------------------
 
     #[test]
     fn escaped_bracket_with_arity_overflow_neither_fires_nor_repairs() {
