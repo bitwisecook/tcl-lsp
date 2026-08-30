@@ -331,6 +331,20 @@ impl DocumentState {
     }
 }
 
+/// A snapshot of what the editor holds for every open document, by path.
+///
+/// Built by [`Backend::open_document_texts`] and handed to the iRulesLX
+/// cross-file walk, which reads other files itself and must see the same bytes
+/// [`Backend::read_document`] would — the open buffer first, disk only for what
+/// is not open (issue #1707 review).
+struct OpenDocumentTexts(HashMap<PathBuf, Arc<str>>);
+
+impl tcl_lsp_core::ilx_navigation::OpenDocuments for OpenDocumentTexts {
+    fn text(&self, path: &Path) -> Option<Arc<str>> {
+        self.0.get(path).map(Arc::clone)
+    }
+}
+
 /// Debounce interval before a scheduled diagnostics run starts work.  A burst
 /// of keystrokes within this window collapses to a single analysis (the
 /// generation check supersedes earlier scheduled runs).  Small enough that
@@ -9450,14 +9464,13 @@ impl Backend {
         pos: Position,
     ) -> Option<(core_ilx::MethodCall, core_ilx::IlxTarget)> {
         let registry = self.registry_for_dialect(&doc.dialect).await;
+        let open = self.open_document_texts().await;
         let document = core_ilx::IlxDocument {
             path,
             text: &doc.text,
         };
-        let ctx = core_ilx::IlxContext {
-            registry: &registry,
-            store: self.store.as_ref(),
-        };
+        let ctx =
+            core_ilx::IlxContext::new(&registry, self.store.as_ref()).with_open_documents(&open);
         let call = core_ilx::method_call_at(document, ctx, pos.line, pos.character)?;
         let target = core_ilx::definition(document, ctx, &call);
         Some((call, target))
@@ -9488,25 +9501,29 @@ impl Backend {
             text: &doc.text,
         };
         let store = self.store.as_ref();
-        let found = if core_ilx::is_extension_entry(&path, store) {
+        let open = self.open_document_texts().await;
+        let files = core_ilx::IlxFiles::new(store).with_open_documents(&open);
+        // Which end of the relation the cursor is on decides which dialect's
+        // registry reads the *rule* files, so the file gate is asked first —
+        // it needs no registry at all.
+        let js_end = core_ilx::is_extension_entry(&path, files);
+        let registry = if js_end {
             // A JavaScript source has no Tcl dialect of its own, so the rule
             // files it is matched against are read with the dialect that owns
             // the ILX surface.
-            let registry = self
-                .registry_for_dialect(core_ilx::EXTENSION_RULE_DIALECT)
-                .await;
-            let ctx = core_ilx::IlxContext {
-                registry: &registry,
-                store,
-            };
+            self.registry_for_dialect(core_ilx::EXTENSION_RULE_DIALECT)
+                .await
+        } else {
+            self.registry_for_dialect(&doc.dialect).await
+        };
+        let ctx = core_ilx::IlxContext {
+            registry: &registry,
+            files,
+        };
+        let found = if js_end {
             let registration = core_ilx::registration_at(document, pos.line, pos.character)?;
             core_ilx::references_from_registration(document, ctx, &registration)
         } else {
-            let registry = self.registry_for_dialect(&doc.dialect).await;
-            let ctx = core_ilx::IlxContext {
-                registry: &registry,
-                store,
-            };
             let call = core_ilx::method_call_at(document, ctx, pos.line, pos.character)?;
             core_ilx::references(document, ctx, &call)
         };
@@ -9544,6 +9561,37 @@ impl Backend {
                 Vec::new()
             }
         })
+    }
+
+    /// The text the editor currently holds for every open document, by path.
+    ///
+    /// The cross-file half of the ILX relation reads *other* files — sibling
+    /// rules, and the extension's JavaScript — and must see the same bytes
+    /// [`Backend::read_document`] would: the open buffer when there is one,
+    /// the file on disk otherwise. Without this, find-references over a rule
+    /// with unsaved edits reports the text last written to disk (issue #1707
+    /// review).
+    ///
+    /// A snapshot rather than a per-file `read_document` round trip because
+    /// the core walk is synchronous and discovers the files itself; the map is
+    /// one `Arc` clone per open document, and the normalisation is the same
+    /// `normalise_lone_cr` pass `read_document` applies (skipped outright for
+    /// the documents that need none, which is all of them on LF and CRLF).
+    async fn open_document_texts(&self) -> OpenDocumentTexts {
+        let docs = self.documents.lock("open_document_texts").await;
+        let mut by_path = HashMap::with_capacity(docs.len());
+        for (uri, doc) in docs.iter() {
+            let Some(path) = uri.to_file_path() else {
+                continue;
+            };
+            let text: Arc<str> = if doc.has_bare_cr {
+                tcl_lexer::normalise_lone_cr(&doc.text).into_owned().into()
+            } else {
+                Arc::clone(&doc.text)
+            };
+            by_path.insert(path.into_owned(), text);
+        }
+        OpenDocumentTexts(by_path)
     }
 
     /// Lift an ILX location — a path plus a range — onto the wire.

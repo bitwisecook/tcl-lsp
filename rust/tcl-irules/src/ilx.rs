@@ -58,10 +58,23 @@
 //! | `set h [something_else]`, `set h $other` | binding widens → the call abstains |
 //! | `ILX::call $h $method`, `ILX::call $h m$suffix` | no literal method → no site at all |
 //! | `ILX::init e` (one word) | undocumented form → abstains (see [`RemoteHandleSpec::exact_argc`]) |
+//! | a handle bound outside a `proc` / `when` body | that body opens a new frame → abstains |
 //!
 //! A call whose method word is literal but whose handle is unknown is still
 //! *reported* — with [`IlxMethodCall::target`] `None` — because hover can
 //! honestly say "method name, extension unknown" while navigation abstains.
+//!
+//! # Bindings follow frames, and frames are registry data
+//!
+//! A binding is inherited by a nested body only when that body runs in the
+//! *caller's* frame, which the registry already says
+//! (`CommandSpec::body_kind`): an `if` / `foreach` / `catch` / `switch`-arm
+//! body does, and a `proc` body, a `when` event handler, an `oo::define`
+//! script and an `uplevel` body do not.  So
+//! `set h [ILX::init p e]; proc f {} { ILX::call $h m }` resolves nothing —
+//! `$h` is undefined where `f` runs, and offering a target would be the guess
+//! criterion 4 forbids.  The walk still *descends* into such a body; it just
+//! starts it empty, so an `ILX::init` of its own resolves normally.
 //!
 //! [`RemoteHandleSpec::exact_argc`]: tcl_registry::remote_method::RemoteHandleSpec::exact_argc
 
@@ -233,6 +246,16 @@ fn recurse(
     depth: u32,
 ) {
     let mut recursed: Vec<(u32, u32)> = Vec::new();
+    // Which of this command's body arguments run in the *caller's* frame is
+    // registry data (`CommandSpec::body_kind`): `if` / `while` / `foreach` /
+    // `switch` bodies do, and a `proc` / `oo::define` / `uplevel` /
+    // `namespace eval` body does not.  A body that does not inherit the frame
+    // must not inherit the handle bindings either — `set h [ILX::init p e];
+    // proc f {} { ILX::call $h m }` reads an *undefined* `$h` when `f` runs,
+    // and resolving it from the enclosing scope would be exactly the guess
+    // criterion 4 forbids (issue #1707 review).  Asked of the registry, so no
+    // command name appears here.
+    let inherits_frame = ctx.registry.plain_body_arg_indices(head, args);
     for body_idx in ctx.registry.arg_indices_for_role(head, args, ArgRole::Body) {
         if let Some(tok) = cmd.argv.get(body_idx + 1)
             && matches!(tok.kind, TokenType::Str | TokenType::Cmd)
@@ -243,9 +266,14 @@ fn recurse(
                 // frame, so its writes are visible to what follows.
                 recurse_token(ctx, tok, scope, out, depth + 1);
                 recursed.push((tok.span.start(), tok.span.end()));
-            } else {
+            } else if inherits_frame.contains(&body_idx) {
                 let mut child = scope.child();
                 recurse_token(ctx, tok, &mut child, out, depth + 1);
+            } else {
+                // A new frame: the body still gets walked (an `ILX::init` of
+                // its own resolves normally), it just starts with nothing.
+                let mut fresh = HandleScope::default();
+                recurse_token(ctx, tok, &mut fresh, out, depth + 1);
             }
         }
     }
@@ -485,8 +513,8 @@ pub fn extension_entry_file(package_json: Option<&str>) -> String {
     main.trim_start_matches("./").to_owned()
 }
 
-/// Every `addMethod` registration in `source` written on a receiver this file
-/// binds to an `ILXServer`.
+/// The method table `source` leaves an extension with — its `addMethod`
+/// registrations, minus anything a `removeMethod` takes back out.
 ///
 /// Supported, and nothing else (issue #1707 criterion 6):
 ///
@@ -498,12 +526,30 @@ pub fn extension_entry_file(package_json: Option<&str>) -> String {
 ///
 /// Explicitly *not* recognised, and therefore an abstention rather than a
 /// wrong answer: a computed name (`addMethod(name, …)`, a template literal, a
-/// concatenation), a method map passed to a constructor, `removeMethod`, and
-/// `setDefaultMethod` (which registers no name at all).
+/// concatenation), a method map passed to a constructor, and
+/// `setDefaultMethod` (which registers no name, so a call that reaches the
+/// default handler has no target to navigate to).
+///
+/// # `removeMethod` is a subtraction, not a form to ignore
+///
+/// `ilx.addMethod('m', cb); ilx.removeMethod('m');` leaves no `m` in the
+/// running extension, so offering the earlier registration as `m`'s definition
+/// would be a wrong answer rather than a missing one (issue #1707 review).
+/// Removal is therefore *modelled*, and deliberately without order: source
+/// order is not execution order — a `removeMethod` can sit in a branch, a
+/// callback, or a later module — so a literal removal suppresses that name
+/// outright, and a removal whose name is **not** literal
+/// (`ilx.removeMethod(whatever)`) suppresses the whole table, because it could
+/// take out any of it.  That is the same abstention rule the Tcl side applies
+/// to a computed method word, on the other side of the boundary.
 #[must_use]
 pub fn extension_registrations(source: &str) -> Vec<IlxMethodRegistration> {
     let tokens = lex_js(source);
     let receivers = ilx_server_receivers(&tokens);
+    let removals = method_removals(&tokens, &receivers);
+    if removals.removes_an_unknown_name {
+        return Vec::new();
+    }
     let mut out = Vec::new();
     for (index, token) in tokens.iter().enumerate() {
         // `<receiver> . addMethod ( "name" ,`
@@ -537,11 +583,63 @@ pub fn extension_registrations(source: &str) -> Vec<IlxMethodRegistration> {
         let Some(value) = js_string_value(&name.text) else {
             continue;
         };
+        if removals.names.iter().any(|removed| removed == &value) {
+            continue;
+        }
         out.push(IlxMethodRegistration {
             name: value,
             name_span: name.span,
             receiver: receiver.text.clone(),
         });
+    }
+    out
+}
+
+/// What an extension source takes back out of its own method table.
+struct MethodRemovals {
+    /// The literal names `removeMethod('name')` removes.
+    names: Vec<String>,
+    /// Whether any `removeMethod` names something this scanner cannot read as
+    /// a literal — in which case the whole table is unknowable.
+    removes_an_unknown_name: bool,
+}
+
+/// Scan `tokens` for `removeMethod` calls on an `ILXServer` receiver.
+///
+/// Only the receiver gate and the first argument are read; where the call sits
+/// is deliberately ignored — see [`extension_registrations`] on why source
+/// order is not execution order.
+fn method_removals(tokens: &[JsToken], receivers: &[String]) -> MethodRemovals {
+    let mut out = MethodRemovals {
+        names: Vec::new(),
+        removes_an_unknown_name: false,
+    };
+    for (index, token) in tokens.iter().enumerate() {
+        if token.text != "removeMethod" || token.kind != JsTokenKind::Ident {
+            continue;
+        }
+        let on_ilx_server = index
+            .checked_sub(1)
+            .and_then(|i| tokens.get(i))
+            .is_some_and(|dot| dot.text == ".")
+            && index
+                .checked_sub(2)
+                .and_then(|i| tokens.get(i))
+                .is_some_and(|receiver| {
+                    receiver.kind == JsTokenKind::Ident
+                        && receivers.iter().any(|name| name == &receiver.text)
+                });
+        if !on_ilx_server || tokens.get(index + 1).is_none_or(|t| t.text != "(") {
+            continue;
+        }
+        match tokens
+            .get(index + 2)
+            .filter(|t| t.kind == JsTokenKind::Str)
+            .and_then(|t| js_string_value(&t.text))
+        {
+            Some(name) => out.names.push(name),
+            None => out.removes_an_unknown_name = true,
+        }
     }
     out
 }
@@ -957,6 +1055,55 @@ mod tests {
     }
 
     #[test]
+    fn a_body_that_opens_a_new_frame_does_not_inherit_the_handle() {
+        // A `proc` body runs in a fresh local frame, so `$h` is *undefined*
+        // when `f` runs — resolving it from the enclosing scope would be a
+        // false go-to-definition (issue #1707 review). Which bodies inherit
+        // the caller's frame is registry data (`CommandSpec::body_kind`).
+        let got = calls(concat!(
+            "set h [ILX::init p e]\n",
+            "proc f {} { ILX::call $h m }\n",
+        ));
+        assert_eq!(
+            got,
+            vec![("m".to_owned(), None, RemoteDispatch::Synchronous)]
+        );
+
+        // …and the same body resolves normally from its own `ILX::init`.
+        let own = calls("proc f {} { set h [ILX::init p e]; ILX::call $h m }\n");
+        assert_eq!(
+            own,
+            vec![(
+                "m".to_owned(),
+                Some(target("p", "e")),
+                RemoteDispatch::Synchronous
+            )]
+        );
+    }
+
+    #[test]
+    fn a_control_flow_body_still_inherits_the_handle() {
+        // The other half of the same registry fact: an `if` / `foreach` /
+        // `catch` body *is* the caller's frame, so it must keep inheriting.
+        for source in [
+            "when X {\n set h [ILX::init p e]\n if {1} { ILX::call $h m }\n}\n",
+            "when X {\n set h [ILX::init p e]\n foreach i {1 2} { ILX::call $h m }\n}\n",
+            "when X {\n set h [ILX::init p e]\n catch { ILX::call $h m }\n}\n",
+            "when X {\n set h [ILX::init p e]\n while {0} { ILX::call $h m }\n}\n",
+        ] {
+            assert_eq!(
+                calls(source),
+                vec![(
+                    "m".to_owned(),
+                    Some(target("p", "e")),
+                    RemoteDispatch::Synchronous
+                )],
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
     fn a_sibling_event_handler_does_not_leak_its_handle() {
         let got = calls(concat!(
             "when CLIENT_ACCEPTED {\n  set h [ILX::init p e]\n}\n",
@@ -1093,6 +1240,62 @@ mod tests {
             "ilx.addMethod('dup', b);\n",
         );
         assert_eq!(extension_registrations(source).len(), 2);
+    }
+
+    #[test]
+    fn a_literal_removal_takes_the_method_back_out() {
+        // The extension's *running* table has no `m`, so offering the earlier
+        // registration would be a wrong answer, not a missing one.
+        let removed = concat!(
+            "var ilx = new f5.ILXServer();\n",
+            "ilx.addMethod('m', cb);\n",
+            "ilx.removeMethod('m');\n",
+        );
+        assert!(extension_registrations(removed).is_empty(), "{removed}");
+
+        // Order is not consulted — a removal written *before* the
+        // registration still suppresses it, because source order is not
+        // execution order.
+        let reordered = concat!(
+            "var ilx = new f5.ILXServer();\n",
+            "ilx.removeMethod('m');\n",
+            "ilx.addMethod('m', cb);\n",
+        );
+        assert!(extension_registrations(reordered).is_empty(), "{reordered}");
+
+        // Only the named method goes; the rest of the table stands.
+        let one_of_two = concat!(
+            "var ilx = new f5.ILXServer();\n",
+            "ilx.addMethod('m', cb);\n",
+            "ilx.addMethod('kept', cb);\n",
+            "ilx.removeMethod('m');\n",
+        );
+        let names: Vec<String> = extension_registrations(one_of_two)
+            .into_iter()
+            .map(|registration| registration.name)
+            .collect();
+        assert_eq!(names, vec!["kept".to_owned()]);
+    }
+
+    #[test]
+    fn a_removal_of_an_unreadable_name_suppresses_the_whole_table() {
+        // `removeMethod(whatever)` could take out any name, so nothing in this
+        // extension can be resolved.
+        for source in [
+            "var ilx = new f5.ILXServer();\nilx.addMethod('m', cb);\nilx.removeMethod(name);\n",
+            "var ilx = new f5.ILXServer();\nilx.addMethod('m', cb);\nilx.removeMethod(`m`);\n",
+        ] {
+            assert!(extension_registrations(source).is_empty(), "{source}");
+        }
+
+        // A `removeMethod` on something that is not an ILXServer receiver is
+        // not this API at all, and changes nothing.
+        let unrelated = concat!(
+            "var ilx = new f5.ILXServer();\n",
+            "ilx.addMethod('m', cb);\n",
+            "other.removeMethod(name);\n",
+        );
+        assert_eq!(extension_registrations(unrelated).len(), 1);
     }
 
     #[test]

@@ -68,6 +68,7 @@
 //! JavaScript is in the workspace.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use tcl_irules::ilx::{
     IlxExtension, IlxMethodCall, IlxMethodRegistration, extension_entry_file,
@@ -119,13 +120,121 @@ pub struct IlxDocument<'a> {
     pub text: &'a str,
 }
 
+/// The text the editor currently holds for a document, when it holds one.
+///
+/// The server's own cross-document providers reach a sibling file through
+/// `read_document`, which answers from the open-document map first and only
+/// then from disk. This relation reads *other* files too — sibling rules, and
+/// the extension's JavaScript — so it needs the same precedence, or a
+/// find-references over an edited-but-unsaved rule silently reports the text
+/// that was last written to disk (issue #1707 review).
+///
+/// A trait rather than a map so the caller keeps ownership of its document
+/// store and this crate stays free of the server's types; the native server
+/// implements it over the very map `read_document` consults.
+///
+/// `Send + Sync` for the same reason [`crate::vfs::SourceStore`] is: the native
+/// server holds one across an `await`, so a non-thread-safe implementation
+/// would make the request future itself non-`Send`.
+pub trait OpenDocuments: Send + Sync {
+    /// The editor's current text for `path`, or `None` when it holds none.
+    fn text(&self, path: &Path) -> Option<Arc<str>>;
+}
+
+/// Where every *other* file a request touches is read from.
+///
+/// Separate from [`IlxContext`] because reading a file needs no registry: the
+/// gate that decides whether a document is an extension entry point at all
+/// ([`is_extension_entry`]) is pure filesystem, and asking it for a dialect it
+/// has no use for would push the caller into choosing one before it knows
+/// which end of the relation it is on.
+#[derive(Clone, Copy)]
+pub struct IlxFiles<'a> {
+    /// Where closed files are read from (see [`crate::vfs`]).
+    pub store: &'a dyn crate::vfs::SourceStore,
+    /// What the editor holds for files that are open, consulted first.
+    ///
+    /// `None` is the "no editor" case — the CLI, a unit test — where the store
+    /// is the whole truth.
+    pub open: Option<&'a dyn OpenDocuments>,
+}
+
+impl<'a> IlxFiles<'a> {
+    /// Files read from `store` alone.
+    #[must_use]
+    pub const fn new(store: &'a dyn crate::vfs::SourceStore) -> Self {
+        Self { store, open: None }
+    }
+
+    /// The same files, with the editor's unsaved buffers taking precedence.
+    #[must_use]
+    pub const fn with_open_documents(self, open: &'a dyn OpenDocuments) -> Self {
+        Self {
+            open: Some(open),
+            ..self
+        }
+    }
+
+    /// One file's current text: the editor's copy when it has one, else the
+    /// store's.
+    fn read(self, path: &Path) -> Option<String> {
+        if let Some(open) = self.open
+            && let Some(text) = open.text(path)
+        {
+            return Some(text.to_string());
+        }
+        self.store.read_to_string(path).ok()
+    }
+
+    /// Whether `path` names a readable file — an unsaved buffer counts, so a
+    /// just-created `index.js` is an entry point before its first save.
+    fn is_file(self, path: &Path) -> bool {
+        if let Some(open) = self.open
+            && open.text(path).is_some()
+        {
+            return true;
+        }
+        self.store.metadata(path).is_ok_and(|meta| !meta.is_dir)
+    }
+
+    /// Whether `path` is a directory.  Only the store can answer: a directory
+    /// is never an open document.
+    fn is_dir(self, path: &Path) -> bool {
+        self.store.is_dir(path)
+    }
+}
+
 /// What a request may consult beyond the document in front of it.
 #[derive(Clone, Copy)]
 pub struct IlxContext<'a> {
     /// The dialect registry — the descriptors, and the dialect gate.
     pub registry: &'a CommandRegistry,
-    /// Where closed files are read from (see [`crate::vfs`]).
-    pub store: &'a dyn crate::vfs::SourceStore,
+    /// Where the other files this request reads come from.
+    pub files: IlxFiles<'a>,
+}
+
+impl<'a> IlxContext<'a> {
+    /// A context that reads every other file from `store`.
+    #[must_use]
+    pub const fn new(
+        registry: &'a CommandRegistry,
+        store: &'a dyn crate::vfs::SourceStore,
+    ) -> Self {
+        Self {
+            registry,
+            files: IlxFiles::new(store),
+        }
+    }
+
+    /// This context, with the editor's unsaved buffers taking precedence over
+    /// the store.
+    #[must_use]
+    pub const fn with_open_documents(self, open: &'a dyn OpenDocuments) -> Self {
+        Self {
+            files: self.files.with_open_documents(open),
+            ..self
+        }
+    }
 }
 
 /// One resolved location in some file.
@@ -235,11 +344,11 @@ pub fn definition(doc: IlxDocument<'_>, ctx: IlxContext<'_>, call: &IlxMethodCal
     let Some(target) = call.target.as_ref() else {
         return IlxTarget::Unresolved(IlxUnresolved::HandleNotStatic);
     };
-    let site = match locate_extension(doc.path, target, ctx.store) {
+    let site = match locate_extension(doc.path, target, ctx) {
         Ok(site) => site,
         Err(reason) => return IlxTarget::Unresolved(reason),
     };
-    let Ok(source) = ctx.store.read_to_string(&site.entry) else {
+    let Some(source) = ctx.files.read(&site.entry) else {
         return IlxTarget::Unresolved(IlxUnresolved::ExtensionUnreadable);
     };
     let matches: Vec<IlxMethodRegistration> = extension_registrations(&source)
@@ -328,7 +437,7 @@ pub fn references(
         // this model refuses (issue #1707 criterion 1).
         return call_sites_in(doc.path, doc.text, ctx, None, &call.method);
     };
-    let Ok(site) = locate_extension(doc.path, target, ctx.store) else {
+    let Ok(site) = locate_extension(doc.path, target, ctx) else {
         return call_sites_in(doc.path, doc.text, ctx, Some(target), &call.method);
     };
     let mut out = registration_locations(&site, ctx, &call.method);
@@ -342,7 +451,7 @@ fn registration_locations(
     ctx: IlxContext<'_>,
     method: &str,
 ) -> Vec<IlxLocation> {
-    let Ok(source) = ctx.store.read_to_string(&site.entry) else {
+    let Some(source) = ctx.files.read(&site.entry) else {
         return Vec::new();
     };
     extension_registrations(&source)
@@ -369,11 +478,11 @@ fn workspace_call_sites(
     method: &str,
 ) -> Vec<IlxLocation> {
     let mut out = call_sites_in(doc.path, doc.text, ctx, Some(target), method);
-    for rule in rule_files(&site.workspace, ctx.store) {
+    for rule in rule_files(&site.workspace, ctx.files.store) {
         if rule == doc.path {
             continue;
         }
-        let Ok(text) = ctx.store.read_to_string(&rule) else {
+        let Some(text) = ctx.files.read(&rule) else {
             continue;
         };
         out.extend(call_sites_in(&rule, &text, ctx, Some(target), method));
@@ -441,8 +550,8 @@ pub fn references_from_registration(
         return out;
     };
     let target = IlxExtension { plugin, extension };
-    for rule in rule_files(&workspace, ctx.store) {
-        let Ok(text) = ctx.store.read_to_string(&rule) else {
+    for rule in rule_files(&workspace, ctx.files.store) {
+        let Some(text) = ctx.files.read(&rule) else {
             continue;
         };
         out.extend(call_sites_in(
@@ -459,12 +568,12 @@ pub fn references_from_registration(
 /// Whether `path` is the resolved entry point of an ILX extension — the gate
 /// that decides whether a non-Tcl document is worth looking at at all.
 #[must_use]
-pub fn is_extension_entry(path: &Path, store: &dyn crate::vfs::SourceStore) -> bool {
+pub fn is_extension_entry(path: &Path, files: IlxFiles<'_>) -> bool {
     let Some((workspace, extension)) = extension_of_entry(path) else {
         return false;
     };
     let dir = workspace.join(EXTENSIONS_DIR).join(&extension);
-    entry_file(&dir, store).is_some_and(|entry| entry == path)
+    entry_file(&dir, files).is_some_and(|entry| entry == path)
 }
 
 /// Split `…/<workspace>/extensions/<extension>/<entry…>` into the workspace
@@ -507,7 +616,7 @@ struct ExtensionSite {
 fn locate_extension(
     document: &Path,
     target: &IlxExtension,
-    store: &dyn crate::vfs::SourceStore,
+    ctx: IlxContext<'_>,
 ) -> Result<ExtensionSite, IlxUnresolved> {
     let mut workspaces: Vec<PathBuf> = Vec::new();
     let mut dir = document.parent();
@@ -524,10 +633,10 @@ fn locate_extension(
     let mut found: Vec<ExtensionSite> = Vec::new();
     for workspace in workspaces {
         let dir = workspace.join(EXTENSIONS_DIR).join(&target.extension);
-        if !store.is_dir(&dir) {
+        if !ctx.files.is_dir(&dir) {
             continue;
         }
-        let Some(entry) = entry_file(&dir, store) else {
+        let Some(entry) = entry_file(&dir, ctx.files) else {
             continue;
         };
         if found.iter().any(|site| site.entry == entry) {
@@ -548,17 +657,14 @@ fn locate_extension(
 /// else nothing — the fallback order node itself documents, with the extra
 /// requirement that the file actually exist so a stale `main` cannot point
 /// navigation at a path that is not there.
-fn entry_file(dir: &Path, store: &dyn crate::vfs::SourceStore) -> Option<PathBuf> {
-    let manifest = store.read_to_string(&dir.join("package.json")).ok();
+fn entry_file(dir: &Path, files: IlxFiles<'_>) -> Option<PathBuf> {
+    let manifest = files.read(&dir.join("package.json"));
     let declared = dir.join(extension_entry_file(manifest.as_deref()));
-    if store.metadata(&declared).is_ok_and(|meta| !meta.is_dir) {
+    if files.is_file(&declared) {
         return Some(declared);
     }
     let fallback = dir.join("index.js");
-    store
-        .metadata(&fallback)
-        .is_ok_and(|meta| !meta.is_dir)
-        .then_some(fallback)
+    files.is_file(&fallback).then_some(fallback)
 }
 
 /// The rule files of an ILX workspace: the immediate children of its `rules/`
@@ -623,6 +729,7 @@ mod tests {
     };
     use crate::vfs::MemoryStore;
     use std::path::{Path, PathBuf};
+    use std::sync::Arc;
     use tcl_dialect::model::{Family, SurfaceLayer};
     use tcl_registry::CommandRegistry;
 
@@ -668,10 +775,7 @@ mod tests {
             path: Path::new("/w/my_plugin/rules/rule1.tcl"),
             text: RULE,
         };
-        let ctx = IlxContext {
-            registry: &registry,
-            store: &store,
-        };
+        let ctx = IlxContext::new(&registry, &store);
         // The `my_js_function` word of the `ILX::call` line.
         let call = method_call_at(doc, ctx, 2, 34).expect("a method word under the cursor");
         assert_eq!(call.method, "my_js_function");
@@ -693,10 +797,7 @@ mod tests {
             path: Path::new("/w/my_plugin/rules/rule1.tcl"),
             text: RULE,
         };
-        let ctx = IlxContext {
-            registry: &registry,
-            store: &store,
-        };
+        let ctx = IlxContext::new(&registry, &store);
         let call = method_call_at(doc, ctx, 2, 34).expect("a method word under the cursor");
         let found = references(doc, ctx, &call);
         assert_eq!(found.len(), 3, "{found:?}");
@@ -738,15 +839,12 @@ mod tests {
             path: js,
             text: EXTENSION,
         };
-        let ctx = IlxContext {
-            registry: &registry,
-            store: &store,
-        };
+        let ctx = IlxContext::new(&registry, &store);
         let registration = registration_at(doc, 2, 16).expect("a registration under the cursor");
         assert_eq!(registration.name, "my_js_function");
         let found = references_from_registration(doc, ctx, &registration);
         assert_eq!(found.len(), 3, "{found:?}");
-        assert!(is_extension_entry(js, &store));
+        assert!(is_extension_entry(js, ctx.files));
     }
 
     #[test]
@@ -758,10 +856,7 @@ mod tests {
             path: Path::new("/w/my_plugin/rules/rule1.tcl"),
             text: &text,
         };
-        let ctx = IlxContext {
-            registry: &registry,
-            store: &store,
-        };
+        let ctx = IlxContext::new(&registry, &store);
         let call = method_call_at(doc, ctx, 2, 34).expect("the method word is still literal");
         assert_eq!(
             definition(doc, ctx, &call),
@@ -778,10 +873,7 @@ mod tests {
             path: Path::new("/w/my_plugin/rules/rule1.tcl"),
             text: &text,
         };
-        let ctx = IlxContext {
-            registry: &registry,
-            store: &store,
-        };
+        let ctx = IlxContext::new(&registry, &store);
         let call = method_call_at(doc, ctx, 2, 34).expect("the method word is still literal");
         assert_eq!(
             definition(doc, ctx, &call),
@@ -801,10 +893,7 @@ mod tests {
             path: Path::new("/w/my_plugin/rules/rule1.tcl"),
             text: RULE,
         };
-        let ctx = IlxContext {
-            registry: &registry,
-            store: &store,
-        };
+        let ctx = IlxContext::new(&registry, &store);
         let call = method_call_at(doc, ctx, 2, 34).expect("a method word under the cursor");
         assert!(
             matches!(definition(doc, ctx, &call), IlxTarget::Ambiguous { count, .. } if count == 2)
@@ -829,10 +918,7 @@ mod tests {
             path: Path::new("/w/p/rules/r.tcl"),
             text: &text,
         };
-        let ctx = IlxContext {
-            registry: &registry,
-            store: &store,
-        };
+        let ctx = IlxContext::new(&registry, &store);
         let call = method_call_at(doc, ctx, 2, 34).expect("a method word under the cursor");
         let IlxTarget::Resolved(location) = definition(doc, ctx, &call) else {
             panic!("expected a resolved registration");
@@ -843,8 +929,65 @@ mod tests {
         );
         assert!(is_extension_entry(
             Path::new("/w/p/extensions/my_extension/lib/server.js"),
-            &store
+            ctx.files
         ));
+    }
+
+    /// An editor holding unsaved text for some files.
+    #[derive(Default)]
+    struct OpenBuffers(Vec<(PathBuf, Arc<str>)>);
+
+    impl OpenBuffers {
+        fn holding(path: &str, text: &str) -> Self {
+            Self(vec![(PathBuf::from(path), Arc::from(text))])
+        }
+    }
+
+    impl super::OpenDocuments for OpenBuffers {
+        fn text(&self, path: &Path) -> Option<Arc<str>> {
+            self.0
+                .iter()
+                .find(|(held, _)| held == path)
+                .map(|(_, text)| Arc::clone(text))
+        }
+    }
+
+    #[test]
+    fn an_unsaved_buffer_wins_over_the_file_on_disk() {
+        // The reader is one seam, so proving it on the JavaScript half proves
+        // it for the sibling rules too: a registration typed but not yet saved
+        // must resolve, and one deleted in the editor must stop resolving,
+        // even though the disk still says otherwise (issue #1707 review).
+        let store = workspace_store();
+        let registry = registry();
+        let js = "/w/my_plugin/extensions/my_extension/index.js";
+        let doc = IlxDocument {
+            path: Path::new("/w/my_plugin/rules/rule1.tcl"),
+            text: RULE,
+        };
+
+        let typed = OpenBuffers::holding(
+            js,
+            "var f5 = require('f5-nodejs');\nvar ilx = new f5.ILXServer();\n\n\n\nilx.addMethod('my_js_function', cb);\n",
+        );
+        let ctx = IlxContext::new(&registry, &store).with_open_documents(&typed);
+        let call = method_call_at(doc, ctx, 2, 34).expect("a method word under the cursor");
+        let IlxTarget::Resolved(location) = definition(doc, ctx, &call) else {
+            panic!("the editor's copy of the extension must be what is read");
+        };
+        assert_eq!(
+            location.range.start_line, 5,
+            "the range must come from the unsaved text, not the saved file"
+        );
+
+        // The same seam in the other direction: an editor that has *removed*
+        // the registration must stop resolving it, however stale the disk is.
+        let emptied = OpenBuffers::holding(js, "var f5 = require('f5-nodejs');\n");
+        let ctx = IlxContext::new(&registry, &store).with_open_documents(&emptied);
+        assert_eq!(
+            definition(doc, ctx, &call),
+            IlxTarget::Unresolved(IlxUnresolved::MethodNotRegistered)
+        );
     }
 
     #[test]
@@ -857,10 +1000,7 @@ mod tests {
             path: Path::new("/w/my_plugin/rules/rule1.tcl"),
             text: RULE,
         };
-        let ctx = IlxContext {
-            registry: &registry,
-            store: &store,
-        };
+        let ctx = IlxContext::new(&registry, &store);
         assert!(method_call_at(doc, ctx, 2, 34).is_none());
     }
 }

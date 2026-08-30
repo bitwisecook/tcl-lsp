@@ -264,6 +264,111 @@ fn a_duplicate_registration_is_reported_not_guessed() {
 }
 
 #[test]
+fn a_removed_method_resolves_to_nothing() {
+    // The extension's *running* table has no `my_js_function` once
+    // `removeMethod` has taken it out, so the earlier registration is not its
+    // definition (issue #1707 review).
+    let removed = format!("{EXTENSION}ilx.removeMethod('my_js_function');\n");
+    let fixture = Fixture::new("removed", &removed);
+    let mut lsp = fixture.serve();
+
+    let result = lsp.definition(&fixture.rule_uri, CALL_METHOD.0, CALL_METHOD.1);
+    assert!(
+        locations(&result).is_empty(),
+        "a removed method must not resolve: {result}"
+    );
+    let hover = hover_text(&lsp.hover(&fixture.rule_uri, CALL_METHOD.0, CALL_METHOD.1));
+    assert!(
+        hover.contains("registers no method of this name"),
+        "hover must report the empty table, not a target: {hover}"
+    );
+}
+
+#[test]
+fn a_handle_only_reaches_bodies_that_share_its_frame() {
+    // Which bodies inherit the caller's frame is registry data
+    // (`CommandSpec::body_kind`), and only those may inherit a handle binding
+    // (issue #1707 review). A `proc` body runs in a fresh local frame, and so
+    // does a `when` handler — `BodyKind::Structural` on both — so a handle
+    // bound outside them is *undefined* where they run and must not resolve.
+    // An `if` body inside the handler is the caller's own frame, and does.
+    let fixture = Fixture::new("procscope", EXTENSION);
+    let mut lsp = Lsp::at_workspace_root(&fixture.root);
+    let source = format!(
+        "set handle [ILX::init {plugin} my_extension]\n\
+         proc helper {{}} {{\n\
+         \x20   ILX::call $handle my_js_function\n\
+         }}\n\
+         when HTTP_REQUEST {{\n\
+         \x20   ILX::call $handle my_js_function\n\
+         }}\n\
+         when CLIENT_ACCEPTED {{\n\
+         \x20   set own [ILX::init {plugin} my_extension]\n\
+         \x20   if {{1}} {{ ILX::call $own my_js_function }}\n\
+         }}\n",
+        plugin = fixture.plugin
+    );
+    lsp.open_ready_lang(&fixture.rule_uri, &source, "tcl-irule");
+
+    for (label, line, character) in [("a proc body", 2, 22), ("an event handler body", 5, 22)] {
+        let result = lsp.definition(&fixture.rule_uri, line, character);
+        assert!(
+            locations(&result).is_empty(),
+            "{label} opens a new frame and must not inherit the handle: {result}"
+        );
+    }
+
+    // The positive control: same file, a body that *is* the caller's frame.
+    let inherited = lsp.definition(&fixture.rule_uri, 9, 30);
+    assert_eq!(
+        locations(&inherited)
+            .iter()
+            .map(|l| l.uri.clone())
+            .collect::<Vec<_>>(),
+        vec![fixture.extension_uri.clone()],
+        "an `if` body shares the frame and still resolves"
+    );
+}
+
+#[test]
+fn an_unsaved_edit_to_the_extension_is_what_navigation_reads() {
+    // The extension's JavaScript is another file, and the server reads other
+    // files open-buffer-first — so an `addMethod` typed but not yet saved
+    // resolves, and one deleted in the editor stops resolving, however stale
+    // the bytes on disk are (issue #1707 review).
+    let fixture = Fixture::new("unsaved", EXTENSION);
+    let mut lsp = fixture.serve();
+    lsp.open_ready_lang(
+        &fixture.extension_uri,
+        "var f5 = require('f5-nodejs');\nvar ilx = new f5.ILXServer();\n",
+        "javascript",
+    );
+
+    let gone = lsp.definition(&fixture.rule_uri, CALL_METHOD.0, CALL_METHOD.1);
+    assert!(
+        locations(&gone).is_empty(),
+        "the editor's copy no longer registers the method: {gone}"
+    );
+
+    // Type it back, three lines further down, and the jump follows the edit
+    // rather than the file on disk.
+    lsp.replace_document(
+        &fixture.extension_uri,
+        2,
+        "var f5 = require('f5-nodejs');\nvar ilx = new f5.ILXServer();\n\n\n\nilx.addMethod('my_js_function', cb);\n",
+    );
+    let moved = lsp.definition(&fixture.rule_uri, CALL_METHOD.0, CALL_METHOD.1);
+    let found = locations(&moved);
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].uri, fixture.extension_uri);
+    assert_eq!(
+        found[0].range["start"]["line"].as_i64(),
+        Some(5),
+        "the range comes from the unsaved text: {found:?}"
+    );
+}
+
+#[test]
 fn an_unregistered_method_resolves_to_nothing_and_no_diagnostic() {
     let fixture = Fixture::new("missing", "var f5 = require('f5-nodejs');\n");
     let mut lsp = fixture.serve();

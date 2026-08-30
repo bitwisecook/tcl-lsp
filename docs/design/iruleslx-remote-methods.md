@@ -115,10 +115,27 @@ wrong one):
 |---|---|
 | `addMethod(name, …)`, `` addMethod(`t`, …) ``, `addMethod('a' + 'b', …)` | the name is not a literal |
 | a method map passed to a constructor | not a documented registration shape |
-| `removeMethod(name)` | retracts a registration; modelling it needs an order-sensitive method table |
 | `setDefaultMethod(cb)` | registers no name, so default-method dispatch has no target |
 | `addMethod` on a receiver this file does not bind to an `ILXServer` | the receiver may be any object |
 | a name containing a backslash escape | a half-decoded name would match the wrong Tcl word |
+
+### `removeMethod` subtracts
+
+`removeMethod` is **modelled**, not ignored: after
+`ilx.addMethod('m', cb); ilx.removeMethod('m');` the running extension has no
+`m`, so offering the earlier registration would be a *wrong* answer rather
+than a missing one.
+
+The subtraction is deliberately order-free, because source order is not
+execution order — a `removeMethod` can sit in a branch, a callback, or a later
+module:
+
+- a literal `removeMethod('m')` anywhere in the entry point suppresses `m`,
+  wherever it is written relative to the registration;
+- a `removeMethod` whose name is **not** literal (`ilx.removeMethod(name)`)
+  suppresses the whole table, because it could take out any of it;
+- a `removeMethod` on a receiver this file does not bind to an `ILXServer` is
+  not this API and changes nothing.
 
 ## Tcl-side resolution and its abstentions
 
@@ -130,7 +147,7 @@ wrong one):
 | `ILX::init $p e`, `ILX::init p $e` | handle unknown → the call abstains |
 | `set h [ILX::init p e]; set h $other` | binding widens → the call abstains |
 | `ILX::init e` (one word) | undocumented form → abstains |
-| a handle bound in a *sibling* `when` body | not in scope → abstains |
+| a handle bound outside a `proc` body or a `when` handler | that body opens a new frame → abstains |
 | `ILX::call $h $method`, `ILX::call $h m$suffix` | no literal method → not a site at all |
 | the extension registers the name twice | reported as an ambiguity; no target |
 | no JavaScript in the workspace | abstains |
@@ -138,6 +155,17 @@ wrong one):
 A call whose method word is literal but whose handle is unknown is still a
 *site*: hover can honestly say "method `m`, extension unknown", while
 navigation offers nothing.
+
+### Bindings follow frames
+
+A handle binding reaches a nested body only when that body runs in the
+*caller's* frame — which the registry already records as
+`CommandSpec::body_kind`, so this walk asks rather than naming commands. An
+`if` / `foreach` / `catch` body and a `switch` arm inherit; a `proc` body, a
+`when` event handler, an `oo::define` script and an `uplevel` body do not, and
+start empty. `set h [ILX::init p e]; proc f {} { ILX::call $h m }` therefore
+resolves nothing: `$h` is undefined where `f` runs. The body is still walked,
+so an `ILX::init` of its own resolves normally.
 
 **No diagnostic is emitted from any of this.** An unresolved method is not an
 error: the extension's method table is only known when its JavaScript is in
@@ -151,6 +179,12 @@ From either end, the set is the registration(s) plus every literal
 the open document and in the immediate children of the associated workspace's
 `rules/` directory (the documented layout puts every rule there). A rule
 outside that directory, or in a different workspace, is not searched.
+
+Every other file — a sibling rule, the extension's entry point, its
+`package.json` — is read the way the server's own cross-document providers read
+one: the editor's buffer when the document is open, the file on disk otherwise.
+An unsaved `addMethod`, or one deleted in the editor, is therefore what
+navigation sees.
 
 The JavaScript end is gated on the document being the extension's resolved
 entry point, so an ordinary `.js` file elsewhere in a project is never
