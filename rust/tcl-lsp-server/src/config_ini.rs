@@ -265,7 +265,68 @@ pub fn settings_from_ini(content: &str, layer: Layer) -> Value {
         out.insert("style".to_owned(), Value::Object(style));
     }
 
+    insert_iruleslx(&sections, &mut out);
+
     Value::Object(out)
+}
+
+/// `[iruleslx.plugins]` / `[iruleslx.rules]` — the iRulesLX plugin ↔ workspace
+/// association (issue #1707 criterion 2's "documented workspace/config
+/// mapping").
+///
+/// ```ini
+/// [iruleslx.plugins]
+/// my_plugin = workspaces/prod_ws
+///
+/// [iruleslx.rules]
+/// my_plugin = irules/http, irules/tcp
+/// ```
+///
+/// Every key is a plugin name — the `PLUGIN` word of `ILX::init` — so the
+/// sections are read key-by-key like `[features]` rather than through a fixed
+/// key list. Paths are relative to the folder the config belongs to (absolute
+/// paths are taken as given), resolved by the server at read time.
+///
+/// The source layout can only establish an *extension* name; a plugin is
+/// created from a workspace and may be named anything, so without a
+/// declaration a plugin whose name differs from its directory is not
+/// navigable. `rules` is the same admission on the caller side: a repository
+/// routinely keeps its iRules outside the workspace it builds.
+fn insert_iruleslx(sections: &[Section], out: &mut Map<String, Value>) {
+    let mut ilx = Map::new();
+    if let Some(section) = sections.iter().find(|s| s.name == "iruleslx.plugins") {
+        let mut plugins = Map::new();
+        for (plugin, path) in &section.entries {
+            let path = path.trim();
+            if !plugin.is_empty() && !path.is_empty() {
+                plugins.insert(plugin.clone(), Value::String(path.to_owned()));
+            }
+        }
+        if !plugins.is_empty() {
+            ilx.insert("plugins".to_owned(), Value::Object(plugins));
+        }
+    }
+    if let Some(section) = sections.iter().find(|s| s.name == "iruleslx.rules") {
+        let mut rules = Map::new();
+        for (plugin, raw) in &section.entries {
+            // One directory per continuation line, or a comma list — the same
+            // rule `libraryPaths` / `entryPoints` take, since these are paths
+            // and a path may legitimately contain a comma.
+            let dirs = parse_path_list(raw);
+            if !plugin.is_empty() && !dirs.is_empty() {
+                rules.insert(
+                    plugin.clone(),
+                    Value::Array(dirs.into_iter().map(Value::String).collect()),
+                );
+            }
+        }
+        if !rules.is_empty() {
+            ilx.insert("rules".to_owned(), Value::Object(rules));
+        }
+    }
+    if !ilx.is_empty() {
+        out.insert("iruleslx".to_owned(), Value::Object(ilx));
+    }
 }
 
 /// `{ "enabled": b }` — the shape the `[shimmer]` / `[xcDiagnostics]` sections

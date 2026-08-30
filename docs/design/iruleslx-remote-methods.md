@@ -82,12 +82,57 @@ a `…/<ancestor>/PLUGIN/extensions/…` sibling. The workspace is never scanned
 wholesale. If no ancestor matches, or two distinct directories do, nothing
 resolves.
 
-A plugin deliberately named differently from its workspace is therefore **not
-navigable**. An explicit configured mapping (the "documented workspace/config
-mapping" half of issue #1707 criterion 2) is not implemented; approximating it
-by matching on the extension name alone would resolve to the wrong file in a
-workspace that has two plugins, which is exactly the guess criterion 4
-forbids.
+A plugin deliberately named differently from its workspace is not navigable by
+that rule alone, and approximating it by matching on the extension name would
+resolve to the wrong file in a workspace that has two plugins — exactly the
+guess criterion 4 forbids. So the user says it instead.
+
+### The declared mapping
+
+```ini
+# .tcl-lsp.ini, in the workspace folder
+[iruleslx.plugins]
+prod_plugin = workspaces/ws_alpha
+
+[iruleslx.rules]
+prod_plugin =
+    irules/http
+    irules/tcp
+```
+
+or, identically, the `tclLsp.iruleslx` editor setting:
+
+```json
+{ "tclLsp.iruleslx": {
+    "plugins": { "prod_plugin": "workspaces/ws_alpha" },
+    "rules":   { "prod_plugin": ["irules/http", "irules/tcp"] } } }
+```
+
+Every key is a plugin name — the `PLUGIN` word of `ILX::init`. Paths are
+relative to the workspace folder the configuration belongs to (absolute paths
+are taken as given) and are lexically normalised, so a declaration written
+`../shared/ws` compares equal to the same directory reached from a document's
+own ancestors. That equality is what lets the *JavaScript* end recognise a
+declared workspace as well.
+
+A declaration is **authoritative**: once `prod_plugin` is declared, the
+directory-name convention is not consulted for it at all. Treating the
+declaration as one more candidate would turn a workspace that happens to
+share the plugin's name into an `ExtensionAmbiguous` — an answer strictly
+worse than the one the user asked for.
+
+`[iruleslx.rules]` is the caller-side admission of the same gap: the deployed
+layout keeps every rule in `rules/`, but a repository routinely keeps its
+iRules elsewhere and builds the workspace at release time. Those directories
+*are* walked (the workspace's own `rules/` is not — see below), bounded to 8
+levels and 512 directories per request, because the user named them
+deliberately. A `rules` entry for a plugin with no `plugins` entry is dropped:
+extra caller directories are only meaningful once the plugin's workspace is
+known, and keeping a half-declaration would widen the search for a plugin the
+user never associated.
+
+The resolved associations are reported by `tcl-lsp.getEffectiveConfig` as
+`iruleslx_plugins`, so a client can see where a declaration actually pointed.
 
 ## Supported JavaScript
 
@@ -176,9 +221,17 @@ holding its iRules.
 
 From either end, the set is the registration(s) plus every literal
 `ILX::call` / `ILX::notify` of the same method **on the same extension**, in
-the open document and in the immediate children of the associated workspace's
-`rules/` directory (the documented layout puts every rule there). A rule
-outside that directory, or in a different workspace, is not searched.
+the open document, in the immediate children of the associated workspace's
+`rules/` directory (the documented layout puts every rule there), and in every
+directory declared for the plugin under `[iruleslx.rules]`.
+
+`rules/` is deliberately not walked recursively and the workspace is never
+scanned wholesale: a deeper walk of a directory the user did not point at
+would turn one find-references into a tree scan. A declared directory is
+different — it exists precisely because the callers are not in `rules/` — so
+it is walked, under the bounds above. A rule that is in neither is still not
+found, and that is now a configuration the user can make rather than a limit
+of the model.
 
 Every other file — a sibling rule, the extension's entry point, its
 `package.json` — is read the way the server's own cross-document providers read
@@ -188,10 +241,28 @@ navigation sees.
 
 The JavaScript end is gated on the document being the extension's resolved
 entry point, so an ordinary `.js` file elsewhere in a project is never
-scanned. It is reachable for a *closed* file (the server reads closed files
-through its source store); the VS Code extension does not associate `.js` with
-the Tcl server, so an editor-side "find references" started from inside
-`index.js` is not wired up yet.
+scanned.
+
+It is reachable two ways. The server reads closed files through its source
+store, so a `textDocument/references` naming a closed `index.js` is answered
+directly. For an **open** JavaScript buffer the VS Code extension registers a
+*second* `vscode.ReferenceProvider` for `javascript`, which calls the
+`tcl-lsp.ilxReferences` command with the buffer's own text and contributes the
+Tcl call sites alongside whatever the JavaScript language service found.
+
+A command rather than a document-selector entry, deliberately: adding
+`javascript` to the language client's selector would hand every JavaScript
+file in the project to the Tcl server — analyser, workspace index and
+diagnostics pipeline included — which has nothing true to say about a language
+it understands two API calls of. As a second provider the `.js` document never
+enters the Tcl document model at all, and neither provider displaces the
+other. The extension-entry gate is applied on the server as well as in the
+client's cheap `extensions/<name>/` pre-filter, so a request naming an
+ordinary `.js` file answers nothing rather than scanning it.
+
+Registering the provider is not itself an activation event: the extension
+activates on a Tcl language id or on a workspace containing Tcl sources, which
+an ILX workspace always does. A JavaScript-only project never activates it.
 
 ## Anchors
 
@@ -201,5 +272,8 @@ the Tcl server, so an editor-side "find references" started from inside
 - `rust/tcl-irules/src/ilx.rs` — the Tcl walk and the JavaScript scanner.
 - `rust/tcl-lsp-core/src/ilx_navigation.rs` — workspace association,
   definition / hover / references.
+- `rust/tcl-lsp-server/src/config_ini.rs` — the `[iruleslx.*]` INI sections.
+- `editors/vscode/src/ilxReferences.ts` — the client-side JavaScript
+  reference provider.
 - `rust/tcl-lsp-server/tests/e2e/issue1707_ilx_methods.rs` — the end-to-end
   suite, over a real on-disk ILX workspace.

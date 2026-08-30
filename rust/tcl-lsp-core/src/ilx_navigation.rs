@@ -107,6 +107,13 @@ const EXTENSIONS_DIR: &str = "extensions";
 /// The directory that holds an ILX workspace's iRules.
 const RULES_DIR: &str = "rules";
 
+/// How deep a *declared* extra rule directory is walked.
+const MAX_RULE_DEPTH: usize = 8;
+
+/// How many directories one request may `read_dir` across all of its declared
+/// extra rule roots.
+const MAX_RULE_DIRS: usize = 512;
+
 /// The document a request is about: where it is, and the text the editor has.
 ///
 /// The text is carried rather than re-read because an open buffer is routinely
@@ -204,6 +211,38 @@ impl<'a> IlxFiles<'a> {
     }
 }
 
+/// One **configured** plugin, as the user declared it.
+///
+/// The source layout establishes an extension name but never a plugin name — a
+/// plugin is created *from* a workspace (`create ilx plugin P from-workspace
+/// W`) and the two need not match. Without a declaration the only association
+/// available is the directory-name convention, and a plugin named otherwise is
+/// simply not navigable; guessing from the extension name alone would pick the
+/// wrong file in a workspace holding two plugins, which is the guess issue
+/// #1707 criterion 4 forbids. So the user says it instead
+/// (`.tcl-lsp.ini [iruleslx.plugins]`, or the `tclLsp.iruleslx` settings key).
+///
+/// A declaration is **authoritative**: once a plugin name is configured, the
+/// convention is not consulted for it at all, so a mapping can also *correct* a
+/// directory that happens to collide with a plugin name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IlxPluginRoot {
+    /// The `PLUGIN` word of `ILX::init`.
+    pub plugin: String,
+    /// The ILX workspace directory holding `extensions/` (and usually
+    /// `rules/`), as an absolute path.
+    pub workspace: PathBuf,
+    /// Extra directories searched — recursively — for iRules that call this
+    /// plugin, beyond its workspace's own `rules/`.
+    ///
+    /// The deployed layout keeps every rule in `rules/`, but a repository
+    /// routinely keeps its iRules somewhere else entirely and builds the
+    /// workspace at release time. Those callers are unreachable from the
+    /// layout alone, and finding them by scanning the tree is the cost this
+    /// model refuses — so, again, the user names them.
+    pub extra_rule_dirs: Vec<PathBuf>,
+}
+
 /// What a request may consult beyond the document in front of it.
 #[derive(Clone, Copy)]
 pub struct IlxContext<'a> {
@@ -211,10 +250,15 @@ pub struct IlxContext<'a> {
     pub registry: &'a CommandRegistry,
     /// Where the other files this request reads come from.
     pub files: IlxFiles<'a>,
+    /// The user's declared plugin associations (see [`IlxPluginRoot`]).
+    /// Empty is the unconfigured case, where the directory-name convention is
+    /// the whole story.
+    pub plugins: &'a [IlxPluginRoot],
 }
 
 impl<'a> IlxContext<'a> {
-    /// A context that reads every other file from `store`.
+    /// A context that reads every other file from `store`, with no configured
+    /// plugin associations.
     #[must_use]
     pub const fn new(
         registry: &'a CommandRegistry,
@@ -223,6 +267,7 @@ impl<'a> IlxContext<'a> {
         Self {
             registry,
             files: IlxFiles::new(store),
+            plugins: &[],
         }
     }
 
@@ -234,6 +279,29 @@ impl<'a> IlxContext<'a> {
             files: self.files.with_open_documents(open),
             ..self
         }
+    }
+
+    /// This context, with the user's declared plugin associations.
+    #[must_use]
+    pub const fn with_plugins(self, plugins: &'a [IlxPluginRoot]) -> Self {
+        Self { plugins, ..self }
+    }
+
+    /// The configured entries declaring `plugin`, in configuration order.
+    fn declared(self, plugin: &str) -> impl Iterator<Item = &'a IlxPluginRoot> {
+        self.plugins.iter().filter(move |p| p.plugin == plugin)
+    }
+
+    /// The extra rule directories declared for whichever plugin(s) `workspace`
+    /// was configured as.
+    fn extra_rules_for_workspace(self, workspace: &Path) -> Vec<PathBuf> {
+        let mut out: Vec<PathBuf> = Vec::new();
+        for entry in self.plugins.iter().filter(|p| p.workspace == workspace) {
+            for dir in &entry.extra_rule_dirs {
+                push_unique(&mut out, dir.clone());
+            }
+        }
+        out
     }
 }
 
@@ -478,7 +546,7 @@ fn workspace_call_sites(
     method: &str,
 ) -> Vec<IlxLocation> {
     let mut out = call_sites_in(doc.path, doc.text, ctx, Some(target), method);
-    for rule in rule_files(&site.workspace, ctx.files.store) {
+    for rule in rule_files(&site.workspace, &site.extra_rules, ctx.files.store) {
         if rule == doc.path {
             continue;
         }
@@ -546,21 +614,42 @@ pub fn references_from_registration(
     let Some((workspace, extension)) = extension_of_entry(doc.path) else {
         return out;
     };
-    let Some(plugin) = directory_name(&workspace) else {
-        return out;
+    // Which `PLUGIN` word reaches this workspace. A declaration wins over the
+    // directory-name convention for the same reason it does on the Tcl side —
+    // the user has said what the plugin is called — and a workspace declared
+    // under more than one plugin name is searched for all of them.
+    let declared: Vec<String> = ctx
+        .plugins
+        .iter()
+        .filter(|entry| entry.workspace == workspace)
+        .map(|entry| entry.plugin.clone())
+        .collect();
+    let plugins = if declared.is_empty() {
+        directory_name(&workspace).into_iter().collect()
+    } else {
+        declared
     };
-    let target = IlxExtension { plugin, extension };
-    for rule in rule_files(&workspace, ctx.files.store) {
+    let targets: Vec<IlxExtension> = plugins
+        .into_iter()
+        .map(|plugin| IlxExtension {
+            plugin,
+            extension: extension.clone(),
+        })
+        .collect();
+    let extra = ctx.extra_rules_for_workspace(&workspace);
+    for rule in rule_files(&workspace, &extra, ctx.files.store) {
         let Some(text) = ctx.files.read(&rule) else {
             continue;
         };
-        out.extend(call_sites_in(
-            &rule,
-            &text,
-            ctx,
-            Some(&target),
-            &registration.name,
-        ));
+        for target in &targets {
+            out.extend(call_sites_in(
+                &rule,
+                &text,
+                ctx,
+                Some(target),
+                &registration.name,
+            ));
+        }
     }
     out
 }
@@ -607,6 +696,9 @@ struct ExtensionSite {
     workspace: PathBuf,
     /// The resolved entry point (`index.js`, or `package.json`'s `main`).
     entry: PathBuf,
+    /// Extra directories the configuration named as holding callers of this
+    /// plugin — see [`IlxPluginRoot::extra_rule_dirs`]. Empty unless declared.
+    extra_rules: Vec<PathBuf>,
 }
 
 /// Find the extension `target` names, relative to `document`.
@@ -618,6 +710,52 @@ fn locate_extension(
     target: &IlxExtension,
     ctx: IlxContext<'_>,
 ) -> Result<ExtensionSite, IlxUnresolved> {
+    let mut found: Vec<ExtensionSite> = Vec::new();
+    for (workspace, extra_rules) in candidate_workspaces(document, target, ctx) {
+        let dir = workspace.join(EXTENSIONS_DIR).join(&target.extension);
+        if !ctx.files.is_dir(&dir) {
+            continue;
+        }
+        let Some(entry) = entry_file(&dir, ctx.files) else {
+            continue;
+        };
+        if found.iter().any(|site| site.entry == entry) {
+            continue;
+        }
+        found.push(ExtensionSite {
+            workspace,
+            entry,
+            extra_rules,
+        });
+    }
+    match found.len() {
+        0 => Err(IlxUnresolved::ExtensionNotFound),
+        1 => Ok(found.remove(0)),
+        _ => Err(IlxUnresolved::ExtensionAmbiguous),
+    }
+}
+
+/// The workspace directories that may hold `target`, each with the extra rule
+/// directories declared alongside it.
+///
+/// A configured association *replaces* the convention for that plugin name
+/// rather than adding to it: the user has said where the plugin is, so a
+/// directory that merely shares its name is not a second candidate (which
+/// would make the declaration produce an ambiguity instead of an answer).
+fn candidate_workspaces(
+    document: &Path,
+    target: &IlxExtension,
+    ctx: IlxContext<'_>,
+) -> Vec<(PathBuf, Vec<PathBuf>)> {
+    let declared: Vec<(PathBuf, Vec<PathBuf>)> = ctx
+        .declared(&target.plugin)
+        .map(|entry| (entry.workspace.clone(), entry.extra_rule_dirs.clone()))
+        .collect();
+    if !declared.is_empty() {
+        return declared;
+    }
+    // The convention: `PLUGIN` names the workspace directory, looked for along
+    // the document's own ancestors only — never by scanning the tree.
     let mut workspaces: Vec<PathBuf> = Vec::new();
     let mut dir = document.parent();
     for _ in 0..MAX_ANCESTORS {
@@ -630,25 +768,10 @@ fn locate_extension(
         push_unique(&mut workspaces, current.join(&target.plugin));
         dir = current.parent();
     }
-    let mut found: Vec<ExtensionSite> = Vec::new();
-    for workspace in workspaces {
-        let dir = workspace.join(EXTENSIONS_DIR).join(&target.extension);
-        if !ctx.files.is_dir(&dir) {
-            continue;
-        }
-        let Some(entry) = entry_file(&dir, ctx.files) else {
-            continue;
-        };
-        if found.iter().any(|site| site.entry == entry) {
-            continue;
-        }
-        found.push(ExtensionSite { workspace, entry });
-    }
-    match found.len() {
-        0 => Err(IlxUnresolved::ExtensionNotFound),
-        1 => Ok(found.remove(0)),
-        _ => Err(IlxUnresolved::ExtensionAmbiguous),
-    }
+    workspaces
+        .into_iter()
+        .map(|workspace| (workspace, Vec::new()))
+        .collect()
 }
 
 /// The entry point of the extension directory `dir`.
@@ -667,13 +790,25 @@ fn entry_file(dir: &Path, files: IlxFiles<'_>) -> Option<PathBuf> {
     files.is_file(&fallback).then_some(fallback)
 }
 
-/// The rule files of an ILX workspace: the immediate children of its `rules/`
-/// directory that carry a Tcl-family source extension.
+/// The rule files to search for callers: the immediate children of the
+/// workspace's `rules/` directory, plus every Tcl source under each **declared**
+/// extra directory.
 ///
-/// Not recursive, and not the whole workspace: the documented layout puts
-/// every rule directly in `rules/`, and a deeper walk would turn one
-/// find-references into a tree scan.
-fn rule_files(workspace: &Path, store: &dyn crate::vfs::SourceStore) -> Vec<PathBuf> {
+/// The `rules/` half is deliberately not recursive and is not the whole
+/// workspace: the documented layout puts every rule directly in `rules/`, and a
+/// deeper walk there would turn one find-references into a tree scan of a
+/// directory the user never pointed at.
+///
+/// A declared directory is different — the user named it precisely because
+/// their iRules do not live in `rules/` — so it *is* walked, bounded by
+/// [`MAX_RULE_DEPTH`] and [`MAX_RULE_DIRS`] so a mapping that accidentally
+/// names a repository root still costs a bounded number of `read_dir` calls
+/// rather than an unbounded one.
+fn rule_files(
+    workspace: &Path,
+    extra: &[PathBuf],
+    store: &dyn crate::vfs::SourceStore,
+) -> Vec<PathBuf> {
     let mut out: Vec<PathBuf> = store
         .read_dir(&workspace.join(RULES_DIR))
         .unwrap_or_default()
@@ -682,8 +817,40 @@ fn rule_files(workspace: &Path, store: &dyn crate::vfs::SourceStore) -> Vec<Path
         .map(|entry| entry.path)
         .filter(|path| is_tcl_source(path))
         .collect();
+    let mut budget = MAX_RULE_DIRS;
+    for root in extra {
+        collect_tcl_sources(root, store, 0, &mut budget, &mut out);
+    }
     out.sort();
+    out.dedup();
     out
+}
+
+/// Depth-first walk of `dir` for Tcl sources, bounded in both depth and total
+/// directories visited (`budget`, shared across the roots of one request).
+fn collect_tcl_sources(
+    dir: &Path,
+    store: &dyn crate::vfs::SourceStore,
+    depth: usize,
+    budget: &mut usize,
+    out: &mut Vec<PathBuf>,
+) {
+    if depth > MAX_RULE_DEPTH || *budget == 0 {
+        return;
+    }
+    *budget -= 1;
+    let Ok(entries) = store.read_dir(dir) else {
+        return;
+    };
+    for entry in entries {
+        if entry.is_file {
+            if is_tcl_source(&entry.path) {
+                out.push(entry.path);
+            }
+        } else if entry.is_dir {
+            collect_tcl_sources(&entry.path, store, depth + 1, budget, out);
+        }
+    }
 }
 
 /// Whether `path` carries one of the Tcl-family source extensions the server
@@ -724,8 +891,9 @@ fn location(path: &Path, text: &str, span: Span, kind: IlxSite) -> IlxLocation {
 #[cfg(test)]
 mod tests {
     use super::{
-        IlxContext, IlxDocument, IlxSite, IlxTarget, IlxUnresolved, definition, is_extension_entry,
-        method_call_at, references, references_from_registration, registration_at,
+        IlxContext, IlxDocument, IlxPluginRoot, IlxSite, IlxTarget, IlxUnresolved, definition,
+        is_extension_entry, method_call_at, references, references_from_registration,
+        registration_at,
     };
     use crate::vfs::MemoryStore;
     use std::path::{Path, PathBuf};
@@ -845,6 +1013,140 @@ mod tests {
         let found = references_from_registration(doc, ctx, &registration);
         assert_eq!(found.len(), 3, "{found:?}");
         assert!(is_extension_entry(js, ctx.files));
+    }
+
+    /// A plugin whose name is *not* its workspace directory: the layout alone
+    /// cannot associate the two, so the declaration is the only thing that can.
+    const RENAMED_RULE: &str = concat!(
+        "when HTTP_REQUEST {\n",
+        "    set handle [ILX::init prod_plugin my_extension]\n",
+        "    set reply [ILX::call $handle my_js_function [HTTP::uri]]\n",
+        "}\n",
+    );
+
+    /// The same workspace as [`workspace_store`], but under a directory whose
+    /// name is not the plugin's — `create ilx plugin prod_plugin
+    /// from-workspace ws_alpha`.
+    fn renamed_plugin_store() -> MemoryStore {
+        let store = MemoryStore::new();
+        store.upsert(
+            "/w/ws_alpha/rules/rule1.tcl",
+            RENAMED_RULE.as_bytes().to_vec(),
+        );
+        store.upsert(
+            "/w/ws_alpha/extensions/my_extension/index.js",
+            EXTENSION.as_bytes().to_vec(),
+        );
+        store
+    }
+
+    fn declared(plugin: &str, workspace: &str, extra: &[&str]) -> Vec<IlxPluginRoot> {
+        vec![IlxPluginRoot {
+            plugin: plugin.to_owned(),
+            workspace: PathBuf::from(workspace),
+            extra_rule_dirs: extra.iter().map(PathBuf::from).collect(),
+        }]
+    }
+
+    #[test]
+    fn a_plugin_named_unlike_its_directory_needs_a_declaration() {
+        let store = renamed_plugin_store();
+        let registry = registry();
+        let doc = IlxDocument {
+            path: Path::new("/w/ws_alpha/rules/rule1.tcl"),
+            text: RENAMED_RULE,
+        };
+        // Undeclared: the directory-name convention has nothing to match, and
+        // guessing from the extension name alone is what criterion 4 forbids.
+        let bare = IlxContext::new(&registry, &store);
+        let call = method_call_at(doc, bare, 2, 34).expect("a method word");
+        assert!(matches!(
+            definition(doc, bare, &call),
+            IlxTarget::Unresolved(IlxUnresolved::ExtensionNotFound)
+        ));
+        // Declared: the user has said where `prod_plugin` lives.
+        let roots = declared("prod_plugin", "/w/ws_alpha", &[]);
+        let ctx = bare.with_plugins(&roots);
+        let IlxTarget::Resolved(location) = definition(doc, ctx, &call) else {
+            panic!("expected the declared workspace to resolve");
+        };
+        assert_eq!(
+            location.path,
+            Path::new("/w/ws_alpha/extensions/my_extension/index.js")
+        );
+    }
+
+    #[test]
+    fn a_declaration_replaces_the_convention_rather_than_competing_with_it() {
+        // Both a directory literally named `my_plugin` *and* a declaration
+        // pointing elsewhere. Treating the declaration as one more candidate
+        // would make it an ambiguity — an answer strictly worse than the one
+        // the user asked for — so it replaces the convention outright.
+        let store = MemoryStore::new();
+        store.upsert("/w/my_plugin/rules/rule1.tcl", RULE.as_bytes().to_vec());
+        store.upsert(
+            "/w/my_plugin/extensions/my_extension/index.js",
+            EXTENSION.as_bytes().to_vec(),
+        );
+        store.upsert(
+            "/w/ws_beta/extensions/my_extension/index.js",
+            EXTENSION.as_bytes().to_vec(),
+        );
+        let registry = registry();
+        let doc = IlxDocument {
+            path: Path::new("/w/my_plugin/rules/rule1.tcl"),
+            text: RULE,
+        };
+        let roots = declared("my_plugin", "/w/ws_beta", &[]);
+        let ctx = IlxContext::new(&registry, &store).with_plugins(&roots);
+        let call = method_call_at(doc, ctx, 2, 34).expect("a method word");
+        let IlxTarget::Resolved(location) = definition(doc, ctx, &call) else {
+            panic!("expected the declared workspace to win outright");
+        };
+        assert_eq!(
+            location.path,
+            Path::new("/w/ws_beta/extensions/my_extension/index.js")
+        );
+    }
+
+    #[test]
+    fn declared_rule_directories_are_searched_recursively() {
+        // A repository that keeps its iRules outside the workspace it builds:
+        // `rules/` holds nothing, and the caller is two directories down in a
+        // declared tree.
+        let store = MemoryStore::new();
+        store.upsert(
+            "/w/ws_alpha/extensions/my_extension/index.js",
+            EXTENSION.as_bytes().to_vec(),
+        );
+        store.upsert(
+            "/repo/irules/http/rule1.tcl",
+            RENAMED_RULE.as_bytes().to_vec(),
+        );
+        let registry = registry();
+        let doc = IlxDocument {
+            path: Path::new("/w/ws_alpha/extensions/my_extension/index.js"),
+            text: EXTENSION,
+        };
+        let roots = declared("prod_plugin", "/w/ws_alpha", &["/repo/irules"]);
+        let ctx = IlxContext::new(&registry, &store).with_plugins(&roots);
+        let registration = registration_at(doc, 2, 16).expect("the addMethod name");
+        let found = references_from_registration(doc, ctx, &registration);
+        assert_eq!(
+            found
+                .iter()
+                .filter(|l| l.path == Path::new("/repo/irules/http/rule1.tcl"))
+                .count(),
+            1,
+            "the declared tree's caller must be found: {found:?}"
+        );
+        // Undeclared, the same request finds only the registration itself —
+        // the workspace's own `rules/` is empty and nothing else is searched.
+        let bare = IlxContext::new(&registry, &store);
+        assert_eq!(
+            references_from_registration(doc, bare, &registration).len(),
+            1
+        );
     }
 
     #[test]

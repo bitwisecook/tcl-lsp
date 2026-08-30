@@ -3366,6 +3366,33 @@
             "markdownDescription": "Extra SpecTcl spec packs (`.tclspec` files, or directories of them) to load for this workspace. Relative paths resolve against each workspace folder. Packs under a `.tcl-lsp/` directory, or beside a `tclpkg.tcl` manifest, are found without configuring anything; this setting is for packs that live somewhere else. See docs/design/spec-packs.md.",
             "order": 8
           },
+          "tclLsp.iruleslx": {
+            "scope": "resource",
+            "type": "object",
+            "default": {},
+            "properties": {
+              "plugins": {
+                "type": "object",
+                "markdownDescription": "iRulesLX plugin name (the `PLUGIN` word of `ILX::init PLUGIN EXTENSION`) to the workspace directory holding its `extensions/`. Only needed when the plugin's name differs from that directory's name — when they match, navigation works with no configuration. Relative paths resolve against the workspace folder.",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "rules": {
+                "type": "object",
+                "markdownDescription": "Extra directories to search for iRules that call a plugin, on top of its workspace's own `rules/`. Use this when your repository keeps its iRules outside the workspace it builds. Searched recursively; an entry for a plugin with no `plugins` entry is ignored.",
+                "additionalProperties": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "additionalProperties": false,
+            "markdownDescription": "iRulesLX plugin associations, so `ILX::call` / `ILX::notify` can navigate to the `ILXServer.addMethod` that implements a method. Also settable per project in `.tcl-lsp.ini` as `[iruleslx.plugins]` / `[iruleslx.rules]`. See docs/design/iruleslx-remote-methods.md.",
+            "order": 9
+          },
           "tclLsp.bigipVersion": {
             "scope": "resource",
             "type": "string",

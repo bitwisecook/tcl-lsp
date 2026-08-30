@@ -6666,6 +6666,38 @@ struct FolderConfig {
     /// carries the key, so a folder list replaces the global one rather
     /// than unioning with it.
     diagnostics_exclude: Option<Vec<String>>,
+    /// `tclLsp.iruleslx` / `.tcl-lsp.ini [iruleslx.plugins]` + `[iruleslx.rules]`
+    /// — the declared iRulesLX plugin associations (#1707). Held per folder
+    /// because the paths are folder-relative, exactly as `entry_points` is.
+    iruleslx: Vec<IlxPluginSpec>,
+}
+
+/// One `[iruleslx.plugins]` entry, with any `[iruleslx.rules]` directories
+/// declared for the same plugin, as written in the configuration.
+///
+/// Paths stay unresolved here: a relative path means "under this folder", and
+/// the folder root is only known where the config is read
+/// ([`Backend::ilx_plugin_roots`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct IlxPluginSpec {
+    /// The `PLUGIN` word of `ILX::init`.
+    plugin: String,
+    /// The workspace directory holding `extensions/`.
+    workspace: String,
+    /// Extra directories holding callers of this plugin.
+    extra_rule_dirs: Vec<String>,
+}
+
+/// The deepest workspace folder containing `uri` — the folder itself when a
+/// folder URI was passed. That is the scope whose overrides every per-folder
+/// value resolved through, so `tcl-lsp.getEffectiveConfig` reports it beside
+/// them.
+fn deepest_folder_containing(uri: &Uri, folders: &[Uri]) -> Option<String> {
+    folders
+        .iter()
+        .filter(|folder| uri_under_folder(uri.as_str(), folder.as_str()))
+        .max_by_key(|folder| folder.as_str().len())
+        .map(|folder| folder.as_str().to_owned())
 }
 
 /// Pick the value associated with the **longest** folder URI that `uri` sits
@@ -9459,18 +9491,21 @@ impl Backend {
     /// that defines its own `ILX::call` is therefore untouched.
     async fn ilx_method_at(
         &self,
+        uri: &Uri,
         doc: &DocumentState,
         path: &Path,
         pos: Position,
     ) -> Option<(core_ilx::MethodCall, core_ilx::IlxTarget)> {
         let registry = self.registry_for_dialect(&doc.dialect).await;
         let open = self.open_document_texts().await;
+        let plugins = self.ilx_plugin_roots(uri).await;
         let document = core_ilx::IlxDocument {
             path,
             text: &doc.text,
         };
-        let ctx =
-            core_ilx::IlxContext::new(&registry, self.store.as_ref()).with_open_documents(&open);
+        let ctx = core_ilx::IlxContext::new(&registry, self.store.as_ref())
+            .with_open_documents(&open)
+            .with_plugins(&plugins);
         let call = core_ilx::method_call_at(document, ctx, pos.line, pos.character)?;
         let target = core_ilx::definition(document, ctx, &call);
         Some((call, target))
@@ -9503,6 +9538,7 @@ impl Backend {
         let store = self.store.as_ref();
         let open = self.open_document_texts().await;
         let files = core_ilx::IlxFiles::new(store).with_open_documents(&open);
+        let plugins = self.ilx_plugin_roots(uri).await;
         // Which end of the relation the cursor is on decides which dialect's
         // registry reads the *rule* files, so the file gate is asked first —
         // it needs no registry at all.
@@ -9519,6 +9555,7 @@ impl Backend {
         let ctx = core_ilx::IlxContext {
             registry: &registry,
             files,
+            plugins: &plugins,
         };
         let found = if js_end {
             let registration = core_ilx::registration_at(document, pos.line, pos.character)?;
@@ -9534,6 +9571,75 @@ impl Backend {
                 .filter_map(Self::ilx_location)
                 .collect(),
         )
+    }
+
+    /// `tcl-lsp.ilxReferences` — find-references from a point inside an ILX
+    /// extension's **JavaScript** entry point (issue #1707 criterion 3).
+    ///
+    /// A command rather than a `textDocument/references` route because a `.js`
+    /// file is not a Tcl document and must not become one: routing it to this
+    /// server would put JavaScript through the Tcl analyser, the workspace
+    /// index and the diagnostics pipeline, none of which have anything true to
+    /// say about it. The VS Code client instead registers a *second*
+    /// `ReferenceProvider` for `javascript` that calls this and contributes its
+    /// answers alongside the JavaScript language service's own — so the editor
+    /// shows the Tcl call sites without either provider displacing the other.
+    ///
+    /// The caller passes the buffer's current `text`, since this server holds
+    /// no copy of a document it does not own; an unsaved `addMethod` is
+    /// therefore still what navigation sees, exactly as on the Tcl side.
+    ///
+    /// The extension-entry gate is applied here as well as in the client, so a
+    /// request naming an ordinary `.js` file answers nothing rather than
+    /// scanning it.
+    ///
+    /// `{ uri, text, line, character, includeDeclaration? }` →
+    /// `Location[]`, or `null` when the position is not on a registration.
+    async fn ilx_references_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> Option<serde_json::Value> {
+        let request = args.first().and_then(serde_json::Value::as_object)?;
+        let uri = Uri::from_str(request.get("uri").and_then(serde_json::Value::as_str)?).ok()?;
+        let path = uri.to_file_path()?.into_owned();
+        let text = request.get("text").and_then(serde_json::Value::as_str)?;
+        let line = u32::try_from(request.get("line").and_then(serde_json::Value::as_u64)?).ok()?;
+        let character = u32::try_from(
+            request
+                .get("character")
+                .and_then(serde_json::Value::as_u64)?,
+        )
+        .ok()?;
+        let include_decl = request
+            .get("includeDeclaration")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(true);
+
+        let open = self.open_document_texts().await;
+        let files = core_ilx::IlxFiles::new(self.store.as_ref()).with_open_documents(&open);
+        if !core_ilx::is_extension_entry(&path, files) {
+            return None;
+        }
+        let plugins = self.ilx_plugin_roots(&uri).await;
+        // JavaScript has no Tcl dialect of its own, so the rule files it is
+        // matched against are read with the dialect that owns the ILX surface.
+        let registry = self
+            .registry_for_dialect(core_ilx::EXTENSION_RULE_DIALECT)
+            .await;
+        let ctx = core_ilx::IlxContext {
+            registry: &registry,
+            files,
+            plugins: &plugins,
+        };
+        let document = core_ilx::IlxDocument { path: &path, text };
+        let registration = core_ilx::registration_at(document, line, character)?;
+        let found = core_ilx::references_from_registration(document, ctx, &registration);
+        let locations: Vec<Location> = found
+            .iter()
+            .filter(|location| include_decl || location.kind != core_ilx::IlxSite::Registration)
+            .filter_map(Self::ilx_location)
+            .collect();
+        serde_json::to_value(locations).ok()
     }
 
     /// Go-to-definition for an iRulesLX method word, or `None` when the cursor
@@ -9552,7 +9658,7 @@ impl Backend {
         pos: Position,
     ) -> Option<Vec<Location>> {
         let path = uri.to_file_path()?.into_owned();
-        let (_, target) = self.ilx_method_at(doc, &path, pos).await?;
+        let (_, target) = self.ilx_method_at(uri, doc, &path, pos).await?;
         Some(match target {
             core_ilx::IlxTarget::Resolved(location) => {
                 Self::ilx_location(&location).into_iter().collect()
@@ -13578,16 +13684,9 @@ impl Backend {
         let parsed_uri = Uri::from_str(uri_str).ok();
         let folder_overrides = self.folder_dialect_overrides().await;
         let known_folders = self.workspace_folder_urls().await;
-        // The deepest workspace folder containing the queried URI (the folder
-        // itself when a folder URI was passed) — the scope whose overrides the
-        // values below resolved through.
-        let folder_uri = parsed_uri.as_ref().and_then(|uri| {
-            known_folders
-                .iter()
-                .filter(|folder| uri_under_folder(uri.as_str(), folder.as_str()))
-                .max_by_key(|folder| folder.as_str().len())
-                .map(|folder| folder.as_str().to_owned())
-        });
+        let folder_uri = parsed_uri
+            .as_ref()
+            .and_then(|uri| deepest_folder_containing(uri, &known_folders));
         // Resolve the dialect via the open document when the URI names one.  A
         // folder (or any other non-document) URI is not readable as a document,
         // so it resolves through the per-folder override chain before falling
@@ -13620,6 +13719,7 @@ impl Backend {
         // deliberate session override counts: it is exactly "someone chose this
         // dialect", and a caller tracing a surprising dialect must be able to
         // see it (issue #1217).
+        let iruleslx_plugins = self.reported_ilx_plugin_roots().await;
         let session_override = self.session_dialect_override.lock().await.clone();
         let dialect_explicitly_set = parsed_uri
             .as_ref()
@@ -13726,6 +13826,10 @@ impl Backend {
             "docstring_style": docstring_style_str,
             "non_ascii_mode": non_ascii_mode_str(mode),
             "disabled_diagnostics": disabled_sorted,
+            // The declared iRulesLX plugin associations (#1707), resolved to
+            // absolute paths — session-wide, so a caller can see what is
+            // configured without naming a document inside the folder.
+            "iruleslx_plugins": iruleslx_plugins,
         })))
     }
 
@@ -15298,6 +15402,76 @@ impl Backend {
             ),
             None => (Vec::new(), None),
         }
+    }
+
+    /// The iRulesLX plugin associations declared for `uri`'s workspace folder
+    /// (issue #1707), with every path resolved against that folder's root.
+    ///
+    /// Folder-scoped for the same reason `entry_points` is: a relative path
+    /// here means "under this folder", and resolving it against every root in
+    /// a multi-root session would invent workspaces the user never declared.
+    /// A no-folder session — a single loose file — has none, and the
+    /// directory-name convention is then the whole story.
+    /// Every folder's declared iRulesLX plugin associations, resolved.
+    ///
+    /// The session-wide view `tcl-lsp.getEffectiveConfig` reports, so a client
+    /// (and the e2e config barrier) can see *that* a declaration has been
+    /// applied and *where* it resolved to, without having to name a document
+    /// inside the folder that carries it.
+    /// [`Self::all_ilx_plugin_roots`] as the JSON `tcl-lsp.getEffectiveConfig`
+    /// reports: `[{plugin, workspace, rules}]`, paths absolute.
+    async fn reported_ilx_plugin_roots(&self) -> Vec<serde_json::Value> {
+        self.all_ilx_plugin_roots()
+            .await
+            .into_iter()
+            .map(|root| {
+                serde_json::json!({
+                    "plugin": root.plugin,
+                    "workspace": root.workspace.to_string_lossy(),
+                    "rules": root
+                        .extra_rule_dirs
+                        .iter()
+                        .map(|dir| dir.to_string_lossy().into_owned())
+                        .collect::<Vec<String>>(),
+                })
+            })
+            .collect()
+    }
+
+    async fn all_ilx_plugin_roots(&self) -> Vec<core_ilx::IlxPluginRoot> {
+        let configs = self.folder_configs.lock().await;
+        let mut out: Vec<core_ilx::IlxPluginRoot> = Vec::new();
+        for (folder, fc) in configs.iter() {
+            let Some(root) = folder.to_file_path().map(std::borrow::Cow::into_owned) else {
+                continue;
+            };
+            out.extend(resolve_ilx_specs(&fc.iruleslx, &root));
+        }
+        out.sort_by(|a, b| (&a.plugin, &a.workspace).cmp(&(&b.plugin, &b.workspace)));
+        out.dedup();
+        out
+    }
+
+    async fn ilx_plugin_roots(&self, uri: &Uri) -> Vec<core_ilx::IlxPluginRoot> {
+        let configs = self.folder_configs.lock().await;
+        let mut best: Option<&(Uri, FolderConfig)> = None;
+        for entry in configs.iter() {
+            if uri_under_folder(uri.as_str(), entry.0.as_str())
+                && best.is_none_or(|b| entry.0.as_str().len() > b.0.as_str().len())
+            {
+                best = Some(entry);
+            }
+        }
+        let Some((folder, fc)) = best else {
+            return Vec::new();
+        };
+        if fc.iruleslx.is_empty() {
+            return Vec::new();
+        }
+        let Some(root) = folder.to_file_path().map(std::borrow::Cow::into_owned) else {
+            return Vec::new();
+        };
+        resolve_ilx_specs(&fc.iruleslx, &root)
     }
 
     /// Whether `uri` matches the resolved `tclLsp.diagnostics.exclude` glob
@@ -20506,6 +20680,7 @@ impl LanguageServer for Backend {
             }
             "tcl-lsp.compilerExplorer" => self.compiler_explorer_command(&params.arguments).await,
             "tcl-lsp.tkPreview" => self.tk_preview_command(&params.arguments).await,
+            "tcl-lsp.ilxReferences" => Ok(self.ilx_references_command(&params.arguments).await),
             _ => Ok(None),
         }
     }
@@ -21043,7 +21218,7 @@ impl LanguageServer for Backend {
         // commands reached it — they share the method target but not the
         // semantics — and, when nothing resolved, why.
         if let Some(path) = uri.to_file_path()
-            && let Some((call, target)) = self.ilx_method_at(&doc, &path, pos).await
+            && let Some((call, target)) = self.ilx_method_at(&uri, &doc, &path, pos).await
         {
             return Ok(Some(lift_hover(CoreHover {
                 value: core_ilx::hover_markdown(&call, &target),
@@ -22375,6 +22550,7 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
                 .collect(),
         );
     }
+    fc.iruleslx = parse_ilx_plugins(obj);
     // The disabled-diagnostics and non-ASCII helpers expect the value wrapped
     // under `tclLsp`; the per-folder pull hands us the section content directly.
     let wrapped = serde_json::json!({ "tclLsp": cfg });
@@ -22382,6 +22558,72 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
     fc.disabled_diagnostics = settings_disabled_diagnostics(&wrapped);
     fc.severity_overrides = settings_severity_overrides(&wrapped);
     Some(fc)
+}
+
+/// `tclLsp.iruleslx.plugins` / `.rules` → the folder's declared iRulesLX plugin
+/// associations (#1707).
+///
+/// A `rules` entry for a plugin with no `plugins` entry is dropped: extra
+/// caller directories are only meaningful once the plugin's own workspace is
+/// known, and keeping a half-declaration would silently widen the search for a
+/// plugin that still resolves by the directory-name convention — an
+/// association the user did not make.
+/// Resolve one folder's declared specs against that folder's root.
+///
+/// A relative path means "under this folder"; an absolute one is taken as
+/// given. Both are lexically normalised, so a declaration written as
+/// `../shared/ws` compares equal to the same directory reached from a
+/// document's own ancestors — which is what lets the JavaScript end recognise
+/// a declared workspace.
+fn resolve_ilx_specs(specs: &[IlxPluginSpec], root: &Path) -> Vec<core_ilx::IlxPluginRoot> {
+    specs
+        .iter()
+        .map(|spec| core_ilx::IlxPluginRoot {
+            plugin: spec.plugin.clone(),
+            workspace: tcl_lsp_core::source_graph::resolve_under(root, &spec.workspace),
+            extra_rule_dirs: spec
+                .extra_rule_dirs
+                .iter()
+                .map(|dir| tcl_lsp_core::source_graph::resolve_under(root, dir))
+                .collect(),
+        })
+        .collect()
+}
+
+fn parse_ilx_plugins(obj: &serde_json::Map<String, serde_json::Value>) -> Vec<IlxPluginSpec> {
+    let Some(ilx) = obj.get("iruleslx").and_then(serde_json::Value::as_object) else {
+        return Vec::new();
+    };
+    let Some(plugins) = ilx.get("plugins").and_then(serde_json::Value::as_object) else {
+        return Vec::new();
+    };
+    let rules = ilx.get("rules").and_then(serde_json::Value::as_object);
+    let mut out: Vec<IlxPluginSpec> = plugins
+        .iter()
+        .filter_map(|(plugin, workspace)| {
+            let workspace = workspace.as_str()?.trim();
+            (!plugin.is_empty() && !workspace.is_empty()).then(|| IlxPluginSpec {
+                plugin: plugin.clone(),
+                workspace: workspace.to_owned(),
+                extra_rule_dirs: rules
+                    .and_then(|r| r.get(plugin))
+                    .and_then(serde_json::Value::as_array)
+                    .map(|dirs| {
+                        dirs.iter()
+                            .filter_map(serde_json::Value::as_str)
+                            .map(str::trim)
+                            .filter(|d| !d.is_empty())
+                            .map(str::to_owned)
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+            })
+        })
+        .collect();
+    // A JSON object has no guaranteed order; a stable one keeps the resolved
+    // candidate list (and so an ambiguity report) reproducible.
+    out.sort_by(|a, b| a.plugin.cmp(&b.plugin));
+    out
 }
 
 /// Apply one LSP content change to `text` (incremental document sync).
@@ -25132,6 +25374,7 @@ fn build_server_capabilities(
                 "tcl-lsp.setSessionDialectOverride".to_owned(),
                 "tcl-lsp.compilerExplorer".to_owned(),
                 "tcl-lsp.tkPreview".to_owned(),
+                "tcl-lsp.ilxReferences".to_owned(),
             ],
             work_done_progress_options: WorkDoneProgressOptions::default(),
         }),
@@ -26714,6 +26957,74 @@ mod tests {
         assert_eq!(
             fc.entry_points,
             Some(vec!["main.tcl".to_owned(), "src/app.tcl".to_owned()])
+        );
+    }
+
+    #[test]
+    fn folder_config_parses_the_iruleslx_plugin_mapping() {
+        let fc = parse_folder_config(&serde_json::json!({
+            "iruleslx": {
+                "plugins": { "prod": "workspaces/ws_alpha", "other": "/abs/ws" },
+                "rules": { "prod": ["irules/http", "irules/tcp"] },
+            }
+        }))
+        .expect("folder config");
+        // Sorted by plugin name: a JSON object has no guaranteed order, and an
+        // unstable candidate list would make an ambiguity report unstable too.
+        assert_eq!(
+            fc.iruleslx,
+            vec![
+                IlxPluginSpec {
+                    plugin: "other".to_owned(),
+                    workspace: "/abs/ws".to_owned(),
+                    extra_rule_dirs: Vec::new(),
+                },
+                IlxPluginSpec {
+                    plugin: "prod".to_owned(),
+                    workspace: "workspaces/ws_alpha".to_owned(),
+                    extra_rule_dirs: vec!["irules/http".to_owned(), "irules/tcp".to_owned()],
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn an_iruleslx_rules_entry_without_a_plugin_entry_is_dropped() {
+        // Extra caller directories are only meaningful once the plugin's own
+        // workspace is known. Keeping the half-declaration would widen the
+        // search for a plugin that still resolves by the directory-name
+        // convention — an association the user never made.
+        let fc = parse_folder_config(&serde_json::json!({
+            "iruleslx": { "rules": { "prod": ["irules"] } }
+        }))
+        .expect("folder config");
+        assert!(fc.iruleslx.is_empty());
+        // …and an empty workspace path is not a declaration either.
+        let blank = parse_folder_config(&serde_json::json!({
+            "iruleslx": { "plugins": { "prod": "  " } }
+        }))
+        .expect("folder config");
+        assert!(blank.iruleslx.is_empty());
+    }
+
+    #[test]
+    fn iruleslx_paths_resolve_against_the_folder_root() {
+        let specs = vec![IlxPluginSpec {
+            plugin: "prod".to_owned(),
+            workspace: "../shared/ws".to_owned(),
+            extra_rule_dirs: vec!["irules".to_owned(), "/abs/elsewhere".to_owned()],
+        }];
+        let roots = resolve_ilx_specs(&specs, Path::new("/repo/app"));
+        assert_eq!(roots.len(), 1);
+        // Lexically normalised, so this compares equal to the same directory
+        // reached from a document's own ancestors.
+        assert_eq!(roots[0].workspace, Path::new("/repo/shared/ws"));
+        assert_eq!(
+            roots[0].extra_rule_dirs,
+            vec![
+                PathBuf::from("/repo/app/irules"),
+                PathBuf::from("/abs/elsewhere"),
+            ]
         );
     }
 

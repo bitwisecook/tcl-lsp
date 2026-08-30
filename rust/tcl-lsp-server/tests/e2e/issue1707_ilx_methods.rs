@@ -423,3 +423,196 @@ fn ordinary_tcl_named_ilx_call_is_untouched() {
         "plain Tcl must not get the ILX hover: {hover}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// The declared plugin ↔ workspace mapping, and the JavaScript-side route
+// (issue #1707 criteria 2 and 3, the halves PR #1730 left open)
+// ---------------------------------------------------------------------------
+
+/// A workspace whose **directory name is not the plugin name** — the shape a
+/// `create ilx plugin P from-workspace W` leaves behind, and the one the
+/// directory-name convention cannot resolve — plus a caller kept outside the
+/// workspace entirely, as a repository routinely does.
+///
+/// ```text
+/// <root>/ws_alpha/rules/rule1.tcl
+/// <root>/ws_alpha/extensions/my_extension/index.js
+/// <root>/elsewhere/http/rule2.tcl
+/// ```
+struct DeclaredFixture {
+    plugin: String,
+    root: PathBuf,
+    inside_uri: String,
+    outside_uri: String,
+    extension_uri: String,
+}
+
+impl DeclaredFixture {
+    fn new(label: &str) -> Self {
+        let plugin = format!("prod_{label}_{}", std::process::id());
+        let root = std::env::temp_dir().join(format!("tcl-lsp-e2e-1707d-{plugin}"));
+        let workspace = root.join("ws_alpha");
+        let rules = workspace.join("rules");
+        let extension_dir = workspace.join("extensions").join("my_extension");
+        let outside = root.join("elsewhere").join("http");
+        std::fs::create_dir_all(&rules).expect("mk rules dir");
+        std::fs::create_dir_all(&extension_dir).expect("mk extension dir");
+        std::fs::create_dir_all(&outside).expect("mk outside dir");
+        let inside = rules.join("rule1.tcl");
+        let outside_rule = outside.join("rule2.tcl");
+        let extension_path = extension_dir.join("index.js");
+        std::fs::write(&inside, rule_source(&plugin)).expect("write inside rule");
+        std::fs::write(&outside_rule, rule_source(&plugin)).expect("write outside rule");
+        std::fs::write(&extension_path, EXTENSION).expect("write extension");
+        Self {
+            plugin,
+            inside_uri: uri_of(&inside),
+            outside_uri: uri_of(&outside_rule),
+            extension_uri: uri_of(&extension_path),
+            root,
+        }
+    }
+
+    /// The `tclLsp.iruleslx` settings a user writes to associate the plugin
+    /// with its workspace, and to name where its callers live. Paths are
+    /// folder-relative, exactly as they are in `.tcl-lsp.ini`.
+    fn config(&self) -> Value {
+        serde_json::json!({
+            "iruleslx": {
+                "plugins": { &self.plugin: "ws_alpha" },
+                "rules": { &self.plugin: ["elsewhere"] },
+            }
+        })
+    }
+
+    fn serve(&self, config: Value) -> Lsp {
+        let mut lsp = Lsp::with_config_at_root(config, &self.root);
+        lsp.open_ready_lang(&self.inside_uri, &rule_source(&self.plugin), "tcl-irule");
+        lsp
+    }
+}
+
+impl Drop for DeclaredFixture {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.root);
+    }
+}
+
+#[test]
+fn a_declared_plugin_resolves_where_the_directory_name_cannot() {
+    let fixture = DeclaredFixture::new("decl");
+
+    // Unconfigured: nothing in the layout says `prod_…` is `ws_alpha`, and
+    // matching on the extension name alone is the guess criterion 4 forbids —
+    // so this is a definitive "no target", not a fall-through.
+    let mut bare = fixture.serve(serde_json::json!({}));
+    assert!(
+        locations(&bare.definition(&fixture.inside_uri, CALL_METHOD.0, CALL_METHOD.1)).is_empty(),
+        "the convention must not guess the workspace"
+    );
+    drop(bare);
+
+    // Declared: the same request now crosses into the JavaScript.
+    let mut lsp = fixture.serve(fixture.config());
+    let found = locations(&lsp.definition(&fixture.inside_uri, CALL_METHOD.0, CALL_METHOD.1));
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].uri, fixture.extension_uri, "{found:?}");
+}
+
+#[test]
+fn declared_rule_directories_reach_a_caller_outside_the_workspace() {
+    let fixture = DeclaredFixture::new("outside");
+    let mut lsp = fixture.serve(fixture.config());
+
+    let found = locations(&lsp.references(&fixture.inside_uri, CALL_METHOD.0, CALL_METHOD.1, true));
+    // The registration, both sites in the open rule, and both sites in the
+    // declared directory's rule — which no scan of `rules/` would ever see.
+    assert_eq!(
+        found
+            .iter()
+            .filter(|l| l.uri == fixture.outside_uri)
+            .count(),
+        2,
+        "the declared directory's caller must be found: {found:?}"
+    );
+    assert_eq!(
+        found
+            .iter()
+            .filter(|l| l.uri == fixture.extension_uri)
+            .count(),
+        1,
+        "{found:?}"
+    );
+}
+
+#[test]
+fn the_javascript_end_answers_through_the_ilx_references_command() {
+    let fixture = DeclaredFixture::new("jscmd");
+    let mut lsp = fixture.serve(fixture.config());
+
+    // What the VS Code client's second `ReferenceProvider` sends for a
+    // JavaScript document the Tcl server does not own: the buffer travels with
+    // the request, since the server holds no copy of it.
+    let result = lsp.request(
+        "workspace/executeCommand",
+        serde_json::json!({
+            "command": "tcl-lsp.ilxReferences",
+            "arguments": [{
+                "uri": fixture.extension_uri,
+                "text": EXTENSION,
+                "line": REGISTRATION.0,
+                "character": REGISTRATION.1,
+                "includeDeclaration": false,
+            }],
+        }),
+    );
+    let found = locations(&result);
+    assert_eq!(found.len(), 4, "both rules, two sites each: {found:?}");
+    assert!(
+        found
+            .iter()
+            .all(|l| l.uri == fixture.inside_uri || l.uri == fixture.outside_uri),
+        "`includeDeclaration: false` drops the registration itself: {found:?}"
+    );
+
+    // A position that is not on a registration name has no answer at all, so
+    // the client falls back to the JavaScript language service rather than
+    // showing an emphatic empty result.
+    let elsewhere = lsp.request(
+        "workspace/executeCommand",
+        serde_json::json!({
+            "command": "tcl-lsp.ilxReferences",
+            "arguments": [{
+                "uri": fixture.extension_uri,
+                "text": EXTENSION,
+                "line": 5,
+                "character": 4,
+            }],
+        }),
+    );
+    assert!(elsewhere.is_null(), "{elsewhere:?}");
+}
+
+#[test]
+fn the_ilx_references_command_ignores_an_ordinary_javascript_file() {
+    let fixture = DeclaredFixture::new("plainjs");
+    let mut lsp = fixture.serve(fixture.config());
+
+    // Same content, but not an extension entry point: the server's own gate
+    // refuses it even though the client's cheap pre-filter might not.
+    let plain = fixture.root.join("tool.js");
+    std::fs::write(&plain, EXTENSION).expect("write plain js");
+    let result = lsp.request(
+        "workspace/executeCommand",
+        serde_json::json!({
+            "command": "tcl-lsp.ilxReferences",
+            "arguments": [{
+                "uri": uri_of(&plain),
+                "text": EXTENSION,
+                "line": REGISTRATION.0,
+                "character": REGISTRATION.1,
+            }],
+        }),
+    );
+    assert!(result.is_null(), "{result:?}");
+}

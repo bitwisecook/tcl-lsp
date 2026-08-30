@@ -15,7 +15,7 @@ does each section accept, and what values are valid?
 ## Answer
 
 Both the global `config.ini` and the project `.tcl-lsp.ini` use the
-same INI schema. Nine sections are recognised in total — seven of
+same INI schema. Eleven sections are recognised in total — nine of
 them work in either file, plus one location-specific section for each
 file (`[global]` and `[project]`). Any section or key the parser does
 not know is silently ignored, so a typo turns into a no-op rather
@@ -155,6 +155,45 @@ Style settings that affect linting but not formatting.
 
 - `line_length` — integer.
 
+### `[iruleslx.plugins]` and `[iruleslx.rules]`
+
+iRulesLX only. They tell the server which directory holds a plugin's
+sources, so `ILX::call`/`ILX::notify` can navigate to the
+`ILXServer.addMethod` that implements the method.
+
+Every key is a **plugin name** — the `PLUGIN` word of
+`ILX::init PLUGIN EXTENSION` — so there is no fixed key list:
+
+```ini
+[iruleslx.plugins]
+prod_plugin = workspaces/ws_alpha
+
+[iruleslx.rules]
+prod_plugin =
+    irules/http
+    irules/tcp
+```
+
+- `[iruleslx.plugins]` — `PLUGIN = <workspace directory>`. Needed only
+  when the plugin's name differs from the directory that holds its
+  `extensions/`; when the two match, navigation already works with no
+  configuration. A declared plugin ignores the directory-name rule
+  entirely, so this can also correct a directory that happens to
+  collide with a plugin name.
+- `[iruleslx.rules]` — `PLUGIN = <directory>[, <directory>…]`, one per
+  line or comma-separated. Extra directories to search for iRules that
+  call this plugin, on top of the workspace's own `rules/`. Use it when
+  your repository keeps its iRules outside the workspace it builds.
+  These directories *are* searched recursively (to 8 levels); `rules/`
+  itself is not. An entry for a plugin with no `[iruleslx.plugins]`
+  entry is ignored.
+
+Paths are relative to the folder the config file is in; absolute paths
+are taken as given. In the global `config.ini` prefer absolute paths —
+a relative one resolves against whichever workspace folder is reading
+it. The same settings are available to editors as `tclLsp.iruleslx`
+(`{ "plugins": {…}, "rules": {…} }`).
+
 ### What you cannot put in an INI file
 
 A handful of settings are only honoured when they come from editor
@@ -174,4 +213,5 @@ for the full list of layers and where to put each kind of setting.
 - [How do I turn a diagnostic, optimisation, or shimmer off?](kcs-howto-suppress-diagnostics.md)
 - [How do I turn off all diagnostics for certain files?](kcs-howto-exclude-files-from-diagnostics.md)
 - [Per-code catalogue](codes/README.md)
+- [iRulesLX remote methods](../design/iruleslx-remote-methods.md)
 - [Glossary](../GLOSSARY.md)
