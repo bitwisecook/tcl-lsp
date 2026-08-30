@@ -1826,6 +1826,23 @@ fn config_reflected(requested: &Value, effective: &Value) -> bool {
                 effective.get(flat).is_some_and(|got| got == v)
             })
         }),
+        // `tclLsp.iruleslx` (#1707) is folder-scoped and reported resolved —
+        // absolute paths, which the request does not carry — so the barrier is
+        // that every declared plugin *name* has reached the applied config.
+        // That is the thing a test then depends on: an unapplied declaration
+        // resolves nothing at all.
+        "iruleslx" => want
+            .get("plugins")
+            .and_then(Value::as_object)
+            .is_none_or(|plugins| {
+                let got = effective.get("iruleslx_plugins").and_then(Value::as_array);
+                plugins.keys().all(|name| {
+                    got.is_some_and(|list| {
+                        list.iter()
+                            .any(|entry| entry.get("plugin").is_some_and(|p| p == name))
+                    })
+                })
+            }),
         "dialect" => effective.get("dialect").is_some_and(|got| got == want),
         "lineLength" => effective.get("line_length").is_some_and(|got| got == want),
         other => panic!(
