@@ -352,6 +352,30 @@ pub fn context_for_profile(profile: &DialectProfile) -> Arc<ContextRegistry> {
 /// axes an un-overlaid assembly answers under.
 type PromotionKey = (String, u64, u64);
 
+/// The surface-roster generation `environment`'s answers move with — `0`
+/// for an environment no roster can reach.
+///
+/// [`ResolvedContext::inherited_surface_admits`] consults a roster only
+/// for a family that *reimplements* an ancestor; a fork, a family with no
+/// ancestry, and every environment with no core all answer `true` before
+/// looking. Carrying the axis for those would rebuild each of their
+/// promoted views — and, on a pack publication, the pack overlay behind
+/// each — every time a roster moves, to arrive at the same answers.
+///
+/// [`ResolvedContext::inherited_surface_admits`]: crate::model::ResolvedContext::inherited_surface_admits
+fn roster_axis_of(environment: &DocumentEnvironment) -> u64 {
+    let reimplements = environment.definition.core.is_some_and(|core| {
+        core.family.ancestry().is_some_and(|ancestry| {
+            ancestry.lineage == tcl_dialect::model::family::Lineage::Reimplementation
+        })
+    });
+    if reimplements {
+        tcl_dialect::model::inherited_surface_generation()
+    } else {
+        0
+    }
+}
+
 /// Every [`PromotionKey`] whose un-overlaid generation has been promoted
 /// to a `&'static` view. The value is a leaked *clone of the generation
 /// handle*, not a second assembly, so the `&'static` and the `Arc` name
@@ -386,7 +410,7 @@ pub fn static_context_for(name: &str) -> &'static ContextRegistry {
     let key: PromotionKey = (
         environment.id().to_owned(),
         environment.identity.generation,
-        tcl_dialect::model::inherited_surface_generation(),
+        roster_axis_of(&environment),
     );
     let leaked = LEAKED_GENERATIONS.get_or_init(|| Mutex::new(FxHashMap::default()));
     if let Some(view) = leaked
