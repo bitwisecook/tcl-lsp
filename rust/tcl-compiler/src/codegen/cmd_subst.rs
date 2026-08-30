@@ -545,6 +545,13 @@ impl CodegenCtx<'_> {
         } else if !braced && word.contains('\\') {
             let processed = tcl_lexer::backslash_subst_in(word, self.escapes);
             self.push_lit(&processed);
+        } else if braced {
+            // A braced word is already de-braced here, so its content is the
+            // finished value: push it verbatim or the VM's `subst_word` strips
+            // a *second* brace layer — `proc p {} { set {{loc}} L ; return [set
+            // {{loc}}] }` read the local `loc` while the store had created
+            // `{loc}` (issue #1602; tclsh 8.6.14 / 9.0.4 return `L`).
+            self.push_lit_verbatim(word);
         } else {
             self.push_lit(word);
         }

@@ -229,7 +229,9 @@ impl CfgBuilder {
                     reads: Vec::new(),
                     reads_own_defs: false,
                     safe_on_uninit: false,
-                    tokens: None,
+                    tokens: Some(crate::ir::CommandTokens::marker(
+                        crate::ir::SyntheticMarker::Condition,
+                    )),
                     foreach_groups: None,
                 });
                 // A condition-embedded callee that runs an unreadable
@@ -245,7 +247,9 @@ impl CfgBuilder {
                             command: "<global-frame-script>".into(),
                             canonical_command: None,
                             args: Vec::new(),
-                            tokens: None,
+                            tokens: Some(crate::ir::CommandTokens::marker(
+                                crate::ir::SyntheticMarker::GlobalFrameScript,
+                            )),
                         });
                 }
             }
@@ -284,6 +288,31 @@ impl CfgBuilder {
     // for
 
     /// Flatten `Statement::For` into init → header → body → step → header loop.
+    /// Push the placeholder an empty `for` init / next clause takes, so the
+    /// clause keeps its place in the instruction stream (codegen emits the
+    /// three `nop`s tclsh's bytecode has there).
+    ///
+    /// The statement is a *synthetic marker*: the `command` spelling is only a
+    /// label for the disassembly, and codegen recognises it by the typed
+    /// [`crate::ir::SyntheticMarker`] on its tokens — `<empty_clause>` is a
+    /// legal Tcl command name a script may define and call.
+    fn push_empty_clause(&mut self, block: &str, span: Span) {
+        self.block_mut(block).statements.push(Statement::Call {
+            span,
+            command: "<empty_clause>".into(),
+            canonical_command: None,
+            args: vec![],
+            defs: vec![],
+            reads: vec![],
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: Some(crate::ir::CommandTokens::marker(
+                crate::ir::SyntheticMarker::EmptyClause,
+            )),
+            foreach_groups: None,
+        });
+    }
+
     pub(super) fn lower_for(&mut self, stmt: &Statement, block_name: &str) -> Option<String> {
         let Statement::For {
             span,
@@ -304,18 +333,7 @@ impl CfgBuilder {
 
         // Placeholder for empty init clause.
         if init.statements.is_empty() {
-            self.block_mut(block_name).statements.push(Statement::Call {
-                span: *init_span,
-                command: "<empty_clause>".into(),
-                canonical_command: None,
-                args: vec![],
-                defs: vec![],
-                reads: vec![],
-                reads_own_defs: false,
-                safe_on_uninit: false,
-                tokens: None,
-                foreach_groups: None,
-            });
+            self.push_empty_clause(block_name, *init_span);
         }
         let init_tail = self.lower_script(init, block_name)?;
 
@@ -347,20 +365,7 @@ impl CfgBuilder {
 
         // Placeholder for empty next clause.
         if next.statements.is_empty() {
-            self.block_mut(&step_block)
-                .statements
-                .push(Statement::Call {
-                    span: *next_span,
-                    command: "<empty_clause>".into(),
-                    canonical_command: None,
-                    args: vec![],
-                    defs: vec![],
-                    reads: vec![],
-                    reads_own_defs: false,
-                    safe_on_uninit: false,
-                    tokens: None,
-                    foreach_groups: None,
-                });
+            self.push_empty_clause(&step_block, *next_span);
         }
         // Analysis builds rotate a `for` whose condition is statically true on
         // entry: the step re-checks the condition
@@ -447,7 +452,9 @@ impl CfgBuilder {
                 reads: Vec::new(),
                 reads_own_defs: false,
                 safe_on_uninit: false,
-                tokens: None,
+                tokens: Some(crate::ir::CommandTokens::marker(
+                    crate::ir::SyntheticMarker::Condition,
+                )),
                 foreach_groups: None,
             });
             // See `lower_if`: an unreadable global-frame script in the
@@ -459,7 +466,9 @@ impl CfgBuilder {
                     command: "<global-frame-script>".into(),
                     canonical_command: None,
                     args: Vec::new(),
-                    tokens: None,
+                    tokens: Some(crate::ir::CommandTokens::marker(
+                        crate::ir::SyntheticMarker::GlobalFrameScript,
+                    )),
                 });
             }
         }
