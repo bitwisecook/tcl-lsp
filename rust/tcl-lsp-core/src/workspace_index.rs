@@ -3620,7 +3620,7 @@ impl WorkspaceIndex {
                 // `export` / `unexport` govern that branch alone.
                 let branch_state = branches
                     .iter()
-                    .find(|(spine, _)| spine.iter().any(|c| *c == class_q))
+                    .find(|(spine, _)| spine.contains(&class_q))
                     .and_then(|(_, state)| *state);
                 let exported = match branch_state {
                     Some(exported) => exported,
@@ -3676,7 +3676,7 @@ impl WorkspaceIndex {
                 // capture belongs to that family instead.
                 self.dispatch_chain_over(&edges, cq, method, MethodAccess::External, side)
                     .first()
-                    .is_some_and(|entry| family.iter().any(|f| *f == entry.qualified_name.as_str()))
+                    .is_some_and(|entry| family.contains(&entry.qualified_name.as_str()))
             })
             .map(ToOwned::to_owned)
             .collect()
