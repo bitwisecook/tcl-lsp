@@ -80,6 +80,87 @@ Method resolution order uses a linearisation matching C Tcl's algorithm.  It
 lives in `tcl-syntax` so the analyser and the bytecode VM share one
 implementation without the VM depending on the compiler.
 
+### Export state vs. implementation (`ClassHierarchy::spine_map`)
+
+External dispatch reads **two independent facts** off the linearisation, and
+`TclOO` sources them from different classes:
+
+- the **export flag**, from the *most specific* class on the receiver's
+  superclass spine that *mentions* the member name;
+- the **implementation**, from the first class on the full MRO that declares a
+  body.
+
+They come apart because `export` / `unexport` accept a name their class does
+not define: C's `TclOODefineExportObjCmd` creates a body-less method-table
+entry whose only content is the flag.  `info class methods` does not list such
+an entry, so the state cannot be read off the member tables alone — the
+`ClassDef::exports` / `unexports` sets (and their class-object twins) are the
+record.  Oracle, byte-identical on tclsh 8.6.16 and 9.0.4:
+
+```tcl
+oo::class create Base   { method tick {} { return base } }
+oo::class create Child  { superclass Base } ; oo::define Child { unexport tick }
+[Child new] tick     ;# -> unknown method "tick"   (Base's public body, suppressed here)
+
+oo::class create Base3  { method tock {} { return b3 } ; unexport tock }
+oo::class create Child3 { superclass Base3 ; export tock }
+[Child3 new] tock    ;# -> b3                      (Base3's unexported body, revived here)
+[Base3 new] tock     ;# -> unknown method "tock"
+```
+
+`private` is not such a flag: it is a separate, class-local slot, and a
+subclass's `export` cannot lift it (9.0.4).  Internal (`my`) dispatch ignores
+the export flag entirely and reaches `Base`'s body in the first case above.
+
+**Every `mixin` branch decides for itself.** C's
+`AddSimpleClassChainToCallContext` enters each mixin with a *fresh copy* of
+the dispatch flags, so a branch's `export` / `unexport` governs that branch
+alone and never travels to another.  The dispatch is therefore a sequence of
+mixin-free spines — each reachable mixin branch, then the receiver's own
+`superclass` spine — and a provider answers to the flag of the **first branch
+that reaches it**:
+
+```tcl
+oo::class create A      { method m {} { return A-m } }
+oo::class create MBase  { method m {} { return MBase-m } }
+oo::class create MChild { superclass MBase } ; oo::define MChild { unexport m }
+oo::class create D { superclass A ; mixin MChild }
+[D new] m           ;# -> A-m       (the mixin branch is empty; the spine answers)
+
+oo::class create MPub { superclass MBase }
+oo::class create D2 { superclass A ; mixin MPub }
+[D2 new] m          ;# -> MBase-m   (a live mixin branch outranks the spine)
+
+oo::class create NBase  { method n {} { return NBase-n } ; unexport n }
+oo::class create NChild { superclass NBase ; export n }
+oo::class create A2 { method n {} { return A2-n } }
+oo::class create D3 { superclass A2 ; mixin NChild }
+[D3 new] n          ;# -> NBase-n   (the branch's own export revives its base)
+```
+
+Branch roots are collected transitively, so a `mixin` written on a superclass
+or on another mixin is walked the same way.  `ClassHierarchy::spine_map` is the
+mixin-free linearisation each branch is read along — the same resolved
+`superclass` edges as `mro_map`, with the mixin edges withheld, from the same
+[`tcl_syntax::mro`](../../../rust/tcl-syntax/src/mro.rs) owner, so the two
+orders cannot disagree about which qualified name a bare `superclass Device`
+meant — and `ClassHierarchy::mixin_map` carries the owner-resolved mixin edges
+that name the roots.  `WorkspaceIndex`'s `ClassEdges` is the cross-file twin,
+and both dispatch folds
+(`tcl_lsp_core::oo_dispatch::method_dispatch_provider` in-document,
+`WorkspaceIndex::dispatch_chain` across files) read the flag the same way
+(issue #1705).
+
+The two dispatch kinds can consequently land on **different classes** for one
+receiver, and consumers must ask separately: with the `MChild` shape above,
+`my m` inside `D` reaches `MBase::m` while `[list [self] m]` reaches `A::m`.
+
+Known limit: with multiple `superclass`es the spine is walked in declaration
+order and the first mention wins.  C keeps each branch's flags independent, so
+a later branch disagreeing with the first is approximated rather than
+modelled — the same single-linearisation approximation `mro_map` already
+makes.
+
 ### VM runtime layer (`rust/tcl-vm/src/cmd_oo.rs`)
 
 The VM manages the object/class registry at runtime:
@@ -113,7 +194,9 @@ Reference results captured from real tclsh 8.4–9.0 are queryable via the
 |------|------|
 | `rust/tcl-vm/src/cmd_oo.rs` | OO runtime (object/class registry, dispatch, define body parsing) |
 | `rust/tcl-vm/src/cmd_info.rs` | `info object` / `info class` introspection |
-| `rust/tcl-syntax/src/mro.rs` | MRO linearisation (shared analyser ↔ VM) |
+| `rust/tcl-syntax/src/mro.rs` | MRO linearisation (shared analyser ↔ VM; also each mixin-free branch spine) |
+| `rust/tcl-lsp-core/src/oo_dispatch.rs` | In-document dispatch entry + effective export state |
+| `rust/tcl-lsp-core/src/workspace_index.rs` | Cross-file dispatch chain (same fold, workspace records) |
 | `rust/tcl-compiler/src/analyser/oo.rs` | Static OO analysis (class/method extraction) |
 | `rust/tcl-compiler/src/analyser/class_hierarchy.rs` | Owner-aware hierarchy index + one-hop class resolution |
 | `rust/tcl-registry/src/definer.rs` | Definer body grammars (TclOO / snit / itcl as data) |

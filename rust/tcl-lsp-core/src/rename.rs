@@ -1070,18 +1070,23 @@ fn callback_prefix_target_in_workspace(
     } else {
         MethodAccess::Internal
     };
+    // The chain is the *gate*, not the answer: an empty one means this
+    // receiver cannot dispatch the member at all (a `[self]` capture of a name
+    // the receiver has unexported), so the position resolves to nothing.  What
+    // is returned is the **receiver**, exactly as the bare `$obj method` arms
+    // below return theirs — the family, definition and rename tiers each
+    // resolve the provider from it through this same chain, and handing them a
+    // provider instead would drop the receiver's own `export` / `unexport`
+    // stub on the way (issue #1705: `Base` unexports `tock`, `Child` exports
+    // the inherited name, and only a chain rooted at `Child` still reaches
+    // `Base`'s body).
     let chain = if is_classmethod {
         workspace.class_method_dispatch_chain(&receiver, word, access)
     } else {
         workspace.method_dispatch_chain(&receiver, word, access)
     };
-    let provider = chain.first()?;
-    Some((
-        provider.qualified_name.clone(),
-        word.to_owned(),
-        is_classmethod,
-        access,
-    ))
+    chain.first()?;
+    Some((receiver, word.to_owned(), is_classmethod, access))
 }
 
 /// [`method_target_with_access`] with the **workspace tier** available for
@@ -1285,10 +1290,9 @@ pub fn method_spans_in_document(
 /// inherited-method rename reaches `my method` / `$obj method` sites that
 /// live in a subclass-only file.
 ///
-/// `extra_classmethod_cmd_names`: see
-/// [`crate::references::inherited_method_call_sites`]'s identical parameter —
-/// the workspace-wide classmethod-dispatch names this subclass-only document
-/// cannot derive from its own (definer-less) `all_classes`.
+/// `workspace` carries the two facts a subclass-only document cannot derive
+/// from its own (definer-less) `all_classes` — see
+/// [`crate::references::InheritedReceiverFacts`].
 #[must_use]
 pub fn inherited_method_spans_in_document(
     source: &str,
@@ -1297,7 +1301,7 @@ pub fn inherited_method_spans_in_document(
     class_q: &str,
     method: &str,
     is_classmethod: bool,
-    extra_classmethod_cmd_names: &[String],
+    workspace: crate::references::InheritedReceiverFacts<'_>,
 ) -> Vec<tcl_lexer::Span> {
     crate::references::inherited_method_call_sites(
         source,
@@ -1306,7 +1310,7 @@ pub fn inherited_method_spans_in_document(
         class_q,
         method,
         is_classmethod,
-        extra_classmethod_cmd_names,
+        workspace,
     )
 }
 
@@ -2770,6 +2774,11 @@ mod tests {
             ("file:///base.tcl", &base),
             ("file:///child.tcl", &child),
         ]);
+        // The resolved target is the **receiver**, exactly as a bare `$obj
+        // method` position resolves to one: the provider is whatever the
+        // workspace chain rooted there reaches, and re-rooting the chain at
+        // the provider instead would drop the receiver's own `export` /
+        // `unexport` stub on the way (issue #1705).
         assert_eq!(
             method_target_with_access_in_workspace(
                 child_src,
@@ -2779,11 +2788,20 @@ mod tests {
                 Some((&index, "file:///child.tcl")),
             ),
             Some((
-                "::Base".to_owned(),
+                "::Child".to_owned(),
                 "read".to_owned(),
                 false,
                 MethodAccess::Internal,
             )),
+        );
+        // …and that chain still names `Base` as the provider, so the
+        // definition / lens / rename tiers reach the inherited declaration.
+        assert_eq!(
+            index
+                .method_dispatch_chain("::Child", "read", MethodAccess::Internal)
+                .first()
+                .map(|c| c.uri.as_str()),
+            Some("file:///base.tcl"),
         );
     }
 
@@ -2833,11 +2851,21 @@ mod tests {
                 Some((&index, "file:///child.tcl")),
             ),
             Some((
-                "::Mixin".to_owned(),
+                "::Child".to_owned(),
                 "read".to_owned(),
                 false,
                 MethodAccess::Internal,
             )),
+        );
+        // The MRO fact this test exists for, pinned where it is decided: a
+        // `mixin` is searched ahead of the class's own table, so the chain
+        // rooted at the receiver enters `Mixin::read`, not `Child`'s override.
+        assert_eq!(
+            index
+                .method_dispatch_chain("::Child", "read", MethodAccess::Internal)
+                .first()
+                .map(|c| c.uri.as_str()),
+            Some("file:///mixin.tcl"),
         );
     }
 
