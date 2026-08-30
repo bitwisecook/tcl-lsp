@@ -63,6 +63,7 @@ use clap::{Parser, Subcommand};
 
 mod audit_option_dialects;
 mod bigip_data_schema;
+mod callback_coverage;
 mod callback_inventory;
 mod command_backing;
 mod diag_emission;
