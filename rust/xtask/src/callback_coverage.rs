@@ -13,19 +13,29 @@
 //! and nothing in it notices a documented callback the registry never
 //! classified at all.
 //!
-//! This module is the other half: a curated, sourced list of callback surfaces
-//! that Tcl, Tk, Expect, Tcllib and the supported dialects *document*, each
-//! pinned to the classification the registry has to keep — kind, timing,
-//! appended-argument contract, and the dialects the surface must reach. The
-//! manifest is authored, never generated, and it is enforced in **both**
-//! `--check` and write mode, so regenerating the inventory cannot paper over a
-//! downgrade.
+//! This module is the other half, in three tiers, and every projected row must
+//! belong to exactly one of them:
 //!
-//! Surfaces the audit found documented but *unclassified* are not dropped on
-//! the floor either: they go in `known_gaps` with their evidence and tracking
-//! issue, following the waiver shape `audit-option-dialects` established
-//! (`KNOWN_UNSPECIFIED`). A waiver whose gap has closed fails the gate, so the
-//! surface has to be promoted to a requirement rather than left half-known.
+//! 1. **`requirements`** — a curated, sourced list of callback surfaces that
+//!    Tcl, Tk, Expect, Tcllib and the supported dialects *document*, each
+//!    pinned to the classification the registry has to keep: kind, timing,
+//!    appended-argument contract, and the dialects the surface must reach.
+//! 2. **`known_gaps`** — surfaces the audit found documented but *unclassified*,
+//!    with their evidence and tracking issue, following the waiver shape
+//!    `audit-option-dialects` established (`KNOWN_UNSPECIFIED`). A waiver whose
+//!    gap has closed fails, so the surface is promoted rather than left
+//!    half-known.
+//! 3. **the baseline** — everything else the projection carries, by identity
+//!    alone. Most of the inventory has no separate contract worth citing (the
+//!    seventeen `crc::*` `-implementation` options say the same thing
+//!    seventeen times), and authoring a documented requirement for each would
+//!    be ceremony, not review. Listing them still buys the thing that matters:
+//!    a row that disappears while it is listed is a downgrade, not a smaller
+//!    file. Tier 3 pins *existence*; only tier 1 pins the contract.
+//!
+//! All three are authored, never generated, and all three are enforced in
+//! **both** `--check` and write mode, so regenerating the inventory cannot
+//! paper over a downgrade anywhere in it.
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -37,6 +47,7 @@ use serde::Deserialize;
 use crate::callback_inventory::{SurfaceKind, Timing};
 
 const MANIFEST_PATH: &str = "docs/references/command-spec/callback-surface-requirements.json";
+const BASELINE_PATH: &str = "docs/references/command-spec/callback-surface-baseline.json";
 
 /// The registry families the issue's coverage question spans. A row has to
 /// name one of them, so a new surface cannot arrive under a private grouping
@@ -108,6 +119,29 @@ struct Imprecision {
     reason: String,
 }
 
+/// The unpinned tier: every projected surface the authored requirements do not
+/// cover, listed by identity alone.
+///
+/// This file is **read, never written** — that is the whole point. The
+/// generator can rewrite `callback-surfaces.json`, so a row vanishing from the
+/// projection proves nothing; a row vanishing from the projection *while still
+/// listed here* is a callback that lost its declaration. It buys existence,
+/// not contract: what a baseline row's kind, timing, or appended arity are is
+/// only claimed by the tier above.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Baseline {
+    schema_version: u8,
+    rows: Vec<BaselineRow>,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(deny_unknown_fields)]
+struct BaselineRow {
+    owner: String,
+    location: String,
+}
+
 /// A documented callback surface the registry does not classify yet.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -137,6 +171,18 @@ pub fn enforce(root: &Path, rows: &[SurfaceRow<'_>]) -> Result<()> {
         );
     }
     validate_manifest(&manifest)?;
+    let baseline_path = root.join(BASELINE_PATH);
+    let baseline: Baseline = serde_json::from_str(
+        &fs::read_to_string(&baseline_path)
+            .with_context(|| format!("reading {}", baseline_path.display()))?,
+    )
+    .with_context(|| format!("parsing {}", baseline_path.display()))?;
+    if baseline.schema_version != 1 {
+        bail!(
+            "unsupported callback baseline schema {}",
+            baseline.schema_version
+        );
+    }
 
     let mut failures: Vec<String> = Vec::new();
     for requirement in &manifest.requirements {
@@ -145,17 +191,104 @@ pub fn enforce(root: &Path, rows: &[SurfaceRow<'_>]) -> Result<()> {
     for gap in &manifest.known_gaps {
         check_gap(gap, rows, &mut failures);
     }
+    check_completeness(&manifest, &baseline, rows, &mut failures)?;
     if failures.is_empty() {
         return Ok(());
     }
     bail!(
-        "{} authored callback-coverage failure(s) against {MANIFEST_PATH}:\n{}\n\nSee \
+        "{} callback-coverage failure(s) against {MANIFEST_PATH} and {BASELINE_PATH}:\n{}\n\nSee \
          docs/design/contracts/callback-surface-inventory.md — a surface that genuinely \
-         changed is re-pinned in the manifest in the same commit as the registry edit; a \
-         surface that lost its declaration is a regression, not a manifest update.",
+         changed is re-pinned in the same commit as the registry edit; a surface that lost \
+         its declaration is a regression, not a manifest update.",
         failures.len(),
         failures.join("\n")
     );
+}
+
+/// Every projected row is accounted for, and every accounted row is still
+/// projected.
+///
+/// This is what makes the gate a *downgrade* gate rather than a spot-check on
+/// 74 hand-picked surfaces. Without it the authored tiers only defend what
+/// they happen to name: `checkbutton -command` could become a plain value, the
+/// generator would write the smaller report, and every authored check would
+/// still pass (found in review of PR #1727). Three failures come out of here:
+///
+/// - a projected row in neither tier — a *new* callback surface arriving
+///   unreviewed, which has to be pinned (with its documentation) or, if there
+///   is nothing separate to cite, baselined;
+/// - a baselined row that is no longer projected — the downgrade;
+/// - a surface in both tiers, which would let a requirement silently weaken to
+///   an existence check.
+fn check_completeness(
+    manifest: &Manifest,
+    baseline: &Baseline,
+    rows: &[SurfaceRow<'_>],
+    failures: &mut Vec<String>,
+) -> Result<()> {
+    let pinned: BTreeSet<(&str, &str)> = manifest
+        .requirements
+        .iter()
+        .map(|row| (row.owner.as_str(), row.location.as_str()))
+        .collect();
+    let waived: BTreeSet<(&str, &str)> = manifest
+        .known_gaps
+        .iter()
+        .map(|row| (row.owner.as_str(), row.location.as_str()))
+        .collect();
+    let mut listed: BTreeSet<(&str, &str)> = BTreeSet::new();
+    for row in &baseline.rows {
+        let key = (row.owner.as_str(), row.location.as_str());
+        if !listed.insert(key) {
+            bail!(
+                "duplicate baseline row `{} {}` in {BASELINE_PATH}",
+                row.owner,
+                row.location
+            );
+        }
+        if pinned.contains(&key) {
+            failures.push(format!(
+                "- `{} {}` is both pinned in the requirements and listed in the baseline. \
+                 A surface belongs to exactly one tier: drop the baseline row, since the \
+                 requirement already asserts everything the baseline would",
+                row.owner, row.location
+            ));
+        }
+        if waived.contains(&key) {
+            failures.push(format!(
+                "- `{} {}` is both waived as a known gap and listed in the baseline, which \
+                 are opposite claims: the waiver says the registry does not classify it, \
+                 the baseline says the inventory carries it",
+                row.owner, row.location
+            ));
+        }
+    }
+    let projected: BTreeSet<(&str, &str)> =
+        rows.iter().map(|row| (row.owner, row.location)).collect();
+    for (owner, location) in &projected {
+        if pinned.contains(&(owner, location)) || listed.contains(&(owner, location)) {
+            continue;
+        }
+        failures.push(format!(
+            "- `{owner} {location}` is a projected callback surface that no tier accounts \
+             for. Pin it in {MANIFEST_PATH} with the documentation for its kind, timing, \
+             appended arity and dialect floor; if it has no separate contract worth citing, \
+             add it to {BASELINE_PATH}, which pins that it exists at all"
+        ));
+    }
+    for (owner, location) in &listed {
+        if projected.contains(&(*owner, *location)) {
+            continue;
+        }
+        failures.push(format!(
+            "- `{owner} {location}` is listed in {BASELINE_PATH} but no longer appears in \
+             the inventory. Its executable role was removed — most often an option \
+             downgraded to a plain value or flag. Regenerating the report does not answer \
+             this: if the surface really is gone from the registry, delete its baseline row \
+             in the same commit and say why"
+        ));
+    }
+    Ok(())
 }
 
 /// Reject a manifest that cannot mean what it says before comparing anything:
@@ -462,5 +595,120 @@ mod tests {
         );
         assert_eq!(closed.len(), 1, "{closed:?}");
         assert!(closed[0].contains("is closed"), "{closed:?}");
+    }
+
+    fn manifest_with(requirements: Vec<Requirement>, known_gaps: Vec<KnownGap>) -> Manifest {
+        Manifest {
+            schema_version: 1,
+            requirements,
+            known_gaps,
+        }
+    }
+
+    fn baseline_with(rows: &[(&str, &str)]) -> Baseline {
+        Baseline {
+            schema_version: 1,
+            rows: rows
+                .iter()
+                .map(|(owner, location)| BaselineRow {
+                    owner: (*owner).to_owned(),
+                    location: (*location).to_owned(),
+                })
+                .collect(),
+        }
+    }
+
+    /// The hole found in review of PR #1727, as a test: `checkbutton -command`
+    /// is a documented Tk callback that no *requirement* names, so before the
+    /// baseline tier existed, downgrading it to a plain value removed its row
+    /// and every authored check still passed. Listed in the baseline, its
+    /// disappearance is a failure.
+    #[test]
+    fn a_baselined_callback_that_lost_its_declaration_fails() {
+        let manifest = manifest_with(vec![requirement()], Vec::new());
+        let baseline = baseline_with(&[("checkbutton", "option -command value")]);
+        let dialects = vec!["tcl9.0".to_owned()];
+        let present = [
+            row("fcopy", "option -command value", &dialects),
+            row("checkbutton", "option -command value", &dialects),
+        ];
+        let mut ok = Vec::new();
+        check_completeness(&manifest, &baseline, &present, &mut ok).expect("well-formed");
+        assert!(ok.is_empty(), "{ok:?}");
+
+        // The downgrade: the option becomes a plain value, so the projection
+        // no longer carries the row at all.
+        let mut failures = Vec::new();
+        check_completeness(&manifest, &baseline, &present[..1], &mut failures)
+            .expect("well-formed");
+        assert_eq!(failures.len(), 1, "{failures:?}");
+        assert!(
+            failures[0].contains("no longer appears in the inventory"),
+            "{failures:?}"
+        );
+    }
+
+    /// The other direction: a callback surface that arrives in no tier is
+    /// unreviewed, so the gate refuses it rather than letting the projection
+    /// grow silently.
+    #[test]
+    fn a_projected_surface_in_no_tier_fails() {
+        let manifest = manifest_with(vec![requirement()], Vec::new());
+        let baseline = baseline_with(&[]);
+        let dialects = vec!["tcl9.0".to_owned()];
+        let mut failures = Vec::new();
+        check_completeness(
+            &manifest,
+            &baseline,
+            &[
+                row("fcopy", "option -command value", &dialects),
+                row("newthing", "option -command value", &dialects),
+            ],
+            &mut failures,
+        )
+        .expect("well-formed");
+        assert_eq!(failures.len(), 1, "{failures:?}");
+        assert!(failures[0].contains("no tier accounts for"), "{failures:?}");
+    }
+
+    /// A surface in two tiers is a weakened requirement waiting to happen —
+    /// the baseline row would keep the gate green if the requirement were
+    /// deleted — so the tiers are kept disjoint.
+    #[test]
+    fn a_surface_in_two_tiers_fails() {
+        let dialects = vec!["tcl9.0".to_owned()];
+        let present = [row("fcopy", "option -command value", &dialects)];
+        let mut both = Vec::new();
+        check_completeness(
+            &manifest_with(vec![requirement()], Vec::new()),
+            &baseline_with(&[("fcopy", "option -command value")]),
+            &present,
+            &mut both,
+        )
+        .expect("well-formed");
+        assert_eq!(both.len(), 1, "{both:?}");
+        assert!(both[0].contains("both pinned"), "{both:?}");
+
+        let gap = KnownGap {
+            id: "x".to_owned(),
+            owner: "fcopy".to_owned(),
+            location: "option -command value".to_owned(),
+            source: "s".to_owned(),
+            issue: "#1706".to_owned(),
+            notes: String::new(),
+        };
+        let mut waived_and_listed = Vec::new();
+        check_completeness(
+            &manifest_with(Vec::new(), vec![gap]),
+            &baseline_with(&[("fcopy", "option -command value")]),
+            &present,
+            &mut waived_and_listed,
+        )
+        .expect("well-formed");
+        assert_eq!(waived_and_listed.len(), 1, "{waived_and_listed:?}");
+        assert!(
+            waived_and_listed[0].contains("opposite claims"),
+            "{waived_and_listed:?}"
+        );
     }
 }

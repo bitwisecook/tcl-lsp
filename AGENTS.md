@@ -920,12 +920,17 @@ reference-only position into `docs/generated/callback-surfaces.{json,md}`, and
 checks it against the authored
 [`callback-surface-requirements.json`](docs/references/command-spec/callback-surface-requirements.json).
 The projection alone only proves the report is fresh — regenerating it would
-happily bless a `-command` option downgraded to a plain value — so the authored
-manifest pins each documented callback (kind, timing, appended arity, dialect
-floor, its documentation, and the interpreter run that measured it) and is
-enforced in write mode too. A surface that cannot be classified yet goes in
-`known_gaps` with a tracking issue, and the gate fails once that gap closes.
-Declaring a new callback means adding its row; see
+happily bless a `-command` option downgraded to a plain value — so three
+authored tiers back it, and **every projected row must be in exactly one**:
+`requirements` pins a documented callback's contract (kind, timing, appended
+arity, dialect floor, its documentation, and the interpreter run that measured
+it); `known_gaps` waives a documented surface the registry does not classify
+yet, and fails once that gap closes; and
+[`callback-surface-baseline.json`](docs/references/command-spec/callback-surface-baseline.json)
+lists the rest by identity, pinning only that they still exist. All three are
+enforced in write mode too, so a row that disappears while a tier still lists
+it is a failure rather than a smaller file, and a new callback surface in no
+tier fails until someone decides which it deserves. See
 [`docs/design/contracts/callback-surface-inventory.md`](docs/design/contracts/callback-surface-inventory.md).
 
 ### Native specs and the SpecTcl DSL must maintain functional parity

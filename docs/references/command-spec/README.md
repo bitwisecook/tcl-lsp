@@ -27,9 +27,11 @@ This manual is in two parts:
   declares, projected into
   [`callback-surfaces.md`](../../generated/callback-surfaces.md), plus the
   authored [coverage manifest](callback-surface-requirements.json) that pins
-  each documented callback to its classification. Declaring a `-command`
-  option or a command-prefix argument means adding a row there too; the
-  contract page has the checklist.
+  each documented callback to its classification, over a
+  [baseline](callback-surface-baseline.json) that pins the rest by existence.
+  Declaring a `-command` option or a command-prefix argument means adding a row
+  to one of them — the gate rejects a callback surface no tier accounts for;
+  the contract page has the checklist.
 
 ## How a spec resolves at a call site
 
