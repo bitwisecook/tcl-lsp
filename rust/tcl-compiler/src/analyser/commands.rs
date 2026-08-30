@@ -1898,13 +1898,24 @@ impl Analyser {
     fn range_numeral_target_names(&self, grammar: tcl_dialect::NumberSyntax) -> String {
         use tcl_dialect::model::{Family, VersionAxisId};
         let axis = VersionAxisId::core(Family::Tcl);
+        // JimTcl is a reimplementation, not a point on the Tcl ladder, so
+        // its numeral grammars have no interval on the core axis to
+        // intersect a declared range with. Name the Jim releases directly.
+        match grammar {
+            tcl_dialect::NumberSyntax::Jim => return "JimTcl 0.76-0.79".to_owned(),
+            tcl_dialect::NumberSyntax::Jim080 => return "JimTcl 0.80+".to_owned(),
+            tcl_dialect::NumberSyntax::Tcl84
+            | tcl_dialect::NumberSyntax::Tcl85
+            | tcl_dialect::NumberSyntax::Tcl90 => {}
+        }
         let fallback = || {
             format!(
                 "Tcl {}",
                 match grammar {
                     tcl_dialect::NumberSyntax::Tcl84 => "8.4",
                     tcl_dialect::NumberSyntax::Tcl85 => "8.5",
-                    tcl_dialect::NumberSyntax::Tcl90 => "9.0",
+                    // Unreachable: the Jim arms returned above.
+                    _ => "9.0",
                 }
             )
         };
@@ -1918,7 +1929,8 @@ impl Analyser {
         let requirement = match grammar {
             tcl_dialect::NumberSyntax::Tcl84 => "0-8.5",
             tcl_dialect::NumberSyntax::Tcl85 => "8.5-9.0",
-            tcl_dialect::NumberSyntax::Tcl90 => "9.0-",
+            // Unreachable: the Jim arms returned above.
+            _ => "9.0-",
         };
         let Ok(era) =
             tcl_dialect::model::VersionSet::from_requirements(axis.clone(), &[requirement])

@@ -1723,6 +1723,14 @@ impl Analyser {
                     tcl_dialect::NumberSyntax::Tcl84 => "0-8.5",
                     tcl_dialect::NumberSyntax::Tcl85 => "8.5-9.0",
                     tcl_dialect::NumberSyntax::Tcl90 => "9.0-",
+                    // JimTcl's numeral grammars are not intervals on the
+                    // Tcl core axis — Jim is a reimplementation, not a
+                    // release of it — so no declared Tcl range can select
+                    // one. They reach this diagnostic through the Jim
+                    // ladder instead.
+                    tcl_dialect::NumberSyntax::Jim | tcl_dialect::NumberSyntax::Jim080 => {
+                        continue;
+                    }
                 };
                 let Ok(era) = tcl_dialect::model::VersionSet::from_requirements(
                     core_axis.clone(),

@@ -821,7 +821,12 @@ const EXPR_IRULES: ExprGrammar = EXPR_F5_TCL;
 /// `Tcl90` is right about the load-bearing half (`010` is ten, not
 /// eight).
 const EXPR_JIM_0_76: ExprGrammar = ExprGrammar {
-    numbers: NumberSyntax::Tcl90,
+    // Jim's own numeral grammar. It matches Tcl 9.0 on decimal leading
+    // zero and differs on three counts: no `0d` before 0.80, `_` digit
+    // separators never accepted, and a six-spelling special-float set with
+    // no `Infinity` and no `NaN(payload)` — `expr {Infinity}` is a syntax
+    // error on jimsh 0.84 where tclsh 9.0 answers `Inf`.
+    numbers: NumberSyntax::Jim,
     comments: ExprCommentStyle::None,
     word_operators: JIM_WORDS_0_76,
     precedence: JIM_PRECEDENCE_0_76,
@@ -842,6 +847,9 @@ const EXPR_JIM_0_77: ExprGrammar = ExprGrammar {
 /// Jim 0.80: `lt`/`gt`/`le`/`ge` arrive, at their own level between
 /// `== !=` and `< > <= >=`.
 const EXPR_JIM_0_80: ExprGrammar = ExprGrammar {
+    // `0d` arrives with the `lt`/`ge` operators: `expr 0d10` is a syntax
+    // error on jimsh 0.79 and 10 on 0.80.
+    numbers: NumberSyntax::Jim080,
     word_operators: JIM_WORDS_0_80,
     precedence: JIM_PRECEDENCE_0_80,
     mathfuncs: jim_set(Release::JIM_0_80),

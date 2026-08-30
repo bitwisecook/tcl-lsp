@@ -538,18 +538,39 @@ const GRAMMAR_JIM: LexerGrammar = LexerGrammar {
     braced_var: BracedVarStyle::FirstClose,
     script_skips_leading_bom: false,
     expr_comments: ExprCommentStyle::None,
-    numbers: NumberSyntax::Tcl90,
-    escapes: EscapeSyntax::Tcl90,
+    // Jim's own numeral grammar, not Tcl 9.0's: it agrees on decimal
+    // leading zero and disagrees on `0d` (absent before 0.80), on `_`
+    // separators (never accepted), and on the special-float set
+    // (`Infinity` is a syntax error where Tcl 9.0 answers `Inf`).
+    numbers: NumberSyntax::Jim,
+    // Likewise its own escape grammar: 9.0's `\x` cap and wide `\U`, but
+    // 8.4's greedy octal — `subst \400` is one NUL byte, not `" 0"`.
+    escapes: EscapeSyntax::Jim,
+};
+
+/// Jim from 0.80: the `0d` decimal radix prefix arrives, alongside the
+/// `lt`/`le`/`gt`/`ge` operators.
+///
+/// Measured: `expr 0d10` is `syntax error in expression: "0d10"` on jimsh
+/// 0.79 and `10` on 0.80. `_` digit separators stay rejected in every
+/// release, which is what keeps [`NumberSyntax::Jim080`] distinct from
+/// `Tcl90` rather than collapsing into it.
+const GRAMMAR_JIM_0_80: LexerGrammar = LexerGrammar {
+    numbers: NumberSyntax::Jim080,
+    ..GRAMMAR_JIM
 };
 
 /// Jim from 0.81: `JimParseExpression` gained a `if (*pc->p == '#')
 /// JimParseComment(pc)` arm at that tag (absent at 0.76 and 0.80,
 /// present at 0.81 and 0.84), so `#` begins a comment inside `[expr]`.
-/// Nothing else on the lexical ladder moves — which is the whole point:
-/// nine near-identical profiles become one value and one struct update.
+///
+/// Two axes move across the Jim lexical ladder, not one — this and the
+/// `0d` prefix one release earlier — so the ladder has three rungs. Nine
+/// near-identical profiles still become three values and two struct
+/// updates, which is the point.
 const GRAMMAR_JIM_0_81: LexerGrammar = LexerGrammar {
     expr_comments: ExprCommentStyle::Hash,
-    ..GRAMMAR_JIM
+    ..GRAMMAR_JIM_0_80
 };
 
 /// The lexer grammar of `release` on `family`'s ladder — a total function
@@ -579,8 +600,10 @@ pub const fn grammar(family: Family, release: Release) -> LexerGrammar {
         Family::F5Tcl => GRAMMAR_F5_TCL,
         Family::F5Irules => GRAMMAR_IRULES,
         Family::Jim => {
-            if release.ordinal <= Release::JIM_0_80.ordinal {
+            if release.ordinal < Release::JIM_0_80.ordinal {
                 GRAMMAR_JIM
+            } else if release.ordinal < Release::JIM_0_81.ordinal {
+                GRAMMAR_JIM_0_80
             } else {
                 GRAMMAR_JIM_0_81
             }
@@ -1135,8 +1158,30 @@ mod tests {
 
         // What Jim does share with the modern Tcl values.
         assert!(late.expand_syntax, "Jim implements `{{*}}`");
-        assert_eq!(late.escapes, EscapeSyntax::Tcl90);
-        assert_eq!(late.numbers, NumberSyntax::Tcl90);
+
+        // What it does *not*: both the numeral and escape grammars are
+        // Jim's own, because each is a combination no C Tcl release has.
+        //
+        // Numerals — decimal leading zero like 9.0, but no `_` separators
+        // ever and no `0d` before 0.80, and a six-spelling special-float
+        // set: `expr {Infinity}` is a syntax error on jimsh 0.84 where
+        // tclsh 9.0 answers `Inf`.
+        assert_eq!(late.numbers, NumberSyntax::Jim080);
+        assert_eq!(early.numbers, NumberSyntax::Jim);
+        assert_ne!(late.numbers, tcl9.numbers);
+        assert!(!late.numbers.allows_digit_separators());
+        assert!(tcl9.numbers.allows_digit_separators());
+        // Escapes — 9.0's `\x` cap and wide `\U`, but 8.4's greedy octal:
+        // `subst \400` is one NUL byte on jimsh 0.84 against `" 0"` on
+        // tclsh 8.6 and 9.0.
+        assert_eq!(late.escapes, EscapeSyntax::Jim);
+        assert_ne!(late.escapes, tcl9.escapes);
+        assert_eq!(
+            late.escapes.hex_escape_digits(),
+            tcl9.escapes.hex_escape_digits()
+        );
+        assert!(late.escapes.octal_takes_third_digit(0x20));
+        assert!(!tcl9.escapes.octal_takes_third_digit(0x20));
 
         // Neither F5 fork axis is Jim's.
         for g in [early, late] {
@@ -1144,7 +1189,23 @@ mod tests {
             assert_eq!(g.brace_line_continuation, BraceLineContinuation::Terminates);
         }
 
-        // The one lexical step on the ladder: expr comments at 0.81.
+        // The `0d` prefix is the ladder's other lexical step, one release
+        // before expr comments: `expr 0d10` is a syntax error on jimsh
+        // 0.79 and 10 on 0.80.
+        for release in [Release::JIM_0_76, Release::JIM_0_79] {
+            assert!(
+                !grammar(Family::Jim, release).numbers.has_decimal_prefix(),
+                "{release}"
+            );
+        }
+        for release in [Release::JIM_0_80, Release::JIM_0_84] {
+            assert!(
+                grammar(Family::Jim, release).numbers.has_decimal_prefix(),
+                "{release}"
+            );
+        }
+
+        // The other lexical step on the ladder: expr comments at 0.81.
         for release in [Release::JIM_0_76, Release::JIM_0_80] {
             assert_eq!(
                 grammar(Family::Jim, release).expr_comments,
@@ -1159,19 +1220,30 @@ mod tests {
                 "{release}"
             );
         }
-        // Every other axis is constant across the whole nine-release
-        // ladder — which is why nine profiles were nine copies.
+        // Every axis *other than those two* is constant across the whole
+        // nine-release ladder — which is why nine profiles were nine
+        // copies. Normalising both moving axes away must leave the 0.76
+        // value exactly.
         for &release in Family::Jim.releases() {
             let g = grammar(Family::Jim, release);
             assert_eq!(
                 LexerGrammar {
                     expr_comments: ExprCommentStyle::None,
+                    numbers: NumberSyntax::Jim,
                     ..g
                 },
                 early,
                 "{release}"
             );
         }
+        // And the two really are the only ones that move: exactly three
+        // distinct grammars across nine releases.
+        let distinct: std::collections::BTreeSet<_> = Family::Jim
+            .releases()
+            .iter()
+            .map(|&r| format!("{:?}", grammar(Family::Jim, r)))
+            .collect();
+        assert_eq!(distinct.len(), 3, "0.76-0.79, 0.80, 0.81-0.84");
     }
 
     /// Jim's ancestry edge is a **reimplementation**, not a fork, and it
@@ -1298,3 +1370,4 @@ mod tests {
         assert_eq!(id.build, BuildProfileId::Canonical);
     }
 }
+

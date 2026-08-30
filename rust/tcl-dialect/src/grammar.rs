@@ -313,13 +313,30 @@ pub enum EscapeSyntax {
     /// and 9.1b0; `tcl.h:2094` raises `TCL_UTF_MAX` to 4.
     #[default]
     Tcl90,
+    /// `JimTcl` 0.76-0.84: a combination no C Tcl release has — 9.0's `\x`
+    /// cap and wide `\U`, but 8.4's greedy octal escape.
+    ///
+    /// `JimEscape` in `jim.c` caps `\x` at two hex digits and implements
+    /// `\u`, `\u{...}` and `\U` over a UCS-4 internal string, so
+    /// `\U0001F600` really is U+1F600 (measured: `scan \U0001F600 %c` is
+    /// 128512 in every modelled release, where 8.6 would give U+FFFD).
+    /// Its octal arm, though, always takes a third digit and truncates to a
+    /// byte, with none of 8.6's `result >= 0x20` guard: `subst \400` is a
+    /// single NUL under Jim (`string length` 1, `scan %c` 0) where Tcl 8.6
+    /// and 9.0 both read `\40` plus a literal `0` (`string length` 2,
+    /// `scan %c` 32) — measured on jimsh 0.84 against tclsh 8.6/9.0.
+    ///
+    /// So Jim can borrow neither [`Self::Tcl86`] (which is BMP-only and
+    /// would fold the emoji to U+FFFD) nor [`Self::Tcl90`] (which would cut
+    /// the octal escape one digit short).
+    Jim,
 }
 
 impl EscapeSyntax {
     /// Every escape grammar, oldest first — the counterpart of
     /// [`NumberSyntax::ALL`], for callers that must answer a question across
     /// all of them.
-    pub const ALL: &'static [Self] = &[Self::Tcl84, Self::Tcl86, Self::Tcl90];
+    pub const ALL: &'static [Self] = &[Self::Tcl84, Self::Tcl86, Self::Tcl90, Self::Jim];
 
     /// The grammar of `profile`, or the permissive 9.x default when no profile
     /// is loaded.
@@ -346,7 +363,7 @@ impl EscapeSyntax {
     pub fn hex_escape_digits(self) -> Option<usize> {
         match self {
             Self::Tcl84 => None,
-            Self::Tcl86 | Self::Tcl90 => Some(2),
+            Self::Tcl86 | Self::Tcl90 | Self::Jim => Some(2),
         }
     }
 
@@ -366,7 +383,8 @@ impl EscapeSyntax {
     #[must_use]
     pub fn octal_takes_third_digit(self, two_digit_value: u32) -> bool {
         match self {
-            Self::Tcl84 => true,
+            // Jim's octal arm has no `result >= 0x20` guard at all.
+            Self::Tcl84 | Self::Jim => true,
             Self::Tcl86 | Self::Tcl90 => two_digit_value < 0x20,
         }
     }
@@ -419,6 +437,23 @@ pub enum NumberSyntax {
     /// interpretation. Use `0oNNN`." (`doc/expr.n` lists all four prefixes.)
     #[default]
     Tcl90,
+    /// `JimTcl` 0.76-0.79: `0x` / `0o` / `0b` prefixes, leading zero is
+    /// **decimal**, and neither the `0d` prefix nor `_` separators exist.
+    ///
+    /// Jim never adopted leading-zero octal, so `010` is 10 in every
+    /// modelled release — the Tcl 9.0 answer, a decade before Tcl 9.0
+    /// (measured; `jim_strtoull` in `jim.c` takes an explicit base).
+    /// `expr 0d5` is a syntax error through 0.79 and `expr 1_000` is one in
+    /// every release, so this is neither [`Self::Tcl85`] (which would read
+    /// `010` as 8) nor [`Self::Tcl90`] (which would accept both).
+    Jim,
+    /// `JimTcl` 0.80 and later: [`Self::Jim`] plus the `0d` decimal prefix.
+    ///
+    /// 0.80 added `0d` alongside the `lt`/`le`/`gt`/`ge` operators —
+    /// measured: `expr 0d10` is a syntax error on jimsh 0.79 and 10 on 0.80.
+    /// `_` digit separators are still rejected, which is what keeps this
+    /// distinct from [`Self::Tcl90`].
+    Jim080,
 }
 
 impl NumberSyntax {
@@ -427,7 +462,8 @@ impl NumberSyntax {
     /// For callers that must answer a question across all of them — e.g.
     /// "do the releases agree how to read this word?" — so adding a future
     /// grammar reaches them without each keeping its own list.
-    pub const ALL: &'static [Self] = &[Self::Tcl84, Self::Tcl85, Self::Tcl90];
+    pub const ALL: &'static [Self] =
+        &[Self::Tcl84, Self::Tcl85, Self::Tcl90, Self::Jim, Self::Jim080];
 
     /// The grammar of `profile`, or the permissive 9.x default when no profile
     /// is loaded.
@@ -499,19 +535,32 @@ impl NumberSyntax {
     /// as it does up to 8.6. False from 9.0, where it is plain decimal.
     #[must_use]
     pub fn leading_zero_is_octal(self) -> bool {
-        matches!(self, Self::Tcl84 | Self::Tcl85)
+        match self {
+            Self::Tcl84 | Self::Tcl85 => true,
+            // Jim never adopted the rule — `expr 010` is 10 in every
+            // modelled release, the Tcl 9.0 answer a decade early.
+            Self::Tcl90 | Self::Jim | Self::Jim080 => false,
+        }
     }
 
     /// Whether the `0b` (binary) and `0o` (octal) prefixes exist — 8.5 onward.
     #[must_use]
     pub fn has_binary_octal_prefix(self) -> bool {
-        !matches!(self, Self::Tcl84)
+        match self {
+            Self::Tcl84 => false,
+            Self::Tcl85 | Self::Tcl90 | Self::Jim | Self::Jim080 => true,
+        }
     }
 
     /// Whether the explicit `0d` (decimal) prefix exists — 9.0 onward.
     #[must_use]
     pub fn has_decimal_prefix(self) -> bool {
-        matches!(self, Self::Tcl90)
+        match self {
+            Self::Tcl84 | Self::Tcl85 | Self::Jim => false,
+            // Jim added `0d` in 0.80, alongside the `lt`/`ge` operators:
+            // `expr 0d10` is a syntax error on jimsh 0.79 and 10 on 0.80.
+            Self::Tcl90 | Self::Jim080 => true,
+        }
     }
 
     /// The radix selected by an explicit numeral-prefix marker in this release.
@@ -532,8 +581,16 @@ impl NumberSyntax {
 
     /// Whether `_` may separate digits (`1__000`, `0xff__ff`) — 9.0 onward.
     #[must_use]
+    #[allow(clippy::match_same_arms)]
     pub fn allows_digit_separators(self) -> bool {
-        matches!(self, Self::Tcl90)
+        match self {
+            Self::Tcl84 | Self::Tcl85 => false,
+            Self::Tcl90 => true,
+            // Pre-9.0 Tcl and Jim both reject `_`, but not for the same
+            // reason, and the arms are the place that is recorded. This is
+            // what keeps `Jim080` distinct from `Tcl90`.
+            Self::Jim | Self::Jim080 => false,
+        }
     }
 }
 
@@ -612,6 +669,12 @@ mod tests {
         assert!(EscapeSyntax::Tcl84.is_bmp_only());
         assert!(EscapeSyntax::Tcl86.is_bmp_only());
         assert!(!EscapeSyntax::Tcl90.is_bmp_only());
+        // Jim: 9.0's `\x` cap and wide `\U`, but 8.4's greedy octal — the
+        // combination no C Tcl release has. Measured on jimsh 0.84.
+        assert_eq!(EscapeSyntax::Jim.hex_escape_digits(), Some(2));
+        assert!(EscapeSyntax::Jim.has_wide_unicode());
+        assert!(!EscapeSyntax::Jim.is_bmp_only());
+        assert!(EscapeSyntax::Jim.octal_takes_third_digit(0x20));
         assert_eq!(EscapeSyntax::default(), EscapeSyntax::Tcl90);
     }
 
@@ -621,9 +684,12 @@ mod tests {
         // narrows every cross-release sweep built on it.
         for syntax in EscapeSyntax::ALL {
             match syntax {
-                EscapeSyntax::Tcl84 | EscapeSyntax::Tcl86 | EscapeSyntax::Tcl90 => {}
+                EscapeSyntax::Tcl84
+                | EscapeSyntax::Tcl86
+                | EscapeSyntax::Tcl90
+                | EscapeSyntax::Jim => {}
             }
         }
-        assert_eq!(EscapeSyntax::ALL.len(), 3);
+        assert_eq!(EscapeSyntax::ALL.len(), 4);
     }
 }
