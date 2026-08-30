@@ -259,6 +259,22 @@ pub struct LexerGrammar {
     /// development cycle, and since 8.7 is not a version this crate models,
     /// `>= V9_0` is the exact gate for the supported set.
     pub expr_comments: ExprCommentStyle,
+    /// Which characters end a command word — see [`WordSeparators`].
+    pub word_separators: WordSeparators,
+    /// What a backslash-newline pair inside a `{braced}` word becomes — see
+    /// [`BraceBackslashNewline`]. Distinct from
+    /// [`Self::brace_line_continuation`], which is the F5 fork's
+    /// next-line-`{` rule: this one is about a word's *value*, that one
+    /// about where a command ends.
+    pub brace_backslash_newline: BraceBackslashNewline,
+    /// Whether text may follow a word's closing `"` — see
+    /// [`QuoteTermination`].
+    pub quote_termination: QuoteTermination,
+    /// How a `$` substitution's name, index and sugar forms are parsed —
+    /// see [`VarSyntax`].
+    pub var_syntax: VarSyntax,
+    /// Whether malformed list text is an error — see [`ListParse`].
+    pub list_parse: ListParse,
     /// Which numeric literal forms the release accepts — see [`NumberSyntax`].
     pub numbers: NumberSyntax,
     /// Which backslash-escape grammar the release decodes — see
@@ -594,6 +610,186 @@ impl NumberSyntax {
     }
 }
 
+/// Which characters separate one command word from the next.
+///
+/// Every Tcl release treats space, tab, carriage return, vertical tab and
+/// form feed as horizontal whitespace inside a command
+/// (`TclParseWhiteSpace`'s `TYPE_SPACE` class in `generic/tclParse.c`, whose
+/// `charTypeTable` marks all five). `JimTcl`'s script parser spells the set
+/// out as a `switch` and simply has no `case '\v'` (`jim.c:1338-1341` —
+/// `' '`, `'\t'`, `'\r'`, `'\f'`), so a vertical tab is an ordinary word
+/// character there.
+///
+/// Measured: `eval "f a\vb"` passes **one** argument under every modelled Jim
+/// release and **two** under tclsh 8.6.
+///
+/// This axis governs *command* parsing only. Jim's **list** parser is a
+/// separate routine that tests `isspace()` (`JimParseList`, `jim.c:2121`),
+/// and `isspace` does include `\v` — so `llength "a\vb"` is 2 in Jim even
+/// though the same bytes are one word in a command.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum WordSeparators {
+    /// ` `, `\t`, `\r`, `\v`, `\f` — every build of the Tcl core.
+    #[default]
+    Tcl,
+    /// ` `, `\t`, `\r`, `\f` — `JimTcl`. `\v` is a word character.
+    Jim,
+}
+
+impl WordSeparators {
+    /// Whether `byte` separates two words in a command under this grammar.
+    ///
+    /// Newline and `;` are *terminators*, not separators, and are not
+    /// reported here by either variant.
+    #[must_use]
+    pub const fn is_separator(self, byte: u8) -> bool {
+        match byte {
+            b' ' | b'\t' | b'\r' | 0x0C => true,
+            // The one byte the two variants disagree on.
+            0x0B => matches!(self, Self::Tcl),
+            _ => false,
+        }
+    }
+}
+
+/// What a backslash-newline pair inside a `{braced}` word becomes.
+///
+/// A braced word is otherwise substitution-free in both implementations;
+/// this is the single exception, and they resolve it opposite ways.
+///
+/// C Tcl folds the pair — `TclCopyAndCollapse` rewrites backslash-newline
+/// plus any following leading whitespace to one space, so `{a\<newline>b}` is
+/// the three-character string `a b`. `JimTcl` deliberately does not:
+/// `JimParseSubBrace` (`jim.c:1444-1485`) advances past the escaped
+/// character and bumps `linenr`, but the token keeps its original bytes, so
+/// the same word is the four-character `a\<newline>b` — upstream keeps it
+/// that way to preserve line numbers through a braced body.
+///
+/// Measured: `string length {a\<newline>b}` is 3 under tclsh 8.6 and 9.0, and
+/// 4 under every modelled Jim release.
+///
+/// Both variants agree on *boundaries* — a backslash always hides the next
+/// character from the brace counter, so `{a\}b}` is one word either way.
+/// This axis moves only the resulting **value** and its length, which is what
+/// separates it from [`BraceLineContinuation`]: that one decides where a
+/// command ends, this one what a word contains.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum BraceBackslashNewline {
+    /// Collapse backslash-newline (and the whitespace run after it) to a
+    /// single space — every build of the Tcl core.
+    #[default]
+    Folds,
+    /// Keep every byte, so the word spans lines verbatim — `JimTcl`.
+    Literal,
+}
+
+impl BraceBackslashNewline {
+    /// Whether the pair collapses to a space.
+    #[must_use]
+    pub const fn folds(self) -> bool {
+        matches!(self, Self::Folds)
+    }
+}
+
+/// Whether ordinary text may follow the `"` that closes a quoted word.
+///
+/// C Tcl requires a separator after the closing quote: `ParseTokens` checks
+/// the next character and raises `extra characters after close-quote`
+/// otherwise, so `puts "abc"def` is a parse error. `JimTcl` has no such
+/// check anywhere — `JimParseStr` simply clears `inquote` and keeps
+/// scanning, so the quoted and unquoted runs concatenate into one word and
+/// `puts "abc"def` prints `abcdef`.
+///
+/// The mirror-image rule for braces (`extra characters after close-brace`)
+/// is **not** on this axis: Jim rejects `{abc}def` the same way C Tcl does,
+/// so that diagnostic stays unconditional.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum QuoteTermination {
+    /// A close-quote must be followed by a separator — every build of the
+    /// Tcl core.
+    #[default]
+    Strict,
+    /// Text after a close-quote concatenates onto the same word — `JimTcl`.
+    Concatenating,
+}
+
+impl QuoteTermination {
+    /// Whether a close-quote must be followed by a separator.
+    #[must_use]
+    pub const fn is_strict(self) -> bool {
+        matches!(self, Self::Strict)
+    }
+}
+
+/// How a `$` substitution's name, index and sugar forms are parsed.
+///
+/// `JimTcl`'s `JimParseVar` (`jim.c:1641-1746`) diverges from
+/// `TclParseVarName` on three points at once, and all three are present in
+/// every modelled release (0.76-0.84), so they ride one axis:
+///
+/// * **`$(...)` is expression substitution.** With an empty variable name,
+///   the parenthesised text is an `expr` body, not a dict index —
+///   `JIM_TT_EXPRSUGAR`. `set a 5; puts $($a * 2)` prints `10`. C Tcl reads
+///   `$(` as a variable named `(`, so ordinary Jim code draws false
+///   diagnostics without this. (The `$[...]` spelling sits behind
+///   `EXPRSUGAR_BRACKET`, which no shipped build defines — not modelled.)
+/// * **Index parens nest.** The scanner counts `(` and `)` and honours a
+///   backslash escape, so `$d(a(b))` indexes by the whole `a(b)`. C Tcl
+///   stops at the first `)`.
+/// * **A name may contain any byte >= 0x80.** Jim's name loop accepts
+///   `isalnum`, `_`, and every non-ASCII byte — its comment reads "we
+///   consider all unicode points outside of ASCII as letters" — so `$café`
+///   is one variable where C Tcl names `caf`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum VarSyntax {
+    /// `TclParseVarName`: `$(` is a variable named `(`, an index ends at the
+    /// first `)`, and a bare name is ASCII alphanumerics plus `_`.
+    #[default]
+    Tcl,
+    /// `JimParseVar`: `$(...)` is expression sugar, index parens nest, and a
+    /// name may contain any byte >= 0x80.
+    Jim,
+}
+
+impl VarSyntax {
+    /// Whether `$(...)` at a word start is an expression substitution.
+    #[must_use]
+    pub const fn has_expr_sugar(self) -> bool {
+        matches!(self, Self::Jim)
+    }
+
+    /// Whether a `$name(index)` index counts nested parens.
+    #[must_use]
+    pub const fn index_parens_nest(self) -> bool {
+        matches!(self, Self::Jim)
+    }
+
+    /// Whether a bare `$name` may contain bytes >= 0x80.
+    #[must_use]
+    pub const fn name_allows_high_bytes(self) -> bool {
+        matches!(self, Self::Jim)
+    }
+}
+
+/// Whether text that cannot be split as a list is an error.
+///
+/// C Tcl's `TclFindElement` reports `unmatched open brace in list`,
+/// `unmatched open quote in list` and `list element in braces followed by
+/// "x" instead of space`, so `llength "a {b"` fails. `JimTcl`'s list parser
+/// has no error path at all: `JimParseBrace` records a `missing.ch` for the
+/// script parser's benefit but `SetListFromAny` never consults it, so the
+/// unterminated element is taken to end at the end of the string and
+/// `llength "a {b"` is 2.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum ListParse {
+    /// Malformed list text raises an error — every build of the Tcl core.
+    #[default]
+    Strict,
+    /// Malformed list text never errors; an unterminated element runs to the
+    /// end of the string — `JimTcl`.
+    Lenient,
+}
+
 impl Default for LexerGrammar {
     /// The modern-Tcl (9.x / unversioned) grammar — matches
     /// `LexerConfig::default()`.
@@ -607,6 +803,11 @@ impl Default for LexerGrammar {
             expr_comments: ExprCommentStyle::Hash,
             numbers: NumberSyntax::Tcl90,
             escapes: EscapeSyntax::Tcl90,
+            word_separators: WordSeparators::Tcl,
+            brace_backslash_newline: BraceBackslashNewline::Folds,
+            quote_termination: QuoteTermination::Strict,
+            var_syntax: VarSyntax::Tcl,
+            list_parse: ListParse::Strict,
         }
     }
 }

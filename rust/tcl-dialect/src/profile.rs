@@ -30,8 +30,9 @@
 //! axis.
 
 use crate::grammar::{
-    BraceLineContinuation, BracedVarStyle, EscapeSyntax, ExprCommentStyle, LexerGrammar,
-    NumberSyntax,
+    BraceBackslashNewline, BraceLineContinuation, BracedVarStyle, EscapeSyntax,
+    ExprCommentStyle, LexerGrammar, ListParse, NumberSyntax, QuoteTermination, VarSyntax,
+    WordSeparators,
 };
 use crate::library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
 use crate::model::{Family, SpecProvider, SurfaceLayer, SurfaceQuery};
@@ -84,6 +85,11 @@ const GRAMMAR_TCL84: LexerGrammar = LexerGrammar {
     expr_comments: ExprCommentStyle::None,
     numbers: NumberSyntax::Tcl84,
     escapes: EscapeSyntax::Tcl84,
+    word_separators: WordSeparators::Tcl,
+    brace_backslash_newline: BraceBackslashNewline::Folds,
+    quote_termination: QuoteTermination::Strict,
+    var_syntax: VarSyntax::Tcl,
+    list_parse: ListParse::Strict,
 };
 
 /// The Tcl 8.5 lexing grammar (plain 8.5, iApps, tmsh, the 8.5-based EDA
@@ -98,6 +104,11 @@ const GRAMMAR_TCL85: LexerGrammar = LexerGrammar {
     expr_comments: ExprCommentStyle::None,
     numbers: NumberSyntax::Tcl85,
     escapes: EscapeSyntax::Tcl84,
+    word_separators: WordSeparators::Tcl,
+    brace_backslash_newline: BraceBackslashNewline::Folds,
+    quote_termination: QuoteTermination::Strict,
+    var_syntax: VarSyntax::Tcl,
+    list_parse: ListParse::Strict,
 };
 
 /// The Tcl 8.6 lexing grammar (plain 8.6, Expect, the 8.6-based EDA shells):
@@ -119,6 +130,11 @@ const GRAMMAR_TCL9X: LexerGrammar = LexerGrammar {
     expr_comments: ExprCommentStyle::Hash,
     numbers: NumberSyntax::Tcl90,
     escapes: EscapeSyntax::Tcl90,
+    word_separators: WordSeparators::Tcl,
+    brace_backslash_newline: BraceBackslashNewline::Folds,
+    quote_termination: QuoteTermination::Strict,
+    var_syntax: VarSyntax::Tcl,
+    list_parse: ListParse::Strict,
 };
 
 /// The `f5-tcl` **trunk** lexing grammar: a Tcl 8.4 base (no `{*}`, no
@@ -140,6 +156,11 @@ const GRAMMAR_F5_TCL: LexerGrammar = LexerGrammar {
     expr_comments: ExprCommentStyle::None,
     numbers: NumberSyntax::Tcl84,
     escapes: EscapeSyntax::Tcl84,
+    word_separators: WordSeparators::Tcl,
+    brace_backslash_newline: BraceBackslashNewline::Folds,
+    quote_termination: QuoteTermination::Strict,
+    var_syntax: VarSyntax::Tcl,
+    list_parse: ListParse::Strict,
 };
 
 /// One filename extension a dialect owns, with its human-facing name —

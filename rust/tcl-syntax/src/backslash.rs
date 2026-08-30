@@ -151,6 +151,45 @@ fn collapse_continuations(raw: &[u8], trim_preceding: bool) -> Cow<'_, [u8]> {
     Cow::Owned(out)
 }
 
+/// [`collapse_brace_continuations`], gated on the dialect's
+/// [`BraceBackslashNewline`](tcl_dialect::BraceBackslashNewline) rule.
+///
+/// Every build of the Tcl core folds — `TclCopyAndCollapse` rewrites the
+/// backslash-newline run to one space, so `{a\<newline>b}` is `a b`.
+/// `JimTcl` keeps the bytes (`JimParseSubBrace`, jim.c:1444-1485),
+/// deliberately, so line numbers survive a braced body.
+///
+/// Measured: `string length {a\<newline>b}` is 3 under tclsh 8.6 and 9.0,
+/// and 4 under every modelled Jim release.
+///
+/// Under `Literal` this borrows the input unchanged. Downstream *list*
+/// parsing still applies its own element escapes, which is why not folding
+/// here is enough to reproduce Jim end to end.
+#[must_use]
+pub fn collapse_brace_continuations_for(
+    raw: &[u8],
+    rule: tcl_dialect::BraceBackslashNewline,
+) -> Cow<'_, [u8]> {
+    if rule.folds() {
+        collapse_brace_continuations(raw)
+    } else {
+        Cow::Borrowed(raw)
+    }
+}
+
+/// [`collapse_brace_continuations_for`] for a `&str`.
+#[must_use]
+pub fn collapse_brace_continuations_str_for(
+    text: &str,
+    rule: tcl_dialect::BraceBackslashNewline,
+) -> Cow<'_, str> {
+    if rule.folds() {
+        collapse_brace_continuations_str(text)
+    } else {
+        Cow::Borrowed(text)
+    }
+}
+
 /// [`collapse_brace_continuations`] for a `&str`, returning a `Cow<str>`. The
 /// collapse only ever rewrites ASCII bytes (`\`, newline, spaces, tabs), so a
 /// valid-UTF-8 input always yields valid UTF-8. Borrows when there is no

@@ -199,6 +199,26 @@ pub struct LexerConfig {
     /// from the dialect profile, so this is the same seam rather than a second
     /// one.
     pub escapes: tcl_dialect::EscapeSyntax,
+    /// Which characters end a command word — see
+    /// [`tcl_dialect::WordSeparators`]. `JimTcl` omits `\v` from the set;
+    /// every build of the Tcl core includes it.
+    pub word_separators: tcl_dialect::WordSeparators,
+    /// Whether text may follow a word's closing `"` — see
+    /// [`tcl_dialect::QuoteTermination`]. Under `Concatenating` the
+    /// "extra characters after close-quote" diagnostic never fires and the
+    /// following run joins the same word.
+    pub quote_termination: tcl_dialect::QuoteTermination,
+    /// How a `$` substitution's name, index and sugar forms are parsed —
+    /// see [`tcl_dialect::VarSyntax`].
+    pub var_syntax: tcl_dialect::VarSyntax,
+    /// What a backslash-newline inside a `{braced}` word becomes — see
+    /// [`tcl_dialect::BraceBackslashNewline`].
+    ///
+    /// The lexer never folds anything, so this does not move a token
+    /// boundary; it rides here for the same reason [`Self::escapes`] does —
+    /// the consumers that build a braced word's *value* already thread a
+    /// `LexerConfig` from the dialect grammar.
+    pub brace_backslash_newline: tcl_dialect::BraceBackslashNewline,
 }
 
 /// How the lexer reads a UTF-8 byte-order mark (U+FEFF) sitting at byte 0 of
@@ -237,6 +257,10 @@ impl Default for LexerConfig {
             base_col: 0,
             leading_bom: LeadingBom::Content,
             escapes: tcl_dialect::EscapeSyntax::Tcl90,
+            word_separators: tcl_dialect::WordSeparators::Tcl,
+            quote_termination: tcl_dialect::QuoteTermination::Strict,
+            var_syntax: tcl_dialect::VarSyntax::Tcl,
+            brace_backslash_newline: tcl_dialect::BraceBackslashNewline::Folds,
         }
     }
 }
@@ -256,6 +280,10 @@ impl LexerConfig {
             brace_line_continuation: grammar.brace_line_continuation,
             braced_var: grammar.braced_var,
             escapes: grammar.escapes,
+            word_separators: grammar.word_separators,
+            quote_termination: grammar.quote_termination,
+            var_syntax: grammar.var_syntax,
+            brace_backslash_newline: grammar.brace_backslash_newline,
             ..Self::default()
         }
     }
@@ -625,7 +653,7 @@ impl<'src> Lexer<'src> {
     fn parse_sep(&mut self) -> Token {
         let start_offset = self.pos;
         while let Some(byte) = self.current_byte() {
-            if !is_horizontal_whitespace_byte(byte) {
+            if !is_horizontal_whitespace_byte(byte, self.config.word_separators) {
                 break;
             }
             self.pos += 1; // All SEP characters are ASCII.
@@ -648,7 +676,7 @@ impl<'src> Lexer<'src> {
         let bytes = self.source().as_bytes();
         let mut index = self.pos as usize + 1;
         while let Some(&byte) = bytes.get(index) {
-            if is_horizontal_whitespace_byte(byte) {
+            if is_horizontal_whitespace_byte(byte, self.config.word_separators) {
                 index += 1;
             } else {
                 return byte == b'{';
@@ -665,7 +693,7 @@ impl<'src> Lexer<'src> {
         let start_offset = self.pos;
         self.pos += 1; // the newline
         while let Some(byte) = self.current_byte() {
-            if !is_horizontal_whitespace_byte(byte) {
+            if !is_horizontal_whitespace_byte(byte, self.config.word_separators) {
                 break;
             }
             self.pos += 1;
@@ -678,7 +706,9 @@ impl<'src> Lexer<'src> {
         // Consume a run mixing EOL characters and horizontal
         // whitespace in a single token.
         while let Some(byte) = self.current_byte() {
-            if !is_horizontal_whitespace_byte(byte) && !is_eol_byte(byte) {
+            if !is_horizontal_whitespace_byte(byte, self.config.word_separators)
+                && !is_eol_byte(byte)
+            {
                 break;
             }
             self.pos += 1;
@@ -721,7 +751,7 @@ impl<'src> Lexer<'src> {
     fn parse_esc(&mut self) -> Token {
         let start_offset = self.pos;
         while let Some(ch) = self.current_char() {
-            if is_horizontal_whitespace(ch) || is_eol_char(ch) {
+            if is_horizontal_whitespace(ch, self.config.word_separators) || is_eol_char(ch) {
                 break;
             }
             if ch == '$' || ch == '[' {
@@ -809,6 +839,37 @@ impl<'src> Lexer<'src> {
         let dollar_pos = self.pos;
         self.pos += 1; // skip '$'
 
+        // `JimTcl` expression sugar `$(…)`: with an *empty* variable name the
+        // parenthesised text is an `expr` body, not a dict index. Jim reaches
+        // this through the command-substitution scanner and retags the token
+        // (`JimParseVar`, jim.c:1728-1732), so the body nests and terminates
+        // like `[…]` — but it is an expression, so it gets its own kind.
+        //
+        // No build of the Tcl core does this: there `$(` is a variable named
+        // `(`, which is why the axis is a grammar knob rather than a rule.
+        if self.config.var_syntax.has_expr_sugar() && self.current_byte() == Some(b'(') {
+            self.pos += 1; // skip '('
+            let content_start = self.pos;
+            self.skip_jim_paren_body();
+            let content_empty = self.pos == content_start;
+            let has_close = self.current_byte() == Some(b')');
+            let span_end = if content_empty && has_close {
+                self.pos + 1
+            } else {
+                self.pos
+            };
+            if has_close {
+                self.pos += 1;
+            } else {
+                self.warn_or_error("missing close-paren for expression substitution")?;
+            }
+            return Ok(Token::with_content_offset(
+                TokenType::ExprSugar,
+                Span::new(dollar_pos, span_end),
+                2,
+            ));
+        }
+
         // `${name}` braced form.
         //
         // Per Tcl 9.0.3's parser (`tclParse.c::Tcl_ParseVarName`), this
@@ -850,11 +911,28 @@ impl<'src> Lexer<'src> {
         // word text, and a `$` before a non-ASCII letter is a literal `$`.
         let name_start = self.pos;
         let name_end =
-            tcl_core_types::naming::scan_var_name_end(self.source().as_bytes(), self.pos as usize);
+            tcl_core_types::naming::scan_var_name_end_with(
+                self.source().as_bytes(),
+                self.pos as usize,
+                self.config.var_syntax.name_allows_high_bytes(),
+            );
         self.pos = u32::try_from(name_end).expect("source offset fits u32");
         // `$arr(idx)` array-index form
         if self.current_byte() == Some(b'(') {
-            self.scan_array_index_body(0)?;
+            if self.config.var_syntax.index_parens_nest() {
+                // Jim counts nested parens with its own scanner, so
+                // `$d(a(b))` indexes by the whole `a(b)`; C Tcl stops at the
+                // first `)` at token level.
+                self.pos += 1; // skip '('
+                self.skip_jim_paren_body();
+                if self.current_byte() == Some(b')') {
+                    self.pos += 1;
+                } else {
+                    self.warn_or_error("missing close-paren for array index")?;
+                }
+            } else {
+                self.scan_array_index_body(0)?;
+            }
             return Ok(Token::with_content_offset(
                 TokenType::Var,
                 Span::new(dollar_pos, self.pos),
@@ -875,6 +953,52 @@ impl<'src> Lexer<'src> {
             Span::new(dollar_pos, self.pos),
             1,
         ))
+    }
+
+    /// Consume a `JimTcl` parenthesised body, from just inside the opening
+    /// `(` to the matching `)`, leaving `self.pos` **at** that `)` when the
+    /// body is balanced.
+    ///
+    /// This is Jim's one paren scanner, shared by `$(expr)` sugar and by
+    /// `$name(index)` (`JimParseVar`, jim.c:1698-1727). It counts nesting and
+    /// lets a backslash hide the next byte; unlike C Tcl's index scanner it
+    /// does **not** recognise `[...]`, `{...}` or quotes, so a `)` inside a
+    /// nested command substitution still closes the body.
+    ///
+    /// Jim's own recovery is reproduced: if the input runs out while still
+    /// nested but some `)` was seen, the body is taken to end just after the
+    /// **last** `)` — so `$a((b)` is the index `(b`, not a run to end of
+    /// source. When no `)` was seen at all the scan stops at end of input and
+    /// the caller reports the missing close.
+    fn skip_jim_paren_body(&mut self) {
+        let bytes = self.source().as_bytes();
+        let mut depth: u32 = 1;
+        let mut last_close: Option<u32> = None;
+        while let Some(&byte) = bytes.get(self.pos as usize) {
+            match byte {
+                b'\\' if self.pos as usize + 1 < bytes.len() => {
+                    // A backslash hides the next byte from the counter.
+                    self.pos += 2;
+                    continue;
+                }
+                b'(' => depth += 1,
+                b')' => {
+                    last_close = Some(self.pos);
+                    depth -= 1;
+                    if depth == 0 {
+                        return; // `self.pos` is the matching `)`.
+                    }
+                }
+                _ => {}
+            }
+            self.pos += 1;
+        }
+        // Ran out while still nested: back up to just after the last `)`,
+        // exactly as Jim does. `self.pos` then sits on a non-`)` byte (or at
+        // end of input) and the caller reports the missing close.
+        if let Some(close) = last_close {
+            self.pos = close + 1;
+        }
     }
 
     /// Consume a `(…)` array-index body starting at the `(`.
@@ -1125,8 +1249,14 @@ impl<'src> Lexer<'src> {
         if closed {
             self.pos += 1; // advance past closing `"`
             self.in_quote = false;
-            // Check for extra characters after close-quote.
-            if let Some(after) = self.current_byte() {
+            // Check for extra characters after close-quote. `JimTcl` has no
+            // such check anywhere — it clears `inquote` and keeps scanning,
+            // so `puts "abc"def` is the single word `abcdef` rather than a
+            // parse error (`JimParseStr`, jim.c:1748).
+            if let Some(after) = self
+                .current_byte()
+                .filter(|_| self.config.quote_termination.is_strict())
+            {
                 let is_bs_nl = after == b'\\'
                     && matches!(
                         self.source().as_bytes().get(self.pos as usize + 1),
@@ -1137,12 +1267,12 @@ impl<'src> Lexer<'src> {
                     // `"` splits exactly as a braced one — `"a"b` →
                     // `a`/`b`, `"a""b"` → `a`/`b`, `"a"}` → `a`/`}` —
                     // with no diagnostic (R6).
-                    if !is_separator_byte(after) && !is_bs_nl {
+                    if !is_separator_byte(after, self.config.word_separators) && !is_bs_nl {
                         let sep_span = Span::empty(self.pos);
                         self.pending_sep = Some(Token::new(TokenType::Sep, sep_span));
                     }
                 } else {
-                    let ok = is_separator_byte(after) || after == b']' || is_bs_nl;
+                    let ok = is_separator_byte(after, self.config.word_separators) || after == b']' || is_bs_nl;
                     if !ok {
                         self.warn_or_error("extra characters after close-quote")?;
                     }
@@ -1204,7 +1334,7 @@ impl<'src> Lexer<'src> {
             && self.peek_byte(1) == Some(b'*')
             && self.peek_byte(2) == Some(b'}')
             && let Some(after) = self.peek_byte(3)
-            && !is_separator_byte(after)
+            && !is_separator_byte(after, self.config.word_separators)
         {
             return Ok(self.parse_expand());
         }
@@ -1316,7 +1446,7 @@ impl<'src> Lexer<'src> {
             self.pos += 1;
             // Check for extra characters after close-brace.
             if let Some(after) = self.current_byte()
-                && !is_separator_byte(after)
+                && !is_separator_byte(after, self.config.word_separators)
             {
                 // Backslash-newline after close-brace is fine
                 let is_bs_nl = after == b'\\'
@@ -1672,7 +1802,7 @@ impl Iterator for Lexer<'_> {
             }
         } else {
             match ch {
-                _ if is_horizontal_whitespace(ch) => Ok(self.parse_sep()),
+                _ if is_horizontal_whitespace(ch, self.config.word_separators) => Ok(self.parse_sep()),
                 // F5 N1 (measurements §2): a newline whose next line
                 // starts (after horizontal whitespace) with `{` is a word
                 // separator, not a command terminator. A `;` always
@@ -1718,14 +1848,19 @@ impl Iterator for Lexer<'_> {
     }
 }
 
+/// Whether `ch` is horizontal whitespace under `seps`.
+///
+/// `JimTcl` omits `\v` from the set its script parser switches on
+/// (`jim.c:1338-1341`); every build of the Tcl core includes it.
 #[inline]
-fn is_horizontal_whitespace(ch: char) -> bool {
-    matches!(ch, ' ' | '\t' | '\r' | '\u{0B}' | '\u{0C}')
+fn is_horizontal_whitespace(ch: char, seps: tcl_dialect::WordSeparators) -> bool {
+    u8::try_from(u32::from(ch)).is_ok_and(|b| seps.is_separator(b))
 }
 
+/// Byte twin of [`is_horizontal_whitespace`].
 #[inline]
-fn is_horizontal_whitespace_byte(byte: u8) -> bool {
-    matches!(byte, b' ' | b'\t' | b'\r' | 0x0B | 0x0C)
+fn is_horizontal_whitespace_byte(byte: u8, seps: tcl_dialect::WordSeparators) -> bool {
+    seps.is_separator(byte)
 }
 
 #[inline]
@@ -1741,8 +1876,8 @@ fn is_eol_byte(byte: u8) -> bool {
 /// Union of `is_horizontal_whitespace_byte` and `is_eol_byte`.
 /// Used by the `{*}` expansion-prefix guard to test the byte after `}`.
 #[inline]
-fn is_separator_byte(byte: u8) -> bool {
-    is_horizontal_whitespace_byte(byte) || is_eol_byte(byte)
+fn is_separator_byte(byte: u8, seps: tcl_dialect::WordSeparators) -> bool {
+    is_horizontal_whitespace_byte(byte, seps) || is_eol_byte(byte)
 }
 
 // There is no "deferred special" character set: every valid ASCII
@@ -3519,5 +3654,152 @@ mod tests {
         assert!(kinds.contains(&TokenType::Var), "{kinds:?}");
         assert!(kinds.contains(&TokenType::Cmd), "{kinds:?}");
         assert!(kinds.contains(&TokenType::Comment), "{kinds:?}");
+    }
+}
+
+/// The `JimTcl` lexical divergences, each asserted against both grammars.
+///
+/// Every expectation was measured on interpreters built from the upstream
+/// tags 0.76-0.84 against tclsh 8.6 / 9.0.
+#[cfg(test)]
+mod jim_divergence_tests {
+    use super::*;
+    use crate::tokens::TokenType;
+    use tcl_dialect::model::{Family, Release, grammar};
+
+    fn cfg(family: Family, release: Release) -> LexerConfig {
+        LexerConfig::from_grammar(grammar(family, release))
+    }
+
+    fn jim() -> LexerConfig {
+        cfg(Family::Jim, Release::JIM_0_84)
+    }
+
+    fn tcl() -> LexerConfig {
+        cfg(Family::Tcl, Release::TCL_8_6)
+    }
+
+    fn lex(source: &str, config: LexerConfig) -> (Vec<(TokenType, String)>, Vec<String>) {
+        let mut lexer = Lexer::with_config(source, config);
+        let mut out = Vec::new();
+        while let Some(Ok(t)) = lexer.next() {
+            out.push((t.kind, source[t.span.as_range()].to_string()));
+        }
+        let warns = lexer.warnings().iter().map(|w| w.message.clone()).collect();
+        (out, warns)
+    }
+
+    fn kinds(source: &str, config: LexerConfig) -> Vec<(TokenType, String)> {
+        lex(source, config).0
+    }
+
+    /// `$(…)` is an expression substitution in Jim and a variable named
+    /// `(…)` in every build of the Tcl core.
+    #[test]
+    fn expr_sugar_is_jim_only() {
+        let src = "set a $($b * 2)";
+        for release in Family::Jim.releases() {
+            assert!(
+                kinds(src, cfg(Family::Jim, *release))
+                    .contains(&(TokenType::ExprSugar, "$($b * 2".into())),
+                "{release}"
+            );
+        }
+        for release in Family::Tcl.releases() {
+            let toks = kinds(src, cfg(Family::Tcl, *release));
+            assert!(
+                toks.contains(&(TokenType::Var, "$($b * 2)".into())),
+                "{release} reads $( as a variable name"
+            );
+            assert!(
+                !toks.iter().any(|(k, _)| *k == TokenType::ExprSugar),
+                "{release} never emits an expression-sugar token"
+            );
+        }
+    }
+
+    /// The sugar body nests and honours a backslash, like Jim's scanner.
+    #[test]
+    fn expr_sugar_body_nests() {
+        assert!(
+            kinds("puts $(($a+1)*2)", jim())
+                .contains(&(TokenType::ExprSugar, "$(($a+1)*2".into()))
+        );
+        assert!(
+            kinds(r"puts $(a\)b)", jim()).contains(&(TokenType::ExprSugar, r"$(a\)b".into()))
+        );
+    }
+
+    /// `$name(index)` counts nested parens in Jim; C Tcl stops at the first
+    /// `)` at token level.
+    #[test]
+    fn index_parens_nest_only_in_jim() {
+        assert!(kinds("puts $d(a(b))", jim()).contains(&(TokenType::Var, "$d(a(b))".into())));
+        assert!(kinds("puts $d(a(b))", tcl()).contains(&(TokenType::Var, "$d(a(b)".into())));
+    }
+
+    /// Jim's recovery for an unbalanced index: end just after the last `)`
+    /// rather than run to end of source.
+    #[test]
+    fn unbalanced_index_backs_up_to_the_last_close_paren() {
+        let toks = kinds("puts $a((b) tail", jim());
+        assert!(toks.contains(&(TokenType::Var, "$a((b)".into())), "{toks:?}");
+        assert!(toks.contains(&(TokenType::Esc, "tail".into())), "{toks:?}");
+    }
+
+    /// A bare `$name` may hold any byte >= 0x80 in Jim.
+    #[test]
+    fn high_bytes_continue_a_name_only_in_jim() {
+        assert!(kinds("puts $café", jim()).contains(&(TokenType::Var, "$café".into())));
+        assert!(kinds("puts $café", tcl()).contains(&(TokenType::Var, "$caf".into())));
+    }
+
+    /// `\v` separates words in C Tcl and is an ordinary word character in
+    /// Jim: `eval "f a\vb"` passes 2 arguments under tclsh 8.6 and 1 under
+    /// every modelled Jim release.
+    #[test]
+    fn vertical_tab_is_a_separator_only_in_tcl() {
+        assert!(
+            kinds("set x a\u{0B}b", jim()).contains(&(TokenType::Esc, "a\u{0B}b".into())),
+            "jim keeps the vertical tab inside the word"
+        );
+        assert!(
+            kinds("set x a\u{0B}b", tcl()).contains(&(TokenType::Sep, "\u{0B}".into())),
+            "tcl splits on the vertical tab"
+        );
+        // The four shared separators behave identically either way.
+        for ws in [" ", "\t", "\r", "\u{0C}"] {
+            for config in [jim(), tcl()] {
+                assert!(
+                    kinds(&format!("set x a{ws}b"), config)
+                        .iter()
+                        .any(|(k, _)| *k == TokenType::Sep),
+                    "{ws:?}"
+                );
+            }
+        }
+    }
+
+    /// `puts "abc"def` is one word in Jim and a parse error in C Tcl. The
+    /// token stream is the same either way — only the diagnostic differs.
+    #[test]
+    fn extra_characters_after_close_quote_is_tcl_only() {
+        let (jim_toks, jim_warns) = lex("puts \"abc\"def", jim());
+        let (tcl_toks, tcl_warns) = lex("puts \"abc\"def", tcl());
+        assert_eq!(jim_toks, tcl_toks, "the word boundaries agree");
+        assert!(jim_warns.is_empty(), "jim has no such check: {jim_warns:?}");
+        assert_eq!(tcl_warns, vec!["extra characters after close-quote"]);
+    }
+
+    /// The brace twin of the rule above is *not* on this axis: Jim rejects
+    /// `{abc}def` exactly as C Tcl does, so that diagnostic is unconditional.
+    #[test]
+    fn extra_characters_after_close_brace_still_fires_for_jim() {
+        for config in [jim(), tcl()] {
+            assert_eq!(
+                lex("puts {abc}def", config).1,
+                vec!["extra characters after close-brace"]
+            );
+        }
     }
 }

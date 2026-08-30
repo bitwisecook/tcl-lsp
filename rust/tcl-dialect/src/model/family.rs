@@ -36,7 +36,8 @@
 
 use crate::LexerGrammar;
 use crate::grammar::{
-    BraceLineContinuation, BracedVarStyle, EscapeSyntax, ExprCommentStyle, NumberSyntax,
+    BraceBackslashNewline, BraceLineContinuation, BracedVarStyle, EscapeSyntax,
+    ExprCommentStyle, ListParse, NumberSyntax, QuoteTermination, VarSyntax, WordSeparators,
 };
 use crate::model::expr_grammar::{self, ExprGrammar};
 use crate::version::StringCharacterModel;
@@ -455,6 +456,11 @@ const GRAMMAR_TCL84: LexerGrammar = LexerGrammar {
     expr_comments: ExprCommentStyle::None,
     numbers: NumberSyntax::Tcl84,
     escapes: EscapeSyntax::Tcl84,
+    word_separators: WordSeparators::Tcl,
+    brace_backslash_newline: BraceBackslashNewline::Folds,
+    quote_termination: QuoteTermination::Strict,
+    var_syntax: VarSyntax::Tcl,
+    list_parse: ListParse::Strict,
 };
 
 const GRAMMAR_TCL85: LexerGrammar = LexerGrammar {
@@ -477,6 +483,11 @@ const GRAMMAR_TCL9X: LexerGrammar = LexerGrammar {
     expr_comments: ExprCommentStyle::Hash,
     numbers: NumberSyntax::Tcl90,
     escapes: EscapeSyntax::Tcl90,
+    word_separators: WordSeparators::Tcl,
+    brace_backslash_newline: BraceBackslashNewline::Folds,
+    quote_termination: QuoteTermination::Strict,
+    var_syntax: VarSyntax::Tcl,
+    list_parse: ListParse::Strict,
 };
 
 /// The `f5-tcl` **trunk** grammar: everything unoverridden answers from
@@ -546,6 +557,21 @@ const GRAMMAR_JIM: LexerGrammar = LexerGrammar {
     // Likewise its own escape grammar: 9.0's `\x` cap and wide `\U`, but
     // 8.4's greedy octal — `subst \400` is one NUL byte, not `" 0"`.
     escapes: EscapeSyntax::Jim,
+    // `\v` is not a word separator in Jim: the script parser's switch has
+    // no `case '\v'` (jim.c:1338-1341). Its *list* parser still uses
+    // isspace(), so `llength "a\vb"` is still 2.
+    word_separators: WordSeparators::Jim,
+    // A brace-word line continuation keeps its bytes, to preserve line
+    // numbers through a braced body (JimParseSubBrace, jim.c:1444).
+    brace_backslash_newline: BraceBackslashNewline::Literal,
+    // `puts "abc"def` prints `abcdef`: there is no extra-characters check
+    // after a close-quote anywhere in Jim.
+    quote_termination: QuoteTermination::Concatenating,
+    // `$(...)` is expr sugar, index parens nest, and a name may hold any
+    // byte >= 0x80 (JimParseVar, jim.c:1641).
+    var_syntax: VarSyntax::Jim,
+    // `llength "a {b"` is 2: Jim's list parser has no error path.
+    list_parse: ListParse::Lenient,
 };
 
 /// Jim from 0.80: the `0d` decimal radix prefix arrives, alongside the

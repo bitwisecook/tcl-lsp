@@ -190,6 +190,13 @@ impl ConstSubstCtx<'_> {
                     words.push(value);
                     prev_is_sep = false;
                 }
+                TokenType::ExprSugar => {
+                    // `JimTcl` `$(…)` expression substitution: the value is
+                    // whatever the expression evaluates to at run time, so
+                    // there is no literal to fold. Bail conservatively, as
+                    // for any other non-constant substitution.
+                    return None;
+                }
                 TokenType::Cmd => {
                     // Nested command substitution: fold it recursively.
                     // Only a const-foldable nested builtin (`[list a b c]`

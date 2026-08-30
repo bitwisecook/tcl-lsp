@@ -61,6 +61,20 @@ pub enum TokenType {
     Comment,
     /// `{*}` argument-expansion prefix (Tcl 8.5+).
     Expand,
+    /// `JimTcl` expression substitution `$(…)` — the parenthesised text is an
+    /// `expr` body, not a script and not a dict index (the parens are
+    /// stripped from the token text).
+    ///
+    /// Jim's parser reaches this through the *command*-substitution scanner
+    /// and then retags the token (`JimParseVar` → `JIM_TT_EXPRSUGAR`,
+    /// `jim.c:1728-1732`), so it nests and terminates exactly like
+    /// [`Self::Cmd`]. It is a distinct kind because the body's *grammar*
+    /// differs: `$($a * 2)` holds the expression `$a * 2`, which a consumer
+    /// must analyse with the expression parser rather than the script one.
+    ///
+    /// Emitted only under [`VarSyntax::Jim`](tcl_dialect::VarSyntax::Jim); no
+    /// build of the Tcl core produces it.
+    ExprSugar,
 }
 
 impl TokenType {
@@ -74,6 +88,7 @@ impl TokenType {
         match self {
             Self::Str => Some('}'),
             Self::Cmd => Some(']'),
+            Self::ExprSugar => Some(')'),
             _ => None,
         }
     }
@@ -98,6 +113,7 @@ impl TokenType {
             Self::Eof => "EOF",
             Self::Comment => "COMMENT",
             Self::Expand => "EXPAND",
+            Self::ExprSugar => "EXPRSUGAR",
         }
     }
 }
