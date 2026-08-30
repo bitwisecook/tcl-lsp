@@ -215,7 +215,7 @@ impl Lowerer<'_> {
     fn is_coroutine_primitive(&self, cmd: &str, args: &[String]) -> bool {
         let args: Vec<&str> = args.iter().map(String::as_str).collect();
         self.registry
-            .invocation_traits(cmd, &args, self.registry.own_availability_mask())
+            .invocation_traits(cmd, &args, self.registry.own_surface_query())
             .contains(Traits::COROUTINE_PRIMITIVE)
     }
 
@@ -1295,7 +1295,7 @@ mod tests {
 
     #[test]
     fn coroutine_barrier_uses_registry_identity_for_specific_diagnostic() {
-        let registry = tcl_registry::registry_for_dialect("bpf");
+        let registry = tcl_registry::model::ingress::static_context_for("bpf").commands();
         let mut func = Function::new("::handler", "entry");
         let entry = func.entry;
         func.blocks
@@ -1330,7 +1330,9 @@ mod tests {
     /// and `1_000` were all rejected as bad integers.
     #[test]
     fn integer_literals_follow_the_target_dialects_number_grammar() {
-        let numbers = tcl_registry::registry_for_dialect("bpf").numbers();
+        let numbers = tcl_registry::model::ingress::static_context_for("bpf")
+            .commands()
+            .numbers();
         for (text, want) in [
             ("42", Some(42)),
             ("-42", Some(-42)),

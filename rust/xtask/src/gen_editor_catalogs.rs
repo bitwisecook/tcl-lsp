@@ -19,10 +19,10 @@
 
 use std::fs;
 use std::process::ExitCode;
+use tcl_dialect::model::{Family, SurfaceQuery};
 
 use anyhow::{Context, Result};
 use serde::Serialize;
-use tcl_dialect::DialectSet;
 use tcl_registry::CommandRegistry;
 use tcl_registry::events::EventRegistry;
 use tcl_registry::traits::Traits;
@@ -106,7 +106,7 @@ fn tcl_commands_catalog(reg: &CommandRegistry) -> CommandsCatalog {
         .filter(|&name| name != "disabled_in_irules")
         .filter_map(|name| {
             let spec = reg.get(name)?;
-            if !spec.supports_dialect(DialectSet::ALL_TCL) {
+            if !spec.supports_dialect(Some(SurfaceQuery::any_release(Family::Tcl))) {
                 return None;
             }
             let mut subcommands: Vec<String> =

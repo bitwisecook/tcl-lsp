@@ -123,6 +123,11 @@ pub enum PerItemFallback {
     ClassFactsCollide,
     /// A method body's object-instance tracking could not be replayed.
     MethodInstanceReplay,
+    /// §5.4 range targeting is declared (configuration pairs or a
+    /// `# tcl-lsp: supports` directive): the range verdicts (W150/W151)
+    /// read walk-level state the isolated-body memo key does not carry,
+    /// so a declared document takes the full path rather than diverge.
+    DeclaredTargets,
 }
 
 impl PerItemFallback {
@@ -143,6 +148,7 @@ impl PerItemFallback {
             Self::DuplicateProcInBody => "duplicate-proc-in-body",
             Self::ClassFactsCollide => "class-facts-collide",
             Self::MethodInstanceReplay => "method-instance-replay",
+            Self::DeclaredTargets => "declared-targets",
         }
     }
 }
@@ -271,14 +277,14 @@ impl Analyser {
         let disabled = self.disabled_diagnostics.clone();
         let non_ascii = self.non_ascii_mode;
         let factories = self.workspace_class_factories.clone();
-        let empty_overlay = super::types::build_stub_overlay(&[]);
+        let no_declarations = tcl_registry::model::DeclaredSurface::new();
         let mut body_fn = |db: &DeferredBody| {
             analyse_proc_body_isolated(
                 db,
                 dialect,
                 &disabled,
                 non_ascii,
-                Some(empty_overlay.clone()),
+                Some(no_declarations.clone()),
                 factories.clone(),
             )
         };
@@ -305,22 +311,32 @@ impl Analyser {
         // also falls back to full analysis rather than diverge (a parent
         // created outside a proc would otherwise look missing inside it, and a
         // `pack`/`grid` conflict spanning a proc body would never flush).
-        // Only the *dialect* half of Tk activation is decidable here; the
-        // `package require Tk` half is a whole-file fact established by the
-        // walk, and is checked after the body pass below (issue #1188).
+        // Only the *ambient-placement* half of Tk activation is decidable
+        // here; the `package require Tk` half is a whole-file fact
+        // established by the walk, and is checked after the body pass below
+        // (issue #1188).
         //
         // Evaluated one gate at a time (rather than as one `||` chain) so the
         // telemetry can name which fired — these are checked in cheapest-first
         // order, so the split costs nothing.
-        let profile = tcl_dialect::DialectProfile::by_name(dialect);
-        let availability = tcl_dialect::DialectProfile::availability_for_name(dialect);
+        let environment = crate::environment_ingress::resolve_environment(dialect);
+        let profile = environment.analyser_profile();
         let entry_gate = if tcl_lexer::script_is_complete(source) {
             if source.contains("tcl-lsp: stub") {
                 Some(PerItemFallback::StubDirective)
             } else if super::utils::has_sidecar_stubs(self.file_path.as_deref(), profile) {
                 Some(PerItemFallback::SidecarStub)
-            } else if availability.contains(tcl_dialect::DialectSet::TK) {
+            } else if environment
+                .document_context()
+                .ambient_package(super::tk_checks::TK_PACKAGE)
+            {
                 Some(PerItemFallback::TkActive)
+            } else if !self.declared_targets.is_empty()
+                || !super::utils::parse_supports_directives(source).is_empty()
+            {
+                // §5.4 range mode: the range verdicts read whole-walk
+                // state the isolated-body key does not carry.
+                Some(PerItemFallback::DeclaredTargets)
             } else {
                 None
             }
@@ -456,11 +472,10 @@ impl Analyser {
         use std::collections::HashSet;
 
         self.source = source.to_string();
-        self.profile = tcl_dialect::DialectProfile::by_name(dialect);
+        let tk_ambient = self.resolve_walk_environment(dialect);
         self.result.dialect = dialect.to_string();
         self.result.library_versions = self.library_versions.clone();
-        self.tk_dialect = tcl_dialect::DialectProfile::availability_for_name(dialect)
-            .contains(tcl_dialect::DialectSet::TK);
+        self.tk_ambient = tk_ambient;
         // The per-item path deliberately accumulates **no** Tk state, unlike
         // `analyse` / `analyse_chunked` / `analyse_commands`.  Everything the
         // accumulation feeds is discarded unless Tk turns out to be active, and
@@ -482,18 +497,29 @@ impl Analyser {
         }
         super::state::merge_noqa_line_suppressions(
             &mut self.result.suppressed_lines,
-            super::utils::parse_noqa_line_suppressions_for_dialect(
-                source,
-                tcl_dialect::DialectProfile::by_name(dialect),
-            ),
+            super::utils::parse_noqa_line_suppressions_for_dialect(source, self.profile),
         );
         let (stub_cmds, stub_exprs) = super::utils::scan_source_for_stubs(source);
-        self.stub_overlay = Some(super::types::build_stub_overlay(&stub_cmds));
+        self.declared_commands = Some(super::types::build_declared_surface(&stub_cmds));
         self.result.stub_commands = stub_cmds;
         self.result.stub_expr_defs = stub_exprs;
 
-        self.registry = Some(tcl_registry::cache::registry_handle_for_profile(
-            self.profile,
+        // The per-item walk deliberately reads the **un-overlaid**
+        // generation's store here, as it always has
+        // (`registry_handle_for_profile`, not `profile_registry`);
+        // [`super::state::Analyser::analysis_context`] keeps carrying the
+        // pack overlay for the queries that thread it.
+        self.registry = Some(std::sync::Arc::clone(
+            self.environment
+                .as_ref()
+                .expect("resolved at the top of per_item_setup")
+                .context_registry(
+                    &crate::environment_ingress::DocumentEnvironment::keyed_versions(
+                        &self.library_versions,
+                    ),
+                    0,
+                )
+                .commands(),
         ));
         self.line_offsets = Some(super::state::compute_line_offsets(source));
         // Same recovery known-command universe as `Analyser::analyse` — see
@@ -1327,7 +1353,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
     dialect: &str,
     disabled: &std::collections::HashSet<String, S>,
     non_ascii: super::state::NonAsciiMode,
-    stub_overlay: Option<tcl_registry::stub_overlay::StubOverlay>,
+    declared_commands: Option<tcl_registry::model::DeclaredSurface>,
     workspace_class_factories: Option<std::sync::Arc<super::types::ClassFactoryIndex>>,
 ) -> BodyFragment {
     // Rebuild into the default-hasher set `Analyser` stores.
@@ -1341,8 +1367,8 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
     let mut a = Analyser::with_disabled_diagnostics(disabled)
         .with_non_ascii_mode(non_ascii)
         .with_workspace_class_factories(workspace_class_factories);
-    a.profile = tcl_dialect::DialectProfile::by_name(dialect);
-    a.stub_overlay = stub_overlay;
+    a.profile = crate::environment_ingress::resolve_environment(dialect).analyser_profile();
+    a.declared_commands = declared_commands;
     // Offset 0: the body content is the whole source; a synthetic `Str` body
     // token spans it with `content_offset = 0` (no `{` to skip).
     a.source = db.body_text.to_string();
@@ -1359,7 +1385,9 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
     // representable (and never occurs), so clamp to `u32::MAX`.
     let body_len = u32::try_from(db.body_text.len()).unwrap_or(u32::MAX);
     let body_tok = Token::new(tcl_lexer::TokenType::Str, tcl_lexer::Span::new(0, body_len));
-    a.registry = Some(tcl_registry::cache::registry_handle_for_profile(a.profile));
+    a.registry = Some(std::sync::Arc::clone(
+        tcl_registry::model::ingress::static_context_for_profile(a.profile).commands(),
+    ));
     a.line_offsets = Some(super::state::compute_line_offsets(&a.source));
     // Capture qualified (`::`/`static::`) reads that miss the (empty) enclosing
     // global scope, so the graft can replay them on the shell's real globals.

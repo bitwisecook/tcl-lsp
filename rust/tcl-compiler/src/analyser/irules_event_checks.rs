@@ -95,9 +95,6 @@ fn missing_requirements_description(
     requires: &EventRequires,
     profiles: &ProfileRegistry,
 ) -> String {
-    if requires.init_only {
-        return "only valid in RULE_INIT".to_string();
-    }
     let mut reasons: Vec<String> = Vec::new();
     if requires.flow && !props.flow {
         reasons.push("no active traffic flow (non-flow event)".to_string());
@@ -276,10 +273,10 @@ impl Analyser {
         let Some(registry) = self.registry.as_deref() else {
             return;
         };
-        let Some(spec) = ({
-            use tcl_registry::ProfileQueries;
-            tcl_dialect::DialectProfile::irules().resolve_command(registry, cmd_name)
-        }) else {
+        let Some(spec) = crate::environment_ingress::irules_context()
+            .context()
+            .resolve_spec(registry, cmd_name)
+        else {
             return;
         };
         let events = event_registry();
@@ -425,6 +422,18 @@ impl Analyser {
 
     /// **IRULE5006.** A top-level-only command (`when` / `proc` /
     /// `priority` / `timing`) used inside a nested body.
+    ///
+    /// **Measurements §4c** — the rule compiler's ban is *lexical* and its
+    /// scan recurses into **braced script literals**: `eval {proc …}` and
+    /// `uplevel #0 {proc …}` (any level spelling, any nesting) inside a
+    /// `when` body are rejected identically to bare `proc`. The analyser
+    /// mirrors that through the generic `ArgRole::Body` recursion in
+    /// [`super::commands`]: a braced `eval`/`uplevel` body is walked as a
+    /// script with the enclosing event context intact, so this check fires
+    /// on the nested `proc` with the same diagnostic as the bare form.
+    /// Script text held in a variable escapes the scan — the non-literal
+    /// body is not walked (this check abstains) and the realm state widens
+    /// instead (see `widen_irules_dynamic_eval_bindings`).
     fn emit_irule5006_top_level_only(
         &mut self,
         cmd_name: &str,
@@ -1428,6 +1437,78 @@ mod tests {
         assert!(!has("when RULE_INIT { set static::c 1 }", "IRULE6001"));
     }
 
+    /// The seven-row dynamic-code table of measurements §4c: the rule
+    /// compiler's load-time bans scan **braced script literals** — wrapping
+    /// `proc` in `eval {…}` / `uplevel #0 {…}` changes nothing, and nesting
+    /// is not an escape hatch — while `eval`/`uplevel` themselves are fine,
+    /// a literal call head still fails load-time resolution (§4a), and
+    /// script text held in a variable escapes the scan entirely, widening
+    /// the realm state instead (a runtime-defined proc is a persistent
+    /// per-TMM global surviving across events and connections).
+    #[test]
+    fn the_measurements_4c_seven_row_dynamic_code_table() {
+        // Row 1: bare `proc` in a `when` body — REJECT.
+        assert!(has(
+            "when RULE_INIT { proc p {} { return 1 } }",
+            "IRULE5006"
+        ));
+        // Rows 2-3: braced `eval` / `uplevel` wrappers — REJECT with the
+        // same diagnostic as the bare form (the scan is lexical). Any
+        // level spelling; nesting is not an escape hatch.
+        for src in [
+            "when RULE_INIT { eval {proc p {} { return 1 }} }",
+            "when RULE_INIT { uplevel #0 {proc p {} { return 1 }} }",
+            "when RULE_INIT { uplevel {proc p {} { return 1 }} }",
+            "when RULE_INIT { uplevel 1 {proc p {} { return 1 }} }",
+            "when RULE_INIT { eval {eval {proc p {} { return 1 }}} }",
+        ] {
+            assert!(has(src, "IRULE5006"), "{src}: §4c braced-literal scan");
+        }
+        // Rows 4-5: `eval` / `uplevel` of a harmless braced literal —
+        // ACCEPT (`eval` itself is fine; the ban is on `proc`).
+        assert!(!has(
+            "when RULE_INIT { eval {set static::x 1} }",
+            "IRULE5006"
+        ));
+        assert!(!has(
+            "when RULE_INIT { uplevel #0 {set static::x 1} }",
+            "IRULE5006"
+        ));
+        // Row 6: top-level `proc` + literal call head — REJECT (§4a
+        // load-time resolution: a rule proc is reachable only via `call`).
+        assert!(has(
+            "proc p {} { return 1 }\nwhen RULE_INIT { p }",
+            "IRULE5005"
+        ));
+        assert!(!has(
+            "proc p {} { return 1 }\nwhen RULE_INIT { call p }",
+            "IRULE5005"
+        ));
+        // Row 7: variable-held define + call — ACCEPT, with the May
+        // widening: the hidden script may define procs (persistent
+        // per-TMM globals, §4c), so the realm state records a dynamic
+        // provider and literal-surface checks abstain.
+        let hidden = "when RULE_INIT { set s \"proc dpp {} { return persisted }\"\n  \
+                      uplevel #0 $s\n  set c \"dpp\"\n  uplevel #0 $c }";
+        let mut analyser = Analyser::new();
+        let res = analyser.analyse(hidden, "f5-irules");
+        assert!(
+            res.has_dynamic_providers,
+            "a dynamic uplevel at event scope must widen the realm state"
+        );
+        assert!(
+            !res.diagnostics
+                .iter()
+                .any(|d| matches!(d.code.as_str(), "IRULE5005" | "IRULE5006" | "W123")),
+            "the hidden define+call form is accepted: {:?}",
+            res.diagnostics
+        );
+        // Control: a braced-literal eval body does NOT widen the realm.
+        let mut analyser = Analyser::new();
+        let res = analyser.analyse("when RULE_INIT { eval {set static::x 1} }", "f5-irules");
+        assert!(!res.has_dynamic_providers);
+    }
+
     #[test]
     fn irule5006_fires_for_proc_in_nested_body() {
         assert!(has(
@@ -1548,11 +1629,11 @@ mod tests {
 
     #[test]
     fn collect_event_bodies_extracts_priority_form() {
-        let registry = tcl_registry::cache::registry_for_dialect("f5-irules");
+        let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let blocks = super::collect_event_bodies(
             "when HTTP_REQUEST priority 5 { body1 }",
             Some(registry),
-            &crate::head_identity::HeadIdentityMap::default(),
+            &crate::realm::CommandBindingRealm::default(),
         );
         assert_eq!(blocks.len(), 1);
         assert_eq!(blocks[0].0, "HTTP_REQUEST");
@@ -1564,14 +1645,14 @@ mod tests {
         // Neither a commented-out handler nor one quoted inside a string is a
         // command, so neither contributes an event body — the byte scan this
         // replaced invented both (issue #1390).
-        let registry = tcl_registry::cache::registry_for_dialect("f5-irules");
+        let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let source = "# when HTTP_REQUEST { log local0. $x }\n\
                       log local0. \"when LB_SELECTED { set y 1 }\"\n\
                       when CLIENT_ACCEPTED { set z 1 }\n";
         let blocks = super::collect_event_bodies(
             source,
             Some(registry),
-            &crate::head_identity::HeadIdentityMap::default(),
+            &crate::realm::CommandBindingRealm::default(),
         );
         let names: Vec<&str> = blocks.iter().map(|(e, _)| e.as_str()).collect();
         assert_eq!(names, vec!["CLIENT_ACCEPTED"]);
@@ -1587,13 +1668,13 @@ mod tests {
     /// issue #1390).
     #[test]
     fn collect_event_bodies_honours_the_tmm_ghost_separator() {
-        let registry = tcl_registry::cache::registry_for_dialect("f5-irules");
+        let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let source = "when {HTTP_REQUEST}{ set token abc }\n\
                       when {CLIENT_DATA}{ log local0. $token }\n";
         let blocks = super::collect_event_bodies(
             source,
             Some(registry),
-            &crate::head_identity::HeadIdentityMap::default(),
+            &crate::realm::CommandBindingRealm::default(),
         );
         let names: Vec<&str> = blocks.iter().map(|(e, _)| e.as_str()).collect();
         assert_eq!(names, vec!["HTTP_REQUEST", "CLIENT_DATA"]);
@@ -1713,6 +1794,134 @@ mod tests {
             "'SSL::cipher' assumes profile CLIENTSSL or PERSIST or SERVERSSL or \
              SSL_PERSISTENCE on the virtual server."
         );
+    }
+
+    /// The two cells the appliance measurements single out as *"exactly
+    /// the mistakes an editor should catch"*
+    /// (`docs/design/bigip-irule-parser-measurements.md` §8): the rule
+    /// compiler refuses `HTTP::uri` in `HTTP_RESPONSE` and `HTTP::status`
+    /// in `HTTP_REQUEST` at rule load, though both events carry an HTTP
+    /// profile. The model admitted both until the F5 conformance corpus
+    /// caught them (`tcl_registry::f5::corpus`, rows now `Agrees`).
+    #[test]
+    fn irule1001_warns_the_measured_http_asymmetries() {
+        for (source, command, event) in [
+            (
+                "when HTTP_RESPONSE { HTTP::uri }",
+                "HTTP::uri",
+                "HTTP_RESPONSE",
+            ),
+            (
+                "when HTTP_REQUEST { HTTP::status }",
+                "HTTP::status",
+                "HTTP_REQUEST",
+            ),
+        ] {
+            let diags = irule1001(source);
+            assert_eq!(diags.len(), 1, "{source}");
+            assert_eq!(diags[0].0, Severity::Warning, "{source}");
+            assert!(
+                diags[0]
+                    .1
+                    .starts_with(&format!("'{command}' cannot be used in {event}.")),
+                "{}",
+                diags[0].1
+            );
+        }
+    }
+
+    /// The mirror image, and the reason the fix could not be a blanket
+    /// tightening: the same §8 sweep measured `IP::server_addr` accepted
+    /// in every traffic event including the client-side ones (its own
+    /// documentation says it returns `0` before the serverside connection
+    /// exists), and `HTTP::uri`/`HTTP::status`/`HTTP::collect` accepted in
+    /// `LB_SELECTED`, which implies no HTTP profile at all. Each of these
+    /// was a false positive before P4 moved the registry data.
+    #[test]
+    fn irule1001_quiet_for_the_measured_acceptances() {
+        // `IP::server_addr` has no profile requirement at all, so these
+        // are silent outright.
+        for source in [
+            "when CLIENT_ACCEPTED { IP::server_addr }",
+            "when CLIENT_DATA { IP::server_addr }",
+            "when HTTP_REQUEST { IP::server_addr }",
+            "when CLIENT_CLOSED { IP::server_addr }",
+        ] {
+            assert!(
+                irule1001(source).is_empty(),
+                "{source}: {:?}",
+                irule1001(source)
+            );
+        }
+        // The `HTTP::*` trio in `LB_SELECTED` keeps the *informational*
+        // half: the event implies no HTTP profile, so the file cannot
+        // confirm the virtual server carries one, and the unconfirmed
+        // -namespace-profile hint still fires. What must be gone is the
+        // **warning** — the appliance loads all three there (§8), and
+        // claiming otherwise was the false positive.
+        for source in [
+            "when LB_SELECTED { HTTP::uri }",
+            "when LB_SELECTED { HTTP::status }",
+            "when LB_SELECTED { HTTP::collect }",
+        ] {
+            let diags = irule1001(source);
+            assert!(
+                diags
+                    .iter()
+                    .all(|(severity, _)| *severity == Severity::Hint),
+                "{source}: {diags:?}"
+            );
+            assert!(
+                diags
+                    .iter()
+                    .all(|(_, message)| message.contains("assumes profile")),
+                "{source}: {diags:?}"
+            );
+        }
+    }
+
+    /// `SSL::cipher` is refused either side of a completed handshake and
+    /// in `RULE_INIT`, and accepted in the three events between (§8). The
+    /// model accepted it everywhere until the corpus caught it.
+    #[test]
+    fn irule1001_follows_the_measured_ssl_cipher_row() {
+        // The four handshake-adjacent events are a measured closed list,
+        // so they read as an exclusion…
+        for event in [
+            "CLIENT_ACCEPTED",
+            "CLIENT_DATA",
+            "SERVER_CONNECTED",
+            "CLIENT_CLOSED",
+        ] {
+            let source = format!("when {event} {{ SSL::cipher name }}");
+            let diags = irule1001(&source);
+            assert_eq!(diags.len(), 1, "{source}");
+            assert_eq!(diags[0].0, Severity::Warning, "{source}");
+            assert!(
+                diags[0]
+                    .1
+                    .starts_with(&format!("'SSL::cipher' cannot be used in {event}.")),
+                "{}",
+                diags[0].1
+            );
+        }
+        // …while `RULE_INIT` is refused for the ordinary reason, with the
+        // reason spelled out. `LB::server` differs from `SSL::cipher` in
+        // exactly one cell: that is the only one it is refused in.
+        for command in ["SSL::cipher name", "LB::server pool"] {
+            let source = format!("when RULE_INIT {{ {command} }}");
+            let diags = irule1001(&source);
+            assert_eq!(diags.len(), 1, "{source}");
+            assert_eq!(diags[0].0, Severity::Warning, "{source}");
+            assert!(
+                diags[0]
+                    .1
+                    .contains("may not work in RULE_INIT: no active traffic flow"),
+                "{}",
+                diags[0].1
+            );
+        }
+        assert!(irule1001("when CLIENT_ACCEPTED { LB::server pool }").is_empty());
     }
 
     #[test]
@@ -1862,23 +2071,21 @@ mod tests {
     }
 
     #[test]
-    fn missing_requirements_description_reports_init_only_and_profiles() {
+    fn missing_requirements_description_reports_the_unmet_stack_requirements() {
         let profiles = profile_registry();
         let events = event_registry();
-        let init_req = EventRequires {
+        let server_req = EventRequires {
             client_side: false,
-            server_side: false,
+            server_side: true,
             transport: None,
             profiles: &[],
             also_in: &[],
-            init_only: true,
             flow: false,
-            capability: None,
         };
-        let props = events.get_props("HTTP_REQUEST").expect("known event");
+        let props = events.get_props("CLIENT_ACCEPTED").expect("known event");
         assert_eq!(
-            missing_requirements_description(props, &init_req, profiles),
-            "only valid in RULE_INIT"
+            missing_requirements_description(props, &server_req, profiles),
+            "no server-side connection"
         );
     }
 }

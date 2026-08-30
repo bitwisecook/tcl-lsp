@@ -18,10 +18,11 @@
 
 //! `clone` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "clone",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Causes the system to clone traffic to the specified pool, pool member or vlan regardless of monitor status.",

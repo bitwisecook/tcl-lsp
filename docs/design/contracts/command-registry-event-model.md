@@ -67,7 +67,7 @@ compiled-in one — the loader builds the same `CommandSpec`.
 - `rust/tcl-registry/src/profiles.rs`, `profile_queries.rs`,
   `profile_defaults/` — profiles and protocol namespaces.
 - `rust/tcl-registry/src/taint.rs`, `types.rs` — taint and type hints.
-- `rust/tcl-registry/src/stub_overlay.rs` — the per-document user-stub overlay
+- `rust/tcl-registry/src/model/declaration.rs` — the per-document declared surface (`# tcl-lsp: stub`)
   ([dialect-stubs.md](dialect-stubs.md)).
 
 ## Failure modes

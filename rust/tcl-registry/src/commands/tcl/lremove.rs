@@ -32,11 +32,12 @@
 // command landed for real when Tcl 9.0 shipped instead. No dialect
 // directory (irules/, expect/, eda_*/, iapps/, tk/, itcl/) references
 // `lremove`, and none of those dialects model a base Tcl core version of
-// 9.0 or later (`DialectSet::expr_grammar_base_version` tops out at 8.6
+// 9.0 or later (`DialectProfile::expr_grammar_base` tops out at 8.6
 // for every one of them), so the plain `TCL90_PLUS` gate below already
 // excludes every one of them.
 
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "lremove list ?index ...?",
@@ -72,7 +73,7 @@ pub fn spec() -> CommandSpec {
             | Traits::BYTE_COMPILED
             | Traits::NOT_PROC_FACTORY
             | Traits::CSE_CANDIDATE,
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         arity: Arity::at_least(1),
         return_type: Some(TclType::List),
         inferred_storage_type: Some(StorageType::List),

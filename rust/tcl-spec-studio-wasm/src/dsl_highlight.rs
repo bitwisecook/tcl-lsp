@@ -126,7 +126,7 @@ const CONTAINER_KIND_TAGS: &[&str] = &[
 /// Statement heads that are pack/DSL grammar structure rather than
 /// `CommandSpec`/`SubCommand` fields (so they are not in
 /// [`tcl_spec_studio::schema`]), whose bodies are further statements. Mirrors
-/// `tcl_spectcl::loader::load_pack`'s and `descriptor`'s own dispatch.
+/// `tcl_spectcl::loader::evaluate_pack`'s and `descriptor`'s own dispatch.
 const STRUCTURAL_STATEMENT_HEADS: &[&str] = &["speclib", "command", "descriptor", "values"];
 
 /// Statement heads whose trailing brace(s) are foreign content (real Tcl, or
@@ -323,14 +323,12 @@ pub(crate) fn highlight_json(source: &str) -> Value {
     )
 }
 
-// ---------------------------------------------------------------------------
 // Hover
-// ---------------------------------------------------------------------------
 
 /// Grammar keywords and option-row flags that are DSL structure rather than
 /// `CommandSpec`/`SubCommand` fields, so [`tcl_spec_studio::help::field_help`]
 /// does not carry them. Hand-written, matching `tcl_spectcl::loader`'s own
-/// dispatch tables (`load_pack`, `hover_block`, `option_row`).
+/// dispatch tables (`evaluate_pack`, `hover_block`, `option_row`).
 const KEYWORD_HELP: &[(&str, &str, &str)] = &[
     (
         "speclib",

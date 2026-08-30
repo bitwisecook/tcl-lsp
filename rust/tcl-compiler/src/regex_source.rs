@@ -512,7 +512,7 @@ mod tests {
             source,
             &cu,
             &registry,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         )
         .into_iter()
         .map(|s| source[s.start() as usize..s.end() as usize].to_owned())
@@ -766,7 +766,10 @@ mod tests {
         let src = "set re {a+b[0-9]*}\nregexp $re $s\n";
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0"] {
             assert_eq!(
-                spans_text_dialect(src, tcl_dialect::DialectProfile::by_name(dialect)),
+                spans_text_dialect(
+                    src,
+                    tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile()
+                ),
                 vec!["{a+b[0-9]*}".to_owned()],
                 "dialect {dialect}"
             );
@@ -781,11 +784,17 @@ mod tests {
         // validity is a diagnostics concern, not a highlighting one).
         let src = "set re {x+}\nregsub -command $re $s Y out\n";
         assert_eq!(
-            spans_text_dialect(src, tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            spans_text_dialect(
+                src,
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
+            ),
             vec!["{x+}".to_owned()]
         );
         assert_eq!(
-            spans_text_dialect(src, tcl_dialect::DialectProfile::by_name("tcl9.0")),
+            spans_text_dialect(
+                src,
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
+            ),
             vec!["{x+}".to_owned()]
         );
     }

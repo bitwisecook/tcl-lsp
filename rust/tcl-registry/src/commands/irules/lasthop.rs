@@ -18,10 +18,11 @@
 
 //! `lasthop` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "lasthop",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Sets the lasthop of an IP connection.",
@@ -37,9 +38,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &[],
             also_in: &["PERSIST_DOWN"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "lasthop (VLAN_OBJ)? (IP_ADDR | MAC_ADDR)",

@@ -18,10 +18,11 @@
 
 //! `FLOW::idle_duration` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "FLOW::idle_duration",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Returns the time in seconds when the flow was last used.",
@@ -44,9 +45,7 @@ pub const fn spec() -> CommandSpec {
                 "SERVER_CONNECTED",
                 "SERVER_DATA",
             ],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "FLOW::idle_duration ANY_CHARS",

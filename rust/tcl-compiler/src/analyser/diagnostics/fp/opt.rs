@@ -24,18 +24,17 @@
 use crate::compilation_unit::CompilationUnit;
 use crate::compiler_checks::run_all_checks;
 use crate::optimiser::manager::{apply_optimisations, optimise_with_dialect};
-use tcl_registry::registry_for_dialect;
+use tcl_registry::model::ingress::static_context_for;
 
 use super::D;
 
-// ---------------------------------------------------------------------------
 // Shared helpers
-// ---------------------------------------------------------------------------
 
 /// True if any optimisation with `code` fires on `src` under `dialect`.
 fn opt_fires(src: &str, dialect: &str, code: &str) -> bool {
-    let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let registry = static_context_for(dialect).commands();
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     optimise_with_dialect(src, registry, d)
         .iter()
         .any(|o| o.code.as_str() == code)
@@ -43,15 +42,17 @@ fn opt_fires(src: &str, dialect: &str, code: &str) -> bool {
 
 /// Apply all optimisations and return the rewritten source.
 fn optimised(src: &str, dialect: &str) -> String {
-    let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let registry = static_context_for(dialect).commands();
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     apply_optimisations(src, &optimise_with_dialect(src, registry, d))
 }
 
 /// Collect `(code, replacement)` pairs from the optimiser for `src`.
 fn opt_rewrites(src: &str, dialect: &str) -> Vec<(String, String)> {
-    let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let registry = static_context_for(dialect).commands();
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     optimise_with_dialect(src, registry, d)
         .into_iter()
         .map(|o| (o.code.as_str().to_owned(), o.replacement.clone()))
@@ -63,8 +64,9 @@ fn opt_rewrites(src: &str, dialect: &str) -> Vec<(String, String)> {
 /// `run_all_checks` rather than the optimiser rewrite manager — this helper is
 /// the right probe for those codes.
 fn check_codes(src: &str, dialect: &str) -> Vec<String> {
-    let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let registry = static_context_for(dialect).commands();
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     let cu = CompilationUnit::build_for(src, registry, false);
     run_all_checks(&cu, registry, d)
         .iter()
@@ -77,9 +79,7 @@ fn check_fires(src: &str, dialect: &str, code: &str) -> bool {
     check_codes(src, dialect).iter().any(|c| c == code)
 }
 
-// ---------------------------------------------------------------------------
 // FP-OPT-01 — O110 InstCombine: whitespace-only / paren-preservation / commutative reorder
-// ---------------------------------------------------------------------------
 
 const FP_OPT_01_REPRO_WHITESPACE: &str = "set x [expr { $a + $b }]\n";
 const FP_OPT_01_REPRO_PAREN: &str = "set x [expr {($a << 1) & 0xff}]\n";
@@ -137,17 +137,15 @@ fn fp_opt_01_genuine_simplification_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-OPT-02 — O116 fold-const-list-command: empty [list] folds to {}, not ""
-// ---------------------------------------------------------------------------
 
 const FP_OPT_02_REPRO: &str = "set x [list]\nlappend x a\nputs $x\n";
 
 #[test]
 fn fp_opt_02_empty_list_quick_fix_uses_braces() {
     // FP-OPT-02: O116 on `[list]` must propose replacement "{}" (canonical empty-list literal).
-    let registry = registry_for_dialect(D);
-    let d = Some(tcl_dialect::DialectProfile::by_name(D));
+    let registry = static_context_for(D).commands();
+    let d = Some(tcl_registry::model::ingress::resolve_environment(D).analyser_profile());
     let opts = optimise_with_dialect(FP_OPT_02_REPRO, registry, d);
     let o116: Vec<_> = opts.iter().filter(|o| o.code.as_str() == "O116").collect();
     assert!(
@@ -164,9 +162,7 @@ fn fp_opt_02_empty_list_quick_fix_uses_braces() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // FP-OPT-03 — O106 LICM purity: outer-pure / inner-impure expression NOT hoistable
-// ---------------------------------------------------------------------------
 
 const FP_OPT_03_REPRO: &str = "\
 proc f {} {
@@ -220,9 +216,7 @@ proc f {} {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-OPT-04 — O109/O126 dead-store / unused via call-by-name suppression
-// ---------------------------------------------------------------------------
 
 const FP_OPT_04_REPRO: &str = "\
 proc asnPeekTag {data {tag tag} {type type}} {
@@ -241,8 +235,8 @@ proc decode {data} {
 fn fp_opt_04_call_by_name_suppresses_dead_store() {
     // FP-OPT-04: call-by-name upvar idiom must suppress O109/O126 on tag/type in decode.
     // Check optimiser codes (O109, O126) — the analyser W211/W220 are not in opt surface.
-    let registry = registry_for_dialect(D);
-    let d = Some(tcl_dialect::DialectProfile::by_name(D));
+    let registry = static_context_for(D).commands();
+    let d = Some(tcl_registry::model::ingress::resolve_environment(D).analyser_profile());
     let opts = optimise_with_dialect(FP_OPT_04_REPRO, registry, d);
     let relevant: Vec<_> = opts
         .iter()
@@ -268,8 +262,8 @@ proc f {} {
     return $x
 }
 ";
-    let registry = registry_for_dialect(D);
-    let d = Some(tcl_dialect::DialectProfile::by_name(D));
+    let registry = static_context_for(D).commands();
+    let d = Some(tcl_registry::model::ingress::resolve_environment(D).analyser_profile());
     let opts = optimise_with_dialect(src, registry, d);
     let fires = opts
         .iter()
@@ -281,9 +275,7 @@ proc f {} {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-OPT-05 — O126 must NOT delete an RHS with observable side effects (D2-O126)
-// ---------------------------------------------------------------------------
 
 const FP_OPT_05_REPRO: &str = "proc f {} { set unused [puts side]; puts done }";
 
@@ -308,9 +300,7 @@ fn fp_opt_05_o126_pure_rhs_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-OPT-06 — O100/O109/O127: cmd-sub writes are SSA kills (D2-O100)
-// ---------------------------------------------------------------------------
 
 const FP_OPT_06_REPRO: &str = "proc f {} { set x a; set y [append x b]; puts $x; puts $y }";
 
@@ -325,9 +315,7 @@ fn fp_opt_06_o100_does_not_propagate_past_cmd_sub_write() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-OPT-07 — O126 extends to pure user-proc RHS via interproc purity (D2-O126-FU)
-// ---------------------------------------------------------------------------
 
 const FP_OPT_07_REPRO: &str =
     "proc add {a b} { expr {$a + $b} }\nproc f {} { set unused [add 1 2]; puts done }";
@@ -354,9 +342,7 @@ fn fp_opt_07_impure_user_proc_rhs_preserved() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-OPT-08 — O109/O126 overlap filter: segment_commands + EXPR/BODY descent (D4-F10)
-// ---------------------------------------------------------------------------
 
 const FP_OPT_08_REPRO: &str = "\
 proc f {} {
@@ -392,9 +378,7 @@ fn fp_opt_08_unrelated_set_still_eligible_for_o126() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-OPT-09 — D5-O110: O110 identity/annihilator rewrites must preserve coercion semantics
-// ---------------------------------------------------------------------------
 
 const FP_OPT_09_TP_REPRO: &str = "proc f {x} {\n  puts [expr {$x + 0}]\n}\nf abc\n";
 const FP_OPT_09_TN_REPRO: &str = "proc f {} {\n  for {set i 0} {$i < 3} {incr i} {\n    set y [expr {$i + 0}]\n    puts $y\n  }\n}\nf\n";
@@ -403,8 +387,8 @@ const FP_OPT_09_TN_REPRO: &str = "proc f {} {\n  for {set i 0} {$i < 3} {incr i}
 fn fp_opt_09_unknown_type_param_blocks_identity_rewrite() {
     // FP-OPT-09: $x + 0 on unknown-type param must NOT be rewritten to $x (hides coercion error).
     // Both the code check and the replacement check.
-    let registry = registry_for_dialect(D);
-    let d = Some(tcl_dialect::DialectProfile::by_name(D));
+    let registry = static_context_for(D).commands();
+    let d = Some(tcl_registry::model::ingress::resolve_environment(D).analyser_profile());
     let opts = optimise_with_dialect(FP_OPT_09_TP_REPRO, registry, d);
     // No O110 at all is fine; but if O110 fires it must not drop "+ 0".
     let unsound_o110: Vec<_> = opts
@@ -437,9 +421,7 @@ fn fp_opt_09_provably_numeric_var_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-OPT-10 — D5-O114: set x [expr {$x + N}] -> incr x N requires proof x is INT
-// ---------------------------------------------------------------------------
 
 const FP_OPT_10_TP_REPRO: &str = "proc foo {x} {\n  set x [expr {$x + 1}]\n  puts $x\n}\nfoo 1.5\n";
 const FP_OPT_10_TN_REPRO: &str = "proc foo {n} {\n  for {set x 0} {$x < $n} {incr x} {\n    set x [expr {$x + 1}]\n    puts $x\n  }\n}\nfoo 3\n";
@@ -464,9 +446,7 @@ fn fp_opt_10_provably_int_var_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-OPT-11 — O120 ==/!= -> eq/ne requires at-least-one provably-non-numeric operand (D5-O120)
-// ---------------------------------------------------------------------------
 
 const FP_OPT_11_TP_REPRO: &str = "proc f {raw} {\n    set a [string trim $raw]\n    if {$a == \"1\"} { puts yes } else { puts no }\n}\n";
 const FP_OPT_11_TN_REPRO: &str = "proc f {raw} {\n    set a [string trim $raw]\n    if {$a == \"hello\"} { puts yes } else { puts no }\n}\n";
@@ -496,9 +476,7 @@ fn fp_opt_11_non_numeric_literal_still_rewrites() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-OPT-12 — TclOO method purity wired into O126 (SF-2 PARTIAL)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_opt_12_pure_user_proc_via_my_dispatch_handled_at_word_level() {

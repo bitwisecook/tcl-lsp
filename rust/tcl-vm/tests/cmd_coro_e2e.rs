@@ -120,9 +120,7 @@ fn result(src: &str) -> String {
     res
 }
 
-// ===========================================================================
 // Generators / yield round-trip
-// ===========================================================================
 
 #[test]
 fn proc_generator() {
@@ -195,9 +193,7 @@ fn accumulator_generator_yield_expression() {
     );
 }
 
-// ===========================================================================
 // yield across `catch`
-// ===========================================================================
 
 #[test]
 fn yield_inside_catch_body_round_trips() {
@@ -240,9 +236,7 @@ fn catch_captures_a_post_resume_error_across_yield() {
     );
 }
 
-// ===========================================================================
 // yield across `lmap`
-// ===========================================================================
 
 #[test]
 fn yield_across_lmap_generator_collects() {
@@ -292,9 +286,7 @@ fn yield_across_value_consumed_lmap_generator() {
     );
 }
 
-// ===========================================================================
 // yield across `subst`
-// ===========================================================================
 
 #[test]
 fn yield_across_subst_command_substitutions() {
@@ -354,9 +346,7 @@ fn yield_in_command_argument_position() {
     );
 }
 
-// ===========================================================================
 // coroutine … apply {lambda}
-// ===========================================================================
 
 #[test]
 fn coroutine_apply_generator() {
@@ -416,9 +406,7 @@ fn yield_across_bare_apply_call() {
     );
 }
 
-// ===========================================================================
 // yield across `try` (issue #1311)
-// ===========================================================================
 
 #[test]
 fn yield_across_try_body() {
@@ -479,9 +467,7 @@ fn independent_coroutines_interleave() {
     );
 }
 
-// ===========================================================================
 // Introspection: coroprobe / coroinject / corotype, and multi-arg yieldto
-// ===========================================================================
 
 #[test]
 fn coroprobe_reads_suspended_context() {
@@ -540,9 +526,7 @@ fn yieldto_delivers_all_resume_args_as_a_list() {
     );
 }
 
-// ===========================================================================
 // info coroutine
-// ===========================================================================
 
 #[test]
 fn info_coroutine_inside_and_outside() {
@@ -555,9 +539,7 @@ fn info_coroutine_inside_and_outside() {
     assert_eq!(result("info coroutine"), "");
 }
 
-// ===========================================================================
 // Errors / guards
-// ===========================================================================
 
 #[test]
 fn yield_outside_coroutine_errors() {
@@ -584,9 +566,7 @@ fn resuming_a_running_coroutine_errors() {
     );
 }
 
-// ===========================================================================
 // Teardown: completion, delete, rename
-// ===========================================================================
 
 #[test]
 fn completed_coroutine_command_is_removed() {

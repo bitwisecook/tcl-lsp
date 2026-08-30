@@ -18,10 +18,11 @@
 
 //! `AUTH::username_credential` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "AUTH::username_credential",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Sets the username credential to a string.",

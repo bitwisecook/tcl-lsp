@@ -18,10 +18,11 @@
 
 //! `msgcat::mcexists` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "msgcat::mcexists",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Check whether a translation exists for the given source string.",

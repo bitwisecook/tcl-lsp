@@ -18,10 +18,11 @@
 
 //! `tcltest::debug` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcltest::debug",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::new(0, 1),
         hover: Some(HoverSnippet {
             summary: "Get or set debug level.  Deprecated: use ``configure -debug``.",

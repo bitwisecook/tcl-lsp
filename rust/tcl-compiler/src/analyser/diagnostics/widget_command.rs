@@ -83,6 +83,13 @@ pub struct WidgetDispatchSite {
     pub subcommand_span: Span,
     /// Positional argument count *after* the subcommand word.
     pub argc_after_subcommand: usize,
+    /// The words after the subcommand, their tokens, and their `{*}` flags —
+    /// what the E-R14 option-relation check reads. Recorded here because the
+    /// receiver's class is not known until the post-walk flush, by which time
+    /// the source words are gone.
+    pub args_after_subcommand: Vec<String>,
+    pub arg_tokens_after_subcommand: Vec<Token>,
+    pub arg_expand_after_subcommand: Vec<bool>,
     /// `true` when the subcommand word or any argument after it is
     /// `{*}`-expanded — the runtime count is then unknowable, so arity
     /// abstains entirely (the unknown-subcommand check still runs: a
@@ -137,9 +144,57 @@ impl Analyser {
             subcommand: subcommand.clone(),
             subcommand_span: subcommand_tok.span,
             argc_after_subcommand: args.len().saturating_sub(1),
+            args_after_subcommand: args.get(1..).unwrap_or(&[]).to_vec(),
+            arg_tokens_after_subcommand: arg_tokens.get(1..).unwrap_or(&[]).to_vec(),
+            // `arg_expand_in` is parallel to the full argv (head at index 0),
+            // so the words after the subcommand start at index 2.
+            arg_expand_after_subcommand: arg_expand_in.get(2..).unwrap_or(&[]).to_vec(),
             has_expand,
             cmd_span: cmd_tok.span,
         });
+    }
+
+    /// **W147 / W152 on an object-instance method** (E-R14).
+    ///
+    /// The instance-dispatch path is where `struct::tree`'s
+    /// `walk -order in -type bfs` lives, and until E-R14 it had no
+    /// option-relation consumer at all — the P5 note in
+    /// `tcl-registry/src/commands/tcllib/data_structures.rs` recorded exactly
+    /// that gap. The evaluation is the same shared, native one the ordinary
+    /// command path uses ([`super::validity::option_relation_diagnostics`]);
+    /// only the walk that finds the words differs, because a method's words
+    /// start after the method name.
+    fn emit_instance_option_relations(
+        &mut self,
+        class: &str,
+        site: &WidgetDispatchSite,
+        sub: &'static SubCommand,
+    ) {
+        if sub.option_relations.is_empty() && sub.constraints.is_none() {
+            return;
+        }
+        let source = self.source.clone();
+        let call = super::validity::scan_invocation_words(
+            &sub.option_specs(None, None),
+            sub.option_placement,
+            &site.args_after_subcommand,
+            &site.arg_tokens_after_subcommand,
+            &site.arg_expand_after_subcommand,
+            &source,
+            site.cmd_span,
+        );
+        let display_name = format!("{class} {}", site.subcommand);
+        let relations: Vec<&'static tcl_registry::OptionRelation> =
+            sub.option_relations.iter().collect();
+        for (_, diagnostic) in super::validity::option_relation_diagnostics(
+            &display_name,
+            &relations,
+            sub.constraints,
+            &call,
+            site.cmd_span,
+        ) {
+            self.result.diagnostics.push(diagnostic);
+        }
     }
 
     /// Post-walk: resolve every buffered [`WidgetDispatchSite`] against the
@@ -184,11 +239,28 @@ impl Analyser {
             if is_universal_widget_subcommand(&site.subcommand) {
                 continue;
             }
-            let Some(sub) = spec
+            // A class whose methods live on an `ObjectClassSpec` (every
+            // tcllib factory: `struct::tree`, `struct::graph`, …) declares
+            // them there, not in the creator command's own `subcommands`.
+            // Reading only the latter reported every such method as unknown
+            // — a false positive this fallback removes, and the reason the
+            // option-relation check below could not reach an instance method
+            // at all.
+            let object_class = registry.object_class(class);
+            let resolved = spec
                 .subcommands
                 .iter()
                 .find(|s: &&SubCommand| s.name == site.subcommand)
-            else {
+                .or_else(|| {
+                    registry
+                        .instance_methods(class)
+                        .into_iter()
+                        .find(|s| s.name == site.subcommand)
+                });
+            let Some(sub) = resolved else {
+                if object_class.is_some_and(|class| class.allow_unknown_methods) {
+                    continue;
+                }
                 self.result
                     .diagnostics
                     .push(crate::analyser::types::Diagnostic::new(
@@ -205,6 +277,8 @@ impl Analyser {
             if site.has_expand {
                 continue;
             }
+            let class = class.clone();
+            self.emit_instance_option_relations(&class, &site, sub);
             if let Some(diag) = arity_verdict(
                 &format!("{class} {}", site.subcommand),
                 sub.arity,

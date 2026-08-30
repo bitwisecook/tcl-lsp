@@ -26,7 +26,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "cmdline::getoptions",
-        dialects: None,
+        surface: None,
         arity: Arity::new(2, 3),
         hover: Some(HoverSnippet {
             summary: "Parse all command-line options according to a specification.",

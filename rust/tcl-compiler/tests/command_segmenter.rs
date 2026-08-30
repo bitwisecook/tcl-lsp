@@ -188,3 +188,74 @@ fn expansion_marker_recorded() {
     assert_eq!(cmds.len(), 1);
     assert!(cmds[0].expand_word.is_some(), "{{*}} expansion recorded");
 }
+
+// -- N5: the F5 `if` else/elseif lookahead across a single newline --
+//
+// `docs/design/bigip-irule-parser-measurements.md` §2 N5 (measured on TMM in
+// a cli script reproducing the parser): `else` / `elseif` are a *separate*
+// lookahead performed by `if` itself — picked up across a single newline,
+// but NOT across a blank line, where they fall back to being an unknown
+// command (`undefined procedure: else`). A trunk fact, gated on the F5
+// grammar (the same `brace_line_continuation` axis the §2 N-rules ride).
+
+fn segment_f5(src: &str) -> Vec<SegmentedCommand> {
+    tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+        src,
+        0,
+        tcl_lexer::LexerConfig::for_dialect("f5-irules"),
+    )
+}
+
+#[test]
+fn n5_else_across_a_single_newline_belongs_to_the_if() {
+    let cmds = segment_f5("if {0} {set a 1}\nelse {set a 2}");
+    assert_eq!(names(&cmds), ["if"], "the else line is the if's own");
+    assert_eq!(cmds[0].texts, ["if", "0", "set a 1", "else", "set a 2"]);
+    assert!(cmds[0].word_views_aligned());
+}
+
+#[test]
+fn n5_elseif_chain_across_single_newlines_belongs_to_the_if() {
+    let cmds = segment_f5("if {0} {set a 1}\nelseif {1} {set a 2}\nelse {set a 3}");
+    assert_eq!(names(&cmds), ["if"]);
+    assert_eq!(cmds[0].texts.len(), 8);
+    assert!(cmds[0].word_views_aligned());
+}
+
+#[test]
+fn n5_else_across_a_blank_line_stays_a_standalone_command() {
+    // §2 N5: not across a blank line — `undefined procedure: else` on TMM,
+    // so the segmentation stays exactly as stock.
+    let cmds = segment_f5("if {0} {set a 1}\n\nelse {set a 2}");
+    assert_eq!(names(&cmds), ["if", "else"]);
+}
+
+#[test]
+fn n5_else_after_a_comment_line_stays_a_standalone_command() {
+    let cmds = segment_f5("if {0} {set a 1}\n# note\nelse {set a 2}");
+    assert_eq!(
+        names(&cmds),
+        ["if", "else"],
+        "a comment line blocks the lookahead"
+    );
+}
+
+#[test]
+fn n5_else_after_a_semicolon_stays_a_standalone_command() {
+    let cmds = segment_f5("if {0} {set a 1};\nelse {set a 2}");
+    assert_eq!(names(&cmds), ["if", "else"]);
+}
+
+#[test]
+fn n5_does_not_apply_outside_the_f5_grammar() {
+    let cmds = segment_commands("if {0} {set a 1}\nelse {set a 2}");
+    assert_eq!(names(&cmds), ["if", "else"]);
+}
+
+#[test]
+fn n5_does_not_attach_else_to_a_non_if_command() {
+    // The lookahead is `if`'s own — a preceding non-`if` command never
+    // absorbs an `else` line.
+    let cmds = segment_f5("set a 1\nelse {set a 2}");
+    assert_eq!(names(&cmds), ["set", "else"]);
+}

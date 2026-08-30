@@ -54,8 +54,10 @@
 //! 8.6/9.0 probes.
 
 use std::collections::BTreeSet;
-
-use tcl_dialect::DialectSet;
+use tcl_dialect::model::Family;
+use tcl_dialect::model::SpecSurface;
+use tcl_dialect::model::SurfaceQuery;
+use tcl_dialect::model::surface_admits;
 use tcl_registry::arity::{Arity, ArityWindow};
 use tcl_registry::bigip::{BigipRegistry, ValueKind, default_registry};
 use tcl_registry::events::EventRegistry;
@@ -75,9 +77,7 @@ use tcl_registry::{
     WorldEffectComposition, WorldEffectDescriptor, available_dialects,
 };
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 /// The registry for `dialect` **with the shipped `.tclspec` loadables
 /// installed** — the sweep's stand-in for [`tcl_registry::registry_for_dialect`].
@@ -111,7 +111,7 @@ fn registry_for_dialect(dialect: &str) -> std::sync::Arc<CommandRegistry> {
 }
 
 /// Every dialect name that loads a non-trivial command pack — a compiled-in
-/// one by its `DialectSet` bit, or the EDA vendor libraries through the
+/// one by its `SpecSurface` bit, or the EDA vendor libraries through the
 /// bundled loadables [`registry_for_dialect`] installs. (The config-only
 /// `f5-bigip` / `f5-tmsh` names in `KNOWN_DIALECTS` collapse to plain Tcl, so
 /// they are covered via the catalogue sweep rather than as load targets.)
@@ -168,7 +168,6 @@ const ALL_TRAITS: &[Traits] = &[
     Traits::PRODUCES_CANONICAL_LIST,
     Traits::BUILDS_COMMAND_PREFIX,
     Traits::UNSAFE,
-    Traits::PASSWORD_OPTION,
     Traits::IS_SIDE_SWITCH,
     Traits::IRULES_TOP_LEVEL_ONLY,
     Traits::SETS_EVENT_PRIORITY,
@@ -177,7 +176,6 @@ const ALL_TRAITS: &[Traits] = &[
     Traits::NEEDS_START_CMD,
     Traits::TAINT_SINK,
     Traits::TAINT_SOURCE,
-    Traits::IRULES_DATA_GETTER,
     Traits::CREATES_DYNAMIC_BARRIER,
     Traits::INVOKES_USER_PROC,
     Traits::BYTE_COMPILED,
@@ -359,9 +357,7 @@ fn arity_window_gate_rejects_each_malformed_shape() {
     );
 }
 
-// ===========================================================================
 // SWEEP 1 — every command in every dialect, every accessor.
-// ===========================================================================
 /// Exercise every accessor on one command spec (and its subcommands)
 /// for a given dialect. Extracted from `sweep_every_command_every_accessor`
 /// to keep that test within the line budget.
@@ -370,7 +366,7 @@ fn arity_window_gate_rejects_each_malformed_shape() {
 fn check_subcommand_accessors(
     spec: &tcl_registry::CommandSpec,
     sub: &tcl_registry::SubCommand,
-    ds: Option<DialectSet>,
+    ds: Option<SurfaceQuery<'_>>,
     dname: &str,
     name: &str,
 ) {
@@ -391,7 +387,7 @@ fn check_subcommand_accessors(
         &format!("{dname}/{name} {}", sub.name),
     );
     // Sub-level switch_names + arg_values + arg_role accessors.
-    let sub_sw = sub.switch_names(ds, spec.dialects);
+    let sub_sw = sub.switch_names(ds, spec.surface);
     let sub_declared: BTreeSet<&str> = sub.options.iter().map(|o| o.name).collect();
     for sw in &sub_sw {
         assert!(
@@ -431,7 +427,12 @@ fn check_subcommand_accessors(
     }
 }
 
-fn check_command_accessors(reg: &CommandRegistry, ds: Option<DialectSet>, dname: &str, name: &str) {
+fn check_command_accessors(
+    reg: &CommandRegistry,
+    ds: Option<SurfaceQuery<'_>>,
+    dname: &str,
+    name: &str,
+) {
     // `get` (dialect-agnostic) must resolve a name the registry lists.
     let spec = reg
         .get(name)
@@ -477,8 +478,8 @@ fn check_command_accessors(reg: &CommandRegistry, ds: Option<DialectSet>, dname:
             let _ = (opt.value_hint(), opt.detail);
         }
         // Exercise the dialect predicate both with and without context.
-        let _ = opt.supports_dialect(ds, spec.dialects);
-        let _ = opt.supports_dialect(None, spec.dialects);
+        let _ = opt.supports_dialect(ds, spec.surface);
+        let _ = opt.supports_dialect(None, spec.surface);
     }
 
     // --- subcommands: arity, roles, options, arg-values, hover ---
@@ -551,7 +552,7 @@ fn check_command_accessors(reg: &CommandRegistry, ds: Option<DialectSet>, dname:
 /// budget.
 fn check_registry_queries(
     reg: &CommandRegistry,
-    ds: Option<DialectSet>,
+    ds: Option<SurfaceQuery<'_>>,
     dname: &str,
     name: &str,
     spec: &tcl_registry::CommandSpec,
@@ -576,7 +577,7 @@ fn check_registry_queries(
 
     // --- resolve_call: nullary and a small arg list ---
     // Must never panic; when it resolves, the spec name is preserved.
-    let active = ds.unwrap_or(DialectSet::TCL86);
+    let active = Some(ds.unwrap_or(SurfaceQuery::core(Family::Tcl, "8.6")));
     if let Some(rc) = reg.resolve_call(name, &[], active) {
         assert_eq!(
             rc.spec.name, spec.name,
@@ -618,7 +619,8 @@ fn sweep_every_command_every_accessor() {
 
     for &dname in LOADABLE_DIALECTS {
         let reg = registry_for_dialect(dname);
-        let ds = DialectSet::parse(dname);
+        let ds = tcl_dialect::DialectProfile::find(dname)
+            .map(tcl_dialect::DialectProfile::surface_query);
         assert!(!reg.is_empty(), "{dname}: empty registry");
         dialects_seen += 1;
 
@@ -727,7 +729,7 @@ fn sweep_trait_membership_is_self_consistent() {
     }
 }
 
-/// `get_for_dialect` is consistent with `supports_dialect` and with the
+/// `get_for_surface` is consistent with `supports_dialect` and with the
 /// command's declared `dialects` set, swept over every command in the Tcl
 /// dialects. This exercises the dialect-filtered resolution path on every spec.
 ///
@@ -737,26 +739,26 @@ fn sweep_trait_membership_is_self_consistent() {
 #[test]
 fn sweep_dialect_resolution_is_consistent() {
     for (dname, bit) in [
-        ("tcl8.4", DialectSet::TCL84),
-        ("tcl8.5", DialectSet::TCL85),
-        ("tcl8.6", DialectSet::TCL86),
-        ("tcl9.0", DialectSet::TCL90),
+        ("tcl8.4", Some(SurfaceQuery::core(Family::Tcl, "8.4"))),
+        ("tcl8.5", Some(SurfaceQuery::core(Family::Tcl, "8.5"))),
+        ("tcl8.6", Some(SurfaceQuery::core(Family::Tcl, "8.6"))),
+        ("tcl9.0", Some(SurfaceQuery::core(Family::Tcl, "9.0"))),
     ] {
         let reg = registry_for_dialect(dname);
         let names: Vec<String> = reg.command_names().map(ToOwned::to_owned).collect();
         for name in &names {
-            let for_dialect = reg.get_for_dialect(name, bit);
+            let for_dialect = reg.get_for_surface(name, bit);
             if let Some(spec) = for_dialect {
                 // A spec returned for `bit` must support `bit`.
                 assert!(
                     spec.supports_dialect(bit),
-                    "{dname}: get_for_dialect({name:?}) returned a spec that rejects the dialect"
+                    "{dname}: get_for_surface({name:?}) returned a spec that rejects the dialect"
                 );
             }
             // If *every* registered spec under this name rejects the dialect,
-            // get_for_dialect must return None (and vice-versa). Use
+            // get_for_surface must return None (and vice-versa). Use
             // `spec_visible`, not the bare `supports_dialect` mask test:
-            // `get_for_dialect` also applies the profile's subtractive
+            // `get_for_surface` also applies the profile's subtractive
             // disable list and (for a profile whose operators are not
             // command heads, e.g. tcl8.4/f5-irules) the
             // `Traits::OPERATOR_COMMAND` exclusion, so a naive mask-only
@@ -765,7 +767,7 @@ fn sweep_dialect_resolution_is_consistent() {
             assert_eq!(
                 for_dialect.is_some(),
                 any_supports,
-                "{dname}: get_for_dialect/{name:?} disagrees with specs() support scan"
+                "{dname}: get_for_surface/{name:?} disagrees with specs() support scan"
             );
         }
     }
@@ -783,14 +785,18 @@ fn sweep_dialect_resolution_is_consistent() {
 ///
 /// `None` on either side is trivially valid (`None` child = inherit; `None`
 /// parent = universal).
-fn assert_dialects_nest(parent: Option<DialectSet>, child: Option<DialectSet>, context: &str) {
+fn assert_dialects_nest(
+    parent: Option<&'static [SpecSurface]>,
+    child: Option<&'static [SpecSurface]>,
+    context: &str,
+) {
     let (Some(child), Some(parent)) = (child, parent) else {
         return;
     };
     for profile in tcl_dialect::DialectProfile::all() {
-        let mask = profile.availability_mask;
+        let mask = Some(profile.surface_query());
         assert!(
-            !child.intersects(mask) || parent.intersects(mask),
+            !surface_admits(child, mask.as_ref()) || surface_admits(parent, mask.as_ref()),
             "{context}: child dialects {child:?} resolve under {} (mask \
              {mask:?}) but the parent's {parent:?} do not — the child would be \
              reachable where its parent command is not",
@@ -805,19 +811,19 @@ fn assert_dialects_nest(parent: Option<DialectSet>, child: Option<DialectSet>, c
 /// callers since the two form kinds are the same type.
 fn check_form_dialect_nesting(
     ctx: &str,
-    effective_parent: Option<DialectSet>,
+    effective_parent: Option<&'static [SpecSurface]>,
     form: &tcl_registry::forms::CommandForm,
 ) {
     assert_dialects_nest(
         effective_parent,
-        form.dialects,
+        form.surface,
         &format!("{ctx} form {}", form.name),
     );
-    let effective = form.dialects.or(effective_parent);
+    let effective = form.surface.or(effective_parent);
     for o in form.options {
         assert_dialects_nest(
             effective,
-            o.dialects,
+            o.surface,
             &format!("{ctx} form {} option {}", form.name, o.name),
         );
     }
@@ -828,19 +834,19 @@ fn check_form_dialect_nesting(
 /// sub-subcommands against *its own* effective dialects.
 fn check_subcommand_dialect_nesting(
     cmd_ctx: &str,
-    parent: Option<DialectSet>,
+    parent: Option<&'static [SpecSurface]>,
     sub: &tcl_registry::SubCommand,
 ) {
     let ctx = format!("{cmd_ctx} {}", sub.name);
-    assert_dialects_nest(parent, sub.dialects, &ctx);
-    let effective = sub.dialects.or(parent);
+    assert_dialects_nest(parent, sub.surface, &ctx);
+    let effective = sub.surface.or(parent);
     for o in sub.options {
-        assert_dialects_nest(effective, o.dialects, &format!("{ctx} option {}", o.name));
+        assert_dialects_nest(effective, o.surface, &format!("{ctx} option {}", o.name));
     }
     for se in sub.side_effects {
         assert_dialects_nest(
             effective,
-            se.dialects,
+            se.surface,
             &format!("{ctx} side_effect {:?}", se.target),
         );
     }
@@ -848,7 +854,7 @@ fn check_subcommand_dialect_nesting(
         check_form_dialect_nesting(&ctx, effective, scf);
     }
     for ssc in sub.sub_subcommands {
-        assert_dialects_nest(effective, ssc.dialects, &format!("{ctx} {}", ssc.name));
+        assert_dialects_nest(effective, ssc.surface, &format!("{ctx} {}", ssc.name));
     }
 }
 
@@ -859,30 +865,30 @@ fn check_command_dialect_nesting(dname: &str, name: &str, spec: &tcl_registry::C
     let ctx = format!("{dname}/{name}");
     for opt in spec.options {
         assert_dialects_nest(
-            spec.dialects,
-            opt.dialects,
+            spec.surface,
+            opt.surface,
             &format!("{ctx} option {}", opt.name),
         );
     }
     for se in spec.side_effects {
         assert_dialects_nest(
-            spec.dialects,
-            se.dialects,
+            spec.surface,
+            se.surface,
             &format!("{ctx} side_effect {:?}", se.target),
         );
     }
     for f in spec.forms {
         assert_dialects_nest(
-            spec.dialects,
-            f.dialects,
+            spec.surface,
+            f.surface,
             &format!("{ctx} form {}", f.synopsis),
         );
     }
     for cf in spec.command_forms {
-        check_form_dialect_nesting(&ctx, spec.dialects, cf);
+        check_form_dialect_nesting(&ctx, spec.surface, cf);
     }
     for sub in spec.subcommands {
-        check_subcommand_dialect_nesting(&ctx, spec.dialects, sub);
+        check_subcommand_dialect_nesting(&ctx, spec.surface, sub);
     }
 }
 
@@ -893,7 +899,7 @@ fn check_command_dialect_nesting(dname: &str, name: &str, spec: &tcl_registry::C
 /// actually be reached, since the parent itself is never selected outside
 /// its own dialects, so the child would silently dead-code instead of
 /// failing loudly. This is the whole-registry backstop for the
-/// `DialectSet::is_valid_nested_dialects` invariant: a single command file
+/// `nested surfaces nest` invariant: a single command file
 /// *can* self-check at compile time with a `const { assert!(...) }` (see
 /// `tcl-dialect`'s `dialect_set` module for the pattern), but nothing
 /// forces every command file to opt in — this sweep covers all of them,
@@ -918,9 +924,7 @@ fn sweep_nested_dialects_are_subsets_of_parent() {
     assert!(checked > 1000, "sweep unexpectedly small: {checked} specs");
 }
 
-// ===========================================================================
 // SWEEP 2 — BIG-IP object specs and property specs.
-// ===========================================================================
 
 /// Recursively touch every accessor on a property spec and its block.
 fn visit_property(p: &tcl_registry::bigip::BigipPropertySpec, kind: &str) -> usize {
@@ -1122,9 +1126,7 @@ fn bigip_lookup_misses_are_graceful() {
     );
 }
 
-// ===========================================================================
 // SWEEP 3 — iRules event ⇄ command cross-product accessors over the corpus.
-// ===========================================================================
 
 /// Drive `event_info`, `valid_irules_commands_for_event`,
 /// `is_irules_command_legal_in_event`, and `irules_events_for_command` across
@@ -1220,9 +1222,7 @@ fn sweep_event_command_legality_consistent() {
     assert_eq!(unknown.side, "unknown");
 }
 
-// ===========================================================================
 // SWEEP 4 — taint-source / colour metadata across the source corpus.
-// ===========================================================================
 
 /// Every command the registry reports as a taint source resolves to a spec
 /// whose `taint_source` colour is set; the colour includes TAINTED (a source is
@@ -1269,9 +1269,7 @@ fn sweep_taint_source_colours() {
     }
 }
 
-// ===========================================================================
 // TARGETED — representative commands across families (distinct spec shapes).
-// ===========================================================================
 
 /// Control flow: `if` / `while` / `for` / `foreach` / `switch` carry the
 /// control-flow + boolean-condition + loop-body trait shapes.
@@ -1303,7 +1301,11 @@ fn family_control_flow_shapes() {
     );
     // tclsh: `switch --` terminator is real — `switch -- abc {abc {...}}` runs.
     // The registry models the terminator via resolve_option_terminator.
-    let term = reg.resolve_option_terminator("switch", &["--", "abc"], DialectSet::TCL86);
+    let term = reg.resolve_option_terminator(
+        "switch",
+        &["--", "abc"],
+        Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+    );
     if let Some(t) = term {
         assert!(
             t.options.iter().any(|o| o.name == "--"),
@@ -1320,14 +1322,22 @@ fn terminator_resolves_subcommand_prefix() {
     let reg = registry_for_dialect("f5-irules");
     // `class match` (F5 iRules) declares a subcommand-scoped `--` terminator.
     let exact = reg
-        .resolve_option_terminator("class", &["match", "-nocase", "--"], DialectSet::IRULES)
+        .resolve_option_terminator(
+            "class",
+            &["match", "-nocase", "--"],
+            Some(SurfaceQuery::any_release(Family::F5Irules)),
+        )
         .expect("class match declares a -- terminator");
     assert_eq!(exact.subcommand, Some("match"));
     assert!(exact.options.iter().any(|o| o.name == "--"));
 
     // The unique prefix `ma` must resolve to the same `match` profile.
     let abbrev = reg
-        .resolve_option_terminator("class", &["ma", "-nocase", "--"], DialectSet::IRULES)
+        .resolve_option_terminator(
+            "class",
+            &["ma", "-nocase", "--"],
+            Some(SurfaceQuery::any_release(Family::F5Irules)),
+        )
         .expect("abbreviated `class ma` must keep the -- terminator");
     assert_eq!(abbrev.subcommand, Some("match"));
     assert_eq!(abbrev.scan_start, exact.scan_start);
@@ -1370,7 +1380,7 @@ fn family_string_dict_list_ops() {
     // List ops: `lsort` carries the switch set tclsh reports.
     // tclsh8.6 & 9.0: `lsort -bogus` lists -ascii … -unique (8.6∩9.0 below).
     let lsort = reg.get("lsort").expect("lsort");
-    let sw = lsort.switch_names(Some(DialectSet::TCL86));
+    let sw = lsort.switch_names(Some(SurfaceQuery::core(Family::Tcl, "8.6")));
     for opt in [
         "-ascii",
         "-decreasing",
@@ -1400,8 +1410,8 @@ fn family_string_dict_list_ops() {
 fn lsearch_stride_version_gating() {
     let reg = CommandRegistry::build_default();
     let lsearch = reg.get("lsearch").expect("lsearch");
-    let in_86 = lsearch.switch_names(Some(DialectSet::TCL86));
-    let in_90 = lsearch.switch_names(Some(DialectSet::TCL90));
+    let in_86 = lsearch.switch_names(Some(SurfaceQuery::core(Family::Tcl, "8.6")));
+    let in_90 = lsearch.switch_names(Some(SurfaceQuery::core(Family::Tcl, "9.0")));
     // Common options present in both (these match tclsh on 8.6 & 9.0).
     for opt in ["-exact", "-glob", "-regexp", "-all", "-inline"] {
         assert!(in_86.contains(&opt), "8.6 lsearch missing {opt}: {in_86:?}");
@@ -1429,7 +1439,7 @@ fn family_io_shapes() {
 
     // tclsh: socket -server / -myaddr.
     let socket = reg.get("socket").expect("socket");
-    let sw = socket.switch_names(Some(DialectSet::TCL86));
+    let sw = socket.switch_names(Some(SurfaceQuery::core(Family::Tcl, "8.6")));
     assert!(sw.contains(&"-server"), "socket -server: {sw:?}");
     // socket needs host+port at minimum.
     assert_eq!(socket.arity.min, 2, "socket min arity");
@@ -1582,10 +1592,10 @@ fn family_array_clock_subcommands() {
 #[test]
 fn family_f5_irules_shapes() {
     let reg = registry_for_dialect("f5-irules");
-    let ds = DialectSet::IRULES;
+    let ds = Some(SurfaceQuery::any_release(Family::F5Irules));
 
     // when is the event handler with a structural body.
-    let when = reg.get_for_dialect("when", ds).expect("when");
+    let when = reg.get_for_surface("when", ds).expect("when");
     assert!(
         when.traits.contains(Traits::IS_EVENT_HANDLER),
         "when IS_EVENT_HANDLER"
@@ -1611,7 +1621,7 @@ fn family_f5_irules_shapes() {
 
     // Closed value arg: HTTP::version arg 0 is a closed version set.
     let ver = reg
-        .get_for_dialect("HTTP::version", ds)
+        .get_for_surface("HTTP::version", ds)
         .expect("HTTP::version");
     assert!(
         ver.closed_value_args.contains(&0),
@@ -1626,7 +1636,7 @@ fn family_f5_irules_shapes() {
     // Excluded events: TCP::rcv_scale declares at least one excluded event, and
     // is illegal there.
     let rcv = reg
-        .get_for_dialect("TCP::rcv_scale", ds)
+        .get_for_surface("TCP::rcv_scale", ds)
         .expect("TCP::rcv_scale");
     assert!(
         !rcv.excluded_events.is_empty(),
@@ -1641,9 +1651,7 @@ fn family_f5_irules_shapes() {
     );
 }
 
-// ===========================================================================
 // Dialect-catalogue sweep (the name surface this crate owns).
-// ===========================================================================
 
 /// Every catalogued dialect name parses-or-is-config-only, and each loadable
 /// dialect's cached registry round-trips a core lookup. Touches the cache /
@@ -1658,9 +1666,10 @@ fn sweep_dialect_catalogue() {
         let reg = registry_for_dialect(d);
         assert!(!reg.is_empty(), "{d}: empty registry");
         assert!(reg.get("set").is_some(), "{d}: missing core `set`");
-        // The name either parses to a DialectSet bit, or is a config-only name
-        // that collapses to plain Tcl (still a usable registry).
-        let _ = DialectSet::parse(d);
+        // The name either names a catalogue profile, or is a config-only
+        // name that collapses to plain Tcl (still a usable registry).
+        let _ =
+            tcl_dialect::DialectProfile::find(d).map(tcl_dialect::DialectProfile::surface_query);
     }
     // An unparseable dialect collapses to a plain-Tcl registry.
     let junk = registry_for_dialect("definitely-not-a-dialect");
@@ -1744,8 +1753,8 @@ fn check_subcommand_lifecycles(path: &str, sub: &tcl_registry::SubCommand) {
             sub.lifecycle,
         );
     }
-    for constraint in sub.option_constraints {
-        let what = format!("{path} constraint {:?}", constraint.options);
+    for constraint in sub.option_relations {
+        let what = format!("{path} relation {}", constraint.describe());
         check_lifecycle_under(&what, constraint.lifecycle, sub.lifecycle);
     }
     for effect in sub.side_effects {
@@ -1778,8 +1787,8 @@ fn check_command_lifecycles(root: &str, spec: &tcl_registry::CommandSpec) {
             spec.lifecycle,
         );
     }
-    for constraint in spec.option_constraints {
-        let what = format!("{root} constraint {:?}", constraint.options);
+    for constraint in spec.option_relations {
+        let what = format!("{root} relation {}", constraint.describe());
         check_lifecycle_under(&what, constraint.lifecycle, spec.lifecycle);
     }
     for form in spec.forms {

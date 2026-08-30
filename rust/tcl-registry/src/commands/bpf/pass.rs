@@ -19,12 +19,13 @@
 //! `pass` — the `XDP_PASS` verdict (XDP), `TC_ACT_OK` (TC), or the
 //! allow-connect/allow-bind outcome (the cgroup sock-addr hooks).
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 pub fn spec() -> CommandSpec {
     const OP: BpfOpSpec = BpfOpSpec::verdict(BpfVerdictKind::Pass, BpfProgTypeSet::PASS_LIKE);
     CommandSpec {
         name: "pass",
-        dialects: Some(DialectSet::BPF),
+        surface: Some(SpecSurface::BPF),
         arity: Arity::exact(0),
         bpf_op: Some(&OP),
         ..CommandSpec::DEFAULT

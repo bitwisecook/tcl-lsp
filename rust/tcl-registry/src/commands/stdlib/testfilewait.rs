@@ -18,10 +18,11 @@
 
 //! `testfilewait` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testfilewait",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::exact(3),
         hover: Some(HoverSnippet {
             summary: "Wait for a channel to become ready.",

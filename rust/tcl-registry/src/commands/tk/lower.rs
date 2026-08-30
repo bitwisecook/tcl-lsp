@@ -18,6 +18,7 @@
 
 //! `lower` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
     writes: true,
@@ -32,7 +33,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lower",
-        dialects: Some(DialectSet::TK_AND_TCL),
+        surface: Some(SpecSurface::TK_AND_TCL),
         arity: Arity::new(1, 2),
         hover: Some(HoverSnippet {
             summary: "Lower a window's position in the stacking order.",

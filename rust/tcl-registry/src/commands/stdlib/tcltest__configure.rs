@@ -18,6 +18,7 @@
 
 //! `tcltest::configure` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 /// Levels accepted by `-verbose`.  A combination is given as a list (or a
 /// string of single-letter abbreviations), so the set is *not* closed.
@@ -227,7 +228,7 @@ const OPTIONS: &[OptionSpec] = &[
         // core version (2.6 is bundled only from 9.1), matching how `-errorCode`
         // gates on 2.5 / 8.6.
         lifecycle: Lifecycle::introduced_in("2.6"),
-        dialects: Some(DialectSet::TCL91),
+        surface: Some(SpecSurface::TCL91),
         ..OptionSpec::DEFAULT
     },
 ];
@@ -235,7 +236,7 @@ const OPTIONS: &[OptionSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcltest::configure",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Get or set tcltest configuration options.",

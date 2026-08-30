@@ -18,10 +18,11 @@
 
 //! `http_client_ip` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "http_client_ip",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::new(0, 1),
         hover: Some(HoverSnippet {
             summary: "Return the first IP address from X-Forwarded-For (or a named header), otherwise the L3 client IP address.",
@@ -40,9 +41,7 @@ pub const fn spec() -> CommandSpec {
             transport: Some("tcp"),
             profiles: &["HTTP"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "http_client_ip ?xff_header_name?",

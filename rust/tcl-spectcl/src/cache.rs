@@ -16,14 +16,15 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The compiled-pack cache, in the OS cache directory.
+//! The compiled-pack cache — the **one door** production code loads a
+//! `.tclspec` through ([`evaluate_pack_cached`]).
 //!
 //! `docs/design/spec-packs.md`: on first load a pack's compiled form is
 //! written to `$XDG_CACHE_HOME/tcl-lsp/spectcl/` (and the platform
 //! equivalents) keyed by an **xxhash-class** digest of the pack source *plus
-//! the `SpecTcl` vocabulary version and loader build*, so an edited pack or an
-//! upgraded server recompiles exactly once and everything else is a hash check
-//! and a fast read.
+//! the `SpecTcl` vocabulary version, the loader build and the provenance
+//! tier*, so an edited pack or an upgraded server recompiles exactly once and
+//! everything else is a hash check and a fast read.
 //!
 //! ## Disposable by contract
 //!
@@ -39,39 +40,62 @@
 //!
 //! ## What is cached
 //!
-//! The pack's **segmented statement tree** — the output of the CST route that
-//! `docs/design/spec-packs.md` measures at 4.28 ms for a 2,000-line pack, and
-//! the only part of loading that is expensive today.
+//! Two tiers, one key. The key is [`crate::loader::EvalSnapshotKey`] —
+//! content hash × vocabulary version × loader-eval version × provenance tier
+//! — stamped with this build ([`stamp_build`]); there is no second cache
+//! identity anywhere in the crate.
+//!
+//! - **In memory**: the finished [`Pack`]. It cannot go to disk at all — a
+//!   resolved `CommandSpec` holds function pointers into this binary — so this
+//!   tier lives and dies with the process. A pack that used `available?` is
+//!   target-dependent (design E-R1) and is never stored.
+//! - **On disk**: the **segmented statement tree** the evaluation loader
+//!   parses on its way in, which is what makes the *next process* cheap. It is
+//!   the only part of loading that a new process can be spared, and
+//!   `docs/design/spec-packs.md` measures it at 4.28 ms for a 2,000-line pack.
+//!
+//! The in-memory tier is unbounded and never evicted, which is the right
+//! trade here rather than an oversight: a `Pack` is built out of `&'static`
+//! data leaked once at load ([`crate::loader`]'s "`&'static` by leaking"),
+//! so re-loading an edited pack leaks a *fresh* set either way. Serving the
+//! memo is therefore strictly less allocation than re-evaluating, and the
+//! real fix for both is registry generations (redesign §11.2 D10), which
+//! retires the leak and this note with it.
 //!
 //! It is worth being precise about what is *not* here, because the design
 //! promises more: "resolved drafts plus hook bytecode". Hook bodies are
 //! carried as text and every pack hook installs as an abstaining function
 //! pointer (see [`crate::loader`]) — there is no bytecode to cache until hook
-//! bodies run on the VM (phase 5). And a resolved draft is a `CommandSpec`,
-//! which holds function pointers into this binary and so cannot be written to
-//! disk at all. What *is* here is the layer under both: the key scheme, the
-//! directory, the atomic write, and the fallback contract, all of which the
-//! richer payload will reuse unchanged.
+//! bodies run on the VM (phase 5).
 //!
 //! ## How it hooks into the loader
 //!
-//! [`crate::loader::statements`] is a pure function of `(source, base_line)`
-//! and is the single door every level of a pack reaches the CST through. So
-//! the cache is a **memo on that one function**, installed for the duration of
-//! one [`load_pack_cached`] call. The loader neither knows nor can tell: with
+//! [`crate::loader::statements`] is a pure function of `(source, base_line,
+//! bom)` and is the single door every level of a pack reaches the CST
+//! through — the evaluation loader's verbatim index, its static fast path,
+//! and every nested block a replayed row reads. So the on-disk tier is a
+//! **memo on that one function**, installed for the duration of one
+//! [`evaluate_pack_cached`] call. The loader neither knows nor can tell: with
 //! no memo installed it parses exactly as before, which is why
-//! [`crate::loader::load_pack`] stays the plain, cache-free entry point the
-//! studio and the CLI use.
+//! [`crate::loader::evaluate_pack`] stays the plain, cache-free entry point
+//! for a caller that wants no cache at all.
 
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
+use std::sync::{LazyLock, Mutex};
 
 use rustc_hash::FxHashMap;
 use xxhash_rust::xxh3::Xxh3;
 
 use crate::VOCABULARY_VERSION;
-use crate::loader::{FileBom, Pack, Stmt, Word};
+use crate::discovery::Tier;
+use crate::loader::{
+    EvalOptions, EvalSnapshotKey, FileBom, IncludeContext, LOADER_EVAL_VERSION, Pack, Stmt, Word,
+    eval_snapshot_key,
+};
 
 /// Set to `1` to bypass the on-disk cache entirely (still correct, just
 /// slower). For bisecting a suspected cache bug without deleting a user's
@@ -126,29 +150,20 @@ const FORMAT: u8 = 2;
 /// File magic, so a stray file in the directory is never mistaken for an entry.
 const MAGIC: &[u8; 7] = b"TCLSPKC";
 
-/// The **loader build** half of the cache key.
-///
-/// Bump this whenever a change to [`crate::loader`] alters what a given
-/// `.tclspec` source produces, in a release where the crate version does not
-/// move (during development, that is every time). The workspace version is in
-/// the key too, so a shipped upgrade already invalidates; this constant is what
-/// keeps a working tree honest between releases.
-///
-/// It is deliberately a hand-maintained constant rather than, say, an
-/// `include_str!` digest of the loader: hashing 120 KB of embedded source on
-/// every startup to defend against a case only developers hit is a bad trade,
-/// and the cost of forgetting is a stale parse of a file the developer is
-/// actively editing — recovered by `rm -rf` on a directory the contract
-/// already says is disposable.
-const LOADER_BUILD: u32 = 3;
-
-// ---------------------------------------------------------------------------
 // The key
-// ---------------------------------------------------------------------------
 
 /// Mix the vocabulary version, crate version, loader build and format version
 /// into `hasher` — everything about *this server* that changes what a pack
 /// source means.
+///
+/// The loader-build word is [`LOADER_EVAL_VERSION`], the same constant
+/// [`EvalSnapshotKey`] carries: there is one loader, so there is one word for
+/// "which build of it answered". Bump it whenever a change to the loader
+/// alters what a given `.tclspec` source produces in a release where the crate
+/// version does not move (during development, that is every time). The
+/// workspace version is in the stamp too, so a shipped upgrade already
+/// invalidates; the constant is what keeps a working tree honest between
+/// releases.
 ///
 /// Shared with [`crate::pack`]'s pack-set key so the two cannot disagree about
 /// what constitutes "the same build".
@@ -159,16 +174,38 @@ pub(crate) fn stamp_build(hasher: &mut Xxh3) {
     hasher.update(&[0]);
     hasher.update(env!("CARGO_PKG_VERSION").as_bytes());
     hasher.update(&[0]);
-    hasher.update(&LOADER_BUILD.to_le_bytes());
+    hasher.update(&LOADER_EVAL_VERSION.to_le_bytes());
 }
 
-/// The cache key for one pack source.
-#[must_use]
-pub fn key_for(source: &str) -> u64 {
+/// The on-disk entry key for one snapshot identity: the build stamp plus the
+/// two fields of [`EvalSnapshotKey`] the stamp does not already carry.
+///
+/// The vocabulary and loader-eval versions are in the stamp rather than added
+/// again here, so no field of the identity is counted twice and the two tiers
+/// key off exactly the same facts.
+fn entry_key(key: &EvalSnapshotKey) -> u64 {
     let mut hasher = Xxh3::new();
     stamp_build(&mut hasher);
-    hasher.update(source.as_bytes());
+    hasher.update(&key.content_hash.to_le_bytes());
+    hasher.update(&[key.tier as u8]);
     hasher.digest()
+}
+
+/// The cache key for one pack source at one provenance tier.
+#[must_use]
+pub fn key_for(source: &str, tier: Tier) -> u64 {
+    entry_key(&eval_snapshot_key(source, &options_for(tier)))
+}
+
+/// The evaluation options a cached load runs under: the caller's tier and the
+/// default budget. The budget is deliberately *not* part of the identity —
+/// a pack that completes under one budget completes identically under a
+/// larger one, and one that blows a budget is not stored.
+fn options_for(tier: Tier) -> EvalOptions {
+    EvalOptions {
+        tier,
+        ..EvalOptions::default()
+    }
 }
 
 /// The compiled-pack cache directory: [`DIR_ENV`] when set, else
@@ -198,33 +235,108 @@ fn disabled() -> bool {
         || std::env::var_os(DISABLE_ENV).is_some_and(|v| v == "1")
 }
 
-// ---------------------------------------------------------------------------
 // The public entry point
-// ---------------------------------------------------------------------------
 
-/// Load a pack source, reading and writing the on-disk parse cache.
+/// The in-memory snapshot tier: one finished [`Pack`] per snapshot identity.
 ///
-/// Semantically identical to [`crate::loader::load_pack`] — same [`Pack`],
-/// same notices, same order — for every input, every cache state, and every
-/// I/O failure. The only observable difference is how long it takes.
+/// A `CommandSpec` holds function pointers into this binary, so a resolved
+/// pack cannot be written to disk at all — this tier is what makes a *second
+/// load in the same process* free, and the on-disk tier is what makes a second
+/// *process* cheap. Target-dependent packs (design E-R1) are never stored.
+static SNAPSHOT: LazyLock<Mutex<HashMap<EvalSnapshotKey, Pack>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+fn snapshot_get(key: &EvalSnapshotKey) -> Option<Pack> {
+    SNAPSHOT
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .get(key)
+        .cloned()
+}
+
+fn snapshot_put(key: EvalSnapshotKey, pack: &Pack) {
+    SNAPSHOT
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .insert(key, pack.clone());
+}
+
+/// Drop every in-memory snapshot. [`clear`] does this as part of clearing the
+/// whole cache; the tests that must exercise the on-disk tier call it directly
+/// so a memo hit cannot answer for the read they are checking.
+pub(crate) fn forget_snapshots() {
+    SNAPSHOT
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clear();
+}
+
+/// Whether one source's snapshot is currently held in memory — the observable
+/// face of the E-R1 cacheability downgrade, for tests.
 #[must_use]
-pub fn load_pack_cached(source: &str) -> Pack {
+pub fn snapshot_memoised(source: &str, tier: Tier) -> bool {
+    SNAPSHOT
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .contains_key(&eval_snapshot_key(source, &options_for(tier)))
+}
+
+/// Load a pack source through both cache tiers.
+///
+/// Semantically identical to [`crate::loader::evaluate_pack_with`] — same
+/// [`Pack`], same notices, same order — for every input, every cache state,
+/// and every I/O failure. The only observable difference is how long it takes.
+///
+/// This is the **one door** production code loads a pack through
+/// ([`crate::pack`]'s discovery/merge, and so the LSP's startup and reload
+/// path). A caller that wants no cache calls
+/// [`crate::loader::evaluate_pack_with`] directly.
+#[must_use]
+pub fn evaluate_pack_cached(source: &str, tier: Tier) -> Pack {
+    let options = options_for(tier);
     if disabled() {
-        return crate::loader::load_pack(source);
+        return crate::loader::evaluate_pack_with(source, &options);
     }
-    let key = key_for(source);
-    let path = entry_path(key);
-    let seeded = read_entry(&path, key).unwrap_or_default();
+    let key = eval_snapshot_key(source, &options);
+    if let Some(hit) = snapshot_get(&key) {
+        return hit;
+    }
+    let pack = through_disk(&key, || crate::loader::evaluate_pack_with(source, &options));
+    if !pack.target_dependent {
+        snapshot_put(key, &pack);
+    }
+    pack
+}
+
+/// [`evaluate_pack_cached`] for a pack carrying `include` rows: the on-disk
+/// tier is skipped (its key hashes only *this* file's bytes and so cannot see
+/// an included file change under it), and so is the in-memory tier, for the
+/// same reason.
+///
+/// Not a second loader and not a second cache — the same door with the tier
+/// that cannot describe this input switched off, which is exactly what
+/// [`DISABLE_ENV`] does for a whole process.
+#[must_use]
+pub fn evaluate_pack_including(source: &str, tier: Tier, include: &Rc<IncludeContext>) -> Pack {
+    crate::loader::evaluate_pack_in(source, &options_for(tier), Some(Rc::clone(include)))
+}
+
+/// Run `load` with this identity's on-disk entry seeded as the segmentation
+/// memo, writing the entry back when the load parsed something new.
+fn through_disk(key: &EvalSnapshotKey, load: impl FnOnce() -> Pack) -> Pack {
+    let entry = entry_key(key);
+    let path = entry_path(entry);
+    let seeded = read_entry(&path, entry).unwrap_or_default();
     let had_entry = !seeded.is_empty();
 
-    let (pack, memo) = with_memo(seeded, || crate::loader::load_pack(source));
+    let (pack, memo) = with_memo(seeded, load);
 
     // Rewrite when the load parsed something the entry did not have: a cold
     // cache, an entry from a loader that visited fewer blocks, or a partial
     // read. An unchanged entry is left alone so a read-only cache directory
     // (or a read-only filesystem) costs nothing after the first miss.
     if !had_entry || memo.parsed_something_new {
-        write_entry(&path, key, &memo);
+        write_entry(&path, entry, &memo);
     }
     pack
 }
@@ -232,15 +344,14 @@ pub fn load_pack_cached(source: &str) -> Pack {
 /// Delete the whole cache directory. Nothing depends on it existing, so this
 /// is always safe; it exists for `tcl spec` maintenance verbs and for tests.
 pub fn clear() -> std::io::Result<()> {
+    forget_snapshots();
     match std::fs::remove_dir_all(dir()) {
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
         other => other,
     }
 }
 
-// ---------------------------------------------------------------------------
 // The memo — one segmentation table, live for one load
-// ---------------------------------------------------------------------------
 
 /// A memoised segmentation table.
 ///
@@ -255,16 +366,22 @@ pub fn clear() -> std::io::Result<()> {
 /// a prologue) and as a nested block (it is data), so a key without it would
 /// describe two different results identically (issue #1635).
 ///
-/// **Defensive rather than load-bearing today**, which is worth saying plainly
-/// so nobody trims it believing it is covered. A memo is installed per *file* —
-/// [`load_pack_cached`] wraps one `load_pack` call and seeds it from that
-/// file's own entry — so two files never share one. Within a single file the
-/// two dispositions cannot meet either: the file entry is keyed on the whole
-/// source, and every block's text is strictly inside it, so the two can never
-/// be equal. The key is still right, because one that omits something
-/// affecting the answer is a silent wrong parse waiting for the first caller
-/// that shares a memo more widely — but no test can reach it today, and none
-/// pretends to.
+/// The memo is **load-bearing within one load** as well as across processes:
+/// the evaluation loader segments the same text more than once on purpose —
+/// the verbatim index walks the file's declarative skeleton, and the static
+/// fast path re-segments each body it is handed — so the second and later
+/// asks for a given `(text, base_line)` are memo hits even on a cold cache.
+///
+/// The BOM half of the key is **defensive rather than load-bearing**, which is
+/// worth saying plainly so nobody trims it believing it is covered. A memo is
+/// installed per *file* — [`evaluate_pack_cached`] wraps one load and seeds it
+/// from that file's own entry — so two files never share one. Within a single
+/// file the two dispositions cannot meet either: the file entry is keyed on
+/// the whole source, and every block's text is strictly inside it, so the two
+/// can never be equal. The key is still right, because one that omits
+/// something affecting the answer is a silent wrong parse waiting for the
+/// first caller that shares a memo more widely — but no test can reach it
+/// today, and none pretends to.
 #[derive(Debug, Default)]
 struct Memo {
     entries: FxHashMap<MemoKey, Vec<Stmt>>,
@@ -283,7 +400,7 @@ impl Memo {
 
 thread_local! {
     /// The memo for the load running on this thread, if any. `None` — the
-    /// default, and what [`crate::loader::load_pack`] sees — means every
+    /// default, and what [`crate::loader::evaluate_pack`] sees — means every
     /// segmentation is done for real, which is the pre-cache behaviour.
     static MEMO: RefCell<Option<Memo>> = const { RefCell::new(None) };
 }
@@ -339,9 +456,7 @@ fn with_memo<T>(seed: Memo, body: impl FnOnce() -> T) -> (T, Memo) {
     (out, memo.unwrap_or_default())
 }
 
-// ---------------------------------------------------------------------------
 // The on-disk format
-// ---------------------------------------------------------------------------
 //
 // A flat, length-prefixed little-endian encoding. Hand-rolled rather than
 // serde because the shape is four structs deep and the reader's real job is
@@ -609,6 +724,7 @@ speclib mylib 1 {
             let dir = std::env::temp_dir()
                 .join(format!("tcl-spectcl-cache-{name}-{}", std::process::id()));
             let _ = std::fs::remove_dir_all(&dir);
+            forget_snapshots();
             redirect_for_test(Some((dir.clone(), false)));
             Self(dir)
         }
@@ -642,6 +758,7 @@ speclib mylib 1 {
     impl Drop for CacheDir {
         fn drop(&mut self) {
             let _ = std::fs::remove_dir_all(&self.0);
+            forget_snapshots();
             redirect_for_test(None);
         }
     }
@@ -678,13 +795,16 @@ speclib mylib 1 {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let cache = CacheDir::new("roundtrip");
 
-        let cold = load_pack_cached(SOURCE);
+        let cold = evaluate_pack_cached(SOURCE, Tier::Bundled);
         assert_eq!(cache.entries().len(), 1, "a cold load writes one entry");
 
-        let warm = load_pack_cached(SOURCE);
+        // Drop the in-memory tier so the second load really reads the entry
+        // rather than answering from the snapshot.
+        forget_snapshots();
+        let warm = evaluate_pack_cached(SOURCE, Tier::Bundled);
         assert_eq!(shape(&cold), shape(&warm));
         assert_eq!(
-            shape(&crate::loader::load_pack(SOURCE)),
+            shape(&crate::loader::evaluate_pack(SOURCE)),
             shape(&warm),
             "the cache never changes what a load produces"
         );
@@ -698,12 +818,12 @@ speclib mylib 1 {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let cache = CacheDir::new("edit");
 
-        let _ = load_pack_cached(SOURCE);
+        let _ = evaluate_pack_cached(SOURCE, Tier::Bundled);
         let edited = SOURCE.replace("arity 2..3", "arity 2..4");
-        let after = load_pack_cached(&edited);
+        let after = evaluate_pack_cached(&edited, Tier::Bundled);
 
         assert_eq!(cache.entries().len(), 2, "an edit is a different key");
-        assert_eq!(shape(&after), shape(&crate::loader::load_pack(&edited)));
+        assert_eq!(shape(&after), shape(&crate::loader::evaluate_pack(&edited)));
     }
 
     #[test]
@@ -712,9 +832,10 @@ speclib mylib 1 {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let cache = CacheDir::new("corrupt");
-        let expected = shape(&crate::loader::load_pack(SOURCE));
+        let expected = shape(&crate::loader::evaluate_pack(SOURCE));
 
-        let _ = load_pack_cached(SOURCE);
+        let _ = evaluate_pack_cached(SOURCE, Tier::Bundled);
+        forget_snapshots();
         let entry = cache.entries().pop().expect("one entry");
         let good = std::fs::read(&entry).expect("read entry");
 
@@ -747,7 +868,8 @@ speclib mylib 1 {
 
         for (what, bytes) in mutations {
             std::fs::write(&entry, &bytes).expect("write mutation");
-            let loaded = load_pack_cached(SOURCE);
+            forget_snapshots();
+            let loaded = evaluate_pack_cached(SOURCE, Tier::Bundled);
             assert_eq!(shape(&loaded), expected, "{what} must not change the load");
         }
     }
@@ -765,8 +887,8 @@ speclib mylib 1 {
         }
         std::fs::write(&cache.0, b"not a directory").expect("place blocker");
 
-        let loaded = load_pack_cached(SOURCE);
-        assert_eq!(shape(&loaded), shape(&crate::loader::load_pack(SOURCE)));
+        let loaded = evaluate_pack_cached(SOURCE, Tier::Bundled);
+        assert_eq!(shape(&loaded), shape(&crate::loader::evaluate_pack(SOURCE)));
         let _ = std::fs::remove_file(&cache.0);
     }
 
@@ -796,16 +918,51 @@ speclib mylib 1 {
     }
 
     #[test]
-    fn the_key_covers_the_build_not_just_the_source() {
-        let a = key_for(SOURCE);
-        let b = key_for(&SOURCE.replace("arity 1..", "arity 1..2"));
+    fn the_key_covers_the_build_and_the_tier_not_just_the_source() {
+        let a = key_for(SOURCE, Tier::Bundled);
+        let b = key_for(&SOURCE.replace("arity 1..", "arity 1..2"), Tier::Bundled);
         assert_ne!(a, b, "different sources key differently");
-        assert_eq!(a, key_for(SOURCE), "the same source keys the same");
+        assert_eq!(
+            a,
+            key_for(SOURCE, Tier::Bundled),
+            "the same source keys the same"
+        );
+
+        // The provenance tier gates what the evaluation may register, so it is
+        // part of the answer's identity and part of the key.
+        assert_ne!(
+            a,
+            key_for(SOURCE, Tier::Workspace),
+            "the tier is part of the key"
+        );
 
         // The build stamp is genuinely mixed in: a digest of the source alone
         // would be a different number.
         let bare = xxhash_rust::xxh3::xxh3_64(SOURCE.as_bytes());
         assert_ne!(a, bare, "the key is not a plain digest of the source");
+    }
+
+    /// The two tiers key off one identity: the in-memory snapshot the first
+    /// load leaves behind is found by a second load of the same bytes at the
+    /// same tier, and *not* by one at another tier.
+    #[test]
+    fn the_two_tiers_share_one_identity() {
+        let _guard = LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let cache = CacheDir::new("identity");
+        let source = SOURCE.replace("mylib", "identitylib");
+
+        let _ = evaluate_pack_cached(&source, Tier::Bundled);
+        assert!(snapshot_memoised(&source, Tier::Bundled));
+        assert!(!snapshot_memoised(&source, Tier::Workspace));
+        assert_eq!(cache.entries().len(), 1);
+
+        // A load at the other tier is a different identity in both tiers.
+        let _ = evaluate_pack_cached(&source, Tier::Workspace);
+        assert!(snapshot_memoised(&source, Tier::Workspace));
+        assert_eq!(cache.entries().len(), 2);
+        clear().expect("clear");
     }
 
     #[test]
@@ -815,8 +972,12 @@ speclib mylib 1 {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let cache = CacheDir::new("disabled");
         cache.disable();
-        let loaded = load_pack_cached(SOURCE);
-        assert_eq!(shape(&loaded), shape(&crate::loader::load_pack(SOURCE)));
+        let loaded = evaluate_pack_cached(SOURCE, Tier::Bundled);
+        assert!(
+            !snapshot_memoised(SOURCE, Tier::Bundled),
+            "the disable switch turns off both tiers, not just the disk one"
+        );
+        assert_eq!(shape(&loaded), shape(&crate::loader::evaluate_pack(SOURCE)));
         assert!(cache.entries().is_empty(), "nothing was written");
     }
 
@@ -846,7 +1007,7 @@ speclib mylib 1 {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let cache = CacheDir::new("clear");
-        let _ = load_pack_cached(SOURCE);
+        let _ = evaluate_pack_cached(SOURCE, Tier::Bundled);
         assert!(!cache.entries().is_empty());
         clear().expect("clear a populated cache");
         assert!(cache.entries().is_empty());

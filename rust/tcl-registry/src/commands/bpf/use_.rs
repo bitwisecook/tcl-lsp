@@ -18,12 +18,13 @@
 
 //! `use` — expand a `template` inline (`use NAME ?param=value …?`).
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 pub fn spec() -> CommandSpec {
     const OP: BpfOpSpec = BpfOpSpec::framework(BpfDeclKind::Use);
     CommandSpec {
         name: "use",
-        dialects: Some(DialectSet::BPF),
+        surface: Some(SpecSurface::BPF),
         // `use NAME` plus zero or more `key=value` bindings.
         arity: Arity::at_least(1),
         bpf_op: Some(&OP),

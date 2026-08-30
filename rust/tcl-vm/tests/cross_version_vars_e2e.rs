@@ -74,7 +74,7 @@ fn compile_exact_profile(
     src: &str,
     profile: &'static DialectProfile,
 ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-    let registry = tcl_registry::registry_for_profile(profile);
+    let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
     let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
     if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error_with_config(src, config) {
         return Err(CompileError(msg));
@@ -106,7 +106,8 @@ impl std::io::Write for Capture {
 /// (the vectors communicate through stdout so the tclsh leg is directly
 /// comparable).
 fn vm_output(src: &str, version: TclVersion) -> String {
-    let profile = DialectProfile::by_name(version.dialect_name());
+    let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
+        .analyser_profile();
     let service = CompilerSvc {
         registry: CommandRegistry::build_default(),
     };
@@ -666,7 +667,6 @@ fn braced_var_close_rule_matches_real_tclsh() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // The COMPILED-WORD `${…}` path (issue #1568)
 //
 // The scripts above drive `subst`, an *interpreted* engine. These drive the
@@ -679,7 +679,6 @@ fn braced_var_close_rule_matches_real_tclsh() {
 // answer and 9.x substituted nothing at all.
 //
 // Keeping both sets in one file makes the two paths' agreement visible.
-// ---------------------------------------------------------------------------
 
 /// Assignment position — `set r ${a{b}c}`, the form #1568 was filed with.
 const COMPILED_BRACED_VAR_SCRIPT: &str = concat!(
@@ -967,7 +966,6 @@ fn compiled_array_index_braced_var_matches_real_tclsh() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Backslash-carrying `${…}` names (adversarial review of the #1568 fix)
 //
 // Every vector above uses a name whose only awkward character is a brace. A
@@ -982,7 +980,6 @@ fn compiled_array_index_braced_var_matches_real_tclsh() {
 //     it requires both rules to agree — at both releases;
 //   * declining a reference in `parse_simple_var_ref` is not free, because the
 //     runtime fallback does not round-trip such a name.
-// ---------------------------------------------------------------------------
 
 /// A whole `${…}` **array key** whose name carries an escaped close-brace.
 const COMPILED_KEY_ESCAPED_CLOSE_SCRIPT: &str = concat!(
@@ -1129,7 +1126,8 @@ fn switch_subject_whole_under_the_8x_rule_only_follows_the_emulated_release() {
         registry: CommandRegistry::build_default(),
     };
     for version in [TclVersion::V9_0, TclVersion::V9_1] {
-        let profile = DialectProfile::by_name(version.dialect_name());
+        let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
+            .analyser_profile();
         let err = service
             .compile_for_profile(SWITCH_SUBJECT_EIGHT_ONLY_SCRIPT, profile)
             .expect_err("an unterminated ${ must not compile at 9.x");
@@ -1192,7 +1190,8 @@ fn unterminated_braced_var_in_a_compiled_word_is_a_parse_error() {
         TclVersion::V9_0,
         TclVersion::V9_1,
     ] {
-        let profile = DialectProfile::by_name(version.dialect_name());
+        let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
+            .analyser_profile();
         let err = service
             .compile_for_profile(UNTERMINATED_IN_COMPILED_WORD_SCRIPT, profile)
             .expect_err("an unterminated ${ must not compile");
@@ -1364,7 +1363,6 @@ fn compiled_composite_array_key_follows_the_emulated_release() {
     }
 }
 
-// ===========================================================================
 // Issue #1617 — `$={name}` is the user's literal text, not a compiler marker.
 //
 // The codegen used to decode a whole word spelt `$={name}` as an internal

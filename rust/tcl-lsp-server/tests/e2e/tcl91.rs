@@ -107,7 +107,7 @@ fn link_is_unconditionally_available_in_90() {
     );
     assert!(
         !codes(&diags).contains("W120"),
-        "core Tcl 9.0 link needs no package require ooutil: {:?}",
+        "core Tcl 9.0 link needs no package require oo::util: {:?}",
         codes(&diags)
     );
 }
@@ -133,11 +133,11 @@ fn link_stays_silent_in_86_once_ooutil_is_required() {
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(
         &uri,
-        "package require ooutil\noo::class create Widget {\n    method foo {x} { return $x }\n    method bar {} {\n        link foo\n        return [foo 1]\n    }\n}\n",
+        "package require oo::util\noo::class create Widget {\n    method foo {x} { return $x }\n    method bar {} {\n        link foo\n        return [foo 1]\n    }\n}\n",
     );
     assert!(
         !codes(&diags).contains("W120"),
-        "a real `package require ooutil` makes 8.6/8.7 link known: {:?}",
+        "a real `package require oo::util` makes 8.6/8.7 link known: {:?}",
         codes(&diags)
     );
 }
@@ -329,7 +329,7 @@ fn mymethod_in_86_asks_for_ooutil_rather_than_being_unknown() {
     // `mymethod` is the one of the pair Tcllib backfills: `ooutil` defines
     // `proc ::oo::Helpers::mymethod`. So under 8.6 it is a
     // needs-a-package-require report, not an unknown command — and a real
-    // `package require ooutil` silences it.
+    // `package require oo::util` silences it.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(&uri, &callback_doc("", "mymethod"));
@@ -342,12 +342,12 @@ fn mymethod_in_86_asks_for_ooutil_rather_than_being_unknown() {
     let required = unique_uri("tcl");
     let diags = lsp.open_ready(
         &required,
-        &callback_doc("package require ooutil\n", "mymethod"),
+        &callback_doc("package require oo::util\n", "mymethod"),
     );
     let seen = codes(&diags);
     assert!(
         !seen.contains("W120") && !seen.contains("W123"),
-        "a real `package require ooutil` makes 8.6 `mymethod` known: {seen:?}",
+        "a real `package require oo::util` makes 8.6 `mymethod` known: {seen:?}",
     );
 }
 
@@ -399,7 +399,7 @@ fn classvariable_in_86_asks_for_ooutil_rather_than_being_unknown() {
     // `mymethod`: Tcllib's `ooutil` defines `proc ::oo::Helpers::classvariable`
     // (tcllib-2-0 `modules/ooutil/ooutil.tcl:27`), so under 8.6 it is a
     // needs-a-package-require report, not an unknown command — and a real
-    // `package require ooutil` silences it.
+    // `package require oo::util` silences it.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(&uri, &classvariable_doc(""));
@@ -410,11 +410,11 @@ fn classvariable_in_86_asks_for_ooutil_rather_than_being_unknown() {
     );
 
     let required = unique_uri("tcl");
-    let diags = lsp.open_ready(&required, &classvariable_doc("package require ooutil\n"));
+    let diags = lsp.open_ready(&required, &classvariable_doc("package require oo::util\n"));
     let seen = codes(&diags);
     assert!(
         !seen.contains("W120") && !seen.contains("W123"),
-        "a real `package require ooutil` makes 8.6 `classvariable` known: {seen:?}",
+        "a real `package require oo::util` makes 8.6 `classvariable` known: {seen:?}",
     );
 }
 
@@ -617,7 +617,7 @@ fn qualified_link_resolves_in_86_once_ooutil_is_required() {
     let uri = unique_uri("tcl");
     let diags = lsp.open_ready(
         &uri,
-        "# tcl-dialect: tcl8.6\npackage require ooutil\noo::class create W {\n    method foo {} { return 1 }\n    method m {} { ::oo::Helpers::link foo }\n}\n",
+        "# tcl-dialect: tcl8.6\npackage require oo::util\noo::class create W {\n    method foo {} { return 1 }\n    method m {} { ::oo::Helpers::link foo }\n}\n",
     );
     let seen = codes(&diags);
     assert!(
@@ -642,7 +642,7 @@ fn qualified_link_needs_the_ooutil_require_in_86() {
     );
     assert!(
         codes(&diags).contains("W120"),
-        "8.6 without `package require ooutil` has no ::oo::Helpers::link: {:?}",
+        "8.6 without `package require oo::util` has no ::oo::Helpers::link: {:?}",
         codes(&diags)
     );
 }

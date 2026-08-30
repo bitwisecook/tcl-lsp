@@ -19,6 +19,7 @@
 //! `for` — C-style loop with init, test, and next scripts.
 
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: true,
@@ -35,7 +36,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "for",
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::CONTROL_FLOW

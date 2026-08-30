@@ -1100,7 +1100,6 @@ fn a_forced_import_from_a_wholly_foreign_namespace_shadows_end_to_end() {
     assert_eq!(start_line(&locs[0]), 1);
 }
 
-// ---------------------------------------------------------------------------
 // Issue #1116 item 1 — every provider the export oracle was threaded through,
 // end to end over the packaged server.
 //
@@ -1113,7 +1112,6 @@ fn a_forced_import_from_a_wholly_foreign_namespace_shadows_end_to_end() {
 // `namespace export helper` present, `helper 1 2` prints `SRC/1/2`; without
 // it, `LOCAL`.  The call is at global scope because that is the one importing
 // namespace whose call sites the inlay-hint segmenter reaches.
-// ---------------------------------------------------------------------------
 
 //  line 0  namespace eval src {
 //  line 1      proc helper {alpha beta} { puts "SRC/$alpha/$beta" }

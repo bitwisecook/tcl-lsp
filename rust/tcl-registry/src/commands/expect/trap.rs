@@ -18,6 +18,7 @@
 
 //! `trap` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "trap ?command? ?signal ...?",
     ..FormSpec::DEFAULT
@@ -26,7 +27,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "trap",
-        dialects: Some(DialectSet::EXPECT),
+        surface: Some(SpecSurface::EXPECT),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Trap signals and execute a command when they occur.",

@@ -1,10 +1,10 @@
 # EDA tools as library packages (not dialects)
 
 A vendor EDA tool identity is a set of loaded **library packages** over a
-base Tcl version, not a dialect of its own. There is no `XILINX`, `SYNOPSYS`,
-`CADENCE`, `QUARTUS`, or `MENTOR` bit in `DialectSet`: an EDA profile carries
-`vendor_bit: None` and a plain Tcl-version `availability_mask`, and its
-command surface is gated by `required_package` instead.
+base Tcl version, not a dialect of its own. There is no `xilinx`, `synopsys`,
+`cadence`, `quartus`, or `mentor` family: an EDA profile carries no vendor
+surface of its own, just a plain Tcl release point, and its command surface
+is gated by `required_package` instead.
 
 > **Where the packs live now.** The model below is unchanged — an EDA shell is
 > a base Tcl version plus `sdc_base` and its vendor's library, gated by
@@ -23,9 +23,8 @@ command surface is gated by `required_package` instead.
 
 A vendor identity is fully expressed by two things a profile already carries:
 the command packs it loads and the ambient library pins it declares. A
-dedicated `DialectSet` bit adds nothing either does not already say, and
-costs a bit of a fixed-width set plus a gate every command spec must be
-tagged for.
+dedicated family adds nothing either does not already say, and costs a
+family every command spec must then be tagged for.
 
 Real-world research (Vivado/Quartus/DC-PT-ICC2-FM/Innovus-Genus/Questa; see
 [contracts/dialect-detection.md](contracts/dialect-detection.md) and the
@@ -40,12 +39,6 @@ actually work:
   command vocabulary — which the content-signature detector already does.
 - **SDC is a shared, portable cross-vendor format** — the `sdc_base` pack is
   the right shared library, ambient in every EDA profile.
-
-`DialectSet` is `u64` with twelve bits in use (five Tcl versions plus iRules,
-iApps, Tk, Expect, BPF, tmsh, and the BIG-IP config surface). Bits 8–12 are
-vacant and reserved for future dialects — `dialect_set.rs` notes that they
-are the slots the vendor bits would have occupied, so nobody reintroduces
-them there.
 
 ## Package taxonomy (per-tool granularity)
 
@@ -151,7 +144,7 @@ The finer Quartus splits (`-report`/`-device`/`-misc`) mirror Intel's real
 
 ```text
 is_available(spec) =
-      spec.supports_dialect(availability_mask)
+      spec.supports_dialect(surface_query)
    && (operators_as_commands || !OPERATOR_COMMAND)
    && package_available(self, spec.required_package)
 ```
@@ -180,8 +173,9 @@ packs. So the gate is closed-world in one direction only:
   resolves under a plain-Tcl or rival-vendor profile.
 
 Because each EDA profile declares **all** its own tool packages ambient, the
-EDA command surface is the same as it was under the vendor bits; the
-granularity buys accurate provenance and sets up future per-tool detection.
+EDA command surface is the same as a per-vendor family would have given it;
+the granularity buys accurate provenance and sets up future per-tool
+detection.
 
 ## Profile shape
 
@@ -189,27 +183,24 @@ Each EDA profile in `rust/tcl-dialect/src/profile.rs`:
 
 | Field | Value |
 |-------|-------|
-| `vendor_bit` | `None` |
-| `availability_mask` | the single base-version bit (`TCL84`/`TCL85`/`TCL86`) |
-| `base_layers` | `&[<that same version bit>]` |
-| `grammar_union` | `DialectSet::ALL_TCL` |
-| `libraries` | one `LibraryPin { ambient: true }` per tool package, plus `sdc` |
+| `vendor_surface` | `None` |
+| `base_layers` | `&[SurfaceLayer::Core(Family::Tcl, "<base release>")]` |
+| `grammar_union` | `&[SpecProvider::Core(Family::Tcl)]` |
+| `libraries` | one `LibraryPin { ambient: true }` per tool package, plus `sdc` and `upf` |
 
 The pins carry `LibraryVersion::Keyed` versions (`VersionKey::SdcVersion` for
 `sdc`, `VersionKey::ToolVersion` for the vendor packs), so an EDA profile
-still participates in the versioned-library axis without a vendor bit.
+still participates in the versioned-library axis without a vendor family.
 
-Because the profiles carry no vendor bit, consumers that used to ask
+Because the profiles name no vendor surface, consumers that used to ask
 "is this a vendor shell?" key off something else. `DialectProfile::hosts_tk()`
 is the worked example: it answers `false` for the EDA shells because they pin
-no Tk library, not because they carry a vendor bit.
+no Tk library, not because of anything about their identity.
 
-The packs load by **profile name**, not by a `DialectSet` bit:
-`CommandRegistry::load_eda_packs(profile_name)` matches the five EDA profile
-names, inserts `sdc_base_command_specs()`, then inserts that vendor's specs.
-It is a no-op for any other name, and `load_dialect` deliberately has no arm
-for the EDA shells. The per-profile registry cache (`cache.rs`) calls it
-after the base-version dialect has been loaded.
+The packs load by **profile name**: `tcl_spectcl::bundled` matches the shell's
+name to the bundled `specs/*.tclspec` it should install, applies the
+ambient-package filter above, and layers the result into that profile's cached
+registry.
 
 ## Detection
 

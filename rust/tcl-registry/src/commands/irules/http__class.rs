@@ -18,6 +18,7 @@
 
 //! `HTTP::class` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 /// The command's iRules subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[SubCommand {
@@ -32,7 +33,7 @@ const SUBCOMMANDS: &[SubCommand] = &[SubCommand {
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::class",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::new(0, 2),
         hover: Some(HoverSnippet {
             summary: "Returns or sets the HTTP class selected by the HTTP selector.",
@@ -53,9 +54,7 @@ pub const fn spec() -> CommandSpec {
             transport: Some("tcp"),
             profiles: &["HTTP"],
             also_in: &["HTTP_CLASS_FAILED", "HTTP_CLASS_SELECTED"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[
             FormSpec {

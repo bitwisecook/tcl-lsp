@@ -18,6 +18,7 @@
 
 //! `system` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "system args",
     ..FormSpec::DEFAULT
@@ -26,7 +27,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "system",
-        dialects: Some(DialectSet::EXPECT),
+        surface: Some(SpecSurface::EXPECT),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Execute a command string via the system shell (/bin/sh -c).",

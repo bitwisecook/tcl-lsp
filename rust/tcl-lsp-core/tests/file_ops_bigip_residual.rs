@@ -44,7 +44,6 @@ use tcl_lsp_core::document_symbols::{DocumentSymbol, SymbolKind};
 use tcl_lsp_core::file_ops::compute_rename_edits;
 use tcl_lsp_core::workspace_index::WorkspaceIndex;
 
-// ===========================================================================
 // file_ops.rs — `source`-literal rename edits + URI / path helpers.
 //
 // The module's only public entry is `compute_rename_edits`; the private
@@ -52,7 +51,6 @@ use tcl_lsp_core::workspace_index::WorkspaceIndex;
 // `compute_new_literal`, `normpath`, `relpath`, `content_span`) are driven
 // through it. Each test below targets a specific branch / edge by choosing
 // fixtures that route execution through it.
-// ===========================================================================
 
 /// Build a one-document workspace index from `(uri, src)`.
 fn index_of(uri: &str, src: &str) -> WorkspaceIndex {
@@ -387,13 +385,11 @@ fn rename_handles_multiple_dependents_in_one_pass() {
     assert_eq!(edits[1].new_text, "/proj/lib/new.tcl");
 }
 
-// ===========================================================================
 // bigip.rs — `is_bigip_conf_name` + `document_symbols` stanza outline.
 //
 // BIG-IP `*.conf` is not Tcl; these assertions are structural against the
 // module contract (canonical basenames, three-level module→kind→object
 // outline, no empty symbol names).
-// ===========================================================================
 
 #[test]
 fn bigip_recognises_canonical_basenames_case_insensitively() {

@@ -18,6 +18,7 @@
 
 //! `strace` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "strace level",
     ..FormSpec::DEFAULT
@@ -26,7 +27,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "strace",
-        dialects: Some(DialectSet::EXPECT),
+        surface: Some(SpecSurface::EXPECT),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Trace Expect internal statements at the given detail level.",

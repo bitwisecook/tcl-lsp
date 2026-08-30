@@ -27,7 +27,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "textutil::longestCommonPrefix",
         traits: Traits::PURE,
-        dialects: None,
+        surface: None,
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Find the longest common prefix of strings.",

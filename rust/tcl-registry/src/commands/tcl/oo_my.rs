@@ -18,6 +18,7 @@
 
 //! `my` — invoke a method on the current object.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "my methodName ?arg ...?",
     ..FormSpec::DEFAULT
@@ -83,7 +84,7 @@ const SUBCOMMANDS: &[SubCommand] = &[SubCommand {
         writes: true,
         ..SideEffect::DEFAULT
     }],
-    dialects: Some(DialectSet::TCL86_PLUS),
+    surface: Some(SpecSurface::TCL86_PLUS),
     ..SubCommand::DEFAULT
 }];
 
@@ -134,7 +135,7 @@ pub fn spec() -> CommandSpec {
         traits: Traits::LANGUAGE_KEYWORD
             | Traits::TCLOO_SELF_DISPATCH
             | Traits::TCLOO_METHOD_CONTEXT,
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
         subcommands: SUBCOMMANDS,

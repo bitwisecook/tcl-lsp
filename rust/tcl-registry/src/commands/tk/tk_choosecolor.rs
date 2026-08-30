@@ -18,6 +18,7 @@
 
 //! `tk_chooseColor` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
     reads: true,
@@ -30,7 +31,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-initialcolor",
         value: OptionValue::value("colour"),
         detail: "Initial colour to display in the chooser.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -39,7 +40,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-parent",
         value: OptionValue::value("window"),
         detail: "Parent window for the dialogue.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -48,7 +49,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-title",
         value: OptionValue::value("titleString"),
         detail: "Title string for the dialogue window.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -64,7 +65,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tk_chooseColor",
         traits: Traits::TAINT_SOURCE,
-        dialects: Some(DialectSet::TK_AND_TCL),
+        surface: Some(SpecSurface::TK_AND_TCL),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Pop up a dialogue for the user to select a colour.",

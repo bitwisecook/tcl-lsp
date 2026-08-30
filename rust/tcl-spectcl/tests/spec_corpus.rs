@@ -120,17 +120,15 @@ use tcl_engine_api::{Budget, CompileUnit, Engine, EngineError, HostCommand, Valu
 use tcl_engine_tclvm::TclVmEngine;
 use tcl_registry::arg_role::ArgRole;
 use tcl_registry::arity::Arity;
+use tcl_registry::model::ingress::static_document_context_for_profile as ctx_for;
 use tcl_registry::pack_hooks;
-use tcl_registry::profile_queries::ProfileQueries;
 use tcl_registry::spec::CommandSpec;
 use tcl_spec_hooks::{CrashRecord, HookHost};
 use tcl_spectcl::discovery::{Origin, PackFile, Tier};
 use tcl_spectcl::hooks;
 use tcl_spectcl::pack::PackSet;
 
-// ---------------------------------------------------------------------------
 // Where things are
-// ---------------------------------------------------------------------------
 
 /// The repository root — this crate is `rust/tcl-spectcl`.
 fn repo_root() -> PathBuf {
@@ -152,9 +150,7 @@ fn relative(path: &Path, root: &Path) -> String {
         .replace('\\', "/")
 }
 
-// ---------------------------------------------------------------------------
 // The inventory: every `.tclspec` the repo ships
-// ---------------------------------------------------------------------------
 
 /// One pack file under test, with the tier it ships at and the dialect its
 /// commands belong to.
@@ -246,9 +242,7 @@ fn inventory(root: &Path) -> Vec<PackUnderTest> {
     packs
 }
 
-// ---------------------------------------------------------------------------
 // The corpus
-// ---------------------------------------------------------------------------
 
 /// Which corpus a dialect draws from: iRules read `.irul`, everything else
 /// reads `.tcl`.
@@ -409,9 +403,7 @@ fn mentions(file: &CorpusFile, name: &str) -> bool {
     file.tokens.contains(name)
 }
 
-// ---------------------------------------------------------------------------
 // Synthesising an exercising script for a command with no corpus
-// ---------------------------------------------------------------------------
 
 /// A valid argument count for `arity`, biased towards two so a resolver has
 /// something to resolve.
@@ -494,10 +486,8 @@ fn synthesise(spec: &CommandSpec) -> Vec<String> {
 /// making any single script large enough to hide a failure.
 const SYNTHESISED_CALLS_PER_SCRIPT: usize = 25;
 
-// ---------------------------------------------------------------------------
 // The engine wrapper: counts invocations, and injects the one panic no Tcl
 // body can be trusted to produce
-// ---------------------------------------------------------------------------
 
 /// A body carrying this marker panics at the engine boundary.
 ///
@@ -569,9 +559,7 @@ fn counting_host(stats: &Rc<EngineStats>) -> HookHost<CountingEngine> {
     })
 }
 
-// ---------------------------------------------------------------------------
 // The per-pack result
-// ---------------------------------------------------------------------------
 
 struct PackReport {
     file: String,
@@ -680,9 +668,7 @@ fn render(reports: &[PackReport], tmp: TmpCorpus) -> String {
     out
 }
 
-// ---------------------------------------------------------------------------
 // The harness proper
-// ---------------------------------------------------------------------------
 
 fn load_one(pack: &PackUnderTest) -> (PackSet, Duration) {
     let file = PackFile {
@@ -701,11 +687,11 @@ fn load_one(pack: &PackUnderTest) -> (PackSet, Duration) {
 fn analyse(source: &str, dialect: &str, overlay: u64) -> (usize, usize) {
     let mut analyser = Analyser::new().with_pack_overlay(overlay);
     let result = analyser.analyse(source, dialect);
-    let registry = tcl_registry::cache::registry_for_profile_if_built(
-        tcl_dialect::DialectProfile::by_name(dialect),
-        overlay,
-    )
-    .unwrap_or_else(|| tcl_registry::registry_handle_for_dialect(dialect));
+    let registry = std::sync::Arc::clone(
+        tcl_registry::model::ingress::resolve_environment(dialect)
+            .context_registry(&tcl_registry::model::KeyedVersions::default(), overlay)
+            .commands(),
+    );
     let optimisations = optimise_raw(source, &registry, Some(dialect));
     (result.diagnostics.len(), optimisations.len())
 }
@@ -766,7 +752,7 @@ fn start_host(
     let host = Rc::new(counting_host(stats));
     let mut slots = Vec::new();
     for programs in plan.packs() {
-        for installation in host.load_pack(programs.clone()) {
+        for installation in host.install_pack_hooks(programs.clone()) {
             if let Some(slot) = installation.slot {
                 slots.push(slot);
             }
@@ -788,7 +774,7 @@ fn installation_of(
     let mut unresolved: Vec<String> = Vec::new();
     for merged in &set.packs {
         for command in &merged.commands {
-            if profile.package_available(command.spec.required_package) {
+            if ctx_for(profile).required_package_available(command.spec.required_package) {
                 installed += 1;
                 if registry.get(command.spec.name).is_none() {
                     unresolved.push(command.spec.name.to_owned());
@@ -872,12 +858,12 @@ fn analyse_all(
 
 fn run_pack(pack: &PackUnderTest, root: &Path, corpus: &[CorpusFile]) -> PackReport {
     let (mut set, load) = load_one(pack);
-    let profile = tcl_dialect::DialectProfile::by_name(pack.dialect);
+    let profile = tcl_spectcl::environment::profile_for_dialect(pack.dialect);
     let notices = notice_lines(&set, root);
 
     // The natural collision outcome, recorded before the override flag is
     // forced — this is what a user installing the pack unchanged would get.
-    let plain_registry = tcl_registry::registry_for_dialect(pack.dialect);
+    let plain_registry = tcl_registry::model::static_context_for(pack.dialect).commands();
     let collisions = tcl_spectcl::pack::collision_notices(&set, plain_registry).len();
 
     let declared: usize = set.packs.iter().map(|p| p.commands.len()).sum();
@@ -942,9 +928,7 @@ fn run_pack(pack: &PackUnderTest, root: &Path, corpus: &[CorpusFile]) -> PackRep
     }
 }
 
-// ---------------------------------------------------------------------------
 // The notice baseline
-// ---------------------------------------------------------------------------
 
 const BASELINE_HEADER: &str = "\
 # SpecTcl corpus-validation harness — accepted load notices.
@@ -1030,9 +1014,7 @@ fn write_baseline(notices: &[String]) {
     std::fs::write(baseline_path(), out).expect("write the notice baseline");
 }
 
-// ---------------------------------------------------------------------------
 // The watchdog
-// ---------------------------------------------------------------------------
 
 /// Run `body` on a worker thread and fail — rather than wedge — if it does not
 /// finish inside `budget`.
@@ -1080,9 +1062,7 @@ fn with_watchdog<T: Send + 'static>(
     }
 }
 
-// ---------------------------------------------------------------------------
 // The tests
-// ---------------------------------------------------------------------------
 
 /// Every shipped `.tclspec`: loaded, installed, analysed against corpus, with
 /// its hooks run through the sandboxed host — and the per-pack report.
@@ -1231,7 +1211,7 @@ fn drive_hostile_pack() -> Containment {
     let host = Rc::new(counting_host(&stats));
     let mut slots = BTreeMap::new();
     for programs in plan.packs() {
-        for installation in host.load_pack(programs.clone()) {
+        for installation in host.install_pack_hooks(programs.clone()) {
             assert!(
                 installation.declined.is_none(),
                 "{} declined: {:?}",

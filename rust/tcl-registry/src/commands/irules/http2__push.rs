@@ -18,10 +18,11 @@
 
 //! `HTTP2::push` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP2::push",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Accepts a resource as a parameter that can be pushed to the client using PUSH_PROMISE frames in HTTP/2 stream.",
@@ -40,9 +41,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &["FASTHTTP"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "HTTP2::push <uri> ?options? ?request headers ...? ?-- response headers ...?",
@@ -54,7 +53,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-priority",
                     value: OptionValue::value("PRIORITY"),
                     detail: "Push priority number.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -63,7 +62,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-content",
                     value: OptionValue::value("CONTENT"),
                     detail: "Pushed response content.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -72,7 +71,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-ifile",
                     value: OptionValue::value("IFILE_OBJ"),
                     detail: "Serve content from iFile.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -81,7 +80,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-noserver",
                     value: OptionValue::flag(),
                     detail: "Suppress \"Server: BigIP\" header.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -90,7 +89,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-nohost",
                     value: OptionValue::flag(),
                     detail: "Disable Host header requirement.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,

@@ -32,7 +32,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fileutil::findByPattern",
-        dialects: None,
+        surface: None,
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Find files matching glob or regexp patterns.",

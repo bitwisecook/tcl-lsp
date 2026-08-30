@@ -78,7 +78,8 @@ pub fn expr_word_operator_since(spelling: &str) -> Option<crate::TclVersion> {
 /// `expr_grammar_base` of some dialect — `DialectProfile::expr_grammar_base`,
 /// the field that already exists to gate exactly these two TIPs.
 ///
-/// A `None` base (an unversioned dialect: plain `tcl`, iRules) takes the
+/// A `None` base (an unversioned dialect: the lenient `tcl` sink, the `tk`
+/// ingress profile, and `f5-bigip`, which is not Tcl at all) takes the
 /// **newest** grammar, so every word operator is present. That is the same
 /// default the rest of [`LexerGrammar`] uses — [`BracedVarStyle::Tcl9Nesting`],
 /// [`NumberSyntax::Tcl90`] and [`ExprCommentStyle::Hash`] are all the newest
@@ -124,7 +125,10 @@ impl BracedVarStyle {
     #[must_use]
     pub fn of_dialect_name(name: Option<&str>) -> Self {
         name.map_or(Self::default(), |n| {
-            crate::DialectProfile::by_name(n).grammar.braced_var
+            crate::DialectProfile::find(n)
+                .unwrap_or_else(crate::DialectProfile::plain_tcl)
+                .grammar
+                .braced_var
         })
     }
 
@@ -141,6 +145,36 @@ impl BracedVarStyle {
     #[must_use]
     pub fn of_profile(profile: Option<&crate::DialectProfile>) -> Self {
         profile.map_or(Self::default(), |p| p.grammar.braced_var)
+    }
+}
+
+/// The brace-line continuation axis — the F5 N-rules
+/// (`docs/design/bigip-irule-parser-measurements.md` §2), a second
+/// divergence independent of the implicit word break and likewise an
+/// `f5-tcl` trunk fact (measurements §4a).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum BraceLineContinuation {
+    /// Stock Tcl (and the unversioned default): a newline always
+    /// terminates the command (barring backslash-newline continuation).
+    #[default]
+    Terminates,
+    /// The F5 fork: a newline does **not** terminate a command when the
+    /// next line's first non-whitespace character is `{` — the line is
+    /// absorbed as further arguments (N1). Unconditional — independent of
+    /// the command's identity, arity, or completeness (N2) — and applies
+    /// at any nesting depth (N3). A blank, whitespace-only, or comment
+    /// line still terminates the command (N4); backslash-newline rules
+    /// are unchanged. The `else`/`elseif` single-newline lookahead is
+    /// `if`'s own consumer-side rule (N5), not part of this axis.
+    Continues,
+}
+
+impl BraceLineContinuation {
+    /// Whether a next-line-`{` newline continues the command (the F5
+    /// rule).
+    #[must_use]
+    pub fn continues(self) -> bool {
+        matches!(self, Self::Continues)
     }
 }
 
@@ -185,9 +219,25 @@ pub struct LexerGrammar {
     /// argument expansion (TIP 157). True for Tcl 8.5+ and dialects built on
     /// 8.5+; false for Tcl 8.4 and iRules.
     pub expand_syntax: bool,
-    /// When true, `}{` at a brace-string boundary separates two words
-    /// (a zero-width ghost separator). iRules-only.
+    /// When true, the word break implied by a close delimiter — the F5
+    /// R-rules (`docs/design/bigip-irule-parser-measurements.md` §1, §3):
+    /// a word that *started* with `{` or `"` ends at its matching close
+    /// delimiter, and any character other than whitespace or a command
+    /// terminator immediately after it begins a **new word** (a
+    /// zero-width ghost separator) instead of raising stock Tcl's "extra
+    /// characters after close-brace/close-quote" error. Applies
+    /// repeatedly and in every word position including the command name
+    /// (R4); never fires after a bare word, `$var`, `${name}`, or
+    /// `[cmd]` (R5); emits no diagnostic (R6). An axis of the `f5-tcl`
+    /// trunk — measured byte-identical in TMM iRules, tmsh cli scripts,
+    /// and iApp implementations (measurements §4a) — not iRules-only.
+    ///
+    /// The field keeps its historical name: it predates the measured
+    /// `f5-tcl` trunk and is threaded by name through crates outside this
+    /// change's blast radius.
     pub irules_brace_separator: bool,
+    /// The brace-line continuation axis — see [`BraceLineContinuation`].
+    pub brace_line_continuation: BraceLineContinuation,
     /// How a `${…}` variable name is delimited — see [`BracedVarStyle`].
     pub braced_var: BracedVarStyle,
     /// When true, the script reader skips a leading UTF-8 byte-order mark
@@ -283,7 +333,10 @@ impl EscapeSyntax {
     #[must_use]
     pub fn of_dialect_name(name: Option<&str>) -> Self {
         name.map_or(Self::default(), |n| {
-            crate::DialectProfile::by_name(n).grammar.escapes
+            crate::DialectProfile::find(n)
+                .unwrap_or_else(crate::DialectProfile::plain_tcl)
+                .grammar
+                .escapes
         })
     }
 
@@ -393,7 +446,10 @@ impl NumberSyntax {
     #[must_use]
     pub fn of_dialect_name(name: Option<&str>) -> Self {
         name.map_or(Self::default(), |n| {
-            crate::DialectProfile::by_name(n).grammar.numbers
+            crate::DialectProfile::find(n)
+                .unwrap_or_else(crate::DialectProfile::plain_tcl)
+                .grammar
+                .numbers
         })
     }
 
@@ -488,6 +544,7 @@ impl Default for LexerGrammar {
         Self {
             expand_syntax: true,
             irules_brace_separator: false,
+            brace_line_continuation: BraceLineContinuation::Terminates,
             braced_var: BracedVarStyle::Tcl9Nesting,
             script_skips_leading_bom: true,
             expr_comments: ExprCommentStyle::Hash,
@@ -520,6 +577,7 @@ mod tests {
         let g = LexerGrammar::default();
         assert!(g.expand_syntax);
         assert!(!g.irules_brace_separator);
+        assert!(!g.brace_line_continuation.continues());
         assert_eq!(g.braced_var, BracedVarStyle::Tcl9Nesting);
         assert!(g.script_skips_leading_bom);
         assert_eq!(g.expr_comments, ExprCommentStyle::Hash);

@@ -31,9 +31,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use super::*;
 
-// ---------------------------------------------------------------------------
 // Test scaffolding.
-// ---------------------------------------------------------------------------
 
 static COUNTER: AtomicUsize = AtomicUsize::new(0);
 
@@ -103,9 +101,7 @@ fn no_tcl_files(_: &Path) -> Vec<PathBuf> {
     Vec::new()
 }
 
-// ---------------------------------------------------------------------------
 // auto_qualify — pure cases + differential against real tclsh.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn auto_qualify_matches_c_tcl_documented_cases() {
@@ -160,9 +156,7 @@ fn auto_qualify_differential_against_tclsh() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // pkgIndex.tcl parsing — pure cases + differential against pkg_mkIndex.
-// ---------------------------------------------------------------------------
 
 /// Regression coverage for issue #996: `collect_source_targets` recurses
 /// once per `[...]`/`{...}`/`"..."` wrapper word, with no depth cap
@@ -296,9 +290,7 @@ fn parse_pkg_index_differential_against_pkg_mkindex() {
     assert_eq!(infos[0].source_files, vec![pkg_dir.join("foo.tcl")]);
 }
 
-// ---------------------------------------------------------------------------
 // tclIndex parsing — pure cases + differential against auto_mkindex.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn parse_tcl_index_v2_and_old_formats() {
@@ -356,9 +348,7 @@ fn parse_tcl_index_differential_against_auto_mkindex() {
     assert_eq!(map.get("::myns::helper"), Some(&dir.join("lib.tcl")));
 }
 
-// ---------------------------------------------------------------------------
 // PackageResolver — search-path scanning + resolution.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn resolver_scans_immediate_subdirs_like_tcl_pkg_unknown() {
@@ -964,12 +954,10 @@ fn resolver_first_provider_wins() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // `auto_loads_command` — the W123 "command defined in library path" oracle
 // (issue #832).  A library that ships a `tclIndex` makes its procs auto-loadable
 // by bare name with no `package require`, exactly the Rbc_* / BLT idiom in the
 // issue.  These pin the TP / FP / TN / FN arms of that resolvability check.
-// ---------------------------------------------------------------------------
 
 /// TN control — the resolvability oracle answers *yes* for a command the scanned
 /// `tclIndex` genuinely provides, so the W123 that would fire on it is a true
@@ -1036,11 +1024,9 @@ fn auto_loads_command_respects_namespace_qualification() {
     assert!(!resolver.auto_loads_command("geturl", "::"));
 }
 
-// ---------------------------------------------------------------------------
 // `package_defined_commands` — the secondary W123 oracle for a `pkgIndex`-only
 // package (no `tclIndex`) whose implementation source files define the command.
 // The extractor is injected; here a stub stands in for the analyser.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn package_defined_commands_unions_available_package_sources() {

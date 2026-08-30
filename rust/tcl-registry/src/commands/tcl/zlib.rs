@@ -29,7 +29,7 @@
 //! though it is missing its own numbered `#M` anchor and so is absent
 //! from the 8.6 page's auto-generated outline, unlike 9.0/9.1's, which
 //! number it `#M62`; the content itself, not just the anchor, is what
-//! matters for a `DialectSet` gate, and that content is present in all
+//! matters for a `SpecSurface` gate, and that content is present in all
 //! three) — so no per-fact version split exists below beyond the
 //! whole-command Tcl-8.6-floor gate.
 //!
@@ -69,6 +69,7 @@
 //! (identical option tables and error paths on both), since that is
 //! real per-mode behaviour the prose alone under-specifies.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "zlib subcommand ?arg ...?",
@@ -407,7 +408,7 @@ pub fn spec() -> CommandSpec {
         // and textually identical (bar the 8.6-only `stream header`
         // outline-anchor quirk, not a content difference) across
         // 8.6.18/9.0.4/9.1b0.
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         // A real core-builtin ensemble command (registered by `Tcl_CreateObjCommand`,
         // not a library proc), so the minifier must not alias its head —
         // same reasoning `chan`/`encoding` already carry this trait for.

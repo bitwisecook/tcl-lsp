@@ -61,9 +61,7 @@ use tcl_lsp_core::definition::LspRange;
 use tcl_lsp_core::formatting::DocstringStyle;
 use tcl_lsp_core::hover::hover;
 
-// ---------------------------------------------------------------------------
 // Harness — mirrors hover_residual.rs / code_actions_depth.rs.
-// ---------------------------------------------------------------------------
 
 fn analyse(source: &str) -> AnalysisResult {
     Analyser::new().analyse(source, "tcl8.6").clone()
@@ -120,9 +118,7 @@ fn render_doc_via_hover(doc_comment_lines: &str, params: &str) -> String {
     proc_hover_markdown(&src, "carrier")
 }
 
-// ===========================================================================
 // extract_body_docstring — analyser::utils::extract_body_docstring
-// ===========================================================================
 
 #[test]
 fn extract_empty_body() {
@@ -204,7 +200,6 @@ fn extract_osvvm_style() {
     );
 }
 
-// ===========================================================================
 // Docstring parse — format_docstring via public hover()
 //
 // The parser/renderer is private; we drive it by planting the docstring
@@ -214,7 +209,6 @@ fn extract_osvvm_style() {
 //   * `@param name - desc` → `- **name** — desc` under `**Parameters:**`,
 //   * `@param name` (no desc) → `- **name**`,
 //   * `@return` / `@returns` → `**Returns:** <text>`.
-// ===========================================================================
 
 #[test]
 fn parse_plain_text_is_description() {
@@ -327,9 +321,7 @@ fn parse_mixed_description_and_tags() {
     assert!(md.contains("**filename**"), "param: {md}");
 }
 
-// ===========================================================================
 // Render Markdown / format docstring — format_docstring via hover()
-// ===========================================================================
 
 #[test]
 fn render_markdown_params_and_returns_sections() {
@@ -361,9 +353,7 @@ fn format_docstring_roundtrip() {
     assert!(md.contains("**Returns:**"), "{md}");
 }
 
-// ===========================================================================
 // Parse edge cases — format_docstring via hover()
-// ===========================================================================
 
 #[test]
 fn parse_multi_return_accumulated() {
@@ -397,7 +387,6 @@ fn parse_decoration_lines_stripped_in_parse() {
 // unit test `format_docstring_handles_param_without_description`, not
 // re-asserted here.
 
-// ===========================================================================
 // Generate docstring stub — docstring_actions via public code_actions()
 //
 // The generator emits a `# @param <name>` skeleton (one line per
@@ -405,7 +394,6 @@ fn parse_decoration_lines_stripped_in_parse() {
 // titled "Generate docstring for '<proc>'".  It fires only when the
 // cursor sits on the proc's declaration LINE and the proc has no existing
 // doc-comment.
-// ===========================================================================
 
 /// Run `code_actions` with the cursor on the declaration line of `proc`
 /// and return the "Generate docstring" action's inserted text, if any.
@@ -590,11 +578,9 @@ fn generate_stub_absent_when_cursor_off_declaration_line() {
     );
 }
 
-// ===========================================================================
 // `DocstringStyle` placement (#1314) — code_actions_in_program's
 // docstring_style parameter, the resolved `tclLsp.formatting.docstringStyle`
 // setting's actual consumer.
-// ===========================================================================
 
 #[test]
 fn docstring_style_none_offers_no_action() {
@@ -728,9 +714,7 @@ fn docstring_style_body_falls_back_to_four_spaces_for_a_single_line_proc() {
     );
 }
 
-// ===========================================================================
 // Covered elsewhere — the structured `DocstringInfo` surface.
-// ===========================================================================
 //
 // `formatting::docstring` exposes the public `DocstringInfo` value type and
 // its helpers directly, so these behaviours are unit-tested there rather than
@@ -746,10 +730,8 @@ fn docstring_style_body_falls_back_to_four_spaces_for_a_single_line_proc() {
 //     empty fields.
 //   * `resolve_tag_style` maps a case-insensitive style string to the enum.
 //
-// ===========================================================================
 // GAP catalogue — docstring behaviours with NO `tcl-lsp-core` equivalent
 // (no public surface to assert against).  Recorded here, not tested.
-// ===========================================================================
 //
 // GAP: a bare/qualified proc lookup (`AnalysisResult.find_proc`) —
 //   `AnalysisResult` exposes the `all_procs` map publicly but provides no

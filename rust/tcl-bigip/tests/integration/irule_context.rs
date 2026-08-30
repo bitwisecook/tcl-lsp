@@ -46,7 +46,10 @@ fn context_resolves_data_group_in_braced_expression_command() {
             _ => None,
         })
         .expect("the fixture has its iRule");
-    let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
+    let registry = tcl_registry::model::ingress::static_context_for_profile(
+        tcl_dialect::DialectProfile::irules(),
+    )
+    .commands();
     let bundle = build_irule_context(rule, &config, false, Some(source), registry);
 
     assert_eq!(

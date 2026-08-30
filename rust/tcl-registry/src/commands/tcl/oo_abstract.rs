@@ -19,6 +19,7 @@
 //! `TclOO` class.
 use super::oo_class::{CLASS_FACTORY_SUBCOMMANDS, oo_class_arg_roles};
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
     writes: true,
@@ -50,7 +51,7 @@ pub fn spec() -> CommandSpec {
             | Traits::DEFINES_PROCEDURE
             | Traits::NOT_PROC_FACTORY
             | Traits::ABSTRACT_CLASS_FACTORY,
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         arity: Arity::at_least(1),
         arg_role_resolver: Some(oo_class_arg_roles),
         return_type: Some(TclType::String),

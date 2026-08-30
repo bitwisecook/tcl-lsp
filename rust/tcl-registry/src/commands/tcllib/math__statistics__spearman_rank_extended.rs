@@ -27,7 +27,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "math::statistics::spearman-rank-extended",
         traits: Traits::PURE,
-        dialects: None,
+        surface: None,
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {
             summary: "Extended Spearman rank correlation.",

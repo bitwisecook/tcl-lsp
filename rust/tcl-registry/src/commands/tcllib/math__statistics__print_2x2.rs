@@ -27,7 +27,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "math::statistics::print-2x2",
         traits: Traits::PURE,
-        dialects: None,
+        surface: None,
         arity: Arity::exact(4),
         hover: Some(HoverSnippet {
             summary: "Format a 2x2 contingency table.",

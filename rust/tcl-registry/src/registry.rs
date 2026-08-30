@@ -31,8 +31,6 @@ use crate::abbrev::{Keyword, KeywordTable, PrefixMatching};
 use crate::arg_role::{AppendedArity, ArgRole};
 use crate::arity::Arity;
 use crate::body_kind::BodyKind;
-use crate::command_table::CommandTableEffect;
-use crate::dialects::DialectSet;
 use crate::events::{
     DataCollectionAction, DataCollectionOperation, DataCollectionProtocol, EventHandlerPriority,
 };
@@ -47,9 +45,17 @@ use crate::resolved_invocation::{
 };
 use crate::side_effects::SideSwitchTarget;
 use crate::spec::{BytePayloadSpec, CommandSpec, SubCommand};
+use crate::state_transition::StateTransitions;
 use crate::traits::Traits;
 use crate::types::VarWriteTyping;
 use crate::{InvocationArguments, InvocationWords};
+use tcl_dialect::DialectProfile;
+use tcl_dialect::model::Family;
+use tcl_dialect::model::SurfaceQuery;
+use tcl_dialect::model::surface_admits;
+use tcl_dialect::model::surface_breadth;
+use tcl_dialect::model::{SpecProvider, SurfaceLayer, surface_provided_by};
+use tcl_dialect::version_satisfies;
 
 /// The trait union defining a **frame-sensitive** command — see
 /// [`CommandRegistry::is_frame_sensitive`].
@@ -430,11 +436,11 @@ const TAINT_SOURCE_INDEX: [(&str, crate::taint::TaintColour); TAINT_SOURCE_COUNT
 /// specs — consumers never match on command name strings.
 pub struct CommandRegistry {
     by_name: FxHashMap<&'static str, Vec<&'static CommandSpec>>,
-    loaded_dialects: DialectSet,
+    loaded_layers: Vec<SurfaceLayer>,
     /// The dialect profile this registry was built for, when it came from
     /// `registry_for_profile` / `registry_for_dialect`. `None` for
     /// hand-assembled registries (tests, ad-hoc tools), which fall back to
-    /// the `loaded_dialects`-derived behaviour answers.
+    /// the `loaded_layers`-derived behaviour answers.
     profile: Option<&'static tcl_dialect::DialectProfile>,
     /// Packages a `SpecTcl` pack declared **ambient** in this registry's
     /// dialect, with the version the runtime provides — `(package, version)`,
@@ -458,7 +464,7 @@ pub struct CommandRegistry {
 /// cached.  Backs [`CommandRegistry::known_in_any_dialect`] — the
 /// dialect-agnostic existence check over every loaded dialect.
 /// Built from the same spec functions [`CommandRegistry::build_default`]
-/// and [`CommandRegistry::load_dialect`] draw from, so it stays in lock-step
+/// and [`CommandRegistry::load_surface`] draw from, so it stays in lock-step
 /// with the registry's command universe.
 fn all_dialect_command_names() -> &'static FxHashSet<&'static str> {
     static NAMES: OnceLock<FxHashSet<&'static str>> = OnceLock::new();
@@ -782,7 +788,7 @@ impl CommandRegistry {
     pub fn build_default() -> Self {
         let mut registry = Self {
             by_name: FxHashMap::default(),
-            loaded_dialects: DialectSet::empty(),
+            loaded_layers: Vec::new(),
             profile: None,
             ambient_packages: Vec::new(),
         };
@@ -808,56 +814,54 @@ impl CommandRegistry {
         // are part of the always-known command universe: a `.tcl` script may
         // `package require Tk` at runtime, and the diagnostics treat them as
         // recognised under every Tcl dialect, so Tk is folded into the base
-        // registry.  Mark the dialect loaded so a later `load_dialect(TK)` is
+        // registry.  Mark the layer loaded so a later `load_surface(Tk)` is
         // a no-op rather than a double-insert.
         for spec in tk_specs() {
             registry.insert_static(spec);
         }
-        registry.loaded_dialects |= DialectSet::TK;
+        registry.loaded_layers.push(SurfaceLayer::Package("Tk"));
         registry
     }
 
-    /// Load a dialect's commands into the registry (idempotent).
-    pub fn load_dialect(&mut self, dialect: DialectSet) {
-        if self.loaded_dialects.contains(dialect) {
+    /// Load a surface's commands into the registry (idempotent).
+    pub fn load_surface(&mut self, layer: SurfaceLayer) {
+        if self.loaded_layers.contains(&layer) {
             return;
         }
-        let specs: &'static [CommandSpec] = match dialect {
-            d if d == DialectSet::BPF => bpf_specs(),
-            d if d == DialectSet::IRULES => irules_specs(),
-            d if d == DialectSet::IAPPS => iapps_specs(),
+        let specs: &'static [CommandSpec] = match layer {
+            SurfaceLayer::Package("bpf") => bpf_specs(),
+            SurfaceLayer::Core(Family::F5Irules, _) => irules_specs(),
+            SurfaceLayer::Package("iapps") => iapps_specs(),
             // The tmsh shell's own pack: the `tmsh::` surface shared with
-            // iApps (tagged `IAPPS|TMSH`), without the iApp-only commands
-            // (D8).
-            d if d == DialectSet::TMSH => tmsh_specs(),
-            d if d == DialectSet::TK => tk_specs(),
-            d if d == DialectSet::EXPECT => expect_specs(),
+            // iApps, without the iApp-only commands (D8).
+            SurfaceLayer::Package("tmsh") => tmsh_specs(),
+            SurfaceLayer::Package("Tk") => tk_specs(),
+            SurfaceLayer::Package("expect") => expect_specs(),
             // SpecTcl: the `.tclspec` DSL's own statement words. A pack file
             // is an ordinary Tcl script, so the base Tcl surface stays loaded
             // underneath (hook bodies are real Tcl); this layer adds the
             // declaration vocabulary on top of it.
-            d if d == DialectSet::SPECTCL => spectcl_specs(),
-            // The EDA shells have no DialectSet bit and no compiled-in pack —
-            // they are base-Tcl-version dialects plus `required_package`-gated
-            // command libraries (design doc `eda-library-packages.md`), and
-            // those libraries ship as bundled `.tclspec` loadables that
-            // `tcl_spectcl::bundled` installs (`docs/design/spec-packs.md`).
+            SurfaceLayer::Package("spectcl") => spectcl_specs(),
+            // A core release brings no pack of its own — it records which
+            // language the registry is. The EDA shells are such a release
+            // plus `required_package`-gated command libraries, which ship as
+            // bundled `.tclspec` loadables (`docs/design/spec-packs.md`).
             _ => &[],
         };
         for spec in specs {
             self.insert_static(spec);
         }
-        self.loaded_dialects |= dialect;
+        self.loaded_layers.push(layer);
     }
 
     /// Load iRules dialect commands (convenience wrapper).
     pub fn load_irules(&mut self) {
-        self.load_dialect(DialectSet::IRULES);
+        self.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
     }
 
     /// Load BPF-Tcl dialect commands (convenience wrapper).
     pub fn load_bpf(&mut self) {
-        self.load_dialect(DialectSet::BPF);
+        self.load_surface(SurfaceLayer::Package("bpf"));
     }
 
     /// Whether this registry's dialect reads a bare leading-zero integer
@@ -872,10 +876,10 @@ impl CommandRegistry {
     /// TIP 114 lands in tcl9.0 and stays in tcl9.1 (and any later 9.x), so the
     /// decimal rule applies to *every* Tcl 9 dialect, not tcl9.0 alone. The
     /// per-dialect registry built by `registry_for_dialect` records its Tcl
-    /// version via [`Self::load_dialect`], so a registry whose `loaded_dialects`
-    /// intersects [`DialectSet::TCL90_PLUS`] (tcl9.0, tcl9.1, …) is decimal;
-    /// every other dialect (8.4/8.5/8.6 and the F5/EDA registries, which never
-    /// load a Tcl-9 version bit) reads leading zeros as octal.
+    /// version via [`Self::load_surface`], so a registry whose
+    /// `loaded_layers` names a 9.x core release (tcl9.0, tcl9.1, …) is
+    /// decimal; every other dialect (8.4/8.5/8.6 and the F5/EDA registries,
+    /// which never load a Tcl-9 release row) reads leading zeros as octal.
     #[must_use]
     pub fn leading_zero_is_octal(&self) -> bool {
         self.octal_fold_policy().unwrap_or(true)
@@ -915,13 +919,13 @@ impl CommandRegistry {
     /// included, D7), `None` = abstain — no Tcl runtime to have an opinion
     /// (`f5-bigip`, the unknown-dialect fallback; §11.1 of the
     /// dialect-profile model). A hand-assembled registry keeps the
-    /// historical `loaded_dialects` derivation (a version pack records its
-    /// bit, so a 9.x load reads decimal).
+    /// historical `loaded_layers` derivation (a version pack records its
+    /// release, so a 9.x load reads decimal).
     #[must_use]
     pub fn octal_fold_policy(&self) -> Option<bool> {
         match self.profile {
             Some(p) => p.leading_zero_is_octal.as_bool(),
-            None => Some(!self.loaded_dialects.intersects(DialectSet::TCL90_PLUS)),
+            None => Some(!self.loaded_core_is_tcl9()),
         }
     }
 
@@ -939,10 +943,9 @@ impl CommandRegistry {
         self.profile
     }
 
-    /// The availability mask a consumer resolves hooks and calls against
-    /// when honouring **this registry's own** dialect: the attached
-    /// profile's [`availability_mask`](tcl_dialect::DialectProfile::availability_mask),
-    /// or the empty (dialect-blind) mask for a profile-less registry.
+    /// The point a consumer resolves hooks and calls at when honouring
+    /// **this registry's own** dialect: the attached profile's, or `None`
+    /// — surface-blind — for a profile-less registry.
     ///
     /// This is what lets a version-pinned compile pipeline (issues
     /// #1462/#1463) suppress a structured lowering or codegen hook for a
@@ -950,9 +953,17 @@ impl CommandRegistry {
     /// registry resolves to no spec, so the call reaches the runtime's
     /// availability gate as a generic dispatch instead of being inlined.
     #[must_use]
-    pub fn own_availability_mask(&self) -> DialectSet {
-        self.profile
-            .map_or_else(DialectSet::empty, |p| p.availability_mask)
+    pub fn own_surface_query(&self) -> Option<SurfaceQuery<'static>> {
+        self.profile.map(DialectProfile::surface_query)
+    }
+
+    /// Whether a loaded core layer is a Tcl 9.x release — the derivation a
+    /// profile-less registry falls back to for the octal question.
+    fn loaded_core_is_tcl9(&self) -> bool {
+        self.loaded_layers.iter().any(|layer| {
+            matches!(layer, SurfaceLayer::Core(Family::Tcl, release)
+                if version_satisfies(release, "9.0-"))
+        })
     }
 
     /// Insert an owned command spec, **leaking it** for the process lifetime.
@@ -1025,6 +1036,18 @@ impl CommandRegistry {
             .max_by(|a, b| crate::version::compare(a, b))
     }
 
+    /// Every `(package, declared floor)` row loaded packs registered with
+    /// `ambient_package`, in registration order. The enumeration face of
+    /// [`Self::is_ambient_package`] / [`Self::ambient_package_floor`], for
+    /// the model layer's context assembly
+    /// ([`crate::model::assembly::ContextRegistry`]) — the resolved context
+    /// carries these rows so pack-ambient floors answer from the context
+    /// rather than from a live registry borrow.
+    #[must_use]
+    pub fn ambient_package_rows(&self) -> &[(&'static str, &'static str)] {
+        &self.ambient_packages
+    }
+
     /// Whether `name` exists as a command in *any* dialect, independent of
     /// which dialects this registry instance loaded.
     ///
@@ -1047,8 +1070,13 @@ impl CommandRegistry {
     /// A leading `::` (global qualifier) falls back to the bare name, so an
     /// explicitly-global call to a built-in (`::foreach`, `::for`, …)
     /// resolves to the same spec as its unqualified form.
+    ///
+    /// The return is `&'static` because the registry stores only interned
+    /// static specs — the identity [`crate::model::SpecKey`] keys the realm
+    /// binding layer by (P1a); the P2 generation work re-keys dynamic pack
+    /// specs when non-`'static` specs join.
     #[must_use]
-    pub fn get(&self, name: &str) -> Option<&CommandSpec> {
+    pub fn get(&self, name: &str) -> Option<&'static CommandSpec> {
         self.by_name
             .get(name)
             .or_else(|| {
@@ -1061,7 +1089,7 @@ impl CommandRegistry {
     /// Exact spelling lookup; unlike [`Self::get`], does not apply rooted
     /// global-name fallback.
     #[must_use]
-    pub fn get_exact(&self, name: &str) -> Option<&CommandSpec> {
+    pub fn get_exact(&self, name: &str) -> Option<&'static CommandSpec> {
         self.by_name.get(name).and_then(|v| v.last().copied())
     }
 
@@ -1154,12 +1182,15 @@ impl CommandRegistry {
     ///
     /// A registry built for a dialect profile additionally applies that
     /// profile's operator-head exclusion ([`Self::spec_visible`]) whenever
-    /// the queried mask concerns the profile's own availability — so a
-    /// bare `IRULES` mask query on the f5-irules registry sees exactly the
-    /// specs that carry the `IRULES` bit, no matter which consumer asks
-    /// (dialect-profile-model.md §9.2).
+    /// the query is about the profile's own surface — so an f5-irules query
+    /// on the f5-irules registry sees exactly the specs iRules ships, no
+    /// matter which consumer asks (dialect-profile-model.md §9.2).
     #[must_use]
-    pub fn get_for_dialect(&self, name: &str, dialect: DialectSet) -> Option<&CommandSpec> {
+    pub fn get_for_surface(
+        &self,
+        name: &str,
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Option<&'static CommandSpec> {
         self.by_name
             .get(name)
             .or_else(|| {
@@ -1170,7 +1201,7 @@ impl CommandRegistry {
     }
 
     /// Resolve `head` the way this registry's own availability rules
-    /// resolve it: through [`Self::get_for_dialect`] against the dialect
+    /// resolve it: through [`Self::get_for_surface`] against the dialect
     /// profile this registry was built for, or through the dialect-agnostic
     /// [`Self::get`] when it has no profile.
     ///
@@ -1180,7 +1211,7 @@ impl CommandRegistry {
     /// dialect does not have.
     fn spec_for_this_registry(&self, head: &str) -> Option<&CommandSpec> {
         match self.profile {
-            Some(profile) => self.get_for_dialect(head, profile.availability_mask),
+            Some(profile) => self.get_for_surface(head, Some(profile.surface_query())),
             None => self.get(head),
         }
     }
@@ -1215,9 +1246,9 @@ impl CommandRegistry {
     /// matched `"my" | "::my"` by hand), matching [`Self::get`].
     ///
     /// Dialect-aware through the registry instance itself: a registry built
-    /// by `registry_for_dialect` / `registry_for_profile` answers under that
-    /// profile's availability mask, so all four keywords — every one of them
-    /// `TCL86_PLUS` — return `None` from a `tcl8.4` or `tcl8.5` registry. A
+    /// by `registry_for_dialect` / `registry_for_profile` answers at that
+    /// profile's point, so all four keywords — every one of them 8.6-and-
+    /// later — return `None` from a `tcl8.4` or `tcl8.5` registry. A
     /// profile-less registry (`CommandRegistry::build_default`) answers
     /// dialect-agnostically, exactly as [`Self::get`] does.
     ///
@@ -1283,9 +1314,9 @@ impl CommandRegistry {
     /// knows *where* it is, and neither needs the other's command names.
     ///
     /// Dialect-aware exactly like [`Self::method_dispatch_keyword`]: a
-    /// registry built for a profile answers under that profile's
-    /// availability mask, so a `tcl8.4` registry — which has no `TclOO` at
-    /// all — answers `false` for every one of them.
+    /// registry built for a profile answers at that profile's point, so a
+    /// `tcl8.4` registry — which has no `TclOO` at all — answers `false`
+    /// for every one of them.
     ///
     /// A qualified spelling (`oo::Helpers::link`, `::oo::Helpers::link`) is
     /// a separate, unscoped spec, so it answers `false`: the command really
@@ -1492,16 +1523,16 @@ impl CommandRegistry {
 
     /// The single spec-selection rule (§5.3, D6): among the specs of one
     /// name visible under `dialect`, pick the **most specific** — a
-    /// dialect-scoped spec beats a catch-all (`dialects: None`), a tighter
-    /// scope (fewer mask bits) beats a wider one, and among equals the
+    /// dialect-scoped spec beats a catch-all (`surface: None`), a narrower
+    /// surface beats a wider one, and among equals the
     /// *last-registered* spec wins, so curated pack overrides keep beating
-    /// the data they shadow. `get_for_dialect`, the iRules event
+    /// the data they shadow. `get_for_surface`, the iRules event
     /// cross-product, and (via `ProfileQueries::resolve_command`) the CLI
     /// snapshot all resolve through this one rule.
     fn best_visible(
         &self,
         specs: &[&'static CommandSpec],
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<&'static CommandSpec> {
         specs
             .iter()
@@ -1509,44 +1540,61 @@ impl CommandRegistry {
             .filter(|(_, s)| self.spec_visible(s, dialect))
             .max_by_key(|&(index, s)| {
                 let scope_tightness =
-                    std::cmp::Reverse(s.dialects.map_or(u32::MAX, |d| d.bits().count_ones()));
-                (s.dialects.is_some(), scope_tightness, index)
+                    std::cmp::Reverse(s.surface.map_or(u32::MAX, surface_breadth));
+                (s.surface.is_some(), scope_tightness, index)
             })
             .map(|(_, s)| *s)
     }
 
-    /// The full availability test for a mask query on this registry: the
-    /// spec's own dialect gate, plus — when this registry was built for a
-    /// profile and the query concerns that profile's availability — the
+    /// Whether `spec` is visible to any of `providers` — the coarse,
+    /// version-blind twin of [`Self::spec_visible`] the static grammars use.
+    ///
+    /// First-paint highlighting has no resolved release to ask about, so it
+    /// asks which providers the profile's language spans. The operator-head
+    /// exclusion still applies: math operators are not command heads under
+    /// iRules at any release.
+    #[must_use]
+    pub fn spec_visible_to(&self, spec: &CommandSpec, providers: &[SpecProvider]) -> bool {
+        spec.surface
+            .is_none_or(|rows| surface_provided_by(rows, providers))
+            && self.profile.is_none_or(|profile| {
+                profile.operators_as_commands
+                    || !spec
+                        .traits
+                        .contains(crate::traits::Traits::OPERATOR_COMMAND)
+            })
+    }
+
+    /// The full availability test for a point query on this registry: the
+    /// spec's own surface gate, plus — when this registry was built for a
+    /// profile and the query is that profile's own point — the
     /// operator-command exclusion (§9), for a profile whose math operators
     /// are not command heads.
     ///
     /// There is no disable list: availability is fully explicit in each
-    /// spec's `dialects` group, so a sandbox-banned command such as `exec`
-    /// simply never carries the `IRULES` bit.
+    /// spec's surface rows, so a sandbox-banned command such as `exec`
+    /// simply never names the iRules family.
     ///
     /// Public because generators projecting a command surface for an
-    /// explicit mask (the Zed highlight queries project the profile's
-    /// `grammar_union`, not its `availability_mask`) need the same
-    /// exclusion semantics `get_for_dialect` applies internally.
+    /// explicit point need the same exclusion semantics `get_for_surface`
+    /// applies internally.
     #[must_use]
-    pub fn spec_visible(&self, spec: &CommandSpec, dialect: DialectSet) -> bool {
+    pub fn spec_visible(&self, spec: &CommandSpec, dialect: Option<SurfaceQuery<'_>>) -> bool {
         if !spec.supports_dialect(dialect) {
             return false;
         }
         let Some(profile) = self.profile else {
             return true;
         };
-        if !dialect.intersects(profile.availability_mask) {
-            // The query is about some other dialect's availability; this
+        if dialect.is_none_or(|query| query != profile.surface_query()) {
+            // The query is about some other surface's availability; this
             // profile's operator-exclusion does not apply to it.
             return true;
         }
-        // iRules availability is fully explicit in each spec's `dialects`
-        // now (a command carries the `IRULES` bit iff iRules enables it), so
-        // there is no subtractive ban list — the only remaining profile-level
-        // exclusion is the operator-command one (math operators are not
-        // command heads under iRules).
+        // iRules availability is stated positively by each spec, so there
+        // is no subtractive ban list — the only profile-level exclusion left
+        // is the operator-command one (math operators are not command heads
+        // under iRules).
         profile.operators_as_commands
             || !spec
                 .traits
@@ -1655,12 +1703,12 @@ impl CommandRegistry {
         self.instance_methods_at(
             class_name,
             None,
-            self.profile.map(|profile| profile.availability_mask),
+            self.profile.map(tcl_dialect::DialectProfile::surface_query),
         )
     }
 
     /// [`Self::instance_methods`] with a document-resolved floor for the
-    /// owning package and an explicit availability mask.
+    /// owning package and an explicit surface point.
     ///
     /// A request-time caller obtains `package_version` from its document's
     /// package-require facts for the class command, which can only raise the
@@ -1672,7 +1720,7 @@ impl CommandRegistry {
         &self,
         class_name: &str,
         package_version: Option<&str>,
-        dialect: Option<DialectSet>,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Vec<&'static SubCommand> {
         // FIFO so the walk is genuinely breadth-first and visits siblings in
         // declaration order — `Vec::pop` would make this a reversed-sibling
@@ -1697,11 +1745,9 @@ impl CommandRegistry {
             };
             let package_floor = self.package_floor_for_spec_at(class_spec, package_version);
             for candidate in class.instance_methods {
-                let method_dialects = candidate.dialects.or(class_spec.dialects);
+                let method_dialects = candidate.surface.or(class_spec.surface);
                 if !candidate.available_for_version(package_floor)
-                    || !method_dialects.is_none_or(|gate| {
-                        dialect.is_none_or(|requested| gate.intersects(requested))
-                    })
+                    || !method_dialects.is_none_or(|gate| surface_admits(gate, dialect.as_ref()))
                 {
                     continue;
                 }
@@ -1735,12 +1781,12 @@ impl CommandRegistry {
             class_name,
             method,
             None,
-            self.profile.map(|profile| profile.availability_mask),
+            self.profile.map(tcl_dialect::DialectProfile::surface_query),
         )
     }
 
     /// [`Self::instance_method`] with a document-resolved owning-package
-    /// floor and explicit availability mask. See [`Self::instance_methods_at`]
+    /// floor and explicit surface point. See [`Self::instance_methods_at`]
     /// for the two axes' composition.
     #[must_use]
     pub fn instance_method_at(
@@ -1748,7 +1794,7 @@ impl CommandRegistry {
         class_name: &str,
         method: &str,
         package_version: Option<&str>,
-        dialect: Option<DialectSet>,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<&crate::spec::SubCommand> {
         let visible_methods = self.instance_methods_at(class_name, package_version, dialect);
         let method_prefix_matching = self
@@ -1787,7 +1833,7 @@ impl CommandRegistry {
         class_name: &str,
         receiver: &'w str,
         args: &'w [&'w str],
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<ResolvedInvocation<'r, 'w>> {
         self.resolve_structured_instance_invocation(
             class_name,
@@ -1807,14 +1853,14 @@ impl CommandRegistry {
         &'r self,
         class_name: &str,
         words: InvocationWords<'w>,
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<ResolvedInvocation<'r, 'w>> {
         let arguments = words.arguments();
         let method_spelling = arguments.literal_at(0)?;
-        let class_spec = if dialect.is_empty() {
+        let class_spec = if dialect.is_none() {
             self.get(class_name)?
         } else {
-            self.get_for_dialect(class_name, dialect)?
+            self.get_for_surface(class_name, dialect)?
         };
         class_spec.object_class?;
         let method = self.instance_method(class_name, method_spelling)?;
@@ -1923,7 +1969,7 @@ impl CommandRegistry {
     /// in registration order. Empty when the name is unknown.
     ///
     /// This is the raw data view — resolution (which spec *wins* under a
-    /// dialect) goes through [`Self::get_for_dialect`]'s most-specific
+    /// dialect) goes through [`Self::get_for_surface`]'s most-specific
     /// rule.
     #[must_use]
     pub fn specs(&self, name: &str) -> &[&'static CommandSpec] {
@@ -1997,8 +2043,9 @@ impl CommandRegistry {
             .iter()
             .filter_map(|(name, specs)| {
                 // Best spec for the dialect — the §5.3 most-specific rule,
-                // matching `get_for_dialect`.
-                let spec = self.best_visible(specs, DialectSet::IRULES)?;
+                // matching `get_for_surface`.
+                let spec =
+                    self.best_visible(specs, Some(SurfaceQuery::any_release(Family::F5Irules)))?;
                 if !version_ok(spec) {
                     return None;
                 }
@@ -2055,7 +2102,9 @@ impl CommandRegistry {
         let Some(props) = events.get_props(event) else {
             return false;
         };
-        let Some(spec) = self.get_for_dialect(command, DialectSet::IRULES) else {
+        let Some(spec) =
+            self.get_for_surface(command, Some(SurfaceQuery::any_release(Family::F5Irules)))
+        else {
             return false;
         };
         if spec.excluded_events.contains(&event) {
@@ -2171,9 +2220,9 @@ impl CommandRegistry {
     pub fn defines_symbol(
         &self,
         name: &str,
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<&crate::symbol_def::SymbolDef> {
-        self.get_for_dialect(name, dialect)
+        self.get_for_surface(name, dialect)
             .and_then(|s| s.defines_symbol.as_ref())
     }
 
@@ -2362,7 +2411,12 @@ impl CommandRegistry {
     /// [`crate::spec::SubCommand::traits`] documents. An unknown command
     /// carries no linkage — a user proc named `source` is a user proc.
     #[must_use]
-    pub fn unit_linkage(&self, name: &str, args: &[&str], dialect: DialectSet) -> Traits {
+    pub fn unit_linkage(
+        &self,
+        name: &str,
+        args: &[&str],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Traits {
         self.invocation_traits(name, args, dialect)
             .intersection(crate::traits::UNIT_LINKAGE_TRAITS)
     }
@@ -2375,18 +2429,23 @@ impl CommandRegistry {
     /// subcommand's traits are *additive* over its parent's, so a consumer
     /// asking a trait question about a compound command must compose them.
     /// `namespace eval` / `namespace inscope` / `interp eval` carry the
-    /// eval-family bits ([`Traits::EVALUATES_CODE`],
+    /// eval-family traits ([`Traits::EVALUATES_CODE`],
     /// [`Traits::SCRIPT_CONCATENATES_ARGS`]) on the **subcommand**, not on
     /// the `namespace` / `interp` spec, so a parent-only trait test silently
     /// misses them.
     ///
     /// Resolved through [`Self::resolve_call`], so the subcommand word is
-    /// honoured; pass [`DialectSet::empty`] to skip dialect gating (the
-    /// plain [`Self::get`] lookup) when the question is "what shape is this
+    /// honoured; pass `None` to skip dialect gating (the plain
+    /// [`Self::get`] lookup) when the question is "what shape is this
     /// command" rather than "is it available here". An unknown command
     /// carries no traits.
     #[must_use]
-    pub fn invocation_traits(&self, name: &str, args: &[&str], dialect: DialectSet) -> Traits {
+    pub fn invocation_traits(
+        &self,
+        name: &str,
+        args: &[&str],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Traits {
         let Some(resolved) = self.resolve_call(name, args, dialect) else {
             return Traits::empty();
         };
@@ -2412,13 +2471,13 @@ impl CommandRegistry {
         name: &str,
         args: &[&str],
         index: usize,
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<crate::hover::ScriptTiming> {
         let resolved = self.resolve_invocation(name, args, dialect)?;
-        let spec = if dialect.is_empty() {
+        let spec = if dialect.is_none() {
             self.get(resolved.canonical_command)?
         } else {
-            self.get_for_dialect(resolved.canonical_command, dialect)?
+            self.get_for_surface(resolved.canonical_command, dialect)?
         };
         let sub = resolved
             .subcommand
@@ -2477,15 +2536,15 @@ impl CommandRegistry {
         name: &str,
         args: &[&str],
         index: usize,
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> &'static [CallbackTaintInput] {
         let Some(resolved) = self.resolve_invocation(name, args, dialect) else {
             return &[];
         };
-        let Some(spec) = (if dialect.is_empty() {
+        let Some(spec) = (if dialect.is_none() {
             self.get(resolved.canonical_command)
         } else {
-            self.get_for_dialect(resolved.canonical_command, dialect)
+            self.get_for_surface(resolved.canonical_command, dialect)
         }) else {
             return &[];
         };
@@ -2540,7 +2599,7 @@ impl CommandRegistry {
         receiver: &str,
         args: &[&str],
         index: usize,
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> &'static [CallbackTaintInput] {
         let Some(resolved) = self.resolve_instance_invocation(class_name, receiver, args, dialect)
         else {
@@ -2561,10 +2620,10 @@ impl CommandRegistry {
             .traits
             .contains(Traits::CONFIGURES_INSTANCE_OPTIONS)
         {
-            let class_spec = if dialect.is_empty() {
+            let class_spec = if dialect.is_none() {
                 self.get(class_name)
             } else {
-                self.get_for_dialect(class_name, dialect)
+                self.get_for_surface(class_name, dialect)
             };
             let Some(class_spec) = class_spec else {
                 return &[];
@@ -2619,7 +2678,7 @@ impl CommandRegistry {
         name: &str,
         args: &[&str],
         index: usize,
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<crate::hover::VariableScope> {
         let resolved = self.resolve_call(name, args, dialect)?;
         let (options, scan_start) = resolved
@@ -2639,7 +2698,7 @@ impl CommandRegistry {
         body_index: usize,
     ) -> Option<ControlArmSemantics> {
         use crate::hooks::LoweringHookId;
-        let resolved = self.resolve_call(name, args, DialectSet::empty())?;
+        let resolved = self.resolve_call(name, args, None)?;
         match resolved.lowering_hook? {
             LoweringHookId::If => {
                 if (resolved.spec.clause_shape_check?)(args).is_some() {
@@ -2696,7 +2755,7 @@ impl CommandRegistry {
         &self,
         name: &str,
         args: &[&str],
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<bool> {
         use crate::hooks::LoweringHookId;
         let resolved = self.resolve_call(name, args, dialect)?;
@@ -2725,17 +2784,22 @@ impl CommandRegistry {
         &self,
         name: &str,
         args: &[&str],
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<(crate::spec::CaseListSpec, crate::spec::CaseInvocation)> {
         let resolved = self.resolve_call(name, args, dialect)?;
         let case = resolved.spec.case_list?;
         let options = self.profile().map_or_else(
-            || resolved.spec.option_specs(Some(dialect)),
-            |profile| crate::ProfileQueries::available_option_specs(profile, resolved.spec),
+            || resolved.spec.option_specs(dialect),
+            |profile| {
+                crate::profile_queries::ProfileQueries::available_option_specs(
+                    profile,
+                    resolved.spec,
+                )
+            },
         );
         let effective_dialect = self
             .profile()
-            .map_or(dialect, |profile| profile.availability_mask);
+            .map_or(dialect, |profile| Some(profile.surface_query()));
         Some((*case, case.invocation(args, &options, effective_dialect)?))
     }
 
@@ -2746,7 +2810,7 @@ impl CommandRegistry {
         &self,
         name: &str,
         args: &[&str],
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> InvocationCompletion {
         use crate::hooks::LoweringHookId;
         let Some(resolved) = self.resolve_call(name, args, dialect) else {
@@ -2847,7 +2911,7 @@ impl CommandRegistry {
         &self,
         name: &str,
         args: &[&str],
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<ExactInvocationCompletion> {
         self.exact_invocation_completion_words(
             name,
@@ -2864,7 +2928,7 @@ impl CommandRegistry {
         &self,
         name: &str,
         args: crate::invocation_words::InvocationArguments<'_>,
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<ExactInvocationCompletion> {
         // An expansion can alter the final argv shape.  A descriptor for a
         // well-formed call (notably `exit`) must not override that unknown
@@ -2944,7 +3008,7 @@ impl CommandRegistry {
         &self,
         name: &str,
         args: crate::invocation_words::InvocationArguments<'_>,
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<InvocationCompletionKnowledge> {
         if let Some(exact) = self.exact_invocation_completion_words(name, args, dialect) {
             return Some(InvocationCompletionKnowledge::Exact(exact));
@@ -3116,7 +3180,9 @@ impl CommandRegistry {
             Some(crate::events::IrulesTopLevelEffect::Priority) => {
                 let [value] = args else { return None };
                 let value = value.parse::<u16>().ok()?;
-                (value <= 1000).then_some(Declaration::Priority { value })
+                crate::events::BIGIP_EVENT_HANDLER_PRIORITY
+                    .accepts(value)
+                    .then_some(Declaration::Priority { value })
             }
             Some(crate::events::IrulesTopLevelEffect::Timing) => {
                 let [value] = args else { return None };
@@ -3159,20 +3225,18 @@ impl CommandRegistry {
         let (body_index, priority) = match args {
             [_, _] => (1, None),
             [_, "priority", value, _] => {
-                let priority = value
-                    .parse::<u16>()
-                    .ok()
-                    .filter(|priority| *priority <= 1000)?;
+                let priority = value.parse::<u16>().ok().filter(|priority| {
+                    crate::events::BIGIP_EVENT_HANDLER_PRIORITY.accepts(*priority)
+                })?;
                 (3, Some(priority))
             }
             [_, "timing", value, _] => {
                 matches!(*value, "on" | "off" | "enable" | "disable").then_some((3, None))?
             }
             [_, "priority", priority, "timing", timing, _] => {
-                let priority = priority
-                    .parse::<u16>()
-                    .ok()
-                    .filter(|priority| *priority <= 1000)?;
+                let priority = priority.parse::<u16>().ok().filter(|priority| {
+                    crate::events::BIGIP_EVENT_HANDLER_PRIORITY.accepts(*priority)
+                })?;
                 matches!(*timing, "on" | "off" | "enable" | "disable")
                     .then_some((5, Some(priority)))?
             }
@@ -3481,43 +3545,15 @@ impl CommandRegistry {
     /// (`namespace upvar`'s leading namespace word) and still declare the
     /// repeating pair tail.
     ///
-    /// A per-argument row a pack gated with a lifecycle is honoured only by
-    /// [`Self::arg_indices_for_role_at`]; this form answers at no floor, which
-    /// is the permissive reading every other lifecycle query gives an
-    /// unresolved version.
-    ///
     /// [`RepeatedArgLayout`]: crate::repeated::RepeatedArgLayout
     #[must_use]
     pub fn arg_indices_for_role(&self, name: &str, args: &[&str], role: ArgRole) -> Vec<usize> {
-        self.arg_indices_for_role_at(name, args, role, None)
-    }
-
-    /// [`Self::arg_indices_for_role`] at a resolved package floor
-    /// (issue #1644).
-    ///
-    /// The static role table is the projection of the command's authored
-    /// per-argument rows, so an argument a later release introduced is not
-    /// role-typed at an older floor — the role half of the same gate
-    /// `available_arg_values_at` applies to enumerable values. Only the static
-    /// table moves: an `arg_role_resolver` is authored code rather than rows,
-    /// and repeated tails and option-value roles carry no lifecycle of their
-    /// own.
-    ///
-    /// `None` is permissive, exactly as for the unversioned form.
-    #[must_use]
-    pub fn arg_indices_for_role_at(
-        &self,
-        name: &str,
-        args: &[&str],
-        role: ArgRole,
-        package_version: Option<&str>,
-    ) -> Vec<usize> {
         // `CommandPrefix` positions (with their appended arities) are owned by
         // [`Self::command_prefixes`]; delegate so highlighting, param-trait
         // inference, and the call-reference extractor all read one source.
         if role == ArgRole::CommandPrefix {
             return self
-                .command_prefixes_at(name, args, package_version)
+                .command_prefixes(name, args)
                 .into_iter()
                 .map(|(i, _)| i)
                 .collect();
@@ -3529,7 +3565,7 @@ impl CommandRegistry {
         let mut out: Vec<usize> = Vec::new();
         let case_body_roles_allowed = spec.case_list.is_none()
             || self
-                .case_invocation(name, args, self.own_availability_mask())
+                .case_invocation(name, args, self.own_surface_query())
                 .is_some();
 
         // Check subcommand (exact or unique-prefix abbreviation).
@@ -3547,8 +3583,7 @@ impl CommandRegistry {
                 );
             } else {
                 out.extend(
-                    sub.arg_tables_at(package_version)
-                        .roles()
+                    sub.arg_roles
                         .iter()
                         .filter(|(_, r)| *r == role)
                         .map(|(i, _)| *i as usize + 1),
@@ -3586,8 +3621,7 @@ impl CommandRegistry {
             );
         } else {
             out.extend(
-                spec.arg_tables_at(package_version)
-                    .roles()
+                spec.arg_roles
                     .iter()
                     .filter(|(_, r)| {
                         *r == role && (role != ArgRole::Body || case_body_roles_allowed)
@@ -3615,7 +3649,7 @@ impl CommandRegistry {
         spec: &CommandSpec,
         sub: Option<&SubCommand>,
         args: InvocationArguments<'_>,
-        effective_dialect: DialectSet,
+        effective_dialect: Option<SurfaceQuery<'_>>,
     ) -> bool {
         if !args.has_exact_argv_len() {
             return false;
@@ -3640,20 +3674,23 @@ impl CommandRegistry {
                     sub.options
                         .iter()
                         .filter(|option| {
-                            option.supports_dialect(
-                                (!effective_dialect.is_empty()).then_some(effective_dialect),
-                                sub.dialects.or(spec.dialects),
-                            )
+                            option.supports_dialect(effective_dialect, sub.surface.or(spec.surface))
                         })
                         .collect()
                 },
-                |profile| crate::ProfileQueries::available_sub_option_specs(profile, spec, sub),
+                |profile| {
+                    crate::profile_queries::ProfileQueries::available_sub_option_specs(
+                        profile, spec, sub,
+                    )
+                },
             );
             (options, args.slice_from(1), sub.prefix_matching, 0)
         } else {
             let options = self.profile().map_or_else(
-                || spec.option_specs((!effective_dialect.is_empty()).then_some(effective_dialect)),
-                |profile| crate::ProfileQueries::available_option_specs(profile, spec),
+                || spec.option_specs(effective_dialect),
+                |profile| {
+                    crate::profile_queries::ProfileQueries::available_option_specs(profile, spec)
+                },
             );
             (
                 options,
@@ -3757,7 +3794,7 @@ impl CommandRegistry {
         name: &str,
         args: InvocationArguments<'_>,
     ) -> Vec<FormatStringArg> {
-        self.format_string_args_words_for_dialect(name, args, self.own_availability_mask())
+        self.format_string_args_words_for_dialect(name, args, self.own_surface_query())
     }
 
     /// Dialect-explicit counterpart to [`Self::format_string_args_words`].
@@ -3766,15 +3803,15 @@ impl CommandRegistry {
         &self,
         name: &str,
         args: InvocationArguments<'_>,
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Vec<FormatStringArg> {
         let effective_dialect = self
             .profile()
-            .map_or(dialect, |profile| profile.availability_mask);
-        let spec = if effective_dialect.is_empty() {
+            .map_or(dialect, |profile| Some(profile.surface_query()));
+        let spec = if effective_dialect.is_none() {
             self.get(name)
         } else {
-            self.get_for_dialect(name, effective_dialect)
+            self.get_for_surface(name, effective_dialect)
         };
         let Some(spec) = spec else {
             return Vec::new();
@@ -3817,7 +3854,7 @@ impl CommandRegistry {
     /// branches of their own.
     #[must_use]
     pub fn pattern_args(&self, name: &str, args: &[&str]) -> Vec<crate::patterns::PatternArg> {
-        self.pattern_args_for_dialect(name, args, self.own_availability_mask())
+        self.pattern_args_for_dialect(name, args, self.own_surface_query())
     }
 
     /// Dialect-explicit counterpart to [`Self::pattern_args`].
@@ -3831,23 +3868,25 @@ impl CommandRegistry {
         &self,
         name: &str,
         args: &[&str],
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Vec<crate::patterns::PatternArg> {
         let effective_dialect = self
             .profile()
-            .map_or(dialect, |profile| profile.availability_mask);
-        let spec = if effective_dialect.is_empty() {
+            .map_or(dialect, |profile| Some(profile.surface_query()));
+        let spec = if effective_dialect.is_none() {
             self.get(name)
         } else {
-            self.get_for_dialect(name, effective_dialect)
+            self.get_for_surface(name, effective_dialect)
         };
         let Some(spec) = spec else {
             return Vec::new();
         };
         if let Some(resolve) = spec.pattern_arg_resolver {
             let options = self.profile().map_or_else(
-                || spec.option_specs((!effective_dialect.is_empty()).then_some(effective_dialect)),
-                |profile| crate::ProfileQueries::available_option_specs(profile, spec),
+                || spec.option_specs(effective_dialect),
+                |profile| {
+                    crate::profile_queries::ProfileQueries::available_option_specs(profile, spec)
+                },
             );
             return resolve(
                 args,
@@ -3883,7 +3922,7 @@ impl CommandRegistry {
         name: &str,
         args: InvocationArguments<'_>,
     ) -> Vec<crate::patterns::PatternArg> {
-        self.pattern_args_words_for_dialect(name, args, self.own_availability_mask())
+        self.pattern_args_words_for_dialect(name, args, self.own_surface_query())
     }
 
     /// Dialect-explicit counterpart to [`Self::pattern_args_words`].
@@ -3892,15 +3931,15 @@ impl CommandRegistry {
         &self,
         name: &str,
         args: InvocationArguments<'_>,
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Vec<crate::patterns::PatternArg> {
         let effective_dialect = self
             .profile()
-            .map_or(dialect, |profile| profile.availability_mask);
-        let spec = if effective_dialect.is_empty() {
+            .map_or(dialect, |profile| Some(profile.surface_query()));
+        let spec = if effective_dialect.is_none() {
             self.get(name)
         } else {
-            self.get_for_dialect(name, effective_dialect)
+            self.get_for_surface(name, effective_dialect)
         };
         let Some(spec) = spec else {
             return Vec::new();
@@ -4076,43 +4115,9 @@ impl CommandRegistry {
     /// call-graph recording, and the callback-arity check.
     ///
     /// For subcommand-based commands pass the subcommand as `args[0]`.
-    ///
-    /// A per-argument row a pack gated with a lifecycle is honoured only by
-    /// [`Self::command_prefixes_at`]; this form answers at no floor, the
-    /// permissive reading every other lifecycle query gives an unresolved
-    /// version.
     #[must_use]
     pub fn command_prefixes(&self, name: &str, args: &[&str]) -> Vec<(usize, AppendedArity)> {
-        self.command_prefixes_at(name, args, None)
-    }
-
-    /// [`Self::command_prefixes`] at a resolved package floor (issue #1644,
-    /// PR #1674 review).
-    ///
-    /// A `-appends` row *is* a per-argument row — the loader gives it
-    /// [`ArgRole::CommandPrefix`] as its role — so a prefix position a later
-    /// release introduced must vanish at an older floor, both from the role
-    /// list and from the appended arity the callback-arity check reads. The
-    /// role query delegates here rather than filtering afterwards, so the
-    /// position and its arity can never disagree about which release they
-    /// belong to.
-    ///
-    /// Only the static table moves: a `command_prefix_resolver` is authored
-    /// code rather than rows, and an option-declared prefix carries the
-    /// option's own lifecycle, which `push_command_prefix_options` already
-    /// respects.
-    #[must_use]
-    pub fn command_prefixes_at(
-        &self,
-        name: &str,
-        args: &[&str],
-        package_version: Option<&str>,
-    ) -> Vec<(usize, AppendedArity)> {
-        self.command_prefixes_with_arguments(
-            name,
-            CommandPrefixArguments::literals(args),
-            package_version,
-        )
+        self.command_prefixes_with_arguments(name, CommandPrefixArguments::literals(args))
     }
 
     /// Source-aware command-prefix resolution.
@@ -4130,14 +4135,13 @@ impl CommandRegistry {
         let Some(arguments) = CommandPrefixArguments::structured(spellings, words) else {
             return Vec::new();
         };
-        self.command_prefixes_with_arguments(name, arguments, None)
+        self.command_prefixes_with_arguments(name, arguments)
     }
 
     fn command_prefixes_with_arguments(
         &self,
         name: &str,
         args: CommandPrefixArguments<'_>,
-        package_version: Option<&str>,
     ) -> Vec<(usize, AppendedArity)> {
         let Some(spec) = self.get(name) else {
             return Vec::new();
@@ -4158,8 +4162,7 @@ impl CommandRegistry {
                 );
             } else {
                 out.extend(
-                    sub.arg_tables_at(package_version)
-                        .prefixes()
+                    sub.command_prefixes
                         .iter()
                         .map(|(i, a)| (*i as usize + 1, *a)),
                 );
@@ -4172,12 +4175,7 @@ impl CommandRegistry {
         if let Some(resolver) = spec.command_prefix_resolver {
             out.extend(resolver(args).into_iter().map(|(i, a)| (i as usize, a)));
         } else {
-            out.extend(
-                spec.arg_tables_at(package_version)
-                    .prefixes()
-                    .iter()
-                    .map(|(i, a)| (*i as usize, *a)),
-            );
+            out.extend(spec.command_prefixes.iter().map(|(i, a)| (*i as usize, *a)));
         }
         push_command_prefix_options(&mut out, spec.options, args.spellings(), 0);
         out.retain(|&(idx, _)| idx < n);
@@ -4199,7 +4197,7 @@ impl CommandRegistry {
         &'r self,
         name: &'w str,
         args: &'w [&'w str],
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<ResolvedInvocation<'r, 'w>> {
         self.resolve_structured_invocation(InvocationWords::literals(name, args), dialect)
             .resolved()
@@ -4221,7 +4219,7 @@ impl CommandRegistry {
     pub fn resolve_structured_invocation<'r, 'w>(
         &'r self,
         words: InvocationWords<'w>,
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> StructuredInvocationResolution<'r, 'w> {
         let Some(name) = words.head_literal() else {
             return StructuredInvocationResolution::from_unresolved(
@@ -4230,10 +4228,10 @@ impl CommandRegistry {
                 },
             );
         };
-        let spec = if dialect.is_empty() {
+        let spec = if dialect.is_none() {
             self.get(name)
         } else {
-            self.get_for_dialect(name, dialect)
+            self.get_for_surface(name, dialect)
         };
         let Some(spec) = spec else {
             return StructuredInvocationResolution::from_unresolved(
@@ -4270,7 +4268,7 @@ impl CommandRegistry {
         &'r self,
         name: &str,
         args: &[&str],
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<ResolvedCall<'r>> {
         let selection = self.resolve_legacy_call_selection(name, args, dialect)?;
         let spec = selection.spec;
@@ -4325,12 +4323,12 @@ impl CommandRegistry {
         &'r self,
         name: &str,
         args: &[&str],
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<InvocationSelection<'r>> {
-        let spec = if dialect.is_empty() {
+        let spec = if dialect.is_none() {
             self.get(name)?
         } else {
-            self.get_for_dialect(name, dialect)?
+            self.get_for_surface(name, dialect)?
         };
 
         if !spec.subcommands.is_empty()
@@ -4386,12 +4384,12 @@ impl CommandRegistry {
         &self,
         name: &str,
         args: &[&str],
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<ResolvedTerminator> {
-        let spec = if dialect.is_empty() {
+        let spec = if dialect.is_none() {
             self.get(name)?
         } else {
-            self.get_for_dialect(name, dialect)?
+            self.get_for_surface(name, dialect)?
         };
 
         // Subcommand-scoped first. Resolve the subcommand word the same way
@@ -4399,7 +4397,7 @@ impl CommandRegistry {
         // (`string le` ⇒ `length`) — so an abbreviated subcommand keeps its
         // `--` terminator profile, matching `arg_indices_for_role`.
         if let Some(first) = args.first()
-            && let Some(sub) = if dialect.is_empty() {
+            && let Some(sub) = if dialect.is_none() {
                 spec.resolve_subcommand(first)
             } else {
                 spec.resolve_subcommand_for_dialect(first, dialect)
@@ -4420,7 +4418,7 @@ impl CommandRegistry {
         if spec.options.iter().any(|o| o.name == "--") {
             let effective_dialect = self
                 .profile()
-                .map_or(dialect, |profile| profile.availability_mask);
+                .map_or(dialect, |profile| Some(profile.surface_query()));
             let reserved_trailing_words =
                 spec.case_list.map_or(spec.reserved_trailing_words, |case| {
                     case.option_scan_reserved_trailing_words(
@@ -4440,37 +4438,51 @@ impl CommandRegistry {
         None
     }
 
-    /// Resolve how a call mutates the interpreter's command table —
-    /// the [`CommandTableEffect`] stamped on the command spec, or on
-    /// the subcommand `first_arg` names (which wins), for the
-    /// mutators `proc` / `rename` / `interp alias`.
+    /// The **command-table transitions** one invocation establishes — the
+    /// one vocabulary for "this call changed the command table"
+    /// (centralisation ledger C8, redesign §11.2 D9).
     ///
-    /// `name` resolves through [`Self::get`], so the explicitly global
-    /// spellings answer identically to the bare ones — `::rename format
-    /// ::origfmt`, `::interp alias {} myfmt {} ::origfmt` and `::proc
-    /// ::greet {} {…}` all really do mutate the command table (tclsh 9.0.4
-    /// and 8.6.16, byte-identical; `namespace which -command ::rename` →
-    /// `::rename`).  Resolving only the bare spelling — as the retired
-    /// per-consumer literal matches (`cmd_name != "rename"`) did — made a
-    /// qualified mutator invisible to every binding consumer, the
-    /// false-negative class issue #1185 exists to close.  The subcommand
-    /// word must still match exactly (no prefix abbreviation), as those
-    /// matches also did.
+    /// Every consumer that models command-name bindings reads this: the
+    /// flow-sensitive lattice, the lowerer's alias table, the analyser's
+    /// rename / alias records, the realm scan, the taint walk. None of them
+    /// dispatches on a coarse effect word and re-destructures the argument
+    /// layout for itself any more — the layout lives with the registry
+    /// resolver, once, and a dynamic operand becomes a typed
+    /// [`TransitionSubject::Unknown`] or a domain widening rather than each
+    /// consumer's own `is_dynamic_word` test.
+    ///
+    /// Selection is the ordinary
+    /// [`Self::resolve_structured_invocation`] at **this registry's own
+    /// point**: command-table mutations are executable behaviour, so
+    /// they must use the profile-visible command surface. In particular,
+    /// iRules intentionally has no `rename` or `interp`, even though the
+    /// dialect-agnostic catalogue knows their Tcl specs. A profile-less
+    /// registry (`build_default`) answers dialect-agnostically, exactly as
+    /// [`Self::get`] does.
+    ///
+    /// Reusing that primitive means a **subcommand-shaped** mutator now
+    /// resolves by the ordinary ensemble rule rather than by exact
+    /// spelling, which is a deliberate behavioural change from the retired
+    /// `command_table_effect`: `interp ali {} a {} b` really does create an
+    /// alias in C Tcl (`interp` is an ensemble), and the retired resolver's
+    /// exact-word lookup made it invisible to every binding consumer.
+    /// `interp aliases` is its own subcommand and still states nothing.
+    ///
+    /// The explicitly global spellings answer
+    /// identically to the bare ones — `::rename format ::origfmt`,
+    /// `::interp alias {} myfmt {} ::origfmt` and `::proc ::greet {} {…}`
+    /// all really do mutate the command table (tclsh 9.0.4 and 8.6.16,
+    /// byte-identical; `namespace which -command ::rename` → `::rename`).
+    ///
+    /// [`TransitionSubject::Unknown`]: crate::TransitionSubject::Unknown
     #[must_use]
-    pub fn command_table_effect(
-        &self,
-        name: &str,
-        first_arg: Option<&str>,
-    ) -> Option<CommandTableEffect> {
-        // Command-table mutations are executable behaviour, so they must use
-        // this registry's profile-visible command surface. In particular,
-        // iRules intentionally has no `rename` or `interp`, even though the
-        // dialect-agnostic catalogue knows their Tcl specs.
-        let spec = self.spec_for_this_registry(name)?;
-        first_arg
-            .and_then(|word| spec.subcommand(word))
-            .and_then(|sub| sub.command_table_effect)
-            .or(spec.command_table_effect)
+    pub fn command_binding_transitions(&self, words: InvocationWords<'_>) -> StateTransitions {
+        let query = self.profile.map(DialectProfile::surface_query);
+        self.resolve_structured_invocation(words, query)
+            .resolved()
+            .map_or_else(StateTransitions::default, |invocation| {
+                invocation.state_transitions()
+            })
     }
 
     /// Whether `name` (or the compound key `"cmd sub"`) produces a
@@ -4718,11 +4730,11 @@ fn pick_form<'r>(
     forms: &'r [CommandForm],
     arguments: InvocationArguments<'_>,
     argument_offset: usize,
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) -> Option<&'r CommandForm> {
     let argument_count = arguments.exact_argv_len()?.checked_sub(argument_offset)?;
     let n = u16::try_from(argument_count).unwrap_or(u16::MAX);
-    let admits_dialect = |form: &CommandForm| !matches!(form.dialects, Some(d) if !dialect.is_empty() && !d.intersects(dialect));
+    let admits_dialect = |form: &CommandForm| !matches!(form.surface, Some(d) if dialect.is_some() && !surface_admits(d, dialect.as_ref()));
     // Resolve each selector word as its own Tcl keyword table. This matters
     // for nested operations: `tag c ...` is ambiguous between `cell` and
     // `configure` before a later word can be inspected, while `tag cell h`
@@ -4817,7 +4829,7 @@ fn pick_form<'r>(
 fn resolve_semantic_subcommand<'r, 'w>(
     spec: &'r CommandSpec,
     arguments: InvocationArguments<'w>,
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) -> (SubcommandResolution<'w>, Option<&'r SubCommand>) {
     if spec.subcommands.is_empty() || arguments.is_empty() {
         return (SubcommandResolution::NotApplicable, None);
@@ -4830,12 +4842,7 @@ fn resolve_semantic_subcommand<'r, 'w>(
         );
         return (SubcommandResolution::Indeterminate { word_kind }, None);
     };
-    let matched = spec.resolve_subcommand_word(
-        spelling,
-        (!dialect.is_empty()).then_some(dialect),
-        None,
-        None,
-    );
+    let matched = spec.resolve_subcommand_word(spelling, dialect, None, None);
     match matched {
         crate::abbrev::KeywordMatch::Unique(canonical_name) => {
             // `resolve_subcommand_word` builds its table from `spec` itself,
@@ -4865,7 +4872,7 @@ impl std::fmt::Debug for CommandRegistry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CommandRegistry")
             .field("commands", &self.by_name.len())
-            .field("loaded_dialects", &self.loaded_dialects)
+            .field("loaded_layers", &self.loaded_layers)
             .field("profile", &self.profile.map(|p| p.name))
             .field("ambient_packages", &self.ambient_packages)
             .finish()
@@ -4876,6 +4883,9 @@ impl std::fmt::Debug for CommandRegistry {
 mod tests {
     use super::CommandRegistry;
     use crate::forms::LiteralArgumentPrefix;
+    use tcl_dialect::model::SpecProvider;
+    use tcl_dialect::model::{Family, SpecSurface, SurfaceLayer, SurfaceQuery};
+    use tcl_dialect::surface;
 
     // -- ambient packages (issue #1627) -----------------------------------
 
@@ -4913,7 +4923,7 @@ mod tests {
 
     #[test]
     fn unfilled_trailing_roles_reports_the_optional_capture_variables() {
-        let reg = crate::registry_for_dialect("tcl8.6");
+        let reg = crate::model::ingress::static_context_for("tcl8.6").commands();
         // `catch {body}` leaves both `VarWrite` slots open.
         assert_eq!(
             reg.unfilled_trailing_roles("catch", &["{body}"]),
@@ -5030,37 +5040,46 @@ mod tests {
         // last-match rule would pick the catch-all:
         //   1. a TCL86-scoped spec (tightest),
         //   2. a wider TCL86|TCL90 spec,
-        //   3. a catch-all (`dialects: None`).
+        //   3. a catch-all (`surface: None`).
         let mut reg = CommandRegistry::build_default();
         reg.insert(CommandSpec {
             name: "d6_probe",
-            dialects: Some(DialectSet::TCL86),
+            surface: Some(SpecSurface::TCL86),
             ..CommandSpec::DEFAULT
         });
         reg.insert(CommandSpec {
             name: "d6_probe",
-            dialects: Some(DialectSet::TCL86.union(DialectSet::TCL90)),
+            surface: Some(surface![SpecSurface::core_in(
+                Family::Tcl,
+                &[("8.6", Some("9.1"))]
+            )]),
             ..CommandSpec::DEFAULT
         });
         reg.insert(CommandSpec {
             name: "d6_probe",
-            dialects: None,
+            surface: None,
             ..CommandSpec::DEFAULT
         });
 
         // Scoped beats catch-all, tighter beats wider — even though the
         // catch-all was registered last.
-        let under_86 = reg.get_for_dialect("d6_probe", DialectSet::TCL86);
-        assert_eq!(under_86.and_then(|s| s.dialects), Some(DialectSet::TCL86));
+        let under_86 =
+            reg.get_for_surface("d6_probe", Some(SurfaceQuery::core(Family::Tcl, "8.6")));
+        assert_eq!(under_86.and_then(|s| s.surface), Some(SpecSurface::TCL86));
         // Under 9.0 the tightest visible spec is the two-bit one.
-        let under_90 = reg.get_for_dialect("d6_probe", DialectSet::TCL90);
+        let under_90 =
+            reg.get_for_surface("d6_probe", Some(SurfaceQuery::core(Family::Tcl, "9.0")));
         assert_eq!(
-            under_90.and_then(|s| s.dialects),
-            Some(DialectSet::TCL86.union(DialectSet::TCL90))
+            under_90.and_then(|s| s.surface),
+            Some(surface![SpecSurface::core_in(
+                Family::Tcl,
+                &[("8.6", Some("9.1"))]
+            )])
         );
         // Where no scoped spec is visible, the catch-all still resolves.
-        let under_84 = reg.get_for_dialect("d6_probe", DialectSet::TCL84);
-        assert!(under_84.is_some_and(|s| s.dialects.is_none()));
+        let under_84 =
+            reg.get_for_surface("d6_probe", Some(SurfaceQuery::core(Family::Tcl, "8.4")));
+        assert!(under_84.is_some_and(|s| s.surface.is_none()));
     }
 
     #[test]
@@ -5071,18 +5090,18 @@ mod tests {
         let mut reg = CommandRegistry::build_default();
         reg.insert(CommandSpec {
             name: "d6_tie",
-            dialects: Some(DialectSet::TCL86),
+            surface: Some(SpecSurface::TCL86),
             arity: Arity::exact(1), // base data
             ..CommandSpec::DEFAULT
         });
         reg.insert(CommandSpec {
             name: "d6_tie",
-            dialects: Some(DialectSet::TCL86),
+            surface: Some(SpecSurface::TCL86),
             arity: Arity::exact(2), // curated override
             ..CommandSpec::DEFAULT
         });
         let won = reg
-            .get_for_dialect("d6_tie", DialectSet::TCL86)
+            .get_for_surface("d6_tie", Some(SurfaceQuery::core(Family::Tcl, "8.6")))
             .expect("d6_tie resolves");
         assert_eq!(won.arity, Arity::exact(2), "later registration wins ties");
     }
@@ -5163,7 +5182,7 @@ mod tests {
 
         static METHODS: [SubCommand; 1] = [SubCommand {
             name: "later",
-            dialects: Some(DialectSet::TCL91),
+            surface: Some(SpecSurface::TCL91),
             lifecycle: Lifecycle::introduced_in("9.1"),
             ..SubCommand::DEFAULT
         }];
@@ -5188,7 +5207,7 @@ mod tests {
                 "VersionedClass",
                 "later",
                 Some("9.0"),
-                Some(DialectSet::TCL91)
+                Some(SurfaceQuery::core(Family::Tcl, "9.1"))
             )
             .is_none(),
             "the explicit owning-package floor rejects a future method"
@@ -5198,7 +5217,7 @@ mod tests {
                 "VersionedClass",
                 "later",
                 Some("9.1"),
-                Some(DialectSet::TCL90)
+                Some(SurfaceQuery::core(Family::Tcl, "9.0"))
             )
             .is_none(),
             "the method's own dialect gate remains independent of lifecycle"
@@ -5208,7 +5227,7 @@ mod tests {
                 "VersionedClass",
                 "later",
                 Some("9.1"),
-                Some(DialectSet::TCL91)
+                Some(SurfaceQuery::core(Family::Tcl, "9.1"))
             )
             .is_some(),
             "both registry-declared availability axes admit the method"
@@ -5226,41 +5245,39 @@ mod tests {
 
     #[test]
     fn leading_zero_is_octal_tracks_tcl_version() {
-        use crate::dialects::DialectSet;
-        // Plain default registry (no Tcl version bit) defaults to octal.
+        // Plain default registry (no Tcl release row) defaults to octal.
         assert!(CommandRegistry::build_default().leading_zero_is_octal());
         // tcl9.0 (TIP 114) reads leading zeros as decimal; everything else
         // (8.4/8.5/8.6 and the 8.x-derived F5 dialects) stays octal.
         let octal_cases = [
-            DialectSet::TCL84,
-            DialectSet::TCL85,
-            DialectSet::TCL86,
-            DialectSet::IRULES,
-            DialectSet::IAPPS,
+            SurfaceLayer::Core(Family::Tcl, "8.4"),
+            SurfaceLayer::Core(Family::Tcl, "8.5"),
+            SurfaceLayer::Core(Family::Tcl, "8.6"),
+            SurfaceLayer::Core(Family::F5Irules, ""),
+            SurfaceLayer::Package("iapps"),
         ];
-        for d in octal_cases {
+        for layer in octal_cases {
             let mut reg = CommandRegistry::build_default();
-            reg.load_dialect(d);
-            assert!(reg.leading_zero_is_octal(), "{d:?} should be octal");
+            reg.load_surface(layer);
+            assert!(reg.leading_zero_is_octal(), "{layer:?} should be octal");
         }
         let mut reg90 = CommandRegistry::build_default();
-        reg90.load_dialect(DialectSet::TCL90);
+        reg90.load_surface(SurfaceLayer::Core(Family::Tcl, "9.0"));
         assert!(!reg90.leading_zero_is_octal(), "tcl9.0 should be decimal");
         // tcl9.1 keeps the TIP 114 decimal rule; a tcl9.1-only
         // registry (loads TCL91, not TCL90) must still read leading zeros as
         // decimal.
         let mut reg91 = CommandRegistry::build_default();
-        reg91.load_dialect(DialectSet::TCL91);
+        reg91.load_surface(SurfaceLayer::Core(Family::Tcl, "9.1"));
         assert!(!reg91.leading_zero_is_octal(), "tcl9.1 should be decimal");
     }
 
     #[test]
     fn irules_command_legality_matrix() {
-        use crate::dialects::DialectSet;
         use crate::events::EventRegistry;
         use crate::profiles::ProfileRegistry;
         let mut reg = CommandRegistry::build_default();
-        reg.load_dialect(DialectSet::IRULES);
+        reg.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         let events = EventRegistry::build();
         let profiles = ProfileRegistry::build();
         // HTTP::respond is satisfied in HTTP_REQUEST (HTTP profile implied) but
@@ -5315,19 +5332,18 @@ mod tests {
 
     #[test]
     fn switch_names_is_dialect_filtered() {
-        use crate::dialects::DialectSet;
         let reg = CommandRegistry::build_default();
         let regsub = reg.get("regsub").expect("regsub spec");
         // `-command` is Tcl 9.0+ (TIP 463); the always-available
         // switches appear in every dialect.
-        let in_86 = regsub.switch_names(Some(DialectSet::TCL86));
+        let in_86 = regsub.switch_names(Some(SurfaceQuery::core(Family::Tcl, "8.6")));
         assert!(in_86.contains(&"-all"), "{in_86:?}");
         assert!(in_86.contains(&"-nocase"), "{in_86:?}");
         assert!(
             !in_86.contains(&"-command"),
             "9.0-only -command leaked into 8.6: {in_86:?}",
         );
-        let in_90 = regsub.switch_names(Some(DialectSet::TCL90));
+        let in_90 = regsub.switch_names(Some(SurfaceQuery::core(Family::Tcl, "9.0")));
         assert!(
             in_90.contains(&"-command"),
             "-command missing under 9.0: {in_90:?}",
@@ -5373,10 +5389,9 @@ mod tests {
 
     #[test]
     fn tcl9_commands_gated_to_tcl90() {
-        use crate::dialects::DialectSet;
         let reg = CommandRegistry::build_default();
         // `const` (Tcl 9.0, TIP 677) joins the list: it used to carry
-        // `dialects: None` as a workaround to reach iRules events, which
+        // `surface: None` as a workaround to reach iRules events, which
         // wrongly made it appear valid in 8.4/8.5/8.6 too. The registry-wide
         // explicit-dialect sweep corrected it to `TCL90_PLUS` — it does not
         // exist in iRules' embedded Tcl 8.4.6, so it is (correctly) neither
@@ -5387,14 +5402,14 @@ mod tests {
             // additive — verified against C Tcl 9.1b0 doc/*.n), so it is gated
             // `TCL90_PLUS`, not `TCL90`-only.
             assert_eq!(
-                spec.dialects,
-                Some(DialectSet::TCL90_PLUS),
+                spec.surface,
+                Some(SpecSurface::TCL90_PLUS),
                 "{name} should be Tcl 9.0+",
             );
-            assert!(spec.supports_dialect(DialectSet::TCL90));
-            assert!(spec.supports_dialect(DialectSet::TCL91));
-            assert!(!spec.supports_dialect(DialectSet::TCL86));
-            assert!(!spec.supports_dialect(DialectSet::IRULES));
+            assert!(spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.0"))));
+            assert!(spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.1"))));
+            assert!(!spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.6"))));
+            assert!(!spec.supports_dialect(Some(SurfaceQuery::any_release(Family::F5Irules))));
         }
     }
 
@@ -5657,7 +5672,7 @@ mod tests {
             InvocationWord::Literal(r"{\1}"),
         ];
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-            let registry = crate::registry_for_dialect(dialect);
+            let registry = crate::model::ingress::static_context_for(dialect).commands();
             assert!(
                 registry
                     .format_string_args_words(
@@ -5693,7 +5708,7 @@ mod tests {
             InvocationWord::Dynamic,
             InvocationWord::Literal("callback"),
         ];
-        let registry = crate::registry_for_dialect("tcl9.0");
+        let registry = crate::model::ingress::static_context_for("tcl9.0").commands();
         assert!(
             registry
                 .format_string_args_words(
@@ -5717,7 +5732,8 @@ mod tests {
             InvocationWord::Literal("%Y"),
         ];
         assert_eq!(
-            crate::registry_for_dialect("tcl9.0")
+            crate::model::ingress::static_context_for("tcl9.0")
+                .commands()
                 .format_string_args_words("clock", InvocationArguments::structured(&clock),),
             vec![FormatStringArg {
                 index: 3,
@@ -5739,7 +5755,8 @@ mod tests {
         ];
         for name in ["regexp", "regsub"] {
             assert!(
-                crate::registry_for_dialect("tcl9.0")
+                crate::model::ingress::static_context_for("tcl9.0")
+                    .commands()
                     .pattern_args_words(name, InvocationArguments::structured(&dynamic_prefix))
                     .is_empty(),
                 "{name}: $mode could be a leading option"
@@ -5751,7 +5768,8 @@ mod tests {
             InvocationWord::Literal("*.tcl"),
         ];
         assert!(
-            crate::registry_for_dialect("tcl9.0")
+            crate::model::ingress::static_context_for("tcl9.0")
+                .commands()
                 .pattern_args_words(
                     "glob",
                     InvocationArguments::structured(&glob_dynamic_prefix)
@@ -5766,7 +5784,8 @@ mod tests {
             InvocationWord::Literal("abc"),
         ];
         assert!(
-            crate::registry_for_dialect("tcl9.0")
+            crate::model::ingress::static_context_for("tcl9.0")
+                .commands()
                 .pattern_args_words(
                     "string",
                     InvocationArguments::structured(&string_dynamic_prefix),
@@ -5788,7 +5807,8 @@ mod tests {
             InvocationWord::Dynamic,
         ];
         assert_eq!(
-            crate::registry_for_dialect("tcl9.0")
+            crate::model::ingress::static_context_for("tcl9.0")
+                .commands()
                 .pattern_args_words("regexp", InvocationArguments::structured(&regexp_start)),
             vec![PatternArg {
                 index: 2,
@@ -5798,10 +5818,12 @@ mod tests {
         );
         let non_option_template = [InvocationWord::DynamicNonOption, InvocationWord::Dynamic];
         assert_eq!(
-            crate::registry_for_dialect("tcl9.0").pattern_args_words(
-                "regexp",
-                InvocationArguments::structured(&non_option_template),
-            ),
+            crate::model::ingress::static_context_for("tcl9.0")
+                .commands()
+                .pattern_args_words(
+                    "regexp",
+                    InvocationArguments::structured(&non_option_template),
+                ),
             vec![PatternArg {
                 index: 0,
                 kind: PatternType::Regex,
@@ -5813,7 +5835,8 @@ mod tests {
             InvocationWord::Literal("-literal"),
         ];
         assert_eq!(
-            crate::registry_for_dialect("tcl9.0")
+            crate::model::ingress::static_context_for("tcl9.0")
+                .commands()
                 .pattern_args_words("glob", InvocationArguments::structured(&glob_terminator)),
             vec![PatternArg {
                 index: 1,
@@ -5835,7 +5858,8 @@ mod tests {
             InvocationWord::Literal("aaa"),
         ];
         assert!(
-            crate::registry_for_dialect("tcl9.0")
+            crate::model::ingress::static_context_for("tcl9.0")
+                .commands()
                 .pattern_args_words(
                     "regexp",
                     InvocationArguments::structured(&strict_abbreviation)
@@ -5850,7 +5874,8 @@ mod tests {
             InvocationWord::Literal("a+"),
         ];
         assert!(
-            crate::registry_for_dialect("tcl8.6")
+            crate::model::ingress::static_context_for("tcl8.6")
+                .commands()
                 .pattern_args_words(
                     "lsearch",
                     InvocationArguments::structured(&stride_abbreviation)
@@ -5859,10 +5884,12 @@ mod tests {
             "a Tcl 9-only option abbreviation is invalid before Tcl 9"
         );
         assert_eq!(
-            crate::registry_for_dialect("tcl9.0").pattern_args_words(
-                "lsearch",
-                InvocationArguments::structured(&stride_abbreviation),
-            ),
+            crate::model::ingress::static_context_for("tcl9.0")
+                .commands()
+                .pattern_args_words(
+                    "lsearch",
+                    InvocationArguments::structured(&stride_abbreviation),
+                ),
             vec![PatternArg {
                 index: 3,
                 kind: PatternType::Glob,
@@ -5874,10 +5901,12 @@ mod tests {
             InvocationWord::Literal("--"),
         ];
         assert_eq!(
-            crate::registry_for_dialect("tcl9.0").pattern_args_words(
-                "lsearch",
-                InvocationArguments::structured(&option_shaped_suffix),
-            ),
+            crate::model::ingress::static_context_for("tcl9.0")
+                .commands()
+                .pattern_args_words(
+                    "lsearch",
+                    InvocationArguments::structured(&option_shaped_suffix),
+                ),
             vec![PatternArg {
                 index: 1,
                 kind: PatternType::Glob,
@@ -5899,7 +5928,7 @@ mod tests {
             name: "-skip",
             value: crate::hover::OptionValue::value("count"),
             detail: "fixture value",
-            dialects: None,
+            surface: None,
             aliases: &[],
             lifecycle: crate::lifecycle::Lifecycle::UNSPECIFIED,
             min_abbrev: None,
@@ -6034,7 +6063,7 @@ mod tests {
         // remain. Keep the source-aware resolver aligned across every
         // supported core release, including the 9.0 -stride expansion.
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-            let reg = crate::registry_for_dialect(dialect);
+            let reg = crate::model::ingress::static_context_for(dialect).commands();
             let proven_outer_option = [
                 InvocationWord::Literal("-glob"),
                 InvocationWord::Dynamic,
@@ -6091,7 +6120,7 @@ mod tests {
         // both spell like lsearch switches.
         let option_shaped_operands = ["-regexp", "-glob"];
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-            let registry = crate::registry_for_dialect(dialect);
+            let registry = crate::model::ingress::static_context_for(dialect).commands();
             let patterns = registry.pattern_args("lsearch", &option_shaped_operands);
             assert_eq!(
                 patterns,
@@ -6116,7 +6145,7 @@ mod tests {
         // dash-prefixed word as the list operand and inventing a pattern.
         let stride_abbrev = ["-str", "2", "{a b}", "a+"];
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6"] {
-            let registry = crate::registry_for_dialect(dialect);
+            let registry = crate::model::ingress::static_context_for(dialect).commands();
             assert!(
                 registry.pattern_args("lsearch", &stride_abbrev).is_empty(),
                 "{dialect}: unavailable -stride abbreviation invalidates the invocation"
@@ -6129,7 +6158,7 @@ mod tests {
             );
         }
         for dialect in ["tcl9.0", "tcl9.1"] {
-            let registry = crate::registry_for_dialect(dialect);
+            let registry = crate::model::ingress::static_context_for(dialect).commands();
             let patterns = registry.pattern_args("lsearch", &stride_abbrev);
             assert_eq!(
                 patterns,
@@ -6154,7 +6183,7 @@ mod tests {
             ["-unknown", "{a b}", "a+"].as_slice(),
             ["--", "{a b}", "a+"].as_slice(),
         ] {
-            let registry = crate::registry_for_dialect("tcl9.0");
+            let registry = crate::model::ingress::static_context_for("tcl9.0").commands();
             assert!(
                 registry.pattern_args("lsearch", args).is_empty(),
                 "Tcl 9 invalid option prefix {args:?} must abstain"
@@ -6174,7 +6203,7 @@ mod tests {
             ["-regexp", "--"].as_slice(),
             ["-regexp", "-st"].as_slice(),
         ] {
-            let registry = crate::registry_for_dialect("tcl9.0");
+            let registry = crate::model::ingress::static_context_for("tcl9.0").commands();
             assert_eq!(
                 registry.pattern_args("lsearch", args),
                 vec![PatternArg {
@@ -6192,7 +6221,7 @@ mod tests {
         use crate::patterns::{PatternArg, PatternType};
 
         for dialect in ["tcl8.6", "tcl9.0"] {
-            let registry = crate::registry_for_dialect(dialect);
+            let registry = crate::model::ingress::static_context_for(dialect).commands();
             let dynamic_early = [
                 InvocationWord::Dynamic,
                 InvocationWord::Literal("{a b}"),
@@ -6417,15 +6446,15 @@ mod tests {
 
         let args = ["{error now}", "-later", "{error later}"];
         assert_eq!(
-            reg.script_timing("mixed-script-timing", &args, 0, DialectSet::empty()),
+            reg.script_timing("mixed-script-timing", &args, 0, None),
             Some(ScriptTiming::SameInvocation),
         );
         assert_eq!(
-            reg.script_timing("mixed-script-timing", &args, 2, DialectSet::empty()),
+            reg.script_timing("mixed-script-timing", &args, 2, None),
             Some(ScriptTiming::Deferred),
         );
         assert_eq!(
-            reg.script_timing("mixed-script-timing", &args, 1, DialectSet::empty()),
+            reg.script_timing("mixed-script-timing", &args, 1, None),
             None,
         );
     }
@@ -6437,25 +6466,25 @@ mod tests {
         let reg = CommandRegistry::build_default();
         let button = [".b", "-command", "{return}"];
         assert_eq!(
-            reg.script_timing("button", &button, 2, DialectSet::empty()),
+            reg.script_timing("button", &button, 2, None),
             Some(ScriptTiming::Deferred),
         );
 
         let test = ["sample", "description", "-body", "{error failure}"];
         assert_eq!(
-            reg.script_timing("tcltest::test", &test, 3, DialectSet::empty()),
+            reg.script_timing("tcltest::test", &test, 3, None),
             Some(ScriptTiming::SameInvocation),
         );
 
         let dump = ["dump", "-command", "visit", "1.0"];
         assert_eq!(
-            reg.script_timing("text", &dump, 2, DialectSet::empty()),
+            reg.script_timing("text", &dump, 2, None),
             Some(ScriptTiming::SameInvocation),
             "text dump calls its prefix synchronously for each returned item"
         );
         let sync = ["sync", "-command", "ready"];
         assert_eq!(
-            reg.script_timing("text", &sync, 2, DialectSet::empty()),
+            reg.script_timing("text", &sync, 2, None),
             Some(ScriptTiming::Deferred),
             "text sync schedules its prefix after metrics become current"
         );
@@ -6468,7 +6497,7 @@ mod tests {
         let reg = CommandRegistry::build_default();
         let validation = [".entry", "-validatecommand", "{eval %P}"];
         assert_eq!(
-            reg.callback_taint_inputs("entry", &validation, 2, DialectSet::empty()),
+            reg.callback_taint_inputs("entry", &validation, 2, None),
             &[
                 CallbackTaintInput::TK_PROPOSED_VALUE,
                 CallbackTaintInput::TK_CURRENT_VALUE,
@@ -6477,32 +6506,26 @@ mod tests {
         );
         let bind = [".entry", "<Key>", "{eval %A}"];
         assert_eq!(
-            reg.callback_taint_inputs("bind", &bind, 2, DialectSet::empty()),
+            reg.callback_taint_inputs("bind", &bind, 2, None),
             &[CallbackTaintInput::TK_EVENT_CHAR],
         );
         let plain_command = [".entry", "-command", "{eval %P}"];
         assert!(
-            reg.callback_taint_inputs("button", &plain_command, 2, DialectSet::empty())
+            reg.callback_taint_inputs("button", &plain_command, 2, None)
                 .is_empty(),
             "a deferred callback without user substitutions must stay clean"
         );
 
         let canvas_bind = ["bi", "item", "<Key>", "{eval %A}"];
         assert_eq!(
-            reg.callback_taint_inputs("canvas", &canvas_bind, 3, DialectSet::empty()),
+            reg.callback_taint_inputs("canvas", &canvas_bind, 3, None),
             &[CallbackTaintInput::TK_EVENT_CHAR],
             "a unique-prefix widget subcommand must select its callback table"
         );
 
         let abbreviated_configure = ["conf", "-validatecommand", "{eval %P}"];
         assert_eq!(
-            reg.instance_callback_taint_inputs(
-                "entry",
-                ".entry",
-                &abbreviated_configure,
-                2,
-                DialectSet::empty(),
-            ),
+            reg.instance_callback_taint_inputs("entry", ".entry", &abbreviated_configure, 2, None,),
             &[
                 CallbackTaintInput::TK_PROPOSED_VALUE,
                 CallbackTaintInput::TK_CURRENT_VALUE,
@@ -6513,13 +6536,7 @@ mod tests {
 
         let instance_bind = ["bind", "all", "<Key>", "{eval %A}"];
         assert_eq!(
-            reg.instance_callback_taint_inputs(
-                "canvas",
-                ".canvas",
-                &instance_bind,
-                3,
-                DialectSet::empty(),
-            ),
+            reg.instance_callback_taint_inputs("canvas", ".canvas", &instance_bind, 3, None,),
             &[CallbackTaintInput::TK_EVENT_CHAR],
             "a positional instance-method callback must use its method table"
         );
@@ -6529,7 +6546,7 @@ mod tests {
                 ".entry",
                 &["configure", "-validatecommand"],
                 1,
-                DialectSet::empty(),
+                None,
             )
             .is_empty(),
             "the option word itself is not callback text"
@@ -6542,21 +6559,11 @@ mod tests {
 
         let reg = CommandRegistry::build_default();
         assert_eq!(
-            reg.script_timing(
-                "canvas",
-                &["bind", "tag", "<Button-1>", "clicked"],
-                3,
-                DialectSet::empty(),
-            ),
+            reg.script_timing("canvas", &["bind", "tag", "<Button-1>", "clicked"], 3, None,),
             Some(ScriptTiming::Deferred),
         );
         assert_eq!(
-            reg.script_timing(
-                "canvas",
-                &["bi", "tag", "<Button-1>", "clicked"],
-                3,
-                DialectSet::empty(),
-            ),
+            reg.script_timing("canvas", &["bi", "tag", "<Button-1>", "clicked"], 3, None,),
             Some(ScriptTiming::Deferred),
             "canvas bind's unique prefix must select the positional timing resolver",
         );
@@ -6565,35 +6572,25 @@ mod tests {
                 "wm",
                 &["protocol", ".w", "WM_DELETE_WINDOW", "close"],
                 3,
-                DialectSet::empty(),
+                None,
             ),
             Some(ScriptTiming::Deferred),
         );
         assert_eq!(
-            reg.script_timing(
-                "wm",
-                &["prot", ".w", "WM_DELETE_WINDOW", "close"],
-                3,
-                DialectSet::empty(),
-            ),
+            reg.script_timing("wm", &["prot", ".w", "WM_DELETE_WINDOW", "close"], 3, None,),
             Some(ScriptTiming::Deferred),
             "wm protocol's unique prefix must not fall back to same-invocation timing",
         );
         assert_eq!(
-            reg.script_timing("send", &["other", "work"], 1, DialectSet::empty()),
+            reg.script_timing("send", &["other", "work"], 1, None),
             Some(ScriptTiming::SameInvocation),
         );
         assert_eq!(
-            reg.script_timing("send", &["-async", "other", "work"], 2, DialectSet::empty(),),
+            reg.script_timing("send", &["-async", "other", "work"], 2, None,),
             Some(ScriptTiming::Deferred),
         );
         assert_eq!(
-            reg.script_timing(
-                "send",
-                &["-async", "other", "work", "argument"],
-                2,
-                DialectSet::empty(),
-            ),
+            reg.script_timing("send", &["-async", "other", "work", "argument"], 2, None,),
             None,
             "a concatenated multi-word script is not a fictional Body position",
         );
@@ -6602,7 +6599,7 @@ mod tests {
                 "selection",
                 &["handle", "-type", "UTF8_STRING", ".w", "provide"],
                 4,
-                DialectSet::empty(),
+                None,
             ),
             Some(ScriptTiming::Deferred),
         );
@@ -6611,18 +6608,13 @@ mod tests {
                 "selection",
                 &["h", "-type", "UTF8_STRING", ".w", "provide"],
                 4,
-                DialectSet::empty(),
+                None,
             ),
             Some(ScriptTiming::Deferred),
             "selection handle's unique prefix must select its positional timing resolver",
         );
         assert_eq!(
-            reg.script_timing(
-                "selection",
-                &["o", "-command", "lost", ".w"],
-                2,
-                DialectSet::empty(),
-            ),
+            reg.script_timing("selection", &["o", "-command", "lost", ".w"], 2, None,),
             Some(ScriptTiming::Deferred),
             "subcommand option timing must use the same unique-prefix resolution",
         );
@@ -6774,19 +6766,14 @@ mod tests {
 
         for &(command, args, index, expected) in cases {
             assert_eq!(
-                reg.script_timing(command, args, index, DialectSet::empty()),
+                reg.script_timing(command, args, index, None),
                 Some(expected),
                 "wrong phase for {command} {args:?} argument {index}",
             );
         }
 
         assert_eq!(
-            reg.script_timing(
-                "trace",
-                &["a", "v", "v", "write", "handler"],
-                4,
-                DialectSet::empty(),
-            ),
+            reg.script_timing("trace", &["a", "v", "v", "write", "handler"], 4, None,),
             Some(ScriptTiming::Deferred),
             "unique-prefix subcommands and trace types preserve phase metadata",
         );
@@ -6799,19 +6786,19 @@ mod tests {
         let reg = CommandRegistry::build_default();
         let in_memory = ["-recordcommand", "record", "@book{x}"];
         assert_eq!(
-            reg.script_timing("bibtex::parse", &in_memory, 1, DialectSet::empty()),
+            reg.script_timing("bibtex::parse", &in_memory, 1, None),
             Some(ScriptTiming::SameInvocation),
         );
 
         let channel = ["-recordcommand", "record", "-channel", "input"];
         assert_eq!(
-            reg.script_timing("bibtex::parse", &channel, 1, DialectSet::empty()),
+            reg.script_timing("bibtex::parse", &channel, 1, None),
             Some(ScriptTiming::Deferred),
         );
 
         let completion = ["-command", "done", "-channel", "input"];
         assert_eq!(
-            reg.script_timing("bibtex::parse", &completion, 1, DialectSet::empty()),
+            reg.script_timing("bibtex::parse", &completion, 1, None),
             Some(ScriptTiming::Deferred),
         );
     }
@@ -6847,28 +6834,18 @@ mod tests {
         ];
         for (command, option) in stored {
             assert_eq!(
-                reg.script_timing(command, &[".w", option, "callback"], 2, DialectSet::empty()),
+                reg.script_timing(command, &[".w", option, "callback"], 2, None),
                 Some(ScriptTiming::Deferred),
                 "{command} {option} stores its command prefix",
             );
         }
 
         assert_eq!(
-            reg.script_timing(
-                "text",
-                &["dump", "-command", "visit", "1.0"],
-                2,
-                DialectSet::empty(),
-            ),
+            reg.script_timing("text", &["dump", "-command", "visit", "1.0"], 2, None,),
             Some(ScriptTiming::SameInvocation),
         );
         assert_eq!(
-            reg.script_timing(
-                "ttk::treeview",
-                &["sort", "-command", "compare"],
-                2,
-                DialectSet::empty(),
-            ),
+            reg.script_timing("ttk::treeview", &["sort", "-command", "compare"], 2, None,),
             Some(ScriptTiming::SameInvocation),
         );
     }
@@ -7965,10 +7942,10 @@ mod tests {
     #[test]
     fn dialect_filter() {
         let reg = CommandRegistry::build_default();
-        let spec = reg.get_for_dialect("dict", DialectSet::TCL86);
+        let spec = reg.get_for_surface("dict", Some(SurfaceQuery::core(Family::Tcl, "8.6")));
         assert!(spec.is_some());
         // dict is tcl8.5+ so should NOT be available in 8.4
-        let spec84 = reg.get_for_dialect("dict", DialectSet::TCL84);
+        let spec84 = reg.get_for_surface("dict", Some(SurfaceQuery::core(Family::Tcl, "8.4")));
         assert!(spec84.is_none());
     }
 
@@ -8022,56 +7999,6 @@ mod tests {
         assert_eq!(
             reg.arg_indices_for_role("unset", &["-nocomplain", "-foo"], ArgRole::VarWrite),
             vec![1]
-        );
-    }
-
-    /// `trace add variable name ops body` declares arg 1
-    /// (the variable name) as `VarWrite` via the registry.
-    #[test]
-    fn arg_indices_for_role_honours_a_gated_row_at_the_resolved_floor() {
-        // Issue #1644 — the role half. A pack argument introduced at 3.0 is
-        // not role-typed against a 2.0 floor, is from 3.0, and stays typed at
-        // no floor (permissive, matching every other lifecycle query).
-        const ROWS: &[crate::spec::VersionedArgRow] = &[
-            crate::spec::VersionedArgRow {
-                index: 0,
-                role: Some(ArgRole::VarWrite),
-                ..crate::spec::VersionedArgRow::DEFAULT
-            },
-            crate::spec::VersionedArgRow {
-                index: 1,
-                lifecycle: Lifecycle::introduced_in("3.0"),
-                role: Some(ArgRole::VarWrite),
-                ..crate::spec::VersionedArgRow::DEFAULT
-            },
-        ];
-        const ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::VarWrite), (1, ArgRole::VarWrite)];
-        let mut reg = CommandRegistry::build_default();
-        reg.insert(CommandSpec {
-            name: "gatedwrite",
-            arg_rows: ROWS,
-            arg_roles: ROLES,
-            arity: Arity::at_least(0),
-            ..CommandSpec::DEFAULT
-        });
-        let writes = |floor: Option<&str>| {
-            reg.arg_indices_for_role_at("gatedwrite", &["a", "b"], ArgRole::VarWrite, floor)
-        };
-        assert_eq!(
-            writes(Some("2.0")),
-            vec![0],
-            "the 3.0 argument is not typed"
-        );
-        assert_eq!(writes(Some("3.0")), vec![0, 1], "typed from 3.0");
-        assert_eq!(
-            writes(None),
-            vec![0, 1],
-            "an unresolved floor is permissive"
-        );
-        assert_eq!(
-            reg.arg_indices_for_role("gatedwrite", &["a", "b"], ArgRole::VarWrite),
-            vec![0, 1],
-            "the unversioned form is the no-floor projection"
         );
     }
 
@@ -8372,15 +8299,24 @@ mod tests {
                     // dialect — `after` has a Tcl spec and an iRules one, and
                     // a sweep that looked at only one would let the other lose
                     // its trait unnoticed. Iterating the specs (rather than a
-                    // list of masks) also keeps every probe on a mask the
-                    // command actually resolves under: an unresolvable call
+                    // list of points) also keeps every probe at a point the
+                    // command actually resolves at: an unresolvable call
                     // answers with an empty trait set, which is indistinguish-
                     // able from a spec whose only trait was `DEFERS_BODY`
                     // until it was dropped — precisely the regression this
                     // gate exists to catch.
                     for spec in reg.specs(name) {
-                        let mask = spec.dialects.unwrap_or(DialectSet::TK_AND_TCL);
-                        let traits = reg.invocation_traits(name, &args, mask);
+                        // Probe at a point the spec actually resolves under:
+                        // its own first row, or any Tcl release when it names
+                        // no provider.
+                        let point = spec.surface.and_then(|rows| rows.first()).map_or(
+                            SurfaceQuery::any_release(Family::Tcl),
+                            |row| match row.provider {
+                                SpecProvider::Core(family) => SurfaceQuery::any_release(family),
+                                SpecProvider::Package(_) => SurfaceQuery::any_release(Family::Tcl),
+                            },
+                        );
+                        let traits = reg.invocation_traits(name, &args, Some(point));
                         if spec.traits.contains(Traits::DEFERS_BODY)
                             || traits.contains(Traits::DEFERS_BODY)
                             // A `CONTROL_FLOW` command is the registry's own
@@ -8659,7 +8595,7 @@ mod tests {
         let mut reg = CommandRegistry::build_default();
         reg.load_irules();
         let spec = reg.get("HTTP::header").unwrap();
-        assert_eq!(spec.dialects, Some(DialectSet::IRULES));
+        assert_eq!(spec.surface, Some(SpecSurface::IRULES));
     }
 
     #[test]
@@ -8681,7 +8617,7 @@ mod tests {
     #[test]
     fn load_tk_dialect() {
         // Tk is part of the always-known base registry now, so it is present
-        // by default and a later `load_dialect(TK)` is an idempotent no-op.
+        // by default and a later `load_surface(Tk)` is an idempotent no-op.
         let reg = CommandRegistry::build_default();
         assert!(
             reg.get("grid").is_some(),
@@ -8689,35 +8625,32 @@ mod tests {
         );
         let base_count = reg.len();
         let mut reg2 = CommandRegistry::build_default();
-        reg2.load_dialect(DialectSet::TK);
+        reg2.load_surface(SurfaceLayer::Package("Tk"));
         assert_eq!(
             reg2.len(),
             base_count,
-            "load_dialect(TK) is a no-op after default load"
+            "loading the Tk surface is a no-op after the default load"
         );
     }
 
     #[test]
     fn load_iapps_dialect() {
         let mut reg = CommandRegistry::build_default();
-        reg.load_dialect(DialectSet::IAPPS);
+        reg.load_surface(SurfaceLayer::Package("iapps"));
         assert!(reg.len() > 100);
     }
 
     #[test]
     fn load_expect_dialect() {
         let mut reg = CommandRegistry::build_default();
-        reg.load_dialect(DialectSet::EXPECT);
+        reg.load_surface(SurfaceLayer::Package("expect"));
         assert!(reg.get("expect").is_some() || reg.get("spawn").is_some());
     }
 
     #[test]
     fn resolve_call_unknown_command_returns_none() {
         let reg = CommandRegistry::build_default();
-        assert!(
-            reg.resolve_call("no_such_cmd", &[], DialectSet::empty())
-                .is_none()
-        );
+        assert!(reg.resolve_call("no_such_cmd", &[], None).is_none());
     }
 
     #[test]
@@ -8725,7 +8658,11 @@ mod tests {
         let reg = CommandRegistry::build_default();
         let args = ["create", "key", "value"];
         let resolved = reg
-            .resolve_invocation("::dict", &args, DialectSet::TCL86)
+            .resolve_invocation(
+                "::dict",
+                &args,
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            )
             .expect("global dict spelling resolves through the registry");
 
         assert_eq!(resolved.words.head_literal(), Some("::dict"));
@@ -8757,7 +8694,7 @@ mod tests {
         let resolved = reg
             .resolve_structured_invocation(
                 InvocationWords::structured(crate::InvocationWord::Literal("string"), &arguments),
-                DialectSet::TCL86,
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
             )
             .resolved()
             .expect("a literal command head is registry-known");
@@ -8783,7 +8720,7 @@ mod tests {
         let resolved = reg
             .resolve_structured_invocation(
                 InvocationWords::structured(crate::InvocationWord::Literal("incr"), &arguments),
-                DialectSet::empty(),
+                None,
             )
             .resolved()
             .expect("a literal command head is registry-known");
@@ -8801,13 +8738,10 @@ mod tests {
         let reg = CommandRegistry::build_default();
         let arguments = ["counter"];
         let adapter = reg
-            .resolve_invocation("incr", &arguments, DialectSet::empty())
+            .resolve_invocation("incr", &arguments, None)
             .expect("literal adapter resolves");
         let structured = reg
-            .resolve_structured_invocation(
-                InvocationWords::literals("incr", &arguments),
-                DialectSet::empty(),
-            )
+            .resolve_structured_invocation(InvocationWords::literals("incr", &arguments), None)
             .resolved()
             .expect("structured literal input resolves");
 
@@ -8827,7 +8761,7 @@ mod tests {
 
         let computed = reg.resolve_structured_invocation(
             InvocationWords::structured(crate::InvocationWord::Dynamic, &no_arguments),
-            DialectSet::empty(),
+            None,
         );
         assert_eq!(
             computed.unresolved(),
@@ -8839,7 +8773,7 @@ mod tests {
         let no_literal_arguments: [&str; 0] = [];
         let unknown = reg.resolve_structured_invocation(
             InvocationWords::literals("not-a-registry-command", &no_literal_arguments),
-            DialectSet::empty(),
+            None,
         );
         assert_eq!(
             unknown.unresolved(),
@@ -8853,7 +8787,7 @@ mod tests {
     fn irules_placement_contract_owns_declaration_and_execution_contexts() {
         use crate::events::{IrulesCommandPlacement as Placement, IrulesExecutionContext as Ctx};
 
-        let registry = crate::registry_for_dialect("f5-irules");
+        let registry = crate::model::ingress::static_context_for("f5-irules").commands();
         for declaration in ["when", "proc", "timing", "priority"] {
             assert_eq!(
                 registry.irules_command_placement(declaration, Ctx::TopLevel),
@@ -8892,7 +8826,7 @@ mod tests {
     fn irules_declaration_owner_requires_braced_source_bodies() {
         use crate::events::IrulesTopLevelDeclaration as Declaration;
 
-        let registry = crate::registry_for_dialect("f5-irules");
+        let registry = crate::model::ingress::static_context_for("f5-irules").commands();
         let events = crate::events::EventRegistry::build();
         let declaration = |name: &str, args: &[&str]| {
             let body_index = if name == "proc" {
@@ -8989,7 +8923,7 @@ mod tests {
 
     #[test]
     fn irules_declaration_owner_rejects_bare_and_quoted_source_bodies() {
-        let registry = crate::registry_for_dialect("f5-irules");
+        let registry = crate::model::ingress::static_context_for("f5-irules").commands();
         for (name, args, body_index) in [
             ("when", &["HTTP_REQUEST", "set x 1"][..], 1),
             ("proc", &["p", "", "return"][..], 2),
@@ -9059,7 +8993,7 @@ mod tests {
         registry.insert(SPEC);
         let form = |args: &[&str]| {
             registry
-                .resolve_invocation("literal-form-fixture", args, DialectSet::empty())
+                .resolve_invocation("literal-form-fixture", args, None)
                 .and_then(|resolved| resolved.form)
                 .map(|form| form.name)
         };
@@ -9092,7 +9026,7 @@ mod tests {
                     InvocationWord::Literal("literal-form-fixture"),
                     &dynamic,
                 ),
-                DialectSet::empty(),
+                None,
             )
             .resolved()
             .expect("fixture command resolves");
@@ -9136,7 +9070,7 @@ mod tests {
                     crate::InvocationWord::Literal("subcommand-form-fixture"),
                     &dynamic_arguments,
                 ),
-                DialectSet::empty(),
+                None,
             )
             .resolved()
             .expect("fixture command resolves");
@@ -9153,7 +9087,7 @@ mod tests {
         ));
 
         let ambiguous = reg
-            .resolve_invocation("subcommand-form-fixture", &["al"], DialectSet::empty())
+            .resolve_invocation("subcommand-form-fixture", &["al"], None)
             .expect("fixture command resolves");
         assert!(matches!(
             ambiguous.subcommand,
@@ -9166,7 +9100,7 @@ mod tests {
         ));
 
         let unknown = reg
-            .resolve_invocation("subcommand-form-fixture", &["missing"], DialectSet::empty())
+            .resolve_invocation("subcommand-form-fixture", &["missing"], None)
             .expect("fixture command resolves");
         assert!(matches!(
             unknown.subcommand,
@@ -9184,7 +9118,11 @@ mod tests {
         let reg = CommandRegistry::build_default();
         let args = ["le", "hello"];
         let resolved = reg
-            .resolve_invocation("string", &args, DialectSet::TCL86)
+            .resolve_invocation(
+                "string",
+                &args,
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            )
             .expect("string is registry-known");
 
         let sub = resolved
@@ -9208,7 +9146,11 @@ mod tests {
         let reg = CommandRegistry::build_default();
         let args = ["t", "hello"];
         let resolved = reg
-            .resolve_invocation("string", &args, DialectSet::TCL86)
+            .resolve_invocation(
+                "string",
+                &args,
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            )
             .expect("the command head remains known");
 
         assert!(matches!(
@@ -9227,7 +9169,11 @@ mod tests {
         let reg = CommandRegistry::build_default();
         let args = ["does-not-exist"];
         let resolved = reg
-            .resolve_invocation("string", &args, DialectSet::TCL86)
+            .resolve_invocation(
+                "string",
+                &args,
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            )
             .expect("the command head remains known");
 
         assert!(matches!(
@@ -9247,7 +9193,7 @@ mod tests {
         let reg = CommandRegistry::build_default();
         let args = ["counter"];
         let resolved = reg
-            .resolve_invocation("incr", &args, DialectSet::empty())
+            .resolve_invocation("incr", &args, None)
             .expect("incr is registry-known");
 
         let form = resolved.form.expect("implicit incr form");
@@ -9275,7 +9221,7 @@ mod tests {
         let reg = CommandRegistry::build_default();
         let args = ["hello"];
         let resolved = reg
-            .resolve_invocation("puts", &args, DialectSet::TCL86)
+            .resolve_invocation("puts", &args, Some(SurfaceQuery::core(Family::Tcl, "8.6")))
             .expect("puts resolves");
 
         assert_eq!(
@@ -9324,7 +9270,7 @@ mod tests {
         reg.insert(SPEC);
 
         let command = reg
-            .resolve_invocation("semantic-operation-precedence", &[], DialectSet::empty())
+            .resolve_invocation("semantic-operation-precedence", &[], None)
             .expect("command form resolves");
         assert_eq!(
             command.semantics.operation,
@@ -9332,11 +9278,7 @@ mod tests {
         );
 
         let sub = reg
-            .resolve_invocation(
-                "semantic-operation-precedence",
-                &["sub"],
-                DialectSet::empty(),
-            )
+            .resolve_invocation("semantic-operation-precedence", &["sub"], None)
             .expect("subcommand form resolves");
         assert_eq!(
             sub.semantics.operation,
@@ -9344,11 +9286,7 @@ mod tests {
         );
 
         let form = reg
-            .resolve_invocation(
-                "semantic-operation-precedence",
-                &["sub", "argument"],
-                DialectSet::empty(),
-            )
+            .resolve_invocation("semantic-operation-precedence", &["sub", "argument"], None)
             .expect("subcommand form resolves");
         assert_eq!(
             form.semantics.operation,
@@ -9362,7 +9300,11 @@ mod tests {
         reg.load_irules();
         let args = ["insert", "x-demo", "value"];
         let resolved = reg
-            .resolve_invocation("HTTP::header", &args, DialectSet::IRULES)
+            .resolve_invocation(
+                "HTTP::header",
+                &args,
+                Some(SurfaceQuery::any_release(Family::F5Irules)),
+            )
             .expect("HTTP::header insert resolves in the iRules dialect");
 
         assert!(resolved.semantics.traits.contains(Traits::PURE));
@@ -9381,10 +9323,10 @@ mod tests {
         let reg = CommandRegistry::build_default();
         let args = ["counter", "5"];
         let common = reg
-            .resolve_invocation("incr", &args, DialectSet::empty())
+            .resolve_invocation("incr", &args, None)
             .expect("incr resolves");
         let legacy = reg
-            .resolve_call("incr", &args, DialectSet::empty())
+            .resolve_call("incr", &args, None)
             .expect("legacy compatibility resolver remains available");
 
         assert_eq!(common.canonical_command, legacy.spec.name);
@@ -9399,9 +9341,7 @@ mod tests {
     #[test]
     fn resolve_call_top_level_command() {
         let reg = CommandRegistry::build_default();
-        let resolved = reg
-            .resolve_call("set", &["x", "1"], DialectSet::empty())
-            .unwrap();
+        let resolved = reg.resolve_call("set", &["x", "1"], None).unwrap();
         assert_eq!(resolved.spec.name, "set");
         assert!(resolved.sub.is_none());
     }
@@ -9410,7 +9350,11 @@ mod tests {
     fn resolve_call_subcommand() {
         let reg = CommandRegistry::build_default();
         let resolved = reg
-            .resolve_call("dict", &["create", "k", "v"], DialectSet::TCL86)
+            .resolve_call(
+                "dict",
+                &["create", "k", "v"],
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            )
             .unwrap();
         assert_eq!(resolved.spec.name, "dict");
         let sub = resolved.sub.expect("dict create resolves to a subcommand");
@@ -9422,8 +9366,12 @@ mod tests {
         let reg = CommandRegistry::build_default();
         // dict is tcl8.5+; resolving against tcl8.4 must fail.
         assert!(
-            reg.resolve_call("dict", &["create"], DialectSet::TCL84)
-                .is_none()
+            reg.resolve_call(
+                "dict",
+                &["create"],
+                Some(SurfaceQuery::core(Family::Tcl, "8.4"))
+            )
+            .is_none()
         );
     }
 
@@ -9431,17 +9379,13 @@ mod tests {
     fn resolve_call_picks_arity_matched_command_form_for_incr() {
         let reg = CommandRegistry::build_default();
         // `incr counter` — arity 1 → matches the implicit form.
-        let r1 = reg
-            .resolve_call("incr", &["counter"], DialectSet::empty())
-            .unwrap();
+        let r1 = reg.resolve_call("incr", &["counter"], None).unwrap();
         let f1 = r1.form.expect("incr should match a CommandForm");
         assert_eq!(f1.name, "implicit");
         assert_eq!(f1.arity, crate::arity::Arity::exact(1));
 
         // `incr counter 5` — arity 2 → matches the explicit form.
-        let r2 = reg
-            .resolve_call("incr", &["counter", "5"], DialectSet::empty())
-            .unwrap();
+        let r2 = reg.resolve_call("incr", &["counter", "5"], None).unwrap();
         let f2 = r2.form.expect("incr counter 5 should match a CommandForm");
         assert_eq!(f2.name, "explicit");
         assert_eq!(f2.arity, crate::arity::Arity::exact(2));
@@ -9452,19 +9396,31 @@ mod tests {
         let reg = CommandRegistry::build_default();
         // `lset lst value` — arity 2 → replace form.
         let replace = reg
-            .resolve_call("lset", &["lst", "value"], DialectSet::TCL86)
+            .resolve_call(
+                "lset",
+                &["lst", "value"],
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            )
             .unwrap();
         assert_eq!(replace.form.unwrap().name, "replace");
 
         // `lset lst 0 value` — arity 3 → single_index form.
         let single = reg
-            .resolve_call("lset", &["lst", "0", "value"], DialectSet::TCL86)
+            .resolve_call(
+                "lset",
+                &["lst", "0", "value"],
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            )
             .unwrap();
         assert_eq!(single.form.unwrap().name, "single_index");
 
         // `lset lst 0 1 2 value` — arity 5 → flat_path form.
         let flat = reg
-            .resolve_call("lset", &["lst", "0", "1", "2", "value"], DialectSet::TCL86)
+            .resolve_call(
+                "lset",
+                &["lst", "0", "1", "2", "value"],
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            )
             .unwrap();
         assert_eq!(flat.form.unwrap().name, "flat_path");
     }
@@ -9481,7 +9437,7 @@ mod tests {
     fn resolve_option_terminator_returns_none_for_unknown_command() {
         let reg = CommandRegistry::build_default();
         assert!(
-            reg.resolve_option_terminator("unknownthing", &[], DialectSet::empty())
+            reg.resolve_option_terminator("unknownthing", &[], None)
                 .is_none()
         );
     }
@@ -9491,7 +9447,7 @@ mod tests {
         let reg = CommandRegistry::build_default();
         // ``set`` does not declare a ``--`` terminator option.
         assert!(
-            reg.resolve_option_terminator("set", &["x", "1"], DialectSet::empty())
+            reg.resolve_option_terminator("set", &["x", "1"], None)
                 .is_none()
         );
     }
@@ -9500,7 +9456,7 @@ mod tests {
     fn resolve_option_terminator_form_level_for_regexp() {
         let reg = CommandRegistry::build_default();
         let profile = reg
-            .resolve_option_terminator("regexp", &[], DialectSet::empty())
+            .resolve_option_terminator("regexp", &[], None)
             .expect("regexp declares -- at the form level");
         assert_eq!(profile.scan_start, 0);
         assert!(profile.subcommand.is_none());
@@ -9526,7 +9482,7 @@ mod tests {
     fn resolve_option_terminator_subcommand_scoped_for_file_delete() {
         let reg = CommandRegistry::build_default();
         let profile = reg
-            .resolve_option_terminator("file", &["delete", "$path"], DialectSet::empty())
+            .resolve_option_terminator("file", &["delete", "$path"], None)
             .expect("file delete declares -- at the subcommand level");
         assert_eq!(profile.scan_start, 1);
         assert_eq!(profile.subcommand, Some("delete"));
@@ -9536,7 +9492,7 @@ mod tests {
     fn resolve_option_terminator_subcommand_without_terminator_returns_none() {
         let reg = CommandRegistry::build_default();
         // ``file mtime`` has no ``--`` terminator.
-        let profile = reg.resolve_option_terminator("file", &["mtime", "$p"], DialectSet::empty());
+        let profile = reg.resolve_option_terminator("file", &["mtime", "$p"], None);
         assert!(profile.is_none(), "got {profile:?}");
     }
 
@@ -9635,7 +9591,7 @@ mod tests {
     #[test]
     fn unit_linkage_is_subcommand_precise() {
         let reg = CommandRegistry::build_default();
-        let empty = DialectSet::empty();
+        let empty = None;
         assert_eq!(
             reg.unit_linkage("package", &["provide", "mylib", "1.0"], empty),
             Traits::PROVIDES_PACKAGE
@@ -9662,7 +9618,7 @@ mod tests {
     #[test]
     fn invocation_traits_compose_subcommand_traits() {
         let reg = CommandRegistry::build_default();
-        let empty = DialectSet::empty();
+        let empty = None;
         // TP — the eval family, bare and compound.
         for (name, args) in [
             ("eval", &["{set x 1}"][..]),
@@ -9732,11 +9688,7 @@ mod tests {
             assert_eq!(reg.control_arm_semantics("try", args, 0), None);
         }
         assert_eq!(
-            reg.control_invocation_valid(
-                "try",
-                &["{}", "on", "ok", "{}", "-"],
-                DialectSet::empty(),
-            ),
+            reg.control_invocation_valid("try", &["{}", "on", "ok", "{}", "-"], None,),
             Some(false),
             "a terminal handler fallthrough has no following script"
         );
@@ -9757,7 +9709,7 @@ mod tests {
             "{set r fell}",
         ];
         assert_eq!(
-            reg.control_invocation_valid("try", &chained_fallthrough, DialectSet::empty()),
+            reg.control_invocation_valid("try", &chained_fallthrough, None),
             Some(true)
         );
         assert_eq!(
@@ -9765,11 +9717,11 @@ mod tests {
             Some(ControlArmSemantics::Selected)
         );
         assert_eq!(
-            reg.control_invocation_valid("if", &["1", "then"], DialectSet::empty()),
+            reg.control_invocation_valid("if", &["1", "then"], None),
             Some(false)
         );
         assert_eq!(
-            reg.control_invocation_valid("if", &["1", "a", "b"], DialectSet::empty()),
+            reg.control_invocation_valid("if", &["1", "a", "b"], None),
             Some(true)
         );
         assert_eq!(
@@ -9782,20 +9734,20 @@ mod tests {
     fn invocation_completion_is_registry_owned() {
         let reg = CommandRegistry::build_default();
         assert_eq!(
-            reg.invocation_completion("return", &["-code", "error", "$w"], DialectSet::empty(),),
+            reg.invocation_completion("return", &["-code", "error", "$w"], None,),
             InvocationCompletion::Terminates
         );
         assert_eq!(
-            reg.invocation_completion("return", &["$w"], DialectSet::empty()),
+            reg.invocation_completion("return", &["$w"], None),
             InvocationCompletion::ReturnsResult(Some(0))
         );
         assert_eq!(
-            reg.invocation_completion("return", &["-code"], DialectSet::empty()),
+            reg.invocation_completion("return", &["-code"], None),
             InvocationCompletion::ReturnsResult(Some(0)),
             "a trailing option-shaped word is return's result, not a missing option value"
         );
         assert_eq!(
-            reg.invocation_completion("return", &["-level", "0", "$w"], DialectSet::empty(),),
+            reg.invocation_completion("return", &["-level", "0", "$w"], None,),
             InvocationCompletion::FallsThrough
         );
         for args in [
@@ -9803,7 +9755,7 @@ mod tests {
             &["-code", "error", "-level", "0", "$w"][..],
         ] {
             assert_eq!(
-                reg.invocation_completion("return", args, DialectSet::empty()),
+                reg.invocation_completion("return", args, None),
                 InvocationCompletion::Terminates
             );
         }
@@ -9813,16 +9765,16 @@ mod tests {
             &["$w", "extra"][..],
         ] {
             assert_eq!(
-                reg.invocation_completion("return", args, DialectSet::empty()),
+                reg.invocation_completion("return", args, None),
                 InvocationCompletion::Unknown
             );
         }
         assert_eq!(
-            reg.invocation_completion("not-a-command", &[], DialectSet::empty()),
+            reg.invocation_completion("not-a-command", &[], None),
             InvocationCompletion::Unknown
         );
         assert_eq!(
-            reg.invocation_completion("set", &[], DialectSet::empty()),
+            reg.invocation_completion("set", &[], None),
             InvocationCompletion::Unknown
         );
     }
@@ -9831,22 +9783,18 @@ mod tests {
     fn exact_return_options_and_process_exit_are_registry_owned() {
         use crate::completion::CompletionCode;
 
-        let reg = crate::registry_for_dialect("tcl8.6");
+        let reg = crate::model::ingress::static_context_for("tcl8.6").commands();
         // Oracle (tclsh 8.6/9.0): the default -level 1 return is caught by
         // `try on return`, even when its eventual procedure result is error.
         assert_eq!(
-            reg.exact_invocation_completion(
-                "return",
-                &["-code", "error", "payload"],
-                DialectSet::empty(),
-            ),
+            reg.exact_invocation_completion("return", &["-code", "error", "payload"], None,),
             Some(ExactInvocationCompletion::Tcl(CompletionCode::Return))
         );
         assert_eq!(
             reg.exact_invocation_completion(
                 "return",
                 &["-level", "0", "-code", "error", "payload"],
-                DialectSet::empty(),
+                None,
             ),
             Some(ExactInvocationCompletion::Tcl(CompletionCode::Error))
         );
@@ -9856,7 +9804,7 @@ mod tests {
             &["-level", "0x0", "-code", "error", "payload"][..],
         ] {
             assert_eq!(
-                reg.exact_invocation_completion("return", args, DialectSet::empty()),
+                reg.exact_invocation_completion("return", args, None),
                 Some(ExactInvocationCompletion::Tcl(if args[0] == "-level" {
                     CompletionCode::Error
                 } else {
@@ -9869,7 +9817,7 @@ mod tests {
                 reg.exact_invocation_completion(
                     "return",
                     &["-level", "0", "-code", spelling, "payload"],
-                    DialectSet::empty(),
+                    None,
                 ),
                 Some(ExactInvocationCompletion::Tcl(CompletionCode::Other(
                     expected
@@ -9887,38 +9835,26 @@ mod tests {
                 reg.exact_invocation_completion(
                     "return",
                     &["-level", "0", "-code", spelling, "payload"],
-                    DialectSet::empty(),
+                    None,
                 ),
                 Some(ExactInvocationCompletion::Tcl(expected)),
                 "{spelling}"
             );
         }
         assert_eq!(
-            reg.exact_invocation_completion("exit", &["0"], DialectSet::empty()),
+            reg.exact_invocation_completion("exit", &["0"], None),
             Some(ExactInvocationCompletion::ProcessExit)
         );
         assert_eq!(
-            reg.exact_invocation_completion(
-                "return",
-                &["-options", "$dynamic", "payload"],
-                DialectSet::empty(),
-            ),
+            reg.exact_invocation_completion("return", &["-options", "$dynamic", "payload"], None,),
             None
         );
         assert_eq!(
-            reg.exact_invocation_completion(
-                "return",
-                &["-code", "$dynamic", "payload"],
-                DialectSet::empty(),
-            ),
+            reg.exact_invocation_completion("return", &["-code", "$dynamic", "payload"], None,),
             None
         );
         assert_eq!(
-            reg.exact_invocation_completion(
-                "return",
-                &["--", "-code", "error"],
-                DialectSet::empty(),
-            ),
+            reg.exact_invocation_completion("return", &["--", "-code", "error"], None,),
             Some(ExactInvocationCompletion::Tcl(CompletionCode::Return))
         );
     }
@@ -9929,7 +9865,7 @@ mod tests {
         use crate::invocation_words::{InvocationArguments, InvocationWord};
 
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6"] {
-            let reg = crate::registry_for_dialect(dialect);
+            let reg = crate::model::ingress::static_context_for(dialect).commands();
             // Tcl 8.x's `exit` calls `Tcl_GetIntFromObj`. Despite the `int`
             // destination, its 64-bit implementation accepts the asymmetric
             // `-UINT_MAX..=UINT_MAX` range before casting to `int`.
@@ -9942,7 +9878,7 @@ mod tests {
                 &["4294967295"][..],
             ] {
                 assert_eq!(
-                    reg.exact_invocation_completion("exit", args, DialectSet::empty()),
+                    reg.exact_invocation_completion("exit", args, None),
                     Some(ExactInvocationCompletion::ProcessExit),
                     "{dialect}: exit {args:?}"
                 );
@@ -9956,7 +9892,7 @@ mod tests {
                 &["4294967296"][..],
             ] {
                 assert_eq!(
-                    reg.exact_invocation_completion("exit", args, DialectSet::empty()),
+                    reg.exact_invocation_completion("exit", args, None),
                     Some(ExactInvocationCompletion::Tcl(CompletionCode::Error)),
                     "{dialect}: exit {args:?}"
                 );
@@ -9964,7 +9900,7 @@ mod tests {
         }
 
         for dialect in ["tcl9.0", "tcl9.1"] {
-            let reg = crate::registry_for_dialect(dialect);
+            let reg = crate::model::ingress::static_context_for(dialect).commands();
             // Tcl 9.0+ changed `exit` to `TclGetWideBitsFromObj`: every
             // integer, including a bignum beyond wide range, reaches
             // `Tcl_Exit` and has its low bits cast to `int` there.
@@ -9976,14 +9912,14 @@ mod tests {
                 &["18446744073709551616"][..],
             ] {
                 assert_eq!(
-                    reg.exact_invocation_completion("exit", args, DialectSet::empty()),
+                    reg.exact_invocation_completion("exit", args, None),
                     Some(ExactInvocationCompletion::ProcessExit),
                     "{dialect}: exit {args:?}"
                 );
             }
             for args in [&["nope"][..], &["1.5"][..], &["0", "extra"][..]] {
                 assert_eq!(
-                    reg.exact_invocation_completion("exit", args, DialectSet::empty()),
+                    reg.exact_invocation_completion("exit", args, None),
                     Some(ExactInvocationCompletion::Tcl(CompletionCode::Error)),
                     "{dialect}: exit {args:?}"
                 );
@@ -9991,13 +9927,13 @@ mod tests {
         }
 
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-            let reg = crate::registry_for_dialect(dialect);
+            let reg = crate::model::ingress::static_context_for(dialect).commands();
             let dynamic = [InvocationWord::Dynamic];
             assert_eq!(
                 reg.invocation_completion_knowledge(
                     "exit",
                     InvocationArguments::structured(&dynamic),
-                    DialectSet::empty(),
+                    None,
                 ),
                 Some(InvocationCompletionKnowledge::ExitOrError),
                 "{dialect}: exit $status is only process-exit or Tcl error"
@@ -10007,7 +9943,7 @@ mod tests {
                 reg.invocation_completion_knowledge(
                     "exit",
                     InvocationArguments::structured(&expanded),
-                    DialectSet::empty(),
+                    None,
                 ),
                 Some(InvocationCompletionKnowledge::ExitOrError),
                 "{dialect}: exit {{*}}$statuses has no normal completion either"
@@ -10023,7 +9959,7 @@ mod tests {
         // value. A lone option-shaped word is therefore return's sole result;
         // with `-level 0`, it exposes the default TCL_OK instead.
         for dialect in ["tcl8.6", "tcl9.0"] {
-            let reg = crate::registry_for_dialect(dialect);
+            let reg = crate::model::ingress::static_context_for(dialect).commands();
             for (args, expected) in [
                 (&["-code"][..], CompletionCode::Return),
                 (&["-level"][..], CompletionCode::Return),
@@ -10032,7 +9968,7 @@ mod tests {
                 (&["-level", "0", "-code"][..], CompletionCode::Ok),
             ] {
                 assert_eq!(
-                    reg.exact_invocation_completion("return", args, DialectSet::empty()),
+                    reg.exact_invocation_completion("return", args, None),
                     Some(ExactInvocationCompletion::Tcl(expected)),
                     "{dialect}: {args:?}"
                 );
@@ -10048,7 +9984,7 @@ mod tests {
                 &["-level", "0", "-code", "-2147483649", "payload"][..],
             ] {
                 assert_eq!(
-                    reg.exact_invocation_completion("return", args, DialectSet::empty()),
+                    reg.exact_invocation_completion("return", args, None),
                     Some(ExactInvocationCompletion::Tcl(CompletionCode::Error)),
                     "{dialect}: {args:?}"
                 );
@@ -10065,7 +10001,7 @@ mod tests {
         // core primitive, including ones whose normal effect is process exit
         // or a loop transfer rather than TCL_ERROR.
         for dialect in ["tcl8.6", "tcl9.0"] {
-            let reg = crate::registry_for_dialect(dialect);
+            let reg = crate::model::ingress::static_context_for(dialect).commands();
             for (name, args) in [
                 ("error", &[][..]),
                 ("error", &["message", "info", "code", "extra"][..]),
@@ -10077,7 +10013,7 @@ mod tests {
                 ("exit", &["0", "extra"][..]),
             ] {
                 assert_eq!(
-                    reg.exact_invocation_completion(name, args, DialectSet::empty()),
+                    reg.exact_invocation_completion(name, args, None),
                     Some(ExactInvocationCompletion::Tcl(CompletionCode::Error)),
                     "{dialect}: {name} {args:?}"
                 );
@@ -10094,13 +10030,13 @@ mod tests {
         // while a bare/quoted substitution remains unknown and a decoded bare
         // escape can be supplied to this API as its effective static value.
         for dialect in ["tcl8.6", "tcl9.0"] {
-            let reg = crate::registry_for_dialect(dialect);
+            let reg = crate::model::ingress::static_context_for(dialect).commands();
             let trailing_option = [InvocationWord::Literal("-code")];
             assert_eq!(
                 reg.exact_invocation_completion_words(
                     "return",
                     InvocationArguments::structured(&trailing_option),
-                    DialectSet::empty()
+                    None
                 ),
                 Some(ExactInvocationCompletion::Tcl(CompletionCode::Return)),
                 "{dialect}: source-aware lone -code remains the result word"
@@ -10119,7 +10055,7 @@ mod tests {
                     reg.exact_invocation_completion_words(
                         "return",
                         InvocationArguments::structured(&words),
-                        DialectSet::empty()
+                        None
                     ),
                     Some(ExactInvocationCompletion::Tcl(CompletionCode::Error)),
                     "{dialect}: {words:?}"
@@ -10133,7 +10069,7 @@ mod tests {
                 reg.exact_invocation_completion_words(
                     "return",
                     InvocationArguments::structured(&decoded),
-                    DialectSet::empty()
+                    None
                 ),
                 Some(ExactInvocationCompletion::Tcl(CompletionCode::Return)),
             );
@@ -10143,7 +10079,7 @@ mod tests {
                     reg.exact_invocation_completion_words(
                         "return",
                         InvocationArguments::structured(&words),
-                        DialectSet::empty()
+                        None
                     ),
                     None,
                 );
@@ -10153,7 +10089,7 @@ mod tests {
                 reg.invocation_completion_knowledge(
                     "return",
                     InvocationArguments::structured(&dynamic_option),
-                    DialectSet::empty(),
+                    None,
                 ),
                 Some(InvocationCompletionKnowledge::Dynamic),
             );
@@ -10164,10 +10100,12 @@ mod tests {
     #[allow(clippy::too_many_lines)] // descriptor layout matrix
     fn case_list_invocation_layout_is_registry_owned() {
         use crate::spec::CaseMatchMode;
-        let reg = crate::registry_for_dialect("tcl9.0");
-        let Some((_, two_arg)) =
-            reg.case_invocation("switch", &["-glob", "default {}"], DialectSet::TCL90)
-        else {
+        let reg = crate::model::ingress::static_context_for("tcl9.0").commands();
+        let Some((_, two_arg)) = reg.case_invocation(
+            "switch",
+            &["-glob", "default {}"],
+            Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+        ) else {
             panic!("two-argument case form must parse");
         };
         assert_eq!(two_arg.subject_index, Some(0));
@@ -10177,7 +10115,7 @@ mod tests {
         let Some((_, options)) = reg.case_invocation(
             "switch",
             &["-glob", "-nocase", "--", "subject", "p {}"],
-            DialectSet::TCL90,
+            Some(SurfaceQuery::core(Family::Tcl, "9.0")),
         ) else {
             panic!("option-bearing case form must parse");
         };
@@ -10185,11 +10123,11 @@ mod tests {
         assert_eq!(options.mode, CaseMatchMode::Glob);
         assert!(options.nocase);
 
-        let tcl91 = crate::registry_for_dialect("tcl9.1");
+        let tcl91 = crate::model::ingress::static_context_for("tcl9.1").commands();
         let Some((_, integer)) = tcl91.case_invocation(
             "switch",
             &["-integer", "--", "1", "1 {set x 1}"],
-            DialectSet::TCL91,
+            Some(SurfaceQuery::core(Family::Tcl, "9.1")),
         ) else {
             panic!("Tcl 9.1 integer switch must retain its case-list body");
         };
@@ -10201,7 +10139,11 @@ mod tests {
         ] {
             assert!(
                 tcl91
-                    .case_invocation("switch", &args, DialectSet::TCL91)
+                    .case_invocation(
+                        "switch",
+                        &args,
+                        Some(SurfaceQuery::core(Family::Tcl, "9.1"))
+                    )
                     .is_none(),
                 "integer and nocase must be incompatible: {args:?}"
             );
@@ -10219,7 +10161,11 @@ mod tests {
         ] {
             assert!(
                 tcl91
-                    .case_invocation("switch", &args, DialectSet::TCL91)
+                    .case_invocation(
+                        "switch",
+                        &args,
+                        Some(SurfaceQuery::core(Family::Tcl, "9.1"))
+                    )
                     .is_none(),
                 "multiple match modes must be rejected: {args:?}"
             );
@@ -10242,7 +10188,7 @@ mod tests {
             reg.case_invocation(
                 "switch",
                 &["subject", "pattern", "body", "orphan"],
-                DialectSet::TCL90,
+                Some(SurfaceQuery::core(Family::Tcl, "9.0")),
             )
             .is_none()
         );
@@ -10250,19 +10196,23 @@ mod tests {
             reg.case_invocation(
                 "switch",
                 &["subject", "pattern {} orphan"],
-                DialectSet::TCL90
+                Some(SurfaceQuery::core(Family::Tcl, "9.0"))
             )
             .is_none()
         );
 
-        let tcl84 = crate::registry_for_dialect("tcl8.4");
+        let tcl84 = crate::model::ingress::static_context_for("tcl8.4").commands();
         for two_arg_switch in [
             ["-regexp", "default {puts hit}"],
             ["--", "default {puts hit}"],
         ] {
             assert!(
                 tcl84
-                    .case_invocation("switch", &two_arg_switch, DialectSet::TCL84)
+                    .case_invocation(
+                        "switch",
+                        &two_arg_switch,
+                        Some(SurfaceQuery::core(Family::Tcl, "8.4"))
+                    )
                     .is_none(),
                 "Tcl 8.4 scans the option-like first word and rejects the missing subject: {two_arg_switch:?}"
             );
@@ -10274,7 +10224,11 @@ mod tests {
             );
             assert_eq!(
                 tcl84
-                    .resolve_option_terminator("switch", &two_arg_switch, DialectSet::TCL84)
+                    .resolve_option_terminator(
+                        "switch",
+                        &two_arg_switch,
+                        Some(SurfaceQuery::core(Family::Tcl, "8.4"))
+                    )
                     .expect("switch declares --")
                     .reserved_trailing_words,
                 0,
@@ -10288,7 +10242,7 @@ mod tests {
         ] {
             assert!(
                 tcl84
-                    .case_invocation("switch", args, DialectSet::TCL84)
+                    .case_invocation("switch", args, Some(SurfaceQuery::core(Family::Tcl, "8.4")))
                     .is_some(),
                 "Tcl 8.4 accepts the unambiguous switch case-list form: {args:?}"
             );
@@ -10303,17 +10257,17 @@ mod tests {
                 .case_invocation(
                     "switch",
                     &["-nocase", "subject", "pattern {}"],
-                    DialectSet::TCL84,
+                    Some(SurfaceQuery::core(Family::Tcl, "8.4")),
                 )
                 .is_none()
         );
-        let tcl85 = crate::registry_for_dialect("tcl8.5");
+        let tcl85 = crate::model::ingress::static_context_for("tcl8.5").commands();
         for (dialect, availability) in [
-            ("tcl8.5", DialectSet::TCL85),
-            ("tcl8.6", DialectSet::TCL86),
-            ("tcl9.0", DialectSet::TCL90),
+            ("tcl8.5", Some(SurfaceQuery::core(Family::Tcl, "8.5"))),
+            ("tcl8.6", Some(SurfaceQuery::core(Family::Tcl, "8.6"))),
+            ("tcl9.0", Some(SurfaceQuery::core(Family::Tcl, "9.0"))),
         ] {
-            let registry = crate::registry_for_dialect(dialect);
+            let registry = crate::model::ingress::static_context_for(dialect).commands();
             for two_arg_switch in [
                 ["-regexp", "default {puts hit}"],
                 ["--", "default {puts hit}"],
@@ -10344,14 +10298,18 @@ mod tests {
                 .case_invocation(
                     "switch",
                     &["-nocase", "subject", "pattern {}"],
-                    DialectSet::TCL85,
+                    Some(SurfaceQuery::core(Family::Tcl, "8.5")),
                 )
                 .is_some()
         );
         let default = CommandRegistry::build_default();
         assert!(
             default
-                .case_invocation("switch", &["subject", "pattern {}"], DialectSet::TCL90,)
+                .case_invocation(
+                    "switch",
+                    &["subject", "pattern {}"],
+                    Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+                )
                 .is_some()
         );
         assert!(
@@ -10359,36 +10317,48 @@ mod tests {
                 .case_invocation(
                     "switch",
                     &["--", "-x", "-x {puts hit} default {puts miss}"],
-                    DialectSet::TCL90,
+                    Some(SurfaceQuery::core(Family::Tcl, "9.0")),
                 )
                 .is_some(),
             "the descriptor's -- terminator keeps a hyphenated switch subject positional"
         );
         assert!(
-            reg.case_invocation("switch", &["subject", "pattern -"], DialectSet::TCL90)
-                .is_none()
+            reg.case_invocation(
+                "switch",
+                &["subject", "pattern -"],
+                Some(SurfaceQuery::core(Family::Tcl, "9.0"))
+            )
+            .is_none()
         );
 
-        let expect = crate::registry_for_dialect("expect");
+        let expect = crate::model::ingress::static_context_for("expect").commands();
         assert!(
             expect
                 .case_invocation(
                     "expect",
                     &["\"password:\" {send pw} -re {ye+s} {send yes} timeout {puts slow}"],
-                    DialectSet::EXPECT,
+                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
                 )
                 .is_some(),
             "clause-leading flags must not break valid Expect pattern/body pairs"
         );
         assert!(
             expect
-                .case_invocation("expect", &["{-re} {send literal}"], DialectSet::EXPECT,)
+                .case_invocation(
+                    "expect",
+                    &["{-re} {send literal}"],
+                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                )
                 .is_some(),
             "a braced flag-shaped pattern is literal text, not a clause flag"
         );
         assert!(
             expect
-                .case_invocation("expect", &["-re {ye+s}"], DialectSet::EXPECT)
+                .case_invocation(
+                    "expect",
+                    &["-re {ye+s}"],
+                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                )
                 .is_some(),
             "Expect permits a final pattern without an action"
         );
@@ -10397,7 +10367,11 @@ mod tests {
             ["-i", "spawn", "ready {action}"],
         ] {
             let (_, invocation) = expect
-                .case_invocation("expect", &args, DialectSet::EXPECT)
+                .case_invocation(
+                    "expect",
+                    &args,
+                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+                )
                 .expect("outer Expect value option followed by a final pattern");
             assert_eq!(invocation.clause_list_index, None, "{args:?}");
             assert_eq!(invocation.inline_clause_start, Some(2), "{args:?}");
@@ -10416,7 +10390,7 @@ mod tests {
                         &[&format!(
                             "{pattern} {{send literal}} default {{send other}}"
                         )],
-                        DialectSet::EXPECT,
+                        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
                     )
                     .is_some(),
                 "{pattern:?} is a literal Tcl list pattern, not script syntax"
@@ -10424,7 +10398,11 @@ mod tests {
         }
         assert!(
             expect
-                .case_invocation("expect", &["-timeout"], DialectSet::EXPECT)
+                .case_invocation(
+                    "expect",
+                    &["-timeout"],
+                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                )
                 .is_none(),
             "a value-taking clause flag without a value/pattern/body is invalid"
         );
@@ -10432,7 +10410,7 @@ mod tests {
 
     #[test]
     fn inline_expect_case_flags_and_actions_are_registry_owned() {
-        let expect = crate::registry_for_dialect("expect");
+        let expect = crate::model::ingress::static_context_for("expect").commands();
         let args = [
             "-re",
             "{ye+s}",
@@ -10443,7 +10421,11 @@ mod tests {
             "{send slow}",
         ];
         let (_, inline) = expect
-            .case_invocation("expect", &args, DialectSet::EXPECT)
+            .case_invocation(
+                "expect",
+                &args,
+                Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+            )
             .expect("inline Expect flags and value flags must parse");
         let clauses = crate::CaseListSpec::EXPECT
             .inline_clauses(&args, inline.inline_clause_start.expect("inline form"))
@@ -10459,7 +10441,7 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["-not", "ready", "{send ok}"],
-                    DialectSet::EXPECT
+                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
                 )
                 .is_some(),
             "unique Expect flag abbreviations must retain the action body"
@@ -10469,7 +10451,7 @@ mod tests {
     #[test]
     #[allow(clippy::too_many_lines)] // Expect oracle layout matrix
     fn expect_inline_flag_table_matches_the_oracle() {
-        let expect = crate::registry_for_dialect("expect");
+        let expect = crate::model::ingress::static_context_for("expect").commands();
         for flag in [
             "-glob",
             "-regexp",
@@ -10489,7 +10471,11 @@ mod tests {
             };
             assert!(
                 expect
-                    .case_invocation("expect", &args, DialectSet::EXPECT)
+                    .case_invocation(
+                        "expect",
+                        &args,
+                        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                    )
                     .is_some(),
                 "canonical {flag} must parse"
             );
@@ -10499,14 +10485,18 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["-timeout", "5", "pattern", "{action}"],
-                    DialectSet::EXPECT
+                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
                 )
                 .is_some()
         );
         for flag in ["-gl", "-re", "-ex", "-not"] {
             assert!(
                 expect
-                    .case_invocation("expect", &[flag, "pattern", "{action}"], DialectSet::EXPECT)
+                    .case_invocation(
+                        "expect",
+                        &[flag, "pattern", "{action}"],
+                        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                    )
                     .is_some(),
                 "unique abbreviation {flag} must parse"
             );
@@ -10514,7 +10504,11 @@ mod tests {
         for flag in ["-g", "-r", "-e", "-noc", "-nob"] {
             assert!(
                 expect
-                    .case_invocation("expect", &[flag, "pattern", "{action}"], DialectSet::EXPECT)
+                    .case_invocation(
+                        "expect",
+                        &[flag, "pattern", "{action}"],
+                        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                    )
                     .is_some(),
                 "unique canonical-prefix {flag} must remain an inline clause flag"
             );
@@ -10522,14 +10516,22 @@ mod tests {
         for flag in ["-n", "-bogus"] {
             assert!(
                 expect
-                    .case_invocation("expect", &[flag, "pattern", "{action}"], DialectSet::EXPECT)
+                    .case_invocation(
+                        "expect",
+                        &[flag, "pattern", "{action}"],
+                        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                    )
                     .is_none(),
                 "ambiguous or unknown {flag} must invalidate the invocation"
             );
         }
         let args = ["--", "-re", "{action}"];
         let (_, invocation) = expect
-            .case_invocation("expect", &args, DialectSet::EXPECT)
+            .case_invocation(
+                "expect",
+                &args,
+                Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+            )
             .expect("-- makes -re a pattern");
         let clauses = crate::CaseListSpec::EXPECT
             .inline_clauses(&args, invocation.inline_clause_start.expect("inline"))
@@ -10537,7 +10539,11 @@ mod tests {
         assert_eq!(clauses[0].pattern_index, 1);
         assert_eq!(clauses[0].body_index, Some(2));
         let (_, omitted) = expect
-            .case_invocation("expect", &["-re", "pattern"], DialectSet::EXPECT)
+            .case_invocation(
+                "expect",
+                &["-re", "pattern"],
+                Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
+            )
             .expect("omitted final action is valid");
         assert_eq!(
             crate::CaseListSpec::EXPECT
@@ -10548,7 +10554,11 @@ mod tests {
         );
         assert!(
             expect
-                .case_invocation("expect", &["-nobrace", "{pattern}"], DialectSet::EXPECT)
+                .case_invocation(
+                    "expect",
+                    &["-nobrace", "{pattern}"],
+                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                )
                 .is_some(),
             "-nobrace makes one braced word an action-less pattern"
         );
@@ -10556,7 +10566,7 @@ mod tests {
             .case_invocation(
                 "expect",
                 &["-brace", "{default {return FOLDED}}"],
-                DialectSet::EXPECT,
+                Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
             )
             .expect("exact -brace selects a clause list");
         assert_eq!(brace.clause_list_index, Some(1));
@@ -10565,7 +10575,7 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["-b", "{default {return FOLDED}}"],
-                    DialectSet::EXPECT,
+                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
                 )
                 .is_none(),
             "-brace is exact-only, so -b is not a clause flag abbreviation"
@@ -10575,7 +10585,7 @@ mod tests {
                 .case_invocation(
                     "expect",
                     &["-brac", "{default {return FOLDED}}"],
-                    DialectSet::EXPECT,
+                    Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"])),
                 )
                 .is_none(),
             "-brace must not accept a near-complete prefix either"
@@ -10587,7 +10597,11 @@ mod tests {
         ] {
             assert!(
                 expect
-                    .case_invocation("expect", args, DialectSet::EXPECT)
+                    .case_invocation(
+                        "expect",
+                        args,
+                        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                    )
                     .is_none(),
                 "force-list selector must be first and have one remainder: {args:?}"
             );
@@ -10605,7 +10619,7 @@ mod tests {
         // `-clause` was not swallowed by the outer scan.
         let case = CaseListSpec {
             subject_args: 0,
-            two_arg_optionless_dialects: None,
+            two_arg_optionless_surface: None,
             regex_option: None,
             exact_option: None,
             glob_option: None,
@@ -10641,7 +10655,11 @@ mod tests {
         let option_refs: Vec<&OptionSpec> = options.iter().collect();
         let args = ["-outer", "value", "-clause", "pattern", "{body}"];
         let invocation = case
-            .invocation(&args, &option_refs, DialectSet::ALL_TCL)
+            .invocation(
+                &args,
+                &option_refs,
+                Some(SurfaceQuery::any_release(Family::Tcl)),
+            )
             .expect("the outer value must precede, not consume, the clause flag");
         assert_eq!(invocation.inline_clause_start, Some(2));
         let clauses = case
@@ -10653,7 +10671,7 @@ mod tests {
 
     #[test]
     fn case_list_invocation_abstains_on_empty_and_truncated_shapes() {
-        let switch = crate::registry_for_dialect("tcl9.0");
+        let switch = crate::model::ingress::static_context_for("tcl9.0").commands();
         for args in [
             &[][..],
             &["subject"][..],
@@ -10664,13 +10682,13 @@ mod tests {
         ] {
             assert!(
                 switch
-                    .case_invocation("switch", args, DialectSet::TCL90)
+                    .case_invocation("switch", args, Some(SurfaceQuery::core(Family::Tcl, "9.0")))
                     .is_none(),
                 "truncated switch invocation must abstain: {args:?}",
             );
         }
 
-        let expect = crate::registry_for_dialect("expect");
+        let expect = crate::model::ingress::static_context_for("expect").commands();
         for args in [
             &[][..],
             &["-brace"][..],
@@ -10681,7 +10699,11 @@ mod tests {
         ] {
             assert!(
                 expect
-                    .case_invocation("expect", args, DialectSet::EXPECT)
+                    .case_invocation(
+                        "expect",
+                        args,
+                        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+                    )
                     .is_none(),
                 "truncated Expect invocation must abstain: {args:?}",
             );
@@ -10703,13 +10725,19 @@ mod tests {
             &[""][..],
         ] {
             assert!(
-                custom.invocation(args, &[], DialectSet::ALL_TCL).is_none(),
+                custom
+                    .invocation(args, &[], Some(SurfaceQuery::any_release(Family::Tcl)))
+                    .is_none(),
                 "truncated custom selector invocation must abstain: {args:?}",
             );
         }
         assert!(
             custom
-                .invocation(&["-inline", "pattern", "{body}"], &[], DialectSet::ALL_TCL,)
+                .invocation(
+                    &["-inline", "pattern", "{body}"],
+                    &[],
+                    Some(SurfaceQuery::any_release(Family::Tcl)),
+                )
                 .is_some(),
             "complete custom inline-selector invocation remains valid",
         );
@@ -10732,7 +10760,7 @@ mod tests {
     #[test]
     fn unit_linkage_covers_every_declared_boundary_command() {
         let reg = CommandRegistry::build_default();
-        let empty = DialectSet::empty();
+        let empty = None;
         for (name, args, want) in [
             ("source", &["lib.tcl"][..], Traits::LOADS_EXTERNAL_UNIT),
             ("::source", &["lib.tcl"][..], Traits::LOADS_EXTERNAL_UNIT),
@@ -10798,7 +10826,7 @@ mod tests {
     /// `info commands <name>` in a fresh `interp create`.
     #[test]
     fn declares_command_at_is_the_fresh_interpreter_command_table() {
-        let reg = crate::registry_for_dialect("tcl9.0");
+        let reg = crate::model::ingress::static_context_for("tcl9.0").commands();
         // `info commands ::set` -> ::set
         for name in ["set", "::set", "puts", "::puts", "if", "foreach"] {
             assert!(reg.declares_command_at(name), "{name} is a global builtin");
@@ -10838,11 +10866,15 @@ mod tests {
     #[test]
     fn declares_command_at_is_dialect_specific() {
         assert!(
-            crate::registry_for_dialect("f5-irules").declares_command_at("HTTP::uri"),
+            crate::model::ingress::static_context_for("f5-irules")
+                .commands()
+                .declares_command_at("HTTP::uri"),
             "iRules declares HTTP::uri",
         );
         assert!(
-            !crate::registry_for_dialect("tcl9.0").declares_command_at("HTTP::uri"),
+            !crate::model::ingress::static_context_for("tcl9.0")
+                .commands()
+                .declares_command_at("HTTP::uri"),
             "plain Tcl does not",
         );
     }

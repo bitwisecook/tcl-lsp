@@ -18,12 +18,13 @@
 
 //! `spawn` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-noecho",
         value: OptionValue::flag(),
         detail: "Suppress echoing of the command.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -32,7 +33,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-console",
         value: OptionValue::flag(),
         detail: "Redirect console output to spawn.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -41,7 +42,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-ignore",
         value: OptionValue::value("signal"),
         detail: "Ignore the named signal in the spawned process.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -50,7 +51,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-leaveopen",
         value: OptionValue::flag(),
         detail: "Leave the file descriptor open.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -59,7 +60,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-pty",
         value: OptionValue::flag(),
         detail: "Open a pty for the process.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -68,7 +69,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-nottycopy",
         value: OptionValue::flag(),
         detail: "Do not copy tty modes.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -77,7 +78,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-nottyinit",
         value: OptionValue::flag(),
         detail: "Do not initialise the tty.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -86,7 +87,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-open",
         value: OptionValue::value("fileId"),
         detail: "Use an already-open file id.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -95,7 +96,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-trap",
         value: OptionValue::flag(),
         detail: "Enable signal trapping.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -110,7 +111,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "spawn",
-        dialects: Some(DialectSet::EXPECT),
+        surface: Some(SpecSurface::EXPECT),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Start a new process and prepare it for interaction.",

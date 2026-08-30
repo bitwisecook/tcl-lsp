@@ -32,7 +32,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fileutil::maketempdir",
-        dialects: None,
+        surface: None,
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Create a temporary directory.",

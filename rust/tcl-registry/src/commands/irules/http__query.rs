@@ -18,20 +18,21 @@
 
 //! `HTTP::query` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::query",
         traits: Traits::PURE
             .union(Traits::CSE_CANDIDATE)
             .union(Traits::UNNORMALISED_HTTP_GETTER),
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::new(0, 1),
         options: const {
             &[OptionSpec {
                 name: "-normalized",
                 value: OptionValue::flag(),
                 detail: "Return the canonicalised query (URL evasion patterns rejected).",
-                dialects: None,
+                surface: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,
@@ -51,9 +52,7 @@ pub const fn spec() -> CommandSpec {
             transport: Some("tcp"),
             profiles: &["FASTHTTP", "HTTP"],
             also_in: &["MR_INGRESS", "SERVER_CONNECTED"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[
             FormSpec {

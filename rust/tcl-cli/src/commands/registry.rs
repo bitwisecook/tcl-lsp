@@ -54,7 +54,10 @@ pub fn run_registry_dump(
     // `build_default` already carries every Tcl dialect's commands, so the
     // `tcl8.6` registry serves every Tcl dialect (and `--all-dialects`).
     let json = if all_dialects {
-        let registry = registry_for_dialect(DialectProfile::by_name("tcl8.6").name);
+        // T3: the single-`tcl8.6`-registry shortcut is the payload ledger
+        // row T3 retires (P1); the name itself resolves through the seam.
+        let registry =
+            registry_for_dialect(tcl_cli_support::environment::profile_for_dialect("tcl8.6").name);
         command_registry_snapshots(&registry, &tcl_dialects())
     } else {
         let registry = registry_for_dialect(dialect.name);

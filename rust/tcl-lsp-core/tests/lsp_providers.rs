@@ -105,7 +105,6 @@ fn collect_names<'a>(symbols: &'a [DocumentSymbol], out: &mut Vec<&'a str>) {
     }
 }
 
-// =========================================================================
 // code_lens
 //
 // The Rust `code_lenses` provider already resolves the count eagerly, so the
@@ -114,7 +113,6 @@ fn collect_names<'a>(symbols: &'a [DocumentSymbol], out: &mut Vec<&'a str>) {
 // `command` string are editor-presentation — asserted structurally. The
 // reference COUNT is the Tcl-semantic fact: it is the number of real call
 // sites of the proc in the script.
-// =========================================================================
 
 const TEST_URI: &str = "file:///test.tcl";
 
@@ -132,7 +130,7 @@ fn code_lens_lens_per_proc() {
     let analysis = analyse(src);
     let lenses = code_lenses(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         Some(&analysis),
         None,
         TEST_URI,
@@ -156,7 +154,7 @@ fn code_lens_empty_when_no_procs() {
     let analysis = analyse(src);
     let lenses = code_lenses(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         Some(&analysis),
         None,
         TEST_URI,
@@ -171,7 +169,7 @@ fn code_lens_none_analysis_returns_empty() {
     // `code_lens.rs::empty_lenses_when_analysis_is_none`).
     let lenses = code_lenses(
         "proc f {} {}\nproc g {} {}\n",
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         None,
         None,
         TEST_URI,
@@ -186,7 +184,7 @@ fn code_lens_zero_references_for_unused_proc() {
     let analysis = analyse(src);
     let lenses = code_lenses(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         Some(&analysis),
         None,
         TEST_URI,
@@ -201,7 +199,7 @@ fn code_lens_singular_title_for_one_reference() {
     let analysis = analyse(src);
     let lenses = code_lenses(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         Some(&analysis),
         None,
         TEST_URI,
@@ -216,7 +214,7 @@ fn code_lens_plural_title_for_multiple_references() {
     let analysis = analyse(src);
     let lenses = code_lenses(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         Some(&analysis),
         None,
         TEST_URI,
@@ -232,7 +230,7 @@ fn code_lens_anchor_is_proc_name_span() {
     let analysis = analyse(src);
     let lenses = code_lenses(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         Some(&analysis),
         None,
         TEST_URI,
@@ -251,7 +249,7 @@ fn code_lens_count_matches_forward_reference() {
     let analysis = analyse(src);
     let lenses = code_lenses(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         Some(&analysis),
         None,
         TEST_URI,
@@ -267,7 +265,7 @@ fn code_lens_count_matches_qualified_call() {
     let analysis = analyse(src);
     let lenses = code_lenses(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         Some(&analysis),
         None,
         TEST_URI,
@@ -282,7 +280,7 @@ fn code_lens_count_matches_ns_qualified_call() {
     let analysis = analyse(src);
     let lenses = code_lenses(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         Some(&analysis),
         None,
         TEST_URI,
@@ -300,7 +298,7 @@ fn code_lens_count_matches_call_inside_body() {
     let analysis = analyse(src);
     let lenses = code_lenses(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         Some(&analysis),
         None,
         TEST_URI,
@@ -317,7 +315,7 @@ fn code_lens_count_matches_cmd_substitution() {
     let analysis = analyse(src);
     let lenses = code_lenses(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         Some(&analysis),
         None,
         TEST_URI,
@@ -333,7 +331,7 @@ fn code_lens_degenerate_inputs_do_not_panic() {
         let analysis = analyse(src);
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             Some(&analysis),
             None,
             TEST_URI,
@@ -342,7 +340,6 @@ fn code_lens_degenerate_inputs_do_not_panic() {
     }
 }
 
-// =========================================================================
 // document_symbols — proc / namespace / variable / class symbol tree
 //
 // The symbol TREE STRUCTURE (which names nest under which) mirrors the real
@@ -351,13 +348,22 @@ fn code_lens_degenerate_inputs_do_not_panic() {
 // `namespace children` / `info class methods` below. SymbolKind icon strings
 // ("Function", "Namespace", …) are editor-presentation, asserted structurally
 // via the kind enum.
-// =========================================================================
 
 #[test]
 fn doc_symbols_empty_file_is_empty() {
-    assert!(document_symbols("", tcl_dialect::DialectProfile::by_name("tcl8.6")).is_empty());
     assert!(
-        document_symbols("   \n\t\n", tcl_dialect::DialectProfile::by_name("tcl8.6")).is_empty()
+        document_symbols(
+            "",
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
+        )
+        .is_empty()
+    );
+    assert!(
+        document_symbols(
+            "   \n\t\n",
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
+        )
+        .is_empty()
     );
 }
 
@@ -367,7 +373,10 @@ fn doc_symbols_proc_is_a_function_with_param_detail() {
     // so the proc's single parameter is `name`. The detail string `(name)`
     // is editor-presentation; the parameter fact comes from `info args`.
     let src = "proc greet {name} {\n    puts \"Hello $name\"\n}\n";
-    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+    let symbols = document_symbols(
+        src,
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     assert_eq!(symbols.len(), 1, "{symbols:?}");
     assert_eq!(symbols[0].name, "greet");
     assert_eq!(symbols[0].kind, SymbolKind::Function);
@@ -379,7 +388,10 @@ fn doc_symbols_proc_range_contains_selection_range() {
     // The outer (fold) range must contain the name selection range —
     // structural invariant for the breadcrumb/outline.
     let src = "proc greet {name} {\n    puts \"Hello $name\"\n}\n";
-    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+    let symbols = document_symbols(
+        src,
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     let proc = &symbols[0];
     assert!(
         line_range_contains(proc.range, proc.selection_range),
@@ -405,7 +417,10 @@ fn doc_symbols_namespace_nests_inner_proc() {
         "    }\n",
         "}\n",
     );
-    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+    let symbols = document_symbols(
+        src,
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     assert_eq!(symbols.len(), 1, "{symbols:?}");
     let ns = &symbols[0];
     assert_eq!(ns.name, "myns");
@@ -434,7 +449,10 @@ fn doc_symbols_nested_namespaces_recurse() {
         "    }\n",
         "}\n",
     );
-    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+    let symbols = document_symbols(
+        src,
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     assert_eq!(symbols.len(), 1);
     let outer = &symbols[0];
     assert_eq!(outer.name, "outer");
@@ -450,7 +468,10 @@ fn doc_symbols_nested_namespaces_recurse() {
 #[test]
 fn doc_symbols_global_set_emits_variable() {
     let src = "set myvar 42\n";
-    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+    let symbols = document_symbols(
+        src,
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     let vars: Vec<&DocumentSymbol> = symbols
         .iter()
         .filter(|s| s.kind == SymbolKind::Variable)
@@ -469,7 +490,10 @@ fn doc_symbols_oo_class_lists_its_methods() {
         "    method fetch {item} { return $item }\n",
         "}\n",
     );
-    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+    let symbols = document_symbols(
+        src,
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     assert_eq!(symbols.len(), 1, "{symbols:?}");
     let cls = &symbols[0];
     assert_eq!(cls.name, "Dog");
@@ -489,7 +513,10 @@ fn doc_symbols_oo_class_detail_lists_superclass() {
     // tclsh: `oo::class create Dog { superclass Animal }; info class superclass Dog`
     // → `::Animal`. The Class symbol's detail surfaces the superclass.
     let src = "oo::class create Dog {\n    superclass Animal\n}\n";
-    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+    let symbols = document_symbols(
+        src,
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     let detail = symbols[0].detail.as_deref().unwrap_or("");
     assert!(
         detail.contains("Animal"),
@@ -501,21 +528,26 @@ fn doc_symbols_oo_class_detail_lists_superclass() {
 fn doc_symbols_no_panic_on_unbalanced_braces() {
     // A genuinely malformed script (unclosed proc body) must not panic.
     for src in ["proc broken {} {", "namespace eval ns {", "}}}}\n", "{{{{"] {
-        let _ = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let _ = document_symbols(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
     }
 }
 
 #[test]
 fn doc_symbols_multiple_top_level_procs() {
     let src = "proc foo {} { return 1 }\nproc bar {} { return 2 }\n";
-    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+    let symbols = document_symbols(
+        src,
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     let mut names = Vec::new();
     collect_names(&symbols, &mut names);
     assert!(names.contains(&"foo"));
     assert!(names.contains(&"bar"));
 }
 
-// =========================================================================
 // code_actions — quick-fixes offered for diagnostics
 //
 // These exercise the analyser→quick-fix path. The TRIGGER conditions are
@@ -524,7 +556,6 @@ fn doc_symbols_multiple_top_level_procs() {
 // a runtime error without `-nocomplain` (W213). The quick-fix EDIT (the
 // inserted text, the title wording) is editor-presentation, asserted
 // structurally on the resulting `TextEdit`.
-// =========================================================================
 
 /// A code-action range spanning a whole line — the editor sends the cursor's
 /// line/selection; a quick-fix is offered when the diagnostic overlaps it.
@@ -655,7 +686,6 @@ fn code_actions_degenerate_inputs_do_not_panic() {
     }
 }
 
-// =========================================================================
 // declaration — jump to a proc / var declaration
 //
 // The DECLARATION SITE is a Tcl-semantic fact. `global counter` inside a proc
@@ -663,7 +693,6 @@ fn code_actions_degenerate_inputs_do_not_panic() {
 // variable); a `$counter` reference resolves there. A bare proc call resolves
 // to the proc's definition site. tclsh proof: `info args` confirms a proc has
 // a real definition with a real parameter list.
-// =========================================================================
 
 #[test]
 fn declaration_global_decl_in_proc_body() {
@@ -681,7 +710,7 @@ fn declaration_global_decl_in_proc_body() {
         src,
         l,
         c + 1,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         &analysis,
         &registry(),
     );
@@ -707,7 +736,7 @@ fn declaration_variable_decl_in_namespace_proc() {
         src,
         l,
         c + 1,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         &analysis,
         &registry(),
     );
@@ -728,7 +757,7 @@ fn declaration_upvar_alias_is_a_declaration() {
         src,
         l,
         c + 1,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         &analysis,
         &registry(),
     );
@@ -747,7 +776,7 @@ fn declaration_non_variable_falls_back_to_definition() {
         src,
         1,
         2,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         &analysis,
         &registry(),
     );
@@ -763,7 +792,7 @@ fn declaration_on_blank_position_does_not_panic() {
         src,
         0,
         0,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         &analyse(src),
         &registry(),
     );
@@ -771,7 +800,7 @@ fn declaration_on_blank_position_does_not_panic() {
         src,
         5,
         99,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         &analyse(src),
         &registry(),
     );
@@ -779,19 +808,17 @@ fn declaration_on_blank_position_does_not_panic() {
         "",
         0,
         0,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         &analyse(""),
         &registry(),
     );
 }
 
-// =========================================================================
 // type_definition — TclOO: jump to the class that types a symbol
 //
 // tclsh proof: `[Dog new]` constructs a Dog instance; `info object class $d`
 // → `::Dog`. So an inferred `$d` of class Dog has its type at the `Dog` class
 // definition. A method word inside a class body belongs to that class.
-// =========================================================================
 
 #[test]
 fn type_definition_var_jumps_to_inferred_class() {
@@ -845,14 +872,12 @@ fn type_definition_unrelated_word_is_empty_and_no_panic() {
     assert!(type_definition(src, 9, 9, &analysis).is_empty());
 }
 
-// =========================================================================
 // implementation — TclOO subclass / method-override fan-out
 //
 // tclsh proof: `info class subclasses Base` → `::Sub` (who realises Base);
 // `info class methods` per class tells which classes define a method. The
 // provider answers "who realises this": subclasses for a class name, all
 // definers for a free method name, self + descendant overrides inside a class.
-// =========================================================================
 
 #[test]
 fn implementation_class_name_returns_direct_subclasses() {
@@ -917,14 +942,12 @@ fn implementation_unknown_word_is_empty_and_no_panic() {
     assert!(implementation(src, 8, 8, &analysis).is_empty());
 }
 
-// =========================================================================
 // type_hierarchy — resolve the TclOO class at the cursor (prepare)
 //
 // tclsh proof: `info class superclass` / `info class subclasses` confirm the
 // class is a real TclOO type. The `prepare` step resolves the class whose
 // name is under the cursor; super/subtype walks are stubbed in this provider,
 // so this covers the prepare surface (the part that is implemented).
-// =========================================================================
 
 #[test]
 fn type_hierarchy_resolves_class_at_cursor() {
@@ -978,14 +1001,12 @@ fn type_hierarchy_degenerate_inputs_do_not_panic() {
     let _ = type_hierarchy_prepare(src, 9, 9, &analysis);
 }
 
-// =========================================================================
 // linked_editing_range — link a proc declaration to its recursive self-calls
 //
 // The LINKED set is a Tcl-semantic fact: a recursive proc calls *itself*, so
 // renaming the proc must rename the self-call too. tclsh proof: a real proc
 // with a self-call exists (`info body factorial` contains `factorial`). The
 // WORD_PATTERN regex is editor-presentation, asserted structurally.
-// =========================================================================
 
 #[test]
 fn linked_editing_links_recursive_self_call() {

@@ -876,7 +876,6 @@ fn emit_cmd_subst_arg_composite_and_special_forms() {
     assert_eq!(arg_ops(true, &["v"], "$v", false), vec![Op::LOAD_SCALAR1]);
 }
 
-// ===========================================================================
 // Issue #1080 — `[self class]` folds to the enclosing method's defining class.
 //
 // The value is a registry fact (`CommandSpec::oo_context_facts` maps `self`'s
@@ -886,7 +885,6 @@ fn emit_cmd_subst_arg_composite_and_special_forms() {
 //
 // Oracle, byte-identical on tclsh 9.0.4 and 8.6.16 — see
 // `OoContextFact::DefiningClass`'s doc comment for the full transcript.
-// ===========================================================================
 
 /// Every O129 replacement in `src`.
 fn o129(src: &str) -> Vec<String> {
@@ -1067,7 +1065,6 @@ fn folding_self_class_does_not_disturb_the_rest_of_the_method_body() {
     );
 }
 
-// ===========================================================================
 // Issues #1096 / #1097 — completing the ticklecharts `${ns}::setdef` chain.
 //
 // #1096 put `const_fold` callbacks on `namespace qualifiers` / `namespace
@@ -1077,7 +1074,6 @@ fn folding_self_class_does_not_disturb_the_rest_of_the_method_body() {
 // instance-variable escaping model into the propagation lattice, so a
 // provably method-local variable propagates inside a method body while object
 // state still does not.
-// ===========================================================================
 
 #[test]
 fn namespace_qualifiers_and_tail_fold_over_the_self_class_frame_constant() {
@@ -1222,7 +1218,6 @@ fn a_method_that_can_reach_its_caller_frame_bars_method_local_propagation() {
     );
 }
 
-// ===========================================================================
 // The method-body propagation barrier's EVIDENCE SOURCES (review findings on
 // #1096 / #1097).  Each was a would-be miscompile: the optimiser proposed
 // replacing `$x` with `1` where real Tcl prints `2`.  The governing rule is
@@ -1230,7 +1225,6 @@ fn a_method_that_can_reach_its_caller_frame_bars_method_local_propagation() {
 // is incomplete, the barrier widens to abstention.
 //
 // Every oracle below is byte-identical on tclsh 9.0.4 and 8.6.14.
-// ===========================================================================
 
 /// Every `O100` variable-propagation replacement in `src`.
 fn o100(src: &str) -> Vec<String> {
@@ -1364,14 +1358,12 @@ fn a_substituted_upvar_source_counts_as_a_caller_frame_alias() {
     }
 }
 
-// ===========================================================================
 // Issue #1134 — SCCP feeds registry const-fold results back into the value
 // lattice, so multi-statement fold chains close instead of stopping after
 // one hop.  Oracle for the headline chain (tclsh 9.0.4, run while
 // authoring): inside an instance method of `::ticklecharts::Gauge`,
 // `set base [self class]; set ns [namespace qualifiers $base]` leaves
 // `ns == ::ticklecharts` and `${ns}::setdef …` really dispatches there.
-// ===========================================================================
 
 #[test]
 fn sccp_closes_the_two_hop_self_class_chain_in_a_method() {
@@ -1450,13 +1442,11 @@ fn sccp_lattice_fold_stays_out_of_class_side_frames() {
     );
 }
 
-// ===========================================================================
 // Issue #1164 — the method-dispatch barrier is PER-METHOD, keyed by actual
 // reachability of the invalidating fact: one caller-frame-reaching helper
 // bars only the methods whose dispatches (transitively, across hierarchy
 // components and through called procs) can reach it — no longer the whole
 // module.
-// ===========================================================================
 
 #[test]
 fn an_unrelated_class_keeps_propagation_despite_a_classvar_helper_elsewhere() {

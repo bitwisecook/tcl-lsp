@@ -18,10 +18,11 @@
 
 //! `DIAMETER::dynamic_route_lookup` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DIAMETER::dynamic_route_lookup",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Set whether messages should be routed dynamically.",
@@ -37,9 +38,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &["DIAMETER"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "DIAMETER::dynamic_route_lookup ( connection | message ) ( BOOLEAN )?",

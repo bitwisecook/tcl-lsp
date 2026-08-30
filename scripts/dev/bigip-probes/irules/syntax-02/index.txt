@@ -1,0 +1,12 @@
+comment_unbal_quote~~WRAP~~comment containing a single unbalanced double quote
+comment_apostrophe~~WRAP~~comment containing an apostrophe
+comment_balanced_block~~WRAP~~commented-out if block whose braces balance across lines
+comment_brace_pair~~WRAP~~comment with a balanced brace pair on one line
+comment_open_only~~WRAP~~comment opening a brace closed by a later comment
+expr_matches~~WRAP~~matches operator in an if expression
+switch_dashdash~~WRAP~~switch with -- terminator
+switch_glob_fallthrough~~WRAP~~switch -glob with a dash fallthrough body
+proc_and_call~~RAW~~top level proc invoked with call
+proc_direct_invoke~~RAW~~top level proc invoked directly without call
+when_priority_bad~~RAW~~when with an out of range priority
+static_var~~WRAP~~static:: namespace variable read

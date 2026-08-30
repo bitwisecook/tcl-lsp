@@ -18,10 +18,11 @@
 
 //! `CACHE::userkey` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "CACHE::userkey",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Allows users to add user-defined values to the key used by the cache to reference the cached content.",
@@ -37,9 +38,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &["HTTP"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "CACHE::userkey KEY",

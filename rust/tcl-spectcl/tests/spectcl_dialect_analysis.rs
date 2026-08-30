@@ -97,7 +97,7 @@ fn a_hover_key_written_outside_the_block_is_still_unknown() {
         diagnostics(source)
     );
     // …and the loader agrees, which is what makes the diagnostic true.
-    let pack = tcl_spectcl::load_pack(source);
+    let pack = tcl_spectcl::evaluate_pack(source);
     assert!(
         pack.notices.iter().any(|notice| notice
             .message
@@ -113,7 +113,8 @@ fn a_hover_key_written_outside_the_block_is_still_unknown() {
 /// the two.
 #[test]
 fn the_hover_grammar_and_its_command_environment_list_the_same_keys() {
-    let spec = tcl_registry::registry_for_dialect("spectcl")
+    let spec = tcl_registry::model::static_context_for("spectcl")
+        .commands()
         .get("hover")
         .expect("the spectcl dialect declares `hover`")
         .clone();

@@ -2162,8 +2162,11 @@ fn apply_domain_widening(
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{Family, SurfaceQuery};
+
     use tcl_lexer::Span;
-    use tcl_registry::dialects::DialectSet;
+    use tcl_registry::model::semantic::SemanticContext;
+
     use tcl_registry::{CommandRegistry, DispatchDependencies};
 
     use super::*;
@@ -2196,8 +2199,12 @@ mod tests {
         completion: CompletionId,
         words: &[WordExpr],
     ) -> ExecutableInstruction {
-        let resolution = resolve_word_exprs(registry(), DialectSet::TCL90, words)
-            .expect("test command resolves through the registry");
+        let resolution = resolve_word_exprs(
+            registry(),
+            Some(SemanticContext::for_environment("tcl9.0")),
+            words,
+        )
+        .expect("test command resolves through the registry");
         ExecutableInstruction::Invoke(GenericInvoke {
             completion,
             argv: ExecutableArgvId::new(id, completion.index()),
@@ -2236,7 +2243,11 @@ mod tests {
 
     fn llength_dependencies() -> DispatchDependencies {
         registry()
-            .resolve_invocation("llength", &["a b"], DialectSet::TCL90)
+            .resolve_invocation(
+                "llength",
+                &["a b"],
+                Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+            )
             .expect("llength resolves")
             .facts()
             .dispatch_dependencies

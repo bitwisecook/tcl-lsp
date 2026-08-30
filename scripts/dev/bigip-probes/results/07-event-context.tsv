@@ -1,0 +1,120 @@
+HTTP::uri|RULE_INIT|OK
+HTTP::uri|CLIENT_ACCEPTED|NO|command is not valid in current event context (CLIENT_ACCEPTED)
+HTTP::uri|CLIENT_DATA|NO|command is not valid in current event context (CLIENT_DATA)
+HTTP::uri|HTTP_REQUEST|OK
+HTTP::uri|LB_SELECTED|OK
+HTTP::uri|SERVER_CONNECTED|OK
+HTTP::uri|HTTP_RESPONSE|NO|command is not valid in current event context (HTTP_RESPONSE)
+HTTP::uri|CLIENT_CLOSED|NO|command is not valid in current event context (CLIENT_CLOSED)
+HTTP::status|RULE_INIT|OK
+HTTP::status|CLIENT_ACCEPTED|NO|command is not valid in current event context (CLIENT_ACCEPTED)
+HTTP::status|CLIENT_DATA|NO|command is not valid in current event context (CLIENT_DATA)
+HTTP::status|HTTP_REQUEST|NO|command is not valid in current event context (HTTP_REQUEST)
+HTTP::status|LB_SELECTED|OK
+HTTP::status|SERVER_CONNECTED|NO|command is not valid in current event context (SERVER_CONNECTED)
+HTTP::status|HTTP_RESPONSE|OK
+HTTP::status|CLIENT_CLOSED|NO|command is not valid in current event context (CLIENT_CLOSED)
+HTTP::respond|RULE_INIT|OK
+HTTP::respond|CLIENT_ACCEPTED|NO|command is not valid in current event context (CLIENT_ACCEPTED)
+HTTP::respond|CLIENT_DATA|NO|command is not valid in current event context (CLIENT_DATA)
+HTTP::respond|HTTP_REQUEST|OK
+HTTP::respond|LB_SELECTED|NO|command is not valid in current event context (LB_SELECTED)
+HTTP::respond|SERVER_CONNECTED|NO|command is not valid in current event context (SERVER_CONNECTED)
+HTTP::respond|HTTP_RESPONSE|OK
+HTTP::respond|CLIENT_CLOSED|NO|command is not valid in current event context (CLIENT_CLOSED)
+HTTP::collect|RULE_INIT|OK
+HTTP::collect|CLIENT_ACCEPTED|NO|command is not valid in current event context (CLIENT_ACCEPTED)
+HTTP::collect|CLIENT_DATA|NO|command is not valid in current event context (CLIENT_DATA)
+HTTP::collect|HTTP_REQUEST|OK
+HTTP::collect|LB_SELECTED|OK
+HTTP::collect|SERVER_CONNECTED|NO|command is not valid in current event context (SERVER_CONNECTED)
+HTTP::collect|HTTP_RESPONSE|OK
+HTTP::collect|CLIENT_CLOSED|NO|command is not valid in current event context (CLIENT_CLOSED)
+IP::client_addr|RULE_INIT|NO|command is not valid in current event context (RULE_INIT)
+IP::client_addr|CLIENT_ACCEPTED|OK
+IP::client_addr|CLIENT_DATA|OK
+IP::client_addr|HTTP_REQUEST|OK
+IP::client_addr|LB_SELECTED|OK
+IP::client_addr|SERVER_CONNECTED|OK
+IP::client_addr|HTTP_RESPONSE|OK
+IP::client_addr|CLIENT_CLOSED|OK
+IP::server_addr|RULE_INIT|NO|command is not valid in current event context (RULE_INIT)
+IP::server_addr|CLIENT_ACCEPTED|OK
+IP::server_addr|CLIENT_DATA|OK
+IP::server_addr|HTTP_REQUEST|OK
+IP::server_addr|LB_SELECTED|OK
+IP::server_addr|SERVER_CONNECTED|OK
+IP::server_addr|HTTP_RESPONSE|OK
+IP::server_addr|CLIENT_CLOSED|OK
+TCP::client_port|RULE_INIT|NO|command is not valid in current event context (RULE_INIT)
+TCP::client_port|CLIENT_ACCEPTED|OK
+TCP::client_port|CLIENT_DATA|OK
+TCP::client_port|HTTP_REQUEST|OK
+TCP::client_port|LB_SELECTED|OK
+TCP::client_port|SERVER_CONNECTED|OK
+TCP::client_port|HTTP_RESPONSE|OK
+TCP::client_port|CLIENT_CLOSED|OK
+TCP::collect|RULE_INIT|OK
+TCP::collect|CLIENT_ACCEPTED|OK
+TCP::collect|CLIENT_DATA|OK
+TCP::collect|HTTP_REQUEST|OK
+TCP::collect|LB_SELECTED|OK
+TCP::collect|SERVER_CONNECTED|OK
+TCP::collect|HTTP_RESPONSE|OK
+TCP::collect|CLIENT_CLOSED|OK
+TCP::payload|RULE_INIT|OK
+TCP::payload|CLIENT_ACCEPTED|OK
+TCP::payload|CLIENT_DATA|OK
+TCP::payload|HTTP_REQUEST|OK
+TCP::payload|LB_SELECTED|OK
+TCP::payload|SERVER_CONNECTED|OK
+TCP::payload|HTTP_RESPONSE|OK
+TCP::payload|CLIENT_CLOSED|OK
+LB::server|RULE_INIT|NO|command is not valid in current event context (RULE_INIT)
+LB::server|CLIENT_ACCEPTED|OK
+LB::server|CLIENT_DATA|OK
+LB::server|HTTP_REQUEST|OK
+LB::server|LB_SELECTED|OK
+LB::server|SERVER_CONNECTED|OK
+LB::server|HTTP_RESPONSE|OK
+LB::server|CLIENT_CLOSED|OK
+SSL::cipher|RULE_INIT|NO|command is not valid in current event context (RULE_INIT)
+SSL::cipher|CLIENT_ACCEPTED|NO|command is not valid in current event context (CLIENT_ACCEPTED)
+SSL::cipher|CLIENT_DATA|NO|command is not valid in current event context (CLIENT_DATA)
+SSL::cipher|HTTP_REQUEST|OK
+SSL::cipher|LB_SELECTED|OK
+SSL::cipher|SERVER_CONNECTED|NO|command is not valid in current event context (SERVER_CONNECTED)
+SSL::cipher|HTTP_RESPONSE|OK
+SSL::cipher|CLIENT_CLOSED|NO|command is not valid in current event context (CLIENT_CLOSED)
+pool|RULE_INIT|NO|command is not valid in current event context (RULE_INIT)
+pool|CLIENT_ACCEPTED|OK
+pool|CLIENT_DATA|OK
+pool|HTTP_REQUEST|OK
+pool|LB_SELECTED|OK
+pool|SERVER_CONNECTED|OK
+pool|HTTP_RESPONSE|OK
+pool|CLIENT_CLOSED|OK
+node|RULE_INIT|NO|command is not valid in current event context (RULE_INIT)
+node|CLIENT_ACCEPTED|OK
+node|CLIENT_DATA|OK
+node|HTTP_REQUEST|OK
+node|LB_SELECTED|OK
+node|SERVER_CONNECTED|OK
+node|HTTP_RESPONSE|OK
+node|CLIENT_CLOSED|OK
+table|RULE_INIT|NO|command is not valid in current event context (RULE_INIT)
+table|CLIENT_ACCEPTED|OK
+table|CLIENT_DATA|OK
+table|HTTP_REQUEST|OK
+table|LB_SELECTED|OK
+table|SERVER_CONNECTED|OK
+table|HTTP_RESPONSE|OK
+table|CLIENT_CLOSED|OK
+static|RULE_INIT|OK
+static|CLIENT_ACCEPTED|OK
+static|CLIENT_DATA|OK
+static|HTTP_REQUEST|OK
+static|LB_SELECTED|OK
+static|SERVER_CONNECTED|OK
+static|HTTP_RESPONSE|OK
+static|CLIENT_CLOSED|OK

@@ -18,11 +18,12 @@
 
 //! `HTTP::release` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::release",
         traits: Traits::DIAGRAM_ACTION,
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         data_collection: Some(HTTP_RELEASE),
         hover: Some(HoverSnippet {

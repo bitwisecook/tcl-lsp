@@ -23,20 +23,29 @@ places a pack can live, and what happens once the server picks it up.
 
 ### The minimal pack
 
-A `.tclspec` file opens with `speclib`, names your library and a version,
-and holds one `command` block per command:
+A `.tclspec` file opens with `speclib`, names your library and the DSL
+vocabulary it is written against, and holds one `command` block per
+command:
 
 ```tcl
-speclib mylib 1 {
+speclib mylib 2.0 {
     command mylib::with_var {
-        arity 2 3
+        available {tcl 8.6-}
+        arity 2..3
         arg 0 -role VarWrite
         arg 1 -role Body
-        hover -summary {Run a script with a caller variable bound.} \
-              -returns {The script's result.}
+        hover {
+            summary {Run a script with a caller variable bound.}
+            returns {The script's result.}
+        }
     }
 }
 ```
+
+The version word is the *vocabulary's*, not your library's: `2.0` is the
+current one, and it is what `tcl spec upgrade` rewrites an older pack to.
+Older packs keep loading unchanged — the words a 1.x pack spells still
+mean what they meant.
 
 Save it as `mylib.tclspec`. Because `.tclspec` is its own dialect, opening
 it in any supported editor gives you highlighting, completion, and
@@ -80,13 +89,19 @@ all happen on the live server, not only in the library's own tests.
 
 ### One bad pack cannot take the server down
 
-A pack's declarations — arity, roles, hover text, and the rest — are read
-as plain data; nothing executes. The one part of a pack that is code is a
-hook body — a resolver, a const-folder, a predicate gate — and it runs in
-a sandboxed interpreter with its own time and memory budget, isolated per
-pack. This is live on every load and reload, not aspirational: a crash or
-a runaway hook is contained, and only that pack's hook switches off for
-the session — never the server.
+A pack is a Tcl program, and it is run as one — in a sandboxed
+interpreter with its own time and memory budget, isolated per pack, with
+no file, network, or process access. A pack that only declares (no
+`foreach` over a table, no `proc` building rows) skips the interpreter
+altogether and is read straight off its parse tree; the two paths are
+gated against each other, so the shortcut is an optimisation, never a
+second reading of your file.
+
+Hook bodies — a resolver, a const-folder, a predicate gate — run later,
+at query time, in the same sandbox. Containment is live on every load and
+reload, not aspirational: a crash, a budget blowout, or a runaway loop is
+converted to abstention, and only that pack's hook switches off for the
+session — never the server.
 
 ## How to tell it worked
 

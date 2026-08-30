@@ -18,10 +18,11 @@
 
 //! `PROTOCOL_INSPECTION::id` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "PROTOCOL_INSPECTION::id",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Provides protocol inspection match result.",
@@ -37,9 +38,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &["PROTOCOL_INSPECTION"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "PROTOCOL_INSPECTION::id",

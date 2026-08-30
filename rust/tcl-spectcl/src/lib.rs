@@ -25,13 +25,15 @@
 //!
 //! | layer | module | question it answers |
 //! |---|---|---|
-//! | parse | [`loader`] | what does *one* `.tclspec` file declare? |
+//! | load | [`loader`] | what does *one* `.tclspec` file declare? |
 //! | discover | [`discovery`] | which files are this workspace's packs? |
 //! | merge | [`pack`] | which files make up one pack, and who wins? |
 //! | install | [`install`] | how does a pack reach the cached registry? |
 //!
-//! [`cache`] sits beside them: a disposable, hash-keyed compiled-pack cache in
-//! the OS cache directory that makes a reload of an unchanged pack cheap.
+//! [`cache`] sits beside them: the one door production code loads a pack
+//! through ([`evaluate_pack_cached`]) — a disposable two-tier cache, in memory
+//! and in the OS cache directory, that makes a reload of an unchanged pack
+//! cheap. [`loader::evaluate_pack`] is the same load with no cache at all.
 //! [`bundled`] sits beside them as well: the **bundled** tier on its own, for
 //! the consumers that have no workspace to discover — the `tcl` CLI, the MCP
 //! server, a test harness — since the EDA vendor libraries are now loadables
@@ -66,20 +68,41 @@
 pub mod bundled;
 pub mod cache;
 pub mod catalogue;
+pub mod core_surfaces;
+pub mod dialect_conversion;
 pub mod discovery;
+pub mod environment;
+pub mod export;
+pub mod golden;
 pub mod hooks;
 pub mod install;
 pub mod loader;
 pub mod pack;
+pub mod registration;
+pub mod surface_roster_conversion;
+pub mod upgrade;
 
+pub use cache::{evaluate_pack_cached, evaluate_pack_including, snapshot_memoised};
 pub use discovery::{DiscoveryOptions, PackFile, Tier, discover};
+pub use export::{ExportLoss, Registration, export_pack, export_pack_reporting};
 pub use install::registry_with_packs;
 pub use loader::{
-    AmbientPackage, ClauseGrammar, HookDecl, HookFamily, HookOwner, HookSource,
-    KNOWN_VOCABULARY_VERSIONS, NEWEST_VOCABULARY_VERSION, Notice, Pack, PackCommand, load_pack,
+    AmbientPackage, ClauseGrammar, CoProvides, EvalOptions, EvalSnapshotKey, HookDecl, HookFamily,
+    HookOwner, HookSource, IncludeContext, KNOWN_VOCABULARY_VERSIONS, LOADER_EVAL_VERSION,
+    LoadError, NEWEST_VOCABULARY_VERSION, Notice, Pack, PackCommand, PackCore, PackDialect,
+    PackDialectAxis, PackEnvironment, PackEnvironmentTier, PackProvides, VocabularyClass,
+    eval_snapshot_key, evaluate_pack, evaluate_pack_in, evaluate_pack_with, provenance_violation,
     roles_from_manufacturers, speclib_version_span,
 };
 pub use pack::{MergedPack, PackNotice, PackSet};
+pub use registration::{
+    DialectRejection, PackRejection, PackSetRegistration, RegistrationOutcome, publish_pack_set,
+    register_environments, register_pack_environments, register_pack_set,
+};
+pub use upgrade::{
+    OLDEST_VOCABULARY_VERSION, UpgradeOptions, UpgradeOutcome, UpgradeStatus,
+    environment_effect_snapshot, upgrade_source,
+};
 
 /// The `.tclspec` file extension, without the dot.
 pub const PACK_EXTENSION: &str = "tclspec";
@@ -90,4 +113,10 @@ pub const PACK_EXTENSION: &str = "tclspec";
 ///
 /// Part of the compiled-cache key, so a vocabulary bump invalidates every
 /// cached pack exactly once.
-pub const VOCABULARY_VERSION: &str = "1";
+///
+/// `2` for `SpecTcl` 2.0. The redesign's §6.1 requires exactly one bump
+/// here for 2.0: the legacy `dialects` word keeps loading forever, but its
+/// *translation output* is now the same internal value the new `available`
+/// word produces, so every cached pack must be rebuilt once against the
+/// translating loader rather than served from a pre-2.0 entry.
+pub const VOCABULARY_VERSION: &str = "2";

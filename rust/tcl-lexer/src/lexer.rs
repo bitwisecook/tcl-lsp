@@ -102,8 +102,6 @@
 //!
 //! ### Not yet implemented
 //!
-//! - expansion prefix (`{*}`), `strict_quoting`, `expand_syntax`,
-//!   `irules_brace_separator`
 //! - backslash escapes and line continuation; warning collection
 //!   (which will turn the best-effort recovery of unterminated
 //!   `${` / `$arr(` into proper diagnostics); ghost character
@@ -150,10 +148,28 @@ pub struct LexerConfig {
     /// True for Tcl 8.5+ (the default); false for Tcl 8.4 and
     /// iRules dialects.
     pub expand_syntax: bool,
-    /// When true, `}{` at a brace-string boundary injects a
-    /// zero-width ghost SEP token so the segmenter sees two
-    /// words. iRules-only.
+    /// When true, the F5 implicit word break (the R-rules of
+    /// `docs/design/bigip-irule-parser-measurements.md` §1, §3): a word
+    /// that **started** with `{` or `"` ends at its matching close
+    /// delimiter, and any following character that is not whitespace or
+    /// a command terminator begins a new word — a zero-width ghost SEP
+    /// token is injected so the segmenter sees two words, and no
+    /// diagnostic is emitted (R6). Fires repeatedly and in every word
+    /// position including the command name (R4); never after a bare
+    /// word, `$var`, `${name}`, or `[cmd]` (R5). An `f5-tcl` trunk
+    /// axis — measured identical in TMM iRules, tmsh cli scripts, and
+    /// iApp implementations (§4a) — carried under its historical name.
     pub irules_brace_separator: bool,
+    /// The F5 brace-line continuation axis (the N-rules of
+    /// `docs/design/bigip-irule-parser-measurements.md` §2): under
+    /// [`BraceLineContinuation::Continues`], a newline whose next line's
+    /// first non-whitespace character is `{` does not terminate the
+    /// command — it lexes as a SEP instead of an EOL, unconditionally
+    /// (N2) and at any nesting depth (N3, via body re-lexing under the
+    /// same config). Blank, whitespace-only, and comment lines still
+    /// terminate (N4); backslash-newline handling is unchanged. An
+    /// `f5-tcl` trunk axis.
+    pub brace_line_continuation: tcl_dialect::BraceLineContinuation,
     /// When true, certain unterminated constructs (missing
     /// close-brace, missing close-bracket, extra chars after
     /// close-quote/brace) are reported as `LexError` instead of
@@ -213,6 +229,7 @@ impl Default for LexerConfig {
         Self {
             expand_syntax: true,
             irules_brace_separator: false,
+            brace_line_continuation: tcl_dialect::BraceLineContinuation::Terminates,
             strict_quoting: false,
             braced_var: BracedVarStyle::Tcl9Nesting,
             base_offset: 0,
@@ -236,6 +253,7 @@ impl LexerConfig {
         Self {
             expand_syntax: grammar.expand_syntax,
             irules_brace_separator: grammar.irules_brace_separator,
+            brace_line_continuation: grammar.brace_line_continuation,
             braced_var: grammar.braced_var,
             escapes: grammar.escapes,
             ..Self::default()
@@ -248,9 +266,17 @@ impl LexerConfig {
     /// the `${…}` delimiting rule):
     ///
     /// * `expand_syntax` — true for Tcl 8.5+ runtimes and dialects that
-    ///   embed one (iApps, tmsh, Expect, EDA flavours). False for Tcl 8.4
-    ///   and iRules.
-    /// * `irules_brace_separator` — true only for iRules.
+    ///   embed one (Expect, the EDA flavours, `bpf`, `spectcl`). False for
+    ///   Tcl 8.4 and for **every** F5 dialect: measurement
+    ///   (`docs/design/bigip-irule-parser-measurements.md` §4a) showed
+    ///   `f5-tmsh` and `f5-iapps` are 8.4.6 forks like `f5-irules`, not the
+    ///   8.5 embeds the pre-#1631 catalogue assumed, and on all three
+    ///   `{*}$l` lexes as a literal `*` plus the unexpanded word.
+    /// * `irules_brace_separator` — true for every dialect on the `f5-tcl`
+    ///   trunk: `f5-irules`, `f5-tmsh` and `f5-iapps` all select
+    ///   `GRAMMAR_F5_TCL`, and §4a measured the implicit word break
+    ///   byte-identically in all three. The field keeps its historical
+    ///   name.
     /// * `braced_var` — the `${…}` delimiting rule:
     ///   [`BracedVarStyle::FirstClose`] for every 8.x-runtime dialect
     ///   (8.4–8.6, the F5 dialects — tmsh included — EDA, and Expect),
@@ -262,7 +288,11 @@ impl LexerConfig {
     /// doesn't change parsing behaviour.
     #[must_use]
     pub fn for_dialect(dialect: &str) -> Self {
-        Self::from_grammar(tcl_dialect::DialectProfile::by_name(dialect).grammar)
+        Self::from_grammar(
+            tcl_dialect::DialectProfile::find(dialect)
+                .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl)
+                .grammar,
+        )
     }
 
     /// [`Self::from_grammar`] for the entry point that lexes a **whole file**:
@@ -296,7 +326,11 @@ impl LexerConfig {
     /// document links / inlay hints / references miss (issue #1243).
     #[must_use]
     pub fn for_file_dialect(dialect: &str) -> Self {
-        Self::for_file_grammar(tcl_dialect::DialectProfile::by_name(dialect).grammar)
+        Self::for_file_grammar(
+            tcl_dialect::DialectProfile::find(dialect)
+                .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl)
+                .grammar,
+        )
     }
 
     /// This config demoted to a **nested** re-lex: identical, except a leading
@@ -360,9 +394,10 @@ pub struct Lexer<'src> {
     at_command_start: bool,
     /// Whether we are currently inside a `"…"` quoted string.
     in_quote: bool,
-    /// Ghost SEP token injected by `parse_brace` when
-    /// `irules_brace_separator` is set and the close brace is
-    /// immediately followed by `{`.
+    /// Ghost SEP token injected by `parse_brace` / `parse_quoted` when
+    /// `irules_brace_separator` is set and the close delimiter of a
+    /// brace- or quote-started word is immediately followed by a
+    /// non-separator (F5 R2, measurements §1).
     pending_sep: Option<Token>,
     /// Non-fatal warnings collected during lexing (unterminated
     /// braces, extra chars after close-quote, etc.).
@@ -594,6 +629,46 @@ impl<'src> Lexer<'src> {
                 break;
             }
             self.pos += 1; // All SEP characters are ASCII.
+        }
+        self.make_token(TokenType::Sep, start_offset)
+    }
+
+    /// Whether the `\n` at `self.pos` continues the current command under
+    /// the F5 N-rules (measurements §2): the axis is on and the next
+    /// line's first non-whitespace character is `{`. Purely lexical —
+    /// independent of the command's identity, arity, or completeness
+    /// (N2). A blank, whitespace-only, or comment line answers `false`
+    /// (N4): the byte the horizontal-whitespace scan stops on is then a
+    /// `\n`, `#`, or end-of-input rather than `{`.
+    fn newline_continues_command(&self) -> bool {
+        if !self.config.brace_line_continuation.continues() {
+            return false;
+        }
+        debug_assert_eq!(self.current_byte(), Some(b'\n'));
+        let bytes = self.source().as_bytes();
+        let mut index = self.pos as usize + 1;
+        while let Some(&byte) = bytes.get(index) {
+            if is_horizontal_whitespace_byte(byte) {
+                index += 1;
+            } else {
+                return byte == b'{';
+            }
+        }
+        false
+    }
+
+    /// Consume the continuation newline plus the next line's leading
+    /// horizontal whitespace as a single SEP token (N1): the command
+    /// does not terminate, and the `{` that follows opens an ordinary
+    /// braced word at a fresh word boundary.
+    fn parse_brace_line_continuation_sep(&mut self) -> Token {
+        let start_offset = self.pos;
+        self.pos += 1; // the newline
+        while let Some(byte) = self.current_byte() {
+            if !is_horizontal_whitespace_byte(byte) {
+                break;
+            }
+            self.pos += 1;
         }
         self.make_token(TokenType::Sep, start_offset)
     }
@@ -1052,15 +1127,25 @@ impl<'src> Lexer<'src> {
             self.in_quote = false;
             // Check for extra characters after close-quote.
             if let Some(after) = self.current_byte() {
-                let ok = is_separator_byte(after)
-                    || after == b']'
-                    || (after == b'\\'
-                        && matches!(
-                            self.source().as_bytes().get(self.pos as usize + 1),
-                            Some(b'\n' | b'\r')
-                        ));
-                if !ok {
-                    self.warn_or_error("extra characters after close-quote")?;
+                let is_bs_nl = after == b'\\'
+                    && matches!(
+                        self.source().as_bytes().get(self.pos as usize + 1),
+                        Some(b'\n' | b'\r')
+                    );
+                if self.config.irules_brace_separator {
+                    // F5 R2 (measurements §1): a word that started with
+                    // `"` splits exactly as a braced one — `"a"b` →
+                    // `a`/`b`, `"a""b"` → `a`/`b`, `"a"}` → `a`/`}` —
+                    // with no diagnostic (R6).
+                    if !is_separator_byte(after) && !is_bs_nl {
+                        let sep_span = Span::empty(self.pos);
+                        self.pending_sep = Some(Token::new(TokenType::Sep, sep_span));
+                    }
+                } else {
+                    let ok = is_separator_byte(after) || after == b']' || is_bs_nl;
+                    if !ok {
+                        self.warn_or_error("extra characters after close-quote")?;
+                    }
                 }
             }
         } else if self.current_char().is_none() {
@@ -1159,9 +1244,10 @@ impl<'src> Lexer<'src> {
     /// trailing `}` for the degenerate `{}` case) so callers
     /// see just the inside of the braces.
     ///
-    /// Never fails. Unterminated `{` tokenizes best-effort; the
-    /// "extra characters after close-brace" warning and the
-    /// iRules `}{` word-boundary injection are not yet implemented.
+    /// Never fails. Unterminated `{` tokenizes best-effort. Under the F5
+    /// word-break axis (`irules_brace_separator`), a non-separator after
+    /// the close brace injects a ghost SEP instead of the "extra
+    /// characters after close-brace" warning — see the R2 comment below.
     fn parse_brace(&mut self) -> Result<Token, LexError> {
         let brace_pos = self.pos;
         self.pos += 1; // skip opening '{'
@@ -1239,7 +1325,15 @@ impl<'src> Lexer<'src> {
                         Some(b'\n' | b'\r')
                     );
                 if !is_bs_nl {
-                    if self.config.irules_brace_separator && after == b'{' {
+                    if self.config.irules_brace_separator {
+                        // F5 R2 (measurements §1): the word started with
+                        // `{`, so ANY non-separator after its close brace
+                        // begins a new word — a zero-width ghost SEP,
+                        // with no diagnostic (R6). The next word parses
+                        // from scratch under ordinary word-start rules
+                        // (R3): `{a}{b}` → `a`/`b`, `{a}b` → `a`/`b`,
+                        // `{*}$l` → literal `*` word plus `$l` (the
+                        // separator wins; expansion does not exist).
                         let sep_span = Span::empty(self.pos);
                         self.pending_sep = Some(Token::new(TokenType::Sep, sep_span));
                     } else {
@@ -1579,6 +1673,14 @@ impl Iterator for Lexer<'_> {
         } else {
             match ch {
                 _ if is_horizontal_whitespace(ch) => Ok(self.parse_sep()),
+                // F5 N1 (measurements §2): a newline whose next line
+                // starts (after horizontal whitespace) with `{` is a word
+                // separator, not a command terminator. A `;` always
+                // terminates, and a blank/comment line falls through to
+                // the ordinary EOL run below (N4).
+                '\n' if self.newline_continues_command() => {
+                    Ok(self.parse_brace_line_continuation_sep())
+                }
                 _ if is_eol_char(ch) => Ok(self.parse_eol()),
                 '#' if self.at_command_start => Ok(self.parse_comment()),
                 '$' => self.parse_var(),

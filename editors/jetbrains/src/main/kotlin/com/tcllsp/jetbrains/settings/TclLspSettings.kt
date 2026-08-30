@@ -149,6 +149,9 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var diagnosticW147: Boolean = true
     var diagnosticW148: Boolean = true
     var diagnosticW149: Boolean = true
+    var diagnosticW150: Boolean = true
+    var diagnosticW151: Boolean = true
+    var diagnosticW152: Boolean = true
     var diagnosticW200: Boolean = true
     var diagnosticW201: Boolean = true
     var diagnosticW230: Boolean = true
@@ -185,6 +188,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var diagnosticW309: Boolean = true
     var diagnosticW313: Boolean = true
     var diagnosticH300: Boolean = true
+    var diagnosticH301: Boolean = true
     var diagnosticI230: Boolean = true
     var diagnosticI231: Boolean = true
     var diagnosticW123: Boolean = true
@@ -212,6 +216,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var diagnosticIRULE2001: Boolean = true
     var diagnosticIRULE2002: Boolean = true
     var diagnosticIRULE2003: Boolean = true
+    var diagnosticIRULE2004: Boolean = true
     var diagnosticIRULE2101: Boolean = true
     var diagnosticIRULE5001: Boolean = true
     var diagnosticIRULE5002: Boolean = true
@@ -441,6 +446,9 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "W147" to diagnosticW147,
                 "W148" to diagnosticW148,
                 "W149" to diagnosticW149,
+                "W150" to diagnosticW150,
+                "W151" to diagnosticW151,
+                "W152" to diagnosticW152,
                 "W200" to diagnosticW200,
                 "W201" to diagnosticW201,
                 "W230" to diagnosticW230,
@@ -477,6 +485,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "W309" to diagnosticW309,
                 "W313" to diagnosticW313,
                 "H300" to diagnosticH300,
+                "H301" to diagnosticH301,
                 "I230" to diagnosticI230,
                 "I231" to diagnosticI231,
                 "W123" to diagnosticW123,
@@ -504,6 +513,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "IRULE2001" to diagnosticIRULE2001,
                 "IRULE2002" to diagnosticIRULE2002,
                 "IRULE2003" to diagnosticIRULE2003,
+                "IRULE2004" to diagnosticIRULE2004,
                 "IRULE2101" to diagnosticIRULE2101,
                 "IRULE5001" to diagnosticIRULE5001,
                 "IRULE5002" to diagnosticIRULE5002,

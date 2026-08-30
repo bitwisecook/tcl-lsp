@@ -91,9 +91,7 @@ fn run(src: &str) -> (bool, String, String) {
     )
 }
 
-// ===========================================================================
 // array
-// ===========================================================================
 
 /// `array set` materialises elements, including the empty-list form (which
 /// still creates the array), and `array get`/`names`/`size`/`exists` read them
@@ -262,9 +260,7 @@ fn array_for_body_error_propagates() {
     assert_eq!(msg, "boom");
 }
 
-// ===========================================================================
 // dict — pure (read) side
-// ===========================================================================
 
 /// The pure dict reads: `get`/`size`/`keys`/`values`/`exists`, including nested
 /// `get`, glob-filtered `keys`/`values`, and `exists` false paths.
@@ -364,9 +360,7 @@ fn dict_get_no_keys_validates_dict_bug() {
     assert_eq!(msg, "missing value to go with key");
 }
 
-// ===========================================================================
 // dict — variable-mutating side
-// ===========================================================================
 
 /// `dict set` writes (creating intermediate dicts for a key path) and stores the
 /// dict back into the variable.
@@ -626,9 +620,7 @@ fn dict_bad_subcommand() {
     );
 }
 
-// ===========================================================================
 // list family
-// ===========================================================================
 
 /// `list`/`llength`/`lindex` basics, including nested and `end`-relative index.
 #[test]
@@ -769,9 +761,7 @@ fn list_concat_join_split() {
     assert_eq!(msg, "wrong # args: should be \"split string ?splitChars?\"");
 }
 
-// ===========================================================================
 // lsearch
-// ===========================================================================
 
 /// `lsearch` default (exact-ish glob over the whole element) and `-exact`,
 /// returning the first match index or -1.
@@ -800,9 +790,7 @@ fn lsearch_options() {
     assert_eq!(run("lsearch -index 1 {{a 1} {b 2}} 2").1, "1");
 }
 
-// ===========================================================================
 // lsort
-// ===========================================================================
 
 /// `lsort` comparison modes: default ascii, `-integer`, `-real`, `-dictionary`,
 /// `-ascii`, `-nocase`, and the `-decreasing`/`-unique` modifiers.
@@ -862,9 +850,7 @@ fn lsort_index_stride_command() {
     );
 }
 
-// ===========================================================================
 // lset / lpop / ledit (runtime builtins)
-// ===========================================================================
 
 /// The runtime `lset` builtin (the fallback the compiler does not inline,
 /// reached here via a dynamic command word). It descends a flat index path,
@@ -946,9 +932,7 @@ fn ledit_runtime_builtin() {
     );
 }
 
-// ===========================================================================
 // lsort / lsearch error paths
-// ===========================================================================
 
 /// `lsort` error/edge paths: bad option, missing list, a non-numeric element
 /// under `-integer`, and the `-command` comparator's empty / non-integer
@@ -1063,9 +1047,7 @@ fn lsearch_option_abbreviation() {
     );
 }
 
-// ===========================================================================
 // dict — additional edge / error paths
-// ===========================================================================
 
 /// `dict with` reflects an unset mapped variable as a key removal, and does not
 /// add a variable the body merely created (the reflect-back logic in
@@ -1139,9 +1121,7 @@ fn dict_iter_arity_errors() {
     );
 }
 
-// ===========================================================================
 // list-family runtime builtins (indirect dispatch)
-// ===========================================================================
 
 /// The `list`/`l*` commands reached through their *runtime builtins* (the
 /// compiler inlines the common forms to opcodes; a dynamic command word forces
@@ -1242,9 +1222,7 @@ fn list_builtins_arity_errors() {
     assert_eq!(msg, "wrong # args: should be \"lreverse list\"");
 }
 
-// ===========================================================================
 // lmap — inline collecting loop
-// ===========================================================================
 
 /// A straight-line `lmap` body lowers to the inline collecting loop: it strips
 /// the body's trailing `POP`, appends each iteration's result via `LMAP_COLLECT`,

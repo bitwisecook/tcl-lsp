@@ -2636,9 +2636,7 @@ fn w123_silent_for_create_named_object_literal_dispatch() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Issue #806 — report::defstyle scoped command environment.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn defstyle_body_scoped_commands_no_w123() {
@@ -4187,7 +4185,7 @@ fn w003_eda_vendor_dialect_does_not_over_fire_on_in() {
 
 #[test]
 fn w003_f5_tmsh_flags_string_relational_operators() {
-    // Regression: `f5-tmsh` used to have no `DialectSet` bit at all, so
+    // Regression: `f5-tmsh` used to have no `SpecSurface` bit at all, so
     // W003 silently never fired for it.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tcl");
@@ -4320,7 +4318,11 @@ fn consumer_rename_resolves_through_a_real_workspace_folder_m8() {
 // masks; the version ladder and the restricted iRules view still hold.
 
 #[test]
-fn iapps_embedded_85_core_is_clean_end_to_end() {
+fn iapps_embedded_84_trunk_gates_the_85_core_end_to_end() {
+    // iApps ride the `f5-tcl` trunk — a fork of Tcl at 8.4.6 (measured,
+    // bigip-irule-parser-measurements.md §4a: `dict`, `lassign` and
+    // `apply` all fail in `IAppImplementation`) — so the 8.5 core draws
+    // the availability diagnostics, while the 8.4 core stays clean.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("iapp");
     let diags = lsp.open_ready_lang(
@@ -4329,9 +4331,16 @@ fn iapps_embedded_85_core_is_clean_end_to_end() {
         "tcl-iapp",
     );
     assert!(
-        !has_code(&diags, "W123") && !has_code(&diags, "W002"),
-        "iApps (Tcl 8.5.13 host) must resolve 8.5 core cleanly: {:?}",
+        has_code(&diags, "W123") || has_code(&diags, "W002"),
+        "iApps (8.4.6 trunk, measured) must gate the 8.5 core: {:?}",
         codes(&diags)
+    );
+    let uri2 = unique_uri("iapp");
+    let diags2 = lsp.open_ready_lang(&uri2, "lappend cfg p1\nexec ls\n", "tcl-iapp");
+    assert!(
+        !has_code(&diags2, "W123") && !has_code(&diags2, "W002"),
+        "the 8.4 core and the host's `exec` stay clean: {:?}",
+        codes(&diags2)
     );
 }
 
@@ -4365,8 +4374,8 @@ fn expect_embedded_86_core_is_clean_end_to_end() {
 
 #[test]
 fn irules_banned_commands_still_flag_end_to_end() {
-    // The iRules profile is unchanged by the composed-mask fix: 8.4 core
-    // that carries no `IRULES` bit still draws W002 in a `when` handler.
+    // The iRules profile is unchanged by the composed-mask fix: 8.4 core that
+    // carries no iRules row still draws W002 in a `when` handler.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("irule");
     let diags = lsp.open_ready_lang(
@@ -4414,26 +4423,28 @@ fn argument_dsl_rung_gates_format_and_string_is_end_to_end() {
 
 #[test]
 fn tmsh_first_class_gates_both_directions_end_to_end() {
-    // D8: a tmsh document analyses under TCL85|TMSH — the
-    // tmsh:: surface and the 8.5 core are clean, while 8.6-core draws the
-    // §7.2 reverse-regression diagnostic.
+    // D8, corrected by measurement (bigip-irule-parser-measurements.md
+    // §4a): a tmsh document analyses under TCL84|TMSH — the tmsh::
+    // surface and the 8.4 core are clean, while the 8.5+ core draws the
+    // availability diagnostics (a tmsh `cli script` fails every 8.5
+    // discriminator, `dict` included).
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("tmsh");
     let diags = lsp.open_ready_lang(
         &uri,
-        "tmsh::create ltm pool p1\ndict set cfg k v\n",
+        "tmsh::create ltm pool p1\nlappend cfg v\n",
         "tcl-tmsh",
     );
     assert!(
         !has_code(&diags, "W123") && !has_code(&diags, "W002"),
-        "tmsh surface + 8.5 core must be clean: {:?}",
+        "tmsh surface + 8.4 core must be clean: {:?}",
         codes(&diags)
     );
     let uri2 = unique_uri("tmsh");
-    let diags2 = lsp.open_ready_lang(&uri2, "lmap x {1 2} {set x}\n", "tcl-tmsh");
+    let diags2 = lsp.open_ready_lang(&uri2, "dict set cfg k v\n", "tcl-tmsh");
     assert!(
         has_code(&diags2, "W123") || has_code(&diags2, "W002"),
-        "lmap is 8.6 — unavailable on the tmsh 8.5 base: {:?}",
+        "dict is 8.5 — unavailable on the tmsh 8.4.6 trunk: {:?}",
         codes(&diags2)
     );
 }

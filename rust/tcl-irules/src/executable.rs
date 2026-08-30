@@ -6,7 +6,7 @@ use std::sync::OnceLock;
 #[cfg(feature = "test-instrumentation")]
 use std::cell::Cell;
 
-use tcl_compiler::head_identity::{HeadIdentityMap, command_head_identities_with_config};
+use tcl_compiler::realm::{CommandBindingRealm, document_realm_bindings_with_config};
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_lexer::{LexerConfig, Token, TokenType};
 use tcl_registry::events::{IrulesCommandPlacement, IrulesExecutionContext};
@@ -46,7 +46,7 @@ impl InventoryLexing {
 /// Immutable inventory-wide services threaded through recursive script walks.
 struct InventoryContext<'a> {
     registry: &'a CommandRegistry,
-    identities: &'a HeadIdentityMap,
+    identities: &'a CommandBindingRealm,
     lexing: InventoryLexing,
 }
 
@@ -95,7 +95,7 @@ pub fn irules_executable_commands(
     #[cfg(feature = "test-instrumentation")]
     EXECUTABLE_CLOSURE_BUILDS.with(|builds| builds.set(builds.get() + 1));
     let lexing = InventoryLexing::for_registry(registry);
-    let identities = command_head_identities_with_config(source, lexing.config, registry);
+    let identities = document_realm_bindings_with_config(source, lexing.config, registry);
     let ctx = InventoryContext {
         registry,
         identities: &identities,
@@ -122,7 +122,7 @@ pub fn irules_event_executable_closure(
     registry: &CommandRegistry,
 ) -> Vec<IrulesExecutableCommand> {
     let lexing = InventoryLexing::for_registry(registry);
-    let identities = command_head_identities_with_config(source, lexing.config, registry);
+    let identities = document_realm_bindings_with_config(source, lexing.config, registry);
     let ctx = InventoryContext {
         registry,
         identities: &identities,
@@ -467,9 +467,7 @@ fn recurse_case_bodies(
     let registry = ctx.registry;
     let dialect = registry
         .profile()
-        .map_or_else(tcl_dialect::DialectSet::empty, |profile| {
-            profile.availability_mask
-        });
+        .map(tcl_dialect::DialectProfile::surface_query);
     let Some((spec, invocation)) = registry.case_invocation(head, args, dialect) else {
         return;
     };
@@ -577,7 +575,10 @@ mod tests {
     fn commands(source: &str) -> Vec<IrulesExecutableCommand> {
         irules_executable_commands(
             source,
-            tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules()),
+            tcl_registry::model::ingress::static_context_for_profile(
+                tcl_dialect::DialectProfile::irules(),
+            )
+            .commands(),
         )
     }
 
@@ -606,7 +607,10 @@ mod tests {
             "when http_request { pool second_pool; call second_helper }\n",
             "when CLIENT_DATA { pool other_event_pool; call dormant }\n",
         );
-        let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
+        let registry = tcl_registry::model::ingress::static_context_for_profile(
+            tcl_dialect::DialectProfile::irules(),
+        )
+        .commands();
         let closure = irules_event_executable_closure(source, "HTTP_REQUEST", registry);
         let pools: Vec<_> = closure
             .iter()
@@ -737,7 +741,10 @@ mod tests {
             "  }\n",
             "}\n",
         );
-        let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
+        let registry = tcl_registry::model::ingress::static_context_for_profile(
+            tcl_dialect::DialectProfile::irules(),
+        )
+        .commands();
         let facts = irules_executable_commands(source, registry);
         let pools: Vec<_> = facts.iter().filter(|fact| fact.command == "pool").collect();
         assert_eq!(

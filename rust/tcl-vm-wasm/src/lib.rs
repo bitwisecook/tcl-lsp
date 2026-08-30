@@ -83,7 +83,7 @@ impl CompileService for Svc {
         src: &str,
         profile: &'static DialectProfile,
     ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let registry = tcl_registry::registry_for_profile(profile);
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
         if let Some(msg) = first_fatal_parse_error_with_config(src, config) {
             return Err(CompileError(msg));
@@ -98,7 +98,7 @@ impl CompileService for Svc {
         src: &str,
         profile: &'static DialectProfile,
     ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let registry = tcl_registry::registry_for_profile(profile);
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
         if let Some(msg) = first_fatal_parse_error_with_config(src, config) {
             return Err(CompileError(msg));

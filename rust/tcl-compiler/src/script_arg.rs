@@ -145,7 +145,7 @@ mod tests {
     use crate::segmenter::segment_commands;
 
     fn reg() -> &'static CommandRegistry {
-        tcl_registry::registry_for_dialect("tcl8.6")
+        tcl_registry::model::ingress::static_context_for("tcl8.6").commands()
     }
 
     /// Segment `src` as one command and resolve its argument `idx` (1-based

@@ -18,10 +18,11 @@
 
 //! `ADAPT::context_current` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ADAPT::context_current",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Gets the current context.",
@@ -37,9 +38,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &["HTTP", "REQUESTADAPT", "RESPONSEADAPT"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "ADAPT::context_current",

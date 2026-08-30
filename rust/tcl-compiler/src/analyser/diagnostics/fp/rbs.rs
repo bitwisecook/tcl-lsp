@@ -20,9 +20,7 @@
 
 use super::{D, codes, fires};
 
-// ---------------------------------------------------------------------------
 // FP-RBS-01 — info exists / array exists is the test-before-use idiom
-// ---------------------------------------------------------------------------
 
 const FP_RBS_01_REPRO: &str = "\
 proc maybe_get {} {
@@ -95,9 +93,7 @@ proc maybe_get {} {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-RBS-02 — catch / regexp / scan command-sub writes are not read-before-set
-// ---------------------------------------------------------------------------
 
 const FP_RBS_02_REPRO: &str = "\
 proc f {} {
@@ -367,9 +363,7 @@ proc caller {} {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-RBS-03 — frozen-loop bodies (while/for with cmd-sub condition)
-// ---------------------------------------------------------------------------
 
 const FP_RBS_03_REPRO: &str = "\
 proc f {fp} {
@@ -414,9 +408,7 @@ proc f {fp} {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-RBS-04 — qualified-variable aliases (local name is the tail)
-// ---------------------------------------------------------------------------
 
 const FP_RBS_04_REPRO: &str = "\
 proc ::ns::get {name key} {
@@ -481,9 +473,7 @@ proc ::ns::get {name key} {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-RBS-05 — namespace upvar alias-not-a-def
-// ---------------------------------------------------------------------------
 
 const FP_RBS_05_REPRO: &str = "\
 proc tester {} {
@@ -593,9 +583,7 @@ fn fp_rbs_05_alias_exists_guard_is_not_constant() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // FP-RBS-06 — cmd-sub write-targets inside an expr body are caller-scope writes
-// ---------------------------------------------------------------------------
 
 const FP_RBS_06_REPRO: &str = "\
 proc f {sock} {
@@ -637,9 +625,7 @@ proc f {sock} {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-RBS-07 — dynamically-named namespace eval bodies are still analysed
-// ---------------------------------------------------------------------------
 
 const FP_RBS_07_REPRO: &str = "\
 # logger.tcl:1007-1016 pattern: ${service} is the enclosing proc's
@@ -692,9 +678,7 @@ namespace eval ::pkg {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-RBS-08 — upvar with a dynamic target (upvar 1 $name var) is a real alias-def
-// ---------------------------------------------------------------------------
 
 const FP_RBS_08_REPRO: &str = "\
 proc f {name} {
@@ -735,9 +719,7 @@ proc f {name} {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-RBS-09 — for-init / regexp captures in un-lowered switch arms
-// ---------------------------------------------------------------------------
 
 const FP_RBS_09_REPRO: &str = r#"
 proc f {n} {
@@ -800,9 +782,7 @@ proc f {n} {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-RBS-10 — eval / namespace eval literal-body reads are recovered
-// ---------------------------------------------------------------------------
 
 const FP_RBS_10_REPRO: &str = "\
 proc f {x} {
@@ -862,9 +842,7 @@ proc g {x} {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-RBS-11 — qualified-builtin loops (::foreach / ::lmap / ::for / ::while)
-// ---------------------------------------------------------------------------
 
 const FP_RBS_11_REPRO: &str = "\
 proc f {dict} {
@@ -924,9 +902,7 @@ proc f {dict} {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-RBS-12 — regexp/scan output-var conditional defs reach both reviewer cases (D1-4)
-// ---------------------------------------------------------------------------
 
 const FP_RBS_12_REPRO: &str = "proc f {} { regexp {x} y -> v; if {1} { puts $v } }\n";
 
@@ -962,9 +938,7 @@ fn fp_rbs_12_regexp_match_arm_read_silent() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-RBS-13 — `tailcall` replaces the frame; code after it never runs
-// ---------------------------------------------------------------------------
 
 const FP_RBS_13_REPRO: &str = "\
 proc f {cond} {
@@ -1016,9 +990,7 @@ fn fp_rbs_13_non_terminating_branch_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-RBS-14 — opaque-switch arm that can't complete normally is excluded from must-define
-// ---------------------------------------------------------------------------
 
 const FP_RBS_14_REPRO: &str = "\
 proc f {x} {
@@ -1076,9 +1048,7 @@ fn fp_rbs_14_break_arm_escaping_loop_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-RBS-15 — opaque switch whose every arm exits is itself a terminator
-// ---------------------------------------------------------------------------
 
 const FP_RBS_15_REPRO: &str = "\
 proc f {x} {
@@ -1169,9 +1139,7 @@ fn fp_rbs_15_continue_in_opaque_switch_loop_silent() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-RBS-16 — phi operand on a dead loop-exit edge (`while 1` + `break`)
-// ---------------------------------------------------------------------------
 
 const FP_RBS_16_REPRO: &str = "\
 proc f {} {
@@ -1229,9 +1197,7 @@ fn fp_rbs_16_partial_break_def_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-RBS-17 — foreach over a non-empty literal runs its body at least once
-// ---------------------------------------------------------------------------
 
 const FP_RBS_17_REPRO: &str = "\
 proc f {} {
@@ -1300,9 +1266,7 @@ fn fp_rbs_17_continue_before_set_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-RBS-18 — for whose condition is true on entry runs its body at least once
-// ---------------------------------------------------------------------------
 
 const FP_RBS_18_REPRO: &str = "\
 proc f {} {
@@ -1389,10 +1353,8 @@ fn fp_rbs_18_incr_in_init_provably_empty_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-RBS-19 (#756) — a may-run loop whose body defines a variable is assumed
 // to run: an after-loop read is not read-before-set
-// ---------------------------------------------------------------------------
 
 // The reporter's exact pattern (issue #756): a multi-group `foreach` over
 // dynamic (`dict get`) lists building `lappend` accumulators, read after the
@@ -1493,9 +1455,7 @@ fn fp_rbs_19_while_and_for_may_run_silent() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // call-by-name DYNAMIC_NAME_LOCAL trait tests
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_rbs_callbyname_scan_target_not_caller_alias() {
@@ -1554,10 +1514,8 @@ fn fp_rbs_callbyname_upvar_alias_still_suppresses() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-RBS-20 — a condition-embedded variable writer defines its target
 // (issue #923 audit idx 49)
-// ---------------------------------------------------------------------------
 //
 // `condition_command_out_vars` used to hardcode `catch` / `scan` / `gets` /
 // `regexp`, so the ubiquitous `if {[set VAR EXPR] rel N} {…$VAR…}` idiom
@@ -1696,7 +1654,6 @@ emitted: {:?}",
     );
 }
 
-// ---------------------------------------------------------------------------
 // Issue #1078 — a brace-quoted `$`-bearing name is a *literal* variable name
 //
 // Oracle, tclsh 9.0.4 and 8.6.14, byte-identical:
@@ -1714,7 +1671,6 @@ emitted: {:?}",
 //
 // These are the acceptance measurements recorded when PR #1076 reverted its
 // one-parameter attempt (`docs/design/compiler/ssa-construction.md`).
-// ---------------------------------------------------------------------------
 
 /// The **missed true positive** the reverted #1076 attempt produced: with the
 /// def landing on the wrong variable, `set {$n} 1; puts $n` stopped warning
@@ -1983,7 +1939,6 @@ fn issue_1237_quoted_use_still_keeps_the_variable_live() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Issue #1260 — a `$var` inside a **braced** `foreach` / `lmap` / `dict for`
 // value word is a literal list element, not a substitution.
 //
@@ -1997,7 +1952,6 @@ fn issue_1237_quoted_use_still_keeps_the_variable_live() {
 // substituting one, and the IR's `list_arg` stores the word's *content*, so
 // `ForeachIterator::list_braced` is what the CFG's synthetic loop-header call
 // carries the fact on.
-// ---------------------------------------------------------------------------
 
 /// #1260 FP — a braced value word reads nothing, at top level and inside a
 /// proc, for every loop that lowers to `Statement::Foreach`.
@@ -2064,7 +2018,6 @@ fn issue_1260_braced_loop_value_word_keeps_the_store_live() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Issue #1266 — a read collapsed out of an **opaque** `switch` arm keeps its
 // `UseClass`.
 //
@@ -2094,7 +2047,6 @@ fn issue_1260_braced_loop_value_word_keeps_the_store_live() {
 //   f abc                                     -> $x   (the literal two chars)
 //   proc f {z} { switch -glob $z { a* { puts $b } } }
 //   f abc                    -> can't read "b": no such variable
-// ---------------------------------------------------------------------------
 
 /// #1266 FP — a braced data word inside an opaque arm substitutes nothing, in
 /// every arm shape that keeps the `switch` opaque and at every nesting depth
@@ -2581,10 +2533,8 @@ proc NewArrays {varNames value} {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-RBS-21 — a barriered structured loop still binds its literal loop
 // variables (issue #1380)
-// ---------------------------------------------------------------------------
 //
 // A structured loop whose words carry a `{*}` expansion cannot be lowered to
 // an `IRForeach` — the argv shape is unknowable — so it stays a

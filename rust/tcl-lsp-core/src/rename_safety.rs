@@ -876,7 +876,10 @@ mod tests {
     use tcl_compiler::analyser::Analyser;
 
     fn analyse(source: &str) -> AnalysisResult {
-        analyse_as(source, tcl_dialect::DialectProfile::by_name("tcl8.6"))
+        analyse_as(
+            source,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        )
     }
 
     fn analyse_as(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> AnalysisResult {
@@ -891,7 +894,7 @@ mod tests {
             method,
             is_classmethod,
             "Renamed",
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         )
     }
 
@@ -1091,7 +1094,7 @@ mod tests {
         let analysis = analyse(source);
         namespace_variable_rename_hazard(
             source,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &analysis,
             cell,
             &LineIndex::new(source),
@@ -1104,7 +1107,7 @@ mod tests {
         let analysis = analyse(source);
         namespace_variable_rename_hazard(
             source,
-            tcl_dialect::DialectProfile::by_name(dialect),
+            tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
             &analysis,
             cell,
             &LineIndex::new(source),
@@ -1361,7 +1364,7 @@ mod tests {
             "new",
             false,
             "old",
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            crate::profile_for_dialect("tcl9.0"),
         )
         .expect("renaming the moved member to its source must refuse");
         assert!(
@@ -1385,7 +1388,7 @@ mod tests {
             "new",
             false,
             "sib",
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            crate::profile_for_dialect("tcl9.0"),
         )
         .expect("renaming the moved member onto a live sibling must refuse");
         assert!(
@@ -1409,7 +1412,7 @@ mod tests {
             "sib",
             false,
             "new",
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            crate::profile_for_dialect("tcl9.0"),
         )
         .expect("renaming a sibling onto a later rename destination must refuse");
         assert!(
@@ -1433,7 +1436,7 @@ mod tests {
                 "new",
                 false,
                 "fresh",
-                tcl_dialect::DialectProfile::by_name("tcl9.0")
+                crate::profile_for_dialect("tcl9.0")
             ),
             None
         );
@@ -1456,7 +1459,7 @@ mod tests {
                 "new",
                 false,
                 "sib",
-                tcl_dialect::DialectProfile::by_name("tcl9.0")
+                crate::profile_for_dialect("tcl9.0")
             ),
             None
         );
@@ -1479,7 +1482,7 @@ mod tests {
                 "new",
                 false,
                 "sib",
-                tcl_dialect::DialectProfile::by_name("tcl9.0")
+                crate::profile_for_dialect("tcl9.0")
             ),
             None
         );
@@ -1512,7 +1515,7 @@ mod tests {
                 "same",
                 true,
                 "old",
-                tcl_dialect::DialectProfile::by_name("tcl9.0")
+                crate::profile_for_dialect("tcl9.0")
             ),
             None,
             "an instance-side move must not refuse a class-side rename",
@@ -1535,7 +1538,7 @@ mod tests {
                 "same",
                 false,
                 "old",
-                tcl_dialect::DialectProfile::by_name("tcl9.0")
+                crate::profile_for_dialect("tcl9.0")
             ),
             None,
             "a class-side move must not refuse an instance-side rename",
@@ -1556,7 +1559,7 @@ mod tests {
             "same",
             true,
             "old",
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            crate::profile_for_dialect("tcl9.0"),
         )
         .expect("a class-side move must still gate a class-side rename");
         assert!(
@@ -1582,7 +1585,7 @@ mod tests {
                 "sib",
                 false,
                 "new",
-                tcl_dialect::DialectProfile::by_name("tcl9.0")
+                crate::profile_for_dialect("tcl9.0")
             ),
             None,
             "an instance-side `sib` is not the class-side move's blocker",
@@ -1603,7 +1606,7 @@ mod tests {
                 "old",
                 false,
                 "sib",
-                tcl_dialect::DialectProfile::by_name("tcl9.0")
+                crate::profile_for_dialect("tcl9.0")
             ),
             None
         );

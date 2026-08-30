@@ -69,11 +69,12 @@ is what the `speclib` version word already does. A pack containing
 `pragma` therefore hits the ordinary unknown-property rule below: dropped
 with a logged notice.
 
-The current vocabulary is **1.2**. `1`, `1.0`, `1.1` and `1.2` all name a
-vocabulary the loader reads in full; any other word still loads the pack,
-with a notice saying which vocabulary the loader knows — a pack is never
-refused for being newer than the server, it only loses the words that
-server has never heard of.
+The current vocabulary is **2.0**. `1`, `1.0`, `1.1`, `1.2` and `2.0` all
+name a vocabulary the loader reads in full. A pack declaring a newer
+*minor* of a major the loader knows still loads, with a notice saying
+which vocabulary the loader knows — it only loses the words that server
+has never heard of. A newer **major** is the one case that fails closed;
+the two rules below say why.
 
 ### Vocabulary changelog
 
@@ -84,6 +85,7 @@ Additive only, so nothing written against 1.0 has to change.
 | **1.0** | the vocabulary the eleven ports froze |
 | **1.1** | the three lifecycle flags `-introduced` / `-deprecated` / `-retired` at every level the registry can gate — `form`, `side_effect`, `option_conflict`, `sub_subcommand`, and a `values` table's `value` rows — plus `versioned_arg_value` at **command** scope (it was subcommand-only), and the option row's `-deprecation-fix {…}` data form |
 | **1.2** | versioned `arity` and `arg` rows; `ambient_package`; second-level option blocks; option-level `-taints-var-write`, `-variable-scope`, `-script-timing`, and `-callback-taint-inputs`; positional `callback_taint_inputs`; `script_timing_resolver`; `object_class -method-prefix-matching`; and `tk_geometry` |
+| **2.0** | `available {PROVIDER SPEC…}` / `-available` at every scope `dialects` is accepted; the `environment NAME { … }` and `dialect NAME { … }` pack-level blocks; `refine NAME { … }`, the invocation refinement, at command and subcommand scope |
 
 Every 1.1 word is one the option row already spelled, moved outward: the
 flags are `Lifecycle`'s own three releases, on the entity's own package
@@ -98,6 +100,36 @@ An `arg` row's flags gate the whole row, every column at once. And
 `ambient_package` is how a pack states the version of a package its
 dialect provides without a `package require` — a package that comes with
 the dialect is never required, so nothing else could floor it.
+
+2.0 is the first version whose number moves the **major**, and it moves
+for one reason: a word's *meaning* is now carried by a translation rather
+than by the word alone. `dialects` keeps loading forever and keeps meaning
+exactly what it meant; `available` is the new spelling of the same claim,
+and both are projected onto one internal representation, so a body written
+either way loads to a byte-equal spec. `tcl spec upgrade` rewrites 1.x
+sources mechanically.
+
+Two rules come with the major, and they run the other way — an *older*
+loader meeting a *newer* pack:
+
+- An unsupported **major** fails the whole pack closed. Nothing loads, and
+  one notice says why. A new major may redefine words the loader thinks it
+  knows, so reading the recognised ones would publish confident answers
+  drawn from a vocabulary it does not speak. An unknown *minor* within a
+  supported major keeps loading maximally, because a minor is only ever
+  additive.
+- An unknown word in a pack declaring a vocabulary the loader postdates is
+  classified by what dropping it would do. Prose warns and drops, as ever.
+  A shape or value word leaves the command known but **degraded**, so the
+  affected capability answers `Unknown` rather than confidently. A
+  security, control-flow, binding, lowering, or codegen word — and every
+  unknown word inside a `dialect` or `environment` block — excludes the
+  command or the block outright. No taint verdict is better than one
+  reached by ignoring the field that would have changed it.
+
+An unknown word in a pack whose vocabulary the loader knows in full is an
+author's typo, not a meaning being dropped, and keeps the plain
+warn-and-drop treatment.
 
 **Statement separation is ordinary Tcl.** Statements end at a newline or
 at a `;`, so a short declaration can be written on one line —
@@ -396,6 +428,60 @@ the descriptor's own field names, so nothing new has to be learnt:
 `WorldEffectDescriptor::EMPTY`. The last two are specified under
 "Definer grammars and scoped bodies" below.
 
+### `refine` — one invocation form
+
+An eleventh block, `refine NAME { … }`, is different in kind: it does not
+have inner words of its own. A form is a **refinement** of the command or
+subcommand that owns it, so it states the owning scope's own words about
+one call shape, and the owning scope's own readers read them:
+
+```tcl
+subcommand cget {
+    arity 0..1
+    synopsis {pathName cget ?-option?}
+
+    refine query {
+        arity 0
+        traits {PURE}
+        mutator no
+        side_effect InterpState -reads
+    }
+    refine set {
+        arity 1
+        mutator yes
+        side_effect InterpState -reads -writes
+    }
+}
+```
+
+The legal words are `arity`, `selector {WORD …} ?-exact?`,
+`arg N -role ROLE`, `option …`, the four `option_*` relations,
+`available` / `dialects`, `traits`, `mutator`, `side_effect …`,
+`side_effects none`, `semantic_operation`, `result_stability`,
+`representation_effect`, `world_effects`, `state_transitions`, and the
+`-native` `lowering_hook` / `codegen_hook`. Anything else is an unknown
+property: a fact that belongs on the parent cannot be lost inside a form.
+
+Three rules matter:
+
+- **Omission inherits.** No `traits` row means the parent's traits; an
+  empty `traits {}` row replaces them with none. That difference is the
+  point — it is how a zero-argument read form drops a mutation trait its
+  conservative parent has to carry. `side_effects none` is the same
+  distinction for effects.
+- **`selector` is literal.** The words are matched statically from the
+  start of the form's own argument list; a substituted or expanded word
+  never matches, and abstains to the parent's facts while a longer
+  selector is still possible. Unique-prefix matching is the default,
+  because Tcl resolves unambiguous abbreviations; `-exact` opts out.
+- **`arg` refines roles only.** The other `arg` columns (types, values,
+  presentation) are properties of the command, shared by every form.
+
+The descriptor's native halves — `completion`, `dispatch_dependencies`,
+and `literal_argument_validator` — stay Rust-only. A shipped form that
+carries one is reported when the Studio seeds a draft from it, so the
+round trip never claims to preserve more than it does.
+
 ## Hooks
 
 Eight fields across `CommandSpec` / `SubCommand`, plus one inside an
@@ -415,7 +501,8 @@ or a reference to a shipped implementation:
 `-native ID` is the spelling for **every field whose value names engine
 code**: the function-pointer fields above and the closed compiler-hook
 catalogues (`lowering_hook`, `codegen_hook`, `inline_codegen_hook`,
-`analyser_hook`, `bpf_op`). They share a spelling because they share a
+`analyser_hook`, `return_type_hook`, `bpf_op`). They share a spelling
+because they share a
 meaning — "the engine, by name" — and a load policy. IDs are
 `command::hook` for a per-command implementation (`string::is`,
 `oo::class::create`) and the bare catalogue variant for a shared one
@@ -522,7 +609,7 @@ precisely to stay inside the range where 8.x and 9.x agree, and
 ### Outputs: the emitter protocol
 
 **Every hook's own return value is ignored.** Each family injects one to
-three verbs; calling none is an abstention. One protocol for all ten hook
+six verbs; calling none is an abstention. One protocol for all eleven hook
 families, so "what does silence mean" has one answer per family and it is
 always the conservative one.
 
@@ -536,6 +623,7 @@ always the conservative one.
 | `context_gate` | `reject MESSAGE` | the call is allowed |
 | `literal_argument_validator` | `invalid -index N -subject S -reason … -allowed {…} ?-replacement V?`, `abstain REASON` | valid |
 | `clause_shape_check` | `missing-expr ?after?`, `missing-body after`, `extra-words first` | the shape is accepted |
+| `constraints` | readers `option-present OPTION`, `option-value OPTION`, `literal N`, `arg-count`; emitters `invalid SLOT MESSAGE ?-conflict?`, `abstain` | no report |
 | option-arity hook (`-arity-hook`) | `consume N ?-invalid MESSAGE?` | consume one word |
 
 Returning early (`return`) is the ordinary way to abstain, which is why
@@ -730,7 +818,8 @@ gate rather than pass silently.
   degrades.
 - A pack may **name** any of the closed native-hook catalogues
   (`lowering_hook`, `codegen_hook`, `inline_codegen_hook`,
-  `analyser_hook`, `semantic_operation`, `bpf_op`) — bucket 2 of
+  `analyser_hook`, `return_type_hook`, `semantic_operation`, `bpf_op`) —
+  bucket 2 of
   spec-packs.md's hook plan: a pack reuses named hooks, it cannot add to
   them. Naming a *lowering* or *codegen* hook is reported at load, since
   it changes how the compiler translates the command rather than what the
@@ -740,13 +829,12 @@ gate rather than pass silently.
 
 ## What a pack cannot author
 
-Four kinds of field are **excluded** outright, and two more are
+Three kinds of field are **excluded** outright, and two more are
 **reference-only**. Every one is in the coverage matrix with its reason;
 the summary is:
 
 | field(s) | why not |
 |---|---|
-| `command_forms`, `subcommand_forms` | whole structured descriptors mixing declarative arity/roles/options/effect refinements with native validators, compiler hooks, and proof metadata. Studio preserves one as an opaque Rust expression, but SpecTcl cannot author or round-trip any part without falsely claiming the rest is preserved. Plain `forms` is documentation-only and is not a semantic substitute; compiled-in Tcl/iRules routing and Tk query/mutation refinements use the structured descriptors. The boundary and a declarative split alternative are in [spec-packs.md](../spec-packs.md). |
 | `completion` | a compiler proof obligation, not a description of the command. See the rationale below. |
 | `dispatch_dependencies` | specialisation-proof machinery whose meaning is defined by the optimiser; `fields.md` itself says "leave unset". |
 | `data_collection`, `bpf_op` | shared named descriptors, referenced by name — the boundary spec-packs.md's bucket 2 draws. `data_collection`'s descriptor is paired with protocol machinery outside the registry; `bpf_op` is a closed compiler catalogue. |
@@ -910,7 +998,7 @@ list of rows instead gets a **singular row statement** (`options` →
 `option`, `subcommands` → `subcommand`, `forms` → `form`,
 `side_effects` → `side_effect`, `setter_constraints` →
 `setter_constraint`, `repeated_args` → `repeat`, `manufacturer_methods`
-→ `manufacturer`, `option_constraints` → `option_conflict`,
+→ `manufacturer`, `option_constraints` → the four `option_*` relation rows,
 `oo_context_facts` → `oo_context_fact`, `sub_subcommands` →
 `sub_subcommand`, `versioned_arg_values` → `versioned_arg_value`), and a
 new field on a *row type* becomes a new flag on that statement — so the
@@ -1037,7 +1125,7 @@ is evidence about the *registry*, never an exemplar of the *syntax*.
 |---|---|---|
 | `object_class { superclasses {…} allow_unknown_methods no  method … }` | **`object_class NAME ?-superclass {…}? ?-allow-unknown? ?-method-prefix-matching Enabled\|Strict? { method … }`** | The scalar fields ride on the statement. The `NAME` word is `class_name`, which the drafts left implicit and which is *not* always the command name (a factory command may manufacture a differently-named class). Method matching defaults to `Strict`; `Enabled` requires evidence that the runtime accepts unique prefixes. |
 | `option NAME -since VERSION` | **`-introduced VERSION`** | the option row already carries the four lifecycle flags `-introduced` / `-deprecated` / `-retired` / `-deprecation-fix`, named for `Lifecycle`'s own fields. `-since` is a second word for the first of them. The drafts' underlying point stands and is unaffected: the version axis here is the *library's*, not Tcl's, which is exactly what `Lifecycle` is documented as being ("orthogonal to `dialects`"). |
-| `option_constraints { forbid {A B} … requires {A B} {C} }` | **`option_conflict {-a -b}`** rows for the `forbid` half; the `requires` half is a **known limit** (below), not syntax | `OptionConstraint` is a flat may-not-co-occur set with no directionality, so `forbid` maps and `requires` has nothing to map to. Writing `requires` inside an otherwise-backed block made an unbacked idea look one flag away from working; as a known limit it is visibly a registry gap. |
+| `option_constraints { forbid {A B} … requires {A B} {C} }` | **`option_conflict {-a -b}`** rows for the `forbid` half; **`option_requires SUBJECT {TERM …}`** for the `requires` half, added by E-R14 | The drafts' shape was right and the registry was the thing missing: `OptionConstraint` was a flat may-not-co-occur set with no directionality, so `requires` was recorded as a known limit rather than written as unbacked syntax. E-R14 (redesign §11.1 O1) supplied the registry half — a typed `OptionRelation` — and the row statements followed. The rule that a draft never writes syntax for an unbacked idea is what kept the two apart until then. |
 | `sub_subcommands { sub_subcommand … }` | **`sub_subcommand NAME …` rows** | the singular-row rule, unchanged: `sub_subcommands` is a list of rows, so it gets a row statement, exactly like `options` → `option`. |
 | `completion { codes {…} custom_code 5 … }` | **removed** — `completion` is excluded | writing syntax for an excluded field is the one thing a draft must not do, however well marked: it reads as a proposal to un-exclude. The real content (a library-defined code scoped to one command's body) is recorded as a known limit. |
 | `arg N -detail {…}` | **removed from the drafts** — there is no field to hold it | this was an *unmarked* invention in all four drafts, which is what makes it worth a ruling. No per-argument prose field exists on `CommandSpec` or `SubCommand`; argument documentation reaches the user through `synopsis` (inlay parameter names, signature help) and through `hover`'s `description`. *Rejected:* adding one. It would be a new registry field, so it is a contribution and an issue, not a DSL spelling — and the census's own rule is that every invention is marked. |
@@ -1065,18 +1153,25 @@ exemplar or a shipped struct, and none blocks the freeze.
 
 | limit | evidence | why it is a limit |
 |---|---|---|
-| Per-flag-combination return typing | tarray column search: the returned representation depends on which *combination* of mode/shape flags is present | `return_type` is one value per command/subcommand, and even the excluded `command_forms` splits by form, not by flag combination |
+| Per-flag-combination return typing | tarray column search: the returned representation depends on which *combination* of mode/shape flags is present | `return_type` is one value per command/subcommand and `refine` splits by form, not by flag combination. `return_type_hook` answers exactly this shape for the core commands that need it (`lsearch`'s three interacting switches), but a pack can only *name* a catalogue hook, not add one — so a library's own flag algebra still has no spelling |
 | Library-defined completion codes | `struct::tree::prune`'s `return -code 5`, meaningful only inside `struct::tree walk`'s body | `completion` is excluded, and the authorable traits name only break/continue/raise. Nothing pairs a custom code to the single command whose body accepts it, the way `HAS_LOOP_BODY` pairs with `BREAKS_LOOP` |
-| Option *requirement* relationships | SpiceGenTcl's `argparse` blocks: 189 `-require` vs 75 `-forbid` | `OptionConstraint` is a flat mutual-exclusion set with no direction. `option_conflict` covers the smaller half of what real libraries write |
 | Method-scoped taint sinks | SpiceGenTcl's `Batch::runAndRead` — an `exec` inside a TclOO instance method | `taint_code_sink_args` / `taint_network_sink_args` are command-only fields; the methods that actually spawn processes are `SubCommand`-shaped and cannot declare them |
 | Embedded-language naming beyond the closed catalogues | tDOM's XPath argument; ticklecharts' JS/G6 fragments | `pattern_type` and `format_string_type` are closed catalogues (Glob/Regex; Sprintf/Clock/Binary/Regsub) a pack cannot extend |
 | Callback *callee-shape* declaration | tclvfs's 9-shape `vfshandler` callback | on the registering command, only `-appends {AtLeast N}` / `Unknown` is available. Mitigated, and well: spec the handler proc itself as a `command` with nine `subcommand`s, which is fully expressible |
 | Runtime-assembled ensembles | `namespace ensemble create -map` where the map splices same-file procs | a pack declares commands, not the runtime construction of them |
 | Runtime-computed argument grammars | SpiceGenTcl's computed `argparse` definitions; mustache's position-dependent lambda arity | irreducibly dynamic — `Unknown` is the honest answer for any spec system, native included |
 
-Two of these (`requires`, method-scoped taint sinks) are registry
-changes rather than DSL changes, and both are worth filing; the rest are
-statements about what a static description of a command can be.
+**Closed since:** *option requirement relationships* — the row that read
+"`OptionConstraint` is a flat mutual-exclusion set with no direction;
+`option_conflict` covers the smaller half of what real libraries write",
+evidenced by SpiceGenTcl's 189 `-require` against 75 `-forbid`. E-R14
+(redesign §11.1 O1) replaced `OptionConstraint` with a typed
+`OptionRelation` and added `option_requires`, `option_requires_one_of` and
+`option_forbids` beside `option_conflict`; all four are checked natively.
+
+Method-scoped taint sinks remain a registry change rather than a DSL change
+and is worth filing; the rest are statements about what a static description
+of a command can be.
 
 ## Coverage matrix
 
@@ -1091,7 +1186,6 @@ schema order. "excluded" rows carry the reason.
 | `arity` | `arity N`, `N..M`, `N..`, `..M`, `..` ?-step S? ?-also N? | the `..` range word is the whole `Arity` struct |
 | `arity_windows` | `arity SHAPE -introduced V ?-deprecated V? ?-retired V?` | since 1.2; the same row with a lifecycle. Repeatable, must not overlap; the ungated `arity` row stays the fallback |
 | `arg_roles` | `arg N -role ROLE` |  |
-| `arg_rows` | any `arg N …` row plus `-introduced V` / `-deprecated V` / `-retired V` | since 1.2; the lifecycle gates the whole row, every column of it at once |
 | `arg_role_resolver` | `arg_role_resolver {words ctx} { … }` \| `-native ID` \| `from-manufacturers` | also **derived** from `clause_grammar`; emitter verb `role IDX ROLE` |
 | `arg_presentation` | `arg N -layout BlockScript\|InlineScript` |  |
 | `repeated_args` | `repeat ROLE -from N -stride N ?-exclude-trailing N? ?-optional-leading? ?-conditional?` | one row per layout |
@@ -1113,7 +1207,7 @@ schema order. "excluded" rows carry the reason.
 | `default_form_first_word` | `default_form_first_word Integer` |  |
 | `hover` | `hover { … }` | block; see the hover statements below |
 | `forms` | `form KIND {synopsis} ?-dialects {…}? ?-introduced V? ?-deprecated V? ?-retired V?` | one row per form; the three releases are `FormSpec.lifecycle` |
-| `command_forms` | **excluded** | whole-descriptor boundary: mixed declarative form facts plus native validators/compiler hooks/proof metadata. The Studio carries one opaque Rust expression; SpecTcl does not claim a partial round trip. Plain `forms` only documents synopsis/lifecycle. |
+| `command_forms` | `refine NAME { … }` | one block per invocation form (2.0, design Q12/D2); the body takes `arity`, `selector {WORD …} ?-exact?`, `arg N -role R`, `option …`, the four `option_*` relations, `available`/`dialects`, `traits`, `mutator`, `side_effect …` / `side_effects none`. An omitted overlay inherits, so `traits {}` and no `traits` row are different declarations. The descriptor's native halves (`completion`, `dispatch_dependencies`, `literal_argument_validator`) stay Rust-only and a form carrying one is reported, not thinned. Plain `forms` still only documents synopsis/lifecycle. |
 | `semantic_operation` | `semantic_operation Invoke\|{Intrinsic ID}\|{StructuredLowering ID}` | an operation identity, so it keeps the enum spelling rather than `-native` |
 | `completion` | **excluded** | `CompletionDescriptor` describes the command's *control-flow edges*, so a wrong value corrupts the CFG rather than one value — see "Why `completion` is excluded and `const_fold` is not". The traits `BREAKS_LOOP` / `CONTINUES_LOOP` / `CATCHABLE_THROW` stay authorable and cover the standard codes |
 | `assigns_variable_at` | `assigns_variable_at N` |  |
@@ -1125,6 +1219,7 @@ schema order. "excluded" rows carry the reason.
 | `inline_codegen_hook` | `inline_codegen_hook -native ID` | closed catalogue |
 | `bpf_op` | `bpf_op -native ID` | BPF dialect only; reference-only |
 | `analyser_hook` | `analyser_hook -native ID` | closed catalogue |
+| `return_type_hook` | `return_type_hook -native ID` | closed catalogue; names the algorithm that types a call whose result shape moves with the call (`lsearch -inline`, `regsub`'s positional count). `return_type` stays the one-value-per-command answer and the hook wins over it |
 | `command_table_effect` | `command_table_effect DefinesProcedure\|RenamesCommands\|CreatesAliases` |  |
 | `side_effects` | `side_effect TARGET ?-reads? ?-writes? ?-side S? ?-dialects {…}? ?-introduced V? ?-deprecated V? ?-retired V?` | one row per effect; the three releases are `SideEffect.lifecycle` |
 | `world_effects` | `world_effects none\|NAME\|{ … }` | block carries composition / access / callback / dynamic_fallback; `resolver` is reference-only |
@@ -1132,6 +1227,7 @@ schema order. "excluded" rows carry the reason.
 | `dispatch_dependencies` | **excluded** | specialisation-proof machinery whose meaning is defined by the optimiser, not by the command; fields.md itself says "leave unset" |
 | `result_stability` | `result_stability Unknown\|ReferentiallyTransparent\|Volatile\|{ReadsVersionedWorld {D …}}` |  |
 | `literal_argument_validator` | `literal_argument_validator {words ctx} { … }` \| `-native ID` | emitter verbs `invalid …` / `abstain REASON`; no call = valid |
+| `constraints` | `constraints -inputs {invocation} {words ctx} { … }` | E-R14's rare escape hatch, consulted only when every declarative option relation reported nothing. Readers `option-present` / `option-value` / `literal N` / `arg-count`; emitters `invalid SLOT MESSAGE ?-conflict?` / `abstain`; no call = no report |
 | `inferred_storage_type` | `inferred_storage_type Dict\|List\|Array` |  |
 | `required_package` | `required_package NAME` | also settable pack-wide with `default` |
 | `excluded_events` | `excluded_events {EVENT …}` |  |
@@ -1143,7 +1239,8 @@ schema order. "excluded" rows carry the reason.
 | `side_switch_target` | `side_switch_target Client\|Server` |  |
 | `event_handler_priority` | `event_handler_priority -default N ?-warn-implicit?` |  |
 | `options` | `option NAME ?-flag value? …` | one row per option; see the option flag table |
-| `option_constraints` | `option_conflict {-a -b} ?-dialects {…}? ?-introduced V? ?-deprecated V? ?-retired V?` | one row per constraint; a conflict only exists once both options do, which is what its own three releases say |
+| `option_relations` | `option_conflict {TERM …}` / `option_requires SUBJECT {TERM …}` / `option_requires_one_of SUBJECT {TERM …}` / `option_forbids SUBJECT {TERM …}`, each `?-dialects {…}? ?-message {…}? ?-introduced V? ?-deprecated V? ?-retired V?` | one row per relation; a relation only exists once both its operands do, which is what its own three releases say. A term is `-name`, `{-name value}`, `{arg N}` or `{arg N value}`; an empty subject (`{}`) makes the relation unconditional |
+| `option_placement` | `option_placement Leading\|Anywhere` | where the command's options may be found — `Leading` (the default, and what core Tcl's C option loops do) stops at the first non-option word; `Anywhere` keeps recognising them between positionals up to `--` |
 | `reserved_trailing_words` | `reserved_trailing_words N` |  |
 | `arg_values` | `arg N -values {v …}` \| `arg N -values-from NAME` | `values NAME { … }` declares the shared table, whose rows carry `-min-tcl` (the Tcl axis) and the three releases (the package axis) independently |
 | `versioned_arg_values` | `versioned_arg_value N VALUE ?-introduced V? ?-deprecated V? ?-retired V?` | one row per gate; the command-level mirror of the subcommand rows, legal at either scope since 1.1 |
@@ -1173,7 +1270,6 @@ schema order. "excluded" rows carry the reason.
 | `warn_missing_import` | `warn_missing_import ?yes\|no?` |  |
 | `is_namespace_exported` | `is_namespace_exported ?yes\|no?` |  |
 | `xc_translatable` | `xc_translatable yes\|no` | argument required — absent means unset |
-| `xc_operation` | `xc_operation NAME` |  |
 | `deprecated_replacement` | `deprecated_replacement NAME` |  |
 | `deprecated_replacement_drop_in` | `deprecated_replacement_drop_in ?yes\|no?` |  |
 | `byte_array_payload` | `byte_array_payload -replace-data-index N ?-message-flag-shift?` |  |
@@ -1203,7 +1299,6 @@ schema order. "excluded" rows carry the reason.
 | `synopsis` | `synopsis {…}` |  |
 | `hover` | `hover { … }` | block; see the hover statements below |
 | `arg_roles` | `arg N -role ROLE` |  |
-| `arg_rows` | any `arg N …` row plus `-introduced V` / `-deprecated V` / `-retired V` | since 1.2; the lifecycle gates the whole row, every column of it at once |
 | `arg_role_resolver` | `arg_role_resolver {words ctx} { … }` \| `-native ID` \| `from-manufacturers` | also **derived** from `clause_grammar`; emitter verb `role IDX ROLE` |
 | `arg_presentation` | `arg N -layout BlockScript\|InlineScript` |  |
 | `repeated_args` | `repeat ROLE -from N -stride N ?-exclude-trailing N? ?-optional-leading? ?-conditional?` | one row per layout |
@@ -1225,14 +1320,16 @@ schema order. "excluded" rows carry the reason.
 | `codegen_hook` | `codegen_hook -native ID` | closed catalogue |
 | `inline_codegen_hook` | `inline_codegen_hook -native ID` | closed catalogue |
 | `analyser_hook` | `analyser_hook -native ID` | closed catalogue |
+| `return_type_hook` | `return_type_hook -native ID` | closed catalogue; names the algorithm that types a call whose result shape moves with the call (`lsearch -inline`, `regsub`'s positional count). `return_type` stays the one-value-per-command answer and the hook wins over it |
 | `command_table_effect` | `command_table_effect DefinesProcedure\|RenamesCommands\|CreatesAliases` |  |
 | `options` | `option NAME ?-flag value? …` | one row per option; see the option flag table |
-| `option_constraints` | `option_conflict {-a -b} ?-dialects {…}? ?-introduced V? ?-deprecated V? ?-retired V?` | one row per constraint; a conflict only exists once both options do, which is what its own three releases say |
+| `option_relations` | `option_conflict {TERM …}` / `option_requires SUBJECT {TERM …}` / `option_requires_one_of SUBJECT {TERM …}` / `option_forbids SUBJECT {TERM …}`, each `?-dialects {…}? ?-message {…}? ?-introduced V? ?-deprecated V? ?-retired V?` | one row per relation; a relation only exists once both its operands do, which is what its own three releases say. A term is `-name`, `{-name value}`, `{arg N}` or `{arg N value}`; an empty subject (`{}`) makes the relation unconditional |
+| `option_placement` | `option_placement Leading\|Anywhere` | where the command's options may be found — `Leading` (the default, and what core Tcl's C option loops do) stops at the first non-option word; `Anywhere` keeps recognising them between positionals up to `--` |
 | `min_abbrev` | `min_abbrev N` |  |
 | `prefix_matching` | `prefix_matching Enabled\|Strict` |  |
 | `arg_values` | `arg N -values {v …}` \| `arg N -values-from NAME` | `values NAME { … }` declares the shared table, whose rows carry `-min-tcl` (the Tcl axis) and the three releases (the package axis) independently |
 | `versioned_arg_values` | `versioned_arg_value N VALUE ?-introduced V? ?-deprecated V? ?-retired V?` | one row per gate; the same statement is legal in a `command` body since 1.1 |
-| `subcommand_forms` | **excluded** | the subcommand-level twin of `command_forms`; the whole descriptor is excluded for the same all-or-nothing round-trip reason |
+| `subcommand_forms` | `refine NAME { … }` | the subcommand-level twin of `command_forms`, one grammar and one reader |
 | `semantic_operation` | `semantic_operation Invoke\|{Intrinsic ID}\|{StructuredLowering ID}` | an operation identity, so it keeps the enum spelling rather than `-native` |
 | `completion` | **excluded** | `CompletionDescriptor` describes the command's *control-flow edges*, so a wrong value corrupts the CFG rather than one value — see "Why `completion` is excluded and `const_fold` is not". The traits `BREAKS_LOOP` / `CONTINUES_LOOP` / `CATCHABLE_THROW` stay authorable and cover the standard codes |
 | `dialects` | `dialects {SET …}` | absent inherits the parent command's set |
@@ -1256,13 +1353,13 @@ schema order. "excluded" rows carry the reason.
 | `sensitive_headers` | `sensitive_headers {NAME …}` |  |
 | `pattern_type` | `pattern_type Glob\|Regex` |  |
 | `format_string_type` | `format_string_type Sprintf\|Clock\|Binary\|Regsub` |  |
-| `xc_operation` | `xc_operation NAME` |  |
 | `side_effects` | `side_effect TARGET ?-reads? ?-writes? ?-side S? ?-dialects {…}?` | one row per effect |
 | `world_effects` | `world_effects none\|NAME\|{ … }` | block carries composition / access / callback / dynamic_fallback; `resolver` is reference-only |
 | `state_transitions` | `state_transitions NAME\|{ … }` | block carries composition / argument_shape / widen / covers / commit; `resolver` takes `none`, `from-frame-effect`, or `-native ID` |
 | `dispatch_dependencies` | **excluded** | specialisation-proof machinery whose meaning is defined by the optimiser, not by the command; fields.md itself says "leave unset" |
 | `result_stability` | `result_stability Unknown\|ReferentiallyTransparent\|Volatile\|{ReadsVersionedWorld {D …}}` |  |
 | `literal_argument_validator` | `literal_argument_validator {words ctx} { … }` \| `-native ID` | emitter verbs `invalid …` / `abstain REASON`; no call = valid |
+| `constraints` | `constraints -inputs {invocation} {words ctx} { … }` | E-R14's rare escape hatch, consulted only when every declarative option relation reported nothing. Readers `option-present` / `option-value` / `literal N` / `arg-count`; emitters `invalid SLOT MESSAGE ?-conflict?` / `abstain`; no call = no report |
 | `destructive` | `destructive ?yes\|no?` |  |
 | `returns_path` | `returns_path ?yes\|no?` |  |
 | `is_unescape` | `is_unescape ?yes\|no?` |  |

@@ -65,9 +65,7 @@ fn malformed_file(bytes: &[u8], suffix: &str) -> (String, std::path::PathBuf, St
     (uri, path, String::from_utf8_lossy(bytes).into_owned())
 }
 
-// ---------------------------------------------------------------------------
 // W107 — the file is not valid UTF-8.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn w107_fires_when_matching_on_disk_bytes_prove_a_decode_failure() {
@@ -130,9 +128,7 @@ fn w107_is_silent_for_an_unsaved_literal_replacement_character() {
     assert!(with_code(&diags, "W107").is_empty(), "{diags:?}");
 }
 
-// ---------------------------------------------------------------------------
 // W109 — the file is not UTF-8 text at all, and the analysis abstains.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn w109_fires_on_matching_utf16_bytes_and_suppresses_the_nonsense() {
@@ -227,9 +223,7 @@ fn w109_disabled_still_abstains_for_bigip_and_apl_documents() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // W305 — bidi controls (Trojan Source).
-// ---------------------------------------------------------------------------
 
 #[test]
 fn w305_fires_on_a_bidi_override_at_error_severity() {
@@ -321,9 +315,7 @@ fn f5_model_documents_publish_w107_and_w305_on_push_and_pull() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // #1325 regression guard — the complementary path must stay fixed.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn valid_multi_byte_source_still_analyses_without_a_panic() {

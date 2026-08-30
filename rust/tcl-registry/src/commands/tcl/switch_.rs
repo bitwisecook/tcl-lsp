@@ -19,6 +19,7 @@
 //! `switch` — pattern-based branching on a subject string.
 
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: true,
@@ -113,7 +114,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-exact",
         value: OptionValue::flag(),
         detail: "Exact string compare mode. This is the default.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -122,7 +123,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-glob",
         value: OptionValue::flag(),
         detail: "Glob-style pattern mode, as implemented by `string match`.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -131,7 +132,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-integer",
         value: OptionValue::flag(),
         detail: "Integer comparison mode: string and every pattern (other than a trailing default) must be a valid integer, or switch raises an error. Cannot be combined with -nocase.",
-        dialects: Some(DialectSet::TCL91),
+        surface: Some(SpecSurface::TCL91),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -140,7 +141,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-regexp",
         value: OptionValue::flag(),
         detail: "Regular expression pattern mode.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -149,7 +150,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-nocase",
         value: OptionValue::flag(),
         detail: "Case-insensitive matching. Not supported together with -integer (Tcl 9.1+).",
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -158,7 +159,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-matchvar",
         value: OptionValue::value("varName"),
         detail: "Store the list of matched substrings here — element 0 is the overall match, each later element a capturing group (only legal with -regexp); an empty list when a default branch runs.",
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -167,7 +168,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-indexvar",
         value: OptionValue::value("varName"),
         detail: "Store the list of matched substring start/end index pairs here, parallel to -matchvar (only legal with -regexp); an empty list when a default branch runs.",
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -176,7 +177,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "--",
         value: OptionValue::flag(),
         detail: "End of options: the next word is always the subject string, even if it starts with -.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -198,7 +199,7 @@ pub fn spec() -> CommandSpec {
         // OptionSpecs' own `dialects` gates below (-nocase/-matchvar/
         // -indexvar from 8.5, -integer from 9.1) — not a whole-command
         // dialect gate.
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::CONTROL_FLOW

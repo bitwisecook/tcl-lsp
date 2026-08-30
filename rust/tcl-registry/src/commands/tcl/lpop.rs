@@ -31,6 +31,7 @@
 // `TCL90_PLUS` gate below already excludes every one of them.
 
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "lpop varName ?index ...?",
@@ -77,7 +78,7 @@ pub fn spec() -> CommandSpec {
             | Traits::FRAME_HASH_BUILTIN
             | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED,
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         arity: Arity::at_least(1),
         assigns_variable_at: Some(0),
         arg_roles: &[(0, ArgRole::VarWrite)],

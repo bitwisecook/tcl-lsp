@@ -28,7 +28,7 @@ use std::collections::HashMap;
 use crate::ir::{Module, Procedure, Script, Statement};
 use crate::lowering::Lowerer;
 use tcl_registry::frame_effect::{FrameArgLayout, FrameLevel};
-use tcl_registry::{CommandRegistry, FRAME_REACH_TRAITS, dialects::DialectSet};
+use tcl_registry::{CommandRegistry, FRAME_REACH_TRAITS};
 
 /// Recognised passthrough proc shape used by the rewriter.
 #[derive(Debug, Clone)]
@@ -262,6 +262,11 @@ fn statement_has_frame_reach(stmt: &Statement, registry: &CommandRegistry) -> bo
 /// ([`CommandRegistry::invocation_traits`]) because `info level` /
 /// `info frame` carry [`tcl_registry::Traits::CURRENT_FRAME_INTROSPECTION`]
 /// on the subcommand rather than on `info` itself.
+///
+/// The `None` read is deliberate under invariant I4: this is
+/// a **widening** query — a frame-reaching answer *declines* the inline,
+/// so over-approximating across environments is the conservative
+/// direction, never a specialisation on an unproved binding.
 fn invocation_reaches_frame(stmt: &Statement, registry: &CommandRegistry) -> bool {
     let (Statement::Call { args, .. } | Statement::Barrier { args, .. }) = stmt else {
         return false;
@@ -278,7 +283,7 @@ fn invocation_reaches_frame(stmt: &Statement, registry: &CommandRegistry) -> boo
     }
     let words: Vec<&str> = args.iter().map(String::as_str).collect();
     registry
-        .invocation_traits(command, &words, DialectSet::empty())
+        .invocation_traits(command, &words, None)
         .intersects(FRAME_REACH_TRAITS)
 }
 

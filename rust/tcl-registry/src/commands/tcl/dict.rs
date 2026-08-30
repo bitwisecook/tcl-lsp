@@ -20,6 +20,7 @@
 
 use crate::hooks::{CodegenHookId, InlineCodegenHookId};
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::Variable,
@@ -124,7 +125,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             },
         )],
         mutator: true,
-        safe_on_uninit: Some(DialectSet::ALL_TCL),
+        safe_on_uninit: Some(SpecSurface::ALL_TCL),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -245,7 +246,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             },
         )],
         mutator: true,
-        safe_on_uninit: Some(DialectSet::ALL_TCL),
+        safe_on_uninit: Some(SpecSurface::ALL_TCL),
         return_type: Some(TclType::Dict),
         ..SubCommand::DEFAULT
     },
@@ -280,7 +281,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         representation_effect: Some(RepresentationEffect::copy_on_write_container(0, 2)),
         arg_roles: &[(0, ArgRole::VarWrite)],
         mutator: true,
-        safe_on_uninit: Some(DialectSet::ALL_TCL),
+        safe_on_uninit: Some(SpecSurface::ALL_TCL),
         arg_types: &[(
             0,
             ArgTypeHint {
@@ -307,7 +308,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         )],
         return_type: Some(TclType::Dict),
         loop_list_header: true,
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         cfg_rewrite_name: Some("::tcl::dict::map"),
         ..SubCommand::DEFAULT
     },
@@ -376,7 +377,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             },
         )],
         mutator: true,
-        safe_on_uninit: Some(DialectSet::ALL_TCL),
+        safe_on_uninit: Some(SpecSurface::ALL_TCL),
         return_type: Some(TclType::Dict),
         ..SubCommand::DEFAULT
     },
@@ -429,12 +430,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // unset rather than erroring (`dictPtr == NULL` branch, tclDictObj.c
         // — identical in the 8.5, 8.6, 9.0, and 9.1 sources), the same
         // auto-vivify behaviour as `append`/`incr`/`lappend`/`set` above.
-        safe_on_uninit: Some(DialectSet::ALL_TCL),
+        safe_on_uninit: Some(SpecSurface::ALL_TCL),
         ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "update",
-        dialects: None,
+        surface: None,
         // `dictionaryVariable key varName ?key varName ...? body` — an
         // even count from 4 (1 dict var + 2n key/varName pairs, n >= 1,
         // + 1 body — confirmed against tclsh 8.6.14: `dict update d k v
@@ -535,7 +536,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::at_least(3),
         // `dict getdef`/`getwithdefault` (and their unambiguous prefix `getd`)
         // were added by TIP 342 in Tcl 9.0 — absent in the 8.6.x series.
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         detail: "Synonym for ``dict getdef`` — returns the value that the key path maps to in the dictionary value, or the default if the key is absent.",
         synopsis: "dict getd dictionaryValue ?key ...? key default",
         pure: true,
@@ -558,7 +559,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         name: "getdef",
         arity: Arity::at_least(3),
         // Added by TIP 342 in Tcl 9.0.
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         detail: "Returns the value that the key path maps to in the dictionary value, or the default if the key is absent.",
         synopsis: "dict getdef dictionaryValue ?key ...? key default",
         pure: true,
@@ -581,7 +582,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         name: "getwithdefault",
         arity: Arity::at_least(3),
         // Added by TIP 342 in Tcl 9.0 (the long-form spelling of `getdef`).
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         detail: "Returns the value that the key path maps to in the dictionary value, or the default if the key is absent. Alias for dict getdef.",
         synopsis: "dict getwithdefault dictionaryValue ?key ...? key default",
         pure: true,
@@ -613,7 +614,7 @@ pub fn spec() -> CommandSpec {
             | Traits::BYTE_COMPILED
             | Traits::CSE_CANDIDATE
             | Traits::NEVER_INLINE_BODY,
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
         inferred_storage_type: Some(StorageType::Dict),
@@ -798,12 +799,12 @@ const QUALIFIED_HOVER: &[(&str, &str, &[&str])] = &[
 /// `Analyser::w123_invocation_resolves`'s resolution-candidate check.
 ///
 /// Each spec inherits the subcommand's own dialect gate, falling back to
-/// `dict`'s own ([`DialectSet::TCL85_PLUS`]) — never left `None`, which
+/// `dict`'s own ([`SpecSurface::TCL85_PLUS`]) — never left `None`, which
 /// `CommandSpec::dialects`'s own doc defines as "available in all dialects"
 /// and would wrongly make these appear under dialects (`f5-irules`, …) that
 /// never load `dict` this way.
 pub fn qualified_specs() -> Vec<CommandSpec> {
-    let parent_dialects = spec().dialects;
+    let parent_surface = spec().surface;
     QUALIFIED_NAMES
         .iter()
         .filter_map(|&(bare, qualified)| {
@@ -816,7 +817,7 @@ pub fn qualified_specs() -> Vec<CommandSpec> {
                 } else {
                     Traits::empty()
                 },
-                dialects: sub.dialects.or(parent_dialects),
+                surface: sub.surface.or(parent_surface),
                 arity: sub.arity,
                 return_type: sub.return_type,
                 arg_types: sub.arg_types,
@@ -956,7 +957,7 @@ mod tests {
     fn qualified_specs_inherit_dict_dialect_gate() {
         // Regression guard (secondary_issues_found #4 in the idx=105
         // research plan): a qualified spec must never default to
-        // `dialects: None` (= "available in all dialects" per
+        // `surface: None` (= "available in all dialects" per
         // `CommandSpec::dialects`'s own doc), which would wrongly make
         // e.g. `::tcl::dict::exists` appear under a dialect that never
         // loads `dict` this way (f5-irules, …). Each qualified spec's own
@@ -964,13 +965,13 @@ mod tests {
         // (`map`/`getdef`/`getwithdefault` are narrower than plain `dict`'s
         // own `TCL85_PLUS`), falling back to `dict`'s own gate otherwise —
         // never `None`.
-        let dict_dialects = spec().dialects;
+        let dict_dialects = spec().surface;
         for s in qualified_specs() {
             let bare = s.name.rsplit("::").next().unwrap();
             let sub = SUBCOMMANDS.iter().find(|sc| sc.name == bare).unwrap();
             assert_eq!(
-                s.dialects,
-                Some(sub.dialects.or(dict_dialects).unwrap()),
+                s.surface,
+                Some(sub.surface.or(dict_dialects).unwrap()),
                 "{:?} must inherit its own subcommand's dialect gate, \
                  falling back to dict's own",
                 s.name,

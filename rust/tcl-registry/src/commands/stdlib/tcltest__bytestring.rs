@@ -18,11 +18,12 @@
 
 //! `tcltest::bytestring` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcltest::bytestring",
         // Not defined under Tcl 9.0+ (guarded out of tcltest 2.5.10).
-        dialects: Some(DialectSet::TCL8X),
+        surface: Some(SpecSurface::TCL8X),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Convert a string to its byte representation (Tcl < 9.0).",

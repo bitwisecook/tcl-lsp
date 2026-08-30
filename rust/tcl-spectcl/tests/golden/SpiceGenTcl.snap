@@ -1,0 +1,18 @@
+# spectcl golden snapshot v1
+# regenerate with `cargo xtask pack-goldens`; do not edit by hand
+pack SpiceGenTcl dsl 1.2 display None load_error None
+target_dependent false
+file_extensions []
+provides []
+co_provides []
+ambient_packages []
+environments []
+dialects []
+registrations 5
+notices 0
+commands 5
+command ::SpiceGenTcl::Ngspice::BasicDevices::Resistor line 41 overrides false degraded false spec 410d67a66cc7aac4 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command ::SpiceGenTcl::Ngspice::BasicDevices::R line 138 overrides false degraded false spec dcf1350d3fd7449f hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command ::SpiceGenTcl::Device line 164 overrides false degraded false spec cc7f8375f209deb7 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command ::SpiceGenTcl::Ngspice::Simulators::Batch line 226 overrides false degraded false spec 53bff9fd50321b49 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command ::SpiceGenTcl::Ngspice::Simulators::BatchLiveLog line 277 overrides false degraded false spec a6c0cfbea6de15fc hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9

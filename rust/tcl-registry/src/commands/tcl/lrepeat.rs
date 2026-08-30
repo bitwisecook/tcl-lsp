@@ -24,7 +24,7 @@
 // error page, not the broken-redirect gotcha), and the 8.4.20 source
 // tree's generic/tclCmdIL.c has no Tcl_LrepeatObjCmd at all — the
 // command was added in Tcl 8.5 (TIP 136), matching the
-// `dialects: Some(DialectSet::TCL85_PLUS)` gate below.
+// `surface: Some(SpecSurface::TCL85_PLUS)` gate below.
 //
 // Tcl 8.5's own synopsis and C implementation (8.5.19
 // generic/tclCmdIL.c) are stricter than every later release: the
@@ -65,33 +65,32 @@
 // those sibling commands did not exist yet in 8.5/8.6 — cross-
 // reference churn, not a change to lrepeat itself.
 //
-// Not disabled or overridden in any modelled dialect: there is no
-// disable list for it to appear in (a sandbox-banned command would
-// instead carry a bare `ALL_TCL` group lacking the `IRULES` bit —
-// `lrepeat` is version-gated, not banned), and no
-// irules/iapps/tk/expect/eda*/itcl spec file names `lrepeat` (grepped
-// every sibling dialect directory under commands/). iRules' own
+// Not disabled or overridden in any modelled dialect: there is no disable list
+// for it to appear in (a sandbox-banned command would instead carry a bare
+// `ALL_TCL` surface lacking an iRules row — `lrepeat` is version-gated, not
+// banned), and no irules/iapps/tk/expect/eda*/itcl spec file names `lrepeat`
+// (grepped every sibling dialect directory under commands/). iRules' own
 // runtime is a genuine embedded Tcl 8.4.6
-// (`DialectSet::expr_grammar_base_version`), which predates TIP 136,
-// so `lrepeat` is correctly unreachable there simply because the
-// `IRULES` bit is absent from `TCL85_PLUS` — no extra dialect
-// restriction is needed on top of the version gate already in place.
-// F5 iApps/tmsh and the Xilinx/Quartus/Mentor EDA shells host a real
-// embedded Tcl 8.5 core, and Synopsys/Cadence/Expect host 8.6, so all
-// of them already resolve `lrepeat` through the same `TCL85_PLUS`
-// gate via their additive vendor-bit composition — no dialect adds or
-// removes a form or option here.
+// (`DialectProfile::expr_grammar_base`), which predates TIP 136, so `lrepeat`
+// is correctly unreachable there simply because an iRules row is absent from
+// `TCL85_PLUS` — no extra dialect restriction is needed on top of the version
+// gate already in place. F5 iApps/tmsh and the Xilinx/Quartus/Mentor EDA
+// shells host a real embedded Tcl 8.5 core, and Synopsys/Cadence/Expect host
+// 8.6, so all of them already resolve `lrepeat` through the same `TCL85_PLUS`
+// gate via their additive vendor-bit composition — no dialect adds or removes
+// a form or option here.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[
     FormSpec {
         synopsis: "lrepeat count ?element ...?",
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         ..FormSpec::DEFAULT
     },
     FormSpec {
         synopsis: "lrepeat count element ?element ...?",
-        dialects: Some(DialectSet::TCL85),
+        surface: Some(SpecSurface::TCL85),
         ..FormSpec::DEFAULT
     },
 ];
@@ -114,7 +113,7 @@ pub fn spec() -> CommandSpec {
         // Added in Tcl 8.5 (TIP 136); absent from 8.4 and never
         // available in iRules (a genuine embedded Tcl 8.4.6) — see the
         // module comment above for the full version/dialect cross-check.
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         // The 8.6+ minimum (count alone, no elements). `Arity` has no
         // per-dialect axis, so this is a narrow gap for arity
         // diagnostics against code targeting Tcl 8.5 specifically,

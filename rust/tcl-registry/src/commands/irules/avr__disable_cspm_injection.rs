@@ -18,10 +18,11 @@
 
 //! `AVR::disable_cspm_injection` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "AVR::disable_cspm_injection",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Disables CSPM injection for the current connection.",
@@ -37,9 +38,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &["FASTHTTP"],
             also_in: &["AVR_CSPM_INJECTION"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "AVR::disable_cspm_injection",

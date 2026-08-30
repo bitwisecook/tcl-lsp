@@ -27,23 +27,23 @@
 //! `commands/stdlib/http__*.rs`.
 
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 /// Command spec for the `http` package identifier.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http",
         // Bundled with every standard Tcl release 8.4 through 9.1 — the
-        // command set it provides only grows across versions (see the
-        // hover snippet below), never disappears — so this carries every
-        // Tcl-version bit (`ALL_TCL`) rather than being version-gated. F5
-        // iRules removes the whole package from its TMM sandbox (the
-        // K36322151 bans); that is now modelled by this explicit `dialects`
-        // group being `ALL_TCL`, alongside `open`/`socket`/`file` — which,
-        // like this spec, all carry a bare `ALL_TCL` that omits the `IRULES`
-        // bit and so never intersects the bare `IRULES` mask, rather than
-        // relying on a disable list. iRules availability is fully explicit
-        // per spec.
-        dialects: Some(DialectSet::ALL_TCL),
+        // command set it provides only grows across versions (see the hover
+        // snippet below), never disappears — so this carries every Tcl release
+        // (`ALL_TCL`) rather than being version-gated. F5 iRules removes the
+        // whole package from its TMM sandbox (the K36322151 bans); that is now
+        // modelled by this explicit surface being `ALL_TCL`, alongside
+        // `open`/`socket`/`file` — which, like this spec, all carry a bare
+        // `ALL_TCL` that omits an iRules row and so never intersects the bare
+        // `IRULES` mask, rather than relying on a disable list. iRules
+        // availability is fully explicit per spec.
+        surface: Some(SpecSurface::ALL_TCL),
         // Never actually invoked as a command (see the module doc
         // comment) — left unconstrained rather than modelling an
         // invocation shape that doesn't exist.

@@ -169,7 +169,7 @@ fn a_profile_never_sees_a_rival_vendors_library() {
             .unwrap_or_else(|| panic!("{dialect}: report_timing"));
         let package = spec.required_package.expect("an EDA package gate");
         assert!(
-            tcl_dialect::DialectProfile::by_name(dialect).is_ambient_package(package),
+            tcl_spectcl::environment::profile_for_dialect(dialect).is_ambient_package(package),
             "{dialect}: report_timing resolved to `{package}`, which this shell does not ship"
         );
     }
@@ -271,7 +271,7 @@ fn the_loaded_specs_carry_their_analysis_facts() {
 /// only source. A registry built without the loadables has none of them.
 #[test]
 fn the_compiled_registry_has_no_eda_commands_left() {
-    let plain = tcl_registry::registry_for_dialect("xilinx-eda-tcl");
+    let plain = tcl_registry::model::static_context_for("xilinx-eda-tcl").commands();
     for name in ["synth_design", "get_cells", "create_clock"] {
         assert!(
             plain.get(name).is_none(),

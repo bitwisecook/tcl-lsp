@@ -18,6 +18,7 @@
 
 //! `call` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 fn call_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     let index = u8::from(args.first() == Some(&"-debug"));
@@ -30,7 +31,7 @@ fn call_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "call",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(1),
         traits: Traits::INVOKES_USER_PROC,
         hover: Some(HoverSnippet {
@@ -50,7 +51,7 @@ pub const fn spec() -> CommandSpec {
                 name: "-debug",
                 value: OptionValue::flag(),
                 detail: "Enable debug mode.",
-                dialects: None,
+                surface: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,

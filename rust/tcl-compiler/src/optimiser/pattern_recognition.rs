@@ -591,7 +591,7 @@ mod tests {
         let mut ctx = super::super::PassContext::with_dialect(
             &cu.source,
             InterproceduralAnalysis::default(),
-            Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
         );
         run(&mut ctx, &cu);
         assert!(
@@ -609,7 +609,7 @@ mod tests {
         let mut ctx = super::super::PassContext::with_dialect(
             &cu.source,
             InterproceduralAnalysis::default(),
-            Some(tcl_dialect::DialectProfile::by_name("tcl9.0")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()),
         );
         run(&mut ctx, &cu);
         assert!(

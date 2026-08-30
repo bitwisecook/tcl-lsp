@@ -1184,7 +1184,6 @@ mod tests {
         ));
     }
 
-    // ---------------------------------------------------------------------
     // Issue #1297: `exported_at_import_site` is now stated over
     // `exports_in_effect`, which is the whole rule minus the name.  The
     // workspace tier decides that half once per recorded import instead of
@@ -1192,7 +1191,6 @@ mod tests {
     // is exact: whatever `exports_in_effect` keeps must glob-match to the
     // same verdict the one-shot function gives, over every shape the
     // timeline can produce.
-    // ---------------------------------------------------------------------
 
     /// The two must agree for every (event set, name) pair, including the
     /// cases where the *timeline* is what decides — a `-clear` that provably

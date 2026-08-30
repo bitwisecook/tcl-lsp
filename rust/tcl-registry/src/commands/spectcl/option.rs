@@ -18,6 +18,7 @@
 
 //! `option` — one row of a command's / subcommand's option table.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 /// The option row's own flags.
 ///
@@ -166,7 +167,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "option",
         traits: Traits::LANGUAGE_KEYWORD,
-        dialects: Some(DialectSet::SPECTCL),
+        surface: Some(SpecSurface::SPECTCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Declare one option of the enclosing command or subcommand.",

@@ -18,10 +18,11 @@
 
 //! `testutftonormalizeddstring` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testutftonormalizeddstring",
-        dialects: Some(DialectSet::TCL91),
+        surface: Some(SpecSurface::TCL91),
         arity: Arity::new(3, 4),
         hover: Some(HoverSnippet {
             summary: "Test UTF-8 Unicode normalisation into a DString (Tcl 9.1).",

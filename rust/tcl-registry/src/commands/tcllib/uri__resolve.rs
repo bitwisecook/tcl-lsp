@@ -26,7 +26,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "uri::resolve",
-        dialects: None,
+        surface: None,
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {
             summary: "Resolve a relative URI reference against a base URI.",

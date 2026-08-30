@@ -2608,9 +2608,7 @@ impl WorkspaceIndex {
     fn registry_for(&self, uri: &str) -> Option<&'static tcl_registry::CommandRegistry> {
         let slot = *self.slots.get(uri)?;
         let dialect = self.docs[slot].dialect.as_str();
-        (!dialect.is_empty()).then(|| {
-            tcl_registry::cache::registry_for_profile(tcl_dialect::DialectProfile::by_name(dialect))
-        })
+        (!dialect.is_empty()).then(|| crate::registry_for_dialect(dialect))
     }
 
     /// Deliberately *not* [`Self::workspace_command_exists`], which also
@@ -5581,11 +5579,15 @@ impl<'a> CallSite<'a> {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use tcl_compiler::analyser::Analyser;
 
     fn analyse(source: &str) -> AnalysisResult {
-        analyse_as(source, tcl_dialect::DialectProfile::by_name("tcl8.6"))
+        analyse_as(
+            source,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        )
     }
 
     fn analyse_as(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> AnalysisResult {
@@ -6198,7 +6200,10 @@ mod tests {
             ("private unexport m\nprivate export m", "tcl9.0", true),
         ] {
             let src = format!("oo::class create ::C {{ method m {{}} {{ return 1 }}\n{body} }}\n");
-            let a = analyse_as(&src, tcl_dialect::DialectProfile::by_name(dialect));
+            let a = analyse_as(
+                &src,
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+            );
             let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a)]);
             let chain = index.method_dispatch_chain("::C", "m", MethodAccess::External);
             assert_eq!(!chain.is_empty(), callable, "{body}");
@@ -7280,7 +7285,6 @@ mod tests {
         );
     }
 
-    // -----------------------------------------------------------------
     // The `package require` half of the load order (issue #1279).
     //
     // Every test below builds the index with `WorkspaceIndex::from_documents`
@@ -7305,7 +7309,6 @@ mod tests {
     // …and the second script, byte-identical, answers NO ALIAS when some
     // other file required `mymod` before it ran.  That flip is the whole
     // reason the second shape abstains.
-    // -----------------------------------------------------------------
 
     /// The provider document every `package require` order test shares: it
     /// defines and exports `helper`, and provides the package.
@@ -10203,7 +10206,6 @@ mod tests {
         );
     }
 
-    // ---------------------------------------------------------------------
     // Issue #1297 — the settlement walk's cost must not scale with
     // (invocations x in-scope imports x export rows).
     //
@@ -10221,7 +10223,6 @@ mod tests {
     // so that whole question is now decided once per recorded import at
     // index-build time (`ExportGate`), leaving a hash probe and a glob match
     // on the per-call path.
-    // ---------------------------------------------------------------------
 
     /// A workspace of the #1297 shape, sized so the pre-fix cost is seconds
     /// and the post-fix cost is milliseconds.
@@ -10338,7 +10339,6 @@ mod tests {
         );
     }
 
-    // ---------------------------------------------------------------------
     // Issue #1302 — the import-conflict rule's "already exists" side must
     // include the commands the *registry* declares, not only the procs and
     // classes the workspace declares.
@@ -10355,7 +10355,6 @@ mod tests {
     //                               -> namespace origin ::Bar::set == ::Foo::set
     //   # …and `+` is NOT a global command, so it does not conflict:
     //   info commands ::+           -> {}      (+ 1 2 -> invalid command name)
-    // ---------------------------------------------------------------------
 
     /// TP: the defect itself.  `::Foo` exports `set`; real Tcl refuses the
     /// import, so the bare `set x 1` reaches the builtin and is **not** a
@@ -10364,11 +10363,11 @@ mod tests {
     fn a_wildcard_import_does_not_bind_a_name_the_registry_already_declares() {
         let a = analyse_as(
             "namespace eval ::Foo {\n    proc set {a b} { return SHADOW }\n    namespace export set\n}\n",
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         let b = analyse_as(
             "namespace import ::Foo::*\nset x 1\n",
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
         assert!(
@@ -10384,11 +10383,11 @@ mod tests {
     fn a_forced_wildcard_import_still_shadows_a_registry_builtin() {
         let a = analyse_as(
             "namespace eval ::Foo {\n    proc set {a b} { return SHADOW }\n    namespace export set\n}\n",
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         let b = analyse_as(
             "namespace import -force ::Foo::*\nset x 1\n",
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
         assert_eq!(
@@ -10406,11 +10405,11 @@ mod tests {
     fn importing_a_builtin_name_into_a_sub_namespace_still_binds() {
         let a = analyse_as(
             "namespace eval ::Foo {\n    proc set {a b} { return SHADOW }\n    namespace export set\n}\n",
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         let b = analyse_as(
             "namespace eval ::Bar {\n    namespace import ::Foo::*\n    proc go {} { set x 1 }\n}\n",
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
         assert_eq!(
@@ -10427,11 +10426,11 @@ mod tests {
     fn a_wildcard_import_of_a_non_builtin_name_is_unaffected() {
         let a = analyse_as(
             "namespace eval ::Foo {\n    proc mything {} {}\n    namespace export mything\n}\n",
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         let b = analyse_as(
             "namespace import ::Foo::*\nmything\n",
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
         assert_eq!(index.linked_invocations_of("::Foo::mything", "").len(), 1);
@@ -10446,11 +10445,11 @@ mod tests {
     fn importing_an_operator_name_into_the_global_namespace_still_binds() {
         let a = analyse_as(
             "namespace eval ::Ops {\n    proc + {a b} { return OPS }\n    namespace export +\n}\n",
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         let b = analyse_as(
             "namespace import ::Ops::*\n+ 1 2\n",
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
         assert_eq!(
@@ -10467,11 +10466,11 @@ mod tests {
     fn an_exact_import_of_a_registry_builtin_installs_no_link() {
         let a = analyse_as(
             "namespace eval ::Foo {\n    proc set {a b} { return SHADOW }\n    namespace export set\n}\n",
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         let b = analyse_as(
             "namespace import ::Foo::set\nset x 1\n",
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
         assert!(
@@ -10490,8 +10489,14 @@ mod tests {
         let importer =
             "namespace eval ::HTTP {\n    namespace import ::Mine::*\n    proc go {} { uri }\n}\n";
         // Plain Tcl knows no `::HTTP::uri`, so the import installs.
-        let a = analyse_as(lib, tcl_dialect::DialectProfile::by_name("tcl9.0"));
-        let b = analyse_as(importer, tcl_dialect::DialectProfile::by_name("tcl9.0"));
+        let a = analyse_as(
+            lib,
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+        );
+        let b = analyse_as(
+            importer,
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+        );
         let plain = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
         assert_eq!(
             plain.linked_invocations_of("::Mine::uri", "").len(),
@@ -10508,7 +10513,6 @@ mod tests {
         );
     }
 
-    // ---------------------------------------------------------------------
     // Issue #1319 — `import_hop` must not scan a namespace's whole import
     // list per call.
     //
@@ -10522,7 +10526,6 @@ mod tests {
     // position *within the filtered sequence*, so a reordering — or a
     // duplicate from a row carrying both literal and glob export patterns —
     // would silently change which import wins. These pin that.
-    // ---------------------------------------------------------------------
 
     /// The admitted sequence must be exactly what a full scan would yield,
     /// in the same order, over every shape the gate can take: literal-only,

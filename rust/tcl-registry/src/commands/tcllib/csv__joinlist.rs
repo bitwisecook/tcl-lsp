@@ -27,7 +27,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "csv::joinlist",
         traits: Traits::PURE,
-        dialects: None,
+        surface: None,
         arity: Arity::new(1, 4),
         hover: Some(HoverSnippet {
             summary: "Join a list of lists into CSV-formatted lines.",

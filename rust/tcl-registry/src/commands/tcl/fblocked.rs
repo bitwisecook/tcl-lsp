@@ -19,6 +19,7 @@
 //! `fblocked` — test whether the last input operation exhausted all available input.
 
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "fblocked channel",
@@ -42,16 +43,15 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// there is no `chan.n` manpage under the 8.4 tree.
 ///
 /// iRules bans `fblocked` (F5's restricted event runtime has no real
-/// blocking-I/O model to query) — so its `dialects` group below is
-/// `ALL_TCL`, which does not carry the `IRULES` bit and therefore never
-/// intersects the bare `IRULES` availability mask. That exclusion is
-/// correct and deliberate, not an oversight. No other modelled dialect
-/// (Expect, Tk, the EDA vendor shells, iApps, incr Tcl) disables or
-/// alters `fblocked`.
+/// blocking-I/O model to query) — so its surface below is `ALL_TCL`, which
+/// does not carry an iRules row and therefore is simply absent under iRules.
+/// That exclusion is correct and deliberate, not an oversight. No other
+/// modelled dialect (Expect, Tk, the EDA vendor shells, iApps, incr Tcl)
+/// disables or alters `fblocked`.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fblocked",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED,
         arity: Arity::exact(1),
         arg_roles: &[(0, ArgRole::Channel)],

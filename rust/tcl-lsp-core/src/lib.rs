@@ -93,35 +93,46 @@ pub mod vfs;
 pub mod workspace_index;
 pub mod workspace_symbols;
 
-/// Resolve a document's dialect *name* to the profile the providers thread.
+/// Resolve a document's dialect *name* to its environment — **the** LSP
+/// dialect ingress (centralisation ledger rows F2/F3, P1-F wave 2).
 ///
-/// This is the LSP layer's dialect ingress: a provider that needs a
-/// [`tcl_dialect::DialectProfile`] resolves it here rather than calling
-/// `by_name` on a dialect string itself (issue #1405).
+/// Every dialect string this crate accepts — `analysis.dialect`, a Salsa
+/// `dialect` input, a settings value, an editor language id already mapped
+/// to a canonical name — resolves here, once, through
+/// [`tcl_registry::model::resolve_environment`]: the one
+/// `EnvironmentRegistry::resolve` seam the compiler's ingress also
+/// delegates to. Providers derive the registry generation
+/// ([`context_for_dialect`]), the availability view
+/// (`generation.context()`), and the interop [`DialectProfile`] they still
+/// thread ([`profile_for_dialect`]) from the resolved environment, never
+/// from a second parse of the string.
 ///
-/// Two kinds of name lookup deliberately remain, and neither is a provider
-/// re-deriving this function's answer:
+/// [`DialectProfile`]: tcl_dialect::DialectProfile
+#[must_use]
+pub fn environment_for_dialect(name: &str) -> tcl_registry::model::DocumentEnvironment {
+    tcl_registry::model::resolve_environment(name)
+}
+
+/// The interned profile a document of `name` threads.
 ///
-/// - [`registry_for_dialect`](tcl_registry::registry_for_dialect) is keyed by
-///   dialect *name* by design — it is the registry cache's own key, not a
-///   profile resolution. Providers holding a profile use
-///   [`registry_for_dialect_profile`] instead, which routes back through that
-///   name.
-/// - Providers reached from an [`AnalysisResult`](tcl_compiler::analyser::AnalysisResult)
-///   read `analysis.dialect`, the spelling the analyser recorded for the
-///   document, and resolve it through this function.
+/// The environment-model face of the old ingress
+/// (`resolve_known(name).unwrap_or_else(|| by_name(name))`): the resolved
+/// environment's [`unit_profile`], which is its same-named catalogue
+/// profile, the typed additive `tk` profile for the `tk` environment, and
+/// the permissive fallback for the model-only and unknown names. Pinned to
+/// the old answer for every catalogue name, alias, `tk`, and the
+/// unknown-name sink by `tcl_registry::model::ingress`'s
+/// `unit_profile_reproduces_the_old_lsp_ingress`.
 ///
-/// [`resolve_known`](tcl_dialect::DialectProfile::resolve_known) first,
-/// `by_name` only as the sink, because of the additive set-only ingress `tk`:
-/// `tk` is not a catalogue profile (it is a command surface layered over a Tcl
-/// base, not a runtime), so plain `by_name("tk")` lands on the permissive
-/// plain-Tcl fallback and the name "tk" is lost. `resolve_known` returns the
-/// real Tk profile, which keeps both the spelling and the `TK` availability
-/// bit that [`registry_for_dialect_profile`] and the analyser depend on.
+/// Post-P1-G (which deleted the name validators): the profile itself
+/// retires with ledger C1's re-type; consumers then move to the
+/// environment and its
+/// [`ResolvedContext`](tcl_registry::model::ResolvedContext) queries.
+///
+/// [`unit_profile`]: tcl_registry::model::DocumentEnvironment::unit_profile
 #[must_use]
 pub fn profile_for_dialect(name: &str) -> &'static tcl_dialect::DialectProfile {
-    tcl_dialect::DialectProfile::resolve_known(name)
-        .unwrap_or_else(|| tcl_dialect::DialectProfile::by_name(name))
+    environment_for_dialect(name).unit_profile()
 }
 
 /// [`profile_for_dialect`] for the inputs where an *empty* name means "this
@@ -137,31 +148,113 @@ pub fn optional_profile_for_dialect(name: &str) -> Option<&'static tcl_dialect::
     (!name.is_empty()).then(|| profile_for_dialect(name))
 }
 
-/// The command registry a document of `dialect` is analysed against.
+/// The profile a **stated** dialect names — `None` when `name` states no
+/// dialect at all (empty, unknown, or the lenient `tcl` spelling).
 ///
-/// The one place the LSP layer still goes through a dialect *name* rather than
-/// handing the resolved profile straight to
-/// [`tcl_registry::cache::registry_for_profile`], and the hop is load-bearing
-/// rather than leftover debt. `tk` resolves three ways that do not coincide:
+/// The environment-derived replacement for `DialectProfile::resolve_known`
+/// (ledger row C2): the consumers passing an `Option<&DialectProfile>` that
+/// means "the dialect this build selected, if any" — the compiler's
+/// interprocedural, compiler-checks and optimiser entry points — read it
+/// here. Distinct from [`optional_profile_for_dialect`], which answers
+/// `Some(fallback)` for an unknown name because *its* `None` means only
+/// "the caller stated no name at all".
+#[must_use]
+pub fn stated_profile_for_dialect(name: &str) -> Option<&'static tcl_dialect::DialectProfile> {
+    environment_for_dialect(name).stated_profile()
+}
+
+/// The **registry generation** a document of `dialect` is analysed
+/// against: the per-environment [`ContextRegistry`] assembled for the
+/// resolved environment, carrying both the spec store
+/// ([`ContextRegistry::commands`]) and the availability view
+/// ([`ContextRegistry::context`]).
 ///
-/// * `by_name("tk")` sinks to plain Tcl — the correct **registry** and lexer
-///   grammar for a `wish` document, but it drops the `TK` availability bit;
-/// * [`profile_for_dialect`] keeps the bit and the name, but feeding that
-///   profile to `registry_for_profile` would build a *different* registry than
-///   a `tk` document has ever been analysed against;
-/// * the analyser recovers the bit separately, via
-///   `DialectProfile::availability_for_name`'s union of the profile mask with
-///   the parsed set.
+/// This replaces the old name-keyed `registry_for_dialect` hop *and* the
+/// `tk` triangle it existed to reproduce: `tk` is now an environment, its
+/// registry is the generation assembled for it (whose store is the same
+/// plain-Tcl `Arc` a `wish` document has always been analysed against —
+/// `store_profile("tk")` is the fallback profile), and the `TK` fact is the
+/// environment's own **ambient `Tk` placement** (P3) — read as
+/// [`ambient_package`](tcl_registry::model::ResolvedContext::ambient_package)
+/// on the generation's context — rather than a re-parsed bit or an
+/// environment name.
 ///
-/// Routing the registry lookup back through the name reproduces the first
-/// behaviour exactly while the threaded profile carries the other two. Giving
-/// `tk` a catalogue entry would collapse the three and is tracked separately —
-/// it changes which commands a `tk` document sees, so it is not a refactor.
+/// The generation is promoted to `&'static` exactly as the old per-profile
+/// registry was: the un-overlaid axis is a closed set and is retained
+/// unconditionally by the generation cache, so the promotion leaks a clone
+/// of one `Arc`, never a second assembly.
+///
+/// [`ContextRegistry`]: tcl_registry::model::ContextRegistry
+/// [`ContextRegistry::commands`]: tcl_registry::model::ContextRegistry::commands
+/// [`ContextRegistry::context`]: tcl_registry::model::ContextRegistry::context
+#[must_use]
+pub fn context_for_dialect(dialect: &str) -> &'static tcl_registry::model::ContextRegistry {
+    tcl_registry::model::static_context_for(dialect)
+}
+
+/// [`context_for_dialect`] for a caller that already holds the resolved
+/// profile — transitional plumbing for the providers whose signatures still
+/// take a `&DialectProfile` (retired with the profile itself under
+/// ledger C1). The
+/// profile's canonical name **is** a canonical environment id, so this is an
+/// id-keyed lookup, not a re-parse of a user string.
+#[must_use]
+pub fn context_for_dialect_profile(
+    dialect: &tcl_dialect::DialectProfile,
+) -> &'static tcl_registry::model::ContextRegistry {
+    tcl_registry::model::static_context_for_profile(dialect)
+}
+
+/// The **document context** a document of `dialect` is assisted under:
+/// the resolved environment's [`ResolvedContext`] carrying its document
+/// authoring mask.
+///
+/// Every availability, option, floor, and subcommand question a provider
+/// asks about a document goes here — the assistance view of centralisation
+/// R-c/R-d, and the replacement for the whole `ProfileQueries` surface
+/// (ledger row F1's assistance half). Deliberately *not*
+/// [`context_for_dialect`]'s own `context()`: the two differ for the `tk`
+/// environment by exactly the additive `TK` bit a `tk` document has always
+/// been answered under (see
+/// [`document_authoring_scope`](tcl_registry::model::DocumentEnvironment::document_authoring_scope)).
+///
+/// [`ResolvedContext`]: tcl_registry::model::ResolvedContext
+#[must_use]
+pub fn document_context_for_dialect(
+    dialect: &str,
+) -> &'static tcl_registry::model::ResolvedContext {
+    tcl_registry::model::static_document_context_for(dialect)
+}
+
+/// [`document_context_for_dialect`] for a caller that already holds the
+/// resolved profile — transitional plumbing for the providers whose
+/// signatures still take a `&DialectProfile` (retired with the profile
+/// itself under ledger C1).
+#[must_use]
+pub fn document_context_for_profile(
+    dialect: &tcl_dialect::DialectProfile,
+) -> &'static tcl_registry::model::ResolvedContext {
+    tcl_registry::model::static_document_context_for_profile(dialect)
+}
+
+/// The command **store** a document of `dialect` is analysed against —
+/// [`context_for_dialect`]'s spec content, for the consumers that read raw
+/// spec data (name sets, ensemble tables, hover text) rather than asking
+/// availability questions.
+#[must_use]
+pub fn registry_for_dialect(dialect: &str) -> &'static tcl_registry::CommandRegistry {
+    context_for_dialect(dialect).commands()
+}
+
+/// The command **store** a document of `dialect`'s profile is analysed
+/// against — [`context_for_dialect_profile`]'s spec content, for the
+/// consumers that read raw spec data (name sets, ensemble tables, hover
+/// text) rather than asking availability questions.
 #[must_use]
 pub fn registry_for_dialect_profile(
     dialect: &tcl_dialect::DialectProfile,
 ) -> &'static tcl_registry::CommandRegistry {
-    tcl_registry::cache::registry_for_dialect(dialect.name)
+    context_for_dialect_profile(dialect).commands()
 }
 
 /// Crate version string.
@@ -173,6 +266,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg(test)]
 mod dialect_ingress_tests {
+
     /// Regression for the `tk` leg of issue #1405.
     ///
     /// A `wish` document typically carries no `package require Tk`, so the Tk
@@ -191,9 +285,7 @@ mod dialect_ingress_tests {
         let profile = super::profile_for_dialect("tk");
         assert_eq!(profile.name, "tk", "the ingress must keep the spelling");
         assert!(
-            profile
-                .availability_mask
-                .contains(tcl_dialect::DialectSet::TK),
+            profile.surface_query().packages.contains(&"Tk"),
             "the ingress must keep the TK availability bit"
         );
 
@@ -213,11 +305,13 @@ mod dialect_ingress_tests {
                 .collect::<Vec<_>>()
         );
 
-        // The third leg: the registry must stay the one `by_name` selects,
-        // not the one the Tk profile would build.
+        // The third leg: the registry must stay the plain-store one the
+        // lenient ingress selects, not the one the Tk profile would build.
         assert!(std::ptr::eq(
             super::registry_for_dialect_profile(profile),
-            tcl_registry::cache::registry_for_dialect("tk"),
+            tcl_registry::model::ingress::static_context_for("tk")
+                .commands()
+                .as_ref(),
         ));
     }
 }

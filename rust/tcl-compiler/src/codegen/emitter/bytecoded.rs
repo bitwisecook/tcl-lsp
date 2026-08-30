@@ -57,13 +57,13 @@ pub fn try_bytecoded(
         return false;
     }
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    // The registry's own availability mask (issues #1462/#1463): a
+    // The registry's own point (issues #1462/#1463): a
     // profile-built registry suppresses the specialised emission of a
     // command its release does not have, keeping it on the generic invoke
     // where the runtime's availability gate can reject it.
     let Some(resolved) =
         ctx.registry
-            .resolve_call(cmd, &arg_refs, ctx.registry.own_availability_mask())
+            .resolve_call(cmd, &arg_refs, ctx.registry.own_surface_query())
     else {
         return false;
     };
@@ -879,6 +879,8 @@ fn upvar_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{Family, SurfaceQuery};
+
     use super::*;
     use tcl_registry::CommandRegistry;
 
@@ -1716,7 +1718,7 @@ mod tests {
             .resolve_call(
                 "dict",
                 &["set", "d", "k", "v"],
-                tcl_dialect::DialectSet::TCL86,
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
             )
             .expect("dict set resolves");
         assert_eq!(resolved.codegen_hook, Some(CodegenHookId::Dict));
@@ -1736,7 +1738,11 @@ mod tests {
         let mut registry = CommandRegistry::build_default();
         registry.load_irules();
         let resolved = registry
-            .resolve_call("HTTP::header", &["names"], tcl_dialect::DialectSet::IRULES)
+            .resolve_call(
+                "HTTP::header",
+                &["names"],
+                Some(SurfaceQuery::any_release(Family::F5Irules)),
+            )
             .expect("HTTP::header resolves under iRules");
         assert_eq!(resolved.spec.name, "HTTP::header");
     }
@@ -1757,7 +1763,11 @@ mod tests {
         let default = CommandRegistry::build_default();
         assert!(
             default
-                .resolve_call("HTTP::header", &["names"], tcl_dialect::DialectSet::IRULES,)
+                .resolve_call(
+                    "HTTP::header",
+                    &["names"],
+                    Some(SurfaceQuery::any_release(Family::F5Irules)),
+                )
                 .is_none()
         );
 
@@ -1770,7 +1780,11 @@ mod tests {
         let mut irules = CommandRegistry::build_default();
         irules.load_irules();
         let resolved = irules
-            .resolve_call("HTTP::header", &["names"], tcl_dialect::DialectSet::IRULES)
+            .resolve_call(
+                "HTTP::header",
+                &["names"],
+                Some(SurfaceQuery::any_release(Family::F5Irules)),
+            )
             .expect("HTTP::header resolves once iRules is loaded");
 
         // Wire it through CodegenCtx: the ctx's registry field is

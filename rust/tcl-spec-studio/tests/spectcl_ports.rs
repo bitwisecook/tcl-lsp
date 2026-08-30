@@ -19,7 +19,7 @@
 //! The equivalence gate for the eleven `.tclspec` ports.
 //!
 //! Every file in `docs/design/spec-dsl-examples/` names the `.rs` it was
-//! ported from. This test loads each pack through [`spectcl::load_pack`],
+//! ported from. This test loads each pack through [`spectcl::evaluate_pack`],
 //! seeds a draft from the result with the ordinary
 //! [`draft::from_command_spec`](tcl_spec_studio::draft::from_command_spec),
 //! and compares it **field by field** against the draft
@@ -138,8 +138,8 @@ const PORTS: &[Port] = &[
                 name: "uri::geturl",
                 dialect: "tcl9.1",
                 unequal: &[(
-                    "dialects",
-                    "the port is faithful to the `.rs` (`dialects: None`), but the shipped registry fills a tcllib command's dialect set at REGISTRATION time — `tcllib_command_specs` gates every tcllib command out of the F5 embedded dialects, which have no `package require`. A pack loader installing into a registry would apply the same blanket rule; the spec field itself matches",
+                    "surface",
+                    "the port is faithful to the `.rs` (`surface: None`), but the shipped registry states a tcllib command's surface at REGISTRATION time — `tcllib_command_specs` gives every tcllib command the Tcl core rows its modules need, since a tcllib module is a `package require` away and the F5 embedded surfaces have none. A pack loader installing into a registry would apply the same blanket rule; the spec field itself matches",
                 )],
                 unequal_subcommand: NO_SUBS,
                 subcommand_subset: ALL_SUBS,
@@ -187,8 +187,8 @@ const PORTS: &[Port] = &[
             name: "snit::type",
             dialect: "tcl9.1",
             unequal: &[(
-                "dialects",
-                "the port is faithful to the `.rs` (`dialects: None`), but the shipped registry fills a tcllib command's dialect set at REGISTRATION time — `tcllib_command_specs` gates every tcllib command out of the F5 embedded dialects, which have no `package require`. A pack loader installing into a registry would apply the same blanket rule; the spec field itself matches",
+                "surface",
+                "the port is faithful to the `.rs` (`surface: None`), but the shipped registry states a tcllib command's surface at REGISTRATION time — `tcllib_command_specs` gives every tcllib command the Tcl core rows its modules need, since a tcllib module is a `package require` away and the F5 embedded surfaces have none. A pack loader installing into a registry would apply the same blanket rule; the spec field itself matches",
             )],
             unequal_subcommand: NO_SUBS,
             subcommand_subset: ALL_SUBS,
@@ -295,7 +295,7 @@ fn every_port_loads_and_matches_its_shipped_spec() {
     for port in PORTS {
         let source = std::fs::read_to_string(dir.join(port.file))
             .unwrap_or_else(|e| panic!("reading {}: {e}", port.file));
-        let pack = spectcl::load_pack(&source);
+        let pack = spectcl::evaluate_pack(&source);
 
         let _ = writeln!(
             report,
@@ -437,7 +437,7 @@ fn every_port_loads_and_matches_its_shipped_spec() {
 /// words drop with a notice and everything around them survives.
 #[test]
 fn unknown_vocabulary_drops_with_a_notice_rather_than_failing() {
-    let pack = spectcl::load_pack(
+    let pack = spectcl::evaluate_pack(
         r"
         speclib probe 1.0 {
             pragma something
@@ -482,7 +482,7 @@ fn unknown_vocabulary_drops_with_a_notice_rather_than_failing() {
 #[test]
 fn hook_bodies_are_carried_as_text_with_their_family_metadata() {
     let source = std::fs::read_to_string(examples_dir().join("return.tclspec")).expect("return");
-    let pack = spectcl::load_pack(&source);
+    let pack = spectcl::evaluate_pack(&source);
     let command = pack.command("return").expect("return");
 
     let fields: Vec<&str> = command.hooks.iter().map(|hook| hook.field).collect();
@@ -536,7 +536,7 @@ fn derivations_are_recorded_as_derivations() {
         ("if.tclspec", "if", "clause_shape_check", "clause_grammar"),
     ] {
         let source = std::fs::read_to_string(examples_dir().join(file)).expect(file);
-        let pack = spectcl::load_pack(&source);
+        let pack = spectcl::evaluate_pack(&source);
         let loaded = pack.command(command).expect(command);
         let hook = loaded
             .hooks
@@ -558,7 +558,7 @@ fn derivations_are_recorded_as_derivations() {
 #[test]
 fn braced_prose_survives_byte_for_byte() {
     let source = std::fs::read_to_string(examples_dir().join("return.tclspec")).expect("return");
-    let pack = spectcl::load_pack(&source);
+    let pack = spectcl::evaluate_pack(&source);
     let hover = pack
         .command("return")
         .expect("return")
@@ -605,14 +605,14 @@ const IF_CORPUS: &[&str] = &[
 #[test]
 fn the_clause_grammar_derivation_agrees_with_the_shipped_walk() {
     let source = std::fs::read_to_string(examples_dir().join("if.tclspec")).expect("if");
-    let pack = spectcl::load_pack(&source);
+    let pack = spectcl::evaluate_pack(&source);
     let ported = pack.command("if").expect("if");
     let grammar = ported
         .clause_grammar
         .as_ref()
         .expect("if.tclspec declares a clause_grammar");
 
-    let shipped = tcl_registry::cache::registry_for_dialect("tcl9.1")
+    let shipped = tcl_spec_studio::environment::store_for_dialect("tcl9.1")
         .get("if")
         .expect("shipped if");
     let shipped_roles = shipped.arg_role_resolver.expect("if's role resolver");
@@ -645,7 +645,7 @@ fn the_clause_grammar_derivation_agrees_with_the_shipped_walk() {
 #[test]
 fn the_manufacturer_derivation_agrees_with_the_shipped_resolver() {
     let source = std::fs::read_to_string(examples_dir().join("oo-class.tclspec")).expect("oo");
-    let pack = spectcl::load_pack(&source);
+    let pack = spectcl::evaluate_pack(&source);
     let ported = pack.command("oo::class").expect("oo::class");
 
     // 1. The two tables agree on every keyword and body index. Visibility is
@@ -669,7 +669,7 @@ fn the_manufacturer_derivation_agrees_with_the_shipped_resolver() {
 
     // 2. The derivation reproduces the shipped resolver's answer, call for
     //    call — including the bounds-checked cases that emit nothing.
-    let shipped = tcl_registry::cache::registry_for_dialect("tcl9.1")
+    let shipped = tcl_spec_studio::environment::store_for_dialect("tcl9.1")
         .get("oo::class")
         .expect("shipped oo::class");
     let shipped_roles = shipped
@@ -703,9 +703,9 @@ fn the_manufacturer_derivation_agrees_with_the_shipped_resolver() {
 #[test]
 fn upvar_carries_its_frame_effect_verbatim() {
     let source = std::fs::read_to_string(examples_dir().join("upvar.tclspec")).expect("upvar");
-    let pack = spectcl::load_pack(&source);
+    let pack = spectcl::evaluate_pack(&source);
     let ported = pack.command("upvar").expect("upvar");
-    let shipped = tcl_registry::cache::registry_for_dialect("tcl9.1")
+    let shipped = tcl_spec_studio::environment::store_for_dialect("tcl9.1")
         .get("upvar")
         .expect("shipped upvar");
     assert_eq!(ported.spec.frame_effect, shipped.frame_effect);
@@ -719,7 +719,7 @@ fn upvar_carries_its_frame_effect_verbatim() {
 #[test]
 fn the_inline_snit_grammar_matches_the_shipped_constant() {
     let source = std::fs::read_to_string(examples_dir().join("snit-type.tclspec")).expect("snit");
-    let pack = spectcl::load_pack(&source);
+    let pack = spectcl::evaluate_pack(&source);
     let built = pack
         .command("snit::type")
         .expect("snit::type")

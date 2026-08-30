@@ -856,7 +856,10 @@ mod tests {
     }
 
     fn barrier_for(src: &str) -> DynamicNameBarrier {
-        barrier_for_dialect(src, tcl_dialect::DialectProfile::by_name("tcl8.6"))
+        barrier_for_dialect(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        )
     }
 
     /// The barrier for `src` analysed **as** `dialect` — registry, lexer
@@ -866,7 +869,7 @@ mod tests {
         src: &str,
         dialect: &'static tcl_dialect::DialectProfile,
     ) -> DynamicNameBarrier {
-        let registry = tcl_registry::cache::registry_for_profile(dialect);
+        let registry = tcl_registry::model::ingress::static_context_for_profile(dialect).commands();
         let cu = crate::compilation_unit::CompilationUnit::build_for_profile(
             src, registry, false, dialect,
         );
@@ -1142,7 +1145,10 @@ computed; got {b:?}"
             "an iRule splits `{{a}}{{b}}` into two words",
         );
         assert_eq!(
-            words("cmd {a}{b}", tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            words(
+                "cmd {a}{b}",
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
+            ),
             vec![vec!["cmd", "ab"]],
             "Tcl welds them into one",
         );
@@ -1152,21 +1158,30 @@ computed; got {b:?}"
         assert_eq!(
             words(
                 "cmd {*}$args x",
-                tcl_dialect::DialectProfile::by_name("tcl8.6")
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
             ),
             vec![vec!["cmd", "${args}", "x"]],
             "8.5+ reads `{{*}}` as the expansion marker",
         );
-        for dialect in ["tcl8.4", "f5-irules"] {
-            assert_eq!(
-                words(
-                    "cmd {*}$args x",
-                    tcl_dialect::DialectProfile::by_name(dialect)
-                ),
-                vec![vec!["cmd", "*${args}", "x"]],
-                "{dialect} has no `{{*}}` expansion",
-            );
-        }
+        assert_eq!(
+            words(
+                "cmd {*}$args x",
+                tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile()
+            ),
+            vec![vec!["cmd", "*${args}", "x"]],
+            "tcl8.4 has no `{{*}}` expansion",
+        );
+        // F5 reclassification (measurements §1/§3 row 6,
+        // `docs/design/bigip-irule-parser-measurements.md`): on the F5
+        // fork the implicit word break wins over everything — `{*}` is
+        // the literal `*` word plus the *separate* unexpanded word
+        // (measured `list {*}{a b}` → `* {a b}` on TMM), never the old
+        // welded `*${args}` single word and never an expansion.
+        assert_eq!(
+            words("cmd {*}$args x", tcl_dialect::DialectProfile::irules()),
+            vec![vec!["cmd", "*", "${args}", "x"]],
+            "the F5 word break splits after the literal `*`",
+        );
     }
 
     /// The per-word facts `scan_command` reads, as the segmenter now supplies
@@ -1216,7 +1231,7 @@ computed; got {b:?}"
         for dialect in ["tcl8.6", "tcl8.4", "f5-irules"] {
             let b = barrier_for_dialect(
                 "proc f {n} { set $n 1; return ok }\n",
-                tcl_dialect::DialectProfile::by_name(dialect),
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
             );
             assert!(b.writes, "`set $n 1` is a dynamic write under {dialect}");
 
@@ -1224,7 +1239,7 @@ computed; got {b:?}"
             // walk re-splits script text itself.
             let b = barrier_for_dialect(
                 "proc f {n} { set out {}; lappend out [set $n 1]; return $out }\n",
-                tcl_dialect::DialectProfile::by_name(dialect),
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
             );
             assert!(b.writes, "nested dynamic write missed under {dialect}");
         }
@@ -1246,7 +1261,7 @@ computed; got {b:?}"
             ] {
                 let b = barrier_for_dialect(
                     &format!("proc f {{n}} {{ {body}; return $out }}\n"),
-                    tcl_dialect::DialectProfile::by_name(dialect),
+                    tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
                 );
                 assert!(b.writes, "{dialect}: `{body}` hides a dynamic write");
             }
@@ -1265,7 +1280,7 @@ computed; got {b:?}"
     fn an_84_expansionless_name_word_is_still_a_dynamic_write() {
         let b = barrier_for_dialect(
             "proc f {n} { set out [list [set {*}{$n} 1]]; return $out }\n",
-            tcl_dialect::DialectProfile::by_name("tcl8.4"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
         );
         assert!(
             b.writes,
@@ -1280,7 +1295,7 @@ computed; got {b:?}"
         for dialect in ["tcl8.6", "tcl8.4", "f5-irules"] {
             let b = barrier_for_dialect(
                 "proc f {} { set {$n} 1; return ok }\n",
-                tcl_dialect::DialectProfile::by_name(dialect),
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
             );
             assert!(b.is_clear(), "{dialect}: got {b:?}");
         }
@@ -1296,16 +1311,26 @@ computed; got {b:?}"
     /// free to move stores across a write that can land on any name.
     #[test]
     fn an_expansionless_computed_name_statement_raises_the_write_barrier() {
-        for dialect in ["tcl8.4", "f5-irules"] {
-            let b = barrier_for_dialect(
-                "proc f {n} { set {*}$n 1; return ok }\n",
-                tcl_dialect::DialectProfile::by_name(dialect),
-            );
-            assert!(
-                b.writes,
-                "{dialect}: `set {{*}}$n 1` names `*$n` — a computed name; got {b:?}",
-            );
-        }
+        let b = barrier_for_dialect(
+            "proc f {n} { set {*}$n 1; return ok }\n",
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
+        );
+        assert!(
+            b.writes,
+            "tcl8.4: `set {{*}}$n 1` names `*$n` — a computed name; got {b:?}",
+        );
+        // F5 reclassification (measurements §1/§3 row 6): under the fork's
+        // implicit word break `{*}$n` is TWO words — the literal `*` and
+        // `$n` — so there is no welded computed name here any more; the
+        // genuinely computed spelling still raises the barrier.
+        let b = barrier_for_dialect(
+            "proc f {n} { set x$n 1; return ok }\n",
+            tcl_dialect::DialectProfile::irules(),
+        );
+        assert!(
+            b.writes,
+            "f5-irules: `set x$n 1` is a computed name; got {b:?}",
+        );
     }
 
     /// The 9.0 grammar reaches the same answer by the path it always did:
@@ -1318,7 +1343,7 @@ computed; got {b:?}"
         for dialect in ["tcl9.0", "tcl8.6"] {
             let b = barrier_for_dialect(
                 "proc f {n} { set {*}$n 1; return ok }\n",
-                tcl_dialect::DialectProfile::by_name(dialect),
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
             );
             assert!(
                 b.writes,
@@ -1337,7 +1362,7 @@ computed; got {b:?}"
             for body in ["set x 1", "set a($i) 1", "set x 1; set y $x"] {
                 let b = barrier_for_dialect(
                     &format!("proc f {{i}} {{ {body}; return ok }}\n"),
-                    tcl_dialect::DialectProfile::by_name(dialect),
+                    tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
                 );
                 assert!(b.is_clear(), "{dialect}: `{body}` got {b:?}");
             }
@@ -1358,7 +1383,7 @@ computed; got {b:?}"
         for dialect in ["tcl8.4", "f5-irules", "tcl8.6", "tcl9.0"] {
             let b = barrier_for_dialect(
                 "proc f {n} { incr $n; return ok }\n",
-                tcl_dialect::DialectProfile::by_name(dialect),
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
             );
             assert!(
                 b.writes,
@@ -1378,7 +1403,7 @@ computed; got {b:?}"
             for body in ["incr x", "incr a($i)", "incr x 1"] {
                 let b = barrier_for_dialect(
                     &format!("proc f {{i}} {{ set x 0; {body}; return ok }}\n"),
-                    tcl_dialect::DialectProfile::by_name(dialect),
+                    tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
                 );
                 assert!(b.is_clear(), "{dialect}: `{body}` got {b:?}");
             }

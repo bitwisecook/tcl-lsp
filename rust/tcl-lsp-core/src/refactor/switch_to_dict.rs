@@ -221,6 +221,7 @@ fn build_dict_replacement(arms: &ParsedArms, subject: &str, indent: &str) -> Str
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tcl_dialect::model::{Family, SurfaceLayer};
 
     fn run(source: &str, cursor: u32) -> Option<Refactoring> {
         let reg = super::super::test_registry();
@@ -292,7 +293,7 @@ mod tests {
         let source = "when HTTP_REQUEST {\n    switch -exact -- $method {\n        GET { set handler get_h }\n        POST { set handler post_h }\n        PUT { set handler put_h }\n    }\n}";
         // `when`'s body role lives in the iRules dialect.
         let mut reg = CommandRegistry::build_default();
-        reg.load_dialect(tcl_dialect::DialectSet::IRULES);
+        reg.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         let li = LineIndex::new(source);
         let cursor = u32::try_from(source.find("switch").unwrap()).unwrap();
         let r = switch_to_dict(source, cursor, &reg, &li).expect("nested result");

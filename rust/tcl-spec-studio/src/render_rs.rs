@@ -153,11 +153,12 @@ fn flag_union(ty: &str, values: &[Value]) -> String {
     names.fold(head, |acc, name| acc + ".union(" + &name + ")")
 }
 
-/// Render a `DialectSet` from the canonical dialect-name list a draft holds.
+/// Render a surface row list from the canonical dialect-name list a draft
+/// holds.
 ///
-/// Emits the readable aggregate constants (`DialectSet::ALL_TCL`,
-/// `DialectSet::TCL85_PLUS`) when the set matches one exactly, so the output
-/// reads like the hand-written specs rather than a five-way union.
+/// Emits the readable aggregate constants (`SpecSurface::ALL_TCL`,
+/// `SpecSurface::TCL85_PLUS`) when the list matches one exactly, so the
+/// output reads like the hand-written specs rather than a five-row list.
 pub(crate) fn dialect_set(values: &[Value]) -> String {
     const AGGREGATES: &[(&str, &[&str])] = &[
         (
@@ -170,41 +171,43 @@ pub(crate) fn dialect_set(values: &[Value]) -> String {
     ];
     let names: Vec<&str> = values.iter().map(as_str).collect();
     if names.is_empty() {
-        return "DialectSet::empty()".to_owned();
+        return "None".to_owned();
     }
     let mut remaining = names.clone();
     let mut parts: Vec<String> = Vec::new();
     for (constant, members) in AGGREGATES {
         if members.iter().all(|m| remaining.contains(m)) {
-            parts.push(format!("DialectSet::{constant}"));
+            parts.push((*constant).to_owned());
             remaining.retain(|n| !members.contains(n));
             break;
         }
     }
     for name in remaining {
-        // The canonical names are the registry's own (`DialectSet::parse` /
-        // `member_names`); the constants are their Rust spellings. An
-        // unrecognised name is emitted as a comment rather than a bare
-        // identifier — `DialectSet::f5-tmsh` is not valid Rust, and rendering
-        // it silently produced a file that only failed at `cargo build`.
-        let Some(bit) = dialect_constant(name) else {
+        // An unrecognised name is emitted as a comment rather than a bare
+        // identifier — `SpecSurface::f5-tmsh` is not valid Rust, and
+        // rendering it silently produced a file that only failed at
+        // `cargo build`.
+        let Some(constant) = dialect_constant(name) else {
             parts.push(format!("/* unknown dialect {name:?} */"));
             continue;
         };
-        parts.push(format!("DialectSet::{bit}"));
+        parts.push(constant.to_owned());
     }
     match parts.len() {
-        0 => "DialectSet::empty()".to_owned(),
-        1 => parts.remove(0),
+        0 => "None".to_owned(),
+        1 => format!("SpecSurface::{}", parts.remove(0)),
+        // Several named surfaces compose by listing their rows.
         _ => {
-            let head = parts.remove(0);
-            let tail: Vec<String> = parts.into_iter().map(|p| format!(".union({p})")).collect();
-            format!("{head}{}", tail.join(""))
+            let rows: Vec<String> = parts
+                .into_iter()
+                .map(|part| format!("SpecSurface::{part}"))
+                .collect();
+            format!("surface![{}]", rows.join(", "))
         }
     }
 }
 
-/// The `DialectSet` constant for a canonical dialect name, or `None` when the
+/// The surface constant for a canonical dialect name, or `None` when the
 /// name is not one the registry knows.
 fn dialect_constant(name: &str) -> Option<&'static str> {
     Some(match name {
@@ -652,8 +655,8 @@ fn option_expr(entry: &Value, indent: &str) -> String {
     if !detail.is_empty() {
         parts.push(format!("{inner}detail: {},", rust_string(detail)));
     }
-    if let Some(dialects) = entry["dialects"].as_array() {
-        parts.push(format!("{inner}dialects: Some({}),", dialect_set(dialects)));
+    if let Some(dialects) = entry["surface"].as_array() {
+        parts.push(format!("{inner}surface: Some({}),", dialect_set(dialects)));
     }
     let aliases = as_array(&entry["aliases"]);
     if !aliases.is_empty() {
@@ -684,9 +687,9 @@ fn row_literal(name: &str, parts: &[String], indent: &str) -> String {
 /// `Some(<dialect set>)` for a present dialect gate, or nothing for an absent
 /// one — the field's own default.
 fn dialects_line(entry: &Value, indent: &str) -> Option<String> {
-    let dialects = entry["dialects"].as_array()?;
+    let dialects = entry["surface"].as_array()?;
     Some(format!(
-        "{indent}    dialects: Some({}),",
+        "{indent}    surface: Some({}),",
         dialect_set(dialects)
     ))
 }
@@ -729,6 +732,83 @@ fn side_effect_expr(entry: &Value, indent: &str) -> String {
         parts.push(format!("{indent}    lifecycle: {lifecycle},"));
     }
     row_literal("SideEffect", &parts, indent)
+}
+
+/// One `CommandForm` literal from an invocation-refinement draft row.
+///
+/// Only the fields the row actually declares are written; everything else
+/// rides `..CommandForm::DEFAULT`, which is what makes an omitted overlay
+/// inherit rather than blank the parent's fact.
+fn command_form_expr(entry: &Value, indent: &str) -> String {
+    let inner = format!("{indent}    ");
+    let mut parts = vec![format!(
+        "{inner}name: {},",
+        rust_string(as_str(&entry["name"]))
+    )];
+    let arity = arity_expr(&entry["arity"]);
+    if arity != "Arity::any()" {
+        parts.push(format!("{inner}arity: {arity},"));
+    }
+    if let Some(selector) = entry["selector"].as_object() {
+        let words = str_slice(as_array(&selector["words"]));
+        let constructor = if as_str(&selector["prefix_matching"]) == "Strict" {
+            "exact"
+        } else {
+            "unique"
+        };
+        parts.push(format!(
+            "{inner}literal_argument_prefix: Some(LiteralArgumentPrefix::{constructor}({words})),"
+        ));
+    }
+    let roles = as_array(&entry["arg_roles"]);
+    if !roles.is_empty() {
+        parts.push(format!("{inner}arg_roles: {},", role_map_expr(roles)));
+    }
+    let options = as_array(&entry["options"]);
+    if !options.is_empty() {
+        let opt_indent = format!("{inner}    ");
+        let rendered: Vec<String> = options
+            .iter()
+            .map(|option| option_expr(option, &opt_indent))
+            .collect();
+        parts.push(format!(
+            "{inner}options: &[\n{}\n{inner}],",
+            rendered.join("\n")
+        ));
+    }
+    if let Some(relations) = entry["option_relations"].as_str() {
+        parts.push(format!("{inner}option_relations: {relations},"));
+    }
+    if let Some(rows) = entry["surface"].as_array() {
+        parts.push(format!("{inner}surface: Some({}),", dialect_set(rows)));
+    }
+    if let Some(traits) = entry["traits"].as_array() {
+        parts.push(format!(
+            "{inner}traits: Some({}),",
+            flag_union("Traits", traits)
+        ));
+    }
+    if let Some(mutator) = entry["mutator"].as_bool() {
+        parts.push(format!("{inner}mutator: Some({mutator}),"));
+    }
+    if let Some(effects) = entry["side_effects"].as_array() {
+        parts.push(format!(
+            "{inner}side_effects: Some({}),",
+            list_expr(effects, &inner, side_effect_expr).unwrap_or_else(|| "&[]".to_owned())
+        ));
+    }
+    if let Some(expr) = entry["representation_effect"].as_str() {
+        parts.push(format!("{inner}representation_effect: Some({expr}),"));
+    }
+    for (key, ty) in [
+        ("lowering_hook", "LoweringHookId"),
+        ("codegen_hook", "CodegenHookId"),
+    ] {
+        if let Some(id) = entry[key].as_str() {
+            parts.push(format!("{inner}{key}: Some({ty}::{id}),"));
+        }
+    }
+    row_literal("CommandForm", &parts, indent)
 }
 
 fn setter_constraint_expr(entry: &Value, indent: &str) -> String {
@@ -859,6 +939,7 @@ fn field_expr(field: &FieldSchema, value: &Value, default: &Value, indent: &str)
         FieldKind::ArgValueMap => arg_value_map_expr(as_array(value), indent),
         FieldKind::Options => "OPTIONS".to_owned(),
         FieldKind::Forms => "FORMS".to_owned(),
+        FieldKind::Refinements => list_expr(as_array(value), indent, command_form_expr)?,
         FieldKind::SubCommands => "SUBCOMMANDS".to_owned(),
         FieldKind::SideEffects => list_expr(as_array(value), indent, side_effect_expr)?,
         FieldKind::SetterConstraints => list_expr(as_array(value), indent, setter_constraint_expr)?,
@@ -909,9 +990,10 @@ fn enum_type_name(catalogue: &str) -> &'static str {
         "returnTypeHook" => "ReturnTypeHookId",
         "traits" => "Traits",
         "taintColour" => "TaintColour",
-        "dialects" => "DialectSet",
+        "dialects" => "&'static [SpecSurface]",
         "defaultFormFirstWord" => "DefaultFormFirstWord",
         "prefixMatching" => "PrefixMatching",
+        "optionPlacement" => "OptionPlacement",
         _ => "Unknown",
     }
 }
@@ -1253,7 +1335,9 @@ pub fn suggested_path(name: &str, pack: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
+    use tcl_dialect::model::SpecSurface;
 
     fn invalid_non_write_taint_draft() -> Draft {
         let registry = tcl_registry::CommandRegistry::build_default();
@@ -1344,7 +1428,7 @@ mod tests {
     };
     use tcl_registry::lifecycle::Lifecycle;
     use tcl_registry::representation::RepresentationEffect;
-    use tcl_registry::spec::{CommandSpec, OptionConstraint, SubCommand};
+    use tcl_registry::spec::{CommandSpec, OptionRelation, SubCommand};
     use tcl_registry::traits::Traits;
     use tcl_registry::types::TclType;
 
@@ -1375,7 +1459,7 @@ mod tests {
     fn round_trips_a_real_registry_spec() {
         let spec = CommandSpec {
             name: "lappend",
-            dialects: Some(tcl_dialect::DialectSet::ALL_TCL.union(tcl_dialect::DialectSet::IRULES)),
+            surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
             traits: Traits::BYTE_COMPILED | Traits::FIRST_ARG_VARNAME,
             arity: Arity::at_least(1),
             arg_roles: &[(0, ArgRole::VarWrite)],
@@ -1394,7 +1478,7 @@ mod tests {
             "a `|` chain is not const-evaluable inside the hoisted tables:\n{out}"
         );
         assert!(
-            out.contains("DialectSet::ALL_TCL.union(DialectSet::IRULES)"),
+            out.contains("surface![SpecSurface::ALL_TCL, SpecSurface::IRULES]"),
             "dialect aggregates should read like the hand-written specs:\n{out}"
         );
     }
@@ -1546,14 +1630,14 @@ mod tests {
         );
     }
 
-    /// Every dialect the catalogue offers must have a Rust constant to render,
-    /// or a spec carrying that bit produces a file that will not compile.
+    /// Every dialect the catalogue offers must have a Rust constant to
+    /// render, or a spec naming it produces a file that will not compile.
     #[test]
     fn every_catalogued_dialect_renders_to_a_constant() {
         for entry in crate::catalogue::DIALECTS.iter() {
             assert!(
                 dialect_constant(entry.key).is_some(),
-                "no DialectSet constant for the catalogued dialect {}",
+                "no SpecSurface constant for the catalogued dialect {}",
                 entry.key
             );
         }
@@ -1658,14 +1742,17 @@ mod tests {
 
     #[test]
     fn registry_owned_diagnostic_and_representation_metadata_round_trips() {
-        const CONSTRAINTS: &[OptionConstraint] = &[OptionConstraint {
-            options: &["-encoding", "-nopkg"],
-            ..OptionConstraint::DEFAULT
+        const CONSTRAINTS: &[OptionRelation] = &[OptionRelation {
+            terms: &[
+                tcl_registry::OptionTerm::Option("-encoding"),
+                tcl_registry::OptionTerm::Option("-nopkg"),
+            ],
+            ..OptionRelation::DEFAULT
         }];
         let spec = CommandSpec {
             name: "source",
             representation_effect: Some(RepresentationEffect::copy_on_write_container(0, 2)),
-            option_constraints: CONSTRAINTS,
+            option_relations: CONSTRAINTS,
             lifecycle: Lifecycle {
                 introduced: None,
                 deprecated: Some("8.6"),
@@ -1682,11 +1769,17 @@ mod tests {
         assert!(out.contains(
             "representation_effect: Some(RepresentationEffect::CopyOnWriteContainerMutation { variable_arg: 0, minimum_arguments: 2 }),"
         ));
-        assert!(out.contains(
-            "option_constraints: &[OptionConstraint { options: &[\"-encoding\", \"-nopkg\"], \
-             dialects: None, lifecycle: Lifecycle { introduced: None, deprecated: None, \
-             retired: None, deprecation_fix: None } }],"
-        ));
+        assert!(
+            out.contains(
+                "option_relations: &[OptionRelation { kind: RelationKind::MutuallyExclusive, \
+                 mode: RelationMode::Assert, subject: None, \
+                 terms: &[OptionTerm::Option(\"-encoding\"), \
+                 OptionTerm::Option(\"-nopkg\")], surface: None, \
+                 lifecycle: Lifecycle { introduced: None, deprecated: None, \
+                 retired: None, deprecation_fix: None }, message: None }],"
+            ),
+            "{out}"
+        );
         assert!(out.contains(
             "deprecation_fix: Some(DeprecationFixHook::ReplaceMatchedWord { replacement: \"children\", description: \"Use interp children\", safety: DeprecationFixSafety::SemanticsEquivalent })"
         ));

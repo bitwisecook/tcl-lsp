@@ -102,7 +102,7 @@ pub fn bpf_command_specs() -> Vec<CommandSpec> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dialects::DialectSet;
+    use tcl_dialect::model::SpecSurface;
 
     #[test]
     fn all_bpf_commands_present_and_tagged() {
@@ -116,7 +116,7 @@ mod tests {
         ] {
             assert!(names.contains(&n), "missing `{n}`");
         }
-        assert!(specs.iter().all(|s| s.dialects == Some(DialectSet::BPF)));
+        assert!(specs.iter().all(|s| s.surface == Some(SpecSurface::BPF)));
     }
 
     #[test]

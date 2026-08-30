@@ -29,10 +29,8 @@
 //! `tcl_cmd_core::namespace`). Every expectation below is pinned against
 //! tclsh8.6 (`// tclsh8.6:` comments).
 
-// ---------------------------------------------------------------------------
 // Harness — copied verbatim from `run_script.rs` (the `run` helper plus every
 // struct/import it needs: `CompilerSvc`, `Capture`, and the `use` lines).
-// ---------------------------------------------------------------------------
 
 use std::cell::RefCell;
 use std::io::Write;
@@ -100,9 +98,7 @@ fn run(src: &str) -> (bool, String, String) {
     )
 }
 
-// ===========================================================================
 // Command resolution through colon runs
-// ===========================================================================
 
 /// A colon-run call collapses to the `::` form: `foo:::bar` dispatches
 /// `::foo::bar`, and a leading run is the global root.
@@ -168,9 +164,7 @@ fn rename_through_colon_run_re_homes_the_proc() {
     assert_eq!(res, "::dst6 ::dst6::q");
 }
 
-// ===========================================================================
 // Namespace-name resolution through colon runs
-// ===========================================================================
 
 /// `namespace exists` / `namespace parent` collapse colon runs in their
 /// argument (the old literal lookup missed `a:::b`).
@@ -235,9 +229,7 @@ fn variable_substitution_consumes_colon_runs() {
     assert_eq!(msg, "can't read \"missing:::b\": no such variable");
 }
 
-// ===========================================================================
 // namespace import / forget through colon runs
-// ===========================================================================
 
 /// `namespace import`/`forget` split the pattern at the last separator *run*
 /// (the old `rsplit_once` produced the source namespace `src7:` — import
@@ -272,9 +264,7 @@ fn forget_with_root_qualified_pattern_is_a_quiet_no_op() {
     assert_eq!(res, "imp");
 }
 
-// ===========================================================================
 // Qualified variable names
-// ===========================================================================
 
 /// Qualified variable names use the same colon-run and namespace-parent
 /// contract as command names (`TclGetNamespaceForQualName`, `tclNamesp.c`).

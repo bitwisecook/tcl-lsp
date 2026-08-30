@@ -211,17 +211,16 @@ pub fn profile_graph_snapshot() -> Json {
         };
         entry.insert("layer".to_owned(), Json::s(layer));
         entry.insert("side".to_owned(), Json::s(spec.side));
+        // Published as the two flat lists the snapshot has always carried;
+        // the registry itself holds one relation list (R12) and projects the
+        // two directions back out here.
         entry.insert(
             "requires".to_owned(),
-            Json::str_array(sorted(spec.requires)),
+            Json::str_array(sorted(&spec.inferred_parents())),
         );
         entry.insert(
             "conflicts".to_owned(),
-            Json::str_array(sorted(spec.conflicts)),
-        );
-        entry.insert(
-            "capabilities".to_owned(),
-            Json::str_array(sorted(spec.capabilities)),
+            Json::str_array(sorted(&spec.forbidden_peers())),
         );
         profiles.insert(spec.name.to_owned(), Json::Object(entry));
     }
@@ -482,8 +481,8 @@ pub fn event_graph_snapshot() -> Json {
     let events = EventRegistry::build();
     let profiles = ProfileRegistry::build();
     // The profile-stamped registry: the §9 operator-head exclusion and the
-    // specs' own `dialects` groups govern the per-event valid-command
-    // digests, exactly as they govern `event-info`.
+    // specs' own surfaces govern the per-event valid-command digests, exactly
+    // as they govern `event-info`.
     let cmds = crate::cache::registry_for_profile(tcl_dialect::DialectProfile::irules());
 
     // Sorted event names.

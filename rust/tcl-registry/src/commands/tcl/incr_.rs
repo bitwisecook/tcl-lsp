@@ -21,6 +21,7 @@
 use crate::forms::CommandForm;
 use crate::hooks::{InlineCodegenHookId, LoweringHookId};
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::Variable,
@@ -56,7 +57,7 @@ const INCR_EXPLICIT: CommandForm = CommandForm {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "incr",
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED
             | Traits::READS_BEFORE_WRITE
@@ -64,7 +65,7 @@ pub fn spec() -> CommandSpec {
         arity: Arity::new(1, 2),
         arg_roles: &[(0, ArgRole::VarWrite)],
         assigns_variable_at: Some(0),
-        safe_on_uninit: Some(DialectSet::TCL85_PLUS),
+        safe_on_uninit: Some(SpecSurface::TCL85_PLUS),
         return_type: Some(TclType::Int),
         arg_types: &[
             (

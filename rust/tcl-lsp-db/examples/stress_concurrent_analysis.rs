@@ -186,7 +186,7 @@ fn dump_repro_bundle(tag: &str, text: &str, params: &RunParams, failure: &str) {
          \n\
          ```rust\n\
          let db = TclDatabase::default();\n\
-         let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None, None, 0);\n\
+         let cfg = AnalyserConfig::new(&db, Vec::new(), NonAsciiMode::Default, Vec::new(), None, None, 0, Vec::new());\n\
          let text = std::fs::read_to_string(\"fixture.tcl\").unwrap();\n\
          let file = SourceFile::new(&db, text, \"{dialect}\".to_owned());\n\
          let tokens = semantic_tokens(&db, file, cfg);\n\
@@ -363,7 +363,7 @@ fn final_correctness_check(
     let registry = db_final.registry(&params.dialect);
     let fresh_tokens = tcl_lsp_core::semantic_tokens::full_with_cu_and_analysis(
         &final_text,
-        tcl_dialect::DialectProfile::by_name(&params.dialect),
+        tcl_registry::model::ingress::resolve_environment(&params.dialect).analyser_profile(),
         registry,
         None,
         Some(&fresh),
@@ -448,6 +448,7 @@ fn main() {
         None,
         None,
         0,
+        Vec::new(),
     );
     let file = SourceFile::new(&db, base_text.clone(), params.dialect.clone(), None);
 

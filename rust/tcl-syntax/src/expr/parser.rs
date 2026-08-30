@@ -64,7 +64,7 @@ fn binary_bp(op_text: &str) -> Option<(u8, u8)> {
         "&" => (12, 13),
         // Equality / string comparison / iRules comparisons
         "==" | "!=" | "eq" | "ne" | "contains" | "starts_with" | "ends_with" | "equals"
-        | "matches_glob" | "matches_regex" => (14, 15),
+        | "matches" | "matches_glob" | "matches_regex" => (14, 15),
         // Relational / list membership
         "<" | ">" | "<=" | ">=" | "in" | "ni" | "lt" | "le" | "gt" | "ge" => (16, 17),
         // Shift
@@ -115,6 +115,7 @@ fn binop_from_text(text: &str) -> Option<BinOp> {
         "starts_with" => BinOp::StartsWith,
         "ends_with" => BinOp::EndsWith,
         "equals" => BinOp::StrEquals,
+        "matches" => BinOp::Matches,
         "matches_glob" => BinOp::MatchesGlob,
         "matches_regex" => BinOp::MatchesRegex,
         _ => return None,
@@ -455,7 +456,10 @@ pub(super) fn numbers_for(
 ///
 /// Typed callers should use [`parse_expr_for_profile`].
 pub fn parse_expr(source: &str, dialect: Option<&str>) -> ExprNode {
-    parse_expr_for_profile(source, dialect.map(DialectProfile::by_name))
+    parse_expr_for_profile(
+        source,
+        dialect.map(|name| DialectProfile::find(name).unwrap_or_else(DialectProfile::plain_tcl)),
+    )
 }
 
 /// Parse under an already-resolved dialect profile.
@@ -465,7 +469,7 @@ pub fn parse_expr_for_profile(source: &str, profile: Option<&DialectProfile>) ->
     // canonical name down — so the grammar branch in the expr lexer and the
     // cache key below can never disagree about what a given spelling means.
     let resolved = profile.map_or_else(DialectProfile::plain_tcl, |profile| {
-        DialectProfile::by_name(profile.name)
+        DialectProfile::find(profile.name).unwrap_or_else(DialectProfile::plain_tcl)
     });
     let (raw_tokens, has_unknown) = tcl_lexer::tokenise_expr_checked_for_profile(source, resolved);
 
@@ -506,7 +510,7 @@ pub fn parse_expr_for_profile(source: &str, profile: Option<&DialectProfile>) ->
 // re-evaluates loop conditions on every iteration.
 //
 // Key shape: `(source, profile identity)` — the dialect string is
-// resolved through `DialectProfile::by_opt_name` and the canonical
+// resolved through the catalogue lookup (plain-sink fallback) and the canonical
 // profile name is the key, so alias spellings and unknown-dialect
 // typos share one entry per behaviour instead of one per spelling.
 // The cache is process-global (a `OnceLock<Mutex<…>>`) and capped at
@@ -586,7 +590,10 @@ fn expr_cache() -> &'static Mutex<ExprCache> {
 /// Typed callers should use [`parse_expr_cached_for_profile`].
 #[must_use]
 pub fn parse_expr_cached(source: &str, dialect: Option<&str>) -> Arc<ExprNode> {
-    parse_expr_cached_for_profile(source, dialect.map(DialectProfile::by_name))
+    parse_expr_cached_for_profile(
+        source,
+        dialect.map(|name| DialectProfile::find(name).unwrap_or_else(DialectProfile::plain_tcl)),
+    )
 }
 
 /// LRU-cached `parse_expr`.
@@ -606,7 +613,7 @@ pub fn parse_expr_cached_for_profile(
     profile: Option<&DialectProfile>,
 ) -> Arc<ExprNode> {
     let resolved = profile.map_or_else(DialectProfile::plain_tcl, |profile| {
-        DialectProfile::by_name(profile.name)
+        DialectProfile::find(profile.name).unwrap_or_else(DialectProfile::plain_tcl)
     });
     let key: ExprCacheKey = (source.to_owned(), resolved.name);
     {
@@ -1150,6 +1157,46 @@ mod tests {
         ));
     }
 
+    /// The word-form operators are an `f5-tcl` **trunk** fact — measured
+    /// valid in tmsh and iApp `expr` too, not iRules-only
+    /// (`docs/design/bigip-irule-parser-measurements.md` §4a) — so any
+    /// F5Tcl-cored profile parses them, while plain Tcl stays byte-identical
+    /// (the same source degrades to `Raw`, exactly as before).
+    #[test]
+    fn f5_word_operators_parse_under_every_f5_cored_profile() {
+        for dialect in ["f5-irules", "f5-tmsh", "f5-iapps"] {
+            let node = parse_expr("$uri starts_with \"/api\"", Some(dialect));
+            assert!(
+                matches!(
+                    node,
+                    ExprNode::Binary {
+                        op: BinOp::StartsWith,
+                        ..
+                    }
+                ),
+                "{dialect}: expected StartsWith, got {node:?}"
+            );
+            let node = parse_expr("not $x", Some(dialect));
+            assert!(
+                matches!(
+                    node,
+                    ExprNode::Unary {
+                        op: UnaryOp::WordNot,
+                        ..
+                    }
+                ),
+                "{dialect}: expected WordNot, got {node:?}"
+            );
+        }
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let node = parse_expr("$uri starts_with \"/api\"", Some(dialect));
+            assert!(
+                matches!(node, ExprNode::Raw { .. }),
+                "{dialect}: plain Tcl must stay byte-identical (Raw), got {node:?}"
+            );
+        }
+    }
+
     // Fallback
 
     #[test]
@@ -1346,9 +1393,7 @@ mod tests {
         );
     }
 
-    // =================================================================
     // TIP 582 `#` comments
-    // =================================================================
 
     /// `source` with every comment overwritten by spaces of equal length.
     ///

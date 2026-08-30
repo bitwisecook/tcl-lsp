@@ -20,9 +20,9 @@ pub type WhenBlock = tcl_syntax::event_handler::EventHandler;
 #[must_use]
 pub fn when_blocks(source: &str) -> Vec<WhenBlock> {
     let config = LexerConfig::for_file_dialect("f5-irules");
-    let registry = tcl_registry::registry_for_dialect("f5-irules");
+    let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
     let identities =
-        tcl_compiler::head_identity::command_head_identities_with_config(source, config, registry);
+        tcl_compiler::realm::document_realm_bindings_with_config(source, config, registry);
     tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver(
         source,
         registry,
@@ -35,9 +35,9 @@ pub fn when_blocks(source: &str) -> Vec<WhenBlock> {
 #[must_use]
 pub fn when_block_candidates(source: &str) -> Vec<WhenBlock> {
     let config = LexerConfig::for_file_dialect("f5-irules");
-    let registry = tcl_registry::registry_for_dialect("f5-irules");
+    let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
     let identities =
-        tcl_compiler::head_identity::command_head_identities_with_config(source, config, registry);
+        tcl_compiler::realm::document_realm_bindings_with_config(source, config, registry);
     tcl_registry::events::top_level_when_handler_candidates_with_registry_and_head_resolver(
         source,
         registry,

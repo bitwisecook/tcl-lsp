@@ -45,12 +45,13 @@ use tcl_compiler::slot_allocation::{
     Interference, SlotMapping, build_interference, coalesce_slots, live_out_by_name, slot_count,
 };
 use tcl_compiler::ssa::{SsaFunction, build_ssa};
-use tcl_registry::{CommandRegistry, registry_for_dialect};
+use tcl_registry::CommandRegistry;
+use tcl_registry::model::ingress::static_context_for;
 
 const TCL: &str = "tcl8.6";
 
 fn registry() -> &'static CommandRegistry {
-    registry_for_dialect(TCL)
+    static_context_for(TCL).commands()
 }
 
 /// Lower `src`, build the CFG for the
@@ -99,9 +100,7 @@ fn interferes(graph: &Interference, a: &str, b: &str) -> bool {
     graph.get(a).is_some_and(|s| s.contains(b))
 }
 
-// ===========================================================================
 // Interference
-// ===========================================================================
 
 #[test]
 fn overlapping_locals_interfere() {
@@ -123,9 +122,7 @@ fn disjoint_locals_do_not_interfere() {
     );
 }
 
-// ===========================================================================
 // Coalescing
-// ===========================================================================
 
 #[test]
 fn disjoint_ranges_share_one_slot() {

@@ -36,8 +36,8 @@
 //! generate-docstring action.
 
 use tcl_dialect::DialectProfile;
+use tcl_dialect::model::SurfaceQuery;
 use tcl_lexer::LexerConfig;
-use tcl_registry::prelude::DialectSet;
 
 /// Where to place opening braces.  Only K&R is supported (the F5
 /// style-guide default); the enum exists so the field can grow.
@@ -257,16 +257,16 @@ pub struct FormatterConfig {
     /// the formatter carries (issue #1465).
     ///
     /// The formatter needs three dialect-derived facts: the lexer preset it
-    /// tokenises with ([`Self::lexer_config`]), the availability mask that
-    /// filters per-release rewrite candidates ([`Self::dialect_bits`]), and
+    /// tokenises with ([`Self::lexer_config`]), the availability point that
+    /// filters per-release rewrite candidates ([`Self::dialect_query`]), and
     /// the release range a rewrite must stay correct across
     /// ([`Self::target_range`]). All three are pure projections of this
     /// profile and are derived from it here, so a caller can no longer set a
     /// strict subset and format an iRule with the Tcl 9 lexer.
     ///
-    /// Defaults to [`DialectProfile::plain_tcl`] — the permissive modern-Tcl
-    /// profile: the 9.x lexing grammar, no candidate filter, and no forward
-    /// range. Resolve a real one with [`Self::for_profile`] or
+    /// Defaults to the lenient environment's profile — the permissive
+    /// modern-Tcl one: the 9.x lexing grammar, no candidate filter, and no
+    /// forward range. Resolve a real one with [`Self::for_profile`] or
     /// [`Self::for_dialect`] (which alias-normalises, so both iRules
     /// spellings land on the same profile).
     pub profile: &'static DialectProfile,
@@ -280,7 +280,7 @@ pub struct FormatterConfig {
     /// release and run on a later one needs. Set this only for a document
     /// that must *also* keep working on a release the profile does not
     /// imply — a backward range no single profile can express.
-    pub target_range_override: Option<DialectSet>,
+    pub target_range_override: Option<&'static [&'static str]>,
 }
 
 impl Default for FormatterConfig {
@@ -313,7 +313,8 @@ impl Default for FormatterConfig {
             docstring_decoration_width: 70,
             expand_abbreviations: true,
             boolean_form: BooleanForm::TrueFalse,
-            profile: DialectProfile::plain_tcl(),
+            // The "no dialect stated" ingress, through the one seam.
+            profile: crate::profile_for_dialect(""),
             target_range_override: None,
         }
     }
@@ -355,14 +356,15 @@ impl FormatterConfig {
         }
     }
 
-    /// [`Self::for_profile`] from a dialect *name*, resolved through
-    /// [`DialectProfile::by_name`] — so an alias spelling (`irules`,
-    /// `tcl-irule`) selects the same `f5-irules` profile as the canonical
-    /// name, and an unknown name lands on the permissive modern-Tcl
-    /// fallback rather than a mismatched default.
+    /// [`Self::for_profile`] from a dialect *name*, resolved through the
+    /// one environment ingress ([`crate::profile_for_dialect`]) — so an
+    /// alias spelling (`irules`, `tcl-irule`), an editor language id, and
+    /// the canonical name all select the same environment, and an unknown
+    /// name lands on the permissive modern-Tcl fallback rather than a
+    /// mismatched default.
     #[must_use]
     pub fn for_dialect(dialect: &str) -> Self {
-        Self::for_profile(tcl_dialect::DialectProfile::by_name(dialect))
+        Self::for_profile(crate::profile_for_dialect(dialect))
     }
 
     /// The lexer preset the formatter tokenises with, from the profile's
@@ -378,17 +380,13 @@ impl FormatterConfig {
         LexerConfig::from_grammar(self.profile.grammar)
     }
 
-    /// The availability mask the profile's own release(s) contribute, or
+    /// The availability point the profile's own release(s) contribute, or
     /// `None` when the profile is the permissive fallback — i.e. no dialect
     /// was declared, so every keyword the handed registry declares stays a
     /// rewrite candidate (the pre-#1257 conservative direction).
     #[must_use]
-    pub fn dialect_bits(&self) -> Option<DialectSet> {
-        if self.profile.is_fallback() {
-            None
-        } else {
-            Some(self.profile.availability_mask)
-        }
+    pub fn dialect_query(&self) -> Option<SurfaceQuery<'static>> {
+        (!self.profile.is_fallback()).then(|| self.profile.surface_query())
     }
 
     /// The range of releases a rewrite must stay correct across: the explicit
@@ -401,7 +399,7 @@ impl FormatterConfig {
     /// candidates. A vendor dialect that names no core release (`f5-irules`)
     /// yields the empty range — the handed registry is then the whole story.
     #[must_use]
-    pub fn target_range(&self) -> DialectSet {
+    pub fn target_range(&self) -> &'static [&'static str] {
         self.target_range_override
             .unwrap_or_else(|| tcl_registry::version_range::forward_range(self.profile.name))
     }
@@ -433,9 +431,10 @@ impl FormatterConfig {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{Family, SurfaceQuery};
+
     use super::{FormatterConfig, LINE_ENDING_AUTO};
     use tcl_dialect::DialectProfile;
-    use tcl_registry::prelude::DialectSet;
 
     #[test]
     fn every_dialect_fact_follows_from_the_one_profile() {
@@ -448,7 +447,10 @@ mod tests {
         // — `{*}` expansion off, so `{*}` stays a literal braced word.
         assert!(cfg.lexer_config().irules_brace_separator);
         assert!(!cfg.lexer_config().expand_syntax);
-        assert_eq!(cfg.dialect_bits(), Some(DialectSet::IRULES));
+        assert_eq!(
+            cfg.dialect_query(),
+            Some(SurfaceQuery::any_release(Family::F5Irules))
+        );
         // `f5-irules` names its own runtime, not a core release: no forward
         // range to widen an abbreviation over.
         assert!(cfg.target_range().is_empty());
@@ -459,7 +461,9 @@ mod tests {
         // The canonical name and its legacy aliases are one dialect; a caller
         // passing either gets the iRules lexer.
         for spelling in ["f5-irules", "irules", "tcl-irule"] {
-            let cfg = FormatterConfig::for_profile(tcl_dialect::DialectProfile::by_name(spelling));
+            let cfg = FormatterConfig::for_profile(
+                tcl_registry::model::ingress::resolve_environment(spelling).analyser_profile(),
+            );
             assert!(cfg.profile.is_irules(), "{spelling}");
             assert!(cfg.lexer_config().irules_brace_separator, "{spelling}");
         }
@@ -467,8 +471,13 @@ mod tests {
 
     #[test]
     fn a_core_release_projects_its_mask_and_forward_range() {
-        let cfg = FormatterConfig::for_profile(tcl_dialect::DialectProfile::by_name("tcl8.6"));
-        assert_eq!(cfg.dialect_bits(), Some(DialectSet::TCL86));
+        let cfg = FormatterConfig::for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        assert_eq!(
+            cfg.dialect_query(),
+            Some(SurfaceQuery::core(Family::Tcl, "8.6"))
+        );
         assert_eq!(
             tcl_registry::version_range::core_releases_in(cfg.target_range()),
             vec!["tcl8.6", "tcl9.0", "tcl9.1"]
@@ -486,7 +495,7 @@ mod tests {
         assert!(!cfg.lexer_config().irules_brace_separator);
         // No dialect declared, so no candidate filter and no range — the
         // conservative direction, unchanged from before #1465.
-        assert_eq!(cfg.dialect_bits(), None);
+        assert_eq!(cfg.dialect_query(), None);
         assert!(cfg.target_range().is_empty());
         assert_eq!(cfg.line_ending, LINE_ENDING_AUTO);
     }
@@ -496,20 +505,27 @@ mod tests {
         // A document that must also keep working on an *older* release than
         // its own names a range no profile implies.
         let cfg = FormatterConfig {
-            target_range_override: Some(DialectSet::TCL86 | DialectSet::TCL90),
-            ..FormatterConfig::for_profile(tcl_dialect::DialectProfile::by_name("tcl9.0"))
+            target_range_override: Some(&["tcl8.6", "tcl9.0"]),
+            ..FormatterConfig::for_profile(
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+            )
         };
         assert_eq!(
             tcl_registry::version_range::core_releases_in(cfg.target_range()),
             vec!["tcl8.6", "tcl9.0"]
         );
         // The rest of the dialect still follows the profile.
-        assert_eq!(cfg.dialect_bits(), Some(DialectSet::TCL90));
+        assert_eq!(
+            cfg.dialect_query(),
+            Some(SurfaceQuery::core(Family::Tcl, "9.0"))
+        );
     }
 
     #[test]
     fn an_unknown_dialect_name_lands_on_the_permissive_fallback() {
-        let cfg = FormatterConfig::for_profile(tcl_dialect::DialectProfile::by_name("tcl-9000"));
+        let cfg = FormatterConfig::for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl-9000").analyser_profile(),
+        );
         assert!(cfg.profile.is_fallback());
         assert_eq!(cfg, FormatterConfig::default());
     }

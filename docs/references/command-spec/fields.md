@@ -21,9 +21,9 @@ On a subcommand this is the subcommand word itself (`length` in `string length`)
 
 Where and when the command exists: which dialects ship it, which package must be required first, and the version that introduced, deprecated, or removed it. This group is what makes "unknown command", "needs Tcl 8.6", and "missing package require" accurate — for most third-party commands it is the highest-value group after the name and arity.
 
-### `dialects` — Dialects
+### `surface` — Surface
 
-*command and subcommand* — Dialects the command exists in. Unset means every dialect.
+*command and subcommand* — Where the command exists, as the dialects its surface rows cover. Unset means everywhere.
 
 Which Tcl worlds the command exists in — every dialect the picker lists, from the core releases through the F5, Tk, Expect, BPF and SpecTcl surfaces. A command only present from 8.5 onwards ticks 8.5 and every later release; one that is iRules-only ticks just F5 iRules. Leave the whole field unset for "every dialect".
 
@@ -118,12 +118,6 @@ On a subcommand, count after the subcommand word instead: `string length string`
 *command and subcommand* — Per-release signature shapes, for a command whose argument count changed across its owning package's releases. Empty unless it did; the plain arity is the fallback whenever no window covers the resolved floor.
 
 Per-release signature shapes, for the rare command whose argument count changed between releases of the package that owns it. Leave empty unless it did — the plain arity above already describes a signature that never changed, and it stays the fallback whenever no window covers the document's resolved floor. Windows must not overlap, so consecutive ones are written closed: retire each where the next is introduced.
-
-### `arg_rows` — Versioned argument rows
-
-*command and subcommand* — The authored per-argument rows the parallel argument tables above are projected from, retained so a consumer holding a resolved package floor can re-project at it. Empty unless some argument carries a release window.
-
-The authored per-argument rows the argument tables above are projected from, kept so a document with a resolved package floor can re-project at it. Empty unless some argument carries a release window; when it is empty the tables above are the whole truth.
 
 ### `arg_roles` — Argument roles
 
@@ -325,11 +319,17 @@ The command's `-flag` switches, each with whether it takes a value (`-nocase` ta
 
 Declared options get completion, spelling checks, and correct highlighting of flag-versus-value; undeclared ones are reported as unknown.
 
-### `option_constraints` — Option constraints
+### `option_relations` — Option relations
 
-*command and subcommand* — Registry-declared sets of leading options that may not occur together.
+*command and subcommand* — Registry-declared relations between this command's options and arguments (E-R14) — mutual exclusion, directional requires, requires-one-of, and forbids, each checked natively with no VM entry.
 
-Pairs or sets of options that must not appear together in one call — mutually exclusive modes like `-glob` and `-regexp`. The checker reports a call using both, with no code written for the specific command.
+What this command's options and arguments require of one another. Four relations, and the checker evaluates every one of them natively — no script runs, whatever the document does. `option_conflict {-glob -regexp}` is the symmetric "not together"; `option_requires -command {-channel}` is the directional one (`bibtex::parse`'s `-command` is a channel callback and is useless without `-channel`); `option_requires_one_of {} {-channel {arg 0}}` says a call must supply at least one of a set, subject optional; and `option_forbids {-order in} {{-type bfs}}` is the asymmetric exclusion (`struct::tree walk` rejects an in-order breadth-first walk). A term is an option (`-channel`), an option carrying a value (`{-type bfs}`), a positional argument (`{arg 0}`), or a positional carrying a value (`{arg 1 text}`). Absence is only ever proven on a call the analyser could read to its end, so a `{*}$opts` call abstains instead of accusing.
+
+### `option_placement` — Option placement
+
+*command and subcommand* — Where this invocation's declared options may appear: a leading run that stops at the first non-option word (every core Tcl command), or anywhere between the positional words up to an explicit `--` (`http::geturl`).
+
+Where this command's declared options may be found. `Leading` — the default, and what every core Tcl command does — stops option parsing at the first word that is not a declared option, so a later `-`-looking word is a positional. `Anywhere` keeps recognising options between the positional words up to an explicit `--`, which is the shape of a script-level parser that loops `foreach {flag value} $args` after taking its fixed arguments (`http::geturl`). Getting this wrong invents option relations the interpreter never applies.
 
 ### `reserved_trailing_words` — Reserved trailing words
 
@@ -563,6 +563,12 @@ Only for the BPF-Tcl dialect: how this command lowers to a BPF operation. Anythi
 
 Compiler internals: routes the command to a hand-written analyser family (`proc`, `foreach`, `package require`, …) for behaviour the declarative fields cannot express. The goal of this whole form is to make these unnecessary — fill in roles, traits, and effects first, and reach for a hook only when something still cannot be said.
 
+### `constraints` — Option-relation escape hatch
+
+*command and subcommand* — The rare E-R14 escape hatch, consulted only when every declarative option relation reported nothing. Prefer an `option_requires` / `option_forbids` / `option_requires_one_of` row: those are checked natively with no VM entry.
+
+The rare escape hatch for an option relation no declarative row can express (E-R14). It is consulted **only** when the spec declares one and every `option_conflict` / `option_requires` / `option_requires_one_of` / `option_forbids` row already reported nothing — reach for a declarative row first, because those are checked natively with no VM entry. Declare `-inputs {invocation}` so the verdict is cached on the call's content.
+
 ### `literal_argument_validator` — Literal argument validator
 
 *command and subcommand* — Registry callback for relationships and member sets within statically-known arguments.
@@ -681,12 +687,6 @@ The replacement story for ageing commands — what to use instead and whether th
 
 F5 only: whether the iRules-to-XC translator can carry this command across. Unset follows the default rules; set it only to override them in either direction.
 
-### `xc_operation` — XC operation
-
-*command and subcommand* — The XC operation the command maps to when translatable.
-
-F5 only: the XC-side operation this command (or subcommand) maps to when translated.
-
 ### `deprecated_replacement` — Deprecated replacement
 
 *command only* — Replacement command name surfaced by the deprecation code action.
@@ -743,13 +743,13 @@ The dynamic sibling of the command-prefix positions: a hook for when *which* wor
 
 The dynamic sibling of per-option `script_timing`: use it when the same executable position runs now in one invocation shape but is stored in another, as with `send -async`. It emits an exact index plus `SameInvocation`, `Deferred`, or `ReferenceOnly`; the index must already be a `Body`, `LambdaLiteral`, or `CommandPrefix`. Silence leaves the option timing or command-level compatibility fallback in force. In SpecTcl the body calls `timing IDX SameInvocation|Deferred|ReferenceOnly`.
 
-### `command_forms` — Structured command forms
+### `command_forms` — Invocation refinements
 
-*command only* — Opaque Rust form descriptors, including longest-static literal-prefix selection and replacement traits, mutator status, and side effects.
+*command only* — Per-form overlays: arity, literal-prefix selection, and the traits, mutator status and effects one call shape replaces.
 
-A structured, per-form Rust descriptor for commands whose forms differ more deeply than a synopsis line can say. Alongside arity, roles, options, and hooks, each `CommandForm` may replace the inherited `traits`, `mutator`, and `side_effects` facts. Replacement lets a query form remove a coarse parent mutation or callback classification instead of only adding more effects. `literal_argument_prefix` selects overlapping-arity forms from known literal source words, with optional unique-prefix matching. The longest static selector wins when one selector extends another; substitutions and expansions abstain while a longer selector remains possible and retain the conservative parent facts.
+A per-form refinement for commands whose forms differ more deeply than a synopsis line can say. Alongside arity, roles and options, each form may replace the inherited `traits`, `mutator`, and `side_effects` facts. Replacement lets a query form remove a coarse parent mutation or callback classification instead of only adding more effects. A `selector` picks between overlapping-arity forms from known literal source words, with unique-prefix matching unless `-exact` says otherwise. The longest static selector wins when one selector extends another; substitutions and expansions abstain while a longer selector remains possible and retain the conservative parent facts.
 
-This is deliberately one opaque Rust expression editor. The descriptor also contains native validators, compiler hooks, and proof metadata, so SpecTcl cannot author or round-trip any `command_forms` descriptor today. Use plain `forms` only when the difference is documentation-only.
+SpecTcl authors these as `refine NAME { … }` blocks. The descriptor's native halves — the completion contract, dispatch proofs, and the literal-argument validator — stay Rust-only, and a form carrying one is reported rather than thinned. Use plain `forms` only when the difference is documentation-only.
 
 ### `const_fold` — Constant folder
 
@@ -881,13 +881,11 @@ Declares that a call makes a *variable* hold an object handle, and which word sa
 
 A validity rule keyed on *where* the call sits rather than what its arguments are — `return -code` spellings only valid inside a procedure, iRules commands only valid at the top level of an event. Code, carried by reference; describe the context rule in the issue notes.
 
-### `subcommand_forms` — Structured subcommand forms
+### `subcommand_forms` — Invocation refinements
 
-*subcommand only* — Opaque Rust form descriptors matched after the subcommand word by arity and longest-static optional literal prefix, including replacement traits, mutator status, and side effects.
+*subcommand only* — Per-form overlays matched after the subcommand word by arity and longest-static literal prefix.
 
-Structured per-form routing for this subcommand — the subcommand-level twin of `command_forms`. A `SubCommandForm` may replace the parent row's `traits`, `mutator`, and `side_effects`, which is how one method can be a read at one arity and a mutation at another. Its optional `literal_argument_prefix` also separates same-arity operation words without treating a computed word as literal, and the longest statically matched selector wins when selectors overlap.
-
-The studio preserves the whole value as an opaque Rust expression. Because the same descriptor may carry native compiler routing and proof metadata, SpecTcl cannot author or round-trip any `subcommand_forms` descriptor today; no partial form DSL is claimed.
+Per-form refinement for this subcommand — the subcommand-level twin of `command_forms`, written the same way, as `refine NAME { … }`. A form may replace the parent row's `traits`, `mutator`, and `side_effects`, which is how one method can be a read at one arity and a mutation at another. Its optional `selector` also separates same-arity operation words without treating a computed word as literal, and the longest statically matched selector wins when selectors overlap.
 
 ### `ObjectClassSpec.method_prefix_matching` — Method prefix matching
 
@@ -1225,6 +1223,15 @@ How many value words an option consumes: one (`-index i`) or a fixed count. Opti
 | `One` | consumes one value word |
 | `Fixed` | consumes a fixed number of value words |
 
+### Option placement
+
+Where a command's declared options may be found in its invocation. `Leading` is the default and what almost every core Tcl command does: its C option loop `break`s on the first word that is not a declared option, so an option-shaped word after that is a positional argument. `Anywhere` is the script-level shape — a parser that takes its fixed arguments and then loops `foreach {flag value} $args`, recognising options between positionals up to an explicit `--`. The option-relation checker reads this to find the options it judges; the wrong answer either misses a relation or invents one.
+
+| Value | Meaning |
+|---|---|
+| `Leading` | option parsing stops at the first non-option word |
+| `Anywhere` | options are recognised between positional words, up to `--` |
+
 ### Pattern types
 
 The two pattern languages a Pattern argument can speak: glob (`string match`) and regular expressions (`regexp`). A `*` means something different in each, so the right label matters for validation and highlighting.
@@ -1389,7 +1396,6 @@ The registry's behavioural vocabulary — one flag per fact a consumer might nee
 | `BUILDS_COMMAND_PREFIX` | builds a command prefix |
 | `WRAPS_COMMAND_PREFIX` | wraps a script into a command prefix |
 | `UNSAFE` | unsafe in sandboxed dialects |
-| `PASSWORD_OPTION` | takes a password-bearing option |
 | `IS_SIDE_SWITCH` | switches the iRules connection side |
 | `IRULES_TOP_LEVEL_ONLY` | iRules: valid only at the top level |
 | `SETS_EVENT_PRIORITY` | sets the inherited iRules event priority |
@@ -1404,7 +1410,6 @@ The registry's behavioural vocabulary — one flag per fact a consumer might nee
 | `TAINT_SOURCE_ZERO_ARGS` | a zero-argument taint source |
 | `TAINTS_VAR_WRITES` | taints variables written by the command |
 | `CONFIGURES_INSTANCE_OPTIONS` | configures options declared by the receiver's class |
-| `IRULES_DATA_GETTER` | an iRules data getter |
 | `CREATES_DYNAMIC_BARRIER` | creates a dynamic (eval-like) barrier |
 | `INVOKES_USER_PROC` | invokes a user-defined procedure |
 | `BYTE_COMPILED` | byte-compiled by C Tcl |

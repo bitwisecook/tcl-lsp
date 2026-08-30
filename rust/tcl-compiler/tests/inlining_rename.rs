@@ -70,9 +70,7 @@ use tcl_compiler::inlining::inline_module;
 use tcl_compiler::ir::{Module, Statement};
 use tcl_registry::CommandRegistry;
 
-// ---------------------------------------------------------------------------
 // Harness (mirrors `inlining.rs`)
-// ---------------------------------------------------------------------------
 
 fn reg() -> CommandRegistry {
     CommandRegistry::build_default()
@@ -267,9 +265,7 @@ fn has_mangled(names: &[String]) -> bool {
     names.iter().any(|n| n.starts_with("__inline_"))
 }
 
-// ===========================================================================
 // 1. Assignment-target rename arms — set / incr (AssignConst/Value/Expr/Incr)
-// ===========================================================================
 
 #[test]
 fn set_const_target_is_renamed() {
@@ -408,9 +404,7 @@ fn assign_expr_braced_operand_is_renamed() {
     );
 }
 
-// ===========================================================================
 // 2. value-string substitution arms — $name / ${name} / array / command-sub
-// ===========================================================================
 
 #[test]
 fn value_string_dollar_read_is_renamed() {
@@ -529,9 +523,7 @@ fn qualified_name_passes_through_unrenamed() {
     );
 }
 
-// ===========================================================================
 // 3. nested control-flow body descent — if / while / for / foreach / switch
-// ===========================================================================
 
 #[test]
 fn if_clause_condition_and_body_renamed() {
@@ -765,9 +757,7 @@ fn switch_subject_and_arm_body_renamed() {
     );
 }
 
-// ===========================================================================
 // 4. exception-binding rename arms — catch / try (rename.rs ~L270)
-// ===========================================================================
 
 #[test]
 fn catch_result_and_options_vars_renamed() {
@@ -883,9 +873,7 @@ fn try_trap_handler_vars_renamed() {
     );
 }
 
-// ===========================================================================
 // 5. collision avoidance / freshening — the load-bearing capture-avoidance
-// ===========================================================================
 
 #[test]
 fn callee_local_colliding_with_caller_local_is_freshened() {
@@ -1014,9 +1002,7 @@ fn callee_local_shadowing_caller_param_is_freshened() {
     );
 }
 
-// ===========================================================================
 // 6. boundary pins — forms the renamer is never asked to rewrite
-// ===========================================================================
 
 #[test]
 fn append_lappend_block_inline_so_renamer_not_reached() {
@@ -1086,9 +1072,7 @@ fn idempotent_reinlining_preserves_renamed_names() {
     assert_eq!(once, twice, "second pass leaves renamed names unchanged");
 }
 
-// ===========================================================================
 // 7. nested-script descent through a Script helper (compile-coverage)
-// ===========================================================================
 
 #[test]
 fn renamer_descends_through_block_in_terminal_if() {

@@ -275,12 +275,32 @@ static ACTIVE: RwLock<Option<Arc<PackSet>>> = RwLock::new(None);
 ///
 /// Called by the LSP server on each reload. A `None` set (or never calling
 /// this) leaves consumers on [`packs`], which is what a bare CLI wants.
-pub fn set_active(packs: Option<Arc<PackSet>>) {
+///
+/// This is also where a pack's **environments** go live: the published set
+/// is the process's answer to "which packs are loaded", and a pack-declared
+/// `environment` block is part of that answer, so
+/// [`crate::registration::publish_pack_set`] registers them into the live
+/// [`tcl_registry::model`] registry here — with the trust lattice enforced,
+/// the generation bumped, and the environments of a pack that has left the
+/// set retired by the same call. The returned
+/// [`PackSetRegistration`](crate::registration::PackSetRegistration) says
+/// what happened, so a server can log it and put a refused pack's reason on
+/// the pack file; a caller with nothing to report may ignore it.
+///
+/// A `None` set retires every pack-declared environment. It deliberately
+/// leaves the *extension routing* alone: consumers fall back to [`packs`],
+/// whose own merge published that tier's routing.
+pub fn set_active(packs: Option<Arc<PackSet>>) -> crate::registration::PackSetRegistration {
+    let registration = match &packs {
+        Some(packs) => crate::registration::publish_pack_set(packs),
+        None => crate::registration::retire_pack_environments(),
+    };
     let mut active = match ACTIVE.write() {
         Ok(active) => active,
         Err(poisoned) => poisoned.into_inner(),
     };
     *active = packs;
+    registration
 }
 
 /// The published workspace pack set, if any.
@@ -332,7 +352,7 @@ pub fn registry_for_profile(profile: &'static DialectProfile) -> Arc<CommandRegi
 /// [`tcl_registry::registry_for_dialect`].
 #[must_use]
 pub fn registry_for_dialect(dialect: &str) -> Arc<CommandRegistry> {
-    registry_for_profile(DialectProfile::by_name(dialect))
+    registry_for_profile(crate::environment::profile_for_dialect(dialect))
 }
 
 /// [`registry_for_dialect`] against a pack set the caller supplies rather than
@@ -343,7 +363,7 @@ pub fn registry_for_dialect(dialect: &str) -> Arc<CommandRegistry> {
 /// or on where its own binary happens to live.
 #[must_use]
 pub fn registry_for_dialect_from(dialect: &str, all: &PackSet) -> Arc<CommandRegistry> {
-    crate::install::registry_with_packs(DialectProfile::by_name(dialect), all)
+    crate::install::registry_with_packs(crate::environment::profile_for_dialect(dialect), all)
 }
 
 #[cfg(test)]
@@ -731,7 +751,7 @@ mod tests {
     fn a_standalone_install_with_no_specs_directory_resolves_an_eda_command() {
         let _cache = cache_guard();
         let standalone = resolve_packs(None);
-        let profile = tcl_dialect::DialectProfile::by_name("xilinx-eda-tcl");
+        let profile = crate::environment::profile_for_dialect("xilinx-eda-tcl");
         let registry = crate::install::registry_with_packs(profile, &standalone);
 
         let command = registry

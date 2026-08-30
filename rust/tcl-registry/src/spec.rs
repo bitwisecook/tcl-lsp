@@ -28,7 +28,6 @@ use crate::arity::{Arity, ArityWindow};
 use crate::body_kind::BodyKind;
 use crate::clause_shape::ClauseShapeChecker;
 use crate::command_table::CommandTableEffect;
-use crate::dialects::DialectSet;
 use crate::dispatch_stability::{DispatchDependencies, DispatchDependencyDescriptor};
 use crate::events::{EventRequirementForm, ResolvedEventRequirements};
 use crate::forms::{CommandForm, SubCommandForm};
@@ -46,6 +45,7 @@ use crate::lifecycle::{Lifecycle, LifecycleState};
 use crate::literal_validation::LiteralArgumentValidator;
 use crate::patterns::{FormatType, PatternType};
 use crate::presentation::ArgPresentation;
+use crate::relation::{Relation, RelationFactSource, RelationTermKind, TermHolds};
 use crate::repeated::RepeatedArgLayout;
 use crate::representation::RepresentationEffect;
 use crate::side_effects::{SideEffect, StorageType};
@@ -55,6 +55,9 @@ use crate::taint::{SetterConstraint, TaintColour};
 use crate::traits::Traits;
 use crate::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 use crate::world_effect::WorldEffectDescriptor;
+use tcl_dialect::model::SpecSurface;
+use tcl_dialect::model::SurfaceQuery;
+use tcl_dialect::model::surface_admits;
 
 /// Dynamic argument role resolver.
 ///
@@ -344,7 +347,7 @@ pub struct CaseListSpec {
     /// `switch -regexp {pattern body}` treats `-regexp` as the subject;
     /// Tcl 8.4 still scans it as an option and rejects the missing subject.
     /// `None` means this case-list descriptor has no such exception.
-    pub two_arg_optionless_dialects: Option<DialectSet>,
+    pub two_arg_optionless_surface: Option<&'static [SpecSurface]>,
     /// A *command* option that makes every pattern a regex (`switch -regexp`).
     pub regex_option: Option<&'static str>,
     /// Command option selecting literal equality (the default switch mode).
@@ -463,7 +466,7 @@ impl CaseListSpec {
     /// The `switch … { pat body … }` shape.
     pub const SWITCH: Self = Self {
         subject_args: 1,
-        two_arg_optionless_dialects: Some(DialectSet::TCL85_PLUS),
+        two_arg_optionless_surface: Some(SpecSurface::TCL85_PLUS),
         regex_option: Some("-regexp"),
         exact_option: Some("-exact"),
         glob_option: Some("-glob"),
@@ -496,7 +499,7 @@ impl CaseListSpec {
     /// fall-through body.
     pub const CASE: Self = Self {
         subject_args: 1,
-        two_arg_optionless_dialects: None,
+        two_arg_optionless_surface: None,
         regex_option: None,
         exact_option: None,
         glob_option: None,
@@ -526,7 +529,7 @@ impl CaseListSpec {
     /// The Expect `expect { ?-flags? pat body … }` shape.
     pub const EXPECT: Self = Self {
         subject_args: 0,
-        two_arg_optionless_dialects: None,
+        two_arg_optionless_surface: None,
         regex_option: None,
         exact_option: None,
         glob_option: None,
@@ -578,7 +581,7 @@ impl CaseListSpec {
         self,
         args: &[&str],
         options: &[&crate::hover::OptionSpec],
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<CaseInvocation> {
         let mut mode = CaseMatchMode::Exact;
         let mut saw_match_mode = false;
@@ -792,17 +795,25 @@ impl CaseListSpec {
     /// release; the gate only applies when Tcl 8.4 would scan an option-like
     /// first word and consume it.
     #[must_use]
-    pub(crate) fn two_arg_body_roles_allowed(self, args: &[&str], dialect: DialectSet) -> bool {
+    pub(crate) fn two_arg_body_roles_allowed(
+        self,
+        args: &[&str],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> bool {
         self.two_arg_optionless_form_is_available(args, dialect)
     }
 
-    fn two_arg_optionless_form_is_available(self, args: &[&str], dialect: DialectSet) -> bool {
+    fn two_arg_optionless_form_is_available(
+        self,
+        args: &[&str],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> bool {
         args.len() != 2
             || self.subject_args != 1
             || args.first().is_none_or(|word| !word.starts_with('-'))
             || self
-                .two_arg_optionless_dialects
-                .is_none_or(|available| available.intersects(dialect))
+                .two_arg_optionless_surface
+                .is_none_or(|available| surface_admits(available, dialect.as_ref()))
     }
 
     /// Adjust a command's static trailing-word reservation for the
@@ -813,7 +824,7 @@ impl CaseListSpec {
     pub(crate) fn option_scan_reserved_trailing_words(
         self,
         args: &[&str],
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
         default: usize,
     ) -> usize {
         if self.two_arg_body_roles_allowed(args, dialect) {
@@ -951,291 +962,324 @@ impl CaseListSpec {
 pub const DEFAULT_CREDENTIAL_OPTION_NAMES: &[&str] =
     &["-password", "-pass", "-secret", "-token", "-apikey"];
 
-/// A registry-declared relationship between leading options.
+/// One operand of an [`OptionRelation`] — what a term names in an invocation.
 ///
-/// The analyser and LSP consume this descriptor generically: a command such
-/// as `source` or `glob` supplies the rejected option set, while the shared
-/// invocation validator reports a conflict. `dialects` is an additional
-/// availability gate; `None` inherits the owning command or subcommand's
-/// dialect set.
+/// The four shapes are the four things a real library's option table talks
+/// about: an option, an option *carrying a particular value*, a positional
+/// argument, and a positional argument carrying a particular value. `bibtex`
+/// needs the first and the third (`-command` requires `-channel`, and excludes
+/// the inline `text` word); `struct::tree walk` needs the second
+/// (`-order in` is illegal with `-type bfs`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OptionTerm {
+    /// The option is present, whatever value it carries (`-channel`).
+    Option(&'static str),
+    /// The option is present **and** its first value word is this literal
+    /// (`-type bfs`). Canonical option name first, value second.
+    OptionValue(&'static str, &'static str),
+    /// A positional argument exists at this 0-based index, counted *after*
+    /// the leading option run.
+    Argument(u8),
+    /// The positional argument at this index is this literal.
+    ArgumentValue(u8, &'static str),
+}
+
+impl RelationTermKind for OptionTerm {
+    fn collective_noun() -> &'static str {
+        "Options"
+    }
+
+    fn describe(self) -> String {
+        match self {
+            Self::Option(name) => name.to_owned(),
+            Self::OptionValue(name, value) => format!("{name} {value}"),
+            Self::Argument(index) => format!("argument {}", index + 1),
+            Self::ArgumentValue(index, value) => format!("argument {} = {value}", index + 1),
+        }
+    }
+
+    /// A bare `-name` is the option; a braced `{-name value}` pins its value;
+    /// `{arg N}` is the positional at `N`, and `{arg N value}` pins its value.
+    fn spelling(self) -> String {
+        match self {
+            Self::Option(name) => name.to_owned(),
+            Self::OptionValue(name, value) => format!("{{{name} {value}}}"),
+            Self::Argument(index) => format!("{{arg {index}}}"),
+            Self::ArgumentValue(index, value) => format!("{{arg {index} {value}}}"),
+        }
+    }
+}
+
+impl OptionTerm {
+    /// The canonical option name this term names, when it names one.
+    #[must_use]
+    pub const fn option_name(self) -> Option<&'static str> {
+        match self {
+            Self::Option(name) | Self::OptionValue(name, _) => Some(name),
+            Self::Argument(_) | Self::ArgumentValue(_, _) => None,
+        }
+    }
+}
+
+/// A registry-declared relation between an invocation's options and arguments
+/// — the option domain's instance of the one relation mechanism (R11).
+pub type OptionRelation = Relation<OptionTerm>;
+
+/// One invocation as the relation checker reads it.
+///
+/// Built once per call site by the analyser from the leading-option walk it
+/// already performs, and borrowed by every relation on that command — the
+/// scan is not repeated per relation.
 #[derive(Debug, Clone, Copy)]
-pub struct OptionConstraint {
-    /// Canonical option names that may not occur together.
-    pub options: &'static [&'static str],
-    /// Tcl dialects in which this relationship applies.
-    pub dialects: Option<DialectSet>,
-    /// Introduction / deprecation / retirement releases of this relationship
-    /// on the owning command's package version axis — a conflict that only
-    /// exists once both options do. [`Lifecycle::UNSPECIFIED`] means it
-    /// applies in every package version.
-    pub lifecycle: Lifecycle,
+pub struct OptionFacts<'a> {
+    /// The canonical name of each declared option the call supplied, in call
+    /// order, paired with its first value word when that word is a literal.
+    pub options: &'a [(&'static str, Option<&'a str>)],
+    /// The positional words after the leading option run, `None` where a word
+    /// is not statically known.
+    pub positionals: &'a [Option<&'a str>],
+    /// Whether the invocation was read to its end with nothing unreadable in
+    /// it — no `{*}` expansion, and no substituted word where an option could
+    /// have been. **Only** this licenses proving a term *absent*.
+    pub complete: bool,
 }
 
-impl OptionConstraint {
-    /// Default value for all fields — used with `..OptionConstraint::DEFAULT`.
-    pub const DEFAULT: Self = Self {
-        options: &[],
-        dialects: None,
-        lifecycle: Lifecycle::UNSPECIFIED,
-    };
+/// What a call site says about one option — three cases, not two, because
+/// "supplied with a value nobody can read" answers differently from both
+/// "absent" and "supplied with this value".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OptionPresence<'a> {
+    /// The call did not supply the option here.
+    Absent,
+    /// Supplied, but its value word is not statically known.
+    PresentUnknownValue,
+    /// Supplied, carrying this literal value.
+    PresentWith(&'a str),
+}
 
-    /// Whether this constraint applies given the resolved *`package_version`*.
-    ///
-    /// *`package_version`* is the guaranteed-available floor from a
-    /// `package require` (see [`crate::version::requirement_lower_bound`]).
-    /// `None` is permissive.
-    #[must_use]
-    pub fn available_for_version(&self, package_version: Option<&str>) -> bool {
-        self.lifecycle.available_at(package_version)
+impl OptionFacts<'_> {
+    /// What the call said about `name`.
+    fn option_presence(&self, name: &str) -> OptionPresence<'_> {
+        match self.options.iter().find(|(option, _)| *option == name) {
+            None => OptionPresence::Absent,
+            Some((_, None)) => OptionPresence::PresentUnknownValue,
+            Some((_, Some(value))) => OptionPresence::PresentWith(value),
+        }
     }
 
-    /// This constraint's lifecycle state at the resolved *`package_version`*.
-    #[must_use]
-    pub fn lifecycle_state(&self, package_version: Option<&str>) -> LifecycleState {
-        self.lifecycle.state_at(package_version)
+    /// `Yes` when the word is proven to be `wanted`, `No` when proven not to
+    /// be, `Unknown` when the word is not statically known — the shared
+    /// answer for an option value and a positional value alike.
+    fn matches_literal(word: Option<&str>, wanted: &str) -> TermHolds {
+        match word {
+            Some(actual) if actual == wanted => TermHolds::Yes,
+            Some(_) => TermHolds::No,
+            None => TermHolds::Unknown,
+        }
     }
 
-    /// Whether this constraint is active for `dialect`, inheriting the
-    /// command/subcommand dialect set when it has no own gate.
-    #[must_use]
-    pub const fn supports_dialect(
-        &self,
-        dialect: Option<DialectSet>,
-        parent_dialects: Option<DialectSet>,
-    ) -> bool {
-        let Some(want) = dialect else {
-            return true;
-        };
-        let gate = match self.dialects {
-            Some(gate) => Some(gate),
-            None => parent_dialects,
-        };
-        match gate {
-            Some(have) => have.intersects(want),
-            None => true,
+    /// The verdict for a term the call did not supply: proven absent only
+    /// when the invocation was read to its end.
+    const fn absent(&self) -> TermHolds {
+        if self.complete {
+            TermHolds::No
+        } else {
+            TermHolds::Unknown
         }
     }
 }
 
-/// One `arg` row as authored, with the lifecycle that gates the whole row.
-///
-/// The registry's per-argument facts are six parallel index-keyed slices
-/// (`arg_roles`, `arg_types`, `arg_values`, `closed_value_args`,
-/// `arg_presentation`, `command_prefixes`). That shape is why arity was the one
-/// axis nobody could version: there is no per-argument record to hang a
-/// [`Lifecycle`] on, so a seventh parallel slice would have needed every one of
-/// those six consumers to remember a filter (issue #1627).
-///
-/// This is that record. The loader reads one of these per `arg` row and
-/// *projects* it into the six parallel slices, so the parallel form the rest of
-/// the registry reads is derived rather than authored twice. A row whose
-/// lifecycle excludes the resolved floor contributes nothing to the projection
-/// — which is the whole point, and is why the projection is one function
-/// instead of six call sites.
-///
-/// Empty for every command whose arguments never changed across releases,
-/// which is almost all of them.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct VersionedArgRow {
-    /// 0-based argument index this row describes.
-    pub index: u8,
-    /// The owning package's releases this row applies to.
-    pub lifecycle: Lifecycle,
-    /// Fills `arg_roles`.
-    pub role: Option<ArgRole>,
-    /// Fills `arg_types`.
-    pub type_hint: Option<ArgTypeHint>,
-    /// Fills `arg_values`.
-    pub values: &'static [ArgValue],
-    /// Contributes this index to `closed_value_args`.
-    pub closed: bool,
-    /// Fills `arg_presentation`.
-    pub presentation: Option<ArgPresentation>,
-    /// Fills `command_prefixes`.
-    pub appends: Option<crate::arg_role::AppendedArity>,
-}
-
-impl VersionedArgRow {
-    /// A row with no facts declared, for struct-update syntax.
-    pub const DEFAULT: Self = Self {
-        index: 0,
-        lifecycle: Lifecycle::UNSPECIFIED,
-        role: None,
-        type_hint: None,
-        values: &[],
-        closed: false,
-        presentation: None,
-        appends: None,
-    };
-
-    /// Whether this row applies at `target`.
-    ///
-    /// An unresolved target is permissive, matching every other lifecycle
-    /// query: with no floor there is nothing to gate against, so a versioned
-    /// pack behaves exactly as an unversioned one until a floor is known.
-    #[must_use]
-    pub fn applies_at(&self, target: Option<&str>) -> bool {
-        self.lifecycle.available_at(target)
+impl RelationFactSource<OptionTerm> for OptionFacts<'_> {
+    /// Presence is provable whatever the value is; absence needs `complete`.
+    fn holds(&self, term: OptionTerm) -> TermHolds {
+        match term {
+            OptionTerm::Option(name) => match self.option_presence(name) {
+                OptionPresence::Absent => self.absent(),
+                OptionPresence::PresentUnknownValue | OptionPresence::PresentWith(_) => {
+                    TermHolds::Yes
+                }
+            },
+            OptionTerm::OptionValue(name, wanted) => match self.option_presence(name) {
+                OptionPresence::Absent => self.absent(),
+                // Present, but its value could be anything at run time —
+                // including `wanted`.
+                OptionPresence::PresentUnknownValue => TermHolds::Unknown,
+                OptionPresence::PresentWith(actual) => Self::matches_literal(Some(actual), wanted),
+            },
+            OptionTerm::Argument(index) => {
+                if usize::from(index) < self.positionals.len() {
+                    TermHolds::Yes
+                } else {
+                    self.absent()
+                }
+            }
+            OptionTerm::ArgumentValue(index, wanted) => {
+                match self.positionals.get(usize::from(index)) {
+                    Some(word) => Self::matches_literal(*word, wanted),
+                    None => self.absent(),
+                }
+            }
+        }
     }
 }
 
-/// The six parallel per-argument slices, projected from a [`VersionedArgRow`]
-/// list at one resolved package floor.
-///
-/// Owned rather than `&'static` because the floor is a per-document fact: the
-/// registry's own slices are the projection at "no floor", built once at load,
-/// while this is built on demand by a consumer that has resolved one.
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct ProjectedArgs {
-    /// `(index, role)`, as `CommandSpec::arg_roles`.
-    pub roles: Vec<(u8, ArgRole)>,
-    /// `(index, hint)`, as `CommandSpec::arg_types`.
-    pub types: Vec<(u8, ArgTypeHint)>,
-    /// `(index, values)`, as `CommandSpec::arg_values`.
-    pub values: Vec<(u8, &'static [ArgValue])>,
-    /// Indices, as `CommandSpec::closed_value_args`.
-    pub closed: Vec<u8>,
-    /// `(index, presentation)`, as `CommandSpec::arg_presentation`.
-    pub presentation: Vec<(u8, ArgPresentation)>,
-    /// `(index, appended)`, as `CommandSpec::command_prefixes`.
-    pub prefixes: Vec<(u8, crate::arg_role::AppendedArity)>,
-}
-
-/// One command's per-argument tables **as seen at a resolved package floor**
-/// (issue #1644).
-///
-/// Borrowed on the fast path and owned only when it must be: a spec whose rows
-/// are all ungated — every shipped command, and every pack that declares no
-/// lifecycle on an argument — keeps `arg_rows` empty, so its stored slices
-/// already *are* the answer at any floor and are handed back by reference. A
-/// gated row is the only thing that makes a projection necessary, and then the
-/// filtered tables are owned for the length of the query.
-///
-/// The floor stays an **argument** rather than becoming registry state:
-/// `CommandRegistry` handles are cached per (profile, pack overlay) and shared
-/// across documents, while a version floor is a per-document fact, so a
-/// registry that remembered one would answer the wrong document.
-#[derive(Debug, Clone, PartialEq)]
-pub enum ArgTables<'a> {
-    /// No row is gated, so the spec's own slices answer at every floor.
-    Stored {
-        /// As `CommandSpec::arg_roles`.
-        roles: &'a [(u8, ArgRole)],
-        /// As `CommandSpec::arg_types`.
-        types: &'a [(u8, ArgTypeHint)],
-        /// As `CommandSpec::arg_values`.
-        values: &'a [(u8, &'static [ArgValue])],
-        /// As `CommandSpec::closed_value_args`.
-        closed: &'a [u8],
-        /// As `CommandSpec::arg_presentation`.
-        presentation: &'a [(u8, ArgPresentation)],
-        /// As `CommandSpec::command_prefixes`.
-        prefixes: &'a [(u8, crate::arg_role::AppendedArity)],
-    },
-    /// A gated row was filtered out at this floor.
-    Projected(ProjectedArgs),
-}
-
-impl ArgTables<'_> {
-    /// `(index, role)` rows that exist at this floor.
+impl OptionRelation {
+    /// Every option name this relation mentions, subject included — what a
+    /// consumer needs to decide whether the relation is worth evaluating at
+    /// all.
     #[must_use]
-    pub fn roles(&self) -> &[(u8, ArgRole)] {
+    pub fn option_names(&self) -> Vec<&'static str> {
+        self.mentioned_terms()
+            .into_iter()
+            .filter_map(OptionTerm::option_name)
+            .collect()
+    }
+}
+
+/// Where in an invocation a command's declared options may appear — the fact
+/// the E-R14 relation checker needs to find them.
+///
+/// Not a style preference: core Tcl's C option loops almost all `break` on the
+/// first word that is not a declared option (`Tcl_GlobObjCmd`, `source`,
+/// `lsort`), so a later option-shaped word there is a *positional*, and
+/// reading it as an option would invent a conflict the interpreter never
+/// raises. A script-level command like `http::geturl`, whose parser is
+/// `foreach {flag value} $args` after taking the URL, is the other shape.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum OptionPlacement {
+    /// A leading run: option parsing stops at the first non-option word.
+    /// The default, and what every core Tcl command does.
+    #[default]
+    Leading,
+    /// Options are recognised anywhere in the argument list, after and
+    /// between positional words, up to an explicit `--`.
+    Anywhere,
+}
+
+impl OptionPlacement {
+    /// Every placement, in declaration order — the loader's and the studio's
+    /// enumeration.
+    pub const ALL: &'static [(&'static str, Self)] =
+        &[("Leading", Self::Leading), ("Anywhere", Self::Anywhere)];
+
+    /// The DSL spelling.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
         match self {
-            Self::Stored { roles, .. } => roles,
-            Self::Projected(projected) => &projected.roles,
-        }
-    }
-
-    /// `(index, type hint)` rows that exist at this floor.
-    #[must_use]
-    pub fn types(&self) -> &[(u8, ArgTypeHint)] {
-        match self {
-            Self::Stored { types, .. } => types,
-            Self::Projected(projected) => &projected.types,
-        }
-    }
-
-    /// `(index, values)` rows that exist at this floor.
-    #[must_use]
-    pub fn values(&self) -> &[(u8, &'static [ArgValue])] {
-        match self {
-            Self::Stored { values, .. } => values,
-            Self::Projected(projected) => &projected.values,
-        }
-    }
-
-    /// The enumerable values declared for `index` at this floor, empty when
-    /// the argument has no value set here — the floor-aware twin of
-    /// `CommandSpec::arg_values_at`.
-    #[must_use]
-    pub fn values_at(&self, index: u8) -> &'static [ArgValue] {
-        self.values()
-            .iter()
-            .find(|(i, _)| *i == index)
-            .map_or(&[], |(_, values)| values)
-    }
-
-    /// Closed-value argument indices that exist at this floor.
-    #[must_use]
-    pub fn closed(&self) -> &[u8] {
-        match self {
-            Self::Stored { closed, .. } => closed,
-            Self::Projected(projected) => &projected.closed,
-        }
-    }
-
-    /// `(index, presentation)` rows that exist at this floor.
-    #[must_use]
-    pub fn presentation(&self) -> &[(u8, ArgPresentation)] {
-        match self {
-            Self::Stored { presentation, .. } => presentation,
-            Self::Projected(projected) => &projected.presentation,
-        }
-    }
-
-    /// `(index, appended arity)` command-prefix rows that exist at this floor.
-    #[must_use]
-    pub fn prefixes(&self) -> &[(u8, crate::arg_role::AppendedArity)] {
-        match self {
-            Self::Stored { prefixes, .. } => prefixes,
-            Self::Projected(projected) => &projected.prefixes,
+            Self::Leading => "Leading",
+            Self::Anywhere => "Anywhere",
         }
     }
 }
 
-/// Project `rows` into the six parallel slices, keeping only rows that apply
-/// at `target`.
+/// Where a `constraints` hook's report points.
 ///
-/// This is the **one** place a per-argument row becomes the parallel form the
-/// rest of the registry reads. A column added to [`VersionedArgRow`] and not
-/// added here silently vanishes — which is exactly the failure the record shape
-/// exists to prevent — so `projection_carries_every_row_column` pins that every
-/// column survives a round trip.
+/// The hook's `invalid SLOT MESSAGE` verb names one of these: an option
+/// spelling, a 0-based positional index (`arg 2`), or the command word itself
+/// when the report is about the invocation as a whole.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConstraintSlot {
+    /// A canonical option name.
+    Option(&'static str),
+    /// A 0-based positional index, counted after the leading option run.
+    Argument(u8),
+    /// The command word — for a report about the whole invocation.
+    Command,
+}
+
+/// One thing a `constraints` hook reported.
+///
+/// Deliberately smaller than [`RelationViolation`]: a hook says *where* and
+/// *what*, and the analyser owns the diagnostic code and the span. `conflict`
+/// selects W147 ("these cannot go together") over the default W152 ("this one
+/// needs that one"), which is the only structural choice a hook makes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConstraintReport {
+    /// The slot the report points at.
+    pub slot: ConstraintSlot,
+    /// The message, as the hook wrote it.
+    pub message: String,
+    /// Report as an exclusion (W147) rather than a requirement (W152).
+    pub conflict: bool,
+}
+
+/// What the option-relation checker did, for the P-B measurement.
+///
+/// Principle P-B's claim — "every relation the declarative vocabulary can
+/// express is checked natively with no VM entry" — is only worth as much as
+/// the number behind it, so the checker counts rather than asserting. Three
+/// thread-local counters, incremented once per call site: cheap enough to
+/// leave on (they are `Cell<u64>` adds on a path that already allocates a
+/// `Vec` per violation), and the only way a regression that starts entering
+/// the VM shows up as anything but a slowdown.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct RelationCheckStats {
+    /// Call sites whose walk found at least one declared option word — the
+    /// population the check is *about*.
+    pub option_bearing_sites: u64,
+    /// Of those, the sites whose command declares at least one relation or a
+    /// `constraints` hook, and so were actually judged.
+    pub judged_sites: u64,
+    /// Relations evaluated natively across those call sites — the work that
+    /// never enters a VM.
+    pub relations_evaluated: u64,
+    /// Call sites that reached a `constraints` hook. **This is the number the
+    /// design is about**: it must stay 0 for a corpus of shipped commands.
+    pub hook_entries: u64,
+}
+
+thread_local! {
+    static RELATION_STATS: std::cell::Cell<RelationCheckStats> =
+        const { std::cell::Cell::new(RelationCheckStats {
+            option_bearing_sites: 0,
+            judged_sites: 0,
+            relations_evaluated: 0,
+            hook_entries: 0,
+        }) };
+}
+
+/// Record one call site the option walk read.
+///
+/// `judged` is false for a call site whose command declares no relation at
+/// all — it is still an option-bearing site, and counting it is what makes
+/// the ratio meaningful.
+pub fn note_relation_check(
+    option_bearing: bool,
+    judged: bool,
+    relations_evaluated: usize,
+    entered_hook: bool,
+) {
+    RELATION_STATS.with(|stats| {
+        let mut current = stats.get();
+        current.option_bearing_sites += u64::from(option_bearing);
+        current.judged_sites += u64::from(judged);
+        current.relations_evaluated += relations_evaluated as u64;
+        current.hook_entries += u64::from(entered_hook);
+        stats.set(current);
+    });
+}
+
+/// This thread's option-relation counters.
 #[must_use]
-pub fn project_arg_rows(rows: &[VersionedArgRow], target: Option<&str>) -> ProjectedArgs {
-    let mut out = ProjectedArgs::default();
-    for row in rows.iter().filter(|row| row.applies_at(target)) {
-        if let Some(role) = row.role {
-            out.roles.push((row.index, role));
-        }
-        if let Some(hint) = row.type_hint {
-            out.types.push((row.index, hint));
-        }
-        if !row.values.is_empty() {
-            out.values.push((row.index, row.values));
-        }
-        if row.closed {
-            out.closed.push(row.index);
-        }
-        if let Some(presentation) = row.presentation {
-            out.presentation.push((row.index, presentation));
-        }
-        if let Some(appends) = row.appends {
-            out.prefixes.push((row.index, appends));
-        }
-    }
-    out
+pub fn relation_check_stats() -> RelationCheckStats {
+    RELATION_STATS.with(std::cell::Cell::get)
 }
+
+/// Zero this thread's option-relation counters.
+pub fn reset_relation_check_stats() {
+    RELATION_STATS.with(|stats| stats.set(RelationCheckStats::default()));
+}
+
+/// A `constraints` hook: the E-R14 escape hatch.
+///
+/// **Called only when a spec declares one and the declarative relations found
+/// nothing to report** (principle P-B). A shipped spec's hook is an ordinary
+/// Rust function; a pack's is a Tcl body on the sandboxed VM, reached through
+/// [`crate::pack_hooks::constraints_fn`] — the consumer cannot tell which.
+///
+/// Silence (an empty vector) means "no report", which is also what a crashed,
+/// quarantined, budget-blown or hostless pack hook answers.
+pub type ConstraintsHook = fn(&OptionFacts<'_>) -> Vec<ConstraintReport>;
 
 /// Unified command metadata — the single source of truth.
 ///
@@ -1260,7 +1304,7 @@ pub struct CommandSpec {
     pub traits: Traits,
 
     /// Dialects this command is available in. `None` = all dialects.
-    pub dialects: Option<DialectSet>,
+    pub surface: Option<&'static [SpecSurface]>,
 
     /// Argument count constraint.
     ///
@@ -1279,16 +1323,6 @@ pub struct CommandSpec {
     /// the loader notices for packs and `registry_sweep` rejects outright for
     /// shipped specs.
     pub arity_windows: &'static [ArityWindow],
-
-    /// The authored per-argument rows this command's parallel `arg_*` slices
-    /// were projected from, retained so a consumer holding a resolved package
-    /// floor can re-project at that floor (issue #1627).
-    ///
-    /// Empty unless some argument carries a lifecycle. When empty the parallel
-    /// slices are the whole truth, which is the case for almost every command.
-    /// See [`VersionedArgRow`] for why the rows exist beside the slices rather
-    /// than replacing them.
-    pub arg_rows: &'static [VersionedArgRow],
 
     /// Static argument roles (for fixed-layout commands like `for`).
     /// Each tuple is `(arg_index, role)`.
@@ -1468,7 +1502,7 @@ pub struct CommandSpec {
 
     /// Dialects where this command safely initialises an uninitialised
     /// variable. `None` = not safe. `Some(empty)` = safe in all dialects.
-    pub safe_on_uninit: Option<DialectSet>,
+    pub safe_on_uninit: Option<&'static [SpecSurface]>,
 
     /// Compile-time constant folder.
     pub const_fold: Option<ConstFoldFn>,
@@ -1516,7 +1550,9 @@ pub struct CommandSpec {
     /// [`CommandTableEffect`]). `None` = the command never rebinds a
     /// command name. Consumed by the command-binding lattice, the
     /// lowerer's alias table, and the analyser's rename / alias
-    /// records via [`crate::CommandRegistry::command_table_effect`].
+    /// records via [`crate::CommandTableEffect::transitions`], which
+    /// resolves this selector to the stock state-transition descriptor a
+    /// shipped spec names directly (centralisation ledger C8).
     pub command_table_effect: Option<CommandTableEffect>,
 
     /// Structured side-effect declarations.
@@ -1615,10 +1651,21 @@ pub struct CommandSpec {
     /// Options declared on the command (for completion and arity adjustment).
     pub options: &'static [OptionSpec],
 
-    /// Relationships between leading options that the command rejects when
-    /// they occur together.  This is data for generic invocation validation,
-    /// not a command-specific analyser rule.
-    pub option_constraints: &'static [OptionConstraint],
+    /// Typed relations between this command's options and arguments — the
+    /// declarative half of E-R14.  Data for generic invocation validation,
+    /// not a command-specific analyser rule, and checked natively with no
+    /// hook and no VM entry.
+    pub option_relations: &'static [OptionRelation],
+
+    /// The `constraints` escape hatch: a hook consulted **only** when
+    /// [`Self::option_relations`] reported nothing, for the rare rule no
+    /// declarative relation can express.  `None` for every shipped command.
+    pub constraints: Option<ConstraintsHook>,
+
+    /// Where this command's options may appear — what the relation checker
+    /// needs to find them.  [`OptionPlacement::Leading`] for everything whose
+    /// option parsing stops at the first non-option word.
+    pub option_placement: OptionPlacement,
 
     /// Number of trailing words (after the command name) that C Tcl's own
     /// option-scanning loop never treats as option candidates, regardless
@@ -1820,10 +1867,6 @@ pub struct CommandSpec {
     /// rules, `Some(false)` = never translatable, `Some(true)` =
     /// translatable despite a namespace prefix.
     pub xc_translatable: Option<bool>,
-
-    /// XC operation this command maps to, when it is translatable.
-    /// `None` = no explicit mapping.
-    pub xc_operation: Option<&'static str>,
 
     /// Replacement command name (resolved) for a deprecated command,
     /// surfaced by the deprecation code action. `None` = not deprecated.
@@ -2027,14 +2070,14 @@ pub struct CommandSpec {
 /// `-borderwidth`).
 fn option_table_from<'a>(
     options: impl Iterator<Item = &'a OptionSpec>,
-    dialect: Option<DialectSet>,
-    parent_dialects: Option<DialectSet>,
+    dialect: Option<SurfaceQuery<'_>>,
+    parent_surface: Option<&'static [SpecSurface]>,
     package_version: Option<&str>,
     prefix_matching: PrefixMatching,
 ) -> KeywordTable<'static> {
     let mut keywords: Vec<Keyword<'static>> = Vec::new();
     for opt in options {
-        if !opt.supports_dialect(dialect, parent_dialects)
+        if !opt.supports_dialect(dialect, parent_surface)
             || !opt.available_for_version(package_version)
         {
             continue;
@@ -2162,10 +2205,9 @@ impl CommandSpec {
     pub const DEFAULT: Self = Self {
         name: "",
         traits: Traits::empty(),
-        dialects: None,
+        surface: None,
         arity: Arity::any(),
         arity_windows: &[],
-        arg_rows: &[],
         arg_roles: &[],
         arg_role_resolver: None,
         arg_presentation: &[],
@@ -2221,7 +2263,9 @@ impl CommandSpec {
         event_handler_priority: None,
         irules_top_level_effect: None,
         options: &[],
-        option_constraints: &[],
+        option_relations: &[],
+        constraints: None,
+        option_placement: OptionPlacement::Leading,
         reserved_trailing_words: 0,
         arg_values: &[],
         versioned_arg_values: &[],
@@ -2249,7 +2293,6 @@ impl CommandSpec {
         warn_missing_import: true,
         is_namespace_exported: false,
         xc_translatable: None,
-        xc_operation: None,
         deprecated_replacement: None,
         deprecated_replacement_drop_in: false,
         byte_array_payload: None,
@@ -2419,15 +2462,15 @@ impl CommandSpec {
     #[must_use]
     pub fn optional_trailing_arg_names(
         &self,
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
         package_version: Option<&str>,
     ) -> Vec<&'static str> {
         self.forms
             .iter()
             .filter(|form| {
-                form.dialects
-                    .or(self.dialects)
-                    .is_none_or(|allowed| allowed.contains(dialect))
+                form.surface
+                    .or(self.surface)
+                    .is_none_or(|allowed| surface_admits(allowed, dialect.as_ref()))
             })
             .filter(|form| form.available_for_version(package_version))
             .map(|form| optional_trailing_placeholders(form.synopsis))
@@ -2449,17 +2492,18 @@ impl CommandSpec {
     #[must_use]
     pub fn subcommand_table(
         &self,
-        dialect: Option<DialectSet>,
+        dialect: Option<SurfaceQuery<'_>>,
         package_version: Option<&str>,
         prefix_override: Option<PrefixMatching>,
     ) -> KeywordTable<'static> {
-        let parent = self.dialects;
+        let parent = self.surface;
         KeywordTable::from_keywords(
             self.subcommands
                 .iter()
-                .filter(|sub| match (dialect, sub.dialects.or(parent)) {
-                    (Some(want), Some(have)) => have.intersects(want),
-                    _ => true,
+                .filter(|sub| {
+                    sub.surface
+                        .or(parent)
+                        .is_none_or(|have| surface_admits(have, dialect.as_ref()))
                 })
                 .filter(|sub| sub.available_for_version(package_version))
                 .map(|sub| Keyword {
@@ -2475,7 +2519,7 @@ impl CommandSpec {
     #[must_use]
     pub fn option_table(
         &self,
-        dialect: Option<DialectSet>,
+        dialect: Option<SurfaceQuery<'_>>,
         package_version: Option<&str>,
         prefix_override: Option<PrefixMatching>,
     ) -> KeywordTable<'static> {
@@ -2484,7 +2528,7 @@ impl CommandSpec {
                 .iter()
                 .chain(self.command_forms.iter().flat_map(|f| f.options.iter())),
             dialect,
-            self.dialects,
+            self.surface,
             package_version,
             prefix_override.unwrap_or(self.prefix_matching),
         )
@@ -2501,7 +2545,7 @@ impl CommandSpec {
     pub fn resolve_subcommand_word(
         &self,
         word: &str,
-        dialect: Option<DialectSet>,
+        dialect: Option<SurfaceQuery<'_>>,
         package_version: Option<&str>,
         prefix_override: Option<PrefixMatching>,
     ) -> KeywordMatch<'static> {
@@ -2584,7 +2628,7 @@ impl CommandSpec {
     pub fn resolve_option_word(
         &self,
         word: &str,
-        dialect: Option<DialectSet>,
+        dialect: Option<SurfaceQuery<'_>>,
         package_version: Option<&str>,
         prefix_override: Option<PrefixMatching>,
     ) -> KeywordMatch<'static> {
@@ -2615,11 +2659,11 @@ impl CommandSpec {
     pub fn resolve_subcommand_for_dialect(
         &self,
         word: &str,
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<&SubCommand> {
-        let parent = self.dialects;
-        self.resolve_subcommand_filtered(word, |s| match s.dialects.or(parent) {
-            Some(d) => d.intersects(dialect),
+        let parent = self.surface;
+        self.resolve_subcommand_filtered(word, |s| match s.surface.or(parent) {
+            Some(d) => surface_admits(d, dialect.as_ref()),
             None => true,
         })
     }
@@ -2660,33 +2704,6 @@ impl CommandSpec {
             .map(|(_, r)| *r)
     }
 
-    /// This command's per-argument tables as they exist at
-    /// `package_version` (issue #1644).
-    ///
-    /// The floor-aware form of the six parallel `arg_*` slices. With no gated
-    /// row — every shipped command, and every pack that put no lifecycle on an
-    /// argument — the stored slices are returned by reference and this is a
-    /// pointer copy; a gated row is what makes the projection necessary, and
-    /// only then is anything built.
-    ///
-    /// `None` is permissive, matching every other lifecycle query: with no
-    /// floor resolved there is nothing to gate against, so a versioned pack
-    /// answers exactly as an unversioned one until a floor is known.
-    #[must_use]
-    pub fn arg_tables_at(&self, package_version: Option<&str>) -> ArgTables<'_> {
-        if self.arg_rows.is_empty() {
-            return ArgTables::Stored {
-                roles: self.arg_roles,
-                types: self.arg_types,
-                values: self.arg_values,
-                closed: self.closed_value_args,
-                presentation: self.arg_presentation,
-                prefixes: self.command_prefixes,
-            };
-        }
-        ArgTables::Projected(project_arg_rows(self.arg_rows, package_version))
-    }
-
     /// Look up enumerable argument values for the 0-based `index`
     /// *after* the command name.  Returns an empty slice when this
     /// argument has no fixed value set.  Mirrors
@@ -2703,18 +2720,10 @@ impl CommandSpec {
     /// `package_version` — the command-level twin of
     /// [`SubCommand::arg_value_available_for_version`].
     ///
-    /// `index` is 0-based *after the command name*. Three gates apply, and a
-    /// value must pass all of them: the **row** the value was declared on
-    /// (issue #1644), the value's own [`ArgValue::lifecycle`], and any
-    /// [`Self::versioned_arg_values`] entry naming it. A value with none of
-    /// the three is ungated, and an ungated value is always available.
-    ///
-    /// The row gate is not the same question as the value gate, and reads
-    /// opposite when it fails: a value the row still declares but that is
-    /// itself gated out is *declared and unavailable*, while a value whose
-    /// whole argument does not exist at this floor is not declared here at
-    /// all. Both answer `false`, which is why the check is written as "the
-    /// value survives the row projection" rather than "the row survives".
+    /// `index` is 0-based *after the command name*. Two gates apply, and a
+    /// value must pass both: the value's own [`ArgValue::lifecycle`], and any
+    /// [`Self::versioned_arg_values`] entry naming it. A value with neither is
+    /// ungated, and an ungated value is always available.
     #[must_use]
     pub fn arg_value_available_for_version(
         &self,
@@ -2722,16 +2731,10 @@ impl CommandSpec {
         value: &str,
         package_version: Option<&str>,
     ) -> bool {
-        let tables = self.arg_tables_at(package_version);
-        let survives_row = tables.values_at(index).iter().any(|v| v.value == value)
-            || !self.arg_values_at(index).iter().any(|v| v.value == value);
-        let declared = tables
-            .values_at(index)
+        self.arg_values_at(index)
             .iter()
             .find(|v| v.value == value)
-            .is_none_or(|v| v.available_for_version(package_version));
-        survives_row
-            && declared
+            .is_none_or(|v| v.available_for_version(package_version))
             && self
                 .versioned_arg_values
                 .iter()
@@ -2749,11 +2752,7 @@ impl CommandSpec {
         index: u8,
         package_version: Option<&str>,
     ) -> Vec<&'static ArgValue> {
-        // Iterated over the *projected* table, so an argument whose whole row
-        // a later release introduced offers nothing at an older floor rather
-        // than being offered and then filtered value by value (issue #1644).
-        self.arg_tables_at(package_version)
-            .values_at(index)
+        self.arg_values_at(index)
             .iter()
             .filter(|value| {
                 self.arg_value_available_for_version(index, value.value, package_version)
@@ -2763,10 +2762,10 @@ impl CommandSpec {
 
     /// Check if this command is available in a given dialect.
     #[must_use]
-    pub fn supports_dialect(&self, dialect: DialectSet) -> bool {
-        match self.dialects {
+    pub fn supports_dialect(&self, dialect: Option<SurfaceQuery<'_>>) -> bool {
+        match self.surface {
             None => true,
-            Some(ds) => ds.intersects(dialect),
+            Some(ds) => surface_admits(ds, dialect.as_ref()),
         }
     }
 
@@ -2814,10 +2813,10 @@ impl CommandSpec {
     /// signature and get wrongly skipped (e.g. `regsub -command` is
     /// 9.0-only).
     #[must_use]
-    pub fn switch_names(&self, dialect: Option<DialectSet>) -> Vec<&'static str> {
+    pub fn switch_names(&self, dialect: Option<SurfaceQuery<'_>>) -> Vec<&'static str> {
         let mut names: Vec<&'static str> = Vec::new();
         let consider = |opt: &OptionSpec, names: &mut Vec<&'static str>| {
-            if opt.supports_dialect(dialect, self.dialects) && !names.contains(&opt.name) {
+            if opt.supports_dialect(dialect, self.surface) && !names.contains(&opt.name) {
                 names.push(opt.name);
             }
         };
@@ -2843,10 +2842,10 @@ impl CommandSpec {
     /// [`OptionSpec::value_word_count`]. Kept next to `switch_names` so the
     /// two stay dialect-consistent.
     #[must_use]
-    pub fn option_specs(&self, dialect: Option<DialectSet>) -> Vec<&'static OptionSpec> {
+    pub fn option_specs(&self, dialect: Option<SurfaceQuery<'_>>) -> Vec<&'static OptionSpec> {
         let mut specs: Vec<&'static OptionSpec> = Vec::new();
         let mut consider = |opt: &'static OptionSpec| {
-            if opt.supports_dialect(dialect, self.dialects)
+            if opt.supports_dialect(dialect, self.surface)
                 && !specs.iter().any(|o| o.name == opt.name)
             {
                 specs.push(opt);
@@ -2885,13 +2884,13 @@ impl CommandSpec {
     #[must_use]
     pub fn switch_names_ext(
         &self,
-        dialect: Option<DialectSet>,
+        dialect: Option<SurfaceQuery<'_>>,
         include_aliases: bool,
         package_version: Option<&str>,
     ) -> Vec<&'static str> {
         let mut names: Vec<&'static str> = Vec::new();
         let consider = |opt: &OptionSpec, names: &mut Vec<&'static str>| {
-            if !opt.supports_dialect(dialect, self.dialects) {
+            if !opt.supports_dialect(dialect, self.surface) {
                 return;
             }
             if !opt.available_for_version(package_version) {
@@ -2925,12 +2924,12 @@ impl CommandSpec {
     pub fn find_option(
         &self,
         option_name: &str,
-        dialect: Option<DialectSet>,
+        dialect: Option<SurfaceQuery<'_>>,
         package_version: Option<&str>,
     ) -> Option<&OptionSpec> {
         let matches = |opt: &&OptionSpec| {
             opt.matches(option_name)
-                && opt.supports_dialect(dialect, self.dialects)
+                && opt.supports_dialect(dialect, self.surface)
                 && opt.available_for_version(package_version)
         };
         self.options.iter().find(matches).or_else(|| {
@@ -3026,16 +3025,6 @@ pub struct SubCommand {
     /// Per-release signature shapes for this subcommand (issue #1627), with
     /// the same contract as [`CommandSpec::arity_windows`].
     pub arity_windows: &'static [ArityWindow],
-
-    /// The authored per-argument rows this command's parallel `arg_*` slices
-    /// were projected from, retained so a consumer holding a resolved package
-    /// floor can re-project at that floor (issue #1627).
-    ///
-    /// Empty unless some argument carries a lifecycle. When empty the parallel
-    /// slices are the whole truth, which is the case for almost every command.
-    /// See [`VersionedArgRow`] for why the rows exist beside the slices rather
-    /// than replacing them.
-    pub arg_rows: &'static [VersionedArgRow],
 
     /// Short description for completion list.
     pub detail: &'static str,
@@ -3144,9 +3133,17 @@ pub struct SubCommand {
     /// Per-subcommand options.
     pub options: &'static [OptionSpec],
 
-    /// Relationships between this subcommand's leading options that the
-    /// command rejects when they occur together.
-    pub option_constraints: &'static [OptionConstraint],
+    /// Typed relations between this subcommand's options and arguments
+    /// (E-R14), checked natively.
+    pub option_relations: &'static [OptionRelation],
+
+    /// The subcommand's `constraints` escape hatch — see
+    /// [`CommandSpec::constraints`].
+    pub constraints: Option<ConstraintsHook>,
+
+    /// Where this subcommand's options may appear — see
+    /// [`CommandSpec::option_placement`].
+    pub option_placement: OptionPlacement,
 
     /// Documented minimum abbreviation length for this subcommand's own
     /// name, when the command promises a longer minimum than uniqueness
@@ -3193,7 +3190,7 @@ pub struct SubCommand {
     pub result_stability: Option<crate::result_stability::ResultStability>,
 
     /// Dialect membership. `None` = inherit from parent `CommandSpec`.
-    pub dialects: Option<DialectSet>,
+    pub surface: Option<&'static [SpecSurface]>,
 
     /// Introduction / deprecation / retirement releases of this subcommand on
     /// the parent command's owning-package version axis.
@@ -3202,7 +3199,7 @@ pub struct SubCommand {
     pub lifecycle: Lifecycle,
 
     /// Safe-on-uninit dialect set.
-    pub safe_on_uninit: Option<DialectSet>,
+    pub safe_on_uninit: Option<&'static [SpecSurface]>,
 
     /// CFG header with list-expression args (foreach/lmap subcommand).
     pub loop_list_header: bool,
@@ -3278,10 +3275,6 @@ pub struct SubCommand {
     /// ⇒ `Clock`, `binary scan` ⇒ `Binary`), taking priority over the
     /// parent command's [`CommandSpec::format_string_type`].
     pub format_string_type: Option<FormatType>,
-
-    /// XC operation this subcommand maps to. `None` = no explicit
-    /// mapping.
-    pub xc_operation: Option<&'static str>,
 
     /// Structured side-effect declarations for this subcommand.
     pub side_effects: &'static [SideEffect],
@@ -3371,7 +3364,7 @@ pub struct SubSubCommand {
     /// Invocation synopsis, e.g. `"info object class object ?className?"`.
     pub synopsis: &'static str,
     /// Dialect membership; `None` inherits from the owning subcommand.
-    pub dialects: Option<DialectSet>,
+    pub surface: Option<&'static [SpecSurface]>,
     /// Introduction / deprecation / retirement releases of this second-level
     /// subcommand on the owning command's package version axis.
     /// [`Lifecycle::UNSPECIFIED`] means it is present in every package
@@ -3412,23 +3405,23 @@ pub struct OptionScope {
     /// The options this call recognises.
     pub options: &'static [OptionSpec],
     /// The gate an option declaring none of its own inherits.
-    pub dialects: Option<DialectSet>,
+    pub surface: Option<&'static [SpecSurface]>,
     /// The second-level operation whose own table this is; `None` when the
     /// answer came from the subcommand's table.
     pub sub_subcommand: Option<&'static str>,
 }
 
-/// Whether `sub_sub` is present in `dialect`, inheriting `parent_dialects`
+/// Whether `sub_sub` is present in `dialect`, inheriting `parent_surface`
 /// (the owning subcommand's gate) when it declares none of its own.
 fn sub_subcommand_supports_dialect(
     sub_sub: &SubSubCommand,
-    dialect: Option<DialectSet>,
-    parent_dialects: Option<DialectSet>,
+    dialect: Option<SurfaceQuery<'_>>,
+    parent_surface: Option<&'static [SpecSurface]>,
 ) -> bool {
-    match (dialect, sub_sub.dialects.or(parent_dialects)) {
-        (Some(want), Some(have)) => have.intersects(want),
-        _ => true,
-    }
+    sub_sub
+        .surface
+        .or(parent_surface)
+        .is_none_or(|have| surface_admits(have, dialect.as_ref()))
 }
 
 impl SubSubCommand {
@@ -3437,7 +3430,7 @@ impl SubSubCommand {
         name: "",
         detail: "",
         synopsis: "",
-        dialects: None,
+        surface: None,
         lifecycle: Lifecycle::UNSPECIFIED,
         options: None,
     };
@@ -3468,7 +3461,6 @@ impl SubCommand {
         traits: Traits::empty(),
         arity: Arity::any(),
         arity_windows: &[],
-        arg_rows: &[],
         detail: "",
         synopsis: "",
         hover: None,
@@ -3496,7 +3488,9 @@ impl SubCommand {
         analyser_hook: None,
         command_table_effect: None,
         options: &[],
-        option_constraints: &[],
+        option_relations: &[],
+        constraints: None,
+        option_placement: OptionPlacement::Leading,
         min_abbrev: None,
         prefix_matching: PrefixMatching::Enabled,
         arg_values: &[],
@@ -3505,7 +3499,7 @@ impl SubCommand {
         semantic_operation: None,
         completion: None,
         result_stability: None,
-        dialects: None,
+        surface: None,
         lifecycle: Lifecycle::UNSPECIFIED,
         safe_on_uninit: None,
         loop_list_header: false,
@@ -3523,7 +3517,6 @@ impl SubCommand {
         sensitive_headers: &[],
         pattern_type: None,
         format_string_type: None,
-        xc_operation: None,
         side_effects: &[],
         world_effects: None,
         state_transitions: None,
@@ -3601,7 +3594,7 @@ impl SubCommand {
     #[must_use]
     pub fn option_table(
         &self,
-        dialect: Option<DialectSet>,
+        dialect: Option<SurfaceQuery<'_>>,
         package_version: Option<&str>,
         prefix_override: Option<PrefixMatching>,
     ) -> KeywordTable<'static> {
@@ -3610,7 +3603,7 @@ impl SubCommand {
                 .iter()
                 .chain(self.subcommand_forms.iter().flat_map(|f| f.options.iter())),
             dialect,
-            self.dialects,
+            self.surface,
             package_version,
             prefix_override.unwrap_or(self.prefix_matching),
         )
@@ -3638,18 +3631,18 @@ impl SubCommand {
     /// [`SubSubCommand::options`] `== None` — declaring nothing either way —
     /// inherits.
     ///
-    /// `spec_dialects` is the owning [`CommandSpec::dialects`], for the
+    /// `spec_surface` is the owning [`CommandSpec::dialects`], for the
     /// standard option-gate inheritance chain (option → sub-sub → sub →
     /// command).
     #[must_use]
     pub fn option_scope(
         &self,
         next_word: Option<&str>,
-        dialect: Option<DialectSet>,
+        dialect: Option<SurfaceQuery<'_>>,
         package_version: Option<&str>,
-        spec_dialects: Option<DialectSet>,
+        spec_surface: Option<&'static [SpecSurface]>,
     ) -> OptionScope {
-        let inherited = self.dialects.or(spec_dialects);
+        let inherited = self.surface.or(spec_surface);
         if let Some(word) = next_word.filter(|w| !w.is_empty())
             && !self.sub_subcommands.is_empty()
             && let Some(op) = self.resolve_sub_subcommand_gated(word, dialect, package_version)
@@ -3657,13 +3650,13 @@ impl SubCommand {
         {
             return OptionScope {
                 options,
-                dialects: op.dialects.or(inherited),
+                surface: op.surface.or(inherited),
                 sub_subcommand: Some(op.name),
             };
         }
         OptionScope {
             options: self.options,
-            dialects: inherited,
+            surface: inherited,
             sub_subcommand: None,
         }
     }
@@ -3673,7 +3666,7 @@ impl SubCommand {
     pub fn resolve_option_word(
         &self,
         word: &str,
-        dialect: Option<DialectSet>,
+        dialect: Option<SurfaceQuery<'_>>,
         package_version: Option<&str>,
         prefix_override: Option<PrefixMatching>,
     ) -> KeywordMatch<'static> {
@@ -3693,16 +3686,10 @@ impl SubCommand {
         value: &str,
         package_version: Option<&str>,
     ) -> bool {
-        let tables = self.arg_tables_at(package_version);
-        let survives_row = tables.values_at(index).iter().any(|v| v.value == value)
-            || !self.arg_values_at(index).iter().any(|v| v.value == value);
-        let declared = tables
-            .values_at(index)
+        self.arg_values_at(index)
             .iter()
             .find(|v| v.value == value)
-            .is_none_or(|v| v.available_for_version(package_version));
-        survives_row
-            && declared
+            .is_none_or(|v| v.available_for_version(package_version))
             && self
                 .versioned_arg_values
                 .iter()
@@ -3719,11 +3706,7 @@ impl SubCommand {
         index: u8,
         package_version: Option<&str>,
     ) -> Vec<&'static ArgValue> {
-        // Iterated over the *projected* table, so an argument whose whole row
-        // a later release introduced offers nothing at an older floor rather
-        // than being offered and then filtered value by value (issue #1644).
-        self.arg_tables_at(package_version)
-            .values_at(index)
+        self.arg_values_at(index)
             .iter()
             .filter(|value| {
                 self.arg_value_available_for_version(index, value.value, package_version)
@@ -3780,9 +3763,9 @@ impl SubCommand {
     pub fn resolve_sub_subcommand_for_dialect(
         &self,
         word: &str,
-        dialect: DialectSet,
+        dialect: Option<SurfaceQuery<'_>>,
     ) -> Option<&'static SubSubCommand> {
-        self.resolve_sub_subcommand_gated(word, Some(dialect), None)
+        self.resolve_sub_subcommand_gated(word, dialect, None)
     }
 
     /// The second-level subcommands available for `dialect` and
@@ -3795,10 +3778,10 @@ impl SubCommand {
     #[must_use]
     pub fn available_sub_subcommands(
         &self,
-        dialect: Option<DialectSet>,
+        dialect: Option<SurfaceQuery<'_>>,
         package_version: Option<&str>,
     ) -> Vec<&'static SubSubCommand> {
-        let parent = self.dialects;
+        let parent = self.surface;
         self.sub_subcommands
             .iter()
             .filter(|s| sub_subcommand_supports_dialect(s, dialect, parent))
@@ -3817,10 +3800,10 @@ impl SubCommand {
     pub fn resolve_sub_subcommand_gated(
         &self,
         word: &str,
-        dialect: Option<DialectSet>,
+        dialect: Option<SurfaceQuery<'_>>,
         package_version: Option<&str>,
     ) -> Option<&'static SubSubCommand> {
-        let parent = self.dialects;
+        let parent = self.surface;
         self.resolve_sub_subcommand_filtered(word, |s| {
             sub_subcommand_supports_dialect(s, dialect, parent)
                 && s.available_for_version(package_version)
@@ -3873,16 +3856,16 @@ impl SubCommand {
     /// subcommand's [`crate::analyser`]-side `leading_options` so the
     /// arity check skips them before counting positionals.  An option's
     /// dialect membership inherits from this subcommand's `dialects`
-    /// (falling back to *`parent_dialects`*, the parent
+    /// (falling back to *`parent_surface`*, the parent
     /// [`CommandSpec::dialects`]) when the option itself does not pin a
     /// dialect.
     #[must_use]
     pub fn switch_names(
         &self,
-        dialect: Option<DialectSet>,
-        parent_dialects: Option<DialectSet>,
+        dialect: Option<SurfaceQuery<'_>>,
+        parent_surface: Option<&'static [SpecSurface]>,
     ) -> Vec<&'static str> {
-        let effective_parent = self.dialects.or(parent_dialects);
+        let effective_parent = self.surface.or(parent_surface);
         let mut names: Vec<&'static str> = Vec::new();
         for opt in self.options {
             if opt.supports_dialect(dialect, effective_parent) && !names.contains(&opt.name) {
@@ -3900,10 +3883,10 @@ impl SubCommand {
     #[must_use]
     pub fn option_specs(
         &self,
-        dialect: Option<DialectSet>,
-        parent_dialects: Option<DialectSet>,
+        dialect: Option<SurfaceQuery<'_>>,
+        parent_surface: Option<&'static [SpecSurface]>,
     ) -> Vec<&'static OptionSpec> {
-        let effective_parent = self.dialects.or(parent_dialects);
+        let effective_parent = self.surface.or(parent_surface);
         let mut specs: Vec<&'static OptionSpec> = Vec::new();
         for opt in self.options {
             if opt.supports_dialect(dialect, effective_parent)
@@ -3913,25 +3896,6 @@ impl SubCommand {
             }
         }
         specs
-    }
-
-    /// This subcommand's per-argument tables as they exist at
-    /// `package_version` — the subcommand twin of
-    /// [`CommandSpec::arg_tables_at`] (issue #1644), with the same fast path
-    /// and the same permissive `None`.
-    #[must_use]
-    pub fn arg_tables_at(&self, package_version: Option<&str>) -> ArgTables<'_> {
-        if self.arg_rows.is_empty() {
-            return ArgTables::Stored {
-                roles: self.arg_roles,
-                types: self.arg_types,
-                values: self.arg_values,
-                closed: self.closed_value_args,
-                presentation: self.arg_presentation,
-                prefixes: self.command_prefixes,
-            };
-        }
-        ArgTables::Projected(project_arg_rows(self.arg_rows, package_version))
     }
 
     /// Look up enumerable argument values for the 0-based
@@ -3948,6 +3912,8 @@ impl SubCommand {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{Family, SurfaceQuery};
+
     use super::*;
     use crate::registry::CommandRegistry;
 
@@ -3982,14 +3948,14 @@ mod tests {
         let spec = registry.get("catch").expect("catch is a registry command");
         // Tcl 8.5 onward documents `catch script ?resultVarName? ?optionsVarName?`.
         assert_eq!(
-            spec.optional_trailing_arg_names(DialectSet::TCL90, None),
+            spec.optional_trailing_arg_names(Some(SurfaceQuery::core(Family::Tcl, "9.0")), None),
             vec!["resultVarName", "optionsVarName"]
         );
         // Tcl 8.4's `catch script ?varName?` has no options dictionary, so a
         // consumer running under that dialect never offers a word the release
         // has no argument slot for.
         assert_eq!(
-            spec.optional_trailing_arg_names(DialectSet::TCL84, None),
+            spec.optional_trailing_arg_names(Some(SurfaceQuery::core(Family::Tcl, "8.4")), None),
             vec!["varName"]
         );
     }
@@ -4048,15 +4014,21 @@ mod tests {
         // A quick fix must not offer to append `optionsVar` to a document
         // whose Fauxpkg is 1.x: that release has no argument slot for it.
         assert_eq!(
-            spec.optional_trailing_arg_names(DialectSet::TCL90, Some("1.0")),
+            spec.optional_trailing_arg_names(
+                Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+                Some("1.0")
+            ),
             vec!["resultVar"]
         );
         assert_eq!(
-            spec.optional_trailing_arg_names(DialectSet::TCL90, Some("2.0")),
+            spec.optional_trailing_arg_names(
+                Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+                Some("2.0")
+            ),
             vec!["resultVar", "optionsVar"]
         );
         assert_eq!(
-            spec.optional_trailing_arg_names(DialectSet::TCL90, None),
+            spec.optional_trailing_arg_names(Some(SurfaceQuery::core(Family::Tcl, "9.0")), None),
             vec!["resultVar", "optionsVar"]
         );
     }
@@ -4075,8 +4047,11 @@ mod tests {
         };
         assert!(spec.primary_synopsis(Some("3.0")).is_none());
         assert!(
-            spec.optional_trailing_arg_names(DialectSet::TCL90, Some("3.0"))
-                .is_empty()
+            spec.optional_trailing_arg_names(
+                Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+                Some("3.0")
+            )
+            .is_empty()
         );
         // Retirement is exclusive, so 2.9 still documents it.
         assert_eq!(
@@ -4202,199 +4177,5 @@ mod tests {
         };
         assert_eq!(names(Some("1.0")), vec!["classic"]);
         assert_eq!(names(Some("2.0")), vec!["classic", "modern"]);
-    }
-}
-
-#[cfg(test)]
-mod versioned_arg_row_tests {
-    use super::*;
-
-    /// A row carrying every column at once, so a projection that drops one is
-    /// visible.
-    fn full_row(index: u8, lifecycle: Lifecycle) -> VersionedArgRow {
-        const VALUES: &[ArgValue] = &[ArgValue {
-            value: "one",
-            ..ArgValue::DEFAULT
-        }];
-        VersionedArgRow {
-            index,
-            lifecycle,
-            role: Some(ArgRole::VarWrite),
-            type_hint: Some(ArgTypeHint {
-                expected: None,
-                shimmers: true,
-                transparent_from: &[],
-            }),
-            values: VALUES,
-            closed: true,
-            presentation: Some(ArgPresentation::BlockScript),
-            appends: Some(crate::arg_role::AppendedArity::Exactly(2)),
-        }
-    }
-
-    /// THE DRIFT GUARD.
-    ///
-    /// `VersionedArgRow` exists so a per-argument lifecycle cannot be forgotten
-    /// by one of six parallel slices. That only holds while the projection
-    /// carries every column: a field added to the record and not to
-    /// `project_arg_rows` vanishes silently, and the record shape would then be
-    /// giving false assurance.
-    ///
-    /// Asserting every column of one fully-populated row survives is the
-    /// cheapest thing that fails when that happens.
-    #[test]
-    fn projection_carries_every_row_column() {
-        let rows = [full_row(3, Lifecycle::UNSPECIFIED)];
-        let out = project_arg_rows(&rows, None);
-
-        assert_eq!(out.roles, vec![(3, ArgRole::VarWrite)], "role column lost");
-        assert_eq!(out.types.len(), 1, "type column lost");
-        assert_eq!(out.types[0].0, 3);
-        assert_eq!(out.values.len(), 1, "values column lost");
-        assert_eq!(out.values[0].0, 3);
-        assert_eq!(out.closed, vec![3], "closed column lost");
-        assert_eq!(
-            out.presentation,
-            vec![(3, ArgPresentation::BlockScript)],
-            "presentation column lost"
-        );
-        assert_eq!(
-            out.prefixes,
-            vec![(3, crate::arg_role::AppendedArity::Exactly(2))],
-            "prefixes column lost"
-        );
-    }
-
-    /// The filter the record shape was introduced for: a row outside the
-    /// resolved floor contributes to *no* slice, in one place rather than six.
-    #[test]
-    fn a_row_outside_the_floor_is_filtered_from_every_slice() {
-        let rows = [
-            full_row(0, Lifecycle::UNSPECIFIED),
-            full_row(1, Lifecycle::introduced_in("3.0")),
-        ];
-
-        // Floor below the second row's introduction: it contributes nothing.
-        let old = project_arg_rows(&rows, Some("2.0"));
-        assert_eq!(old.roles.len(), 1, "the 3.0 row must not appear at 2.0");
-        assert_eq!(old.roles[0].0, 0);
-        assert_eq!(old.closed, vec![0]);
-        assert_eq!(old.values.len(), 1);
-        assert_eq!(old.presentation.len(), 1);
-        assert_eq!(old.prefixes.len(), 1);
-        assert_eq!(old.types.len(), 1);
-
-        // At and above it, both rows apply.
-        let new = project_arg_rows(&rows, Some("3.0"));
-        assert_eq!(new.roles.len(), 2, "both rows apply from 3.0");
-
-        // FN guard: with no floor resolved the gate is permissive, so a
-        // versioned pack behaves exactly as an unversioned one.
-        let unpinned = project_arg_rows(&rows, None);
-        assert_eq!(
-            unpinned.roles.len(),
-            2,
-            "an unresolved floor must not silently drop rows"
-        );
-    }
-
-    /// A command that gates no argument answers from its stored slices at
-    /// every floor — the fast path (issue #1644).
-    ///
-    /// This is what keeps the wiring free for the whole shipped registry: no
-    /// spec has a gated row, so no projection is ever built and the tables a
-    /// consumer sees are the same `&'static` slices as before.
-    #[test]
-    fn an_ungated_command_answers_from_its_stored_slices() {
-        const ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::VarWrite)];
-        const SPEC: CommandSpec = CommandSpec {
-            name: "ungated",
-            arg_roles: ROLES,
-            ..CommandSpec::DEFAULT
-        };
-        for floor in [None, Some("1.0"), Some("9.9")] {
-            let tables = SPEC.arg_tables_at(floor);
-            assert!(
-                matches!(tables, ArgTables::Stored { .. }),
-                "no gated row means nothing to project at {floor:?}"
-            );
-            assert_eq!(tables.roles(), ROLES);
-            assert!(
-                std::ptr::eq(tables.roles(), ROLES),
-                "the stored slice is handed back, not copied"
-            );
-        }
-    }
-
-    /// The answer #1644 exists to change: at a floor below the row's
-    /// introduction the argument is neither role-typed nor offered its values;
-    /// at and above it, both.
-    #[test]
-    fn a_gated_row_changes_the_role_and_value_answers() {
-        const NEW_VALUES: &[ArgValue] = &[ArgValue {
-            value: "later",
-            ..ArgValue::DEFAULT
-        }];
-        const ROWS: &[VersionedArgRow] = &[
-            VersionedArgRow {
-                index: 0,
-                role: Some(ArgRole::VarWrite),
-                ..VersionedArgRow::DEFAULT
-            },
-            VersionedArgRow {
-                index: 1,
-                lifecycle: Lifecycle::introduced_in("3.0"),
-                role: Some(ArgRole::Body),
-                values: NEW_VALUES,
-                ..VersionedArgRow::DEFAULT
-            },
-        ];
-        // The stored slices are the projection at no floor, exactly as the
-        // loader seals them.
-        const ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::VarWrite), (1, ArgRole::Body)];
-        const VALUES: &[(u8, &[ArgValue])] = &[(1, NEW_VALUES)];
-        const SPEC: CommandSpec = CommandSpec {
-            name: "gated",
-            arg_rows: ROWS,
-            arg_roles: ROLES,
-            arg_values: VALUES,
-            ..CommandSpec::DEFAULT
-        };
-
-        let old = SPEC.arg_tables_at(Some("2.0"));
-        assert_eq!(
-            old.roles(),
-            &[(0, ArgRole::VarWrite)],
-            "the 3.0 argument is not role-typed at 2.0"
-        );
-        assert!(
-            old.values_at(1).is_empty(),
-            "and offers no values at 2.0: {:?}",
-            old.values_at(1)
-        );
-        assert!(
-            SPEC.available_arg_values_at(1, Some("2.0")).is_empty(),
-            "the value accessor completion calls must agree"
-        );
-        assert!(
-            !SPEC.arg_value_available_for_version(1, "later", Some("2.0")),
-            "a value whose whole argument does not exist yet is not available"
-        );
-
-        let new = SPEC.arg_tables_at(Some("3.0"));
-        assert_eq!(new.roles(), ROLES, "both arguments are typed from 3.0");
-        assert_eq!(
-            SPEC.available_arg_values_at(1, Some("3.0"))
-                .iter()
-                .map(|value| value.value)
-                .collect::<Vec<_>>(),
-            vec!["later"],
-            "and the value is offered from 3.0"
-        );
-        assert!(SPEC.arg_value_available_for_version(1, "later", Some("3.0")));
-
-        // FN guard: an unresolved floor stays permissive.
-        assert_eq!(SPEC.arg_tables_at(None).roles(), ROLES);
-        assert_eq!(SPEC.available_arg_values_at(1, None).len(), 1);
     }
 }

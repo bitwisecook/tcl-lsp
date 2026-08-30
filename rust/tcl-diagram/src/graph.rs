@@ -316,7 +316,7 @@ mod tests {
         // actions) appear. Under stock-Tcl lexing the `}{` derails the parse and
         // the flowchart comes out empty.
         let src = "when HTTP_REQUEST {\n  if { [HTTP::uri] eq \"/a\" }{\n    pool a_pool\n  } else {\n    pool b_pool\n  }\n}";
-        let registry = tcl_registry::registry_for_dialect("f5-irules");
+        let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let out = irule_flowchart_graph(src, registry);
         // Valid JSON graph carrying both branch actions.
         let v: Value = serde_json::from_str(&out).expect("valid JSON graph");
@@ -330,7 +330,7 @@ mod tests {
 
     #[test]
     fn flowchart_empty_source_is_blank() {
-        let registry = tcl_registry::registry_for_dialect("f5-irules");
+        let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         assert_eq!(irule_flowchart_graph("# just a comment\n", registry), "");
     }
 }

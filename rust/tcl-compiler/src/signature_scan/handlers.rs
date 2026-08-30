@@ -741,7 +741,8 @@ mod tests {
     }
 
     fn command_spec(name: &str) -> &'static tcl_registry::CommandSpec {
-        tcl_registry::registry_for_dialect("tcl9.0")
+        tcl_registry::model::ingress::static_context_for("tcl9.0")
+            .commands()
             .get(name)
             .expect("test command spec")
     }

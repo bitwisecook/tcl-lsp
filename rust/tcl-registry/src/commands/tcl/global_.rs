@@ -21,6 +21,9 @@
 use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::prelude::*;
 use crate::state_transition::local_alias_name;
+use tcl_dialect::model::Family;
+use tcl_dialect::model::SpecSurface;
+use tcl_dialect::surface;
 
 const GLOBAL_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
     StateTransitionDomain::VariableCells,
@@ -69,11 +72,14 @@ const FORMS: &[FormSpec] = &[
     // — the manpage's own SYNOPSIS changed from `global varname ?varname
     // ...?` to `global ?varname ...?` at that same boundary (8.6 TclCmd
     // manpage vs. 8.4/8.5). Expect, Synopsys, and Cadence embed an
-    // 8.6-based Tcl core (`DialectSet::expr_grammar_base_version`), so
+    // 8.6-based Tcl core (`DialectProfile::expr_grammar_base`), so
     // they follow this form too.
     FormSpec {
         synopsis: "global ?varname ...?",
-        dialects: Some(DialectSet::TCL86_PLUS.union(DialectSet::EXPECT)),
+        surface: Some(surface![
+            SpecSurface::core_in(Family::Tcl, &[("8.6", Some("9.2"))]),
+            SpecSurface::package("expect")
+        ]),
         ..FormSpec::DEFAULT
     },
     // Tcl 8.4 and 8.5 require at least one varname: `Tcl_GlobalObjCmd`
@@ -81,17 +87,16 @@ const FORMS: &[FormSpec] = &[
     // so a bare `global` is a hard "wrong # args" error there (matching
     // those versions' manpage SYNOPSIS, `global varname ?varname ...?`).
     // iRules, iApps, tmsh, and the Xilinx/Quartus/Mentor EDA shells embed
-    // an 8.4- or 8.5-based Tcl core (`DialectSet::expr_grammar_base_version`),
+    // an 8.4- or 8.5-based Tcl core (`DialectProfile::expr_grammar_base`),
     // so they inherit the same requirement.
     FormSpec {
         synopsis: "global varname ?varname ...?",
-        dialects: Some(
-            DialectSet::TCL84
-                .union(DialectSet::TCL85)
-                .union(DialectSet::IRULES)
-                .union(DialectSet::IAPPS)
-                .union(DialectSet::TMSH),
-        ),
+        surface: Some(surface![
+            SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.6"))]),
+            SpecSurface::core(Family::F5Irules),
+            SpecSurface::package("iapps"),
+            SpecSurface::package("tmsh")
+        ]),
         ..FormSpec::DEFAULT
     },
 ];
@@ -104,7 +109,7 @@ static REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout::every(ArgRole::VarW
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "global",
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED

@@ -61,7 +61,7 @@
 //! `link` therefore needs the **same two entries** its bare twin has, not
 //! one (Codex review of PR #1084): Tcllib's `ooutil` installs a real
 //! `::oo::Helpers::link` under 8.6/8.7, so a document that says
-//! `package require ooutil` may legitimately write the qualified spelling
+//! `package require oo::util` may legitimately write the qualified spelling
 //! and must get completion, hover, and no `W123`. Deriving only from the
 //! 9.0 core spec would have made the qualified call unknown on exactly the
 //! dialect where a user has to reach for it. Both twins are derived from
@@ -152,6 +152,7 @@ const QUALIFIED_SPELLING_EXCLUDED: Traits = Traits::TCLOO_METHOD_CONTEXT
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tcl_dialect::model::SpecSurface;
 
     /// tclsh 9.0.4: `info commands ::oo::Helpers::*` lists exactly
     /// `callback classvariable link mymethod next nextto self` — all seven
@@ -202,7 +203,7 @@ mod tests {
         assert_eq!(derived.len(), family().len());
         for ((qualified, bare), found) in family().into_iter().zip(derived) {
             assert_eq!(found.name, qualified);
-            assert_eq!(found.dialects, bare.dialects, "{qualified} dialects");
+            assert_eq!(found.surface, bare.surface, "{qualified} dialects");
             assert_eq!(
                 found.required_package, bare.required_package,
                 "{qualified} required_package"
@@ -231,12 +232,12 @@ mod tests {
             .iter()
             .find(|s| s.required_package.is_none())
             .expect("a core entry");
-        assert_eq!(core.dialects, Some(DialectSet::TCL90_PLUS));
+        assert_eq!(core.surface, Some(SpecSurface::TCL90_PLUS));
         let ooutil = links
             .iter()
-            .find(|s| s.required_package == Some("ooutil"))
+            .find(|s| s.required_package == Some("oo::util"))
             .expect("an ooutil entry");
-        assert_eq!(ooutil.dialects, Some(DialectSet::TCL86));
-        assert_eq!(ooutil.tcllib_package, Some("ooutil"));
+        assert_eq!(ooutil.surface, Some(SpecSurface::TCL86));
+        assert_eq!(ooutil.tcllib_package, Some("oo::util"));
     }
 }

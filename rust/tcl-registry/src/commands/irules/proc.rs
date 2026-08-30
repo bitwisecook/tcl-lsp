@@ -26,6 +26,7 @@
 //! shadows the Tcl spec with empty roles.
 use crate::hooks::LoweringHookId;
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "proc",
@@ -35,7 +36,7 @@ pub const fn spec() -> CommandSpec {
             // The body is stored for later invocation, exactly as in the
             // Tcl `proc` spec — see `commands/tcl/proc_.rs`.
             .union(Traits::DEFERS_BODY),
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::exact(3),
         arg_roles: &[
             (0, ArgRole::Name),
@@ -63,7 +64,8 @@ pub const fn spec() -> CommandSpec {
             ..SideEffect::DEFAULT
         }],
         analyser_hook: Some(crate::hooks::AnalyserHookId::Proc),
-        command_table_effect: Some(crate::command_table::CommandTableEffect::DefinesProcedure),
+        // Declared once, by naming the stock descriptor (ledger C8).
+        state_transitions: Some(crate::state_transition::command_binding::DEFINES_PROCEDURE),
         ..CommandSpec::DEFAULT
     }
 }

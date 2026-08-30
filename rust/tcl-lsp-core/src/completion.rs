@@ -75,9 +75,10 @@
 
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope};
-use tcl_registry::{CommandRegistry, ProfileQueries};
+use tcl_registry::CommandRegistry;
 
 use crate::definition::utf16_col_to_char_col;
+use tcl_dialect::model::SpecSurface;
 
 /// LSP completion-item kind for our surface.  Keep narrow —
 /// extend as richer completion is added.
@@ -324,10 +325,13 @@ fn switch_completion_items(
         .then(|| nth_word_on_line(source, line, 1))
         .flatten()
         .and_then(|sub_name| {
-            spec.resolve_subcommand_for_dialect(&sub_name, profile.availability_mask)
+            spec.resolve_subcommand_for_dialect(
+                &sub_name,
+                Some(crate::document_context_for_profile(profile).authoring_query()),
+            )
         });
     let floor = package_version_floor(analysis, spec, profile);
-    let (options, parent_dialects) = match sub {
+    let (options, parent_surface) = match sub {
         Some(sub) => {
             // The dispatch word of a two-level ensemble, when the cursor is
             // past it — `namespace ensemble configure -⟨tab⟩` has it at
@@ -338,13 +342,13 @@ fn switch_completion_items(
                 .flatten();
             let scope = sub.option_scope(
                 next.as_deref(),
-                Some(profile.availability_mask),
+                Some(crate::document_context_for_profile(profile).authoring_query()),
                 floor,
-                spec.dialects,
+                spec.surface,
             );
-            (scope.options, scope.dialects)
+            (scope.options, scope.surface)
         }
-        None => (spec.options, spec.dialects),
+        None => (spec.options, spec.surface),
     };
     if options.is_empty() {
         return None;
@@ -361,7 +365,7 @@ fn switch_completion_items(
     Some(switch_completions(
         options,
         profile,
-        parent_dialects,
+        parent_surface,
         switch_partial,
         edit,
         floor,
@@ -527,7 +531,8 @@ fn context_aware_completions(
     {
         let floor = package_version_floor(analysis, spec, profile);
         return Some(sub_subcommand_completions(
-            profile.available_sub_subcommands(spec, sub, floor),
+            crate::document_context_for_profile(profile)
+                .available_sub_subcommands(spec, sub, floor),
             partial,
         ));
     }
@@ -723,14 +728,7 @@ pub fn completions(
     // The context test is registry-driven (`ArgRole::Expr`); see
     // `crate::expr_context`.
     if let Some(registry) = registry
-        && crate::expr_context::expr_arg_context_at(
-            source,
-            line,
-            character,
-            &line_index,
-            registry,
-            crate::document_floor::DocumentFloor::new(analysis, profile),
-        )
+        && crate::expr_context::expr_arg_context_at(source, line, character, &line_index, registry)
     {
         items.extend(math_function_completions(registry, profile, &partial));
     }
@@ -739,8 +737,10 @@ pub fn completions(
         // only *present* once the Tk package is loaded — the `tk` dialect (a
         // `wish` document) or a `package require Tk` in this file.  Without
         // that, a plain `.tcl` script must not be offered `button`/`pack`/… .
-        let tk_loaded = tcl_dialect::DialectSet::parse(dialect.name)
-            .is_some_and(|set| set.contains(tcl_dialect::DialectSet::TK))
+        // P3 (ledger F4): both halves are placement facts now — the
+        // environment ships Tk ambient (`wish`), or this document required
+        // it. No `SpecSurface` bit and no environment *name* is consulted.
+        let tk_loaded = crate::document_context_for_dialect(dialect.name).ambient_package("Tk")
             || analysis.package_requires.iter().any(|req| req.name == "Tk");
         let oo_frame = oo_frame_at(analysis, source, line, character, &line_index);
         items.extend(builtin_completions(
@@ -1562,8 +1562,11 @@ fn registry_method_items(
     let package_version = registry.get(class_q).and_then(|spec| {
         crate::document_floor::DocumentFloor::new(analysis, profile).for_spec(spec)
     });
-    let methods =
-        registry.instance_methods_at(class_q, package_version, Some(profile.availability_mask));
+    let methods = registry.instance_methods_at(
+        class_q,
+        package_version,
+        Some(crate::document_context_for_profile(profile).authoring_query()),
+    );
     let mut items: Vec<CompletionItem> = methods
         .into_iter()
         .map(|m| CompletionItem {
@@ -1628,7 +1631,7 @@ fn switch_partial_at_position(
 fn switch_completions(
     options: &[tcl_registry::hover::OptionSpec],
     profile: &'static tcl_dialect::DialectProfile,
-    parent_dialects: Option<tcl_dialect::DialectSet>,
+    parent_surface: Option<&'static [SpecSurface]>,
     partial: &str,
     edit: (u32, u32),
     package_version: Option<&str>,
@@ -1637,7 +1640,8 @@ fn switch_completions(
         .iter()
         .filter(|opt| {
             opt.available_for_version(package_version)
-                && profile.is_option_available(opt, parent_dialects)
+                && crate::document_context_for_profile(profile)
+                    .option_available(opt, parent_surface)
         })
         .collect();
     opts.sort_unstable_by_key(|opt| opt.name);
@@ -1751,7 +1755,7 @@ fn subcommand_completions(
     // must not be offered in an 8.6 buffer, and an iRules-only subcommand
     // must not surface in plain Tcl.
     let floor = package_version_floor(analysis, spec, profile);
-    let mut subs: Vec<&tcl_registry::SubCommand> = profile
+    let mut subs: Vec<&tcl_registry::SubCommand> = crate::document_context_for_profile(profile)
         .available_subcommands(spec)
         .into_iter()
         .filter(|sub| sub.available_for_version(floor))
@@ -2036,8 +2040,9 @@ fn builtin_completions(
     // never removes a version-gated core command, so `command_names()`
     // still lists `try` under `tcl8.4`/`tcl8.5` — filter here via the same
     // profile resolution the analyser's W123 uses. An unknown dialect
-    // (custom / non-Tcl) resolves to the permissive fallback profile.
+    // (custom / non-Tcl) resolves to the permissive fallback environment.
     let profile = dialect;
+    let context = crate::document_context_for_profile(profile);
     let mut names: Vec<&str> = registry
         .command_names()
         .filter(|n| partial.is_empty() || n.starts_with(partial))
@@ -2047,7 +2052,7 @@ fn builtin_completions(
                     .contains(tcl_registry::prelude::Traits::OPERATOR_COMMAND)
             })
         })
-        .filter(|n| profile.resolve_command(registry, n).is_some())
+        .filter(|n| context.resolve_spec(registry, n).is_some())
         // A command whose *bare* spelling only works inside a `TclOO`
         // method context (`link` / `my` / `next` / `nextto` / `self` /
         // `classvariable` — issue #1026) is offered only there: completing
@@ -2065,12 +2070,14 @@ fn builtin_completions(
         // is loaded — see the `tk_loaded` computation in `completions` — and
         // never inside a vendor shell: an F5 / EDA / bpf profile is a closed
         // world where a desktop library cannot be `package require`d, even if
-        // the source says so. A profile can host Tk iff it carries a Tk library
-        // pin (dialect-profile-model.md §7.2); the EDA shells are packaged
-        // vendors with no vendor_bit, so this keys off the pin, not the bit
-        // (eda-library-packages.md).
+        // the source says so. An environment can host Tk iff it declares a Tk
+        // placement (redesign §3.2's placement claims, ledger F4); the EDA
+        // shells are packaged vendors with no vendor_surface, so this keys off
+        // the placement, not the bit (eda-library-packages.md). P3 moved the
+        // query onto the resolved context, where hosting is one predicate
+        // over the environment's own placements.
         .filter(|n| {
-            (tk_loaded && profile.hosts_tk())
+            (tk_loaded && context.can_host_package("Tk"))
                 || registry
                     .get(n)
                     .is_none_or(|spec| spec.required_package != Some("Tk"))
@@ -2086,7 +2093,7 @@ fn builtin_completions(
                 // On a keyed ambient axis (the F5 surfaces) the declared
                 // range applies: explicit introduction or the 15.0
                 // baseline, plus any removal release.
-                match (profile.keyed_version_range(spec), floor) {
+                match (context.keyed_version_range(spec), floor) {
                     (Some((min, max)), Some(floor)) => {
                         tcl_registry::version::within_range(floor, min, max)
                     }
@@ -2108,7 +2115,7 @@ fn builtin_completions(
             // This is the same resolution the availability filter above
             // already applies, so the item and the decision to offer it
             // cannot disagree.
-            let spec = profile.resolve_command(registry, name);
+            let spec = context.resolve_spec(registry, name);
             CompletionItem {
                 label: name.to_owned(),
                 insert_text: name.to_owned(),
@@ -2180,6 +2187,11 @@ fn command_detail(
 ) -> String {
     if let Some(pkg) = spec.tcllib_package {
         format!("tcllib ({pkg})")
+    // Ledger C1/F1 (post-P1-G): `ResolvedContext::ambient_package` is the
+    // context-keyed twin of this registry query, and answers identically
+    // here because the store *is* this document's generation. Threading a
+    // context through the detail formatter waits for the profile stamp's
+    // retirement.
     } else if let Some(pkg) = spec.required_package
         && !registry.is_ambient_package(pkg)
     {
@@ -2336,8 +2348,10 @@ fn fuzzy_command_fallback(
     }
     universe.extend(proc_completions(analysis, "", &usage));
     if let Some(registry) = registry {
-        let tk_loaded = tcl_dialect::DialectSet::parse(dialect.name)
-            .is_some_and(|set| set.contains(tcl_dialect::DialectSet::TK))
+        // P3 (ledger F4): both halves are placement facts now — the
+        // environment ships Tk ambient (`wish`), or this document required
+        // it. No `SpecSurface` bit and no environment *name* is consulted.
+        let tk_loaded = crate::document_context_for_dialect(dialect.name).ambient_package("Tk")
             || analysis.package_requires.iter().any(|req| req.name == "Tk");
         let oo_frame = oo_frame_at(analysis, source, line, character, line_index);
         universe.extend(builtin_completions(
@@ -2366,6 +2380,7 @@ fn fuzzy_command_fallback(
 mod tests {
     use super::*;
     use tcl_compiler::analyser::Analyser;
+    use tcl_dialect::model::{Family, SurfaceLayer};
 
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
@@ -2396,7 +2411,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let key = items
             .iter()
@@ -2423,7 +2438,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let key = items
             .iter()
@@ -2446,7 +2461,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"bark"), "own method missing: {labels:?}");
@@ -2479,7 +2494,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         assert!(
             !items.iter().any(|item| item.label == "bark"),
@@ -2515,7 +2530,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"shift"), "declared method: {labels:?}");
@@ -2554,7 +2569,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
@@ -2579,7 +2594,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
@@ -2613,7 +2628,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         for name in ["alpha", "beta", "gamma", "fetch"] {
@@ -2637,7 +2652,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
@@ -2673,7 +2688,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
@@ -2701,7 +2716,7 @@ mod tests {
                 &analysis,
                 Some(&registry),
                 None,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             );
             let offered = items
                 .iter()
@@ -2728,7 +2743,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         assert!(
             items.iter().any(|i| i.label == "onlyclass"),
@@ -2758,7 +2773,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
@@ -2799,7 +2814,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
@@ -2827,7 +2842,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"sit"), "sibling missing: {labels:?}");
@@ -2849,7 +2864,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
@@ -2878,7 +2893,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
@@ -2897,7 +2912,7 @@ mod tests {
     fn widget_method_completion_follows_the_document_tk_floor() {
         fn labels(source: &str, dialect: &'static str, line: u32) -> Vec<String> {
             let analysis = analyse(source);
-            let registry = tcl_registry::registry_for_dialect(dialect);
+            let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
             completions(
                 source,
                 line,
@@ -2905,7 +2920,7 @@ mod tests {
                 &analysis,
                 Some(registry),
                 None,
-                tcl_dialect::DialectProfile::by_name(dialect),
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
             )
             .into_iter()
             .map(|item| item.label)
@@ -2946,7 +2961,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"curselection"), "{labels:?}");
@@ -2969,7 +2984,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
@@ -3018,7 +3033,7 @@ mod tests {
             &analysis,
             None,
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         assert!(!items.is_empty(), "expected variable completions");
         assert_eq!(items[0].kind, CompletionKind::Variable);
@@ -3042,7 +3057,7 @@ mod tests {
             &analysis,
             None,
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert_eq!(labels, vec!["$banana"]);
@@ -3060,7 +3075,7 @@ mod tests {
             &analysis,
             None,
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         assert_eq!(items.len(), 1, "{items:?}");
         assert_eq!(items[0].kind, CompletionKind::Function);
@@ -3101,7 +3116,7 @@ mod tests {
             &analysis,
             None,
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let greet = items
             .iter()
@@ -3136,7 +3151,7 @@ mod tests {
             &analysis,
             None,
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"alpha"));
@@ -3165,7 +3180,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
@@ -3188,7 +3203,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let puts = items.iter().find(|i| i.label == "puts").expect("puts");
         assert_eq!(puts.detail.as_deref(), Some("built-in"), "{puts:?}");
@@ -3203,7 +3218,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         if let Some(geturl) = items.iter().find(|i| i.label == "http::geturl") {
             assert_eq!(
@@ -3216,7 +3231,7 @@ mod tests {
 
     #[test]
     fn command_detail_formats_each_provenance() {
-        let reg = tcl_registry::registry_for_dialect("tcl8.6");
+        let reg = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         // built-in: no package.
         assert_eq!(command_detail(reg.get("puts").unwrap(), reg), "built-in");
         // stdlib: required_package set.
@@ -3226,14 +3241,14 @@ mod tests {
         // An ambient vendor surface reads as part of the runtime, never as
         // a require-gated stdlib package (§7.1 axis C). The registry is what
         // is asked, so a pack's `ambient_package` row would read the same way.
-        let ireg = tcl_registry::registry_for_dialect("f5-irules");
+        let ireg = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let http2 = ireg.get("HTTP2::header").expect("HTTP2::header spec");
         assert_eq!(command_detail(http2, ireg), "built-in");
     }
 
     #[test]
     fn irules_subcommand_completion_uses_configured_bigip_version() {
-        let registry = tcl_registry::registry_for_dialect("f5-irules");
+        let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let profile = tcl_dialect::DialectProfile::irules();
         let c3d = registry.get("SSL::c3d").expect("SSL::c3d spec");
 
@@ -3269,7 +3284,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
@@ -3297,7 +3312,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         for op in &["+", "-", "*", "/", ">", ">=", "<", "<=", "==", "!="] {
@@ -3324,7 +3339,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         for op in &["eq", "ne", "in", "ni", "lt", "le", "gt", "ge"] {
@@ -3348,7 +3363,7 @@ mod tests {
             &analysis,
             None,
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels_no_registry: Vec<&str> =
             items_no_registry.iter().map(|i| i.label.as_str()).collect();
@@ -3374,7 +3389,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
@@ -3404,7 +3419,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         // Only variable completions allowed here.
         for it in &items {
@@ -3438,7 +3453,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
@@ -3466,7 +3481,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
@@ -3496,7 +3511,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert_eq!(
@@ -3521,7 +3536,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         // `string` has at minimum `length`, `match`, `range`,
@@ -3551,7 +3566,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         // Some f-prefixed command should surface (foreach,
@@ -3583,7 +3598,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         // The user proc `helper` should surface (fallback path).
@@ -3614,7 +3629,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
@@ -3642,7 +3657,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         // Every result must start with `-`.
@@ -3669,7 +3684,7 @@ mod tests {
             &a1,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         )
         .into_iter()
         .map(|i| i.label)
@@ -3688,7 +3703,7 @@ mod tests {
             &a2,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         )
         .into_iter()
         .map(|i| i.label)
@@ -3714,7 +3729,7 @@ mod tests {
             &a,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         )
         .into_iter()
         .map(|i| i.label)
@@ -3730,7 +3745,7 @@ mod tests {
             &a,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         )
         .into_iter()
         .map(|i| i.label)
@@ -3758,7 +3773,7 @@ mod tests {
             &a,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         )
         .into_iter()
         .map(|i| i.label)
@@ -3774,7 +3789,7 @@ mod tests {
             &a,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         )
         .into_iter()
         .map(|i| i.label)
@@ -3802,7 +3817,7 @@ mod tests {
             &a1,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.4"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
         )
         .into_iter()
         .map(|i| i.label)
@@ -3819,7 +3834,7 @@ mod tests {
             &a1,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         )
         .into_iter()
         .map(|i| i.label)
@@ -3838,7 +3853,7 @@ mod tests {
             &a2,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         )
         .into_iter()
         .map(|i| i.label)
@@ -3846,148 +3861,6 @@ mod tests {
         assert!(
             l2.iter().any(|l| l == "ttk::button"),
             "Tk 8.5 must offer ttk::button: {l2:?}",
-        );
-    }
-
-    /// A command whose second argument — values and role alike — a pack
-    /// author declared as arriving in release 3.0 (issue #1644).
-    ///
-    /// The stored parallel slices are the projection at *no floor*, exactly as
-    /// the pack loader seals them, with the authored rows retained beside
-    /// them.
-    fn gated_row_registry() -> CommandRegistry {
-        const LATER_VALUES: &[tcl_registry::ArgValue] = &[tcl_registry::ArgValue {
-            value: "brandnew",
-            ..tcl_registry::ArgValue::DEFAULT
-        }];
-        const ROWS: &[tcl_registry::spec::VersionedArgRow] = &[
-            // Argument 0 — ungated, the control.
-            tcl_registry::spec::VersionedArgRow {
-                index: 0,
-                values: LATER_VALUES,
-                ..tcl_registry::spec::VersionedArgRow::DEFAULT
-            },
-            // Argument 1 — an expression argument only from 3.0.
-            tcl_registry::spec::VersionedArgRow {
-                index: 1,
-                lifecycle: tcl_registry::lifecycle::Lifecycle::introduced_in("3.0"),
-                role: Some(tcl_registry::ArgRole::Expr),
-                ..tcl_registry::spec::VersionedArgRow::DEFAULT
-            },
-            // Argument 2 — its enumerable values arrive with it at 3.0.
-            tcl_registry::spec::VersionedArgRow {
-                index: 2,
-                lifecycle: tcl_registry::lifecycle::Lifecycle::introduced_in("3.0"),
-                values: LATER_VALUES,
-                ..tcl_registry::spec::VersionedArgRow::DEFAULT
-            },
-        ];
-        const VALUES: &[(u8, &[tcl_registry::ArgValue])] = &[(0, LATER_VALUES), (2, LATER_VALUES)];
-        const ROLES: &[(u8, tcl_registry::ArgRole)] = &[(1, tcl_registry::ArgRole::Expr)];
-        let mut registry = CommandRegistry::build_default();
-        registry.insert(tcl_registry::CommandSpec {
-            name: "gadget",
-            required_package: Some("Gadgetry"),
-            arg_rows: ROWS,
-            arg_values: VALUES,
-            arg_roles: ROLES,
-            arity: tcl_registry::Arity::at_least(0),
-            ..tcl_registry::CommandSpec::DEFAULT
-        });
-        registry
-    }
-
-    #[test]
-    fn arg_value_completion_gates_a_versioned_argument_row() {
-        // Issue #1644's acceptance, "not offered" half, end to end: the values
-        // of an argument introduced at 3.0 are offered against a 3.0 floor and
-        // not against a 2.0 one. Nothing in completion changed to make this
-        // work — the row gate lands inside `available_arg_values_at`, the
-        // accessor completion already calls with the document's floor.
-        let registry = gated_row_registry();
-        let labels = |src: &str| -> Vec<String> {
-            let analysis = analyse(src);
-            completions(
-                src,
-                1,
-                18,
-                &analysis,
-                Some(&registry),
-                None,
-                tcl_dialect::DialectProfile::by_name("tcl8.6"),
-            )
-            .into_iter()
-            .map(|i| i.label)
-            .collect()
-        };
-        let old = labels("package require Gadgetry 2.0\ngadget one two bra\n");
-        assert!(
-            !old.iter().any(|l| l == "brandnew"),
-            "a 2.0 floor must not offer the 3.0 argument's values: {old:?}"
-        );
-        let new = labels("package require Gadgetry 3.0\ngadget one two bra\n");
-        assert!(
-            new.iter().any(|l| l == "brandnew"),
-            "a 3.0 floor must offer them: {new:?}"
-        );
-    }
-
-    #[test]
-    fn ungated_argument_values_are_offered_at_every_floor() {
-        // FP control for the above: argument 0 of the same command carries no
-        // lifecycle, so the floor changes nothing about it. Without this, a
-        // gate that swallowed *every* row would read as a pass.
-        let registry = gated_row_registry();
-        for require in ["2.0", "3.0"] {
-            let src = format!("package require Gadgetry {require}\ngadget bra\n");
-            let analysis = analyse(&src);
-            let labels: Vec<String> = completions(
-                &src,
-                1,
-                10,
-                &analysis,
-                Some(&registry),
-                None,
-                tcl_dialect::DialectProfile::by_name("tcl8.6"),
-            )
-            .into_iter()
-            .map(|i| i.label)
-            .collect();
-            assert!(
-                labels.iter().any(|l| l == "brandnew"),
-                "an ungated argument is offered at {require}: {labels:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn math_function_completion_gates_a_versioned_expr_row() {
-        // The "not role-typed" half, through the same document floor: the
-        // `expr`-argument context test asks the registry which arguments are
-        // `ArgRole::Expr`, and at a 2.0 floor argument 1 is not one — so the
-        // math-function vocabulary is not offered inside it.
-        let registry = gated_row_registry();
-        let offers_math = |src: &str| -> bool {
-            let analysis = analyse(src);
-            completions(
-                src,
-                1,
-                14,
-                &analysis,
-                Some(&registry),
-                None,
-                tcl_dialect::DialectProfile::by_name("tcl8.6"),
-            )
-            .into_iter()
-            .any(|item| item.label == "sqrt")
-        };
-        assert!(
-            !offers_math("package require Gadgetry 2.0\ngadget one {sq\n"),
-            "argument 1 is not an expression at a 2.0 floor"
-        );
-        assert!(
-            offers_math("package require Gadgetry 3.0\ngadget one {sq\n"),
-            "it is from 3.0"
         );
     }
 
@@ -4000,7 +3873,7 @@ mod tests {
 
     fn irules_registry() -> CommandRegistry {
         let mut r = CommandRegistry::build_default();
-        r.load_dialect(tcl_dialect::DialectSet::IRULES);
+        r.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         r
     }
 
@@ -4018,7 +3891,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
@@ -4043,7 +3916,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         assert!(
             items
@@ -4068,7 +3941,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
@@ -4091,7 +3964,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
@@ -4123,7 +3996,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
@@ -4159,7 +4032,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         // The user proc still appears via the fallback path.
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
@@ -4184,7 +4057,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"parade"), "{labels:?}");
@@ -4209,7 +4082,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
@@ -4227,7 +4100,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
@@ -4256,6 +4129,49 @@ mod tests {
             labels.contains(&"button"),
             "Tk `button` should surface in the `tk` dialect: {labels:?}",
         );
+    }
+
+    /// **P3.** The completion gate is now two placement queries, not an
+    /// environment name plus a hosting table: Tk names are offered where
+    /// Tk is in the world (ambient, or required here) **and** the
+    /// environment declares a Tk placement at all. The `wish` alias must
+    /// answer identically to `tk` — it is the same environment row — and a
+    /// vendor shell must refuse even with an explicit require.
+    #[test]
+    fn tk_completion_follows_the_placement_not_the_environment_name() {
+        let registry = CommandRegistry::build_default();
+        let offers = |src: &str, line: u32, character: u32, dialect: &str| {
+            let analysis = analyse(src);
+            completions(
+                src,
+                line,
+                character,
+                &analysis,
+                Some(&registry),
+                None,
+                crate::profile_for_dialect(dialect),
+            )
+            .iter()
+            .any(|item| item.label == "button")
+        };
+        // Ambient: `wish` under either spelling of its identity.
+        assert!(offers("butt\n", 0, 4, "tk"), "tk");
+        assert!(offers("butt\n", 0, 4, "wish"), "wish");
+        // Hosted: offered only once this document requires it.
+        assert!(!offers("butt\n", 0, 4, "tcl8.6"), "tcl8.6 bare");
+        assert!(!offers("butt\n", 0, 4, "tcl"), "lenient sink bare");
+        assert!(
+            offers("package require Tk\nbutt\n", 1, 4, "tcl8.6"),
+            "tcl8.6 with a require"
+        );
+        // Unhostable: a vendor shell declares no Tk placement, so a stray
+        // require changes nothing.
+        for shell in ["f5-iapps", "xilinx-eda-tcl", "bpf"] {
+            assert!(
+                !offers("package require Tk\nbutt\n", 1, 4, shell),
+                "{shell}"
+            );
+        }
     }
 
     #[test]
@@ -4296,7 +4212,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         // Plain fallback fires — any e-prefixed builtin
         // (`eval`, `exec`, `expr`, `error`…) should surface.
@@ -4323,7 +4239,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"alnum"), "{labels:?}");
@@ -4351,7 +4267,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"boolean"), "{labels:?}");
@@ -4378,7 +4294,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let alnum = items.iter().find(|i| i.label == "alnum").expect("alnum");
         assert!(
@@ -4406,7 +4322,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         assert!(
             items.iter().all(|i| i.kind != CompletionKind::EnumValue),
@@ -4436,7 +4352,7 @@ mod tests {
             &cur,
             None,
             Some(&index),
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
@@ -4467,7 +4383,7 @@ mod tests {
             &cur,
             None,
             Some(&index),
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let count = items.iter().filter(|i| i.label == "greet").count();
         assert_eq!(count, 1, "{items:?}");
@@ -4508,7 +4424,7 @@ mod tests {
             &cur,
             None,
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert_eq!(labels, vec!["greet"], "{labels:?}");
@@ -4544,8 +4460,12 @@ mod tests {
         // dialect, including canonicalised legacy aliases, offers every
         // event template.
         for dialect in ["f5-irules", "irules", "tcl-irule"] {
-            let labels =
-                irule_snippet_labels("irule", 0, 5, tcl_dialect::DialectProfile::by_name(dialect));
+            let labels = irule_snippet_labels(
+                "irule",
+                0,
+                5,
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+            );
             assert!(
                 labels.iter().any(|l| l == "iRule RULE_INIT"),
                 "{dialect}: expected RULE_INIT; got {labels:?}",
@@ -4605,7 +4525,7 @@ mod tests {
             "irule",
             0,
             5,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         assert!(labels.is_empty(), "got {labels:?}");
     }
@@ -4681,7 +4601,7 @@ mod tests {
             &analysis,
             None,
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert_eq!(labels, vec!["alpha"]);
@@ -4704,7 +4624,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert_eq!(labels, vec!["tolower", "totitle", "toupper"]);
@@ -4725,7 +4645,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let lsearch = items
             .iter()
@@ -4750,7 +4670,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         assert!(items.is_empty(), "got {items:?}");
     }
@@ -4767,7 +4687,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert_eq!(labels, vec!["length"], "typo'd subcommand fragment");
@@ -4786,7 +4706,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let nocase = items
             .iter()
@@ -4809,7 +4729,7 @@ mod tests {
             &analysis,
             None,
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert_eq!(labels, vec!["$banana"], "typo'd variable fragment");
@@ -4830,7 +4750,7 @@ mod tests {
             &analysis,
             None,
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert_eq!(labels, vec!["$arr(key)"], "typo'd array index");
@@ -4852,7 +4772,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let bark = items
             .iter()
@@ -4880,7 +4800,7 @@ mod tests {
             &analysis,
             Some(&registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"xyz"), "prefix proc expected: {labels:?}");
@@ -4915,7 +4835,7 @@ mod tests {
     fn subcommand_completion_is_version_gated_by_the_profile() {
         let src = "dict \n";
         let analysis = analyse(src);
-        let registry = tcl_registry::registry_for_dialect("tcl8.6");
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         // 8.6 buffer: 9.0-only subcommands are not offered.
         let items = completions(
             src,
@@ -4924,7 +4844,7 @@ mod tests {
             &analysis,
             Some(registry),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"get"), "{labels:?}");
@@ -4933,7 +4853,7 @@ mod tests {
             "dict getwithdefault is 9.0+ and must not be offered under tcl8.6: {labels:?}"
         );
         // 9.0 buffer: it is offered.
-        let registry90 = tcl_registry::registry_for_dialect("tcl9.0");
+        let registry90 = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
         let items90 = completions(
             src,
             0,
@@ -4941,7 +4861,7 @@ mod tests {
             &analysis,
             Some(registry90),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         let labels90: Vec<&str> = items90.iter().map(|i| i.label.as_str()).collect();
         assert!(labels90.contains(&"getwithdefault"), "{labels90:?}");
@@ -4951,8 +4871,10 @@ mod tests {
     fn command_completion_uses_profile_availability() {
         let src = "dic\n";
         let analysis = analyse(src);
-        // iApps embed Tcl 8.5: dict IS offered (the composed-mask fix)…
-        let registry = tcl_registry::registry_for_dialect("f5-iapps");
+        // iApps ride the `f5-tcl` trunk — a fork of Tcl at 8.4.6
+        // (measured, bigip-irule-parser-measurements.md §4a: `dict` fails
+        // in `IAppImplementation`) — so `dict` is NOT offered there…
+        let registry = tcl_registry::model::ingress::static_context_for("f5-iapps").commands();
         let items = completions(
             src,
             0,
@@ -4960,14 +4882,14 @@ mod tests {
             &analysis,
             Some(registry),
             None,
-            tcl_dialect::DialectProfile::by_name("f5-iapps"),
+            tcl_registry::model::ingress::resolve_environment("f5-iapps").analyser_profile(),
         );
         assert!(
-            items.iter().any(|i| i.label == "dict"),
-            "dict must be offered under f5-iapps (Tcl 8.5.13 host)"
+            !items.iter().any(|i| i.label == "dict"),
+            "dict must not be offered under f5-iapps (8.4.6 trunk, measured)"
         );
         // …while the banned iRules commands never surface there.
-        let irules_reg = tcl_registry::registry_for_dialect("f5-irules");
+        let irules_reg = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let exec_src = "exe\n";
         let exec_analysis = analyse(exec_src);
         let irules_items = completions(
@@ -4987,12 +4909,17 @@ mod tests {
 
     #[test]
     fn switch_option_completion_respects_profile_gating() {
-        // Option completion under f5-iapps offers the 8.5+ -nocase (the old
-        // contains rule dropped every version-gated option under a composed
-        // mask) but not the 9.0-only regsub -command.
+        // Option completion under f5-iapps follows the measured fork:
+        // F5 reclassification (measurements §4/§4a,
+        // `docs/design/bigip-irule-parser-measurements.md`) — the iApps
+        // host is the 8.4.6 `f5-tcl` fork, not the falsified 8.5.13
+        // hypothesis, so the 8.5+ `switch -nocase` is no longer offered
+        // there (it was the old expectation), and the 9.0-only `regsub
+        // -command` stays out. The 8.4-real `-exact` is still offered, so
+        // the composed vendor mask keeps working.
         let src = "switch -\n";
         let analysis = analyse(src);
-        let registry = tcl_registry::registry_for_dialect("f5-iapps");
+        let registry = tcl_registry::model::ingress::static_context_for("f5-iapps").commands();
         let items = completions(
             src,
             0,
@@ -5000,12 +4927,16 @@ mod tests {
             &analysis,
             Some(registry),
             None,
-            tcl_dialect::DialectProfile::by_name("f5-iapps"),
+            tcl_registry::model::ingress::resolve_environment("f5-iapps").analyser_profile(),
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
-            labels.contains(&"-nocase"),
-            "switch -nocase is 8.5+ core, offered under f5-iapps: {labels:?}"
+            labels.contains(&"-exact"),
+            "switch -exact is 8.4 core, offered under f5-iapps: {labels:?}"
+        );
+        assert!(
+            !labels.contains(&"-nocase"),
+            "switch -nocase is 8.5+ and the iApps host is a measured 8.4.6 fork: {labels:?}"
         );
 
         let src9 = "regsub -\n";
@@ -5017,7 +4948,7 @@ mod tests {
             &analysis9,
             Some(registry),
             None,
-            tcl_dialect::DialectProfile::by_name("f5-iapps"),
+            tcl_registry::model::ingress::resolve_environment("f5-iapps").analyser_profile(),
         );
         let labels9: Vec<&str> = items9.iter().map(|i| i.label.as_str()).collect();
         assert!(

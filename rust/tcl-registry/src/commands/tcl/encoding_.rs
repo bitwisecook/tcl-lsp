@@ -27,6 +27,7 @@
 //! exact version gating.
 
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: true,
@@ -81,7 +82,7 @@ const CONVERTFROM_OPTIONS: &[OptionSpec] = &[
             ..OptionArg::DEFAULT
         }),
         detail: "Encoding profile controlling how a conversion error is handled; defaults to strict.",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -94,7 +95,7 @@ const CONVERTFROM_OPTIONS: &[OptionSpec] = &[
             ..OptionArg::DEFAULT
         }),
         detail: "Variable to receive the index of the source byte that triggered a conversion error, or -1 if none did. When given, returns the successfully-converted prefix instead of raising an exception on failure.",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -115,7 +116,7 @@ const CONVERTTO_OPTIONS: &[OptionSpec] = &[
             ..OptionArg::DEFAULT
         }),
         detail: "Encoding profile controlling how a conversion error is handled; defaults to strict.",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -128,7 +129,7 @@ const CONVERTTO_OPTIONS: &[OptionSpec] = &[
             ..OptionArg::DEFAULT
         }),
         detail: "Variable to receive the index of the source character that triggered a conversion error, or -1 if none did. When given, returns the successfully-converted prefix instead of raising an exception on failure.",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -154,7 +155,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             // conservatively declare the write rather than staying `pure`.
             target: SideEffectTarget::Variable,
             writes: true,
-            dialects: Some(DialectSet::TCL90_PLUS),
+            surface: Some(SpecSurface::TCL90_PLUS),
             ..SideEffect::DEFAULT
         }],
         is_unescape: true,
@@ -182,7 +183,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             // see the identical note on `convertfrom` above.
             target: SideEffectTarget::Variable,
             writes: true,
-            dialects: Some(DialectSet::TCL90_PLUS),
+            surface: Some(SpecSurface::TCL90_PLUS),
             ..SideEffect::DEFAULT
         }],
         ..SubCommand::DEFAULT
@@ -206,7 +207,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         }],
         // Added in Tcl 8.5 — absent from the 8.4 synopsis and DESCRIPTION;
         // present, unchanged, in 8.5 through 9.1.
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -240,7 +241,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         // `encoding profiles` was added in Tcl 9.0 (TIP 656) — absent from
         // the 8.4/8.5/8.6 synopsis; present, unchanged, in 9.0.4 and 9.1b0.
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         detail: "Return a list of the names of the available encoding profiles (strict, tcl8, replace).",
         synopsis: "encoding profiles",
         pure: true,
@@ -252,7 +253,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(0),
         // `encoding user` was added in Tcl 9.0 (TIP 656) — absent from the
         // 8.4/8.5/8.6 synopsis; present, unchanged, in 9.0.4 and 9.1b0.
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         detail: "Return the encoding matching the user's platform preferences: on Windows, derived from the user's code-page registry setting; on other platforms, the same value as encoding system.",
         synopsis: "encoding user",
         pure: true,
@@ -264,7 +265,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "encoding",
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::BYTE_COMPILED | Traits::SAFE_INTERP_HIDDEN,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,

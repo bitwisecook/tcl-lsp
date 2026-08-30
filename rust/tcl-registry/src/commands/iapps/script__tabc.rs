@@ -18,6 +18,7 @@
 
 //! `script::tabc` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "script::tabc",
     ..FormSpec::DEFAULT
@@ -26,7 +27,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "script::tabc",
-        dialects: Some(DialectSet::IAPPS),
+        surface: Some(SpecSurface::IAPPS),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet::brief(
             "A script may provide ``script::tabc`` for tab completion.",

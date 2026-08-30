@@ -38,6 +38,10 @@
 //! - [`glob`] — `Tcl_StringCaseMatch` (`string match`) (done).
 //! - [`value`] — the `ValueOps` value seam + `ValueError` (the construct/inspect
 //!   parallel of [`expr::ExprOps`]).
+//! - [`release_expectations`] — per-release expectation columns for the
+//!   conformance vector files (done).
+//! - [`var_conformance`] — variable lookup/creation vectors (done).
+//! - [`ns_op_conformance`] — namespace-operation vectors (done).
 //! - `subst` — to follow.
 
 pub mod backslash;
@@ -51,8 +55,12 @@ pub mod glob;
 pub mod list;
 pub mod mro;
 pub mod naming;
+pub mod ns_op_conformance;
 pub mod number;
 pub mod number_tower;
+pub mod release_expectations;
 pub mod scan;
 pub mod switch_body;
 pub mod value;
+pub mod var_conformance;
+pub mod vector_ops;

@@ -29,8 +29,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use tcl_core_types::Code as CompletionCode;
-use tcl_registry::dialects::DialectSet;
 use tcl_registry::hooks::LoweringHookId;
+use tcl_registry::model::semantic::SemanticContext;
 use tcl_registry::{CommandRegistry, SemanticOperationId};
 
 use crate::ir::{NodeId, Script, SourceSite, Statement, WordExpr};
@@ -1644,7 +1644,7 @@ pub enum SourceCompatibilityDecline {
 /// enabled by this adapter.
 pub fn build_linear_executable_ir(
     registry: &CommandRegistry,
-    dialect: DialectSet,
+    context: Option<SemanticContext>,
     function: ExecutableFunctionId,
     script: &Script,
 ) -> Result<ExecutableFunction, SourceCompatibilityDecline> {
@@ -1652,13 +1652,13 @@ pub fn build_linear_executable_ir(
         return Err(SourceCompatibilityDecline::EmptyScript);
     }
     let mut allocator = IdAllocator::new(function);
-    let stages = plan_linear_stages(registry, dialect, script, &mut allocator)?;
+    let stages = plan_linear_stages(registry, context, script, &mut allocator)?;
     Ok(build_staged_function(function, &mut allocator, stages))
 }
 
 fn plan_linear_stages(
     registry: &CommandRegistry,
-    dialect: DialectSet,
+    context: Option<SemanticContext>,
     script: &Script,
     allocator: &mut IdAllocator,
 ) -> Result<Vec<Stage>, SourceCompatibilityDecline> {
@@ -1666,7 +1666,7 @@ fn plan_linear_stages(
     for (statement_index, statement) in script.statements.iter().enumerate() {
         let terminates = plan_source_statement(
             registry,
-            dialect,
+            context,
             statement,
             statement_index,
             allocator,
@@ -1681,7 +1681,7 @@ fn plan_linear_stages(
 
 fn plan_source_statement(
     registry: &CommandRegistry,
-    dialect: DialectSet,
+    context: Option<SemanticContext>,
     statement: &Statement,
     statement_index: usize,
     allocator: &mut IdAllocator,
@@ -1716,7 +1716,7 @@ fn plan_source_statement(
         source_call.command,
         source_call.args,
     )?;
-    let resolution = resolve_invocation_facts(registry, dialect, &words, statement_index)?;
+    let resolution = resolve_invocation_facts(registry, context, &words, statement_index)?;
     let entries = plan_argv_entries(&words, &node, allocator, stages);
     let argv = allocator.argv();
     stages.push(Stage::BuildArgv {
@@ -1978,11 +1978,11 @@ fn exact_words(
 /// retained in executable IR.
 fn resolve_invocation_facts(
     registry: &CommandRegistry,
-    dialect: DialectSet,
+    context: Option<SemanticContext>,
     words: &[WordExpr],
     statement_index: usize,
 ) -> Result<InvocationResolution, SourceCompatibilityDecline> {
-    match resolve_word_exprs(registry, dialect, words) {
+    match resolve_word_exprs(registry, context, words) {
         Ok(resolution) => Ok(resolution),
         Err(RegistryInvocationDecline::MissingCommandHead) => {
             Err(SourceCompatibilityDecline::MissingCommandHead { statement_index })
@@ -2260,6 +2260,10 @@ mod tests {
         }
     }
 
+    fn test_context() -> SemanticContext {
+        SemanticContext::for_environment("tcl8.6")
+    }
+
     fn find_invoke(function: &ExecutableFunction) -> &GenericInvoke {
         function
             .blocks
@@ -2280,7 +2284,7 @@ mod tests {
         ])]);
         let function = build_linear_executable_ir(
             &CommandRegistry::build_default(),
-            DialectSet::TCL86,
+            Some(test_context()),
             ExecutableFunctionId::new(1),
             &script,
         )
@@ -2313,7 +2317,7 @@ mod tests {
         let script = Script::from_statements(vec![call(vec![literal("puts", 0), expanded])]);
         let function = build_linear_executable_ir(
             &CommandRegistry::build_default(),
-            DialectSet::TCL86,
+            Some(test_context()),
             ExecutableFunctionId::new(2),
             &script,
         )
@@ -2352,7 +2356,7 @@ mod tests {
             Script::from_statements(vec![call(vec![literal("incr", 0), literal("counter", 5)])]);
         let function = build_linear_executable_ir(
             &CommandRegistry::build_default(),
-            DialectSet::TCL86,
+            Some(test_context()),
             ExecutableFunctionId::new(7),
             &script,
         )
@@ -2379,7 +2383,7 @@ mod tests {
         );
         let function = build_linear_executable_ir(
             &registry,
-            DialectSet::TCL86,
+            Some(test_context()),
             ExecutableFunctionId::new(70),
             &module.top_level,
         )
@@ -2411,7 +2415,7 @@ mod tests {
         let module = crate::lowering::lower_to_ir("set {totals($key)} 41", &registry);
         let function = build_linear_executable_ir(
             &registry,
-            DialectSet::TCL86,
+            Some(test_context()),
             ExecutableFunctionId::new(71),
             &module.top_level,
         )
@@ -2444,7 +2448,7 @@ mod tests {
             crate::lowering::lower_to_ir("if {$enabled} {puts enabled}\nputs finished", &registry);
         let function = build_linear_executable_ir(
             &registry,
-            DialectSet::TCL86,
+            Some(test_context()),
             ExecutableFunctionId::new(72),
             &module.top_level,
         )
@@ -2474,7 +2478,7 @@ mod tests {
         );
         let function = build_linear_executable_ir(
             &registry,
-            DialectSet::TCL86,
+            Some(test_context()),
             ExecutableFunctionId::new(73),
             &module.top_level,
         )
@@ -2522,7 +2526,7 @@ mod tests {
         ])]);
         let function = build_linear_executable_ir(
             &CommandRegistry::build_default(),
-            DialectSet::TCL86,
+            Some(test_context()),
             ExecutableFunctionId::new(8),
             &script,
         )
@@ -2550,7 +2554,7 @@ mod tests {
         ])]);
         let function = build_linear_executable_ir(
             &CommandRegistry::build_default(),
-            DialectSet::TCL86,
+            Some(test_context()),
             ExecutableFunctionId::new(9),
             &script,
         )
@@ -2579,7 +2583,7 @@ mod tests {
             Script::from_statements(vec![call(vec![literal("incr", 0), expanded.clone()])]);
         let function = build_linear_executable_ir(
             &CommandRegistry::build_default(),
-            DialectSet::TCL86,
+            Some(test_context()),
             ExecutableFunctionId::new(10),
             &script,
         )
@@ -2619,7 +2623,7 @@ mod tests {
         ])]);
         let function = build_linear_executable_ir(
             &CommandRegistry::build_default(),
-            DialectSet::TCL86,
+            Some(test_context()),
             ExecutableFunctionId::new(11),
             &script,
         )
@@ -2821,7 +2825,7 @@ mod tests {
             Script::from_statements(vec![call(vec![literal("puts", 0), variable.clone()])]);
         let function = build_linear_executable_ir(
             &CommandRegistry::build_default(),
-            DialectSet::TCL86,
+            Some(test_context()),
             ExecutableFunctionId::new(4),
             &script,
         )
@@ -2843,7 +2847,7 @@ mod tests {
         let script = Script::from_statements(vec![call(vec![head.clone(), literal("x", 9)])]);
         let function = build_linear_executable_ir(
             &CommandRegistry::build_default(),
-            DialectSet::TCL86,
+            Some(test_context()),
             ExecutableFunctionId::new(5),
             &script,
         )

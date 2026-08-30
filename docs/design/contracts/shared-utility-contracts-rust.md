@@ -51,7 +51,7 @@ entry point, or gate moves without this contract being updated.
 | iRules execution boundaries and placement | `rust/tcl-syntax/src/event_handler.rs`; `rust/tcl-registry/src/events.rs`; `rust/tcl-registry/src/registry.rs`; `rust/tcl-irules/src/when_block.rs`; `rust/tcl-irules/src/executable.rs` | `event_handlers`; `event_handlers_with_head_predicate`; `script_commands`; `top_level_when_handlers_with_registry_and_head_resolver`; `IrulesDeclarationArguments`; `IrulesExecutionContext`; `IrulesCommandPlacement`; `IrulesTopLevelDeclaration`; `IrulesTopLevelEffect`; `CommandRegistry::irules_command_placement`; `CommandRegistry::irules_event_declaration`; `CommandRegistry::irules_top_level_declaration`; `CommandRegistry::irules_top_level_declaration_shape`; `CommandRegistry::irules_top_level_effect`; `when_blocks`; `irules_executable_commands` | caller-supplied `LexerConfig`; offset-keyed resolved command identity; exact single-braced declaration body; declaration-only top level; known-event roots; call-reachable procedure bodies; stateful priority (`0..=1000`, default 500) | `xtask-gen-ai-diagnostics` |
 | text similarity | `rust/tcl-compiler/src/text.rs` | `edit_distance`; `rank_suggestions`; `rank_containment_suggestions` | invariant | none |
 | per-command knowledge | `rust/tcl-registry/src/spec.rs`; `rust/tcl-registry/src/hooks.rs`; `rust/tcl-registry/src/registry.rs` | `CommandSpec`; `SubCommand`; `CommandRegistry` | per release/dialect | `xtask-command-backing` |
-| dialect / release facts | `rust/tcl-dialect/src/profile.rs`; `rust/tcl-dialect/src/grammar.rs` | `DialectProfile`; `LexerGrammar`; `by_name`; `resolve_known`; `availability_for_name` | the resolved dialect/release axis | `xtask-editor-extensions` |
+| dialect / release facts | `rust/tcl-dialect/src/profile.rs`; `rust/tcl-dialect/src/grammar.rs` | `DialectProfile`; `LexerGrammar`; `find` | the resolved dialect/release axis | `xtask-editor-extensions` |
 | shared plain types | `rust/tcl-core-types/src/diag_code.rs` | `DiagCode` | invariant | `xtask-diag-tables` |
 <!-- end-owner-resolution-manifest -->
 
@@ -129,16 +129,19 @@ entry point, or gate moves without this contract being updated.
   hexadecimal digits; a fourteenth digit invalidates the parenthesised form.
   The scanner and value parser share it.
 
-- `tcl_dialect::DialectProfile::by_name` / `resolve_known` — the two dialect
-  *name* resolvers, and the difference between them is load-bearing. `by_name`
-  sinks every unrecognised name to the permissive plain-Tcl profile, which is
-  what a registry or lexer lookup wants. `resolve_known` additionally returns a
-  profile for an additive set-only ingress (`tk`), which is not in the catalogue
-  and would otherwise lose both its spelling and its availability bit.
-  Consumers threading a resolved profile through the LSP layer go through
-  `tcl_lsp_core::profile_for_dialect`, which composes the two (`resolve_known`
-  first, `by_name` as the sink) so a `wish` document keeps its Tk surface; that
-  is a policy over these owners, not a third resolver. See issue #1405.
+- `tcl_dialect::DialectProfile::find` — the one **catalogue** lookup left on
+  the profile (P1-G): canonical name or registered alias to interned profile,
+  `None` for everything else. It is what the environment seam and the
+  documented per-crate interop twins are built on, and it resolves an
+  environment id, never a user-written string. The retired name validators
+  (`by_name`, `by_opt_name`, `resolve_known`, `availability_for_name`) are
+  deleted; every user-written dialect name resolves through the one seam,
+  `tcl_registry::model::ingress::resolve_environment` (with
+  `resolve_known_environment` as the validator form), whose
+  `analyser_profile` / `unit_profile` faces reproduce the old sink and
+  `tk`-promotion policies exactly (pinned in the seam's tests). The
+  `retired-api-gate` holds the deleted spellings at zero. See issue #1405
+  and the centralisation ledger §3.
 
 - `tcl_dialect::DialectProfile`'s `file_extensions` and `filenames` — the two axes
   of **file** recognition, and the single source every editor's registration
@@ -154,14 +157,15 @@ entry point, or gate moves without this contract being updated.
   A consumer that restates either list rather than projecting it is the drift
   issue #1625 catalogued: six hand-maintained surfaces, three of them wrong.
 
-- `tcl_dialect::DialectProfile::availability_for_name` — the third leg of the
-  same axis, and the one the **analyser** actually travels. It answers the
-  command-availability `DialectSet` for a dialect name directly, unioning the
-  resolved profile's mask with the bit the name itself parses to. That union is
-  what keeps an additive ingress working: `tk` contributes `TK` even though the
-  profile it resolves to is the plain-Tcl fallback whose mask has no such bit.
-  A caller that resolves a profile and reads `profile.availability_mask`
-  instead will silently drop that bit.
+- Command availability for a *document* is asked at one **point** — the
+  resolved environment's authoring query
+  (`tcl_registry::model::ingress::DocumentEnvironment::document_context`,
+  then `ResolvedContext::authoring_query`, as
+  `static_document_context_for` returns it). It is what keeps the additive
+  `tk` ingress working: the `tk` environment's point names `Tk` among its
+  packages even though the analyser-facing fallback's does not — the union
+  the retired `availability_for_name` used to compute at the string
+  boundary, now a fact of the resolved environment.
 
 ### `tcl-lexer` — source-text decoding
 
@@ -419,58 +423,38 @@ entry point, or gate moves without this contract being updated.
 5. Grammar direction is 9.0-first by design: the shared number grammar
    accepts `0d5` and `1_000` even though 8.6 rejects them (dialect
    gating is a lexer/analyser concern, not a per-consumer parser fork).
-6. A per-argument fact is projected, never filtered by the consumer.
+6. **A per-argument fact is one authored row, projected once at load.**
    `CommandSpec`'s six parallel per-argument tables (`arg_roles`,
    `arg_types`, `arg_values`, `closed_value_args`, `arg_presentation`,
-   `command_prefixes`) are index-keyed slices with no record to hang a
-   `Lifecycle` on, so the authored rows live beside them as
-   `arg_rows: &[VersionedArgRow]` and
-   `tcl_registry::spec::project_arg_rows` is the **only** thing that
-   turns a row into the parallel form. A consumer that wants the tables
-   at a resolved package floor re-projects; one that open-codes a
-   seventh "is this row in range" test over one table has re-derived the
-   owner in five-sixths of the places it matters, which is the defect
-   the record shape exists to prevent.
-   `spec::versioned_arg_row_tests::projection_carries_every_row_column`
-   is the drift gate: a column added to the record and not to the
-   projection fails there rather than silently vanishing.
+   `command_prefixes`) are index-keyed slices, and the loader's
+   `ArgRows::seal` is the **one** place an authored `arg` row becomes that
+   parallel form — a column added to the row and not to the projection
+   vanishes silently, which is the defect the record shape exists to
+   prevent.
 
-   The division of labour is fixed, because the floor is a **per-document**
-   fact and not a load-time one: **the loader projects unfiltered, and a
-   consumer that wants the tables at a floor re-projects.** The stored
-   tables are therefore the projection at *no floor* — byte-identical to
-   what the pack loader built before rows existed, which is what makes an
-   unversioned pack unaffected — and `arg_rows` is retained only when some
-   row is actually gated, since there is nothing to re-project when no row
-   can be filtered out. A loader that tried to filter would have to pick
-   one document's floor for every document that ever reads the registry.
+   *Retired (redesign §11.1 O2, ruled 2026-08-27).* The per-argument
+   **lifecycle** machinery this point used to describe —
+   `arg_rows: &[VersionedArgRow]` retained beside the slices,
+   `project_arg_rows`, `ArgTables`, `CommandSpec::arg_tables_at`,
+   `CommandRegistry::arg_indices_for_role_at` and `command_prefixes_at` —
+   is deleted. It was declared-and-unpopulated surface: no shipped spec and
+   no pack ever gated an argument row, so every accessor took the
+   `is_empty()` fast path at every call and the only consumers were their
+   own tests. The retired-api gate now holds all seven spellings. Anything
+   that needs a per-argument version gate later comes back **with** its
+   consumer (principle P-C), and the projection point above is where it
+   would attach.
 
-   **How a consumer re-projects (issue #1644).** Through the accessor
-   family every other lifecycle-bearing fact already uses:
-   `CommandSpec::arg_tables_at(package_version)` (and its `SubCommand`
-   twin) answers with the tables *as they exist at that floor*, and
-   `CommandRegistry::arg_indices_for_role_at` is the role query's
-   floor-aware form. The floor stays an **argument**, never registry
-   state — registry handles are cached per (profile, pack overlay) and
-   shared across documents, so one that remembered a floor would answer
-   the wrong document. `arg_rows.is_empty()` is the fast reject: no
-   shipped spec gates an argument, so those specs hand back their stored
-   `&'static` slices by reference and only a gated pack command ever
-   builds a projection.
-
-   The consumers wired to it are the **request-time** ones, which is the
-   only place the answer can be right: a document's floor is settled by
-   its `package require` lines, so it exists once the walk that records
-   them has finished. `document_floor::DocumentFloor` is the one place a
-   provider resolves it — completion's value offers go through
-   `available_arg_values_at`, which now applies the row gate before the
-   value gate, and the `expr`-argument context test resolves roles at the
-   floor. Consumers reading the tables **during** the walk keep the
-   permissive no-floor projection: their answers are formed before the
-   floor is knowable, which is exactly why the arity axis (invariant 7)
-   buffers its verdict and decides post-walk. Making a walk-time reader
-   floor-aware means giving it that same deferred-verdict treatment, and
-   is deliberately not done by pretending a floor exists mid-walk.
+   The version-gated facts that remain — a *value*'s own `Lifecycle` and
+   `versioned_arg_values` — keep the request-time discipline the rest of
+   this point states: the floor is a per-document fact settled by the
+   document's `package require` lines, so it is an **argument** to
+   `available_arg_values_at`, never registry state. Registry handles are
+   cached per (profile, pack overlay) and shared across documents, so one
+   that remembered a floor would answer the wrong document. Consumers
+   reading during the walk keep the permissive no-floor answer: their
+   verdicts are formed before the floor is knowable, which is why the arity
+   axis (invariant 7) buffers and decides post-walk.
 7. A version floor is a lower bound and composes by taking the greatest.
    Three things can state one — a `package require` in the document, a
    `SpecTcl` pack's `ambient_package` row, and the profile's

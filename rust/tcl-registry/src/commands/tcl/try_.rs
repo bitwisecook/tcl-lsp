@@ -19,6 +19,7 @@
 //! `try` — trap and process errors and exceptions.
 
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 // `body`, every handler `script`, and `finally` can do literally anything
 // (`cmd_try` in `tcl-vm/src/cmd_try.rs` evaluates each one with
@@ -41,7 +42,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 // genuine "URL Not Found" page (HTTP 200 with a soft-404 body, not a
 // redirect quirk — the same pattern `throw_.rs` documents for
 // `throw`), consistent with `try` being a Tcl 8.6 addition (TIP 329,
-// alongside `throw`). `dialects: None` here inherits the command's own
+// alongside `throw`). `surface: None` here inherits the command's own
 // `TCL86_PLUS` gate below, so this single entry already correctly
 // excludes 8.4/8.5 and every dialect pinned to an 8.4/8.5 base.
 const FORMS: &[FormSpec] = &[FormSpec {
@@ -163,23 +164,22 @@ pub fn spec() -> CommandSpec {
             | Traits::BRANCH_SELECTED_BODY,
         // `TCL86_PLUS`, via the mask-intersection rule
         // `CommandSpec::supports_dialect` / `ProfileQueries::is_available`,
-        // already resolves availability correctly for every non-core
-        // dialect with no extra gate needed: `f5-irules`'s profile mask is
-        // the bare `IRULES` bit (an embedded Tcl 8.4.6 core), and
-        // `f5-iapps`/`f5-tmsh`/the Quartus/Mentor/Xilinx EDA shells all
-        // mask in `TCL85` (their documented Tcl base) — none of those
-        // five intersect `TCL86_PLUS`, so `try` is correctly unavailable
-        // in all six (`tcl-dialect/src/profile.rs`). `f5-bigip`'s mask
-        // carries no Tcl-version bit at all (a config-file surface, not a
-        // Tcl command surface), so it is unaffected either way. Expect
-        // and the Cadence/Synopsys EDA shells mask in `TCL86`, and BPF
-        // masks in `TCL90` — all four intersect `TCL86_PLUS`, so `try`
-        // correctly resolves there too (each embeds a real 8.6+/9.0+ core
-        // with no disable list of its own touching it — confirmed by
-        // grepping `irules/`, `iapps/`, `expect/`, `eda_*/`, `tk/`, and
-        // `itcl/` for `"try"`: no hits at all, so no dialect overrides or
-        // bans it).
-        dialects: Some(DialectSet::TCL86_PLUS),
+        // already resolves availability correctly for every non-core dialect
+        // with no extra gate needed: `f5-irules`'s profile point is the iRules
+        // family alone (an embedded Tcl 8.4.6 core), and
+        // `f5-iapps`/`f5-tmsh`/the Quartus/Mentor/Xilinx EDA shells all mask
+        // in `TCL85` (their documented Tcl base) — none of those five
+        // intersect `TCL86_PLUS`, so `try` is correctly unavailable in all six
+        // (`tcl-dialect/src/profile.rs`). `f5-bigip`'s mask carries no Tcl
+        // release at all (a config-file surface, not a Tcl command surface),
+        // so it is unaffected either way. Expect and the Cadence/Synopsys EDA
+        // shells mask in `TCL86`, and BPF masks in `TCL90` — all four
+        // intersect `TCL86_PLUS`, so `try` correctly resolves there too (each
+        // embeds a real 8.6+/9.0+ core with no disable list of its own
+        // touching it — confirmed by grepping `irules/`, `iapps/`, `expect/`,
+        // `eda_*/`, `tk/`, and `itcl/` for `"try"`: no hits at all, so no
+        // dialect overrides or bans it).
+        surface: Some(SpecSurface::TCL86_PLUS),
         // Minimum 1 (`body` is mandatory — `try` with no arguments is
         // "wrong # args: should be \"try body ?handler ...? ?finally
         // script?\"", confirmed in `cmd_try`'s own `USAGE` string); no

@@ -18,10 +18,11 @@
 
 //! `TCP::rt_metrics_timeout` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "TCP::rt_metrics_timeout",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Sets cmetrics cache entry lifetime (timeout).",
@@ -37,9 +38,7 @@ pub const fn spec() -> CommandSpec {
             transport: Some("tcp"),
             profiles: &[],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "TCP::rt_metrics_timeout TIMEOUT",

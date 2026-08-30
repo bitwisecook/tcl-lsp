@@ -35,16 +35,16 @@
 //! absent from every 8.4/8.5/8.6 fetch, where no such profile concept
 //! existed and malformed input was never rejected this way.
 //!
-//! The `ALL_TCL` `dialects` group on the command spec below is
-//! deliberate, not an oversight: iRules bans `gets` outright (one of the
-//! K36322151 bans, alongside `open`/`fconfigure`/`flush`/…), and
-//! `ALL_TCL` does not carry the `IRULES` bit, so the spec never
-//! intersects the bare `IRULES` availability mask — the same pattern
-//! `flush_.rs` / `cd.rs` / `fconfigure_.rs` document for their own bans.
-//! No other modelled dialect (Expect, the EDA vendor shells, F5
-//! iApps/tmsh, Tk, incr Tcl) restricts or extends `gets`.
+//! The `ALL_TCL` surface on the command spec below is deliberate, not an
+//! oversight: iRules bans `gets` outright (one of the K36322151 bans,
+//! alongside `open`/`fconfigure`/`flush`/…), and `ALL_TCL` does not carry an
+//! iRules row, so the spec is simply absent under iRules — the same pattern
+//! `flush_.rs` / `cd.rs` / `fconfigure_.rs` document for their own bans. No
+//! other modelled dialect (Expect, the EDA vendor shells, F5 iApps/tmsh, Tk,
+//! incr Tcl) restricts or extends `gets`.
 
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 // `channelId` is mandatory in every version's synopsis; `varName` is
 // always optional — there is no bare/no-argument form, matching
@@ -63,7 +63,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "gets",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED | Traits::TAINT_SOURCE,
         arity: Arity::new(1, 2),
         arg_roles: &[(0, ArgRole::Channel), (1, ArgRole::VarWrite)],

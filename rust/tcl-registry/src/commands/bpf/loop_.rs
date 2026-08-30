@@ -18,12 +18,13 @@
 
 //! `loop` — a bounded, unrolled loop (`loop N VAR { body }`).
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 pub fn spec() -> CommandSpec {
     const OP: BpfOpSpec = BpfOpSpec::structural(BpfOpKind::LoopMacro);
     CommandSpec {
         name: "loop",
-        dialects: Some(DialectSet::BPF),
+        surface: Some(SpecSurface::BPF),
         arity: Arity::exact(3),
         bpf_op: Some(&OP),
         ..CommandSpec::DEFAULT

@@ -18,11 +18,12 @@
 
 //! `log` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "log",
         traits: Traits::DIAGRAM_ACTION,
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         // Remote logging has remote address, facility, and message as its
         // three positional arguments. `-noname` is an OptionSpec and is
         // consumed before this positional arity is checked.
@@ -50,7 +51,7 @@ pub const fn spec() -> CommandSpec {
                 name: "-noname",
                 value: OptionValue::flag(),
                 detail: "Suppress iRule name prefix in log message.",
-                dialects: None,
+                surface: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,

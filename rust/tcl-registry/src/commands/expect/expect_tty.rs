@@ -18,12 +18,13 @@
 
 //! `expect_tty` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-re",
         value: OptionValue::flag(),
         detail: "Match as regular expression.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -32,7 +33,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-ex",
         value: OptionValue::flag(),
         detail: "Match as exact string.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -41,7 +42,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-gl",
         value: OptionValue::flag(),
         detail: "Match as glob (default).",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -50,7 +51,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-nocase",
         value: OptionValue::flag(),
         detail: "Case-insensitive matching.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -65,7 +66,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "expect_tty",
-        dialects: Some(DialectSet::EXPECT),
+        surface: Some(SpecSurface::EXPECT),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Expect input from the controlling terminal (tty).",

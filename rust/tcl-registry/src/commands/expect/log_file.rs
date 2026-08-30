@@ -18,12 +18,13 @@
 
 //! `log_file` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-a",
         value: OptionValue::flag(),
         detail: "Append to existing log file.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -32,7 +33,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-noappend",
         value: OptionValue::flag(),
         detail: "Overwrite existing log file.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -41,7 +42,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-open",
         value: OptionValue::value("fileId"),
         detail: "Log to an already-open Tcl file id.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -50,7 +51,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-leaveopen",
         value: OptionValue::flag(),
         detail: "Leave the file open on close.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -59,7 +60,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-info",
         value: OptionValue::flag(),
         detail: "Return current log file settings.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -74,7 +75,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "log_file",
-        dialects: Some(DialectSet::EXPECT),
+        surface: Some(SpecSurface::EXPECT),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Control logging of session output to a file.",

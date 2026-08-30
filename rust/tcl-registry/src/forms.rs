@@ -34,7 +34,6 @@ use crate::abbrev::PrefixMatching;
 use crate::arg_role::ArgRole;
 use crate::arity::Arity;
 use crate::completion::CompletionDescriptor;
-use crate::dialects::DialectSet;
 use crate::dispatch_stability::DispatchDependencyDescriptor;
 use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::hover::OptionSpec;
@@ -43,10 +42,11 @@ use crate::representation::RepresentationEffect;
 use crate::result_stability::ResultStability;
 use crate::semantic_operation::SemanticOperationId;
 use crate::side_effects::SideEffect;
-use crate::spec::OptionConstraint;
+use crate::spec::OptionRelation;
 use crate::state_transition::StateTransitionDescriptor;
 use crate::traits::Traits;
 use crate::world_effect::WorldEffectDescriptor;
+use tcl_dialect::model::SpecSurface;
 
 /// Literal words that select one invocation form from siblings with the same
 /// arity.
@@ -120,11 +120,11 @@ pub struct CommandForm {
 
     /// Relationships between options that are invalid when supplied
     /// together on this form.
-    pub option_constraints: &'static [OptionConstraint],
+    pub option_relations: &'static [OptionRelation],
 
     /// Dialects in which this form applies. `None` = inherit from
     /// the parent [`crate::CommandSpec`] / [`crate::SubCommand`].
-    pub dialects: Option<DialectSet>,
+    pub surface: Option<&'static [SpecSurface]>,
 
     /// Target-neutral semantic-operation override for this form.
     ///
@@ -208,8 +208,8 @@ impl CommandForm {
         literal_argument_prefix: None,
         arg_roles: &[],
         options: &[],
-        option_constraints: &[],
-        dialects: None,
+        option_relations: &[],
+        surface: None,
         semantic_operation: None,
         completion: None,
         result_stability: None,

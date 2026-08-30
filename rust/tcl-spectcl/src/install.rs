@@ -43,11 +43,11 @@
 use std::sync::Arc;
 
 use tcl_dialect::DialectProfile;
-use tcl_registry::profile_queries::ProfileQueries;
 use tcl_registry::registry::CommandRegistry;
 
 use crate::hooks;
 use crate::pack::{PackSet, installs_over};
+use tcl_registry::security_floor::SecurityFloor;
 
 /// The registry for `profile` with `packs` installed.
 ///
@@ -68,10 +68,18 @@ pub fn registry_with_packs(
     packs: &PackSet,
 ) -> Arc<CommandRegistry> {
     if packs.key == 0 || packs.is_empty() {
-        return tcl_registry::registry_handle_for_profile(profile);
+        return std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for_profile(profile).commands(),
+        );
     }
+    // Resolved BEFORE entering the overlay builder: the builder's closure
+    // runs with the registry cache's lock held, and resolving a document
+    // context takes that same lock to reach the un-overlaid store — doing
+    // it inside the closure deadlocks (found in P1-G when the vendor gate
+    // moved from `ProfileQueries` to the context).
+    let context = tcl_registry::model::ingress::static_document_context_for_profile(profile);
     tcl_registry::registry_for_profile_with_overlay(profile, packs.key, |registry| {
-        install_into(registry, packs, profile);
+        install_into(registry, packs, context);
     })
 }
 
@@ -80,7 +88,7 @@ pub fn registry_with_packs(
 /// the same entry it always would, now with the workspace's packs on top.
 #[must_use]
 pub fn registry_for_dialect_with_packs(dialect: &str, packs: &PackSet) -> Arc<CommandRegistry> {
-    registry_with_packs(DialectProfile::by_name(dialect), packs)
+    registry_with_packs(crate::environment::profile_for_dialect(dialect), packs)
 }
 
 /// Insert every pack command the collision policy admits.
@@ -113,7 +121,11 @@ pub fn registry_for_dialect_with_packs(dialect: &str, packs: &PackSet) -> Arc<Co
 ///
 /// Hosted packages (`Tk`, tcllib, a private pack's own `package require`) are
 /// never affected: they are ambient in no profile, so the gate passes them.
-fn install_into(registry: &mut CommandRegistry, packs: &PackSet, profile: &'static DialectProfile) {
+fn install_into(
+    registry: &mut CommandRegistry,
+    packs: &PackSet,
+    context: &tcl_registry::model::ResolvedContext,
+) {
     let plan = hooks::plan_for(packs);
     for pack in &packs.packs {
         // Ambient-package declarations go in unfiltered: they are a claim
@@ -123,10 +135,23 @@ fn install_into(registry: &mut CommandRegistry, packs: &PackSet, profile: &'stat
             registry.insert_ambient_package(ambient.name, ambient.version);
         }
         for command in &pack.commands {
-            if profile.package_available(command.spec.required_package)
+            if context.required_package_available(command.spec.required_package)
                 && installs_over(command, registry)
             {
-                registry.insert(hooks::specialise(command, &plan).clone());
+                let specialised = hooks::specialise(command, &plan);
+                // Invariant I6. An override replaces the shipped spec
+                // wholesale, so without this a four-line workspace pack could
+                // strip `exec`'s TAINT_SINK and silence taint diagnostics
+                // about the repository that shipped the pack. The floor is not
+                // keyed on the tier: see `security_floor`'s module docs.
+                match registry.get(specialised.name) {
+                    Some(shipped) => {
+                        let mut merged = specialised.clone();
+                        SecurityFloor::of(shipped).apply(&mut merged);
+                        registry.insert(merged);
+                    }
+                    None => registry.insert(specialised.clone()),
+                }
             }
         }
     }
@@ -235,7 +260,9 @@ mod tests {
         let handle = registry_for_dialect_with_packs("tcl8.6", &empty);
         assert!(std::ptr::eq::<CommandRegistry>(
             handle.as_ref(),
-            tcl_registry::registry_for_dialect("tcl8.6"),
+            tcl_registry::model::static_context_for("tcl8.6")
+                .commands()
+                .as_ref(),
         ));
     }
 
@@ -249,7 +276,8 @@ mod tests {
             "speclib polite 1 {\n  command lsort { arity 99 }\n}\n",
         );
         let registry = registry_for_dialect_with_packs("tcl8.6", &polite);
-        let shipped = tcl_registry::registry_for_dialect("tcl8.6")
+        let shipped = tcl_registry::model::static_context_for("tcl8.6")
+            .commands()
             .get("lsort")
             .expect("shipped lsort");
         assert_eq!(
@@ -293,7 +321,9 @@ mod tests {
         assert_eq!(registry.ambient_package_floor("Tk"), Some("8.6"));
         assert_eq!(registry.ambient_package_floor("Itcl"), None);
         assert_eq!(
-            tcl_registry::registry_for_dialect("tcl8.6").ambient_package_floor("Tk"),
+            tcl_registry::model::static_context_for("tcl8.6")
+                .commands()
+                .ambient_package_floor("Tk"),
             None,
             "the un-overlaid registry is untouched"
         );
@@ -341,7 +371,8 @@ mod tests {
         );
         let _ = registry_for_dialect_with_packs("tcl8.6", &packs);
         assert_ne!(
-            tcl_registry::registry_for_dialect("tcl8.6")
+            tcl_registry::model::static_context_for("tcl8.6")
+                .commands()
                 .get("lsort")
                 .expect("lsort")
                 .arity
@@ -369,7 +400,7 @@ mod tests {
             );
             assert_eq!(
                 registry.profile().map(|p| p.name),
-                Some(DialectProfile::by_name(dialect).name),
+                Some(crate::environment::profile_for_dialect(dialect).name),
                 "the profile stamp survives the overlay"
             );
         }

@@ -971,7 +971,6 @@ mod tests {
         assert!(ancestor_requires("app", &edges, &requires).is_empty());
     }
 
-    // ---------------------------------------------------------------------
     // `package prefer latest` across the source graph (issue #1253 item 1).
     //
     // tclsh-proof (8.6.14) that the latch really is interpreter-global and
@@ -981,7 +980,6 @@ mod tests {
     //   -> latest
     //   # app.tcl:  source lib.tcl ; package prefer latest
     //   -> stable
-    // ---------------------------------------------------------------------
 
     fn edge(parent: &str, child: &str, at: u32) -> RunEdge {
         RunEdge {
@@ -1097,7 +1095,6 @@ mod tests {
         ));
     }
 
-    // ---------------------------------------------------------------------
     // The `source`-graph load order (issue #1104 item 3, #1116 item 6).
     //
     // Oracle for the whole shape, byte-identical on tclsh 8.6.14 and 9.0.4 —
@@ -1112,7 +1109,6 @@ mod tests {
     //   ::dst::p   -> P                       (export ran before the import)
     //   # app.tcl:  source src.tcl ; source imp.tcl ; source exp.tcl
     //   ::dst::p   -> invalid command name "::dst::p"   (it did not)
-    // ---------------------------------------------------------------------
 
     fn point(uri: &str, at: u32) -> RunPoint<'_> {
         RunPoint {
@@ -1319,7 +1315,6 @@ mod tests {
         assert_eq!(order.has_run(point("lib", 7), point("lib", 7)), Some(false));
     }
 
-    // ---------------------------------------------------------------------
     // The `package require` half of the load order (issue #1279, design §3.4).
     //
     // Oracle, byte-identical on tclsh 8.6.14 and 9.0.4.  `pkg/lib.tcl` holds
@@ -1347,7 +1342,6 @@ mod tests {
     //
     //     Identical text, opposite answers.  So a require bounds the
     //     provider's position from above and pins nothing.
-    // ---------------------------------------------------------------------
 
     fn require_edge(parent: &str, child: &str, at: u32) -> RunEdge {
         RunEdge {
@@ -1541,7 +1535,6 @@ mod tests {
         assert_eq!(order.cmp_run(point("app", 5), point("lib", 30)), None);
     }
 
-    // ---------------------------------------------------------------------
     // Issue #1297: `alternatives` used to resolve, per call, "is there any
     // package edge at all / is this document ambiguous / what is its root /
     // does that root have require sites" — three hash probes on owned URI
@@ -1550,7 +1543,6 @@ mod tests {
     // `package_alternatives`.  These pin that the folded answer is the same
     // answer, case by case, because a silent change here would move which
     // cross-document events the import tiers can rank.
-    // ---------------------------------------------------------------------
 
     /// TP: a document a `package require` loads, and everything under it,
     /// gets the require sites; the require's own document does not.
@@ -1653,7 +1645,6 @@ mod tests {
         assert!(!RunOrder::trusted(false, bound, bound));
     }
 
-    // ---------------------------------------------------------------------
     // `descendant_requires` — the up direction (issue #1332)
     //
     // Oracle for the whole group, C Tcl 9.0.4:
@@ -1669,7 +1660,6 @@ mod tests {
     //
     // i.e. the package is absent before the `source` statement and present
     // after it — which is why these results carry a position.
-    // ---------------------------------------------------------------------
 
     // Load-level `source` edges are built with the module-test `edge` helper
     // defined above for the `ancestor_prefer_latest_raised` group — same

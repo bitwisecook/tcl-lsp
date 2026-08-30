@@ -51,7 +51,7 @@ use tcl_registry::side_effects::{
     ConnectionSide as RegistryConnectionSide, SideEffect as RegistrySideEffect,
     SideEffectTarget as RegistryTarget,
 };
-use tcl_registry::{CommandRegistry, CommandSpec, Traits};
+use tcl_registry::{CommandRegistry, Traits};
 
 // StorageType — data shape of a target
 
@@ -928,7 +928,9 @@ fn classify_variable_assignment(
         let base = crate::naming::normalise_var_name(varname);
         if let Some(target) = tcl_registry::special_vars::special_var_write_effect(
             base,
-            tcl_registry::special_vars::dialect_set_for_profile(dialect),
+            Some(tcl_registry::special_vars::surface_query_for_profile(
+                dialect,
+            )),
         ) {
             let mut extra = SideEffect::new(lift_registry_target(target), false, true);
             extra.dialect = dialect.map(|profile| profile.name.to_owned());
@@ -1030,65 +1032,36 @@ fn lift_registry_effect(
     effect
 }
 
-/// Whether `spec` is available in the (already `irules`→`f5-irules`
-/// normalised) `filter` dialect, gating on `spec.supports_dialect`.
-/// When no dialect is requested every spec qualifies; when the
-/// dialect string fails to parse to a known [`DialectSet`] (e.g. the
-/// bare `"tcl"` family alias) only universal (`dialects = None`) specs
-/// qualify — an unknown name intersects no explicit dialect set.
-fn spec_in_dialect(spec: &CommandSpec, filter: Option<&tcl_dialect::DialectProfile>) -> bool {
-    match filter {
-        None => true,
-        // Profile availability: composed mask + the iRules disable list
-        // (§9 — a banned command's hints never fire under f5-irules). A
-        // name with no catalog profile (`tk`) keeps the conservative
-        // universal-spec-only rule.
-        Some(profile) => {
-            use tcl_registry::ProfileQueries;
-            profile.is_available(spec)
-        }
-    }
-}
-
 /// Resolve the dialect-gated structured side-effect hints for a
-/// command invocation.
-///
-/// Iterates the command's specs newest-first, skipping specs that don't
-/// support the active
-/// dialect. Subcommand-level hints take precedence over command-level
-/// hints. Returns `None` when no qualifying spec declares any hint
-/// (so the caller falls back to the conservative UNKNOWN write).
+/// command invocation, through the registry model's one hint-selection
+/// primitive (centralisation C7 —
+/// [`tcl_registry::model::side_effect_hints_in_context`]): specs
+/// newest-first, filtered by the resolved context's availability,
+/// subcommand-level hints before command-level ones. `None` when no
+/// qualifying spec declares any hint (so the caller falls back to the
+/// conservative UNKNOWN write). A `None` dialect selects with no
+/// availability filter, as before.
 fn dialect_side_effect_hints(
     registry: &CommandRegistry,
     command: &str,
     subcommand: Option<&str>,
     dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> Option<Vec<SideEffect>> {
-    for spec in registry.specs(command).iter().rev() {
-        if !spec_in_dialect(spec, dialect) {
-            continue;
-        }
-        if let Some(sub_name) = subcommand
-            && let Some(sub) = spec.resolve_subcommand(sub_name)
-            && !sub.side_effects.is_empty()
-        {
-            return Some(
-                sub.side_effects
-                    .iter()
-                    .map(|e| lift_registry_effect(*e, dialect))
-                    .collect(),
-            );
-        }
-        if !spec.side_effects.is_empty() {
-            return Some(
-                spec.side_effects
-                    .iter()
-                    .map(|e| lift_registry_effect(*e, dialect))
-                    .collect(),
-            );
-        }
-    }
-    None
+    let generation = dialect.map(crate::environment_ingress::context_for_profile);
+    let hints = tcl_registry::model::side_effect_hints_in_context(
+        registry,
+        generation
+            .as_deref()
+            .map(tcl_registry::model::ContextRegistry::context),
+        command,
+        subcommand,
+    )?;
+    Some(
+        hints
+            .iter()
+            .map(|e| lift_registry_effect(*e, dialect))
+            .collect(),
+    )
 }
 
 fn fallback_unknown_write(dialect: Option<&tcl_dialect::DialectProfile>) -> CommandSideEffects {
@@ -1102,6 +1075,7 @@ fn fallback_unknown_write(dialect: Option<&tcl_dialect::DialectProfile>) -> Comm
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tcl_dialect::model::{Family, SurfaceLayer};
 
     #[test]
     fn http_targets_map_to_http_state_region() {
@@ -1189,7 +1163,7 @@ mod tests {
         // `side_effects`, so callgraph/dataflow reported `NONE` instead of
         // `HTTP_STATE`.
         let mut reg = tcl_registry::CommandRegistry::build_default();
-        reg.load_dialect(tcl_dialect::DialectSet::IRULES);
+        reg.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         for cmd in ["HTTP::uri", "HTTP::path", "HTTP::query"] {
             let ci = classify_side_effects(&reg, cmd, &[], None, None);
             let (reads, writes) = ci.to_effect_regions();
@@ -1544,8 +1518,8 @@ mod tests {
 
     #[test]
     fn external_tk_selection_reads_are_neither_pure_nor_deterministic() {
-        let registry = tcl_registry::registry_for_dialect("tk");
-        let profile = tcl_dialect::DialectProfile::by_name("tk");
+        let registry = tcl_registry::model::ingress::static_context_for("tk").commands();
+        let profile = tcl_registry::model::ingress::resolve_environment("tk").analyser_profile();
         for command in ["clipboard", "selection"] {
             let effect =
                 classify_side_effects(registry, command, &["get".to_owned()], Some(profile), None);
@@ -1571,7 +1545,7 @@ mod tests {
         // `HTTP::header` → (HTTP_STATE, NONE) pure; `insert` → (HTTP_STATE,
         // HTTP_STATE) impure.
         let mut registry = CommandRegistry::build_default();
-        registry.load_dialect(tcl_dialect::DialectSet::IRULES);
+        registry.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
 
         let getter = classify_side_effects(
             &registry,
@@ -1613,7 +1587,7 @@ mod tests {
         // (dialect-mismatched specs are skipped). With no dialect requested
         // the hint applies.
         let mut registry = CommandRegistry::build_default();
-        registry.load_dialect(tcl_dialect::DialectSet::IRULES);
+        registry.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         // Dialect-agnostic (interproc path): LogIo, region-free, impure.
         let agnostic = classify_side_effects(&registry, "log", &["hi".into()], None, None);
         assert!(!agnostic.pure);
@@ -1627,7 +1601,7 @@ mod tests {
             &registry,
             "log",
             &["hi".into()],
-            Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
             None,
         );
         assert!(!tcl.pure);

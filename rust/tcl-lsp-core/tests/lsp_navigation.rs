@@ -28,7 +28,6 @@
 //! (tclsh8.6 / tclsh9.0 via `scripts/dev/tclsh_check.sh`).
 //!
 //! C-Tcl proof model
-//! -----------------
 //! Go-to-X is correct exactly when it lands on the site that Tcl's *own*
 //! name/class resolution binds the cursor word to. So every snippet below is a
 //! COMPLETE runnable Tcl script in which the proc/var/class/method is genuinely
@@ -116,9 +115,7 @@ fn start_lines(ranges: &[LspRange]) -> Vec<u32> {
     v
 }
 
-// ===========================================================================
 // definition — proc calls resolve to the `proc` definition
-// ===========================================================================
 
 #[test]
 fn definition_proc_call_jumps_to_proc_definition() {
@@ -383,9 +380,7 @@ fn definition_from_proc_definition_resolves_to_itself() {
     assert_eq!(locs[0].start_character, 5);
 }
 
-// ===========================================================================
 // definition — `$var` use resolves to its `set` declaration
-// ===========================================================================
 
 #[test]
 fn definition_var_use_jumps_to_set_declaration() {
@@ -420,9 +415,7 @@ fn definition_proc_local_var_resolves_to_proc_scope_set() {
     );
 }
 
-// ===========================================================================
 // definition — namespace-qualified proc
-// ===========================================================================
 
 #[test]
 fn definition_namespace_qualified_proc_call_resolves_to_declaration() {
@@ -441,9 +434,7 @@ fn definition_namespace_qualified_proc_call_resolves_to_declaration() {
     );
 }
 
-// ===========================================================================
 // definition — builtins / unknown words / robustness (no panic)
-// ===========================================================================
 
 #[test]
 fn definition_builtin_command_yields_no_definition() {
@@ -478,9 +469,7 @@ fn definition_out_of_range_and_empty_file_do_not_panic() {
     assert!(definition("", 0, 0, &empty).is_empty());
 }
 
-// ===========================================================================
 // definition — BigIP note
-// ===========================================================================
 //
 // The plain-Tcl proc/var path above is the primary go-to-definition surface.
 // A separate BigIP-config definition provider (resolving pool / data-group /
@@ -491,10 +480,8 @@ fn definition_out_of_range_and_empty_file_do_not_panic() {
 // BigIP-only behaviour is out of this provider's surface and is not covered
 // here.
 
-// ===========================================================================
 // declaration — where it differs from definition (`variable` / `global` /
 // `upvar` declaration sites)
-// ===========================================================================
 
 #[test]
 fn declaration_var_jumps_to_global_statement_not_the_set() {
@@ -510,7 +497,7 @@ fn declaration_var_jumps_to_global_statement_not_the_set() {
         src,
         4,
         11,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         &analysis,
         &reg(),
     );
@@ -533,7 +520,7 @@ fn declaration_var_jumps_to_variable_statement_in_namespace() {
         src,
         4,
         16,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         &analysis,
         &reg(),
     );
@@ -561,7 +548,7 @@ fn declaration_var_jumps_to_upvar_alias_site() {
         src,
         2,
         12,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         &analysis,
         &reg(),
     );
@@ -585,7 +572,7 @@ fn declaration_non_variable_falls_back_to_definition() {
         src,
         1,
         2,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         &analysis,
         &reg(),
     );
@@ -611,7 +598,7 @@ fn declaration_out_of_range_and_empty_file_do_not_panic() {
             src,
             99,
             0,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &analysis,
             &reg()
         )
@@ -622,7 +609,7 @@ fn declaration_out_of_range_and_empty_file_do_not_panic() {
             src,
             0,
             999,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &analysis,
             &reg()
         )
@@ -634,7 +621,7 @@ fn declaration_out_of_range_and_empty_file_do_not_panic() {
             "",
             0,
             0,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &empty,
             &reg()
         )
@@ -642,9 +629,7 @@ fn declaration_out_of_range_and_empty_file_do_not_panic() {
     );
 }
 
-// ===========================================================================
 // type_definition — TclOO: the class that *types* a receiver
-// ===========================================================================
 
 #[test]
 fn type_definition_instance_var_jumps_to_inferred_class() {
@@ -705,9 +690,7 @@ fn type_definition_unrelated_word_and_robustness() {
     assert!(type_definition("", 0, 0, &empty).is_empty());
 }
 
-// ===========================================================================
 // implementation — TclOO subclass / method-override fan-out
-// ===========================================================================
 
 #[test]
 fn implementation_class_name_returns_direct_subclasses() {
@@ -818,9 +801,7 @@ fn implementation_unknown_word_and_empty_cases() {
     assert!(implementation("", 0, 0, &empty).is_empty());
 }
 
-// ===========================================================================
 // implementation — classmethod (dialect-divergent runnable form)
-// ===========================================================================
 
 #[test]
 fn implementation_classmethod_is_an_implementation() {
@@ -847,9 +828,7 @@ fn implementation_classmethod_is_an_implementation() {
     );
 }
 
-// ===========================================================================
 // type_hierarchy — prepare resolves the class at the cursor
-// ===========================================================================
 
 #[test]
 fn type_hierarchy_prepare_resolves_class_at_cursor() {
@@ -925,7 +904,6 @@ fn type_hierarchy_prepare_out_of_range_and_empty_file_do_not_panic() {
     assert!(prepare_type_hierarchy("", 0, 0, &empty).is_empty());
 }
 
-// ===========================================================================
 // M11 (TIP 278) — namespace-scope variable resolution is dialect-gated.
 //
 // C-Tcl facts, pinned live against tclsh8.6 (8.6.16) and tclsh9.0 (9.0.4)
@@ -934,7 +912,6 @@ fn type_hierarchy_prepare_out_of_range_and_empty_file_do_not_panic() {
 //   * `namespace eval a { set x 1; namespace eval b { set x } }` both → error
 //   * `set v 1; namespace eval bar { variable v; set v }`        both → error
 //   * `set g 1; proc p {} { set g }; p`                          both → error
-// ===========================================================================
 
 /// Analyse under an explicit dialect (both sides of the TIP 278 boundary).
 fn analyse_as(source: &str, dialect: &str) -> AnalysisResult {

@@ -44,6 +44,7 @@
 use std::sync::OnceLock;
 
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 use tcl_syntax::expr::operators::{ALL_BIN_OPS, ALL_UNARY_OPS, CommandArity, OperatorSpec};
 
 /// All `tcl::mathop` operator-command specs (every spelling).
@@ -92,13 +93,13 @@ fn push_spellings(out: &mut Vec<CommandSpec>, spec: OperatorSpec) {
             name,
             // The `::tcl::mathop` command ensemble was added in Tcl 8.5 (TIP
             // 174), so every operator *command* has an 8.5+ floor even when
-            // its `OperatorSpec.dialects` is `None` ("no gate beyond mathop's
+            // its `OperatorSpec.surface` is `None` ("no gate beyond mathop's
             // own 8.5+ requirement" — see that field's doc). Make that floor
             // explicit here so the command carries a concrete dialect group
-            // like every other registry command (no `dialects: None`); an
+            // like every other registry command (no `surface: None`); an
             // operator with its own tighter gate (a 9.0-only op → `TCL90_PLUS`)
             // keeps it.
-            dialects: spec.dialects.or(Some(DialectSet::TCL85_PLUS)),
+            surface: spec.surface.or(Some(SpecSurface::TCL85_PLUS)),
             // Every operator command is a pure value computation: it reads
             // its operands and returns a result, touching no variable,
             // channel, or interpreter state. That holds for all 27 —
@@ -162,7 +163,7 @@ fn leak_slice<T>(v: Vec<T>) -> &'static [T] {
 #[cfg(test)]
 mod tests {
     use super::specs;
-    use crate::prelude::DialectSet;
+    use tcl_dialect::model::SpecSurface;
 
     /// Issue #1035: `specs()` `Box::leak`s its `&'static` name / synopsis /
     /// snippet strings, so it must build them **once per process** — every
@@ -216,8 +217,8 @@ mod tests {
                     .find(|s| s.name == name)
                     .unwrap_or_else(|| panic!("{name:?} missing from tcl::mathop registry data"));
                 assert_eq!(
-                    spec.dialects,
-                    Some(DialectSet::TCL90_PLUS),
+                    spec.surface,
+                    Some(SpecSurface::TCL90_PLUS),
                     "{name:?} should be gated to TCL90_PLUS (TIP 461)"
                 );
             }
@@ -258,8 +259,8 @@ mod tests {
                 .find(|s| s.name == name)
                 .unwrap_or_else(|| panic!("{name:?} missing from tcl::mathop registry data"));
             assert_eq!(
-                spec.dialects,
-                Some(DialectSet::TCL85_PLUS),
+                spec.surface,
+                Some(SpecSurface::TCL85_PLUS),
                 "{name:?} should carry the ::tcl::mathop 8.5+ command floor"
             );
         }

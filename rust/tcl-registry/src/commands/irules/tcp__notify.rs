@@ -18,10 +18,11 @@
 
 //! `TCP::notify` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "TCP::notify",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Sends a message to upper layers of iRule processing.",
@@ -37,9 +38,7 @@ pub const fn spec() -> CommandSpec {
             transport: Some("tcp"),
             profiles: &[],
             also_in: &["SIP_REQUEST", "SIP_REQUEST_SEND", "SIP_RESPONSE"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "TCP::notify (request | response | eom)",

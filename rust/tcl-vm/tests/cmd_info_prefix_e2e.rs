@@ -29,10 +29,8 @@
 //! where tclsh does real work) are marked `// UNIMPLEMENTED:` and asserted
 //! against the VM's actual (documented) behaviour, not tclsh's.
 
-// ---------------------------------------------------------------------------
 // Harness — copied verbatim from `run_script.rs` (the `run` helper plus every
 // struct/import it needs: `CompilerSvc`, `Capture`, and the `use` lines).
-// ---------------------------------------------------------------------------
 
 use std::cell::RefCell;
 use std::io::Write;
@@ -103,9 +101,7 @@ fn run(src: &str) -> (bool, String, String) {
     )
 }
 
-// ===========================================================================
 // tcl::prefix  (cmd_prefix.rs)
-// ===========================================================================
 
 /// `tcl::prefix all table string` — every entry that has `string` as a prefix,
 /// in table order; empty `string` matches all; no match yields the empty list.
@@ -326,9 +322,7 @@ fn prefix_dispatch_errors() {
     );
 }
 
-// ===========================================================================
 // info  (cmd_info.rs)
-// ===========================================================================
 
 /// `info exists` — scalars, arrays, and array elements (shared `VarStore`).
 #[test]
@@ -538,9 +532,7 @@ fn info_unimplemented_subcommands_error() {
     }
 }
 
-// ===========================================================================
 // namespace  (cmd_namespace.rs)
-// ===========================================================================
 
 /// `namespace eval` runs the body in the target namespace (creating it),
 /// `namespace current` reports it, and a top-level `return` in the body is
@@ -1047,9 +1039,7 @@ fn namespace_upvar_links_namespace_cell() {
     assert_eq!(result, "100 100");
 }
 
-// ===========================================================================
 // info — additional subcommands (Tcl 9.0 surface; the VM targets 9.0)
-// ===========================================================================
 
 /// `info constant name` / `info consts ?pattern?` — Tcl 9.0 `const`
 /// introspection (8.6 has neither). The VM matches tclsh9.0.
@@ -1105,9 +1095,7 @@ fn info_library_unseeded_errors_in_vm() {
     assert_eq!(msg, "no library has been specified for Tcl");
 }
 
-// ===========================================================================
 // tcl::prefix / namespace — remaining option-region & set-path branches
-// ===========================================================================
 
 /// `tcl::prefix match` reports a missing value for `-message`/`-error` when the
 /// option lands inside the option region with no following word (here the value
@@ -1167,9 +1155,7 @@ fn namespace_path_set_errors() {
     assert_eq!(msg, r#"wrong # args: should be "namespace path ?nsList?""#);
 }
 
-// ===========================================================================
 // Wrong-arg-count arms & error-propagation paths (close the last gaps)
-// ===========================================================================
 
 /// The `info` subcommands' wrong-#-args usage messages (the error arms).
 #[test]

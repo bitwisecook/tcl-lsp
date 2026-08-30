@@ -158,6 +158,7 @@ dependencies = [
  "tcl-bigip-query",
  "tcl-compiler",
  "tcl-diagram",
+ "tcl-dialect",
  "tcl-f5mku",
  "tcl-lexer",
  "tcl-registry",
@@ -1418,6 +1419,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
+name = "smallvec"
+version = "1.15.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ed6a63f02c8539c91a8685a86f4099661ba3da017932f6ebbea6de3f0fa7c90"
+
+[[package]]
 name = "socket2"
 version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1669,6 +1676,7 @@ dependencies = [
  "bitflags",
  "rustc-hash",
  "sha2",
+ "smallvec",
  "tcl-cmd-core",
  "tcl-core-types",
  "tcl-dialect",

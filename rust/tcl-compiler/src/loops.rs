@@ -184,13 +184,13 @@ pub fn build_loop_forest<S: std::hash::BuildHasher>(
 mod tests {
     use super::*;
     use crate::compilation_unit::CompilationUnit;
-    use tcl_registry::cache::registry_for_dialect;
+    use tcl_registry::model::ingress::static_context_for;
 
     // The loop snippets below are real Tcl loops verified against tclsh8.6/9.0
     // (iteration counts: for→3, while→3, foreach→3, continue→4, nested 2×2→4);
     // the natural-loop forest is the compiler's CFG-derived view of them.
     fn forest_for(src: &str, qname: &str) -> LoopForest {
-        let registry = registry_for_dialect("tcl8.6");
+        let registry = static_context_for("tcl8.6").commands();
         let cu = CompilationUnit::build_for(src, registry, false);
         let fu = if qname == "::top" {
             &cu.top_level
@@ -266,7 +266,7 @@ mod tests {
     fn dominates_walks_the_idom_chain() {
         // Build a real function and assert the entry dominates every block,
         // and a block does not dominate the entry.
-        let registry = registry_for_dialect("tcl8.6");
+        let registry = static_context_for("tcl8.6").commands();
         let cu = CompilationUnit::build_for(
             "proc f {} { for {set i 0} {$i < 3} {incr i} { puts $i } }",
             registry,

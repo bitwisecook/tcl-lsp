@@ -81,7 +81,11 @@ impl PackNotice {
         }
     }
 
-    fn whole_file(path: &Path, message: impl Into<String>, severity: Severity) -> Self {
+    /// A notice about the pack as a whole, on its first line — the shape a
+    /// finding that belongs to no single row takes (an environment
+    /// registration the live registry refused, a shadowed tier).
+    #[must_use]
+    pub fn whole_file(path: &Path, message: impl Into<String>, severity: Severity) -> Self {
         Self {
             path: path.to_path_buf(),
             line: 1,
@@ -115,6 +119,37 @@ pub struct MergedPack {
     /// are floors, and [`CommandRegistry::ambient_package_floor`] takes the
     /// highest. Dropping one here would silently lower the floor instead.
     pub ambient_packages: Vec<crate::loader::AmbientPackage>,
+    /// The `environment NAME { … }` blocks the pack declares (`SpecTcl`
+    /// 2.0), merged first-declaration-wins across the pack's files.
+    ///
+    /// Carried; registering them into the live registry is
+    /// [`crate::registration::publish_pack_set`]'s call — made for the
+    /// whole set at the one publish point
+    /// ([`crate::bundled::set_active`]), so a pack that leaves the
+    /// workspace has its environments retired by the same call that
+    /// re-registers the ones that stayed. It consumes exactly these
+    /// blocks (declarations through
+    /// [`PackEnvironment::to_definition`](crate::PackEnvironment::to_definition),
+    /// `-extend` blocks through `to_extension`) under the §6.4 trust
+    /// lattice.
+    pub environments: Vec<crate::loader::PackEnvironment>,
+    /// The `dialect NAME { … }` blocks the pack declares (`SpecTcl` 2.0),
+    /// merged first-declaration-wins across the pack's files.
+    ///
+    /// Converted to live family data by the same publish call, through
+    /// [`crate::dialect_conversion`]: a namespaced `PACK/DIALECT` family
+    /// with a grammar per declared release, plus the core bindings of the
+    /// environments above that ride one.
+    pub dialects: Vec<crate::loader::PackDialect>,
+    /// The `include from … into …` surface rosters the pack declares
+    /// (`SpecTcl` 2.0, design **Q6**), concatenated across its files.
+    ///
+    /// Concatenated, not first-wins: several rows are how one roster with
+    /// per-release windows is written, so dropping a later row for the
+    /// same pair would silently truncate the surface it enumerates. The
+    /// fold into one roster per pair happens at conversion
+    /// ([`crate::surface_roster_conversion`]).
+    pub surface_rosters: Vec<crate::loader::PackSurfaceRoster>,
     /// The merged commands: first definition of a name wins.
     pub commands: Vec<PackCommand>,
 }
@@ -198,10 +233,20 @@ impl PackSet {
     }
 }
 
+/// [`load_sources`] with the sources already in hand and no prior notices —
+/// the door `tcl spec upgrade --verify` loads a rewritten pack through
+/// without ever putting it on disk.
+#[must_use]
+pub fn load_in_memory(sources: Vec<(PackFile, String)>) -> PackSet {
+    load_sources(sources, Vec::new())
+}
+
 /// Load and merge every discovered file.
 ///
-/// Reads each file, parses it through [`crate::cache::load_pack_cached`] (so
-/// an unchanged pack costs a hash check), then groups by `speclib` name.
+/// Reads each file, loads it through [`crate::cache::evaluate_pack_cached`]
+/// at the file's own provenance tier (so an unchanged pack costs a hash check,
+/// and design E-R2 gates what an untrusted tier may register), then groups by
+/// `speclib` name.
 #[must_use]
 pub fn load(files: &[PackFile]) -> PackSet {
     let (sources, notices) = read_sources(&tcl_lsp_core::vfs::NativeStore, files);
@@ -267,7 +312,19 @@ pub(crate) fn load_sources(
     // merge below consumes these `Pack`s rather than re-reading the source.
     let mut by_name: BTreeMap<String, Vec<(PackFile, Pack)>> = BTreeMap::new();
     for (file, source) in sources {
-        let pack = crate::cache::load_pack_cached(&source);
+        // A pack carrying `include` rows loads through a file-system
+        // include context scoped to its own directory, and bypasses both
+        // cache tiers — the key hashes only this file's bytes and so cannot
+        // see an included file change under it.
+        let pack = if crate::loader::uses_include(&source) {
+            crate::cache::evaluate_pack_including(
+                &source,
+                file.tier,
+                &std::rc::Rc::new(crate::loader::IncludeContext::for_file(&file.path)),
+            )
+        } else {
+            crate::cache::evaluate_pack_cached(&source, file.tier)
+        };
         if pack.name.is_empty() {
             // No `speclib` wrapper: nothing to merge, but the loader's
             // explanation of why still belongs on the file.
@@ -326,7 +383,15 @@ pub(crate) fn load_sources(
     // extension tier sees it — every consumer funnels through this merge
     // (bundled, discovered, server reloads), which is what makes a pack the
     // source of truth for its own extensions.
-    tcl_registry::dialects::register_pack_extension_dialects(set.extension_dialects());
+    //
+    // Both kinds of claim: the explicit `file_extension … -dialect D` rows
+    // and each `environment` block's own detection rows, which is how a
+    // pack-declared environment's documents find it. Published here rather
+    // than only at the registration seam because a reload whose content is
+    // unchanged never reaches that seam, and the routing must survive it.
+    tcl_registry::dialects::register_pack_extension_dialects(
+        crate::registration::extension_routes(&set),
+    );
     set
 }
 
@@ -473,14 +538,13 @@ fn cross_pack_command_notices(packs: &[MergedPack]) -> Vec<PackNotice> {
 /// Identical requirements short-circuit to `true` — the common case, and one
 /// no profile sweep could disagree with.
 fn could_collide(a: Option<&'static str>, b: Option<&'static str>) -> bool {
-    use tcl_registry::profile_queries::ProfileQueries as _;
-
     if a == b {
         return true;
     }
-    tcl_dialect::DialectProfile::all()
-        .iter()
-        .any(|profile| profile.package_available(a) && profile.package_available(b))
+    tcl_dialect::DialectProfile::all().iter().any(|profile| {
+        let context = tcl_registry::model::ingress::static_document_context_for_profile(profile);
+        context.required_package_available(a) && context.required_package_available(b)
+    })
 }
 
 /// Report every `file_extension` two different packs both claim.
@@ -542,6 +606,9 @@ fn merge_group(
         display_name: None,
         file_extensions: Vec::new(),
         ambient_packages: Vec::new(),
+        environments: Vec::new(),
+        dialects: Vec::new(),
+        surface_rosters: Vec::new(),
         commands: Vec::new(),
     };
     // Where each command name was first defined, so the duplicate notice can
@@ -585,6 +652,29 @@ fn merge_group(
             }
         }
         merged.ambient_packages.extend(pack.ambient_packages);
+        for environment in pack.environments {
+            // Declarations dedupe by id (first wins, as within one file);
+            // `-extend` blocks are additive contributions and every one is
+            // kept — two files may each extend the same base.
+            let duplicate = !environment.extends
+                && merged
+                    .environments
+                    .iter()
+                    .any(|prior| !prior.extends && prior.id == environment.id);
+            if !duplicate {
+                merged.environments.push(environment);
+            }
+        }
+        for dialect in pack.dialects {
+            if !merged
+                .dialects
+                .iter()
+                .any(|prior| prior.name == dialect.name)
+            {
+                merged.dialects.push(dialect);
+            }
+        }
+        merged.surface_rosters.extend(pack.surface_rosters);
         for mut command in pack.commands {
             // The merge is the only layer that knows which file a command came
             // from, so this is where that gets recorded (issues #1637, #1638).

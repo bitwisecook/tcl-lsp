@@ -268,8 +268,8 @@
 ; content, like `@boolean` below.
 ((simple_word) @operator
   (#any-of? @operator
-    "and" "contains" "ends_with" "equals" "matches_glob" "matches_regex"
-    "not" "or" "starts_with"))
+    "and" "contains" "ends_with" "equals" "matches" "matches_glob"
+    "matches_regex" "not" "or" "starts_with"))
 
 ; Punctuation
 ["{" "}" "[" "]" ";"] @punctuation.bracket

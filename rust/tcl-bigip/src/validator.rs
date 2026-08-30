@@ -50,6 +50,8 @@ use tcl_irules::extract_irules_event_handlers;
 use tcl_lexer::LineIndex;
 use tcl_registry::base_objects::base_object_identities;
 use tcl_registry::profile_defaults::{BigipVersion, profile_field_defaults};
+use tcl_registry::profiles::ProfileFacts;
+use tcl_registry::relation::RelationVerdict;
 
 use crate::canonical::Canon;
 use crate::lint::{ModelView, resolve_name};
@@ -448,7 +450,7 @@ fn check_virtual_rules(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnostic>) {
 /// BIGIP6012: two or more iRules attached to a virtual server handle the same
 /// event at the same effective priority.
 fn check_virtual_rule_priority_conflicts(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnostic>) {
-    let registry = tcl_registry::registry_for_dialect("f5-irules");
+    let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
     for (_path, vs) in view.virtual_servers.iter() {
         let mut handlers: BTreeMap<(String, u16), BTreeSet<String>> = BTreeMap::new();
         for rule_ref in vs.rules.paths() {
@@ -581,7 +583,7 @@ fn registry_profile_name(profile: ProfileType) -> &'static str {
 fn check_virtual_event_profile_graph(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnostic>) {
     let event_registry = tcl_registry::events::EventRegistry::build();
     let profiles = tcl_registry::profiles::ProfileRegistry::build();
-    let command_registry = tcl_registry::registry_for_dialect("f5-irules");
+    let command_registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
     for (_path, vs) in view.virtual_servers.iter() {
         let profile_types = profile_types_for_virtual(view, vs);
         let mut active: Vec<&str> = profile_types
@@ -596,21 +598,34 @@ fn check_virtual_event_profile_graph(view: &ModelView<'_>, out: &mut Vec<ConfigD
             active.push("TCP");
         }
 
-        // Profile conflicts are graph data on ProfileSpec, not a handwritten
-        // pair table. Report each unordered pair once.
+        // Profile conflicts are relation data on ProfileSpec, judged by the
+        // one shared evaluator (R12) rather than a walker written here. A
+        // virtual server names every profile it attaches, so the stack is
+        // closed-world and the checker never has to abstain.
+        let stack: Vec<String> = active.iter().map(|name| (*name).to_owned()).collect();
+        let facts = ProfileFacts {
+            active: &stack,
+            complete: true,
+        };
         let mut conflict_pairs = BTreeSet::new();
         for profile in &active {
             let Some(spec) = profiles.get_profile(profile) else {
                 continue;
             };
-            for conflict in spec.conflicts {
-                if active.iter().any(|present| present == conflict) {
-                    let pair = if *profile < *conflict {
-                        (*profile, *conflict)
+            for relation in spec.relations {
+                let RelationVerdict::Violated(violation) = relation.evaluate(&facts) else {
+                    continue;
+                };
+                // An exclusion reports the subject first and the peers it
+                // clashes with after it; the pair is unordered, so normalise
+                // it and let the set drop a conflict declared from both ends.
+                for peer in violation.present.iter().skip(1) {
+                    let (left, right) = if violation.present[0].0 < peer.0 {
+                        (violation.present[0].0, peer.0)
                     } else {
-                        (*conflict, *profile)
+                        (peer.0, violation.present[0].0)
                     };
-                    conflict_pairs.insert(pair);
+                    conflict_pairs.insert((left, right));
                 }
             }
         }

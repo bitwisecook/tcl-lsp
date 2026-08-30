@@ -600,7 +600,8 @@ pub fn is_worth_reporting_with_procs(
 /// purposes — i.e. has no observable side effects.
 ///
 /// Bridges to [`classify_side_effects`]. An optional
-/// dialect (`Some(tcl_dialect::DialectProfile::irules())` / `Some(tcl_dialect::DialectProfile::by_name("tcl"))`) threads through to
+/// dialect (`Some(tcl_dialect::DialectProfile::irules())` /
+/// `Some(DialectProfile::plain_tcl())`) threads through to
 /// the classifier.
 #[must_use]
 pub fn is_pure_command(
@@ -864,7 +865,7 @@ fn resolved_invocation_static_gvn_gates(resolved: &tcl_registry::InvocationFacts
     if !resolved.effects.accesses().is_empty() || resolved.effects.requires_world_barrier() {
         return false;
     }
-    if !resolved.effects.legacy().command_table_effects.is_empty()
+    if resolved.effects.legacy().command_table_mutation
         || !resolved.effects.legacy().frame_effects.is_empty()
         || !resolved.effects.legacy().side_effects.is_empty()
     {
@@ -2116,6 +2117,8 @@ pub fn find_loop_invariants_for_cu(
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{Family, SurfaceQuery};
+
     /// The default document's `${…}` close rule — these unit tests build no
     /// dialect profile, so they exercise the same style the lexer would use.
     const STYLE: tcl_dialect::BracedVarStyle = tcl_dialect::BracedVarStyle::Tcl9Nesting;
@@ -2130,7 +2133,7 @@ mod tests {
             "llength {a b}\nllength {a b}",
             &registry,
             false,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let function = &cu.top_level;
 
@@ -2139,7 +2142,9 @@ mod tests {
                 &registry,
                 &function.cfg,
                 &function.ssa,
-                Some(tcl_dialect::DialectProfile::by_name("tcl8.6"))
+                Some(
+                    tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
+                )
             )
             .is_empty(),
             "the legacy classifier recognises the registry pure trait"
@@ -2147,7 +2152,7 @@ mod tests {
         let semantic = find_redundancies_for_function(
             &registry,
             function,
-            Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
         );
         assert_eq!(
             semantic.len(),
@@ -2182,7 +2187,7 @@ mod tests {
             "if {$flag} {\nllength {a b}\nllength {a b}\n}",
             &registry,
             false,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let function = &cu.top_level;
         assert!(
@@ -2190,7 +2195,9 @@ mod tests {
                 &registry,
                 &function.cfg,
                 &function.ssa,
-                Some(tcl_dialect::DialectProfile::by_name("tcl8.6"))
+                Some(
+                    tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
+                )
             )
             .is_empty(),
             "the explicit legacy API still sees the nested string-classified calls"
@@ -2199,7 +2206,9 @@ mod tests {
             find_redundancies_for_function(
                 &registry,
                 function,
-                Some(tcl_dialect::DialectProfile::by_name("tcl8.6"))
+                Some(
+                    tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
+                )
             )
             .is_empty(),
             "opaque structured source sites have no exact invocation mapping and must abstain"
@@ -2218,7 +2227,7 @@ mod tests {
             "test::pure_cse value\ntest::pure_cse value",
             &registry,
             false,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         assert!(matches!(
             cu.top_level.semantic_facts.executable(),
@@ -2228,7 +2237,9 @@ mod tests {
             find_redundancies_for_function(
                 &registry,
                 &cu.top_level,
-                Some(tcl_dialect::DialectProfile::by_name("tcl8.6"))
+                Some(
+                    tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
+                )
             )
             .len(),
             1,
@@ -2248,13 +2259,16 @@ mod tests {
                 source,
                 &registry,
                 false,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             );
             assert_eq!(
                 find_redundancies_for_function(
                     &registry,
                     &cu.top_level,
-                    Some(tcl_dialect::DialectProfile::by_name("tcl9.0"))
+                    Some(
+                        tcl_registry::model::ingress::resolve_environment("tcl9.0")
+                            .analyser_profile()
+                    )
                 )
                 .len(),
                 1,
@@ -2272,7 +2286,7 @@ mod tests {
             .resolve_invocation(
                 "llength",
                 &["a b"],
-                tcl_registry::prelude::DialectSet::TCL90,
+                Some(SurfaceQuery::core(Family::Tcl, "9.0")),
             )
             .expect("llength resolves")
             .facts();
@@ -2334,7 +2348,7 @@ mod tests {
             source,
             &registry,
             false,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
 
         assert!(matches!(
@@ -2345,7 +2359,9 @@ mod tests {
             find_redundancies_for_function(
                 &registry,
                 &cu.top_level,
-                Some(tcl_dialect::DialectProfile::by_name("tcl9.0"))
+                Some(
+                    tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
+                )
             )
             .is_empty(),
             "an execution-traced command is observably invoked twice"
@@ -2356,13 +2372,15 @@ mod tests {
             "llength {a b}\nllength {a b}",
             &registry,
             false,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         assert_eq!(
             find_redundancies_for_function(
                 &registry,
                 &untraced.top_level,
-                Some(tcl_dialect::DialectProfile::by_name("tcl9.0"))
+                Some(
+                    tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
+                )
             )
             .len(),
             1,
@@ -2385,14 +2403,16 @@ mod tests {
             "test::volatile_cse\ntest::volatile_cse",
             &registry,
             false,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
 
         assert!(
             find_redundancies_for_function(
                 &registry,
                 &cu.top_level,
-                Some(tcl_dialect::DialectProfile::by_name("tcl9.0"))
+                Some(
+                    tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
+                )
             )
             .is_empty(),
             "read-only volatile results must not become common subexpressions"
@@ -2410,13 +2430,16 @@ mod tests {
                 source,
                 &registry,
                 false,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             );
             assert!(
                 find_redundancies_for_function(
                     &registry,
                     &cu.top_level,
-                    Some(tcl_dialect::DialectProfile::by_name("tcl9.0"))
+                    Some(
+                        tcl_registry::model::ingress::resolve_environment("tcl9.0")
+                            .analyser_profile()
+                    )
                 )
                 .is_empty(),
                 "clock result dependencies must make production GVN abstain: {source}"
@@ -3957,7 +3980,7 @@ mod tests {
             source,
             registry,
             false,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         assert!(
             matches!(
@@ -3969,7 +3992,7 @@ mod tests {
         find_redundancies_for_function(
             registry,
             &cu.top_level,
-            Some(tcl_dialect::DialectProfile::by_name("tcl9.0")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()),
         )
     }
 
@@ -4397,7 +4420,7 @@ mod tests {
             "proc p {items} {\nllength $items\nllength $items\n}",
             &registry,
             false,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         let procedure = cu.procedures.get("::p").expect("the proc unit is built");
         assert!(
@@ -4405,7 +4428,9 @@ mod tests {
                 &registry,
                 &procedure.cfg,
                 &procedure.ssa,
-                Some(tcl_dialect::DialectProfile::by_name("tcl9.0"))
+                Some(
+                    tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
+                )
             )
             .is_empty(),
             "the legacy classifier still recognises the repeated pure call"
@@ -4414,7 +4439,9 @@ mod tests {
             find_redundancies_for_function(
                 &registry,
                 procedure,
-                Some(tcl_dialect::DialectProfile::by_name("tcl9.0"))
+                Some(
+                    tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
+                )
             )
             .is_empty(),
             "a proc body runs after arbitrary interposed history, so every site proof fails closed"
@@ -4428,14 +4455,16 @@ mod tests {
             "while {$go} {\nllength {a b}\nllength {a b}\n}",
             &registry,
             false,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         assert!(
             !find_redundancies(
                 &registry,
                 &cu.top_level.cfg,
                 &cu.top_level.ssa,
-                Some(tcl_dialect::DialectProfile::by_name("tcl9.0"))
+                Some(
+                    tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
+                )
             )
             .is_empty(),
             "the explicit legacy API still sees the nested string-classified calls"
@@ -4444,7 +4473,9 @@ mod tests {
             find_redundancies_for_function(
                 &registry,
                 &cu.top_level,
-                Some(tcl_dialect::DialectProfile::by_name("tcl9.0"))
+                Some(
+                    tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
+                )
             )
             .is_empty(),
             "structured loop bodies are unmapped executable source and must abstain"
@@ -4510,7 +4541,7 @@ mod tests {
             .resolve_invocation(
                 "test::versioned",
                 &["x"],
-                tcl_registry::prelude::DialectSet::TCL90,
+                Some(SurfaceQuery::core(Family::Tcl, "9.0")),
             )
             .expect("the synthetic spec resolves")
             .facts();
@@ -4523,7 +4554,7 @@ mod tests {
             .resolve_invocation(
                 "llength",
                 &["a b"],
-                tcl_registry::prelude::DialectSet::TCL90,
+                Some(SurfaceQuery::core(Family::Tcl, "9.0")),
             )
             .expect("llength resolves")
             .facts();

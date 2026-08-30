@@ -33,7 +33,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fileutil::replaceInFile",
-        dialects: None,
+        surface: None,
         arity: Arity::at_least(4),
         hover: Some(HoverSnippet {
             summary: "Replace data in a file.",

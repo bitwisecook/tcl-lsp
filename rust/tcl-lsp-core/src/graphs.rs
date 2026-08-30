@@ -1029,7 +1029,12 @@ pub fn memory_alias_graph(
     let profile = dialect;
     let cu = CompilationUnit::build_for_profile(source, registry, false, profile)
         .with_interprocedural(registry, Some(profile))
-        .with_memory_ssa(registry, profile.availability_mask);
+        .with_memory_ssa(
+            registry,
+            Some(tcl_registry::model::semantic::SemanticContext::for_profile(
+                profile,
+            )),
+        );
 
     let mut functions: Vec<Value> = vec![memory_function_json(
         "::top",
@@ -1088,7 +1093,10 @@ mod tests {
         for _ in 0..DEPTH {
             source.push_str("}\n");
         }
-        let graph = symbol_graph(&source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let graph = symbol_graph(
+            &source,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         assert!(graph.get("scopes").is_some());
     }
 }

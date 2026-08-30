@@ -18,6 +18,7 @@
 
 //! `SSL::cipher` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
@@ -83,7 +84,7 @@ pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SSL::cipher",
         traits: Traits::PURE.union(Traits::CSE_CANDIDATE),
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Returns SSL cipher information.",
@@ -97,6 +98,34 @@ pub const fn spec() -> CommandSpec {
             source: "https://clouddocs.f5.com/api/irules/SSL__cipher.html",
             examples: "when HTTP_REQUEST {\n    # Check encryption strength\n    if { [SSL::cipher bits] >= 128 } {\n        pool web_servers\n    } else {\n        # Client is using a weak cipher\n        # Use one of the destination commands\n\n        # Either specify a pool\n        pool sorry_servers\n\n        # or to a specific node\n        node 10.10.10.10\n\n        # or send a 302 response to redirect to a specific URL\n        # Set cache control headers to prevent proxies from caching the response.",
             return_value: "SSL::cipher name Returns the current SSL cipher name using the format of the L<OpenSSL SSL_CIPHER_get_name() function|https://www.openssl.org/docs/ssl/SSL_CIPHER_get_name.html> (e.g. \"EDH-RSA-DES-CBC3-SHA\" or \"RC4-MD5\").",
+        }),
+        // Measured on the appliance
+        // (`docs/design/bigip-irule-parser-measurements.md` §8): the rule
+        // compiler accepts `SSL::cipher` in `HTTP_REQUEST`,
+        // `LB_SELECTED` and `HTTP_RESPONSE` and refuses it in
+        // `CLIENT_ACCEPTED`, `CLIENT_DATA`, `SERVER_CONNECTED` and
+        // `CLIENT_CLOSED` — the four events either side of a completed
+        // handshake, where no cipher has been negotiated on the
+        // connection yet (or the connection is already gone). No
+        // `EventProps` predicate separates that set — `LB_SELECTED`
+        // implies no profile at all and `HTTP_REQUEST` implies an HTTP
+        // one, not an SSL one — so the refused cells are carried as the
+        // measured closed list they are.
+        excluded_events: &[
+            "CLIENT_ACCEPTED",
+            "CLIENT_CLOSED",
+            "CLIENT_DATA",
+            "SERVER_CONNECTED",
+        ],
+        // …and `RULE_INIT` is refused for the ordinary reason: there is
+        // no connection to read a cipher from (§8).
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &[],
+            also_in: &[],
+            flow: true,
         }),
         forms: &[FormSpec {
             synopsis: "SSL::cipher <subcommand>",

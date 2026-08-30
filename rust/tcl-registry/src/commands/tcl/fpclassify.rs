@@ -38,6 +38,7 @@
 // out at 8.6 — so the plain `TCL90_PLUS` gate below already excludes every one
 // of them and no extra dialect restriction is needed.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "fpclassify value",
@@ -50,7 +51,7 @@ pub fn spec() -> CommandSpec {
         name: "fpclassify",
         // Added in Tcl 9.0 (`package require tcl 9.0` in its own SYNOPSIS)
         // and unchanged in 9.1 — see the module comment.
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         // A deterministic classification of its single argument with no
         // interpreter state read or written, and no expression / script
         // fallback for the argument (`FloatClassifyObjCmd` takes the double

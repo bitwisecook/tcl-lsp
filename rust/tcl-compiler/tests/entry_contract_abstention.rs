@@ -7,8 +7,8 @@ use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::dispatch_proof::DispatchEntryAssumption;
 use tcl_compiler::executable_ir::ExecutableFunctionId;
 use tcl_compiler::semantic_analysis::ExecutableAnalysisAvailability;
-use tcl_registry::dialects::DialectSet;
-use tcl_registry::registry_for_dialect;
+use tcl_registry::model::ingress::static_context_for;
+use tcl_registry::model::semantic::SemanticContext;
 
 const DIALECT: &str = "tcl8.6";
 const SOURCE: &str = r"
@@ -21,7 +21,7 @@ const SOURCE: &str = r"
 ";
 
 fn fixture() -> (CompilationUnit, &'static tcl_registry::CommandRegistry) {
-    let registry = registry_for_dialect(DIALECT);
+    let registry = static_context_for(DIALECT).commands();
     (
         CompilationUnit::build_for_dialect(SOURCE, registry, false, DIALECT),
         registry,
@@ -249,7 +249,8 @@ fn production_driver_makes_every_deferred_body_kind_abstain() {
 
     // Explorer's explicit deep path rebuilds every retained sidecar and must
     // preserve the same fresh-top-level versus deferred-body boundary.
-    let deep = unit.with_deep_semantic_analysis(registry, DialectSet::TCL86);
+    let deep = unit
+        .with_deep_semantic_analysis(registry, Some(SemanticContext::for_environment("tcl8.6")));
     assert_production_entry_contract(&deep, "with_deep_semantic_analysis");
     assert_deep_body_families(&deep, "with_deep_semantic_analysis");
 }
@@ -268,7 +269,8 @@ fn deep_contract_rejects_noop_and_unavailable_body_evidence() {
     // alone must not make this pass.
     let mut missing_ir = unit;
     missing_ir.ir_module.procedures.remove("::p");
-    let rebuilt = missing_ir.with_deep_semantic_analysis(registry, DialectSet::TCL86);
+    let rebuilt = missing_ir
+        .with_deep_semantic_analysis(registry, Some(SemanticContext::for_environment("tcl8.6")));
     assert!(matches!(
         rebuilt
             .procedures

@@ -27,6 +27,11 @@
 //!   the `.tclspec` text**. Drafts are *derived* from that text by the real
 //!   loader, never held alongside it, so the DSL pane and the form are two
 //!   projections of one document rather than two stores to keep in sync.
+//!   The derivation runs the **evaluation loader** (design E §15.2): a pack
+//!   may be a program, so what the store browses is the *snapshot* it
+//!   registered. A canonical pack — every pack shipped today — is unchanged
+//!   by that, and [`PackStore::declaration_site`] says which declarations
+//!   are literal text and which a loop produced.
 //! - **[`Resolution`]** — one facade over the pair, applying the shipped
 //!   collision policy (`shipped wins unless the pack says -override`, the rule
 //!   `tcl_spectcl::pack::installs_over` encodes) so every surface queries the
@@ -71,9 +76,39 @@
 //!   That case is detected and reported through [`Write::dropped`], so a
 //!   surface can tell the author what an edit will cost before it costs it.
 //!
+//! ## A programmed pack is never rewritten — it is patched (E-R12)
+//!
+//! Everything above describes editing a **canonical** document, and that is
+//! the only kind of document it may describe: a splice replaces the byte range
+//! of a `command NAME { … }` statement, and the re-render floor rebuilds the
+//! whole file from drafts. Neither is admissible against a *program*. The
+//! statement a form edit wants to replace may not exist (a `foreach` wrote the
+//! declaration), and a re-render would delete the program itself — the
+//! `proc`s, the data table, the loop — replacing it with its own expansion.
+//!
+//! So [`PackStore::programmed`] classifies the document first, and a form edit
+//! against a programmed one takes a different route entirely
+//! ([`WriteBack::Patched`]): the edited command is rendered as a **canonical
+//! patch pack** — `speclib <base>-studio-overrides`, the base pack's
+//! `default` context rows, and the edited commands as `-override`
+//! declarations, all spelled by `tcl_spectcl::export::export_pack` so the
+//! patch is canonical by construction — and that pack is layered over the
+//! base in the [`Tier::StudioOverride`] tier through [`PackStore::pack_set`].
+//! The author's own source is not touched by a single byte.
+//!
+//! The layering is the shipped collision policy, not a studio invention: the
+//! patch pack sits **after** the base in the [`PackSet`], so
+//! `tcl_spectcl::pack::installs_over` admits its commands exactly because
+//! they declare `-override`, and the registry answers with the last spec
+//! registered for the name. [`PackStore::standing_overrides`] is the
+//! queryable surface a UI labels from — which command, from which patch,
+//! against which base pack and base declaration — so a patch cannot rot
+//! silently, and [`PackStore::remove_override`] takes one back out and
+//! restores the base.
+//!
 //! ## A note on cost
 //!
-//! `tcl_spectcl::loader::load_pack` leaks its specs (`Box::leak`), because a
+//! The loader leaks its specs (`Box::leak`), because a
 //! loaded pack is meant to live as long as the server process. In a long-lived
 //! browser page that makes every reload a small permanent allocation, so
 //! callers should debounce keystrokes and reuse a [`PackStore`] rather than
@@ -86,19 +121,17 @@ use std::sync::Arc;
 use serde_json::{Value, json};
 use tcl_compiler::parsing::syntax::build::build_document;
 use tcl_compiler::parsing::syntax::segment::segments_from_document;
-use tcl_dialect::DialectProfile;
 use tcl_lexer::{LexerConfig, SourceMap};
 use tcl_registry::CommandRegistry;
-use tcl_registry::cache::registry_for_dialect;
+use tcl_spectcl::Tier;
+use tcl_spectcl::export::{self, Registration};
 use tcl_spectcl::loader::{self, FileExtension, HookOwner, HookSource, Notice, Pack};
 use tcl_spectcl::pack::{MergedPack, PackSet};
 
 use crate::draft::{self, Draft};
 use crate::render_spectcl;
 
-// ---------------------------------------------------------------------------
 // Built-ins — the immutable model
-// ---------------------------------------------------------------------------
 
 /// The shipped command registry for one dialect: reference material the studio
 /// reads and never writes.
@@ -114,13 +147,14 @@ impl Builtins {
     #[must_use]
     pub fn for_dialect(dialect: &str) -> Self {
         // The catalogue holds the `&'static str` the caller means, alias
-        // spellings canonicalised onto it; a name with no profile at all
-        // resolves to the dialect the picker starts on, and keeping a
-        // `'static` name avoids an allocation per query.
-        let dialect = DialectProfile::find(dialect).map_or("tcl9.0", |profile| profile.name);
+        // spellings canonicalised onto it; a name with no catalogue entry
+        // at all resolves to the dialect the picker starts on, and keeping
+        // a `'static` name avoids an allocation per query. Both halves go
+        // through the one ingress seam (`crate::environment`).
+        let dialect = crate::environment::catalogue_dialect_or_default(dialect);
         Self {
             dialect,
-            registry: registry_for_dialect(dialect),
+            registry: crate::environment::store_for_dialect(dialect),
         }
     }
 
@@ -146,9 +180,7 @@ impl Builtins {
     }
 }
 
-// ---------------------------------------------------------------------------
 // The pack store — the DSL text is the model
-// ---------------------------------------------------------------------------
 
 /// How a write-back reached the document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -162,6 +194,12 @@ pub enum WriteBack {
     /// The edited draft uses the current vocabulary, so an older pack header
     /// was raised before the otherwise-targeted command write.
     VocabularyUpgraded,
+    /// The document is a **program** (E-R12), so it was not written to at
+    /// all: the edit became a canonical patch pack in the
+    /// [`Tier::StudioOverride`] tier, layered over the base by
+    /// [`PackStore::pack_set`] and reported by
+    /// [`PackStore::standing_overrides`].
+    Patched,
 }
 
 impl WriteBack {
@@ -172,6 +210,7 @@ impl WriteBack {
             Self::Spliced => "spliced",
             Self::Rerendered => "rerendered",
             Self::VocabularyUpgraded => "vocabulary-upgraded",
+            Self::Patched => "patched",
         }
     }
 }
@@ -197,28 +236,128 @@ pub struct Write {
     pub upgraded_from: Option<String>,
 }
 
-/// The user's definitions, backed by one `.tclspec` document.
+/// Where one browsable command was declared, and how it got there.
 ///
-/// The text is the store. Everything else on this struct is derived from it by
-/// [`loader::load_pack`] and recomputed whenever the text changes, so there is
-/// no second copy of the truth to drift.
-pub struct PackStore {
+/// The data plumbing behind an "expanded from" label: design E lets a pack
+/// register commands from a loop, and a surface that shows the *snapshot*
+/// has to be able to say which declarations are literal text the author can
+/// edit and which are a program's output that they cannot.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeclarationSite {
+    /// The line the `command` statement was made on. For an expanded
+    /// command that is the line **inside the program** that registered it.
+    pub line: u32,
+    /// The file, when the pack came through a merge that knows one. Always
+    /// `None` for a document open in the studio, which has no file.
+    pub file: Option<std::path::PathBuf>,
+    /// Whether the declaration is a program's output rather than a statement
+    /// in this document.
+    pub expanded: bool,
+}
+
+/// Why a document is a **program** rather than a canonical pack (E-R11), and
+/// therefore why the studio will not rewrite it (E-R12).
+///
+/// The three answers are the three things the studio can *see* from a
+/// snapshot and the bytes that produced it. They are checked in this order,
+/// so the reported reason is the most specific one that holds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Programmed {
+    /// The pack queried `available?` while it registered (E-R1), so its
+    /// surface is one analysis target's answer. Writing that answer back as
+    /// source would freeze one target's world into the file.
+    TargetDependent,
+    /// A command in the snapshot has no `command NAME { … }` statement in
+    /// this document — a loop, a `proc`, or a computed name registered it.
+    /// There is no byte range to splice.
+    Expanded,
+    /// The `speclib` body holds a top-level statement that is not one of the
+    /// registration calls the snapshot recorded — a `proc`, a `set`, a
+    /// `foreach`, an `if`. Every declaration may still be literal, but a
+    /// re-render would delete the program around them.
+    NonCanonicalStatement,
+}
+
+impl Programmed {
+    /// The word the report uses.
+    #[must_use]
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::TargetDependent => "target-dependent",
+            Self::Expanded => "expanded",
+            Self::NonCanonicalStatement => "non-canonical-statement",
+        }
+    }
+
+    /// One sentence a surface can show beside a read-only source pane.
+    #[must_use]
+    pub fn reason(self) -> &'static str {
+        match self {
+            Self::TargetDependent => {
+                "this pack queried `available?` while registering, so what you \
+                 see is one analysis target's answer (design E-R1)"
+            }
+            Self::Expanded => {
+                "this pack registers commands from a program, so some \
+                 declarations have no statement of their own to edit"
+            }
+            Self::NonCanonicalStatement => {
+                "this pack's body holds statements that are not registration \
+                 calls, so rewriting it would delete the program"
+            }
+        }
+    }
+}
+
+/// One command a patch pack is currently overriding: what a UI labels a
+/// patched row with, and what `spec check` reports so a patch cannot rot
+/// silently (design E §15.2).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StandingOverride {
+    /// The command the patch redefines.
+    pub command: String,
+    /// The `speclib` name of the patch pack holding the override.
+    pub patch_pack: String,
+    /// The `speclib` name of the base pack being overridden.
+    pub base_pack: String,
+    /// Where the base pack declared it — the line inside the program, for a
+    /// declaration the program produced.
+    pub base_line: Option<u32>,
+    /// Whether the base declaration is a program's output rather than a
+    /// statement in the base document.
+    pub base_expanded: bool,
+}
+
+/// The canonical patch pack laid over a programmed document.
+///
+/// Its `source` is the whole truth, exactly as the base document's is: the
+/// pack and the drafts beside it are derived from those bytes by the same
+/// loader, so there is no second copy to drift.
+struct Patch {
     source: String,
     pack: Pack,
-    /// One draft per declared command, in declaration order — derived, and the
-    /// only thing the form is ever handed.
     drafts: Vec<(String, Draft)>,
 }
 
-impl PackStore {
-    /// Load `source` as the store's document.
+impl Patch {
+    /// Load `source` as the patch, at the authoring tier.
     ///
-    /// Never fails: an unparsable or empty document loads as a pack with no
-    /// commands and the loader's notices explaining why.
-    #[must_use]
-    pub fn from_source(source: impl Into<String>) -> Self {
-        let source = source.into();
-        let pack = loader::load_pack(&source);
+    /// The **authoring** tier, deliberately, for the reason
+    /// [`AUTHORING_TIER`] gives: a patch pack's whole job is to declare
+    /// `-override`, and evaluating it as untrusted would discard it the
+    /// moment the overridden name happened to be a compiled one. The gate is
+    /// not lost — [`PackStore::patch_untrusted_tier_refusal`] reports what a
+    /// real Spec Studio override tier would refuse — and
+    /// [`PackStore::pack_set`] still installs the patch at
+    /// [`Tier::StudioOverride`].
+    fn from_source(source: String) -> Self {
+        let pack = loader::evaluate_pack_with(
+            &source,
+            &loader::EvalOptions {
+                tier: AUTHORING_TIER,
+                ..loader::EvalOptions::default()
+            },
+        );
         let drafts = pack
             .commands
             .iter()
@@ -228,6 +367,424 @@ impl PackStore {
             source,
             pack,
             drafts,
+        }
+    }
+}
+
+/// The user's definitions, backed by one `.tclspec` document.
+///
+/// The text is the store. Everything else on this struct is derived from it by
+/// [`loader::evaluate_pack_with`] and recomputed whenever the text changes, so
+/// there is no second copy of the truth to drift.
+pub struct PackStore {
+    source: String,
+    pack: Pack,
+    /// The provenance tier the document is *evaluated* under (E-R2).
+    tier: Tier,
+    /// One draft per declared command, in declaration order — derived, and the
+    /// only thing the form is ever handed.
+    drafts: Vec<(String, Draft)>,
+    /// The `StudioOverride`-tier patch pack, when form edits have landed
+    /// against a programmed document (E-R12). `None` for every canonical
+    /// pack, which is every pack shipped today.
+    patch: Option<Patch>,
+}
+
+/// The tier a document open in the studio evaluates under.
+///
+/// **Trusted, deliberately.** E-R2 gates what a pack loaded *from* an
+/// untrusted tier may register — it is a question about where a file was
+/// discovered, and the answer for the document under the author's own cursor
+/// is "they wrote it". Gating the editing buffer would make the studio unable
+/// to author the one thing E-R2 is about: a `-override` on a compiled name is
+/// a first-class studio operation ([`PackStore::set_command`] takes it as an
+/// argument), and evaluating the buffer as untrusted would discard the whole
+/// pack the moment the author ticked that box.
+///
+/// The gate is not lost, only moved to where it belongs: [`PackStore::pack_set`]
+/// still installs at [`Tier::Workspace`], and
+/// [`PackStore::untrusted_tier_refusal`] reports — without failing anything —
+/// what a workspace or Spec Studio load would refuse, so a surface can warn
+/// before the pack silently fails to load in an editor.
+const AUTHORING_TIER: Tier = Tier::Bundled;
+
+impl PackStore {
+    /// Load `source` as the store's document, at the authoring tier.
+    ///
+    /// Never fails: an unparsable or empty document loads as a pack with no
+    /// commands and the loader's notices explaining why.
+    #[must_use]
+    pub fn from_source(source: impl Into<String>) -> Self {
+        Self::from_source_at_tier(source, AUTHORING_TIER)
+    }
+
+    /// [`PackStore::from_source`] at an explicit provenance tier.
+    ///
+    /// The document is **evaluated** (design E §1), not walked: a pack may be
+    /// a program, and the studio browses the *snapshot* it registered rather
+    /// than the text that registered it. For a canonical pack — every pack
+    /// shipped today — nothing observable changes, which is what the golden
+    /// gate (`tcl-spectcl/tests/golden_packs.rs`), the fast-path gate
+    /// (`tcl-spectcl/tests/eval_loader.rs`) and the studio's own round-trip
+    /// suite hold this to.
+    #[must_use]
+    pub fn from_source_at_tier(source: impl Into<String>, tier: Tier) -> Self {
+        let source = source.into();
+        let pack = loader::evaluate_pack_with(
+            &source,
+            &loader::EvalOptions {
+                tier,
+                ..loader::EvalOptions::default()
+            },
+        );
+        let drafts = pack
+            .commands
+            .iter()
+            .map(|c| (c.spec.name.to_owned(), draft::from_command_spec(c.spec)))
+            .collect();
+        Self {
+            source,
+            pack,
+            tier,
+            drafts,
+            patch: None,
+        }
+    }
+
+    /// [`PackStore::from_source`] with a patch pack already standing over it.
+    ///
+    /// The studio's state is two documents once a programmed pack has been
+    /// edited — the author's source and the canonical patch — and a surface
+    /// that persists them (a browser reload, a saved workspace) restores the
+    /// pair through this rather than losing the overrides. An empty or
+    /// unparsable patch restores nothing, which is the same answer as never
+    /// having had one.
+    #[must_use]
+    pub fn from_source_with_patch(source: impl Into<String>, patch: &str) -> Self {
+        let mut store = Self::from_source(source);
+        store.adopt_patch(patch);
+        store
+    }
+
+    /// The provenance tier this document evaluates under.
+    #[must_use]
+    pub const fn tier(&self) -> Tier {
+        self.tier
+    }
+
+    /// Whether the document queried `available?` while it registered (E-R1).
+    ///
+    /// A target-dependent pack's snapshot is one *target's* answer rather
+    /// than the pack's: the commands below are what this analysis target
+    /// would see, and another would see a different set. The store surfaces
+    /// it so a surface can say so; nothing here changes because of it.
+    #[must_use]
+    pub const fn target_dependent(&self) -> bool {
+        self.pack.target_dependent
+    }
+
+    /// What an untrusted tier would refuse this document for, as
+    /// `(line, why)` — E-R2 asked of the snapshot rather than of the load.
+    ///
+    /// A **hypothetical**, deliberately: `Tier::Workspace` is
+    /// `Provenance::WorkspaceTrusted` today (§6.4 keys the untrusted class on
+    /// the editor's Workspace Trust state, which nothing on the discovery
+    /// path is told — redesign §11.1 O9), so a workspace pack that overrides
+    /// a shipped command still loads. This answers the question the author
+    /// wants answered anyway: *would* an untrusted workspace refuse this?
+    ///
+    /// `None` for every pack that touches nothing reserved, which is nearly
+    /// all of them.
+    #[must_use]
+    pub fn untrusted_tier_refusal(&self) -> Option<(u32, String)> {
+        tcl_spectcl::provenance_violation(&self.pack, Tier::Workspace)
+    }
+
+    /// Where a command was declared: the line of its `command` statement, the
+    /// file when one is known, and whether it was **expanded** from a program
+    /// rather than written out.
+    ///
+    /// The expansion flag is derived, not stored: a literal declaration has a
+    /// `command NAME { … }` statement in this very document, and one a loop
+    /// registered does not. That is the fact a surface needs to label a
+    /// browsable command "expanded from `bench-command`, line 12" — and the
+    /// reason such a command must not be edited in place (E-R12: a programmed
+    /// pack is never rewritten by the studio).
+    #[must_use]
+    pub fn declaration_site(&self, name: &str) -> Option<DeclarationSite> {
+        let command = self.pack.command(name)?;
+        Some(DeclarationSite {
+            line: command.line,
+            file: (!command.file.as_os_str().is_empty()).then(|| command.file.clone()),
+            expanded: command_span(&self.source, name).is_none(),
+        })
+    }
+
+    // ── E-R12: programmed documents and their patch packs ──────────────
+
+    /// Why this document is a **program** rather than a canonical pack, or
+    /// `None` when it is canonical and edits it in place as they always did.
+    ///
+    /// Three questions, most specific first, all answerable from the snapshot
+    /// and the bytes that produced it:
+    ///
+    /// 1. did the pack query `available?` while registering
+    ///    ([`Pack::target_dependent`], E-R1)?
+    /// 2. is any browsable command an **expansion** — no `command NAME { … }`
+    ///    statement of its own in this document ([`Self::declaration_site`])?
+    /// 3. does the `speclib` body hold a top-level statement that is not one
+    ///    of the registration calls the snapshot recorded?
+    ///
+    /// The third is what catches the pack whose declarations happen to all be
+    /// literal but which wraps them in a `proc`, a `set`, or a data table: no
+    /// declaration is an expansion, so (2) is silent, and yet the re-render
+    /// floor would still delete the program. Comparing the document's own
+    /// top-level statements against [`Pack::registrations`] pairwise — same
+    /// count, same head word, same first argument — is the strongest test the
+    /// record supports without the loader publishing a per-statement
+    /// canonicality verdict of its own.
+    #[must_use]
+    pub fn programmed(&self) -> Option<Programmed> {
+        if self.pack.target_dependent {
+            return Some(Programmed::TargetDependent);
+        }
+        if self
+            .drafts
+            .iter()
+            .any(|(name, _)| command_span(&self.source, name).is_none())
+        {
+            return Some(Programmed::Expanded);
+        }
+        (!self.straight_line()).then_some(Programmed::NonCanonicalStatement)
+    }
+
+    /// Whether every top-level statement of the `speclib` body is one of the
+    /// registration calls the snapshot recorded, in the same order.
+    ///
+    /// True for every canonical pack — the loader records the file's own
+    /// statements — and false the moment a statement runs rather than
+    /// registers.
+    fn straight_line(&self) -> bool {
+        let Some(body) = pack_body(&self.source) else {
+            // Not a pack at all: nothing was registered, and there is nothing
+            // programmed about a document that declares nothing.
+            return self.pack.registrations.is_empty();
+        };
+        let statements = segments(&self.source[body]);
+        statements.len() == self.pack.registrations.len()
+            && statements
+                .iter()
+                .zip(&self.pack.registrations)
+                .all(|(statement, registration)| {
+                    statement.words.first().map(String::as_str) == Some(registration.word())
+                        && statement.words.get(1).map_or("", String::as_str) == registration.arg(1)
+                })
+    }
+
+    /// The canonical patch pack standing over this document, when form edits
+    /// have landed against a programmed one.
+    #[must_use]
+    pub fn patch_source(&self) -> Option<&str> {
+        self.patch.as_ref().map(|patch| patch.source.as_str())
+    }
+
+    /// The `speclib` name the patch pack would carry — derived from the base
+    /// pack's, so a surface can name it before one exists.
+    #[must_use]
+    pub fn patch_name(&self) -> String {
+        let base = if self.pack.name.is_empty() {
+            "pack"
+        } else {
+            &self.pack.name
+        };
+        format!("{base}-studio-overrides")
+    }
+
+    /// The draft the patch pack declares for `name`, if it overrides it.
+    #[must_use]
+    pub fn patch_draft(&self, name: &str) -> Option<&Draft> {
+        self.patch.as_ref().and_then(|patch| {
+            patch
+                .drafts
+                .iter()
+                .find(|(key, _)| key == name)
+                .map(|(_, d)| d)
+        })
+    }
+
+    /// The draft that is actually **live** for `name`: the patch's when one
+    /// stands over it, the document's otherwise.
+    ///
+    /// Identical to [`Self::draft`] for every canonical pack, which never has
+    /// a patch. This is what a form should show after an edit to a programmed
+    /// pack, because it is what the registry answers with.
+    #[must_use]
+    pub fn effective_draft(&self, name: &str) -> Option<&Draft> {
+        self.patch_draft(name).or_else(|| self.draft(name))
+    }
+
+    /// Every command a patch pack is currently overriding, in the patch's own
+    /// declaration order — the surface a UI labels patched rows from, and the
+    /// one `spec check` reports so an override cannot rot unnoticed.
+    #[must_use]
+    pub fn standing_overrides(&self) -> Vec<StandingOverride> {
+        let Some(patch) = &self.patch else {
+            return Vec::new();
+        };
+        patch
+            .drafts
+            .iter()
+            .map(|(name, _)| {
+                let site = self.declaration_site(name);
+                StandingOverride {
+                    command: name.clone(),
+                    patch_pack: patch.pack.name.clone(),
+                    base_pack: self.name().to_owned(),
+                    base_line: site.as_ref().map(|site| site.line),
+                    base_expanded: site.is_some_and(|site| site.expanded),
+                }
+            })
+            .collect()
+    }
+
+    /// What the real [`Tier::StudioOverride`] tier would refuse the patch pack
+    /// for, as `(line, why)` — E-R2 asked of the patch the way
+    /// [`Self::untrusted_tier_refusal`] asks it of the document.
+    ///
+    /// `Some` exactly when the patch overrides a **compiled** command name: a
+    /// studio author may write that, and a real override-tier load would
+    /// discard the pack for it, so the warning is reported rather than
+    /// applied.
+    #[must_use]
+    pub fn patch_untrusted_tier_refusal(&self) -> Option<(u32, String)> {
+        self.patch
+            .as_ref()
+            .and_then(|patch| tcl_spectcl::provenance_violation(&patch.pack, Tier::StudioOverride))
+    }
+
+    /// Install `patch` as this document's standing patch pack, replacing any
+    /// it already had. Blank text clears it.
+    ///
+    /// Returns whether a patch stands afterwards.
+    pub fn adopt_patch(&mut self, patch: &str) -> bool {
+        if patch.trim().is_empty() {
+            self.patch = None;
+            return false;
+        }
+        let loaded = Patch::from_source(patch.to_owned());
+        if loaded.drafts.is_empty() {
+            self.patch = None;
+            return false;
+        }
+        self.patch = Some(loaded);
+        true
+    }
+
+    /// Take `name` back out of the patch pack, restoring the base
+    /// declaration. Dropping the last override drops the patch entirely.
+    ///
+    /// Returns `false` when no patch overrides `name`.
+    pub fn remove_override(&mut self, name: &str) -> bool {
+        if self.patch_draft(name).is_none() {
+            return false;
+        }
+        let keep: Vec<(String, Draft)> = self
+            .patch
+            .as_ref()
+            .map(|patch| {
+                patch
+                    .drafts
+                    .iter()
+                    .filter(|(key, _)| key != name)
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.patch = self.render_patch(&keep);
+        true
+    }
+
+    /// Render `commands` as a canonical patch pack, or `None` when there are
+    /// none left to render.
+    ///
+    /// Canonical **by construction**: the drafts go through the ordinary
+    /// whole-pack renderer (one call, so shared value tables are named once
+    /// rather than colliding between per-command renders), that text is
+    /// loaded, the base pack's `default` context rows are put in front of the
+    /// registrations it recorded, and the whole record is spelled back out by
+    /// `tcl_spectcl::export::export_pack` — the same expansion `tcl spec
+    /// export` and `spectcl_expand` produce. A patch is therefore a
+    /// straight-line pack whatever the document it patches looks like.
+    ///
+    /// Every declaration is written `-override`, whatever the form asked for:
+    /// a patch that does not override is a patch that does not apply, because
+    /// `installs_over` admits a later pack's claim on a held name only when it
+    /// says so.
+    fn render_patch(&self, commands: &[(String, Draft)]) -> Option<Patch> {
+        if commands.is_empty() {
+            return None;
+        }
+        let name = self.patch_name();
+        let drafts: Vec<Draft> = commands.iter().map(|(_, draft)| draft.clone()).collect();
+        let flags: BTreeSet<&str> = commands.iter().map(|(key, _)| key.as_str()).collect();
+        let seed = with_override_flags(
+            &render_spectcl::render_pack_with_version(&drafts, &name, self.render_version()),
+            &flags,
+        );
+        let mut seeded = loader::evaluate_pack(&seed);
+        // The minimal available context: the base pack's own `default` rows,
+        // verbatim from its registration record. Without them the patch's
+        // commands would inherit a different availability from the ones they
+        // replace — the patch would change more than the author edited.
+        let context: Vec<Registration> = self
+            .pack
+            .registrations
+            .iter()
+            .filter(|reg| reg.word() == "default")
+            .cloned()
+            .collect();
+        seeded.registrations = context.into_iter().chain(seeded.registrations).collect();
+        seeded.name = name;
+        self.render_version().clone_into(&mut seeded.dsl_version);
+        Some(Patch::from_source(export::export_pack(&seeded)))
+    }
+
+    /// Write `draft` back as a patch-pack override of `name` (E-R12): the
+    /// author's source is not touched, and the edit lands in the
+    /// `StudioOverride` tier instead.
+    ///
+    /// The form's `-override` tick is not consulted here, and cannot be: a
+    /// patch declaration that does not override is inert (see
+    /// [`Self::render_patch`]). What the tick decides for a canonical pack —
+    /// whether the pack claims a *shipped* name — a patch decides by what it
+    /// patches.
+    fn patch_command(&mut self, name: &str, draft: &Draft) -> Write {
+        let written = draft
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or(name)
+            .to_owned();
+        let mut commands: Vec<(String, Draft)> = self
+            .patch
+            .as_ref()
+            .map(|patch| patch.drafts.clone())
+            .unwrap_or_default();
+        // Editing a command's `name` field renames the override, so the old
+        // entry goes as well as the new one arriving.
+        commands.retain(|(key, _)| key != name && key != &written);
+        commands.push((written.clone(), draft.clone()));
+        self.patch = self.render_patch(&commands);
+        let dropped = if self.patch_draft(&written).is_some() {
+            Vec::new()
+        } else {
+            vec![format!(
+                "command {written} (the patch pack did not load it back)"
+            )]
+        };
+        Write {
+            how: WriteBack::Patched,
+            dropped,
+            upgraded_from: None,
         }
     }
 
@@ -333,6 +890,13 @@ impl PackStore {
     /// shipped code path, unchanged.
     ///
     /// Load notices are the store's own to report, so the set carries none.
+    ///
+    /// A standing patch pack (E-R12) is the set's **second** pack, at
+    /// [`Tier::StudioOverride`] and *after* the base — which is the whole of
+    /// the layering. `tcl_spectcl::install::install_into` inserts in pack
+    /// order and `tcl_spectcl::pack::installs_over` admits a later claim only
+    /// when it says `-override`, which every patch declaration does, so the
+    /// patch wins by the shipped policy rather than by anything here.
     #[must_use]
     pub fn pack_set(&self) -> PackSet {
         let name = if self.pack.name.is_empty() {
@@ -340,17 +904,16 @@ impl PackStore {
         } else {
             self.pack.name.clone()
         };
+        let mut packs = vec![merged(&name, &self.pack, Tier::Workspace)];
+        if let Some(patch) = &self.patch {
+            packs.push(merged(
+                &self.patch_name(),
+                &patch.pack,
+                Tier::StudioOverride,
+            ));
+        }
         PackSet {
-            packs: vec![MergedPack {
-                name: name.clone(),
-                dsl_version: self.pack.dsl_version.clone(),
-                tier: tcl_spectcl::Tier::Workspace,
-                files: vec![std::path::PathBuf::from(format!("{name}.tclspec"))],
-                display_name: self.pack.display_name.clone(),
-                file_extensions: self.pack.file_extensions.clone(),
-                ambient_packages: self.pack.ambient_packages.clone(),
-                commands: self.pack.commands.clone(),
-            }],
+            packs,
             notices: Vec::new(),
             key: self.overlay_key(),
         }
@@ -364,11 +927,14 @@ impl PackStore {
     /// installer for "no packs", so a document that hashes there is nudged.
     #[must_use]
     pub fn overlay_key(&self) -> u64 {
-        if self.pack.commands.is_empty() {
+        if self.pack.commands.is_empty() && self.patch.is_none() {
             return 0;
         }
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         self.source.hash(&mut hasher);
+        // The patch is part of the installed world, so it is part of that
+        // world's identity: adopting or dropping one is a new registry.
+        self.patch_source().hash(&mut hasher);
         match hasher.finish() {
             0 => 1,
             key => key,
@@ -404,9 +970,16 @@ impl PackStore {
     /// `name` field — is an ordinary edit: the new name lands in the old one's
     /// place rather than at the end of the file.
     ///
+    /// A **programmed** document (E-R12) is never written to: the edit lands
+    /// as a canonical patch pack in the `StudioOverride` tier instead, and
+    /// the reply says [`WriteBack::Patched`].
+    ///
     /// Returns how the document was reached — see [`WriteBack`], and this
     /// module's header for what "spliced" does and does not preserve.
     pub fn set_command(&mut self, name: &str, draft: &Draft, overrides: bool) -> Write {
+        if self.programmed().is_some() {
+            return self.patch_command(name, draft);
+        }
         let upgraded_from = self
             .draft_requires_vocabulary_upgrade(draft)
             .then(|| self.upgrade_vocabulary_for_edit())
@@ -455,7 +1028,15 @@ impl PackStore {
     /// Drop `name` from the document.
     ///
     /// Returns `false` when the document does not declare it.
+    ///
+    /// On a **programmed** document the source is never touched (E-R12), so
+    /// this can only take back a standing patch override —
+    /// [`Self::remove_override`] — and answers `false` for a command the
+    /// program itself declares.
     pub fn remove_command(&mut self, name: &str) -> bool {
+        if self.programmed().is_some() {
+            return self.remove_override(name);
+        }
         if self.draft(name).is_none() {
             return false;
         }
@@ -512,7 +1093,7 @@ impl PackStore {
             "vocabulary-probe",
             previous,
         );
-        loader::load_pack(&probe).notices.iter().any(|notice| {
+        loader::evaluate_pack(&probe).notices.iter().any(|notice| {
             notice.message.contains(" is SpecTcl ")
                 && notice
                     .message
@@ -547,7 +1128,17 @@ impl PackStore {
     /// put inside its `speclib` braces, which is the command block plus any
     /// value tables it needs.
     fn render_block(&self, draft: &Draft, overrides: bool) -> String {
-        let one = render_spectcl::render_pack(std::slice::from_ref(draft), self.name());
+        // In the *document's* vocabulary, not the renderer's newest: a block
+        // spliced into a pack that declares 1.1 must be a 1.1 block, or the
+        // document ends up with words newer than its own header — the
+        // inconsistency the loader reports per site (#1627). A draft that
+        // genuinely needs newer vocabulary has already raised the header by
+        // the time this runs (`draft_requires_vocabulary_upgrade`).
+        let one = render_spectcl::render_pack_with_version(
+            std::slice::from_ref(draft),
+            self.name(),
+            self.render_version(),
+        );
         let name = draft
             .get("name")
             .and_then(Value::as_str)
@@ -760,7 +1351,7 @@ impl PackStore {
             render_spectcl::header_word(pack_name),
             render_spectcl::DSL_VERSION
         );
-        let pack = loader::load_pack(&wrapped);
+        let pack = loader::evaluate_pack(&wrapped);
         let command = pack.commands.first()?;
         Some((
             command.spec.name.to_owned(),
@@ -810,9 +1401,29 @@ impl PackStore {
     }
 }
 
-// ---------------------------------------------------------------------------
+/// One loaded pack as the one-file [`MergedPack`] the installer takes.
+///
+/// The studio edits packs **in a browser**, where there is no file to
+/// discover, so the merged shape is assembled here rather than by
+/// `tcl_spectcl::pack::load` — same commands, same declarations, at the tier
+/// the pack really layers from.
+fn merged(name: &str, pack: &Pack, tier: Tier) -> MergedPack {
+    MergedPack {
+        name: name.to_owned(),
+        dsl_version: pack.dsl_version.clone(),
+        tier,
+        files: vec![std::path::PathBuf::from(format!("{name}.tclspec"))],
+        display_name: pack.display_name.clone(),
+        file_extensions: pack.file_extensions.clone(),
+        ambient_packages: pack.ambient_packages.clone(),
+        environments: pack.environments.clone(),
+        dialects: pack.dialects.clone(),
+        surface_rosters: pack.surface_rosters.clone(),
+        commands: pack.commands.clone(),
+    }
+}
+
 // The resolution facade
-// ---------------------------------------------------------------------------
 
 /// Where a name's *effective* definition comes from once the collision policy
 /// has been applied.
@@ -894,7 +1505,7 @@ impl<'a> Resolution<'a> {
     #[must_use]
     pub fn registry(&self) -> Arc<CommandRegistry> {
         tcl_spectcl::install::registry_with_packs(
-            DialectProfile::by_name(self.builtins.dialect()),
+            crate::environment::profile_for_dialect(self.builtins.dialect()),
             &self.store.pack_set(),
         )
     }
@@ -929,7 +1540,9 @@ impl<'a> Resolution<'a> {
     #[must_use]
     pub fn view(&self, name: &str) -> Option<Value> {
         let origin = self.origin(name)?;
-        let pack = self.store.draft(name);
+        // The **effective** pack draft: a standing patch override is what the
+        // registry answers with, so it is what the form must show (E-R12).
+        let pack = self.store.effective_draft(name);
         let builtin = self.builtins.draft(name);
         let effective = if origin.pack_wins() {
             pack.cloned()
@@ -946,6 +1559,9 @@ impl<'a> Resolution<'a> {
             "pack_display_name": self.store.display_name(),
             "pack_file_extensions": file_extensions_json(self.store.file_extensions()),
             "override": self.store.overrides_shipped(name),
+            // Whether what is shown comes from a `StudioOverride` patch pack
+            // rather than from the document itself.
+            "patched": self.store.patch_draft(name).is_some(),
             "effective": effective,
             "pack": pack,
             "builtin": builtin,
@@ -963,10 +1579,23 @@ impl<'a> Resolution<'a> {
             .map(|(name, d)| {
                 let origin = self.origin(name).unwrap_or(Origin::Pack);
                 let notices = self.store.notices_for(name);
+                let site = self.store.declaration_site(name);
                 json!({
                     "name": name,
                     "origin": origin.key(),
                     "override": self.store.overrides_shipped(name),
+                    // Where the declaration is, and whether the author can
+                    // edit it at all: an expanded command is a program's
+                    // output (E-R12 — the studio never rewrites a programmed
+                    // pack), so a surface labels it rather than opening it.
+                    "declared_at": site.as_ref().map(|site| json!({
+                        "line": site.line,
+                        "file": site.file.as_ref().map(|f| f.display().to_string()),
+                        "expanded": site.expanded,
+                    })),
+                    // A standing patch override (E-R12): the row a surface
+                    // labels "patched" and offers a "revert" on.
+                    "patched": self.store.patch_draft(name).is_some(),
                     "summary": summary_of(d),
                     "fields_set": fields_set(d, &defaults).len(),
                     "subcommands": count_of(d, "subcommands"),
@@ -1027,6 +1656,30 @@ impl<'a> Resolution<'a> {
             "file_extensions": file_extensions_json(self.store.file_extensions()),
             "dsl_version": self.store.dsl_version(),
             "dialect": self.builtins.dialect(),
+            // Two facts only the evaluation loader can report: whether this
+            // surface is one analysis target's answer (E-R1), and what an
+            // untrusted tier would refuse the document for (E-R2).
+            "target_dependent": self.store.target_dependent(),
+            "untrusted_tier_refusal": self
+                .store
+                .untrusted_tier_refusal()
+                .map(|(line, why)| json!({ "line": line, "reason": why })),
+            // E-R12: whether this document is a program the studio must not
+            // rewrite, and what patch pack currently stands over it.
+            "programmed": self.store.programmed().map(|why| json!({
+                "why": why.key(),
+                "reason": why.reason(),
+            })),
+            "patch": self.store.patch_source().map(|source| json!({
+                "pack": self.store.patch_name(),
+                "tier": Tier::StudioOverride.label(),
+                "source": source,
+                "untrusted_tier_refusal": self
+                    .store
+                    .patch_untrusted_tier_refusal()
+                    .map(|(line, why)| json!({ "line": line, "reason": why })),
+            })),
+            "standing_overrides": standing_overrides_json(&self.store.standing_overrides()),
             "commands": self.pack_index(),
             "notices": notices_json(&self.store.notices().iter().collect::<Vec<_>>()),
             "collisions": collisions,
@@ -1035,6 +1688,7 @@ impl<'a> Resolution<'a> {
                 "notices": self.store.notices().len(),
                 "collisions": collisions.len(),
                 "shadowed_commands": shadowed,
+                "standing_overrides": self.store.standing_overrides().len(),
                 "bytes": self.store.source().len(),
             },
         })
@@ -1102,13 +1756,31 @@ impl<'a> Resolution<'a> {
     }
 }
 
-// ---------------------------------------------------------------------------
 // JSON helpers
-// ---------------------------------------------------------------------------
 
 /// The pack's `file_extension` rows as a surface reads them: what the file
 /// type is called and where a file of it routes, minus the declaring line
 /// (which only the DSL pane's notices need).
+/// The standing patch overrides as a surface reads them: which command, from
+/// which patch, over which base declaration (design E §15.2 — "`spec check`
+/// reports standing overrides so they cannot rot silently").
+#[must_use]
+pub fn standing_overrides_json(rows: &[StandingOverride]) -> Value {
+    Value::Array(
+        rows.iter()
+            .map(|row| {
+                json!({
+                    "command": row.command,
+                    "patch_pack": row.patch_pack,
+                    "base_pack": row.base_pack,
+                    "base_line": row.base_line,
+                    "base_expanded": row.base_expanded,
+                })
+            })
+            .collect(),
+    )
+}
+
 fn file_extensions_json(rows: &[FileExtension]) -> Value {
     Value::Array(
         rows.iter()
@@ -1191,6 +1863,7 @@ fn family_key(family: loader::HookFamily) -> &'static str {
         F::ContextGate => "context_gate",
         F::LiteralArgumentValidator => "literal_argument_validator",
         F::ClauseShapeCheck => "clause_shape_check",
+        F::Constraints => "constraints",
         F::OptionArity => "-arity-hook",
     }
 }
@@ -1218,9 +1891,7 @@ fn hook_json(hook: &loader::HookDecl) -> Value {
     })
 }
 
-// ---------------------------------------------------------------------------
 // The CST side: finding a statement's bytes
-// ---------------------------------------------------------------------------
 
 /// The byte range of the `speclib` body's **contents** — everything between
 /// its braces.
@@ -1860,5 +2531,334 @@ command add_parameter {\narity 1..\n}\n}\n";
         for (name, d) in store.commands() {
             assert_eq!(canonical.draft(name), Some(d), "{name} changed meaning");
         }
+    }
+
+    // ── The evaluation loader underneath (design E §15.2) ─────────────
+
+    /// A canonical document is observably what it always was: the store
+    /// browses the same commands, in the same order, with the same drafts.
+    #[test]
+    fn a_canonical_document_is_unchanged_by_evaluation() {
+        let store = PackStore::from_source(PACK);
+        assert_eq!(store.name(), "demo");
+        let names: Vec<&str> = store.commands().iter().map(|(n, _)| n.as_str()).collect();
+        assert_eq!(names, vec!["greet", "farewell"]);
+        assert!(!store.target_dependent());
+        assert_eq!(store.untrusted_tier_refusal(), None);
+        // Every declaration is a statement in this document, so none is an
+        // expansion.
+        for (name, _) in store.commands() {
+            let site = store.declaration_site(name).expect("a declaration site");
+            assert!(!site.expanded, "{name}: {site:?}");
+            assert!(site.line > 0, "{name}: {site:?}");
+            assert_eq!(site.file, None);
+        }
+    }
+
+    /// A *programmed* document browses its snapshot: the loop's output is
+    /// browsable, and each derived command is marked as an expansion with
+    /// the line inside the program that registered it.
+    #[test]
+    fn a_programmed_document_browses_its_expansion_with_provenance() {
+        let store = PackStore::from_source(
+            "speclib fleet 2.0 {\n    \
+             proc fleet-command {name} {\n        \
+             command fleet::$name {\n            arity 1\n        }\n    }\n    \
+             foreach name {alpha beta} { fleet-command $name }\n}\n",
+        );
+        let names: Vec<&str> = store.commands().iter().map(|(n, _)| n.as_str()).collect();
+        assert_eq!(names, vec!["fleet::alpha", "fleet::beta"]);
+        for name in names {
+            let site = store.declaration_site(name).expect("a declaration site");
+            assert!(site.expanded, "{name}: {site:?}");
+            // The line points *into the program* — the registering statement,
+            // not a `command` statement in the file, because there is none.
+            assert!(site.line > 1, "{name}: {site:?}");
+            assert!(
+                crate::store::command_span(store.source(), name).is_none(),
+                "{name}: an expanded command has no statement of its own"
+            );
+        }
+    }
+
+    /// `available?` makes the browsed surface one target's answer, and the
+    /// store says so.
+    #[test]
+    fn a_target_dependent_document_is_flagged() {
+        let store = PackStore::from_source(
+            "speclib trap 2.0 {\n    default available {tcl 8.6-}\n    \
+             command base { arity 1 }\n    if {[available? {tcl 8.6-}]} {\n        \
+             command extra { arity 1 }\n    }\n}\n",
+        );
+        assert!(store.target_dependent());
+        assert_eq!(store.commands().len(), 2);
+    }
+
+    // ── E-R12: patch-pack editing ──────────────────────────────────────
+
+    /// The programmed document every patch test edits: one data table, one
+    /// helper `proc`, one `foreach`, and nothing a splice could reach.
+    const PROGRAMMED: &str = "speclib fleet 2.0 {\n    \
+         proc fleet-command {name arity} {\n        \
+         command fleet::$name {\n            arity $arity\n        }\n    }\n    \
+         foreach {name arity} {alpha 1 beta 2} { fleet-command $name $arity }\n}\n";
+
+    /// A canonical pack is canonical, and the studio keeps editing it in
+    /// place — the property the round-trip suite rests on.
+    #[test]
+    fn a_canonical_document_is_not_programmed() {
+        let store = PackStore::from_source(PACK);
+        assert_eq!(store.programmed(), None);
+        assert_eq!(store.patch_source(), None);
+        assert!(store.standing_overrides().is_empty());
+    }
+
+    /// A pack whose declarations are all literal but which wraps them in a
+    /// program is still a program: no declaration is an expansion, so only
+    /// the straight-line check catches it — and it must, because the
+    /// re-render floor would delete the `proc`.
+    #[test]
+    fn a_literal_pack_around_a_program_is_still_programmed() {
+        let store = PackStore::from_source(
+            "speclib demo 2.0 {\n    set width 3\n    \
+             command greet {\n        arity $width\n    }\n}\n",
+        );
+        assert_eq!(
+            store.programmed(),
+            Some(Programmed::NonCanonicalStatement),
+            "{:#?}",
+            store.notices()
+        );
+    }
+
+    /// A form edit against a programmed pack leaves the source alone and
+    /// lands as a canonical patch pack in the `StudioOverride` tier.
+    #[test]
+    fn an_edit_to_a_programmed_pack_becomes_a_studio_override_patch() {
+        let mut store = PackStore::from_source(PROGRAMMED);
+        assert_eq!(store.programmed(), Some(Programmed::Expanded));
+        let before = store.source().to_owned();
+
+        let mut edited = store.draft("fleet::alpha").expect("a draft").clone();
+        edited["arity"] = json!({ "min": 2, "max": 4 });
+        let write = store.set_command("fleet::alpha", &edited, true);
+
+        assert_eq!(write.how, WriteBack::Patched);
+        assert!(write.dropped.is_empty(), "{:?}", write.dropped);
+        assert_eq!(store.source(), before, "the program was rewritten");
+
+        let patch = store.patch_source().expect("a patch pack");
+        assert!(
+            patch.starts_with("speclib fleet-studio-overrides 2.0 {"),
+            "{patch}"
+        );
+        assert!(
+            patch.contains("command fleet::alpha -override {"),
+            "{patch}"
+        );
+        // Canonical by construction: it reloads as itself.
+        assert_eq!(
+            PackStore::from_source(patch).source(),
+            patch,
+            "the patch is not canonical"
+        );
+        // The base declaration is untouched, and the patch is what is live.
+        assert_eq!(
+            store
+                .draft("fleet::alpha")
+                .and_then(|d| d["arity"].get("min")),
+            Some(&json!(1))
+        );
+        assert_eq!(
+            store
+                .effective_draft("fleet::alpha")
+                .and_then(|d| d["arity"].get("min")),
+            Some(&json!(2))
+        );
+    }
+
+    /// The patch layers over the base by the **shipped** collision policy:
+    /// second pack in the set, `-override` on every declaration, so the
+    /// registry the Test tab queries answers with the patched spec.
+    #[test]
+    fn the_patch_layers_over_the_base_under_the_collision_policy() {
+        let mut store = PackStore::from_source(PROGRAMMED);
+        let mut edited = store.draft("fleet::alpha").expect("a draft").clone();
+        edited["arity"] = json!({ "min": 2, "max": 4 });
+        store.set_command("fleet::alpha", &edited, true);
+
+        let set = store.pack_set();
+        assert_eq!(set.packs.len(), 2);
+        assert_eq!(set.packs[0].tier, Tier::Workspace);
+        assert_eq!(set.packs[1].tier, Tier::StudioOverride);
+        assert_eq!(set.packs[1].name, "fleet-studio-overrides");
+        assert!(
+            set.packs[1].commands.iter().all(|c| c.overrides_shipped),
+            "a patch declaration that does not say -override cannot win"
+        );
+
+        let registry = Resolution::new(Builtins::for_dialect("tcl"), &store).registry();
+        let spec = registry.get("fleet::alpha").expect("the patched command");
+        assert_eq!(spec.arity.min, 2);
+        // And the command the patch does not mention still comes from the base.
+        assert_eq!(
+            registry
+                .get("fleet::beta")
+                .expect("the base command")
+                .arity
+                .min,
+            2
+        );
+    }
+
+    /// The standing-overrides report names the patch, the base, and where the
+    /// base declaration came from — the data a UI labels a patched row with.
+    #[test]
+    fn the_standing_overrides_report_lists_the_patch() {
+        let mut store = PackStore::from_source(PROGRAMMED);
+        let edited = store.draft("fleet::beta").expect("a draft").clone();
+        store.set_command("fleet::beta", &edited, true);
+
+        let standing = store.standing_overrides();
+        assert_eq!(standing.len(), 1);
+        assert_eq!(standing[0].command, "fleet::beta");
+        assert_eq!(standing[0].patch_pack, "fleet-studio-overrides");
+        assert_eq!(standing[0].base_pack, "fleet");
+        assert!(standing[0].base_expanded);
+        assert!(standing[0].base_line.is_some_and(|line| line > 1));
+
+        let view = Resolution::new(Builtins::for_dialect("tcl"), &store).store_view();
+        assert_eq!(view["standing_overrides"][0]["command"], "fleet::beta");
+        assert_eq!(view["programmed"]["why"], "expanded");
+        assert_eq!(view["patch"]["pack"], "fleet-studio-overrides");
+        assert_eq!(view["summary"]["standing_overrides"], 1);
+    }
+
+    /// Removing the patch restores the base declaration — the promise that
+    /// makes layering safe to try.
+    #[test]
+    fn removing_the_patch_restores_the_base() {
+        let mut store = PackStore::from_source(PROGRAMMED);
+        let mut edited = store.draft("fleet::alpha").expect("a draft").clone();
+        edited["arity"] = json!({ "min": 2, "max": 4 });
+        store.set_command("fleet::alpha", &edited, true);
+        let key_with_patch = store.overlay_key();
+
+        assert!(store.remove_override("fleet::alpha"));
+        assert_eq!(store.patch_source(), None);
+        assert!(store.standing_overrides().is_empty());
+        assert_eq!(store.pack_set().packs.len(), 1);
+        assert_ne!(store.overlay_key(), key_with_patch);
+        assert_eq!(
+            store
+                .effective_draft("fleet::alpha")
+                .and_then(|d| d["arity"].get("min")),
+            Some(&json!(1))
+        );
+        assert!(!store.remove_override("fleet::alpha"), "already gone");
+    }
+
+    /// Two edits share one patch pack, and a patch survives a round trip
+    /// through its own text — which is how a browser reload restores it.
+    #[test]
+    fn a_patch_accumulates_and_round_trips_through_its_own_text() {
+        let mut store = PackStore::from_source(PROGRAMMED);
+        for name in ["fleet::alpha", "fleet::beta"] {
+            let draft = store.draft(name).expect("a draft").clone();
+            store.set_command(name, &draft, true);
+        }
+        assert_eq!(store.standing_overrides().len(), 2);
+        let patch = store.patch_source().expect("a patch").to_owned();
+
+        let restored = PackStore::from_source_with_patch(PROGRAMMED, &patch);
+        assert_eq!(restored.patch_source(), Some(patch.as_str()));
+        assert_eq!(restored.standing_overrides().len(), 2);
+        assert_eq!(restored.overlay_key(), store.overlay_key());
+    }
+
+    /// The patch carries the base pack's `default` rows, so a patched command
+    /// keeps the availability of the one it replaces rather than silently
+    /// widening it — the "minimal available context" a patch pack needs.
+    #[test]
+    fn the_patch_carries_the_base_packs_available_context() {
+        let mut store = PackStore::from_source(
+            "speclib fleet 2.0 {\n    default available {tcl 8.6-}\n    \
+             proc fleet-command {name} {\n        \
+             command fleet::$name {\n            arity 1\n        }\n    }\n    \
+             foreach name {alpha beta} { fleet-command $name }\n}\n",
+        );
+        let base = store
+            .draft("fleet::alpha")
+            .expect("a draft")
+            .get("available")
+            .cloned();
+        store.set_command(
+            "fleet::alpha",
+            &store.draft("fleet::alpha").expect("a draft").clone(),
+            true,
+        );
+        let patch = store.patch_source().expect("a patch pack");
+        assert!(patch.contains("default available"), "{patch}");
+        assert_eq!(
+            store
+                .patch_draft("fleet::alpha")
+                .expect("the patched draft")
+                .get("available")
+                .cloned(),
+            base,
+            "the patch changed more than the author edited"
+        );
+    }
+
+    /// A patch that claims a compiled name loads for its author and would be
+    /// refused by a real `StudioOverride` load — reported, not applied, the
+    /// same posture the document itself gets.
+    #[test]
+    fn a_patch_over_a_compiled_name_reports_its_override_tier_refusal() {
+        let mut store = PackStore::from_source(
+            "speclib trap 2.0 {\n    set names lsort\n    \
+             foreach n $names { command $n -override {\n        arity 1..\n    } }\n}\n",
+        );
+        assert!(store.programmed().is_some());
+        let draft = store.draft("lsort").expect("a draft").clone();
+        assert_eq!(
+            store.set_command("lsort", &draft, true).how,
+            WriteBack::Patched
+        );
+        let (_, why) = store
+            .patch_untrusted_tier_refusal()
+            .expect("an override-tier refusal");
+        assert!(why.contains("design E-R2"), "{why}");
+    }
+
+    /// The authoring buffer is trusted — a studio author may write an
+    /// `-override` on a compiled name — and the refusal a workspace load
+    /// would raise is reported instead of applied.
+    #[test]
+    fn an_override_is_authorable_and_its_workspace_refusal_is_reported() {
+        let store = PackStore::from_source(
+            "speclib demo 2.0 {\n    command lsort -override {\n        arity 1..\n    }\n}\n",
+        );
+        assert_eq!(store.tier(), Tier::Bundled);
+        assert_eq!(store.commands().len(), 1, "{:#?}", store.notices());
+        assert!(store.overrides_shipped("lsort"));
+        let (line, why) = store
+            .untrusted_tier_refusal()
+            .expect("a workspace tier would refuse this");
+        assert_eq!(line, 2);
+        assert!(why.contains("design E-R2"), "{why}");
+
+        // A *workspace* pack is `Provenance::WorkspaceTrusted` (redesign
+        // §6.4 keys the untrusted class on the editor's Workspace Trust
+        // state, not on where the file was found), so it still loads and
+        // still overrides — the report above is the warning about the day
+        // it does not.
+        let workspace = PackStore::from_source_at_tier(store.source(), Tier::Workspace);
+        assert_eq!(workspace.commands().len(), 1);
+
+        // The live Spec Studio override tier *is* untrusted, and refuses it,
+        // which is what makes the report meaningful rather than theoretical.
+        let override_tier = PackStore::from_source_at_tier(store.source(), Tier::StudioOverride);
+        assert!(override_tier.commands().is_empty());
     }
 }

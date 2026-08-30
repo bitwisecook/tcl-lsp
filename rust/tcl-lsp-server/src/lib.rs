@@ -57,7 +57,6 @@ use sha2::{Digest, Sha256};
 use tcl_compiler::compiler_checks::DiagCode;
 
 use tcl_compiler::analyser::{Analyser, AnalysisResult, NonAsciiMode};
-use tcl_dialect::DialectSet;
 use tcl_lsp_core::bigip as core_bigip;
 use tcl_lsp_core::call_hierarchy as core_call_hierarchy;
 use tcl_lsp_core::code_actions as core_code_actions;
@@ -5771,6 +5770,10 @@ pub struct Backend {
     /// `tclLsp.bigipVersion` — the session's target BIG-IP release for the
     /// keyed library-version axis (`None` = the oldest-supported default).
     bigip_version: Mutex<Option<String>>,
+    /// `tclLsp.targets` — declared version-target ranges (redesign §5.4
+    /// range targeting) as `(provider, range)` pairs; empty = range mode
+    /// off. Mirrored onto the salsa `AnalyserConfig`.
+    declared_targets: Mutex<Vec<(String, String)>>,
     /// Generic `static::` variable-name patterns for IRULE4002
     /// (`tclLsp.diagnostics.genericVariablePatterns`). `None` keeps the built-in
     /// default set; `Some(list)` replaces it (an empty list disables the check).
@@ -5949,33 +5952,27 @@ pub struct Backend {
     store: Arc<dyn vfs::SourceStore>,
 }
 
-/// A known editor language ID after its ingress spelling has been resolved.
+/// A known editor language ID after its ingress spelling has been resolved
+/// through the one environment seam.
 ///
-/// Most IDs map to a full catalog profile; `tk` is a library-shell dialect
-/// represented directly by its singleton [`DialectSet`] bit until the catalog
-/// grows a dedicated profile. Keeping both cases typed prevents the language
-/// ID table from leaking a raw dialect string into server routing.
+/// **Ledger row F3, retired here**: this used to be a two-armed enum because
+/// `tk` was a bare `SpecSurface` bit rather than a catalogue profile. `tk`
+/// is now an environment like any other, so the ingress has one arm — the
+/// resolved environment's
+/// [`unit_profile`](tcl_registry::model::DocumentEnvironment::unit_profile),
+/// which is its catalogue profile for a catalogue environment and the typed
+/// additive Tk profile for `tk`. The newtype still keeps the language-id
+/// table from leaking a raw dialect string into server routing.
 #[derive(Clone, Copy)]
-enum LanguageDialect {
-    Profile(&'static tcl_dialect::DialectProfile),
-    Set(DialectSet),
-}
+struct LanguageDialect(&'static tcl_dialect::DialectProfile);
 
 impl LanguageDialect {
     fn name(self) -> &'static str {
-        match self {
-            Self::Profile(profile) => profile.name,
-            Self::Set(set) => set
-                .canonical_name()
-                .expect("language-id dialect sets are singleton bits"),
-        }
+        self.0.name
     }
 
     fn is_explicit_non_tcl(self) -> bool {
-        match self {
-            Self::Profile(profile) => !profile.name.starts_with("tcl"),
-            Self::Set(_) => true,
-        }
+        !self.0.name.starts_with("tcl")
     }
 }
 
@@ -6902,6 +6899,7 @@ impl Backend {
             None,
             None,
             0,
+            Vec::new(),
         );
         let diagnostic_publisher = Arc::new(DiagnosticPublisher::new(client.clone()));
         Self {
@@ -6942,6 +6940,7 @@ impl Backend {
             external_pack_watch_globs: Arc::new(Mutex::new(Vec::new())),
             pack_source_extensions: Arc::new(Mutex::new(Vec::new())),
             bigip_version: Mutex::new(None),
+            declared_targets: Mutex::new(Vec::new()),
             generic_variable_patterns: Mutex::new(None),
             formatting_settings: Mutex::new(serde_json::Value::Null),
             feature_toggles: Mutex::new(FeatureToggles::default()),
@@ -7408,6 +7407,8 @@ impl Backend {
         config.set_generic_variable_patterns(&mut *db).to(generic);
         let bigip = self.bigip_version.lock().await.clone();
         config.set_bigip_version(&mut *db).to(bigip);
+        let targets = self.declared_targets.lock().await.clone();
+        config.set_targets(&mut *db).to(targets);
     }
 
     /// Run the salsa `document_symbols` query for `uri` on a worker thread,
@@ -7906,8 +7907,14 @@ impl Backend {
     /// signal every BIG-IP-specific branch (analysis suppression,
     /// config outline) keys on.
     fn is_bigip_dialect(dialect: &str) -> bool {
-        tcl_dialect::DialectProfile::find(dialect)
-            .is_some_and(|profile| profile.availability_mask.contains(DialectSet::BIGIP))
+        // The resolved environment's authoring point, not a second name
+        // validator: sweep-pinned to the profile's own point for every
+        // catalogue environment, and the lenient sink (every unknown name)
+        // carries no vendor package, exactly as `find` answering `None` did.
+        tcl_lsp_core::document_context_for_dialect(dialect)
+            .authoring_query()
+            .packages
+            .contains(&"bigip")
     }
 
     /// Look up the per-folder dialect override for `uri`,
@@ -7927,50 +7934,47 @@ impl Backend {
     /// language id does not name a known dialect — the caller falls
     /// back to the session default.
     fn dialect_from_language_id(language_id: &str) -> Option<LanguageDialect> {
-        // The catalog already carries both spellings a profile answers to: its
-        // canonical name (`tcl9.0`, `synopsys-eda-tcl` — what the MCP bridge
-        // and direct callers pass) and its `editor_language_id` (`tcl90`,
-        // `tcl-synopsys` — what the editor integrations contribute; the
-        // version-pinned ids are undotted there because a language id
-        // containing a `.` cannot carry a `configurationDefaults` override,
-        // issue #1122). Reading them from the catalog keeps a new profile
-        // resolvable here the day it is added.
-        if let Some(profile) = tcl_dialect::DialectProfile::all().iter().find(|profile| {
-            profile.name == language_id
-                || profile
-                    .editor_language_id
-                    .is_some_and(|id| id == language_id)
-        }) {
-            return Some(LanguageDialect::Profile(profile));
-        }
-        // The remaining spellings are *not* catalog data: ids the catalog has
-        // no field for, kept because editors and older configurations still
-        // send them.
+        // Ids that must **not** reach the environment resolver as written,
+        // because the resolver answers them differently or not at all. Every
+        // other spelling — a canonical id, an alias, or a contributed editor
+        // identity (`tcl90`, `tcl-synopsys`; the version-pinned ones are
+        // undotted because a language id containing a `.` cannot carry a
+        // `configurationDefaults` override, issue #1122) — is declared by the
+        // environment catalogue and resolves below, which keeps a new
+        // environment resolvable here the day it is added.
         let mapped = match language_id {
             // Every editor sends the bare `tcl` id for a plain `.tcl` buffer;
             // it names no version, and 8.6 is the fallback the rest of the
-            // resolution chain is written against.
+            // resolution chain is written against. (The `tcl` *environment*
+            // is the lenient whole-ladder one, which is a different answer.)
             "tcl" => "tcl8.6",
             // `tcl-apl` is the APL (iApp presentation language) editor id — an
             // iApp sublanguage, so it analyses as `f5-iapps` rather than
             // falling through to the default Tcl dialect.
             "tcl-apl" => "f5-iapps",
+            // Editor ids the environment catalogue does not declare (its own
+            // identities are `bpf`-less, `tcl-microchip`, `tclspec`), kept
+            // because editors and older configurations still send them.
             "tcl-bpf" => "bpf",
             "tcl-libero" => "microchip-libero-eda-tcl",
             // `tcl-spec` matches the `tcl-…` shape the other integration ids
-            // use; the catalog's own id for SpecTcl packs is `tclspec`.
+            // use; the catalogue's own id for SpecTcl packs is `tclspec`.
             "tcl-spec" => "spectcl",
-            // Tk is a library surface, not a selectable profile, so it has no
-            // catalog entry — it resolves to its bare `DialectSet` bit below.
-            "tk" => "tk",
-            _ => return None,
+            other => other,
         };
-        // This is an editor-ID ingress boundary. It resolves straight to the
-        // interned profile so aliases and command consumers cannot retain a
-        // free-text dialect spelling after this point.
-        tcl_dialect::DialectProfile::find(mapped)
-            .map(LanguageDialect::Profile)
-            .or_else(|| DialectSet::parse(mapped).map(LanguageDialect::Set))
+        // This is an editor-ID ingress boundary, and it goes through the one
+        // environment seam: aliases and command consumers cannot retain a
+        // free-text dialect spelling after this point, and an id that names
+        // no environment answers `None` so the caller falls back to the
+        // session default.
+        tcl_registry::model::resolve_known_environment(mapped)
+            // A language id names a *contributed identity*, never a legacy
+            // alias: `irules` resolves to `f5-irules` wherever a dialect
+            // name is configured, but no editor contributes it as a language
+            // id, and taking it as one would select an environment through a
+            // spelling the contribution manifest never declares (review B7).
+            .filter(|environment| environment.is_contributed_identity(mapped))
+            .map(|environment| LanguageDialect(environment.unit_profile()))
     }
 
     /// Barrier: block until every document-sync notification the client sent
@@ -9110,6 +9114,7 @@ impl Backend {
             spec_pack_reload: _,
             spec_pack_reload_seq: _,
             bigip_version: _,
+            declared_targets: _,
             generic_variable_patterns: _,
             formatting_settings: _,
             feature_toggles: _,
@@ -12955,7 +12960,7 @@ impl Backend {
         let dialect = doc.dialect.clone();
         let value = crate::rt::spawn_blocking(move || {
             tcl_spectcl::hooks::ensure_thread_host();
-            let dialect_opt = tcl_dialect::DialectProfile::resolve_known(&dialect);
+            let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(&dialect);
             let (source, opts) = if profile == "full" {
                 tcl_compiler::optimiser::optimise_source_multipass(&text, &registry, dialect_opt, 5)
             } else {
@@ -13330,7 +13335,14 @@ impl Backend {
         // The catalog's labels for the resolved dialect, so a status bar or
         // picker can render it without keeping its own name table. `null` for a
         // name the catalog does not know (an unrecognised configured value).
-        let dialect_profile = tcl_dialect::DialectProfile::find(&dialect);
+        // Ledger F9 (payload half, still open): the labels move to the
+        // environment's own
+        // `display_name` when the environment/targets status surface lands;
+        // the model carries no `short_name` yet, so the catalogue projection
+        // is held — but reached from the *resolved environment*, not from a
+        // second name validator, and still `null` for a name that names no
+        // catalogue entry (`tk`, the lenient `tcl`, an unknown value).
+        let dialect_profile = tcl_lsp_core::environment_for_dialect(&dialect).catalogue_profile();
         // Whether a `tclLsp.dialect` was actually configured for this URI — by
         // the folder it sits under, or session-wide — as opposed to the
         // built-in fallback that a never-configured session reports.  A
@@ -13461,7 +13473,7 @@ impl Backend {
                 "error": "setDialect requires a dialect-name argument",
             })));
         };
-        if !tcl_dialect::available_dialects().contains(&dialect) {
+        if !is_known_dialect_name(dialect) {
             return Ok(Some(serde_json::json!({
                 "success": false,
                 "error": unknown_dialect_error(dialect),
@@ -13496,7 +13508,7 @@ impl Backend {
     ) -> jsonrpc::Result<Option<serde_json::Value>> {
         let requested = args.first().and_then(serde_json::Value::as_str);
         if let Some(dialect) = requested
-            && !tcl_dialect::available_dialects().contains(&dialect)
+            && !is_known_dialect_name(dialect)
         {
             return Ok(Some(serde_json::json!({
                 "success": false,
@@ -13520,6 +13532,12 @@ impl Backend {
     /// build time (`cargo xtask gen-editor-dialects`); every other editor asks
     /// for it here, so a dialect picker or status bar never has to hardcode one.
     fn list_dialects_command() -> serde_json::Value {
+        // Ledger F9 (payload half, still open): `listEnvironments`
+        // replaces this. Not a
+        // refactor — the environment catalogue has different *contents*
+        // (it adds `tcl` and `tk`) and no `short_name`, so swapping the
+        // source changes this command's payload and the pickers built on
+        // it. Held until the status surface lands with the new shape.
         serde_json::Value::Array(
             tcl_dialect::DialectProfile::all()
                 .iter()
@@ -14041,6 +14059,24 @@ impl Backend {
             let version = version.trim();
             *self.bigip_version.lock().await = (!version.is_empty()).then(|| version.to_owned());
         }
+        // `tclLsp.targets` — declared version-target ranges (redesign §5.4
+        // range targeting): an object of provider → range, e.g.
+        // `{ "tcl": "8.5-9.0", "Tk": "8.5-8.6" }`. Reset unconditionally so
+        // removing the setting switches range mode back off.
+        {
+            let mut targets: Vec<(String, String)> = Vec::new();
+            if let Some(map) = cfg.get("targets").and_then(serde_json::Value::as_object) {
+                for (name, range) in map {
+                    if let Some(range) = range.as_str() {
+                        let range = range.trim();
+                        if !range.is_empty() {
+                            targets.push((name.clone(), range.to_owned()));
+                        }
+                    }
+                }
+            }
+            *self.declared_targets.lock().await = targets;
+        }
         // `tclLsp.diagnostics.genericVariablePatterns` — replaces the built-in
         // IRULE4002 generic-name set (an explicit empty list disables the
         // check; an absent key leaves the default).
@@ -14173,7 +14209,14 @@ impl Backend {
                     next.push((folder.clone(), handle));
                 } else {
                     let handle = tcl_lsp_db::AnalyserConfig::new(
-                        &*db, disabled, mode, extra, generic, None, pack_key,
+                        &*db,
+                        disabled,
+                        mode,
+                        extra,
+                        generic,
+                        None,
+                        pack_key,
+                        Vec::new(),
                     );
                     next.push((folder.clone(), handle));
                 }
@@ -14186,6 +14229,7 @@ impl Backend {
                 handle.set_extra_commands(&mut *db).to(Vec::new());
                 handle.set_generic_variable_patterns(&mut *db).to(None);
                 handle.set_bigip_version(&mut *db).to(None);
+                handle.set_targets(&mut *db).to(Vec::new());
                 tombstones.insert(folder, handle);
             }
             *handles = next;
@@ -14296,30 +14340,27 @@ impl Backend {
         // either resolution, since they come from the name-keyed registry
         // above. Resolving through the ingress keeps the profile and that
         // registry describing the same dialect.
-        let profile = tcl_lsp_core::profile_for_dialect(&dialect);
-        let mut subs: Vec<serde_json::Value> = {
-            use tcl_registry::ProfileQueries;
-            profile.resolve_command(&registry, &name)
-        }
-        .map(|spec| {
-            spec.subcommands
-                .iter()
-                .map(|sub| {
-                    serde_json::json!({
-                        "name": sub.name,
-                        "detail": sub.detail,
-                        "synopsis": sub.synopsis,
-                        "pure": sub.pure,
-                        "mutator": sub.mutator,
-                        // The registry tracks deprecation at command level,
-                        // not per subcommand — report the shape with a
-                        // conservative default.
-                        "deprecated": false,
+        let mut subs: Vec<serde_json::Value> = tcl_lsp_core::document_context_for_dialect(&dialect)
+            .resolve_spec(&registry, &name)
+            .map(|spec| {
+                spec.subcommands
+                    .iter()
+                    .map(|sub| {
+                        serde_json::json!({
+                            "name": sub.name,
+                            "detail": sub.detail,
+                            "synopsis": sub.synopsis,
+                            "pure": sub.pure,
+                            "mutator": sub.mutator,
+                            // The registry tracks deprecation at command level,
+                            // not per subcommand — report the shape with a
+                            // conservative default.
+                            "deprecated": false,
+                        })
                     })
-                })
-                .collect()
-        })
-        .unwrap_or_default();
+                    .collect()
+            })
+            .unwrap_or_default();
         subs.sort_by(|a, b| {
             a.get("name")
                 .and_then(serde_json::Value::as_str)
@@ -14730,9 +14771,11 @@ impl Backend {
         // handle so this function has one return type.  Reaching the cache
         // directly also spares the db mutex a lock on a path that only ever
         // forwarded.
-        tcl_registry::cache::registry_handle_for_profile(tcl_dialect::DialectProfile::by_name(
-            dialect,
-        ))
+        Arc::clone(
+            tcl_lsp_core::environment_for_dialect(dialect)
+                .default_context_registry()
+                .commands(),
+        )
     }
 
     /// `tclLsp.specPacks` and what discovery made of it, for
@@ -14815,6 +14858,15 @@ impl Backend {
                 // A statically-registered extension needs no dynamic
                 // association; the catalogue's own routing is what the
                 // editors already ship.
+                //
+                // Ledger F12/T13 (still open): the environment model
+                // carries the
+                // same claim in `DetectionFacts::file_extensions`, but the
+                // two sets are not identical — the lenient `tcl`
+                // environment claims `.tcl`/`.tk`/`.itcl`/`.tm`/`.test`
+                // where the fallback profile claims none — so switching
+                // source would silently suppress dynamic associations a
+                // pack registers today.
                 if tcl_dialect::DialectProfile::all().iter().any(|p| {
                     p.file_extensions
                         .iter()
@@ -14823,11 +14875,15 @@ impl Backend {
                     continue;
                 }
                 seen.push(row.extension.clone());
+                // The environment's own contributed editor identity (ledger
+                // F12/T12): the same value the profile's `editor_language_id`
+                // carried for every catalogue entry, reached through the one
+                // name seam instead of a second `find`.
                 let language_id = row
                     .dialect
-                    .and_then(tcl_dialect::DialectProfile::find)
-                    .and_then(|p| p.editor_language_id)
-                    .unwrap_or("tcl");
+                    .and_then(tcl_registry::model::resolve_known_environment)
+                    .and_then(|environment| environment.definition.editor_identity)
+                    .map_or("tcl", tcl_dialect::model::EditorLanguageIdentityId::as_str);
                 out.push(serde_json::json!({
                     "extension": row.extension,
                     "dialect": row.dialect,
@@ -14835,6 +14891,38 @@ impl Backend {
                     "display_name": row.display_name,
                     "pack": pack.name,
                 }));
+            }
+            // The same advertisement for the extensions a pack-declared
+            // `environment` block claims. Server-side these already route
+            // (`registration::extension_routes` publishes them alongside the
+            // `-dialect` rows), but an editor that never associates the
+            // extension still opens the file as plain text and never
+            // attaches — so an environment a pack declares would be
+            // reachable by every path except the one a user actually takes.
+            for environment in &pack.environments {
+                let resolved = tcl_registry::model::resolve_known_environment(&environment.id);
+                let language_id = resolved
+                    .as_ref()
+                    .and_then(|environment| environment.definition.editor_identity)
+                    .map_or("tcl", tcl_dialect::model::EditorLanguageIdentityId::as_str);
+                for claim in &environment.file_extensions {
+                    let extension = claim.extension.as_ref();
+                    if seen.iter().any(|prior| prior == extension)
+                        || tcl_dialect::DialectProfile::all()
+                            .iter()
+                            .any(|p| p.file_extensions.iter().any(|e| e.extension == extension))
+                    {
+                        continue;
+                    }
+                    seen.push(extension.to_owned());
+                    out.push(serde_json::json!({
+                        "extension": extension,
+                        "dialect": environment.id,
+                        "language_id": language_id,
+                        "display_name": claim.display_name.as_ref(),
+                        "pack": pack.name,
+                    }));
+                }
             }
         }
         out.sort_by(|a, b| a["extension"].as_str().cmp(&b["extension"].as_str()));
@@ -15177,7 +15265,7 @@ impl Backend {
 
         // XC100-301 translatability lints — independent toggle, f5-irules only.
         let xc_on = self.xc_diagnostics_enabled(uri).await;
-        let xc_for_irules = tcl_dialect::DialectProfile::by_name(&dialect).is_irules() && xc_on;
+        let xc_for_irules = tcl_lsp_core::profile_for_dialect(&dialect).is_irules() && xc_on;
         // Cross-file resolution + the workspace W120 / W123 refinements,
         // matching the push path — and shared verbatim with
         // `textDocument/codeAction`, which lifts its quick-fixes from this
@@ -15770,6 +15858,9 @@ impl Backend {
             return false;
         };
 
+        // What publishing the set did to the live environment registry, when
+        // it was published — `None` when this reload changed nothing.
+        let mut registration: Option<tcl_spectcl::PackSetRegistration> = None;
         let changed = {
             let mut guard = self.spec_packs.lock().await;
             // Newest snapshot wins, decided by when the disk was read. With
@@ -15793,7 +15884,15 @@ impl Backend {
                 // — the compiler explorer most of all, which built a plain
                 // registry and so reported a pack's (and every EDA) command
                 // unknown on the very line whose diagnostic resolved it.
-                tcl_spectcl::bundled::set_active(Some(Arc::clone(&loaded)));
+                //
+                // This is also where a pack's `environment` blocks go live:
+                // the publish registers them into the one environment
+                // registry the ingress resolves against, retires the ones a
+                // pack that has left the workspace declared, and republishes
+                // the extension routing detection reads — so a document with
+                // a pack-declared extension resolves to that environment
+                // through the ordinary ingress from here on.
+                registration = Some(tcl_spectcl::bundled::set_active(Some(Arc::clone(&loaded))));
                 // The stamp moves with the content: it records which snapshot
                 // the *current* set came from, so a reload that read the disk
                 // earlier than that can never take its place.
@@ -15836,6 +15935,25 @@ impl Backend {
             // before anything re-analyses.
             self.sync_db_config().await;
         }
+        self.report_pack_reload(&packs, registration.as_ref(), changed)
+            .await;
+        self.settle_pack_reload(changed, trigger).await;
+        changed
+    }
+
+    /// Publish everything a finished reload has to *say*: shipped-command
+    /// collisions, the environments the live registry refused, and the
+    /// one-line summary on the log channel.
+    ///
+    /// Split out of [`Backend::reload_spec_packs`] because it is the
+    /// reporting half — it changes nothing about what is loaded, and every
+    /// input it needs is already settled by the time it runs.
+    async fn report_pack_reload(
+        &self,
+        packs: &Arc<tcl_spectcl::PackSet>,
+        registration: Option<&tcl_spectcl::PackSetRegistration>,
+        changed: bool,
+    ) {
         // Shipped-command collisions are not load notices — the loader has no
         // registry to compare against, so `PackSet::notices` cannot carry
         // them. They are computed here, against the session dialect's plain
@@ -15848,25 +15966,41 @@ impl Backend {
         // workspace scope, and the notice is about the pack file, which has no
         // dialect of its own.
         let dialect = self.session_dialect().await;
-        let for_collisions = Arc::clone(&packs);
-        let collisions = crate::rt::spawn_blocking(move || {
+        let for_collisions = Arc::clone(packs);
+        let mut collisions = crate::rt::spawn_blocking(move || {
             tcl_spectcl::pack::collision_notices(
                 &for_collisions,
-                tcl_registry::registry_for_dialect(&dialect),
+                tcl_lsp_core::registry_for_dialect(&dialect),
             )
         })
         .await
         .unwrap_or_default();
-        self.publish_spec_pack_notices(&packs, &collisions).await;
+        // A pack whose `environment` blocks the registry refused is a pack
+        // the author has to hear about, and the pack file is where they are
+        // looking. The reason is the registry's own message — the reserved
+        // name, the untrusted extension, the collision — so the notice says
+        // which rule and which pack rather than "some environments did not
+        // load".
+        collisions.extend(Self::environment_rejection_notices(packs, registration));
+        self.publish_spec_pack_notices(packs, &collisions).await;
 
         if changed {
             let commands: usize = packs.packs.iter().map(|p| p.commands.len()).sum();
+            let environments = registration.map_or_else(String::new, |r| {
+                format!(
+                    ", {} environment(s), {} extension(s), {} retired, {} refused",
+                    r.declared,
+                    r.extended,
+                    r.retired,
+                    r.rejected.len()
+                )
+            });
             self.client
                 .log_message(
                     MessageType::INFO,
                     format!(
                         "SpecTcl: {} pack(s), {commands} command(s), {} notice(s), \
-                         {} shipped-command collision(s)",
+                         {} shipped-command collision(s){environments}",
                         packs.packs.len(),
                         packs.notices.len(),
                         collisions.len()
@@ -15874,9 +16008,41 @@ impl Backend {
                 )
                 .await;
         }
+    }
 
-        self.settle_pack_reload(changed, trigger).await;
-        changed
+    /// A [`tcl_spectcl::PackNotice`] on each pack file whose environments
+    /// the live registry refused.
+    ///
+    /// Attached to the pack's *first* file: an environment block can come
+    /// from any file of a multi-file pack, and the registration seam works
+    /// on the merged pack, so the pack — not a line — is what the refusal
+    /// is about.
+    fn environment_rejection_notices(
+        packs: &tcl_spectcl::PackSet,
+        registration: Option<&tcl_spectcl::PackSetRegistration>,
+    ) -> Vec<tcl_spectcl::PackNotice> {
+        let Some(registration) = registration else {
+            return Vec::new();
+        };
+        registration
+            .rejected
+            .iter()
+            .filter_map(|rejection| {
+                let pack = packs
+                    .packs
+                    .iter()
+                    .find(|pack| pack.name == rejection.pack)?;
+                let path = pack.files.first()?;
+                Some(tcl_spectcl::PackNotice::whole_file(
+                    path,
+                    format!(
+                        "the `environment` blocks of pack `{}` are not loaded: {}",
+                        rejection.pack, rejection.error
+                    ),
+                    tcl_spectcl::pack::Severity::Warning,
+                ))
+            })
+            .collect()
     }
 
     /// Everything that has to happen *after* a pack set is published, in the
@@ -21584,12 +21750,19 @@ fn non_ascii_mode_str(mode: NonAsciiMode) -> serde_json::Value {
 /// dialect the catalog offers so the caller can correct the spelling from the
 /// error alone rather than having to ask for the list separately.
 fn unknown_dialect_error(dialect: &str) -> String {
+    // Ledger F9 (payload half, still open): the accepted set is now
+    // `Environment::resolve`'s
+    // (canonical ids + aliases + contributed editor identities), which is
+    // wider than the canonical list quoted here. The list stays canonical
+    // deliberately — it is a "correct your spelling to one of these"
+    // message, not the acceptance set — and moves to the environment
+    // enumeration with `listEnvironments`.
     let valid = tcl_dialect::DialectProfile::all()
         .iter()
         .map(|profile| profile.name)
         .collect::<Vec<_>>()
         .join(", ");
-    format!("unknown dialect: {dialect} (valid dialects: {valid})")
+    format!("unknown dialect: {dialect} (valid surface: {valid})")
 }
 
 /// Extract `tclLsp.style.nonAscii` from an LSP settings payload, accepting
@@ -22288,7 +22461,7 @@ fn apl_presentation_diagnostics(
     tcl_bigip::apl::validate_iapp_presentation(
         &model,
         impl_var_refs,
-        tcl_dialect::DialectProfile::by_name(IAPPS_DIALECT),
+        tcl_lsp_core::profile_for_dialect(IAPPS_DIALECT),
     )
     .into_iter()
     .filter(|d| !disabled.contains(&d.code))
@@ -24074,15 +24247,21 @@ fn empty_diagnostic_report() -> DocumentDiagnosticReportResult {
 }
 
 /// Whether `name` is a dialect the server accepts wherever a dialect *name* is
-/// configured — `initializationOptions.folderDialects` and the per-folder
-/// `tclLsp.dialect` pulled by `workspace/configuration`.
+/// configured — `initializationOptions.folderDialects`, the per-folder
+/// `tclLsp.dialect` pulled by `workspace/configuration`, and the
+/// `setDialect` / `setSessionDialectOverride` commands.
 ///
-/// Valid names: any catalog profile (including the config-only f5-tmsh /
-/// f5-bigip / bpf, which a bare `DialectSet::parse` check wrongly rejects) plus
-/// `tk` (a parseable library shell, not a profile — §7.2).  One predicate so
-/// the two configuration paths cannot drift apart on what they accept.
+/// **Ledger row F9**: the validators this replaced (`DialectProfile::find` ∪
+/// `DialectProfile::find` here, and `available_dialects()`'s
+/// canonical-names-only membership in the two commands) are now one
+/// `Environment::resolve` — so every configuration path accepts exactly the
+/// declared names: canonical environment ids, their aliases, and the
+/// contributed editor identities. That is a superset of what the old
+/// predicates took (an alias or editor id no longer depends on which of the
+/// two tables a name happened to be in), and an unknown name is still
+/// rejected.
 fn is_known_dialect_name(name: &str) -> bool {
-    tcl_dialect::DialectProfile::find(name).is_some() || DialectSet::parse(name).is_some()
+    tcl_registry::model::is_known_environment_name(name)
 }
 
 /// Resolve the per-folder dialect override for the given URI. The
@@ -25565,7 +25744,7 @@ mod tests {
             .analyse(caller_src, "tcl8.6")
             .clone();
         let index = ws_index(others);
-        let registry = tcl_registry::registry_for_dialect("tcl8.6");
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let settled = settle_cross_file_calls(&index, &analysis, registry, caller_uri.as_str());
         (analysis, settled)
     }
@@ -26379,7 +26558,10 @@ mod tests {
     /// registry path must surface it through `lift_compiler_diagnostics`.
     #[test]
     fn lift_compiler_diagnostics_surfaces_irules_taint_flow() {
-        let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
+        let registry = tcl_registry::model::ingress::static_context_for_profile(
+            tcl_dialect::DialectProfile::irules(),
+        )
+        .commands();
         let src = "set u [HTTP::uri]\nHTTP::respond 200 content $u\n";
         let cdiags =
             tcl_lsp_db::compiler_check_diagnostics_uncached(src, registry, "f5-irules", None, None);
@@ -26408,7 +26590,10 @@ mod tests {
     /// leaving other codes untouched.
     #[test]
     fn lift_compiler_diagnostics_honours_per_check_disable() {
-        let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
+        let registry = tcl_registry::model::ingress::static_context_for_profile(
+            tcl_dialect::DialectProfile::irules(),
+        )
+        .commands();
         let src = "set u [HTTP::uri]\nHTTP::respond 200 content $u\n";
         let cdiags =
             tcl_lsp_db::compiler_check_diagnostics_uncached(src, registry, "f5-irules", None, None);
@@ -29296,7 +29481,7 @@ mod tests {
             resolver.provides("testpix"),
             "a load-only package is declared, so the database knows it",
         );
-        let registry = tcl_registry::registry_for_dialect("tcl8.6");
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let kept = refine_w120_diagnostics(
             vec![w120_diag("http")],
             &["testpix".to_owned()],
@@ -29718,6 +29903,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         Backend {
             client,
@@ -29757,6 +29943,7 @@ mod tests {
             external_pack_watch_globs: Arc::new(Mutex::new(Vec::new())),
             pack_source_extensions: Arc::new(Mutex::new(Vec::new())),
             bigip_version: Mutex::new(None),
+            declared_targets: Mutex::new(Vec::new()),
             generic_variable_patterns: Mutex::new(None),
             formatting_settings: Mutex::new(serde_json::Value::Null),
             feature_toggles: Mutex::new(FeatureToggles::default()),
@@ -30622,9 +30809,10 @@ mod tests {
     #[tokio::test]
     async fn recovery_widening_is_reused_across_edits_and_invalidated_by_the_index() {
         let backend = test_backend();
-        let registry = tcl_registry::cache::registry_for_profile(
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
-        );
+        let registry = tcl_registry::model::ingress::static_context_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        )
+        .commands();
         let ctx = RecoveryWidenCtx {
             cache: &backend.recovery_names,
             registry,
@@ -32260,7 +32448,7 @@ mod tests {
         let fc = parse_folder_config(&serde_json::json!({ "dialect": "f5-irules" }))
             .expect("folder config");
         assert_eq!(fc.dialect.as_deref(), Some("f5-irules"));
-        // A config-only profile (not a `DialectSet`-parseable Tcl dialect) is
+        // A config-only profile (not a `SpecSurface`-parseable Tcl dialect) is
         // accepted, matching what `initializationOptions.folderDialects` takes.
         let bigip =
             parse_folder_config(&serde_json::json!({ "dialect": "f5-bigip" })).expect("folder cfg");
@@ -33959,7 +34147,7 @@ mod tests {
             );
         }
         // …and the registry that dialect resolves to really carries the pack.
-        let reg = tcl_registry::registry_for_dialect("spectcl");
+        let reg = tcl_registry::model::ingress::static_context_for("spectcl").commands();
         assert!(reg.get("speclib").is_some(), "the SpecTcl pack is loaded");
         assert!(reg.get("set").is_some(), "core Tcl stays underneath it");
     }

@@ -19,6 +19,7 @@
 //! `ttk::treeview` command.
 use crate::arity::ArityWindow;
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const USER_EVENT_INPUTS: &[CallbackTaintInput] = &[CallbackTaintInput::TK_EVENT_CHAR];
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
@@ -75,7 +76,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-columns",
         value: OptionValue::value("columnList"),
         detail: "List of column identifiers.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -84,7 +85,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-displaycolumns",
         value: OptionValue::value("columnList"),
         detail: "List of columns to display, or #all.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -93,7 +94,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-height",
         value: OptionValue::value("rows"),
         detail: "Number of rows to display.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -109,7 +110,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-padding",
         value: OptionValue::value("padSpec"),
         detail: "Internal padding around the widget content.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -118,7 +119,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-selectmode",
         value: OptionValue::enumerated(SELECT_MODES, true, "mode"),
         detail: "How the built-in bindings manage selection.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -134,7 +135,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-show",
         value: OptionValue::value("components"),
         detail: "Which parts of the treeview to display (tree, headings, or both).",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -171,7 +172,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-xscrollcommand",
         value: OptionValue::deferred_command_prefix_n("prefix", AppendedArity::Exactly(2)),
         detail: "Command prefix for horizontal scroll communication.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -180,7 +181,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-yscrollcommand",
         value: OptionValue::deferred_command_prefix_n("prefix", AppendedArity::Exactly(2)),
         detail: "Command prefix for vertical scroll communication.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -189,7 +190,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-style",
         value: OptionValue::value("style"),
         detail: "Style to use for the widget.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -198,7 +199,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-class",
         value: OptionValue::value("className"),
         detail: "Widget class name for option-database lookups.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -207,7 +208,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-cursor",
         value: OptionValue::value("cursor"),
         detail: "Cursor to display when the pointer is over the widget.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -216,7 +217,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-takefocus",
         value: OptionValue::value("focusSpec"),
         detail: "Whether the widget accepts focus during keyboard traversal.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -1441,7 +1442,7 @@ static TTK_TREEVIEW_CLASS: ObjectClassSpec = ObjectClassSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "ttk::treeview",
-        dialects: Some(DialectSet::TK_AND_TCL),
+        surface: Some(SpecSurface::TK_AND_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Create and manipulate a themed hierarchical multicolumn data display widget.",
@@ -1663,7 +1664,7 @@ mod tests {
             "unique-prefix tag bind is executable too"
         );
         assert!(tag.arg_role_resolver.unwrap()(&["bind", "warning", "<Button-1>"]).is_empty());
-        let scope = tag.option_scope(Some("configure"), None, Some("9.1"), spec().dialects);
+        let scope = tag.option_scope(Some("configure"), None, Some("9.1"), spec().surface);
         assert_eq!(scope.sub_subcommand, Some("configure"));
         assert!(
             scope

@@ -547,7 +547,7 @@ mod tests {
 
     fn wasm_entries(src: &str) -> Vec<Value> {
         let result = run_pipeline(src, "tcl8.6");
-        let registry = tcl_registry::registry_for_dialect(&result.dialect);
+        let registry = tcl_registry::model::ingress::static_context_for(&result.dialect).commands();
         let module = tcl_compiler::codegen::wasm::compile_wasm(
             &result.unit,
             registry,

@@ -24,6 +24,7 @@
 //! flat.
 
 use std::collections::{HashMap, HashSet};
+use tcl_dialect::model::SurfaceQuery;
 
 use tcl_lexer::{SourceMap, Span, Token, TokenType};
 use tcl_registry::definer::DefinitionBodyGrammar;
@@ -79,6 +80,71 @@ pub fn parse_file_suppression(source: &str) -> HashSet<String> {
     codes
 }
 
+/// Extract §5.4 version-target declarations from top-of-file
+/// ``# tcl-lsp: supports NAME RANGE…`` directives (centralisation ruling
+/// R6 — the resolver-invisible targets declaration).
+///
+/// Same scan window as [`parse_file_suppression`]: leading comment /
+/// blank lines only, capped at [`FILE_DIRECTIVE_SCAN_LINES`]. `NAME` is
+/// the provider — `tcl` for the core, otherwise a package name (`Tk`,
+/// `struct`) — and `RANGE` is one or more whitespace-separated clauses in
+/// the targets grammar (`8.5-9.0`, `8.5-`, a bare `8.5` naming that
+/// release line only). Returns `(provider, clauses)` pairs in file
+/// order; a later directive for the same provider replaces the earlier
+/// one, and clause validation happens at resolution, not here.
+#[must_use]
+pub fn parse_supports_directives(source: &str) -> Vec<(String, String)> {
+    let mut declarations: Vec<(String, String)> = Vec::new();
+    for (idx, line) in source.lines().enumerate() {
+        if idx >= FILE_DIRECTIVE_SCAN_LINES {
+            break;
+        }
+        let stripped = line.trim();
+        if stripped.is_empty() {
+            continue;
+        }
+        if !stripped.starts_with('#') {
+            break;
+        }
+        let Some((name, clauses)) = parse_supports_directive(line) else {
+            continue;
+        };
+        declarations.retain(|(existing, _)| existing != name);
+        declarations.push((name.to_owned(), clauses.to_owned()));
+    }
+    declarations
+}
+
+/// Match ``# tcl-lsp: supports NAME RANGE…`` (case-insensitive on the
+/// keywords), returning the provider name and the raw clause text.
+/// `None` when the line is not that directive — including a `supports`
+/// with no range, which declares nothing.
+fn parse_supports_directive(line: &str) -> Option<(&str, &str)> {
+    let mut s = line.trim_start();
+    s = s.strip_prefix('#')?.trim_start();
+    let lower_prefix = "tcl-lsp";
+    let kw_end = lower_prefix.len();
+    if !s.get(..kw_end)?.eq_ignore_ascii_case(lower_prefix) {
+        return None;
+    }
+    s = s[kw_end..].trim_start();
+    s = s.strip_prefix(':')?.trim_start();
+    let supports_kw = "supports";
+    let sup_end = supports_kw.len();
+    if !s.get(..sup_end)?.eq_ignore_ascii_case(supports_kw) {
+        return None;
+    }
+    let rest = s.get(sup_end..)?;
+    // The keyword must end at a word boundary (`supportsx` is not it).
+    if !rest.starts_with([' ', '\t']) {
+        return None;
+    }
+    let rest = rest.trim();
+    let (name, clauses) = rest.split_once([' ', '\t'])?;
+    let clauses = clauses.trim();
+    (!name.is_empty() && !clauses.is_empty()).then_some((name, clauses))
+}
+
 /// Scan *source* for ``# noqa`` comment lines and record next-line
 /// suppressions.
 ///
@@ -107,7 +173,10 @@ pub fn parse_file_suppression(source: &str) -> HashSet<String> {
 pub fn parse_noqa_line_suppressions(
     source: &str,
 ) -> std::collections::HashMap<i32, HashSet<String>> {
-    parse_noqa_line_suppressions_for_dialect(source, tcl_dialect::DialectProfile::by_name("tcl9.0"))
+    parse_noqa_line_suppressions_for_dialect(
+        source,
+        tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+    )
 }
 
 /// Dialect-aware [`parse_noqa_line_suppressions`].
@@ -116,10 +185,11 @@ pub fn parse_noqa_line_suppressions_for_dialect(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> std::collections::HashMap<i32, HashSet<String>> {
+    let generation = crate::environment_ingress::context_for_profile(dialect);
     parse_noqa_line_suppressions_with_registry(
         source,
         tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
-        tcl_registry::cache::registry_for_profile(dialect),
+        generation.commands(),
     )
 }
 
@@ -198,9 +268,9 @@ struct CommentLineWalker<'a> {
     whole: &'a str,
     config: tcl_lexer::LexerConfig,
     registry: &'a CommandRegistry,
-    identities: crate::head_identity::HeadIdentityMap,
+    identities: crate::realm::CommandBindingRealm,
     line_index: tcl_lexer::LineIndex,
-    availability: tcl_dialect::DialectSet,
+    availability: Option<SurfaceQuery<'static>>,
     visited: HashSet<(u32, u32)>,
     facts: Vec<ScriptCommentFact>,
 }
@@ -211,13 +281,11 @@ impl<'a> CommentLineWalker<'a> {
             whole,
             config,
             registry,
-            identities: crate::head_identity::command_head_identities_with_config(
-                whole, config, registry,
-            ),
+            identities: crate::realm::document_realm_bindings_with_config(whole, config, registry),
             line_index: tcl_lexer::LineIndex::new(whole),
             availability: registry
                 .profile()
-                .map_or_else(tcl_dialect::DialectSet::empty, |p| p.availability_mask),
+                .map(tcl_dialect::DialectProfile::surface_query),
             visited: HashSet::new(),
             facts: Vec::new(),
         }
@@ -1682,6 +1750,37 @@ mod tests {
     }
 
     #[test]
+    fn parse_supports_directives_reads_the_top_of_file_block() {
+        // Multi-clause ranges, case-insensitive keywords, and one
+        // declaration per provider (a later line replaces the earlier).
+        let src = "# tcl-lsp: supports tcl 8.5-9.0\n\
+                   # TCL-LSP: Supports Tk 8.5 8.6\n\
+                   # tcl-lsp: supports tcl 8.6\n\
+                   proc foo {} {}\n\
+                   # tcl-lsp: supports struct 1.5-2.2\n";
+        let declarations = parse_supports_directives(src);
+        assert_eq!(
+            declarations,
+            vec![
+                ("Tk".to_owned(), "8.5 8.6".to_owned()),
+                ("tcl".to_owned(), "8.6".to_owned()),
+            ],
+            "the tcl redeclaration replaces; the post-code directive is out of the scan window"
+        );
+        // Not-this-directive shapes declare nothing.
+        for line in [
+            "# tcl-lsp: supports\n",
+            "# tcl-lsp: supportsx tcl 8.5\n",
+            "# tcl-lsp: supports tcl\n",
+            "# tcl-lsp: disable=W150\n",
+            "# supports tcl 8.5\n",
+            "# — tcl-lsp: supports tcl 8.5\n",
+        ] {
+            assert!(parse_supports_directives(line).is_empty(), "{line:?}");
+        }
+    }
+
+    #[test]
     fn parse_file_suppression_multibyte_leading_comment_does_not_panic() {
         // Regression: the fixed-byte-offset keyword checks in
         // `parse_disable_directive` used to slice at `line[..kw_end]` /
@@ -1784,11 +1883,12 @@ mod tests {
     #[test]
     fn comment_facts_are_exact_slices_and_never_promote_pre_comment_noqa() {
         let src = "set marker \"noqa\"; # ordinary comment\n# café noqa: W305\nputs \"\u{202e}\"\n";
-        let profile = tcl_dialect::DialectProfile::by_name("tcl9.0");
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
         let facts = script_comment_facts(
             src,
             tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
-            tcl_registry::cache::registry_for_profile(profile),
+            tcl_registry::model::ingress::static_context_for_profile(profile).commands(),
         );
         assert_eq!(
             facts.len(),
@@ -1835,11 +1935,12 @@ mod tests {
     #[test]
     fn script_comment_facts_reaches_expect_clause_flags_and_lambda_bodies() {
         let src = "expect {\n    -re {ready} {\n        # expect arm\n        # continuation \\\n        hidden\n    }\n}\napply {{} {\n    # lambda body\n    puts ok\n}}\n";
-        let profile = tcl_dialect::DialectProfile::by_name("expect");
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("expect").analyser_profile();
         let comments = script_comment_facts(
             src,
             tcl_lexer::LexerConfig::for_file_dialect("expect"),
-            tcl_registry::cache::registry_for_profile(profile),
+            tcl_registry::model::ingress::static_context_for_profile(profile).commands(),
         );
         assert!(
             comments.iter().any(|fact| fact.line == 2),
@@ -1858,11 +1959,12 @@ mod tests {
     #[test]
     fn script_comment_facts_reaches_definition_member_bodies() {
         let src = "oo::class create Example {\n    method run {} {\n        # member body\n        puts ok\n    }\n}\n";
-        let profile = tcl_dialect::DialectProfile::by_name("tcl9.0");
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
         let comments = script_comment_facts(
             src,
             tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
-            tcl_registry::cache::registry_for_profile(profile),
+            tcl_registry::model::ingress::static_context_for_profile(profile).commands(),
         );
         assert!(
             comments.iter().any(|fact| fact.line == 2),
@@ -1873,11 +1975,12 @@ mod tests {
     #[test]
     fn script_comment_facts_reaches_nested_command_substitution_case_arms() {
         let src = "set result [switch $kind {\n    alpha {\n        # nested comment \\\n        hidden\n    }\n}]\nset data {[switch $kind { beta { # inert } }]}\n";
-        let profile = tcl_dialect::DialectProfile::by_name("tcl9.0");
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
         let comments = script_comment_facts(
             src,
             tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
-            tcl_registry::cache::registry_for_profile(profile),
+            tcl_registry::model::ingress::static_context_for_profile(profile).commands(),
         );
         assert!(
             comments.iter().any(|fact| fact.line == 2),
@@ -1893,11 +1996,12 @@ mod tests {
     #[test]
     fn script_comment_facts_uses_proven_alias_identity_for_body_roles() {
         let src = "interp alias {} define {} proc\ndefine f {} {\n    # noqa: W305\n    puts \"\u{202e}\"\n}\n";
-        let profile = tcl_dialect::DialectProfile::by_name("tcl9.0");
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
         let comments = script_comment_facts(
             src,
             tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
-            tcl_registry::cache::registry_for_profile(profile),
+            tcl_registry::model::ingress::static_context_for_profile(profile).commands(),
         );
         assert!(
             comments.iter().any(|fact| fact.line == 2),
@@ -1911,11 +2015,12 @@ mod tests {
         // an argument, not a script comment. A member-keyword spelling is not
         // enough to prove the alias owns definition-member semantics.
         let src = "proc method {name parameters body} {\n    return \"$name:$parameters:$body\"\n}\ninterp alias {} define_method {} method\noo::class create C {\n    define_method m {} {\n        # inert data\n        puts must-not-run\n    }\n}\n";
-        let profile = tcl_dialect::DialectProfile::by_name("tcl9.0");
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
         let comments = script_comment_facts(
             src,
             tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
-            tcl_registry::cache::registry_for_profile(profile),
+            tcl_registry::model::ingress::static_context_for_profile(profile).commands(),
         );
         assert!(
             !comments.iter().any(|fact| fact.line == 6),

@@ -18,6 +18,7 @@
 
 //! `MQTT::payload` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
@@ -88,9 +89,7 @@ const MQTT_REQUIREMENTS: EventRequires = EventRequires {
     transport: None,
     profiles: &["MQTT"],
     also_in: &[],
-    init_only: false,
     flow: false,
-    capability: None,
 };
 
 const MQTT_MESSAGE_EVENTS: &[&str] = &[
@@ -131,7 +130,7 @@ const EVENT_REQUIREMENT_FORMS: &[EventRequirementForm] = &[
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "MQTT::payload",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Manipulate payload of MQTT PUBLISH message",

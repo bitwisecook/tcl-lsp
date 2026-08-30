@@ -27,7 +27,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "ip::is",
         traits: Traits::PURE,
-        dialects: None,
+        surface: None,
         arity: Arity::exact(2),
         return_type: Some(TclType::Boolean),
         hover: Some(HoverSnippet {

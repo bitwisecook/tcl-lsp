@@ -77,12 +77,21 @@ Place a comment in the first 5 lines of any Tcl file:
 ```
 
 The directive name is case-insensitive.  The dialect value must be one of the
-16 `KNOWN_DIALECTS` strings — `bpf`, `cadence-eda-tcl`, `expect`, `f5-bigip`,
+18 `KNOWN_DIALECTS` strings — `bpf`, `cadence-eda-tcl`, `expect`, `f5-bigip`,
 `f5-iapps`, `f5-irules`, `f5-tmsh`, `intel-quartus-eda-tcl`,
-`mentor-eda-tcl`, `synopsys-eda-tcl`, `tcl8.4`, `tcl8.5`, `tcl8.6`, `tcl9.0`,
-`tcl9.1`, `xilinx-eda-tcl` — matched exactly and case-sensitively. An
+`mentor-eda-tcl`, `microchip-libero-eda-tcl`, `spectcl`, `synopsys-eda-tcl`,
+`tcl8.4`, `tcl8.5`, `tcl8.6`, `tcl9.0`, `tcl9.1`, `xilinx-eda-tcl` — matched
+exactly and case-sensitively. An
 unrecognised value makes the directive tier abstain, and detection falls
 through to the next tier rather than erroring.
+
+`tk` is deliberately **not** in that set: it is a package plus an
+environment, never a dialect (#1631 §2), so `# tcl-dialect: tk` abstains
+today even though the e2e tests and some module docs use it. Making it
+resolve is a user-visible change to the same list the CLI's `--dialect`
+choices and the MCP `dialect_schema` enum are generated from — tracked as
+E8/D15 in
+[the #1631 open-questions ledger](../dialect-and-package-registry-redesign.md#11-the-open-questions-ledger).
 
 The directive takes priority over shebang detection.  This allows a file to
 have a generic `#!/usr/bin/tclsh` shebang while still targeting a specific

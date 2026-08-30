@@ -18,11 +18,12 @@
 
 //! `DNS::return` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DNS::return",
         traits: Traits::DIAGRAM_ACTION,
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Skips all further processing after TCL execution and sends the DNS packet in the opposite direction.",
@@ -38,9 +39,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &["DNS"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "DNS::return",

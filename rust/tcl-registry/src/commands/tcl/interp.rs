@@ -23,6 +23,7 @@ use crate::world_effect::{
     StaticEffectAccess, StaticEffectFootprint, StaticInterpreterScope, StaticNamespaceScope,
     StaticSubjectScope, SubjectScope,
 };
+use tcl_dialect::model::SpecSurface;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
@@ -42,18 +43,6 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "interp subcommand ?arg arg ...?",
     ..FormSpec::DEFAULT
-}];
-
-const INTERP_ALIAS_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
-    StateTransitionDomain::CommandBindings,
-    StateTransitionDomain::Namespaces,
-    StateTransitionDomain::Interpreters,
-    StateTransitionDomain::CommandTraces,
-];
-
-const INTERP_ALIAS_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[TransitionEffectCoverage {
-    source: WorldEffectWriteSource::LegacyCommandTable,
-    domains: &[WorldStateDomain::CommandBindings],
 }];
 
 const INTERP_POLICY_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[
@@ -199,78 +188,6 @@ const INTERP_BGERROR_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
     resolver: Some(interp_bgerror_world_effects),
     dynamic_fallback: WorldEffectDynamicFallback::Declared(INTERP_POLICY_DYNAMIC_EFFECTS),
 };
-
-const INTERP_ALIAS_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
-    composition: StateTransitionComposition::Extend,
-    resolver: Some(interp_alias_state_transitions),
-    argument_shape: StateTransitionArgumentShape::Positional,
-    dynamic_widening: &[StateTransitionWideningRule {
-        // The subcommand at index 0 is already known to have selected this
-        // descriptor. The source/target interpreter and command positions
-        // carry the transition's identity; baked alias arguments do not.
-        operands: StateTransitionOperandLayout::Indices(&[1, 2, 3, 4]),
-        domains: INTERP_ALIAS_TRANSITION_DOMAINS,
-    }],
-    effect_coverage: INTERP_ALIAS_EFFECT_COVERAGE,
-    // Alias setup can cross interpreter boundaries and invoke observable
-    // lifecycle hooks before reporting an error.
-    commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
-};
-
-fn interp_alias_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
-    let mut transitions = StateTransitions::default();
-    let (Some(source_interpreter), Some(alias)) = (
-        TransitionSubject::from_argument(arguments, 1),
-        TransitionSubject::from_argument(arguments, 2),
-    ) else {
-        return transitions;
-    };
-
-    match arguments.len() {
-        // `interp alias sourcePath sourceCmd` queries an existing alias.
-        0..=3 => {}
-        // `interp alias sourcePath sourceCmd {}` deletes it. A computed
-        // target-path position could be empty at runtime, so retain a typed
-        // wildcard transition rather than pretending this is alias creation.
-        4 => match arguments.literal_at(3) {
-            Some("") => transitions.push(StateTransition::CommandBinding(
-                CommandBindingTransition::Delete {
-                    interpreter: Some(source_interpreter),
-                    name: alias,
-                },
-            )),
-            Some(_) => {}
-            None => {
-                let Some(target_path) = TransitionSubject::from_argument(arguments, 3) else {
-                    return transitions;
-                };
-                transitions.push(StateTransition::CommandBinding(
-                    CommandBindingTransition::Unknown {
-                        operands: vec![source_interpreter, alias, target_path],
-                    },
-                ));
-            }
-        },
-        // The create form requires both target interpreter path and command.
-        _ => {
-            let (Some(target_interpreter), Some(target)) = (
-                TransitionSubject::from_argument(arguments, 3),
-                TransitionSubject::from_argument(arguments, 4),
-            ) else {
-                return transitions;
-            };
-            transitions.push(StateTransition::CommandBinding(
-                CommandBindingTransition::Alias {
-                    source_interpreter,
-                    alias,
-                    target_interpreter,
-                    target,
-                },
-            ));
-        }
-    }
-    transitions
-}
 
 fn interp_create_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
     let mut transitions = StateTransitions::default();
@@ -537,9 +454,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         command_prefix_resolver: Some(interp_alias_command_prefixes),
         script_timing_resolver: Some(interp_alias_script_timing),
         analyser_hook: Some(crate::hooks::AnalyserHookId::InterpAlias),
-        command_table_effect: Some(crate::command_table::CommandTableEffect::CreatesAliases),
+
         world_effects: Some(WorldEffectDescriptor::EMPTY),
-        state_transitions: Some(INTERP_ALIAS_TRANSITIONS),
+        // Declared once, by naming the stock descriptor (ledger C8).
+        state_transitions: Some(crate::state_transition::command_binding::CREATES_ALIASES),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -554,7 +472,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "bgerror",
         // Added in Tcl 8.5 (TIP 221).
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         arity: Arity::new(1, 2),
         detail: "Get or set background error handler.",
         synopsis: "interp bgerror path ?cmdPrefix?",
@@ -568,7 +486,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "cancel",
         // Added in Tcl 8.6 (TIP 285).
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         // Positional arity is `?path? ?result?` only (0..=2); the
         // `-unwind`/`--` option words are consumed by the leading-option
         // skip, not counted here (same convention as `create` below). A
@@ -588,7 +506,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     name: "-unwind",
                     value: OptionValue::flag(),
                     detail: "Unwind the evaluation stack without regard to any intervening catch, rather than stopping at the first enclosing one.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -597,7 +515,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     name: "--",
                     value: OptionValue::flag(),
                     detail: "Marks the end of switches; needed when path itself looks like a switch (e.g. -safe).",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -626,7 +544,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     name: "-safe",
                     value: OptionValue::flag(),
                     detail: "",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -635,7 +553,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     name: "--",
                     value: OptionValue::flag(),
                     detail: "",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -652,7 +570,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // Added in Tcl 8.5, not 8.6: the tcl8.5/TclCmd/interp.html SYNOPSIS
         // and body both already document `interp debug path ?-frame
         // ?bool??`, and it is absent from the 8.4 SYNOPSIS.
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         // Positional arity is `path` plus the inline `-frame ?bool?` pair —
         // 1 to 3 raw words. `-frame` sits after the required `path`, so
         // (unlike `create`'s leading `-safe`/`--`) it is never stripped by
@@ -669,7 +587,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 name: "-frame",
                 value: OptionValue::boolean(),
                 detail: "Enable exact per-command file/line tracking for `info frame` in the target interpreter (slower execution). Given with no value, only reports the current setting. Once turned on, cannot be turned back off.",
-                dialects: None,
+                surface: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,
@@ -774,7 +692,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     name: "-global",
                     value: OptionValue::flag(),
                     detail: "Invoke the hidden command at the global level in the target interpreter, instead of the current call frame.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -788,7 +706,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     // `?-option ...?` rewrite (confirmed by direct fetch of
                     // both tcl8.4/TclCmd/interp.html and
                     // tcl8.5/TclCmd/interp.html).
-                    dialects: Some(DialectSet::TCL85_PLUS),
+                    surface: Some(SpecSurface::TCL85_PLUS),
                     detail: "Namespace in which to invoke the hidden command. Ignored if -global is also given.",
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
@@ -797,7 +715,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 OptionSpec {
                     name: "--",
                     value: OptionValue::flag(),
-                    dialects: Some(DialectSet::TCL85_PLUS),
+                    surface: Some(SpecSurface::TCL85_PLUS),
                     detail: "Marks the end of switches, so hiddenCmdName may itself start with -.",
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
@@ -821,7 +739,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "limit",
         // Added in Tcl 8.5 (TIP 143).
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         // Positional words after `path limitType` come in `-option value`
         // pairs, with one exception: a lone trailing `-option` (querying
         // just that option) is also valid. Valid total word counts are
@@ -839,7 +757,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     name: "-command",
                     value: OptionValue::deferred_script(),
                     detail: "Script run in the global namespace of the interpreter that set this option, invoked when the limited interpreter's limit is exceeded; may extend the limit to let evaluation continue. Common to both limit types.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -848,7 +766,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     name: "-granularity",
                     value: OptionValue::value("n"),
                     detail: "How often, relative to the interpreter's consistent-state checkpoints, the limit is actually checked. Common to both limit types.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -857,7 +775,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     name: "-milliseconds",
                     value: OptionValue::value("ms"),
                     detail: "Millisecond offset applied after -seconds. Only meaningful for the time limit type, given alongside -seconds.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -866,7 +784,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     name: "-seconds",
                     value: OptionValue::value("epochSeconds"),
                     detail: "Epoch seconds (as from clock seconds) at which the time limit fires. Empty string clears the time limit. Only meaningful for the time limit type.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -875,7 +793,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     name: "-value",
                     value: OptionValue::value("count"),
                     detail: "Number of commands the interpreter may execute before the command limit fires. Empty string clears the command limit. Only meaningful for the command limit type.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -921,7 +839,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // hidden, issafe, invokehidden, limit, marktrusted,
         // recursionlimit, slaves, share, target, or transfer` — no `set`
         // in that list.
-        dialects: Some(DialectSet::TCL91),
+        surface: Some(SpecSurface::TCL91),
         arity: Arity::new(2, 3),
         detail: "Read or write a variable in another interpreter.",
         synopsis: "interp set path varName ?value?",
@@ -967,7 +885,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // `children` was added in Tcl 8.6 as the preferred spelling. Tcl
         // 9.0.4 still accepts `slaves` even though interp(n) documents only
         // `children`, so this is a deprecation, not a Tcl-9 retirement.
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         lifecycle: Lifecycle {
             deprecated: Some("8.6"),
             deprecation_fix: Some(DeprecationFixHook::ReplaceMatchedWord {
@@ -988,7 +906,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         name: "children",
         // Added in Tcl 8.6 (child/parent terminology; the preferred name for
         // the older `interp slaves`).
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         arity: Arity::new(0, 1),
         detail: "Returns a Tcl list of the names of all the child interpreters associated with the interpreter identified by path.",
         synopsis: "interp children ?path?",
@@ -1001,7 +919,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "interp",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::HAS_INTERP_EVAL
@@ -1034,6 +952,8 @@ pub fn spec() -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{Family, SurfaceQuery};
+
     use super::*;
     use crate::{CommandRegistry, InvocationWord, InvocationWordKind, InvocationWords};
 
@@ -1174,7 +1094,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let invocation = registry.resolve_structured_invocation(
             InvocationWords::literals("interp", &["recursionlimit", "child", "42"]),
-            DialectSet::TCL90,
+            Some(SurfaceQuery::core(Family::Tcl, "9.0")),
         );
         let facts = invocation
             .resolved()
@@ -1220,7 +1140,7 @@ mod tests {
     fn legacy_slaves_and_alias_target_keep_their_tcl9_surface() {
         let spec = super::spec();
         let slaves = spec
-            .resolve_subcommand_for_dialect("slaves", DialectSet::TCL90)
+            .resolve_subcommand_for_dialect("slaves", Some(SurfaceQuery::core(Family::Tcl, "9.0")))
             .expect("Tcl 9 accepts the legacy interp slaves spelling");
         assert_eq!(slaves.return_type, Some(TclType::List));
 

@@ -54,10 +54,11 @@ use tcl_lsp_core::definition::LspRange;
 use tcl_lsp_core::formatting::{
     FormatterConfig, IndentStyle, format_tcl, formatting, formatting_with, range_formatting,
 };
-use tcl_registry::{CommandRegistry, registry_for_dialect};
+use tcl_registry::CommandRegistry;
+use tcl_registry::model::ingress::static_context_for;
 
 fn reg() -> &'static CommandRegistry {
-    registry_for_dialect("tcl8.6")
+    static_context_for("tcl8.6").commands()
 }
 
 fn fmt(src: &str) -> String {
@@ -68,10 +69,8 @@ fn fmt_with(src: &str, cfg: &FormatterConfig) -> String {
     format_tcl(src, cfg, reg())
 }
 
-// ===========================================================================
 // UTF-8 reconstruction — `utf8_len` 2/3/4-byte lead-byte branches and the
 // `normalise_backslash_newline` UTF-8 copy path (engine.rs 83-93, 73-77).
-// ===========================================================================
 
 #[test]
 fn fmt_preserves_multibyte_utf8_words() {
@@ -111,10 +110,8 @@ fn fmt_collapses_backslash_newline_around_multibyte_chars() {
     );
 }
 
-// ===========================================================================
 // Command-substitution `[...]` reconstruction with an embedded continuation
 // (engine.rs reconstruct_raw Cmd arm, line 99/103).
-// ===========================================================================
 
 #[test]
 fn fmt_collapses_continuation_in_command_substitution() {
@@ -130,10 +127,8 @@ fn fmt_collapses_continuation_in_command_substitution() {
     );
 }
 
-// ===========================================================================
 // switch-body layout — `format_switch_body` (engine.rs 403-495): raw bodies,
 // `-` fall-through, braced bodies, empty braced body, dangling final pattern.
-// ===========================================================================
 
 #[test]
 fn fmt_switch_raw_unbraced_bodies_reindented() {
@@ -194,11 +189,9 @@ fn fmt_switch_dangling_final_pattern_emitted_alone() {
     );
 }
 
-// ===========================================================================
 // Expression wrapping — `find_expr_break_points` + `wrap_braced_expr`
 // (engine.rs 501-570): split only top-level `&&`/`||`, never inside
 // `() {} [] ""` or after a `\` escape.
-// ===========================================================================
 
 #[test]
 fn fmt_expr_wrap_preserves_parens_and_quotes() {
@@ -242,11 +235,9 @@ fn fmt_short_expr_is_not_wrapped() {
     );
 }
 
-// ===========================================================================
 // Long-line backslash splitting — `split_long_line` / `greedy_split` /
 // `find_splittable_spaces` (engine.rs 602-795): bare-word splitting (safe) and
 // the commented-out-code split path (`split_commented_code`).
-// ===========================================================================
 
 #[test]
 fn fmt_long_word_line_splits_with_backslash_continuation() {
@@ -283,14 +274,12 @@ fn fmt_short_commented_code_not_split() {
     assert_eq!(fmt("#set x [a \\\n b]\n"), "#set x [a b]\n");
 }
 
-// ===========================================================================
 // REGRESSION (was a bug, now fixed) — a long line that can only be split INSIDE
 // a double-quoted string must be left over-length rather than broken, because
 // breaking there changes the string's value. The old `split_long_line` fell
 // back to `find_quoted_string_spaces` and inserted `\<newline>` + indent at a
 // space that is *string data*, adding an extra space; the fix removes that
 // fallback (engine.rs `split_long_line`).
-// ===========================================================================
 
 #[test]
 fn fmt_long_quoted_string_is_left_unsplit_preserving_value() {
@@ -320,10 +309,8 @@ fn fmt_long_quoted_string_is_left_unsplit_preserving_value() {
     );
 }
 
-// ===========================================================================
 // `for` special case (engine.rs 294-299): only the body (arg 4) expands;
 // init/cond/next stay inline. Plus the `is_braced` and arity guards.
-// ===========================================================================
 
 #[test]
 fn fmt_for_expands_only_the_body() {
@@ -355,10 +342,8 @@ fn fmt_for_with_too_few_args_falls_through() {
     assert_eq!(fmt("for {} {} {}\n"), "for {} {} {}\n");
 }
 
-// ===========================================================================
 // Body inline vs expand — `body_can_be_inline` / `append_body_no_space`
 // (engine.rs 830-887) and the NEVER_INLINE_BODY trait.
-// ===========================================================================
 
 #[test]
 fn fmt_short_catch_body_stays_inline() {
@@ -403,10 +388,8 @@ fn fmt_word_arg_collapsing_to_empty_is_dropped() {
     assert_eq!(fmt("set x \\\n\n"), "set x\n");
 }
 
-// ===========================================================================
 // Parameter lists & braced vars — `normalise_param_list` (engine.rs 134-168)
 // and `enforce_braced_variables` reconstruction.
-// ===========================================================================
 
 #[test]
 fn fmt_param_list_with_nested_default_braces_normalised() {
@@ -434,9 +417,7 @@ fn fmt_enforce_braced_variables_rewrites_dollar_refs() {
     assert_eq!(fmt_with("puts $x\n", &cfg), "puts ${x}\n");
 }
 
-// ===========================================================================
 // `{*}`-expansion identity skip (engine.rs 278-285).
-// ===========================================================================
 
 #[test]
 fn fmt_expand_command_word_is_not_misclassified() {
@@ -446,9 +427,7 @@ fn fmt_expand_command_word_is_not_misclassified() {
     assert_eq!(fmt("{*}$cmd arg1 arg2\n"), "{*}$cmd arg1 arg2\n");
 }
 
-// ===========================================================================
 // Comment normalisation edges — `format_comment` (engine.rs 348-366).
-// ===========================================================================
 
 #[test]
 fn fmt_bare_hash_comment_preserved() {
@@ -476,10 +455,8 @@ fn fmt_comment_hash_spacing_toggle() {
     assert_eq!(fmt("#   hi   \n"), "#   hi\n");
 }
 
-// ===========================================================================
 // Blank-line policy & trailing comments — `compute_blank_lines` (engine.rs
 // 371-390) and `format_body`'s trailing-comment loop (1118-1124).
-// ===========================================================================
 
 #[test]
 fn fmt_blank_lines_between_proc_and_block() {
@@ -521,9 +498,7 @@ fn fmt_trailing_comments_after_blank_run() {
     );
 }
 
-// ===========================================================================
 // Recursive bodies — namespace / nested control flow (format_body recursion).
-// ===========================================================================
 
 #[test]
 fn fmt_namespace_eval_body_recurses() {
@@ -547,9 +522,7 @@ fn fmt_deeply_nested_bodies_indent_by_level() {
     );
 }
 
-// ===========================================================================
 // Whole-document config tails — `format_tcl` (engine.rs 1131-1149).
-// ===========================================================================
 
 #[test]
 fn fmt_ensure_final_newline_disabled() {
@@ -606,9 +579,7 @@ fn fmt_is_idempotent_on_complex_input() {
     );
 }
 
-// ===========================================================================
 // config.rs — `make_indent` Tabs branch (config.rs 115).
-// ===========================================================================
 
 #[test]
 fn fmt_tab_indent_style() {
@@ -624,10 +595,8 @@ fn fmt_tab_indent_style() {
     );
 }
 
-// ===========================================================================
 // mod.rs — formatting / formatting_with edit construction (mod.rs 61-81),
 // brace_delta, and range_formatting (88-208).
-// ===========================================================================
 
 #[test]
 fn formatting_returns_single_full_document_edit_when_dirty() {

@@ -14,7 +14,10 @@
 #
 # Full evidence and gap numbering: ../external/README.md
 
-speclib apave 4.9 {
+# The second word of `speclib` is the DSL **vocabulary** version, not the
+# library's; apave's own 4.9 sat here until SpecTcl 2.0 made an unsupported
+# major a load error (redesign 6.1) and the draft stopped loading at all.
+speclib apave 1.2 {
 
 # ---------------------------------------------------------------------------
 # ::apave::ObjectProperty (obbit.tcl:1159-1208) -- a class written to be

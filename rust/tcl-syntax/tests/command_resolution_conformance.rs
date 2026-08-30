@@ -21,11 +21,22 @@
 //! `tests/data/command_resolution_vectors.txt`, and the vectors themselves
 //! must agree with real tclsh — so the table can never drift from C Tcl,
 //! and no consumer can drift from the table.
+//!
+//! The resolver is release-agnostic, so it asserts the newest column; the
+//! tclsh leg is a matrix, asserting each release's own column against that
+//! release's own interpreter.
 
-use tcl_syntax::naming::conformance::{ResolutionVector, vector_script, vectors};
+mod support;
+
+use tcl_syntax::naming::conformance::{vector_script, vectors};
 use tcl_syntax::naming::resolve_command_with;
 
-/// The pure resolver must reproduce every vector's winner.
+/// The sentinel for a row whose scenario the release cannot even set up
+/// (a `namespace path` row before 8.5).
+const UNSUPPORTED: &str = "!ERROR";
+
+/// The pure resolver must reproduce every vector's winner on the newest
+/// modelled release.
 #[test]
 fn canonical_resolver_matches_every_vector() {
     for v in vectors() {
@@ -33,80 +44,73 @@ fn canonical_resolver_matches_every_vector() {
             v.defs.iter().any(|d| d == candidate)
         });
         assert_eq!(
-            got, v.want,
-            "vector line {} (ns={} path={:?} defs={:?} call={}): resolver disagrees",
-            v.line, v.ns, v.path, v.defs, v.call,
-        );
-    }
-}
-
-/// Find a tclsh to pin against: `TCL_LSP_TCLSH`, then common PATH names.
-fn find_tclsh() -> Option<std::path::PathBuf> {
-    if let Ok(explicit) = std::env::var("TCL_LSP_TCLSH") {
-        let p = std::path::PathBuf::from(explicit);
-        if p.exists() {
-            return Some(p);
-        }
-    }
-    for name in ["tclsh9.0", "tclsh8.6", "tclsh"] {
-        if let Ok(out) = std::process::Command::new(name).arg("--version").output()
-            && (out.status.success() || !out.stderr.is_empty() || !out.stdout.is_empty())
-        {
-            return Some(std::path::PathBuf::from(name));
-        }
-    }
-    None
-}
-
-fn run_vector_under(tclsh: &std::path::Path, v: &ResolutionVector) -> String {
-    use std::io::Write;
-    let script = vector_script(v);
-    let mut child = std::process::Command::new(tclsh)
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .expect("spawn tclsh");
-    child
-        .stdin
-        .as_mut()
-        .expect("tclsh stdin")
-        .write_all(script.as_bytes())
-        .expect("write script");
-    let out = child.wait_with_output().expect("tclsh run");
-    assert!(
-        out.status.success(),
-        "vector line {}: tclsh failed on script:\n{script}\nstderr: {}",
-        v.line,
-        String::from_utf8_lossy(&out.stderr),
-    );
-    String::from_utf8_lossy(&out.stdout).trim().to_string()
-}
-
-/// Every vector's `want` must match what a real tclsh dispatches — this is
-/// what keeps the table (and through it every conforming implementation)
-/// pinned to C Tcl rather than to our own beliefs.  Skips silently when no
-/// tclsh is installed (CI's heavy suite and dev machines have one; set
-/// `TCL_LSP_TCLSH` to pin a specific build, e.g. a fresh 9.0 tree).
-#[test]
-fn vectors_match_real_tclsh() {
-    let Some(tclsh) = find_tclsh() else {
-        eprintln!("skipping: no tclsh on PATH (set TCL_LSP_TCLSH to enable)");
-        return;
-    };
-    for v in vectors() {
-        let got = run_vector_under(&tclsh, &v);
-        let want = v.want.clone().unwrap_or_else(|| "-".to_string());
-        assert_eq!(
             got,
-            want,
-            "vector line {} (ns={} path={:?} defs={:?} call={}): tclsh disagrees with the table\nscript:\n{}",
+            v.want(),
+            "vector line {} (ns={} path={:?} defs={:?} call={}): resolver disagrees",
             v.line,
             v.ns,
             v.path,
             v.defs,
             v.call,
-            vector_script(&v),
         );
+    }
+}
+
+/// A row with no release-tagged column must mean the same thing on every
+/// release — otherwise the ladder is silently asserting a value nobody
+/// checked.
+#[test]
+fn untagged_rows_are_uniform_across_the_ladder() {
+    for v in vectors() {
+        assert!(
+            v.wants.is_release_tagged() || v.wants.is_uniform(),
+            "vector line {}: an untagged row must be uniform",
+            v.line,
+        );
+    }
+}
+
+/// Every vector's winner must match what a real tclsh dispatches, per
+/// release — this is what keeps the table (and through it every conforming
+/// implementation) pinned to C Tcl rather than to our own beliefs.
+#[test]
+fn vectors_match_real_tclsh() {
+    let releases = support::available_releases();
+    assert!(
+        !releases.is_empty(),
+        "no tclsh on this machine: set TCL_LSP_TCLSH84 … TCL_LSP_TCLSH91, \
+         or put tclsh8.4 … tclsh9.1 on PATH",
+    );
+    for (release, tclsh) in releases {
+        for v in vectors() {
+            let script = vector_script(&v);
+            let want = v.wants.get(release);
+            let got = match support::run_script(&tclsh, &script) {
+                Ok(stdout) => stdout,
+                Err(stderr) => {
+                    assert_eq!(
+                        want,
+                        UNSUPPORTED,
+                        "vector line {} on Tcl {}: the script failed but the table \
+                         expects {want:?}\nscript:\n{script}\nstderr: {stderr}",
+                        v.line,
+                        release.version_string(),
+                    );
+                    continue;
+                }
+            };
+            assert_eq!(
+                got,
+                want,
+                "vector line {} on Tcl {} (ns={} path={:?} defs={:?} call={}): \
+                 tclsh disagrees with the table\nscript:\n{script}",
+                v.line,
+                release.version_string(),
+                v.ns,
+                v.path,
+                v.defs,
+                v.call,
+            );
+        }
     }
 }

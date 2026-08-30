@@ -18,6 +18,8 @@
 
 //! `tmsh::stateless` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
+use tcl_dialect::surface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "tmsh::stateless ?enabled?",
     ..FormSpec::DEFAULT
@@ -26,7 +28,10 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tmsh::stateless",
-        dialects: Some(DialectSet::IAPPS.union(DialectSet::TMSH)),
+        surface: Some(surface![
+            SpecSurface::package("iapps"),
+            SpecSurface::package("tmsh")
+        ]),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet::brief(
             "Modifies the behaviour of ``tmsh::create`` and ``tmsh::delete``.",

@@ -18,10 +18,11 @@
 
 //! `uniq_ordered_ip_list` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "uniq_ordered_ip_list",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Return a deduplicated list of valid IP addresses from the given arguments, preserving the original order.",

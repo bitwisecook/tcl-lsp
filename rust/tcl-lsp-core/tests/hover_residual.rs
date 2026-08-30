@@ -54,9 +54,7 @@ use tcl_compiler::analyser::{Analyser, AnalysisResult};
 use tcl_lsp_core::hover::{HoverKind, find_var_at_position, find_word_span_at_position, hover};
 use tcl_registry::CommandRegistry;
 
-// ------------------------------------------------------------------
 // harness — mirrors hover_completion.rs
-// ------------------------------------------------------------------
 
 fn analyse(source: &str) -> AnalysisResult {
     analyse_for_dialect(source, "tcl8.6")
@@ -71,9 +69,7 @@ fn registry() -> CommandRegistry {
     CommandRegistry::build_default()
 }
 
-// ==================================================================
 // binary format / scan hover — byte widths are Tcl facts.
-// ==================================================================
 
 #[test]
 fn residual_hover_binary_format_braced_spec_renders_field_table() {
@@ -147,9 +143,7 @@ fn residual_hover_binary_absolute_seek_byte_math() {
     );
 }
 
-// ==================================================================
 // regsub substitution spec — backref meanings are Tcl facts.
-// ==================================================================
 
 #[test]
 fn residual_hover_regsub_subspec_backreference_table() {
@@ -173,9 +167,7 @@ fn residual_hover_regsub_subspec_backreference_table() {
     );
 }
 
-// ==================================================================
 // glob pattern — metacharacter meanings are Tcl facts.
-// ==================================================================
 
 #[test]
 fn residual_hover_glob_char_class_via_string_match() {
@@ -262,9 +254,7 @@ fn residual_hover_lsearch_final_option_shaped_operands_stay_positional() {
     assert!(h.value.contains("any sequence"), "{}", h.value);
 }
 
-// ==================================================================
 // regex pattern — anchor / class meanings are Tcl facts.
-// ==================================================================
 
 #[test]
 fn residual_hover_regexp_pattern_anchors_and_class() {
@@ -310,11 +300,9 @@ fn residual_hover_regexp_literal_pattern_notes_no_metacharacters() {
     );
 }
 
-// ==================================================================
 // IP-address literal hovers — RFC classification is a network fact,
 // asserted against Rust's std::net parsing (the provider's source of
 // truth). These are not Tcl-language facts.
-// ==================================================================
 
 #[test]
 fn residual_hover_ipv4_with_cidr_prefix() {
@@ -371,9 +359,7 @@ fn residual_hover_ipv6_mapped_shows_ipv4_form() {
     );
 }
 
-// ==================================================================
 // interp alias hover — the resolved target is a Tcl fact.
-// ==================================================================
 
 #[test]
 fn residual_hover_interp_alias_shows_target() {
@@ -408,9 +394,7 @@ fn residual_hover_interp_alias_with_prefix_args_in_target() {
     );
 }
 
-// ==================================================================
 // option hover + `cmd subcommand` fall-through.
-// ==================================================================
 
 #[test]
 fn residual_hover_option_word_of_command() {
@@ -449,9 +433,7 @@ fn residual_hover_cursor_on_command_word_is_not_subcommand() {
     );
 }
 
-// ==================================================================
 // TclOO class hover — superclass / mixin / class-method / variable detail.
-// ==================================================================
 
 #[test]
 fn residual_hover_class_lists_superclass_and_instance_variables() {
@@ -524,9 +506,7 @@ fn residual_hover_class_lists_class_methods() {
     );
 }
 
-// ==================================================================
 // class-member hover (inside a class body) + $obj method dispatch.
-// ==================================================================
 
 #[test]
 fn residual_hover_class_member_property_inside_body() {
@@ -664,9 +644,7 @@ fn residual_hover_obj_method_dispatch_to_instance_method() {
     );
 }
 
-// ==================================================================
 // proc doc-comment rendering through the public hover entry.
-// ==================================================================
 
 #[test]
 fn residual_hover_proc_renders_doc_comment_tags() {
@@ -707,9 +685,7 @@ fn residual_hover_proc_renders_doc_comment_tags() {
     );
 }
 
-// ==================================================================
 // inferred-intrep / taint on $var hovers (registry path).
-// ==================================================================
 
 #[test]
 fn residual_hover_var_intrep_string_with_registry() {
@@ -749,9 +725,7 @@ fn residual_hover_var_without_registry_omits_intrep() {
     assert!(!h.value.contains("**Taint**"), "{}", h.value);
 }
 
-// ==================================================================
 // public span helpers — find_word_span / find_var on tricky inputs.
-// ==================================================================
 
 #[test]
 fn residual_find_var_at_position_braced_array_index() {
@@ -788,9 +762,7 @@ fn residual_find_word_span_namespace_qualified_token() {
     assert_eq!(end, 16);
 }
 
-// ==================================================================
 // None / edge paths through the public hover entry.
-// ==================================================================
 
 #[test]
 fn residual_hover_in_comment_line_is_none() {

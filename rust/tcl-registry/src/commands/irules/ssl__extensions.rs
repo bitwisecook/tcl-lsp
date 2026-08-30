@@ -18,11 +18,12 @@
 
 //! `SSL::extensions` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SSL::extensions",
         traits: Traits::PURE.union(Traits::CSE_CANDIDATE),
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Returns or manipulates SSL extensions.",
@@ -41,9 +42,7 @@ pub const fn spec() -> CommandSpec {
             transport: Some("tcp"),
             profiles: &["CLIENTSSL", "SERVERSSL"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "SSL::extensions ?options?",
@@ -55,7 +54,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-index",
                     value: OptionValue::value("EXT_NUMBER"),
                     detail: "Return extension at specified index.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -64,7 +63,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-type",
                     value: OptionValue::value("EXT_TYPE_VALUE"),
                     detail: "Return extension matching specified type value.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,

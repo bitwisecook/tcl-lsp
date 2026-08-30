@@ -64,9 +64,7 @@ use tcl_spec_hooks::{HookOwner, HookProgram, PackPrograms, tclvm_host};
 use crate::loader::{HookOwner as DeclOwner, HookSource, PackCommand};
 use crate::pack::PackSet;
 
-// ---------------------------------------------------------------------------
 // The adapter: HookDecl → HookProgram
-// ---------------------------------------------------------------------------
 
 /// One pack's declared hook **bodies**, as the host takes them.
 ///
@@ -120,9 +118,7 @@ fn owner_of(owner: &DeclOwner) -> HookOwner {
     }
 }
 
-// ---------------------------------------------------------------------------
 // The plan: one slot assignment per pack-set content
-// ---------------------------------------------------------------------------
 
 /// One pack set's hook bodies with the process-wide slot each is bound to.
 ///
@@ -218,9 +214,7 @@ pub fn plan_for(packs: &PackSet) -> Arc<HookPlan> {
     plan
 }
 
-// ---------------------------------------------------------------------------
 // Specialising a loaded spec with its slots' thunks
-// ---------------------------------------------------------------------------
 
 /// `command`'s spec with each declared hook body's thunk in place of the
 /// loader's abstaining placeholder.
@@ -299,6 +293,7 @@ fn bind_command(spec: &mut CommandSpec, family: HookFamily, slot: HookSlot) {
         HookFamily::ClauseShapeCheck => {
             spec.clause_shape_check = pack_hooks::clause_shape_check_fn(slot);
         }
+        HookFamily::Constraints => spec.constraints = pack_hooks::constraints_fn(slot),
         // An option's `-arity-hook` never hangs off the command itself.
         HookFamily::OptionArity => {}
     }
@@ -329,6 +324,7 @@ fn bind_subcommand(sub: &mut SubCommand, bindings: &[Binding<'_>]) {
                     sub.literal_argument_validator =
                         pack_hooks::literal_argument_validator_fn(slot);
                 }
+                HookFamily::Constraints => sub.constraints = pack_hooks::constraints_fn(slot),
                 // The loader declares no other family on a subcommand row.
                 HookFamily::TaintSinkGate
                 | HookFamily::ContextGate
@@ -366,9 +362,7 @@ fn bind_option(options: &mut [OptionSpec], name: &str, slot: HookSlot) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // The per-thread host
-// ---------------------------------------------------------------------------
 
 /// The plan a thread should be serving, and a generation to notice a change
 /// by. Generation `0` means "no pack hooks have ever been published", which is
@@ -440,7 +434,7 @@ pub fn ensure_thread_host() {
         for programs in plan.packs() {
             // Crash containment is the host's default: budgets on, quarantine
             // on first crash, abstention on anything unexpected.
-            let _installed = host.load_pack(programs.clone());
+            let _installed = host.install_pack_hooks(programs.clone());
         }
         pack_hooks::install_host(host);
     }

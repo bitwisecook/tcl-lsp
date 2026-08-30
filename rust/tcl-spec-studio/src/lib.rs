@@ -69,6 +69,7 @@
 pub mod corpus;
 pub mod coverage;
 pub mod draft;
+pub mod environment;
 pub mod examples;
 pub mod help;
 pub mod infer;
@@ -87,12 +88,11 @@ pub use tcl_spectcl::loader as spectcl;
 use serde_json::{Value, json};
 use tcl_dialect::DialectProfile;
 use tcl_lsp_core::formatting::{FormatterConfig, format_tcl};
-use tcl_registry::cache::registry_for_dialect;
 
 /// Dialects the studio offers, as `(registry name, label)`, in catalogue order.
 ///
-/// These are the profile names [`registry_for_dialect`] resolves, not the
-/// primitive `DialectSet` bits — a profile is what decides which commands are
+/// These are the profile names [`environment::store_for_dialect`] resolves, not the
+/// primitive surface rows — a profile is what decides which commands are
 /// actually visible. `tk` is therefore not here: it is a library pin rather
 /// than a profile, so it resolves to the permissive fallback, and the Tk
 /// commands are already browsable under every Tcl-version profile.
@@ -109,13 +109,15 @@ pub fn browsable_dialects() -> impl Iterator<Item = (&'static str, &'static str)
 #[must_use]
 pub fn format_pack(source: &str) -> String {
     let config = FormatterConfig::for_dialect("spectcl");
-    format_tcl(source, &config, registry_for_dialect("spectcl"))
+    format_tcl(source, &config, environment::store_for_dialect("spectcl"))
 }
 
 /// The command names available in `dialect`, sorted.
 #[must_use]
 pub fn command_names(dialect: &str) -> Vec<&'static str> {
-    let mut names: Vec<&'static str> = registry_for_dialect(dialect).command_names().collect();
+    let mut names: Vec<&'static str> = environment::store_for_dialect(dialect)
+        .command_names()
+        .collect();
     names.sort_unstable();
     names
 }
@@ -124,7 +126,7 @@ pub fn command_names(dialect: &str) -> Vec<&'static str> {
 /// short summary, and whether the spec declares subcommands or options.
 #[must_use]
 pub fn command_index(dialect: &str) -> Value {
-    let registry = registry_for_dialect(dialect);
+    let registry = environment::store_for_dialect(dialect);
     let mut names: Vec<&str> = registry.command_names().collect();
     names.sort_unstable();
     let entries: Vec<Value> = names
@@ -151,7 +153,7 @@ pub fn command_index(dialect: &str) -> Value {
 /// Returns `None` when the dialect does not have that command.
 #[must_use]
 pub fn load_command(name: &str, dialect: &str) -> Option<Value> {
-    let spec = registry_for_dialect(dialect).get(name)?;
+    let spec = environment::store_for_dialect(dialect).get(name)?;
     let mut d = draft::from_command_spec(spec);
     d.insert(draft::SOURCE_DIALECT_KEY.to_owned(), json!(dialect));
     Some(Value::Object(d))

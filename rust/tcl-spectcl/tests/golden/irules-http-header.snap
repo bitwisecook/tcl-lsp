@@ -1,0 +1,14 @@
+# spectcl golden snapshot v1
+# regenerate with `cargo xtask pack-goldens`; do not edit by hand
+pack f5-irules dsl 1.1 display None load_error None
+target_dependent false
+file_extensions []
+provides []
+co_provides []
+ambient_packages []
+environments []
+dialects []
+registrations 1
+notices 0
+commands 1
+command HTTP::header line 9 overrides false degraded false spec e9848cd8487c3059 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9

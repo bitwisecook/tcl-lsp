@@ -95,9 +95,7 @@ fn subst(s: &str) -> String {
     backslash_subst(s).into_owned()
 }
 
-// ---------------------------------------------------------------------------
 // LexerConfig presets and the dialect-gated `{*}` expansion.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn dialect_presets_set_expansion_and_separator_flags() {
@@ -157,9 +155,7 @@ fn expand_marker_is_zero_width_at_the_brace() {
     assert_eq!(expand.span.start(), 4); // the `{` of `{*}`
 }
 
-// ---------------------------------------------------------------------------
 // strict_quoting: the recovery paths that become hard errors.
-// ---------------------------------------------------------------------------
 
 /// Lex in strict mode and return the error (if any).
 fn strict_error(source: &str) -> Option<LexError> {
@@ -250,9 +246,7 @@ fn strict_quoting_allows_separator_and_bracket_after_close_quote() {
     assert!(strict_error("\"a\"\\\nb").is_none());
 }
 
-// ---------------------------------------------------------------------------
 // Non-strict warning collection.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn warnings_report_unterminated_brace_with_offset() {
@@ -321,9 +315,7 @@ fn warnings_accessor_borrows_without_consuming() {
     assert_eq!(lexer.warnings()[0].message, "missing close-bracket");
 }
 
-// ---------------------------------------------------------------------------
 // iRules `}{` brace-word separator.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn irules_brace_separator_splits_adjacent_braced_words() {
@@ -366,9 +358,7 @@ fn irules_brace_separator_splits_adjacent_braced_words() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Ghost closing-delimiter recovery (`with_ghosts`).
-// ---------------------------------------------------------------------------
 
 #[test]
 fn ghost_close_bracket_recovers_unterminated_command_sub() {
@@ -405,9 +395,7 @@ fn empty_ghost_map_is_the_normal_path() {
     assert_eq!(plain, ghosted);
 }
 
-// ---------------------------------------------------------------------------
 // EOF / ghost-EOL behaviour and `source_map` round-trips.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn empty_source_yields_no_tokens() {
@@ -451,9 +439,7 @@ fn into_source_map_resolves_tokens_after_the_lexer_is_gone() {
     assert_eq!(sm.text(first.span), "set");
 }
 
-// ---------------------------------------------------------------------------
 // SourceMap: token_text stripping per kind, and sub-lexing base offsets.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn token_text_strips_wrapper_delimiters_per_kind() {
@@ -597,10 +583,8 @@ fn source_map_with_line_index_reuses_the_index() {
     assert_eq!(sm.position_at(8).line, 2);
 }
 
-// ---------------------------------------------------------------------------
 // word_closer_offset / word_end_position: a few branches the ranges.rs
 // unit tests reach, re-pinned through the public re-export.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn word_closer_offset_lands_on_the_real_delimiter() {
@@ -631,9 +615,7 @@ fn word_end_position_advances_over_a_multiline_closer() {
     assert_eq!(src.as_bytes()[pos.offset as usize], b'}');
 }
 
-// ---------------------------------------------------------------------------
 // backslash_subst: the escape-decode contract, against tclsh ground truth.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn hex_escape_consumes_exactly_two_digits() {
@@ -677,9 +659,7 @@ fn unknown_escape_passes_the_following_char_through() {
     assert_eq!(subst("\\é"), "é");
 }
 
-// ---------------------------------------------------------------------------
 // Word / command splitting facts, proven against tclsh.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn escaped_space_is_one_word() {
@@ -730,9 +710,7 @@ fn backslash_newline_continuation_decodes_to_a_single_space() {
     assert_eq!(subst("a\\\rb"), "a b");
 }
 
-// ---------------------------------------------------------------------------
 // Comment rules (`#` only at command start; `\<nl>` continues a comment).
-// ---------------------------------------------------------------------------
 
 #[test]
 fn hash_is_a_comment_only_at_command_start() {
@@ -765,9 +743,7 @@ fn backslash_newline_continues_a_comment_swallowing_the_next_line() {
     assert!(words(src).iter().any(|(_, t)| t == "set"));
 }
 
-// ---------------------------------------------------------------------------
 // Quoted-string substitution context.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn quotes_substitute_var_and_command_unlike_braces() {
@@ -782,9 +758,7 @@ fn quotes_substitute_var_and_command_unlike_braces() {
     assert!(var.in_quote);
 }
 
-// ---------------------------------------------------------------------------
 // LineIndex: UTF-16 columns, offset round-trips, in-place edit, accessors.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn line_index_utf16_column_counts_code_units_not_bytes() {
@@ -914,9 +888,7 @@ fn line_index_bare_cr_is_not_a_line_break() {
     assert_eq!(idx.line_start(1), 5);
 }
 
-// ---------------------------------------------------------------------------
 // Expression lexer: checked / dialect / fallback branches.
-// ---------------------------------------------------------------------------
 
 /// Non-whitespace expr tokens (kind, text).
 fn expr_pairs(source: &str) -> Vec<(ExprTokenType, String)> {
@@ -1041,10 +1013,8 @@ fn expr_unterminated_quote_and_command_do_not_panic() {
     assert_eq!(v[0].kind, ExprTokenType::Variable);
 }
 
-// ---------------------------------------------------------------------------
 // structural_index: the accessors and balance verdicts the edge tests
 // leave unread (`events`, `inert_spans`, `ParenBalance`).
-// ---------------------------------------------------------------------------
 
 #[test]
 fn bracket_index_records_structural_events_and_skips_inert() {
@@ -1128,10 +1098,8 @@ fn expr_paren_string_interior_is_opaque() {
     assert_eq!(idx.balance(), ParenBalance::Balanced);
 }
 
-// ---------------------------------------------------------------------------
 // script_is_complete / command_boundaries / reparse_window — proven against
 // tclsh `info complete` where applicable.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn script_is_complete_matches_info_complete() {

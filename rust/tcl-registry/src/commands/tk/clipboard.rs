@@ -18,6 +18,7 @@
 
 //! `clipboard` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
@@ -57,7 +58,7 @@ const APPEND_OPTIONS: &[OptionSpec] = &[
         name: "-displayof",
         value: OptionValue::value("window"),
         detail: "Specifies the display for the clipboard operation.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -66,7 +67,7 @@ const APPEND_OPTIONS: &[OptionSpec] = &[
         name: "-format",
         value: OptionValue::value("format"),
         detail: "Specifies the representation format for the data (append).",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -75,7 +76,7 @@ const APPEND_OPTIONS: &[OptionSpec] = &[
         name: "-type",
         value: OptionValue::value("type"),
         detail: "Specifies the form in which the selection is to be returned.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -87,7 +88,7 @@ const CLEAR_OPTIONS: &[OptionSpec] = &[OptionSpec {
     name: "-displayof",
     value: OptionValue::value("window"),
     detail: "Specifies the display for the clipboard operation.",
-    dialects: None,
+    surface: None,
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
@@ -100,7 +101,7 @@ const GET_OPTIONS: &[OptionSpec] = &[
         name: "-displayof",
         value: OptionValue::value("window"),
         detail: "Specifies the display for the clipboard operation.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -109,7 +110,7 @@ const GET_OPTIONS: &[OptionSpec] = &[
         name: "-type",
         value: OptionValue::value("type"),
         detail: "Specifies the form in which the selection is to be returned.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -128,7 +129,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-displayof",
         value: OptionValue::value("window"),
         detail: "Specifies the display for the clipboard operation.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -137,7 +138,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-format",
         value: OptionValue::value("format"),
         detail: "Specifies the representation format for the data (append).",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -146,7 +147,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-type",
         value: OptionValue::value("type"),
         detail: "Specifies the form in which the selection is to be returned.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -161,7 +162,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "clipboard",
-        dialects: Some(DialectSet::TK_AND_TCL),
+        surface: Some(SpecSurface::TK_AND_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Manipulate the Tk clipboard.",

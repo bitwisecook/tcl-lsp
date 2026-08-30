@@ -274,7 +274,7 @@ pub fn prove_native_integer_adds(
         unit.ir_module
             .dialect
             .as_deref()
-            .map(tcl_dialect::DialectProfile::by_name),
+            .map(|name| crate::environment_ingress::resolve_environment(name).analyser_profile()),
     );
     let intervals = compute_intervals_with(
         &function_unit.cfg,
@@ -496,12 +496,9 @@ fn collect_caller_ranges(
             &caller.cfg,
             &caller.ssa,
             &caller.sccp.values,
-            numbers_for_dialect(
-                unit.ir_module
-                    .dialect
-                    .as_deref()
-                    .map(tcl_dialect::DialectProfile::by_name),
-            ),
+            numbers_for_dialect(unit.ir_module.dialect.as_deref().map(|name| {
+                crate::environment_ingress::resolve_environment(name).analyser_profile()
+            })),
         );
         let caller_observability = analyse_var_observability(&caller.cfg, registry);
         for (param, argument) in params.iter().zip(args.iter()) {
@@ -946,7 +943,7 @@ fn parse_caller_integer(
 mod tests {
     use super::*;
     use crate::common_aot_plan::CommonAotEnvironment;
-    use tcl_registry::dialects::DialectSet;
+    use tcl_registry::model::semantic::SemanticContext;
 
     fn prove(
         source: &str,
@@ -954,12 +951,12 @@ mod tests {
         optimisations: SemanticOptimisationConfig,
         policy: NativeIntegerPolicy,
     ) -> NativeIntegerProof {
-        let registry = tcl_registry::cache::registry_for_profile(dialect);
+        let registry = tcl_registry::model::ingress::static_context_for_profile(dialect).commands();
         let unit = CompilationUnit::build_for_profile(source, registry, false, dialect);
         let plan = CommonAotProofPlan::build(
             &unit,
             registry,
-            DialectSet::parse(dialect.name).expect("test dialect"),
+            Some(SemanticContext::for_profile(dialect)),
             optimisations,
             CommonAotEnvironment::Hosted,
         );
@@ -993,7 +990,7 @@ mod tests {
     fn proof_is_default_off() {
         let proof = prove(
             &format!("{ADD_BODY}set d 20\nset e 22\nadd $d $e\n"),
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             SemanticOptimisationConfig::new().with_enabled(SemanticOptimisationPassId::DirectProc),
             NativeIntegerPolicy::default(),
         );
@@ -1004,7 +1001,7 @@ mod tests {
     fn closed_world_add_proves_ssa_ranges_and_no_overflow() {
         let decision = one_decision(prove(
             &format!("{ADD_BODY}set d 2\nset e 4\nputs [add $d $e]\n"),
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             enabled(),
             checked_i64(),
         ));
@@ -1038,7 +1035,7 @@ mod tests {
             .with_enabled(SemanticOptimisationPassId::NativeInteger);
         let decision = one_decision(prove(
             &format!("{ADD_BODY}set d 2\nset e 4\nputs [add $d $e]\n"),
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             optimisations,
             checked_i64(),
         ));
@@ -1057,7 +1054,7 @@ mod tests {
             format!("{ADD_BODY}set d 1\nset e 2\nadd $d $e\nset d 3\nset e 4\nadd $d $e\n");
         let decision = one_decision(prove(
             &source,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             enabled(),
             checked_i64(),
         ));
@@ -1100,7 +1097,7 @@ mod tests {
         );
         let decision = one_decision(prove(
             &source,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             enabled(),
             checked_i64(),
         ));
@@ -1121,7 +1118,7 @@ mod tests {
         let source = format!("{ADD_BODY}add 9223372036854775807 1\n");
         let strict = one_decision(prove(
             &source,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             enabled(),
             NativeIntegerPolicy::new(
                 NativeIntegerWidth::I64,
@@ -1138,7 +1135,7 @@ mod tests {
 
         let checked = one_decision(prove(
             &source,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             enabled(),
             checked_i64(),
         ));
@@ -1156,7 +1153,7 @@ mod tests {
     fn bignum_operand_never_enters_native_path() {
         let decision = one_decision(prove(
             &format!("{ADD_BODY}add 9223372036854775808 1\n"),
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             enabled(),
             checked_i64(),
         ));
@@ -1173,7 +1170,7 @@ mod tests {
     fn dynamic_caller_declines_parameter_range() {
         let decision = one_decision(prove(
             &format!("{ADD_BODY}set target add\n$target 20 22\n"),
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             enabled(),
             checked_i64(),
         ));
@@ -1194,7 +1191,7 @@ mod tests {
                       add 20 22\n";
         let decision = one_decision(prove(
             source,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             enabled(),
             checked_i64(),
         ));
@@ -1212,13 +1209,13 @@ mod tests {
         let source = format!("{ADD_BODY}add 010 1\n");
         let tcl8 = one_decision(prove(
             &source,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             enabled(),
             checked_i64(),
         ));
         let tcl9 = one_decision(prove(
             &source,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             enabled(),
             checked_i64(),
         ));

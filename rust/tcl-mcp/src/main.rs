@@ -39,6 +39,7 @@ use tcl_dialect::DialectProfile;
 mod bigip;
 mod datagroup;
 mod diag_meta;
+mod environment;
 mod fakecmp;
 mod irule_gen;
 mod irule_test;

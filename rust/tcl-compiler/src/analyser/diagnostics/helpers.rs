@@ -29,6 +29,7 @@
 //! consult.
 
 use std::collections::HashSet;
+use tcl_dialect::model::SurfaceQuery;
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -322,7 +323,7 @@ pub(super) struct PhiUndefCtx<'a> {
     /// Locals that registry metadata says alias the interpreter's global
     /// namespace in this function (`global name`).
     pub global_aliases: &'a HashSet<String>,
-    pub dialect: tcl_registry::prelude::DialectSet,
+    pub dialect: Option<SurfaceQuery<'a>>,
     pub ssa: &'a crate::ssa::SsaFunction,
 }
 
@@ -625,7 +626,7 @@ fn collect_expr_cmd_sub_writes(
     considered: &HashSet<BlockId>,
 ) -> FxHashSet<String> {
     use crate::ir::Statement;
-    let registry = tcl_registry::cache::registry_for_dialect("tcl8.6");
+    let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
     let mut out = FxHashSet::default();
     for &bn in considered {
         let Some(block) = fu.cfg.blocks.get(&bn) else {
@@ -675,7 +676,7 @@ fn collect_script_concat_writes(
     considered: &HashSet<BlockId>,
 ) -> FxHashSet<String> {
     use crate::ir::Statement;
-    let registry = tcl_registry::cache::registry_for_dialect("tcl8.6");
+    let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
     let mut out = FxHashSet::default();
     for &bn in considered {
         let Some(block) = fu.cfg.blocks.get(&bn) else {
@@ -885,7 +886,7 @@ pub(super) fn build_undef_suppression(
     considered: &HashSet<BlockId>,
     initial_global: bool,
     global_aliases: &HashSet<String>,
-    dialect: tcl_registry::prelude::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) -> UndefSuppression {
     let (phi_def, phi_block, killed) = build_phi_undef_index(&fu.ssa, considered);
     // Phi versions that can reach an undef origin on some executable path —

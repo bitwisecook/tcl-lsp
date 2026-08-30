@@ -18,6 +18,7 @@
 
 //! `clock` — time and date operations.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "clock subcommand ?arg ...?",
@@ -59,7 +60,7 @@ static FORMAT_OPTIONS: &[OptionSpec] = &[
             ..OptionArg::DEFAULT
         }),
         detail: "strftime-style output format string (default \"%a %b %d %H:%M:%S %Z %Y\").",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -68,7 +69,7 @@ static FORMAT_OPTIONS: &[OptionSpec] = &[
         name: "-gmt",
         value: OptionValue::boolean(),
         detail: "Format in UTC instead of the local time zone; superseded by -timezone :UTC but still accepted.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -77,7 +78,7 @@ static FORMAT_OPTIONS: &[OptionSpec] = &[
         name: "-locale",
         value: OptionValue::value("locale"),
         detail: "Locale for month / day-of-week names and the other locale-dependent format groups (%a, %c, ...).",
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -86,7 +87,7 @@ static FORMAT_OPTIONS: &[OptionSpec] = &[
         name: "-timezone",
         value: OptionValue::value("tz"),
         detail: "Time zone to format the value in.",
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -105,7 +106,7 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
         name: "-base",
         value: OptionValue::value("seconds"),
         detail: "Base date/time used to fill in fields the input string doesn't specify.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -120,7 +121,7 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
             ..OptionArg::DEFAULT
         }),
         detail: "Explicit input format string for strict parsing; omitting it falls back to the deprecated free-form scanner.",
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -129,7 +130,7 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
         name: "-gmt",
         value: OptionValue::boolean(),
         detail: "Interpret the input as UTC instead of local time; superseded by -timezone :UTC but still accepted.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -138,7 +139,7 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
         name: "-locale",
         value: OptionValue::value("locale"),
         detail: "Locale for month / day-of-week names.",
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -147,7 +148,7 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
         name: "-timezone",
         value: OptionValue::value("tz"),
         detail: "Time zone for interpretation.",
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -157,7 +158,7 @@ static SCAN_OPTIONS: &[OptionSpec] = &[
         name: "-validate",
         value: OptionValue::boolean(),
         detail: "When true (the default), an out-of-range field (e.g. day 31 in a 30-day month) raises an error; when false, it is clamped into range instead.",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -172,7 +173,7 @@ static ADD_OPTIONS: &[OptionSpec] = &[
         name: "-gmt",
         value: OptionValue::boolean(),
         detail: "Do the arithmetic in UTC instead of the local time zone; superseded by -timezone :UTC but still accepted.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -181,7 +182,7 @@ static ADD_OPTIONS: &[OptionSpec] = &[
         name: "-locale",
         value: OptionValue::value("locale"),
         detail: "Locale used to resolve month/weekday names.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -190,7 +191,7 @@ static ADD_OPTIONS: &[OptionSpec] = &[
         name: "-timezone",
         value: OptionValue::value("tz"),
         detail: "Time zone the calendar arithmetic (days/weekdays/weeks/months/years) is done in.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -207,7 +208,7 @@ static CLICKS_OPTIONS: &[OptionSpec] = &[
         name: "-milliseconds",
         value: OptionValue::flag(),
         detail: "Return the same value as `clock milliseconds` instead of the raw high-resolution counter.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -216,7 +217,7 @@ static CLICKS_OPTIONS: &[OptionSpec] = &[
         name: "-microseconds",
         value: OptionValue::flag(),
         detail: "Return the same value as `clock microseconds` instead of the raw high-resolution counter.",
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -283,7 +284,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // unit (see `ADD_UNIT_VALUES`) followed in Tcl 9.0, not 8.6 (the
         // 8.6.18 clock.n page's unit list has no `weekdays`; it first
         // appears in the 9.0.4 page).
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         arity: Arity::at_least(1),
         detail: "Add duration to a time.",
         synopsis: "clock add timeVal ?count unit ...?",
@@ -329,7 +330,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "microseconds",
         // Added in Tcl 8.5 (TIP 173).
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         arity: Arity::exact(0),
         detail: "Return current time in microseconds.",
         synopsis: "clock microseconds",
@@ -340,7 +341,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
         name: "milliseconds",
         // Added in Tcl 8.5 (TIP 173).
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         arity: Arity::exact(0),
         detail: "Return current time in milliseconds.",
         synopsis: "clock milliseconds",
@@ -354,7 +355,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // description, present in 9.1's.  A genuinely new subcommand,
         // not merely a documentation change, so it needs its own
         // single-bit gate rather than TCL90_PLUS.
-        dialects: Some(DialectSet::TCL91),
+        surface: Some(SpecSurface::TCL91),
         arity: Arity::exact(0),
         detail: "Return current monotonic clock value in microseconds.",
         synopsis: "clock monotonic",
@@ -400,7 +401,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         name: "-base",
         value: OptionValue::value("timeVal"),
         detail: "Base time for relative scanning.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -409,7 +410,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         name: "-format",
         value: OptionValue::value("format"),
         detail: "strftime-style format string.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -418,20 +419,20 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         name: "-gmt",
         value: OptionValue::boolean(),
         detail: "Use GMT instead of local time.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
     },
     // `-locale`/`-timezone` arrived with the Tcl 8.5 clock rewrite
     // (TIP 173) — absent from both `clock format` and `clock scan` in
-    // Tcl 8.4. This duplicate table had drifted to `dialects: None`,
+    // Tcl 8.4. This duplicate table had drifted to `surface: None`,
     // silently offering both under an 8.4 dialect filter.
     OptionSpec {
         name: "-locale",
         value: OptionValue::value("locale"),
         detail: "Locale for month/day names.",
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -440,19 +441,19 @@ const CMD_OPTIONS: &[OptionSpec] = &[
         name: "-timezone",
         value: OptionValue::value("zone"),
         detail: "Time zone for conversion.",
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
     },
     // `-validate` is Tcl 9.0+, same as `SCAN_OPTIONS`'s entry above — this
-    // duplicate table had drifted to `dialects: None`, silently omitting the
+    // duplicate table had drifted to `surface: None`, silently omitting the
     // gate for the top-level (pre-subcommand-resolution) completion/hover path.
     OptionSpec {
         name: "-validate",
         value: OptionValue::boolean(),
         detail: "Validate date fields strictly (Tcl 9.0+).",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -462,7 +463,7 @@ const CMD_OPTIONS: &[OptionSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "clock",
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::BYTE_COMPILED | Traits::CSE_CANDIDATE,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,

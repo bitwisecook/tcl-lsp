@@ -19,12 +19,13 @@
 //! `allow` — restrict a program to a set of gated verbs (`allow CMD ?CMD …?`).
 //! Part of the profile-based top layer's capability/policy facet.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 pub fn spec() -> CommandSpec {
     const OP: BpfOpSpec = BpfOpSpec::framework(BpfDeclKind::Allow);
     CommandSpec {
         name: "allow",
-        dialects: Some(DialectSet::BPF),
+        surface: Some(SpecSurface::BPF),
         arity: Arity::at_least(1),
         bpf_op: Some(&OP),
         ..CommandSpec::DEFAULT

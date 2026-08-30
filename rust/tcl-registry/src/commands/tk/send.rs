@@ -5,6 +5,7 @@
 
 //! `send` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const SIDE_EFFECTS: &[SideEffect] = &[
     SideEffect {
@@ -122,7 +123,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "send",
-        dialects: Some(DialectSet::TK_AND_TCL),
+        surface: Some(SpecSurface::TK_AND_TCL),
         arity: Arity::at_least(2),
         arg_role_resolver: Some(send_arg_roles),
         script_timing_resolver: Some(send_script_timing),

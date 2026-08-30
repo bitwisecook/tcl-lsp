@@ -63,6 +63,9 @@
 | W147 | warning | Mutually exclusive command options were supplied together. | ✓ |
 | W148 | warning | Numeral spelling is not accepted by the document's resolved Tcl release. | ✓ |
 | W149 | warning | Argument count matches a different release of the command's signature — the call fits a version window other than the one the resolved package floor selects. | ✓ |
+| W150 | warning | Not available across the project's declared version-target range — the item resolves at the primary target but is missing from one or more declared targets (range targeting). | ✓ |
+| W151 | warning | Numeral changes meaning or validity across the project's declared version-target range — e.g. a leading-zero literal is octal under Tcl 8.x targets and decimal under 9.0. | ✓ |
+| W152 | warning | A registry-declared option relation is unmet — an option or argument the call supplied requires a companion option or argument it did not (`-command` without `-channel`), or the invocation supplies none of a required set. | ✓ |
 | W200 | warning | `exec` result not captured or binary format modifier requires newer Tcl. | ✓ |
 | W201 | warning | Manual path concatenation — use `file join` instead. | ✓ |
 | W230 | warning | Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp. | ✓ |
@@ -102,6 +105,7 @@
 | W312 | security | `interp eval` with multiple or unbraced script words — concatenated like `eval`, injection risk. | ✓ |
 | W313 | security | Destructive file operation with variable path — path-traversal risk. | ✓ |
 | H300 | hint | Possible paste error — repeated assignment to same variable with same value. | ✓ |
+| H301 | hint | Command used above the `package require` that provides it — the file reads top-down as if the package were not yet loaded, though Tcl only resolves the name when the call runs. | ✓ |
 | I230 | hint | Constant branch condition — the alternate branch is provably unreachable. | ✓ |
 | I231 | hint | Constant switch arm condition — the arm is provably unreachable. | ✓ |
 | W123 | hint | Unresolved command — not found in registry, user procs, or `unknown` handler. | ✓ |
@@ -134,6 +138,7 @@
 | IRULE2001 | irules | Deprecated `matchclass` — use `class match` instead. | ✓ |
 | IRULE2002 | irules | Deprecated iRules command. | ✓ |
 | IRULE2003 | irules | Unsafe iRules command. | ✓ |
+| IRULE2004 | irules | Command refused by the iRules rule compiler at load — present in TMM's interpreter and reachable via `eval` at runtime. | ✓ |
 | IRULE2101 | irules | Heavy `regexp` in a high-frequency event — consider `string match` or data-group. | ✓ |
 | IRULE5001 | irules | Ungated `log` in a high-frequency event. | ✓ |
 | IRULE5002 | irules | `drop`/`reject`/`discard` without `event disable all` or `return`. | ✓ |

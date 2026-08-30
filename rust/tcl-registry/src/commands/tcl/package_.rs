@@ -19,6 +19,9 @@
 //! `package` — facilities for package loading and version control.
 
 use crate::prelude::*;
+use tcl_dialect::model::Family;
+use tcl_dialect::model::SpecSurface;
+use tcl_dialect::surface;
 
 /// `package unknown prefix` stores the fallback for a later unsatisfied
 /// `package require`; the zero-argument form is only a query.
@@ -43,12 +46,15 @@ fn package_unknown_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
 const FORMS: &[FormSpec] = &[
     FormSpec {
         synopsis: "package option ?arg ...?",
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         ..FormSpec::DEFAULT
     },
     FormSpec {
         synopsis: "package option ?arg arg ...?",
-        dialects: Some(DialectSet::TCL84.union(DialectSet::TCL85)),
+        surface: Some(surface![SpecSurface::core_in(
+            Family::Tcl,
+            &[("8.4", Some("8.6"))]
+        )]),
         ..FormSpec::DEFAULT
     },
 ];
@@ -80,13 +86,13 @@ const VSATISFIES_FORMS: &[SubCommandForm] = &[
     SubCommandForm {
         name: "tcl8.4",
         arity: Arity::exact(2),
-        dialects: Some(DialectSet::TCL84),
+        surface: Some(SpecSurface::TCL84),
         ..SubCommandForm::DEFAULT
     },
     SubCommandForm {
         name: "tcl8.5+",
         arity: Arity::at_least(2),
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         ..SubCommandForm::DEFAULT
     },
 ];
@@ -103,7 +109,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // "bad option" error's subcommand list on tclsh 8.6.14), present
         // from 9.0's manpage on (9.1's is byte-for-byte identical to 9.0's
         // apart from the version banner).
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -174,7 +180,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // item 1).
         analyser_hook: Some(crate::hooks::AnalyserHookId::PackagePrefer),
         // Added in Tcl 8.5 (TIP 268).
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -196,7 +202,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 name: "-exact",
                 value: OptionValue::flag(),
                 detail: "Restricts the match to exactly the given version — a single version word, not a requirement list. Equivalent to `package present package version-version`; since present never loads, an exact version that has not already been provided is a hard error, not an attempt to load it.",
-                dialects: None,
+                surface: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,
@@ -228,7 +234,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 name: "-exact",
                 value: OptionValue::flag(),
                 detail: "Restricts the match to exactly the given version — a single version word, not a requirement list. Equivalent to `package require package version-version`; a different already-provided version is a hard error.",
-                dialects: None,
+                surface: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,
@@ -243,7 +249,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "unknown",
-        dialects: None,
+        surface: None,
         arity: Arity::new(0, 1),
         detail: "Sets the last-resort command invoked by package require when no suitable version is found in the ifneeded database. With command omitted, returns the current handler, or an empty string if none is set; an empty-string command clears it.",
         synopsis: "package unknown ?command?",
@@ -317,18 +323,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "package",
-        // Universal core Tcl 8.4-9.1 (present, with the shape detailed on
-        // each subcommand above, on every fetched manpage). F5 iRules
-        // drops it (K36322151 — the TMM data-plane sandbox has no real
-        // package-loading surface): its own `dialects` group below is
-        // `Some(DialectSet::ALL_TCL)`, which carries no `IRULES` bit and
-        // so never intersects the bare `IRULES` availability mask — the
-        // same fully-explicit, per-spec exclusion `cd`/`open`/`exec`/
-        // `load` now rely on, with no disable list. Every other modelled
-        // dialect that embeds a real Tcl core (Expect, f5-iapps, f5-tmsh,
-        // the EDA vendor shells) carries a Tcl-version bit that `ALL_TCL`
-        // intersects, so `package` is available there too.
-        dialects: Some(DialectSet::ALL_TCL),
+        // Universal core Tcl 8.4-9.1 (present, with the shape detailed on each
+        // subcommand above, on every fetched manpage). F5 iRules drops it
+        // (K36322151 — the TMM data-plane sandbox has no real package-loading
+        // surface): its own surface below is `Some(SpecSurface::ALL_TCL)`,
+        // which names only Tcl and so is simply absent under iRules — the same
+        // fully-explicit, per-spec exclusion `cd`/`open`/`exec`/ `load` now
+        // rely on, with no disable list. Every other modelled dialect that
+        // embeds a real Tcl core (Expect, f5-iapps, f5-tmsh, the EDA vendor
+        // shells) carries a Tcl release that `ALL_TCL` intersects, so
+        // `package` is available there too.
+        surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::NOT_PROC_FACTORY | Traits::BYTE_COMPILED | Traits::LANGUAGE_KEYWORD,
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
@@ -379,7 +384,9 @@ pub fn spec() -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
-    use crate::{CommandRegistry, dialects::DialectSet};
+    use tcl_dialect::model::{Family, SurfaceQuery};
+
+    use crate::CommandRegistry;
 
     #[test]
     fn vsatisfies_arity_is_dialect_aware() {
@@ -388,7 +395,7 @@ mod tests {
             .resolve_call(
                 "package",
                 &["vsatisfies", "8.4", "8.4", "9.0"],
-                DialectSet::TCL84,
+                Some(SurfaceQuery::core(Family::Tcl, "8.4")),
             )
             .expect("package is in the Tcl 8.4 registry");
         assert!(legacy.form.is_none());
@@ -398,7 +405,7 @@ mod tests {
             .resolve_call(
                 "package",
                 &["vsatisfies", "8.4", "8.4", "9.0"],
-                DialectSet::TCL85,
+                Some(SurfaceQuery::core(Family::Tcl, "8.5")),
             )
             .expect("package is in the Tcl 8.5 registry");
         assert_eq!(modern.form.map(|form| form.name), Some("tcl8.5+"));

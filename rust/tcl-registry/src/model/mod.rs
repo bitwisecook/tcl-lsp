@@ -1,0 +1,108 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! The registry on the new core/environment model (P1-E of the redesign,
+//! `docs/design/dialect-and-package-registry-redesign.md` §4 and
+//! `docs/design/dialect-and-package-registry-centralisation.md` §1).
+//!
+//! The submodules are layered exactly as the design's availability
+//! chapter draws them:
+//!
+//! - [`surface`] — [`SurfaceDeclaration`]: provider + axis-typed
+//!   [`tcl_dialect::model::VersionSet`] applicability + predicate +
+//!   history, and the **mechanical translation** from today's
+//!   [`crate::CommandSpec`] fields ([`declarations_for_spec`]).
+//! - [`declaration`] — [`DeclaredSurface`] and [`DocumentCommandSurface`]:
+//!   the commands a *document* declares for itself (`# tcl-lsp: stub`
+//!   blocks and `.tcl.stubs` sidecars) ingested as provenance-tagged
+//!   [`SurfaceDeclaration`]s, and the one door a consumer asks about the
+//!   catalogue **and** those declarations (gap ruling R1).
+//! - [`context`] — [`ResolvedContext`] (environment + per-axis floor map)
+//!   and the [`ContextQueries`] **assistance view** (§1.2 R-c/R-d split):
+//!   `is_available`, `available_at_targets`.
+//! - [`assembly`] — [`ContextRegistry`]: per-environment registry
+//!   generations assembled by provider filtering instead of bit loading,
+//!   cached by `(environment identity, keyed-versions hash)`.
+//! - [`ingress`] — the one dialect-**name** ingress seam
+//!   ([`resolve_environment`]): every user-written dialect string in the
+//!   toolchain resolves to a [`DocumentEnvironment`] here, and derives its
+//!   registry generation and interop profile from the resolved
+//!   environment (centralisation R-a, ledger C2/F2/F3/F9).
+//! - [`tcllib`] — per-module tcllib package identity (P5): each module's
+//!   `package require` name, its parallel version trains, and its
+//!   Tcl-core floor, all read out of the bundled tcllib 2.0 sources. This
+//!   is what makes a tcllib module a package with its own axis rather
+//!   than a name on one undifferentiated "tcllib" blob.
+//! - [`semantic`] — [`SemanticContext`]: the generation-bound handle the
+//!   semantic-analysis and executable-IR path is keyed on (ledger C1,
+//!   redesign §11.2 D1), and
+//!   [`resolve_structured_invocation_in_context`], the structured-words
+//!   face of the C7/I4 selection primitive.
+//! - [`binding`] — the [`BindingKnowledge`] **semantic view** types
+//!   (I3–I5) plus the package realm vocabulary
+//!   ([`PackageStateMap`], [`PackageTransition`]). P1a integrated the
+//!   realm: the compiler's document realm scan produces these values,
+//!   and the [`assembly`] selection primitives enforce the binding-proof
+//!   rule (I4) over the carried context.
+//!
+//! Everything here lands **alongside** the old `SpecSurface`-mask registry:
+//! nothing existing is wrapped or shimmed, and the equivalence sweeps in
+//! [`assembly`] pin new-model visibility to the old model's answers for
+//! every compiled spec under every catalogue profile.
+
+pub mod assembly;
+pub mod binding;
+pub mod context;
+pub mod declaration;
+pub mod ingress;
+pub mod registration;
+pub mod semantic;
+pub mod surface;
+pub mod tcllib;
+
+pub use assembly::{
+    ContextRegistry, registry_for_environment, registry_for_environment_if_built,
+    resolve_call_in_context, resolve_invocation_in_context, side_effect_hints_in_context,
+};
+pub use binding::{
+    BindingKnowledge, BindingTarget, PackageState, PackageStateMap, PackageTransition, SpecKey,
+};
+pub use context::{
+    AuthoringScope, ContextQueries, FloorMap, KeyedVersions, ResolvedContext, core_tcl_floor,
+    ladder_releases_in, requirement_spelling, specificity_breadth, targets_from_clauses,
+};
+pub use declaration::{
+    DeclaredArgument, DeclaredCommand, DeclaredSurface, DocumentCommandSurface, role_for_word,
+};
+pub use ingress::{
+    DocumentEnvironment, context_for_profile, environments, irules_context,
+    is_known_environment_name, resolve_environment, resolve_known_environment, static_context_for,
+    static_context_for_profile, static_document_context_for, static_document_context_for_profile,
+};
+pub use semantic::{SemanticContext, resolve_structured_invocation_in_context};
+pub use tcllib::{TCLLIB_MODULES, TcllibModule, module_version_set, tcllib_module};
+
+pub use registration::{
+    EnvironmentExtension, EnvironmentRegistrationError, EnvironmentSource, RejectedSource,
+    SyncOutcome, live_environments, provenance_label, register_environments,
+    sync_environment_sources,
+};
+pub use surface::{
+    BuildCapability, CapabilityPredicate, PackageId, Provider, SurfaceDeclaration,
+    declarations_for_spec,
+};

@@ -18,10 +18,11 @@
 
 //! `FTP::enforce_tls_session_reuse` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "FTP::enforce_tls_session_reuse",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Get or set the state of enforcing TLS session reuse.",

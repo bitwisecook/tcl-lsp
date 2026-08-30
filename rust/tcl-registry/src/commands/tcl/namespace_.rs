@@ -19,6 +19,7 @@
 //! `namespace` — create and manipulate contexts for commands and variables.
 
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "namespace subcommand ?arg ...?",
@@ -33,20 +34,18 @@ const NAMESPACE_UPVAR_FORMS: &[SubCommandForm] = &[
     SubCommandForm {
         name: "tcl8.5",
         arity: Arity::stepped(3, Arity::UNLIMITED, 2),
-        dialects: Some(DialectSet::TCL85),
+        surface: Some(SpecSurface::TCL85),
         ..SubCommandForm::DEFAULT
     },
     SubCommandForm {
         name: "tcl8.6+",
         arity: Arity::stepped(1, Arity::UNLIMITED, 2),
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         ..SubCommandForm::DEFAULT
     },
 ];
 
-// ---------------------------------------------------------------------------
 // `namespace ensemble`'s two option tables
-// ---------------------------------------------------------------------------
 // `namespace ensemble create` and `namespace ensemble configure` are two
 // **different** option tables, not one shared table (issue #1610).
 //
@@ -97,7 +96,7 @@ const ENSEMBLE_OPT_COMMAND: OptionSpec = OptionSpec {
     name: "-command",
     value: OptionValue::value("name"),
     detail: "Name of the ensemble's dispatch command (default: the fully-qualified name of the invoking namespace). Write-only, and valid only with create — configure rejects it as a bad option.",
-    dialects: None,
+    surface: None,
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
@@ -116,7 +115,7 @@ const ENSEMBLE_OPT_NAMESPACE: OptionSpec = OptionSpec {
     // describe the error rather than the option.
     value: OptionValue::flag(),
     detail: "The namespace the ensemble dispatches into, fixed when it was created. Read it back with configure; supplying a value raises \"option -namespace is read-only\", and create rejects it as a bad option.",
-    dialects: None,
+    surface: None,
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
@@ -127,7 +126,7 @@ const ENSEMBLE_OPT_MAP: OptionSpec = OptionSpec {
     name: "-map",
     value: OptionValue::value("dict"),
     detail: "Maps subcommand names to target command-prefix lists, similar to interp alias (default: empty, meaning each subcommand maps to the identically-named command in the linked namespace).",
-    dialects: None,
+    surface: None,
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
@@ -137,7 +136,7 @@ const ENSEMBLE_OPT_PARAMETERS: OptionSpec = OptionSpec {
     name: "-parameters",
     value: OptionValue::value("list"),
     detail: "Named arguments inserted between the ensemble command and the subcommand, used when generating error messages (default: none).",
-    dialects: Some(DialectSet::TCL86_PLUS),
+    surface: Some(SpecSurface::TCL86_PLUS),
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
@@ -147,7 +146,7 @@ const ENSEMBLE_OPT_PREFIXES: OptionSpec = OptionSpec {
     name: "-prefixes",
     value: OptionValue::boolean(),
     detail: "Whether unambiguous subcommand prefixes are accepted (default: on).",
-    dialects: None,
+    surface: None,
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
@@ -157,7 +156,7 @@ const ENSEMBLE_OPT_SUBCOMMANDS: OptionSpec = OptionSpec {
     name: "-subcommands",
     value: OptionValue::value("list"),
     detail: "Explicit list of valid subcommand names (default: empty, meaning the -map keys or the linked namespace's exported commands).",
-    dialects: None,
+    surface: None,
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
@@ -167,7 +166,7 @@ const ENSEMBLE_OPT_UNKNOWN: OptionSpec = OptionSpec {
     name: "-unknown",
     value: OptionValue::deferred_command_prefix("prefix"),
     detail: "Command prefix invoked, with the ensemble's own invocation words appended, when a subcommand is not recognised (default: none, which raises a standard \"unknown subcommand\" error).",
-    dialects: None,
+    surface: None,
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
@@ -263,7 +262,7 @@ static WHICH_OPTIONS: &[OptionSpec] = &[
         name: "-command",
         value: OptionValue::flag(),
         detail: "Resolve name as a command (the default).",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -272,7 +271,7 @@ static WHICH_OPTIONS: &[OptionSpec] = &[
         name: "-variable",
         value: OptionValue::flag(),
         detail: "Resolve name as a variable.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -359,7 +358,7 @@ static EXPORT_OPTIONS: &[OptionSpec] = &[OptionSpec {
     name: "-clear",
     value: OptionValue::flag(),
     detail: "Reset the namespace's export pattern list to empty before appending the given patterns.",
-    dialects: None,
+    surface: None,
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
@@ -371,7 +370,7 @@ static IMPORT_OPTIONS: &[OptionSpec] = &[OptionSpec {
     name: "-force",
     value: OptionValue::flag(),
     detail: "Silently overwrite an existing command instead of erroring on conflict.",
-    dialects: None,
+    surface: None,
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
@@ -860,7 +859,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Creates and manipulates a command ensemble.",
         synopsis: "namespace ensemble subcommand ?arg ...?",
         return_type: Some(TclType::String),
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         // The abstain-path table only: `create` and `configure` carry their
         // own, genuinely different tables on `ENSEMBLE_SUB_SUBCOMMANDS`, and
         // a consumer that can read the dispatch word takes those. This union
@@ -1006,7 +1005,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // behaviour, with no query-form return value stated for a
         // zero-argument call. `import` itself has no dialect gate (it is
         // present in 8.4 too), so this is a behavioural note rather than a
-        // `dialects:` restriction — see the module-level task guidance on
+        // `surface:` restriction — see the module-level task guidance on
         // "exists everywhere but behaviour changed at some version".
         detail: "Imports commands into a namespace; with no arguments, returns the list of commands already imported into the current namespace (Tcl 8.5+).",
         synopsis: "namespace import ?-force? ?pattern pattern ...?",
@@ -1087,7 +1086,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Returns the command resolution path of the current namespace.",
         synopsis: "namespace path ?namespaceList?",
         return_type: Some(TclType::List),
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespacePath),
         world_effects: Some(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(NAMESPACE_PATH_TRANSITIONS),
@@ -1126,7 +1125,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // Added in 8.5 (`NamespaceUnknownCmd`, tclNamesp.c), like the sibling
         // `namespace path`; 8.4's `namespace` ensemble has no `unknown`
         // subcommand.  Gate it the same as `path` so an 8.4 document flags it.
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         // The optional handler (index 0 after `unknown` → arg 1) is a command
         // prefix invoked with the unknown command name + its args appended
         // (variadic ⇒ AtLeast(1)). The zero-arg query form has no prefix.
@@ -1176,7 +1175,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         repeated_args: &[RepeatedArgLayout::strided(ArgRole::VarWrite, 2, 2)],
         subcommand_forms: NAMESPACE_UPVAR_FORMS,
         creates_scope_alias: true,
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceUpvar),
         world_effects: Some(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(NAMESPACE_UPVAR_TRANSITIONS),
@@ -1204,7 +1203,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "namespace",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
@@ -1249,7 +1248,8 @@ mod tests {
         namespace_path_state_transitions,
     };
     use crate::InvocationArguments;
-    use crate::dialects::DialectSet;
+    use tcl_dialect::model::surface_admits;
+    use tcl_dialect::model::{Family, SurfaceQuery};
 
     #[test]
     fn namespace_path_keeps_its_tcl_list_operand_whole() {
@@ -1421,16 +1421,21 @@ mod tests {
             .iter()
             .find(|sub| sub.name == "upvar")
             .expect("upvar subcommand");
-        let accepts = |dialect, argc| {
+        let accepts = |dialect: Option<SurfaceQuery<'_>>, argc| {
             upvar.subcommand_forms.iter().any(|form| {
-                form.dialects.is_none_or(|gate| gate.intersects(dialect))
+                form.surface
+                    .is_none_or(|gate| surface_admits(gate, dialect.as_ref()))
                     && form.arity.accepts(argc)
             })
         };
 
-        assert!(!accepts(DialectSet::TCL85, 1));
-        assert!(accepts(DialectSet::TCL85, 3));
-        for dialect in [DialectSet::TCL86, DialectSet::TCL90, DialectSet::TCL91] {
+        assert!(!accepts(Some(SurfaceQuery::core(Family::Tcl, "8.5")), 1));
+        assert!(accepts(Some(SurfaceQuery::core(Family::Tcl, "8.5")), 3));
+        for dialect in [
+            Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+            Some(SurfaceQuery::core(Family::Tcl, "9.1")),
+        ] {
             assert!(accepts(dialect, 1));
             assert!(accepts(dialect, 3));
             assert!(!accepts(dialect, 2));
@@ -1457,19 +1462,28 @@ mod tests {
 
         assert_eq!(
             ensemble
-                .resolve_sub_subcommand_for_dialect("cre", DialectSet::TCL90)
+                .resolve_sub_subcommand_for_dialect(
+                    "cre",
+                    Some(SurfaceQuery::core(Family::Tcl, "9.0"))
+                )
                 .map(|sub| sub.name),
             Some("create")
         );
         assert_eq!(
             ensemble
-                .resolve_sub_subcommand_for_dialect("conf", DialectSet::TCL85)
+                .resolve_sub_subcommand_for_dialect(
+                    "conf",
+                    Some(SurfaceQuery::core(Family::Tcl, "8.5"))
+                )
                 .map(|sub| sub.name),
             Some("configure")
         );
         assert!(
             ensemble
-                .resolve_sub_subcommand_for_dialect("e", DialectSet::TCL84)
+                .resolve_sub_subcommand_for_dialect(
+                    "e",
+                    Some(SurfaceQuery::core(Family::Tcl, "8.4"))
+                )
                 .is_none()
         );
         assert!(ensemble.resolve_sub_subcommand("c").is_none());

@@ -941,7 +941,107 @@ fn segment_commands_local(source: &str, config: LexerConfig) -> Vec<SegmentedCom
     // job via `SegmentedCommand::shifted_by`.
     let sm = SourceMap::new(source);
     let (document, _warnings) = crate::parsing::syntax::build::build_document(source, config);
-    crate::parsing::syntax::segment::segments_from_document(document, &sm)
+    let segments = crate::parsing::syntax::segment::segments_from_document(document, &sm);
+    if config.brace_line_continuation.continues() {
+        return merge_f5_if_else_lookahead(source, segments);
+    }
+    segments
+}
+
+/// Whether the source bytes in `gap` (exclusive command end → next command
+/// start) are exactly one newline plus horizontal whitespace — the **single
+/// newline** the F5 `if` lookahead reads across (N5). A blank line (a second
+/// `\n`), a comment (`#`), or a `;` separator answers `false`, keeping those
+/// cases diagnosed exactly as stock.
+fn single_newline_gap(source: &str, gap_start: u32, gap_end: u32) -> bool {
+    let Some(gap) = source.get(gap_start as usize..gap_end as usize) else {
+        return false;
+    };
+    let mut newlines = 0usize;
+    for byte in gap.bytes() {
+        match byte {
+            b'\n' => newlines += 1,
+            b' ' | b'\t' | b'\r' => {}
+            _ => return false,
+        }
+    }
+    newlines == 1
+}
+
+/// **N5** (`docs/design/bigip-irule-parser-measurements.md` §2): under the
+/// F5 trunk grammar, `else` / `elseif` are a *separate* lookahead performed
+/// by `if` itself — picked up across a single newline (a line starting with
+/// `else` is not a `{` line, so the lexical N-rules do not cover it), but
+/// **not** across a blank line, where they fall back to being an unknown
+/// command (`undefined procedure: else`). Measured on TMM in a cli script
+/// reproducing the parser; a trunk fact, so it rides the same
+/// `brace_line_continuation` axis the N-rules ride (only the F5 trunk
+/// grammar carries `Continues`).
+///
+/// Mirror it here by folding an `else`/`elseif`-headed command back into
+/// the immediately preceding `if` command when only a single newline (plus
+/// horizontal whitespace) separates them: the analyser then sees one `if`
+/// command (no `undefined procedure: else` / orphaned-keyword diagnostic)
+/// and lowering builds the correct CFG. The blank-line case fails
+/// [`single_newline_gap`] and stays a standalone command, diagnosed exactly
+/// as stock.
+fn merge_f5_if_else_lookahead(
+    source: &str,
+    commands: Vec<SegmentedCommand>,
+) -> Vec<SegmentedCommand> {
+    let mut out: Vec<SegmentedCommand> = Vec::with_capacity(commands.len());
+    for cmd in commands {
+        let mergeable = matches!(cmd.name(), "else" | "elseif")
+            && cmd
+                .argv
+                .first()
+                .is_some_and(|tok| tok.kind == TokenType::Esc)
+            && cmd.single_token_word.first().copied().unwrap_or(false)
+            && out.last().is_some_and(|prev| {
+                prev.name() == "if"
+                    && !prev.is_partial
+                    && single_newline_gap(source, prev.span.end(), cmd.span.start())
+            });
+        if !mergeable {
+            out.push(cmd);
+            continue;
+        }
+        let prev = out.last_mut().expect("mergeable requires a predecessor");
+        // The lookahead consumes the newline as an ordinary word
+        // separator, so the merged command carries a `Sep` token across
+        // the gap and the `else`/`elseif` words become further `if`
+        // arguments.
+        prev.all_tokens.push(Token::new(
+            TokenType::Sep,
+            Span::new(prev.span.end(), cmd.span.start()),
+        ));
+        prev.span = Span::new(prev.span.start(), cmd.span.end());
+        // Reconcile the optional per-word expansion markers before the
+        // parallel word views are extended (F5 grammars have no `{*}`
+        // expansion, so this is a formality that keeps the views aligned).
+        if prev.expand_word.is_some() || cmd.expand_word.is_some() {
+            let mut expand = prev
+                .expand_word
+                .take()
+                .unwrap_or_else(|| vec![false; prev.argv.len()]);
+            expand.extend(
+                cmd.expand_word
+                    .clone()
+                    .unwrap_or_else(|| vec![false; cmd.argv.len()]),
+            );
+            prev.expand_word = Some(expand);
+        }
+        prev.argv.extend(cmd.argv);
+        prev.texts.extend(cmd.texts);
+        prev.word_fragments.extend(cmd.word_fragments);
+        prev.single_token_word.extend(cmd.single_token_word);
+        prev.all_tokens.extend(cmd.all_tokens);
+        prev.is_partial |= cmd.is_partial;
+        if prev.partial_delimiter.is_none() {
+            prev.partial_delimiter = cmd.partial_delimiter;
+        }
+    }
+    out
 }
 
 #[cfg(test)]

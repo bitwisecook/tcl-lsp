@@ -2590,12 +2590,13 @@ impl AnalysisResult {
 
     /// Whether this document's dialect keeps the TIP 278 namespace-scope
     /// global variable fallback (Tcl 8.x yes, 9.0+ no) — the registry's
-    /// [`DialectSet::namespace_var_global_fallback`](tcl_registry::prelude::DialectSet::namespace_var_global_fallback)
-    /// applied to [`Self::dialect`].  The default-constructed empty dialect
-    /// answers `false` (the stricter 9.0 semantics).
+    /// [`DialectProfile::namespace_var_global_fallback`](tcl_dialect::DialectProfile::namespace_var_global_fallback)
+    /// applied to [`Self::dialect`]. An unresolved dialect answers `false`
+    /// (the stricter 9.0 semantics).
     #[must_use]
     pub fn ns_var_global_fallback(&self) -> bool {
-        tcl_registry::prelude::DialectSet::namespace_var_global_fallback(&self.dialect)
+        tcl_dialect::DialectProfile::find(&self.dialect)
+            .is_some_and(tcl_dialect::DialectProfile::namespace_var_global_fallback)
     }
 
     /// Whether byte offset `off` falls inside any recorded proc or class
@@ -2988,50 +2989,60 @@ pub struct StubCommandDef {
 }
 
 impl StubCommandDef {
-    /// Convert to the overlay-side [`tcl_registry::stub_overlay
-    /// ::StubSig`] shape.  Drops the source span (the overlay
-    /// only cares about the semantic shape; the original
-    /// `StubCommandDef` retains the span for diagnostic
-    /// emitters) and canonicalises each argument role string
-    /// through [`tcl_registry::stub_overlay::StubOverlay::parse_role`].
+    /// Ingest this directive as a provenance-tagged
+    /// [`tcl_registry::model::DeclaredCommand`] (gap ruling R1).
     ///
-    /// The two `StubFlags` bitflag types share identical bit
-    /// layout by design (see the doc comment on
-    /// [`tcl_registry::stub_overlay::StubSigFlags`]), so the
-    /// flag conversion is a 1-for-1 bit copy via `bits()` /
-    /// `from_bits_truncate`.
+    /// The source span stays here — the directive keeps it for diagnostic
+    /// emitters — and each argument's role word is canonicalised through
+    /// the registry's own [`tcl_registry::model::role_for_word`], so a
+    /// declared argument and a catalogue argument are the same fact.
+    ///
+    /// [`Self::from_sidecar`] chooses the §6.4 trust class: a workspace
+    /// `.tcl.stubs` file is [`Provenance::WorkspaceUntrusted`], an inline
+    /// block in the analysed buffer is [`Provenance::Document`]. The
+    /// directive's trailing flag set is deliberately **not** carried: it
+    /// has never had a consumer, and R1's principle P-C says a fact comes
+    /// back with the consumer that needs it.
+    ///
+    /// [`Provenance::WorkspaceUntrusted`]: tcl_dialect::model::Provenance::WorkspaceUntrusted
+    /// [`Provenance::Document`]: tcl_dialect::model::Provenance::Document
     #[must_use]
-    pub fn to_stub_sig(&self) -> tcl_registry::stub_overlay::StubSig {
-        use tcl_registry::stub_overlay::{StubArg, StubOverlay, StubSig, StubSigFlags};
-        StubSig {
-            name: self.name.clone(),
-            args: self
-                .args
+    pub fn to_declared_command(&self) -> tcl_registry::model::DeclaredCommand {
+        use tcl_dialect::model::Provenance;
+        use tcl_registry::model::{DeclaredArgument, DeclaredCommand, role_for_word};
+        DeclaredCommand::new(
+            self.name.clone(),
+            self.args
                 .iter()
-                .map(|a| StubArg {
+                .map(|a| DeclaredArgument {
                     name: a.name.clone(),
-                    role: StubOverlay::parse_role(&a.role),
+                    role: role_for_word(&a.role),
                     optional: a.optional,
                 })
                 .collect(),
-            flags: StubSigFlags::from_bits_truncate(self.flags.bits()),
-        }
+            if self.from_sidecar {
+                Provenance::WorkspaceUntrusted
+            } else {
+                Provenance::Document
+            },
+        )
     }
 }
 
-/// Build a [`tcl_registry::stub_overlay::StubOverlay`] from a
-/// slice of [`StubCommandDef`] records.  The order of inserts
-/// matches the order in `defs`; per
-/// [`tcl_registry::stub_overlay::StubOverlay::insert`]'s
-/// "last directive wins" semantics, a later directive for the
-/// same name overrides an earlier one.
+/// Ingest a slice of [`StubCommandDef`] records as the document's
+/// [`tcl_registry::model::DeclaredSurface`].
+///
+/// Declarations are ingested in slice order and a later one of the same
+/// name replaces an earlier one, which is both the directive's documented
+/// "last one wins" rule and what makes an inline block override a
+/// workspace sidecar (the caller ingests sidecar declarations first).
 #[must_use]
-pub fn build_stub_overlay(defs: &[StubCommandDef]) -> tcl_registry::stub_overlay::StubOverlay {
-    let mut overlay = tcl_registry::stub_overlay::StubOverlay::new();
+pub fn build_declared_surface(defs: &[StubCommandDef]) -> tcl_registry::model::DeclaredSurface {
+    let mut surface = tcl_registry::model::DeclaredSurface::new();
     for def in defs {
-        overlay.insert(def.to_stub_sig());
+        surface.declare(def.to_declared_command());
     }
-    overlay
+    surface
 }
 
 /// Inline `# stub-expr: NAME ARGS` directive capture.

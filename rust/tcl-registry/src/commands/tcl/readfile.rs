@@ -41,6 +41,7 @@
 // synopsis.
 
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "readFile filename ?text|binary?",
@@ -91,7 +92,7 @@ pub fn spec() -> CommandSpec {
             // redefining it must not fire the W113 "overrides a
             // built-in" warning.
             | Traits::OVERRIDABLE_LIBRARY_PROC,
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         arity: Arity::new(1, 2),
         return_type: Some(TclType::String),
         side_effects: &[

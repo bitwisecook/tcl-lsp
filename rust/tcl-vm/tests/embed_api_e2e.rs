@@ -58,7 +58,7 @@ impl CompileService for CompilerSvc {
         src: &str,
         profile: &'static DialectProfile,
     ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let registry = tcl_registry::registry_for_profile(profile);
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
         if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error_with_config(src, config)
         {
@@ -125,13 +125,15 @@ fn raw_function_execution_is_fallback_only_and_cannot_bypass_module_profile() {
     let service = CompilerSvc {
         registry: CommandRegistry::build_default(),
     };
-    let v85 = DialectProfile::by_name("tcl8.5");
+    let v85 = tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile();
     let named = service
         .compile_for_profile("lassign {a b} x; set x", v85)
         .expect("named-profile module compiles");
 
     let mut v84_vm = vm();
-    v84_vm.set_dialect_profile(DialectProfile::by_name("tcl8.4"));
+    v84_vm.set_dialect_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
+    );
     let rejected = v84_vm.run_function(&named.top_level);
     assert_eq!(rejected.code, Code::Error);
     assert_eq!(
@@ -186,7 +188,9 @@ fn native_mathfunc_identity_survives_rename_and_hide_expose_across_profiles() {
         calls: RefCell::new(Vec::new()),
     });
     vm.register_native_command("tcl::mathfunc::isfinite", recorder);
-    vm.set_dialect_profile(DialectProfile::by_name("tcl9.0"));
+    vm.set_dialect_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+    );
     assert!(
         vm.eval_source("rename ::tcl::mathfunc::isfinite finite")
             .unwrap()
@@ -201,14 +205,18 @@ fn native_mathfunc_identity_survives_rename_and_hide_expose_across_profiles() {
             .is_ok()
     );
     assert!(vm.invoke_command("finite2", &[]).code.is_ok());
-    vm.set_dialect_profile(DialectProfile::by_name("tcl8.6"));
+    vm.set_dialect_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     assert!(!vm.invoke_command("finite2", &[]).code.is_ok());
 }
 
 #[test]
 fn embedder_can_remove_a_builtin_hidden_by_the_current_release() {
     let mut vm = vm();
-    vm.set_dialect_profile(DialectProfile::by_name("tcl8.4"));
+    vm.set_dialect_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
+    );
     assert!(
         !vm.invoke_command("lassign", &[]).code.is_ok(),
         "lassign is outside Tcl 8.4's public surface"
@@ -220,7 +228,9 @@ fn embedder_can_remove_a_builtin_hidden_by_the_current_release() {
     );
     assert!(!vm.command_names().iter().any(|name| name == "lassign"));
 
-    vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+    vm.set_dialect_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
+    );
     assert!(
         !vm.invoke_command("lassign", &[]).code.is_ok(),
         "changing release must not revive a command removed by the embedder"

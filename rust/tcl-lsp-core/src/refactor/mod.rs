@@ -89,7 +89,7 @@ use crate::definition::LspRange;
 pub(crate) fn braced_var_style(
     analysis: &tcl_compiler::analyser::AnalysisResult,
 ) -> BracedVarStyle {
-    tcl_dialect::DialectProfile::by_name(&analysis.dialect)
+    crate::profile_for_dialect(&analysis.dialect)
         .grammar
         .braced_var
 }

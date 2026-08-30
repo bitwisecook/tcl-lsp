@@ -1,0 +1,76 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Jim Tcl's inherited command surface — design Q6, ruled 2026-08-28.
+#
+# `Family::Jim`'s ancestry edge is a `Lineage::Reimplementation` anchored at
+# Tcl 8.6: "a small footprint reimplementation of the Tcl scripting
+# language" implementing "a significant subset of the Tcl 8.6 command set"
+# (jim_tcl.txt, INTRODUCTION). P6 used that edge to delete the jim branch's
+# 76 hand-written core command specs — but an edge alone inherits the whole
+# ancestor surface, and a *subset* inherited wholesale over-admits
+# everything outside it. This file is the subset, written out.
+#
+# It is not a discoverable loadable. A `specs/` directory a user or a
+# distribution controls must not be able to delete a compiled family's
+# command surface, so this pack is compiled into the binary
+# (`core_surfaces.rs`) and registered unconditionally, at `Provenance::BuiltIn`.
+#
+# ## Evidence
+#
+# Every name below was read from `info commands` in a `jimsh` built from
+# the upstream tag, for all nine releases on the ladder, and intersected
+# with `info commands` in a stock `tclsh8.6`:
+#
+#     ./configure --full && make jimsh
+#     ./jimsh -e 'foreach c [lsort [info commands]] { puts $c }'
+#
+# Read from the built interpreter rather than from `Jim_CoreCommandsTable`
+# in `jim.c`, because the table is not the surface: `jimsh` also registers
+# the extension commands (`file`, `exec`, `clock`, `regexp`, `namespace`, …)
+# and the `stdlib.tcl`/`tclcompat.tcl` procs, and several names the table
+# gained late — `try` at 0.81 — were already there as compatibility procs.
+# Subcommand-shaped registrations (`dict append`, `tree walk`, and the 44
+# others 0.83 registered as space-containing command names) are excluded:
+# they are subcommands, and the catalogue already holds them as such.
+#
+# ## What this roster deliberately does not carry
+#
+# Jim's *own* commands — `loop`, `range`, `lsubst`, `alias`, `local`,
+# `upcall`, `xtrace`, `ref`/`getref`/`setref`, the `os.*` and `json::*`
+# rows, and the arithmetic command forms `+ - * /` — are not here. A roster
+# names what the *ancestor* provides; an addition is a spec of its own.
+# Since Q13 a spec *can* say `available {jim 0.81-}`, but nothing can yet
+# *resolve* one: a `jim` document asks at the `(tcl 8.6)` ancestry anchor,
+# which is how the shared core specs reach it, and a point matches one
+# family. Ledger D17-J carries the remainder. Until then Jim's additions are
+# absent rather than wrong, which is the safe direction — an unknown head is
+# a hint.
+#
+# `binary` and `zlib` are on the roster unconditionally although a
+# `--minimal` build compiles both out: the build axis is real
+# (`BuildProfileId::{JimFull, JimMinimal}`) but its capability vocabulary
+# covers utf-8 and the math extension, not per-extension configure flags.
+# Two names over-admitted under a non-default build, recorded here, in
+# place of seventeen over-admitted under every build.
+
+speclib jim-core-surface 2.0 {
+    # The 82 Tcl 8.6 heads Jim has had for the whole 0.76-0.84 ladder.
+    include from tcl into jim {
+        after append apply array binary break catch cd clock close concat
+        continue dict eof error eval exec exit expr fconfigure file
+        fileevent flush for foreach format gets glob global history if incr
+        info join lappend lassign lindex linsert list llength lmap load
+        lrange lrepeat lreplace lreverse lsearch lset lsort namespace open
+        package pid proc puts pwd read regexp regsub rename return scan seek
+        set socket source split string subst switch tailcall tell throw time
+        try unset update uplevel upvar variable vwait while
+    }
+
+    # jim-interp arrived at 0.77.
+    include from tcl into jim -available {0.77-} { interp }
+
+    # jim-zlib arrived at 0.78.
+    include from tcl into jim -available {0.78-} { zlib }
+}

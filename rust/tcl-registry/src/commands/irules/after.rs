@@ -18,6 +18,7 @@
 
 //! `after` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 /// Dynamic arg-role resolver for `after`.
 ///
@@ -51,7 +52,7 @@ pub const fn spec() -> CommandSpec {
         // exists here, but the TMOS `after` is the Tcl one with a timer
         // wakeup, and the divergence would be the surprising claim.
         traits: Traits::DIAGRAM_ACTION.union(Traits::DEFERS_BODY),
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(1),
         // The timer form's trailing nesting script is a deferred body
         // (runs from a timer wakeup, not the caller's frame).
@@ -79,7 +80,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-periodic",
                     value: OptionValue::flag(),
                     detail: "Option -periodic.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -88,7 +89,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-current",
                     value: OptionValue::flag(),
                     detail: "Option -current.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,

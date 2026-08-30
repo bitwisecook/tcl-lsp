@@ -18,9 +18,7 @@
 
 //! Tests for the BIG-IP code-action provider.
 //!
-//! ----------------------------------------------------------------------------
 //! What the provider does
-//! ----------------------------------------------------------------------------
 //! `tcl_lsp_core::code_actions::bigip_code_actions(source, range, uri)` walks
 //! the parsed BIG-IP config for the stanza covering the cursor and emits:
 //!
@@ -39,9 +37,7 @@
 //! `pub(crate) parse_stanzas` helper in `src/bigip.rs` reuses the existing
 //! `extract_blocks` / `parse_header` machinery.
 //!
-//! ----------------------------------------------------------------------------
 //! Out of scope for this provider file
-//! ----------------------------------------------------------------------------
 //! The `run_rename_partition` LSP *wrapper* drives the F5 query engine's
 //! `rename_partition` builtin cascade to build the `WorkspaceEdit` (cascade +
 //! Common-refusal + name validation + reparse guard). The engine itself lives
@@ -54,9 +50,7 @@
 //! `tcl-lsp-core` to depend on `tcl-bigip-query`), not in a minimal
 //! `code_actions.rs` arm — see the `// GAP:` markers near the end.
 //!
-//! ----------------------------------------------------------------------------
 //! Presentation vs semantic split
-//! ----------------------------------------------------------------------------
 //! A code ACTION is an editor-presentation / LSP-wire artefact: its TITLE,
 //! its KIND, its COMMAND id + arguments, and whether it carries an EDIT are
 //! a structural contract, not a Tcl/tclsh runtime value. Everything here is
@@ -66,10 +60,8 @@
 use tcl_lsp_core::code_actions::{ActionKind, CodeAction, bigip_code_actions};
 use tcl_lsp_core::definition::LspRange;
 
-// ---------------------------------------------------------------------------
 // Harness — a zero-width range at the start of `line`
 // (BIG-IP code actions key on `range.start.line`).
-// ---------------------------------------------------------------------------
 
 /// A zero-width LSP range at `(line, 0)`.
 fn range_at(line: u32) -> LspRange {
@@ -88,9 +80,7 @@ fn action_titled<'a>(actions: &'a [CodeAction], prefix: &str) -> Option<&'a Code
     actions.iter().find(|a| a.title.starts_with(prefix))
 }
 
-// ===========================================================================
 // Non-BIG-IP text yields no actions
-// ===========================================================================
 
 /// Plain comment text parses to zero stanzas → no actions.
 #[test]
@@ -102,9 +92,7 @@ fn no_actions_for_non_bigip_text() {
     );
 }
 
-// ===========================================================================
 // Rename action for the object at the cursor
-// ===========================================================================
 
 /// Cursor inside a parsed stanza → a `Rename <full-path>…` action whose
 /// command is the editor's standard `editor.action.rename`.
@@ -165,9 +153,7 @@ fn pool_stanza_offers_only_object_rename() {
     );
 }
 
-// ===========================================================================
 // Rename-partition action on a partition stanza
-// ===========================================================================
 
 /// An `auth partition` stanza gets an extra `Rename partition '<name>'…`
 /// action that triggers `tclLsp.renamePartition` with `[uri, name]` and
@@ -234,9 +220,7 @@ fn partition_stanza_offers_both_actions() {
     );
 }
 
-// ===========================================================================
 // No partition-rename action for the /Common partition
-// ===========================================================================
 
 /// `rename_partition` refuses `/Common`, so the provider does not offer a
 /// partition-rename action on the `Common` stanza (the generic object
@@ -259,9 +243,7 @@ fn no_partition_rename_action_for_common_partition() {
     );
 }
 
-// ===========================================================================
 // No actions when the cursor is outside any stanza
-// ===========================================================================
 
 /// Cursor on a blank line between stanzas → no actions (no stanza range
 /// covers that line). With `source = "\n\nltm pool /Common/p { }\n"`,
@@ -290,9 +272,7 @@ fn cursor_on_the_stanza_line_does_yield_an_action() {
     );
 }
 
-// ===========================================================================
 // Extra structural robustness (guard the new arm)
-// ===========================================================================
 
 /// Empty source → no actions, no panic.
 #[test]
@@ -336,9 +316,7 @@ fn cursor_inside_multiline_stanza_resolves_object() {
     );
 }
 
-// ===========================================================================
 // GAPs — run_rename_partition (the query-engine-backed LSP wrapper)
-// ===========================================================================
 //
 // The behaviours below are NOT covered here. They drive
 // `run_rename_partition`, the LSP wrapper that builds a WorkspaceEdit by

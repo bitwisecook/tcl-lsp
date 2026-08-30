@@ -1251,7 +1251,9 @@ fn w216_upvar_local_name_is_indirect_array_idiom() {
 #[test]
 fn variable_name_positions_are_registry_driven() {
     let mut a = Analyser::new();
-    a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+    a.registry = Some(std::sync::Arc::clone(
+        tcl_registry::model::ingress::static_context_for("tcl").commands(),
+    ));
     let pos = |cmd: &str, args: &[&str]| {
         a.variable_name_positions(
             cmd,
@@ -1475,14 +1477,15 @@ fn w004_names_the_ensemble_operation_whose_option_table_answered() {
 /// `-namespace` configure-only, so neither is silently accepted on the other.
 #[test]
 fn the_two_ensemble_option_tables_do_not_share_their_distinctive_options() {
-    let reg = tcl_registry::registry_handle_for_dialect("tcl");
+    let reg =
+        std::sync::Arc::clone(tcl_registry::model::ingress::static_context_for("tcl").commands());
     let spec = reg.get("namespace").expect("`namespace` is a core command");
     let ensemble = spec
         .resolve_subcommand("ensemble")
         .expect("`namespace ensemble`");
     let names = |op: &str| -> Vec<&'static str> {
         ensemble
-            .option_scope(Some(op), None, None, spec.dialects)
+            .option_scope(Some(op), None, None, spec.surface)
             .options
             .iter()
             .map(|o| o.name)
@@ -2035,6 +2038,226 @@ fn w147_is_generic_and_covers_glob_without_source_logic() {
         1,
         "expected generic option conflict: {:?}",
         result.diagnostics
+    );
+}
+
+/// **E-R14 real case 1** — `bibtex::parse`'s `-command` requires `-channel`
+/// (`bibtex.tcl:213-241`), the census gap G2 directional half.
+#[test]
+fn w152_reports_a_directional_option_requirement() {
+    let messages = |src: &str| -> Vec<String> {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W152)
+            .map(|d| d.message.clone())
+            .collect()
+    };
+    // `-command` with no `-channel`: the library raises "Option -command and
+    // text exclude each other" at run time.
+    let unmet =
+        messages("package require bibtex\n::bibtex::parse -command handle -recordcommand rec\n");
+    assert!(
+        unmet
+            .iter()
+            .any(|m| m.contains("-command") && m.contains("-channel")),
+        "{unmet:?}"
+    );
+    // With `-channel` present the relation is satisfied and nothing is said.
+    let met = messages("package require bibtex\n::bibtex::parse -channel $chan -command handle\n");
+    assert!(
+        !met.iter().any(|m| m.contains("-channel")),
+        "a satisfied requirement must be silent: {met:?}"
+    );
+}
+
+/// **E-R14 real case 2** — `http::geturl`'s conditional pairs
+/// (`http.n`: `-queryprogress` is made "in a POST request, i.e. a call with
+/// `-query` or `-querychannel`").
+///
+/// It also pins the `OptionPlacement::Anywhere` half: `geturl` takes the URL
+/// positionally *first* and only then loops over flag/value pairs, so a
+/// leading-run walk would find no options at all here.
+#[test]
+fn w152_reports_a_requires_one_of_after_a_positional_word() {
+    let codes = |src: &str| -> Vec<String> {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W152)
+            .map(|d| d.message.clone())
+            .collect()
+    };
+    let lone =
+        codes("package require http\n::http::geturl http://example.invalid/ -queryprogress cb\n");
+    assert!(
+        lone.iter()
+            .any(|m| m.contains("-queryprogress") && m.contains("-query")),
+        "{lone:?}"
+    );
+    let paired = codes(
+        "package require http\n\
+         ::http::geturl http://example.invalid/ -query a=1 -queryprogress cb\n",
+    );
+    assert!(
+        paired.is_empty(),
+        "the pair satisfies the relation: {paired:?}"
+    );
+}
+
+/// **E-R14 real case 3** — `struct::tree walk`'s `-order in` is illegal with
+/// `-type bfs` (`tree_tcl.tcl`'s `WalkOptions`).
+///
+/// A relation between one option's **value** and another option's value, on
+/// an object-instance method — neither of which the retired `OptionConstraint`
+/// could reach.
+#[test]
+fn w147_reports_a_cross_option_value_relation_on_an_instance_method() {
+    let messages = |src: &str| -> Vec<String> {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W147)
+            .map(|d| d.message.clone())
+            .collect()
+    };
+    let illegal = messages(
+        "package require struct::tree\n\
+         set t [::struct::tree]\n\
+         $t walk root -order in -type bfs v script\n",
+    );
+    assert!(
+        illegal
+            .iter()
+            .any(|m| m.contains("in-order breadth first walk")),
+        "{illegal:?}"
+    );
+    // Every other order/type pairing the library accepts stays silent — the
+    // FP control, because a relation that fired on `-order pre` would make
+    // the whole walk vocabulary unusable.
+    for legal in [
+        "$t walk root -order pre -type bfs v script\n",
+        "$t walk root -order in -type dfs v script\n",
+        "$t walk root -order post v script\n",
+    ] {
+        let src = format!("package require struct::tree\nset t [::struct::tree]\n{legal}");
+        assert!(messages(&src).is_empty(), "{legal:?}: {:?}", messages(&src));
+    }
+}
+
+/// **The P-B measurement** (redesign §0.05): an option-heavy document is
+/// checked entirely in Rust.
+///
+/// The corpus below is 40 option-bearing call sites across the commands whose
+/// option tables are the densest in the tree — `glob`, `source`, `lsort`,
+/// `string match`, `regsub`, `switch`, `http::geturl`, `bibtex::parse`, and a
+/// `struct::tree` walk. The assertion is not "hooks are fast": it is that the
+/// count of call sites reaching a hook is **zero**, which is what principle
+/// P-B demands and what a regression would break loudly.
+#[test]
+fn an_option_heavy_document_is_checked_with_no_vm_entry() {
+    const CORPUS: &str = "\
+package require http\n\
+package require bibtex\n\
+package require struct::tree\n\
+set t [::struct::tree]\n\
+proc probe {chan pattern items t} {\n\
+    glob -directory /tmp -nocomplain -types f *.tcl\n\
+    glob -path /tmp/pre -nocomplain *.tcl\n\
+    glob -directory /tmp -path /tmp/pre *.tcl\n\
+    source -encoding utf-8 file.tcl\n\
+    source -encoding utf-8 -nopkg file.tcl\n\
+    lsort -integer -decreasing $items\n\
+    lsort -dictionary -unique $items\n\
+    lsort -command cmp -index 0 $items\n\
+    string match -nocase $pattern abc\n\
+    regsub -all -nocase -- $pattern abc def out\n\
+    regsub -start 0 -line -- $pattern abc def out\n\
+    switch -exact -- $pattern { a { } default { } }\n\
+    switch -glob -nocase -- $pattern { a { } default { } }\n\
+    switch -regexp -- $pattern { a { } default { } }\n\
+    ::http::geturl http://example.invalid/ -query a=1 -queryprogress cb\n\
+    ::http::geturl http://example.invalid/ -querychannel $chan -queryblocksize 4096\n\
+    ::http::geturl http://example.invalid/ -timeout 5000 -headers {}\n\
+    ::http::geturl http://example.invalid/ -query a=1 -querychannel $chan\n\
+    ::bibtex::parse -channel $chan -recordcommand rec\n\
+    ::bibtex::parse -channel $chan -preamblecommand pre -stringcommand str\n\
+    ::bibtex::parse -command handle -channel $chan\n\
+    ::bibtex::parse -command handle -recordcommand rec -channel $chan\n\
+    $t walk root -order pre -type dfs v script\n\
+    $t walk root -order in -type bfs v script\n\
+    $t walkproc root -order post -type dfs cmdprefix\n\
+    file link -symbolic a b\n\
+    file link -hard a b\n\
+    string map -nocase {a b} $pattern\n\
+    lsearch -exact -sorted $items a\n\
+    lsearch -glob -inline -all $items a\n\
+    lsearch -regexp -not $items a\n\
+    array get arr *\n\
+    fconfigure $chan -blocking 0 -buffering line\n\
+    open /tmp/x r\n\
+    exec -ignorestderr -- ls\n\
+    binary scan abc cH2 code ident\n\
+    clock format 0 -format {%Y} -gmt 1\n\
+    clock scan {2026} -format {%Y} -timezone :UTC\n\
+    interp create -safe child\n\
+    zlib compress abc 6\n\
+}\n\
+";
+
+    tcl_registry::spec::reset_relation_check_stats();
+    let before = tcl_registry::pack_hooks::cache_stats();
+    let cold = std::time::Instant::now();
+    let mut analyser = Analyser::new();
+    let result = analyser.analyse(CORPUS, "tcl8.6");
+    let cold = cold.elapsed();
+    let stats = tcl_registry::spec::relation_check_stats();
+    let after = tcl_registry::pack_hooks::cache_stats();
+
+    // A second pass over the same document, to show what a re-analysis after
+    // an unrelated edit costs when nothing a relation reads changed.
+    let warm = std::time::Instant::now();
+    let mut again = Analyser::new();
+    let _ = again.analyse(CORPUS, "tcl8.6");
+    let warm = warm.elapsed();
+
+    // THE NUMBER. Every relation on this corpus is declarative, so the count
+    // of call sites that entered the hook seam — and therefore the tclvm — is
+    // zero, and no hook dispatch happened at all.
+    assert_eq!(
+        stats.hook_entries, 0,
+        "an option-heavy document must not enter the hook VM: {stats:?}"
+    );
+    assert_eq!(
+        (after.hits - before.hits, after.misses - before.misses),
+        (0, 0),
+        "no pack-hook dispatch may happen while checking option relations"
+    );
+    assert!(
+        stats.option_bearing_sites >= 30,
+        "the corpus must actually exercise the checker: {stats:?}"
+    );
+    assert!(stats.relations_evaluated >= stats.judged_sites, "{stats:?}");
+    // The three real cases are all found in one pass over the corpus.
+    let reported = result
+        .diagnostics
+        .iter()
+        .filter(|d| matches!(d.code, DiagCode::W147 | DiagCode::W152))
+        .count();
+    assert!(reported >= 3, "{:?}", result.diagnostics);
+
+    println!(
+        "E-R14 measurement: {} option-bearing call sites walked, \
+         {} of them judged against declared relations, \
+         {} relations evaluated natively, {} entered tclvm; \
+         cold analysis {cold:?}, second pass {warm:?}",
+        stats.option_bearing_sites,
+        stats.judged_sites,
+        stats.relations_evaluated,
+        stats.hook_entries,
     );
 }
 
@@ -4292,14 +4515,16 @@ fn w003_not_suppressed_by_a_later_proc_shadowing_if() {
 
 #[test]
 fn w003_correctly_gates_eda_vendor_dialects_by_documented_base_version() {
-    // Regression for the registry fix (`DialectSet::expr_grammar_base_version`):
+    // Regression for the registry fix (`DialectProfile::expr_grammar_base`):
     // these vendor dialects are documented as running on top of a real
     // Tcl 8.5+ core (`docs/design/compiler/dialects-events.md`), so
     // `in`/`ni` (TIP 201, 8.5+) must NOT be flagged for them — the old
-    // `DialectSet::TCL85_PLUS` check excluded them entirely and
-    // over-fired.
+    // `SpecSurface::TCL85_PLUS` check excluded them entirely and
+    // over-fired. (`f5-iapps` is deliberately NOT here any more: it rides
+    // the `f5-tcl` trunk, a fork of Tcl at 8.4.6, and its measured expr
+    // surface fails every 8.5 discriminator —
+    // bigip-irule-parser-measurements.md §4a.)
     for dialect in [
-        "f5-iapps",
         "xilinx-eda-tcl",
         "intel-quartus-eda-tcl",
         "mentor-eda-tcl",
@@ -4335,6 +4560,13 @@ fn w003_correctly_gates_eda_vendor_dialects_by_documented_base_version() {
         1,
         "cadence-eda-tcl runs an 8.4 core — TIP 201 'in' must gate"
     );
+    // So does the F5 trunk: iApps ride the fork of Tcl at 8.4.6
+    // (measured, bigip-irule-parser-measurements.md §4a).
+    assert_eq!(
+        w003_hits("expr {2 in {1 2 3}}", "f5-iapps").len(),
+        1,
+        "f5-iapps rides the 8.4.6 trunk — TIP 201 'in' must gate"
+    );
     assert_eq!(
         w003_hits("if {$x lt $y} { puts hi }", "cadence-eda-tcl").len(),
         1,
@@ -4352,14 +4584,13 @@ fn w003_f5_irules_stays_gated_on_its_tcl_8_4_runtime() {
 }
 
 #[test]
-fn w003_f5_tmsh_now_gates_tip_461_but_not_tip_201() {
-    // Regression: `f5-tmsh` had no `DialectSet` bit at all, so
-    // `DialectSet::parse` returned `None` and W003 silently never fired
-    // for it — a false negative on its documented Tcl 8.5 base for
-    // `lt`/`le`/`gt`/`ge`. `expr_grammar_base_version` fixes this
-    // without touching `DialectSet::parse`'s existing per-command
-    // dialect-gating semantics.
-    assert!(w003_hits("expr {2 in {1 2 3}}", "f5-tmsh").is_empty());
+fn w003_f5_tmsh_gates_both_tip_201_and_tip_461() {
+    // `f5-tmsh` rides the `f5-tcl` trunk — a fork of Tcl at 8.4.6
+    // (measured, bigip-irule-parser-measurements.md §4a: a tmsh
+    // `cli script` fails every 8.5 discriminator) — so TIP 201 `in`/`ni`
+    // (8.5+) is out of grammar there exactly as TIP 461's
+    // `lt`/`le`/`gt`/`ge` always were.
+    assert_eq!(w003_hits("expr {2 in {1 2 3}}", "f5-tmsh").len(), 1);
     assert_eq!(w003_hits("if {$x lt $y} { puts hi }", "f5-tmsh").len(), 1);
 }
 
@@ -4407,10 +4638,8 @@ fn memoized_compilation_unit_diagnostics_match_whole_file() {
         "oo::class create K {\n  method m {} { return 1 }\n}\nproc top {} { set o [K new]; $o gone }\n",
     ];
     for src in snippets {
-        let mut registry = tcl_registry::CommandRegistry::build_default();
-        if let Some(d) = tcl_registry::prelude::DialectSet::parse("tcl") {
-            registry.load_dialect(d);
-        }
+        // The permissive `tcl` profile loads no pack of its own.
+        let registry = tcl_registry::CommandRegistry::build_default();
         // Whole-file reference.
         let mut whole = Analyser::new();
         let want = whole.analyse(src, "tcl");
@@ -4426,7 +4655,9 @@ fn memoized_compilation_unit_diagnostics_match_whole_file() {
                     registry: &registry,
                     defer_top_level: false,
                     config: tcl_lexer::LexerConfig::default(),
-                    dialect: Some(tcl_dialect::DialectProfile::by_name("tcl")),
+                    dialect: Some(
+                        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+                    ),
                     external_call_sites: None,
                 },
                 &mut |req: &crate::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
@@ -4476,7 +4707,10 @@ fn memoized_compilation_unit_diagnostics_match_whole_file() {
                     fu
                 },
             )
-            .with_interprocedural(&registry, Some(tcl_dialect::DialectProfile::by_name("tcl")))
+            .with_interprocedural(
+                &registry,
+                Some(tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile()),
+            )
         };
 
         let cold = build_cu(&mut cache);
@@ -4525,10 +4759,8 @@ fn memoized_compilation_unit_shift_correctness() {
     let base = base.as_str();
     let shifted = shifted.as_str();
 
-    let mut registry = tcl_registry::CommandRegistry::build_default();
-    if let Some(d) = tcl_registry::prelude::DialectSet::parse("tcl") {
-        registry.load_dialect(d);
-    }
+    // The permissive `tcl` profile loads no pack of its own.
+    let registry = tcl_registry::CommandRegistry::build_default();
     let mut cache: HashMap<String, FunctionUnit> = HashMap::new();
     let build = |s: &str, cache: &mut HashMap<String, FunctionUnit>| {
         let cu = CompilationUnit::build_for_memoized(
@@ -4537,7 +4769,9 @@ fn memoized_compilation_unit_shift_correctness() {
                 registry: &registry,
                 defer_top_level: false,
                 config: tcl_lexer::LexerConfig::default(),
-                dialect: Some(tcl_dialect::DialectProfile::by_name("tcl")),
+                dialect: Some(
+                    tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+                ),
                 external_call_sites: None,
             },
             // Position-independent key: the body is normalised to offset 0
@@ -4571,7 +4805,10 @@ fn memoized_compilation_unit_shift_correctness() {
                 fu
             },
         )
-        .with_interprocedural(&registry, Some(tcl_dialect::DialectProfile::by_name("tcl")));
+        .with_interprocedural(
+            &registry,
+            Some(tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile()),
+        );
         let mut a = Analyser::new();
         a.set_cu_override(Arc::new(cu));
         a.analyse(s, "tcl")
@@ -5882,13 +6119,17 @@ fn w210_uses_registry_owned_startup_lifecycle_facts() {
     // default global gains W210 coverage automatically; the registry's own
     // exact fixture guards the audited release-by-release inventory.
     for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-        let source: String = tcl_registry::special_vars::special_vars_for_dialect(
-            tcl_registry::special_vars::resolve_dialect(dialect),
-        )
+        let source: String = tcl_registry::special_vars::special_vars_for_dialect(Some(
+            tcl_registry::special_vars::surface_query_for_profile(Some(
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+            )),
+        ))
         .filter(|spec| {
             tcl_registry::special_vars::is_readable_at_startup(
                 spec.name,
-                tcl_registry::special_vars::resolve_dialect(dialect),
+                Some(tcl_registry::special_vars::surface_query_for_profile(Some(
+                    tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+                ))),
             )
         })
         .filter_map(|spec| match spec.kind {
@@ -6011,7 +6252,9 @@ fn i230_existence_fold_abstains_on_interpreter_globals_at_top_level() {
     // automatically.
     for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let source: String = tcl_registry::special_vars::special_vars_for_dialect(
-            tcl_registry::special_vars::resolve_dialect(dialect),
+            Some(tcl_registry::special_vars::surface_query_for_profile(Some(
+            tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+        ))),
         )
             .filter_map(|spec| match spec.kind {
                 tcl_registry::special_vars::SpecialVarKind::Scalar => {
@@ -8270,9 +8513,7 @@ fn apply_expand_args_abstains_too_few() {
     assert_eq!(e00x_codes_for(src), Vec::<String>::new());
 }
 
-// ---------------------------------------------------------------------
 // E001 (`TclOO` form): `$obj` invoked with no method word at all.
-// ---------------------------------------------------------------------
 
 #[test]
 fn tp_e001_bare_tcloo_object_dispatch_requires_method() {
@@ -10478,6 +10719,78 @@ fn w120_emitted_once_per_command_name() {
     assert_eq!(w120.len(), 1, "expected one W120 per name; got {w120:?}");
 }
 
+/// **The P3 W120 ruling.** `Tk` is a package with a placement, and W120's
+/// existing suppression rule is "the package is ambient here" — so the
+/// ruling falls out of the placement rather than being written into the
+/// diagnostic: under the `tk` environment (a `wish` script, whose
+/// interpreter has already loaded Tk before the first byte runs) there is
+/// no `package require Tk` to write and W120 must stay silent, while under
+/// every plain-Tcl environment Tk is *hosted* and the nag is right.
+///
+/// This is the wave-2 note's "flips `is_ambient_package("Tk")`", decided
+/// explicitly: the flip is the whole ruling, and both environments'
+/// behaviour is pinned here.
+#[test]
+fn w120_is_silent_under_the_tk_environment_and_nags_under_plain_tcl() {
+    let src = "button .b -text hi\npack .b\n";
+    let fires = |dialect: &str| {
+        let mut a = Analyser::new();
+        a.analyse(src, dialect)
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W120 && d.message.contains("package require Tk"))
+            .count()
+    };
+    // Hosted: `tclsh` needs the require, so the nag is right — once per
+    // gated command name (`button`, `pack`), as W120 always emits.
+    assert_eq!(fires("tcl8.6"), 2, "tcl8.6");
+    assert_eq!(fires("tcl9.0"), 2, "tcl9.0");
+    assert_eq!(fires("tcl"), 2, "the lenient sink hosts Tk too");
+    // Ambient: `wish` ships Tk. Nothing to require, nothing to nag about.
+    assert_eq!(fires("tk"), 0, "tk");
+    assert_eq!(
+        fires("wish"),
+        0,
+        "the `wish` alias resolves to the same row"
+    );
+    // …and the nag stops on a plain-Tcl document that does require it.
+    let mut a = Analyser::new();
+    let required = a.analyse(&format!("package require Tk\n{src}"), "tcl8.6");
+    assert!(
+        !required
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W120),
+        "{:?}",
+        required.diagnostics
+    );
+}
+
+/// The other half of the same placement: the Tk geometry/widget checks
+/// (`TK100x`) activate without a `package require` under the `tk`
+/// environment and only *with* one under plain Tcl. Before P3 the first
+/// half was `is_tk()` — the environment's *name*; it is now
+/// `ResolvedContext::ambient_package("Tk")`, so the two facts W120 and the
+/// TK checks read are the same fact.
+#[test]
+fn tk_checks_activate_on_the_ambient_placement_not_the_environment_name() {
+    let src = "frame .top\npack .top.a\ngrid .top.b\n";
+    let tk_codes = |dialect: &str, source: &str| {
+        let mut a = Analyser::new();
+        a.analyse(source, dialect)
+            .diagnostics
+            .iter()
+            .filter(|d| d.code.to_string().starts_with("TK"))
+            .count()
+    };
+    assert!(tk_codes("tk", src) > 0, "wish: ambient Tk activates");
+    assert_eq!(tk_codes("tcl8.6", src), 0, "plain Tcl without a require");
+    assert!(
+        tk_codes("tcl8.6", &format!("package require Tk\n{src}")) > 0,
+        "plain Tcl with a require"
+    );
+}
+
 #[test]
 fn w120_disabled_via_directive() {
     let mut a = Analyser::new();
@@ -12593,7 +12906,6 @@ fn global_seed_is_the_plain_analysis_m9() {
     assert!(r.all_procs.contains_key("::helper"));
 }
 
-// ===========================================================================
 // M11 (TIP 278) — cross-version namespace-scope variable fallback.
 //
 // C-Tcl facts, pinned live against tclsh8.6 (8.6.16) and tclsh9.0 (9.0.4)
@@ -12606,7 +12918,6 @@ fn global_seed_is_the_plain_analysis_m9() {
 //     both → error (an *intermediate* namespace is never consulted)
 //   * `set g 1; proc p {} { set g }; p`            both → error
 //     (proc frames never had the fallback)
-// ===========================================================================
 
 /// The recorded reference spans of the global-scope variable `name`.
 fn global_var_refs(result: &crate::analyser::AnalysisResult, name: &str) -> usize {
@@ -12703,11 +13014,14 @@ fn w123_vendor_profiles_admit_their_embedded_tcl_core() {
     // FP-fix (the confirmed bare-bit defect): real embedded-core commands
     // must resolve cleanly — no W123 (unknown) and no W002 (disabled).
     let clean: &[(&str, &str)] = &[
-        // iApps run a Tcl 8.5.13 host interpreter: 8.5 core is real.
-        ("dict get {a 1} a", "f5-iapps"),
-        ("lassign {1 2} a b", "f5-iapps"),
-        ("apply {{x} {return $x}} 1", "f5-iapps"),
-        // ... and the host interpreter is NOT the TMM sandbox: exec is real.
+        // F5 reclassification (measurements §4/§4a,
+        // `docs/design/bigip-irule-parser-measurements.md`): the iApps
+        // host is the 8.4.6 fork, NOT the old 8.5.13 hypothesis — its
+        // real core is the 8.4 line…
+        ("string tolower ABC", "f5-iapps"),
+        ("array exists a", "f5-iapps"),
+        // …and the scriptd host is NOT the TMM sandbox: exec is measured
+        // real there (measurements §4a).
         ("exec /bin/true", "f5-iapps"),
         // Expect embeds Tcl 8.6: 8.5 and 8.6 core are real.
         ("dict get {a 1} a", "expect"),
@@ -12722,6 +13036,21 @@ fn w123_vendor_profiles_admit_their_embedded_tcl_core() {
         assert!(
             !codes.iter().any(|c| c == "W123" || c == "W002"),
             "{dialect}: {snippet:?} is embedded-core and must not flag, got {codes:?}"
+        );
+    }
+    // F5 reclassification (measurements §4, table "No 8.5 features
+    // anywhere"): every 8.4/8.5 discriminator behaves as 8.4 in the iApp
+    // context — `dict`, `lassign`, `apply` measured absent — so the old
+    // 8.5-core rows now correctly flag.
+    for gated in [
+        "dict get {a 1} a",
+        "lassign {1 2} a b",
+        "apply {{x} {return $x}} 1",
+    ] {
+        let codes = codes_for_dialect(gated, "f5-iapps");
+        assert!(
+            codes.iter().any(|c| c == "W123" || c == "W002"),
+            "f5-iapps: {gated:?} is 8.5+ core on a measured 8.4.6 fork and must flag, got {codes:?}"
         );
     }
 }
@@ -12777,6 +13106,65 @@ fn w123_vendor_profiles_still_flag_genuinely_unknown_commands() {
     }
 }
 
+/// measurements §4b: the 31 iRules-"disabled" stock builtins are **two
+/// mechanisms, not one**. The 16 interpreter-absent commands (`invalid
+/// command name` even via `eval` at runtime) are a *language fact* and keep
+/// the existing unavailable-command diagnostic (W002, with W123); the 15
+/// compiler-refused commands are present in TMM's interpreter — reachable
+/// via `eval`, `rename` demonstrably works — so a literal use draws the
+/// distinct IRULE2004 *policy* warning instead, and the analyser never
+/// claims the command does not exist.
+#[test]
+fn irules_4b_disabled_split_pins_two_diagnostic_severities() {
+    for absent in tcl_registry::irules_policy::IRULES_INTERPRETER_ABSENT {
+        let src = format!("when RULE_INIT {{ {absent} }}");
+        let codes = codes_for_dialect(&src, "f5-irules");
+        assert!(
+            codes.iter().any(|c| c == "W002"),
+            "{absent}: interpreter-absent keeps the language-fact W002, got {codes:?}"
+        );
+        assert!(
+            !codes.iter().any(|c| c == "IRULE2004"),
+            "{absent}: interpreter-absent is not a policy refusal, got {codes:?}"
+        );
+    }
+    for refused in tcl_registry::irules_policy::IRULES_COMPILER_REFUSED {
+        let src = format!("when RULE_INIT {{ {refused} }}");
+        let codes = codes_for_dialect(&src, "f5-irules");
+        assert!(
+            codes.iter().any(|c| c == "IRULE2004"),
+            "{refused}: compiler-refused draws the distinct policy warning, got {codes:?}"
+        );
+        assert!(
+            !codes.iter().any(|c| c == "W002" || c == "W123"),
+            "{refused}: present in TMM's interpreter — no W002 and no \
+             'Unknown command' claim, got {codes:?}"
+        );
+    }
+}
+
+/// The §4b policy warning follows the §4c lexical scan: a compiler-refused
+/// command written literally inside a braced `eval` body is still literal
+/// rule source (the rule compiler scans braced script literals), while a
+/// name reached only through dynamic `eval` (variable-held) is not flagged
+/// — it works at runtime.
+#[test]
+fn irules_4b_policy_warning_follows_the_4c_lexical_scan() {
+    let braced = "when RULE_INIT { eval {rename a b} }";
+    let codes = codes_for_dialect(braced, "f5-irules");
+    assert!(
+        codes.iter().any(|c| c == "IRULE2004"),
+        "a braced eval literal is scanned rule source, got {codes:?}"
+    );
+    let hidden = "when RULE_INIT { set c \"rename\"\n  uplevel #0 $c a b }";
+    let codes = codes_for_dialect(hidden, "f5-irules");
+    assert!(
+        !codes.iter().any(|c| c == "IRULE2004" || c == "W002"),
+        "a variable-held name is dynamic eval — reachable at runtime, \
+         not flagged, got {codes:?}"
+    );
+}
+
 #[test]
 fn irules_stays_subtractive_under_the_profile() {
     // The subtractive-iRules trap (§9): the profile keeps the bare IRULES
@@ -12809,10 +13197,9 @@ fn irules_stays_subtractive_under_the_profile() {
 
 #[test]
 fn irules_alias_dialect_string_behaves_like_canonical() {
-    // §2.4 alias canonicalisation: the legacy "irules" spelling used to fall
-    // through DialectSet::parse to the permissive ALL_TCL view (a silent
-    // false negative); via the profile catalog it now resolves like
-    // f5-irules.
+    // §2.4 alias canonicalisation: the legacy "irules" spelling used to
+    // fall through to the permissive plain-Tcl view (a silent false
+    // negative); via the profile catalogue it resolves like f5-irules.
     let codes = codes_for_dialect("exec /bin/true", "irules");
     assert!(
         codes.iter().any(|c| c == "W002"),
@@ -12839,24 +13226,30 @@ fn unknown_dialect_strings_stay_permissive() {
 
 #[test]
 fn w001_subcommand_checks_use_the_profile_mask() {
-    // Subcommand-level: once `dict` resolves under f5-iapps, its 8.5-valid
-    // subcommands must not draw the W001/W002 subcommand diagnostics either.
-    let codes = codes_for_dialect("dict keys {a 1}", "f5-iapps");
+    // Subcommand-level: an 8.4-core ensemble's valid subcommands must not
+    // draw the W001/W002 subcommand diagnostics under the vendor mask.
+    // (F5 reclassification, measurements §4/§4a: the iApps host is the
+    // 8.4.6 fork, so the old `dict keys` row — an 8.5 claim — moved to
+    // `string`, which the fork's 8.4 core really has.)
+    let codes = codes_for_dialect("string tolower ABC", "f5-iapps");
     assert!(
         !codes.iter().any(|c| c == "W001" || c == "W002"),
-        "dict keys is 8.5-valid under f5-iapps, got {codes:?}"
+        "string tolower is 8.4-valid under f5-iapps, got {codes:?}"
     );
     // A genuinely unknown subcommand still fires W001 under the vendor mask.
     assert!(
-        has_code("dict zzznotasub {a 1}", "f5-iapps", "W001"),
-        "unknown dict subcommand must still draw W001 under f5-iapps"
+        has_code("string zzznotasub x", "f5-iapps", "W001"),
+        "unknown string subcommand must still draw W001 under f5-iapps"
     );
 }
 
 #[test]
 fn tmsh_first_class_resolves_its_surface_and_gates_later_core() {
-    // D8: f5-tmsh = TCL85|TMSH — a Tcl 8.5 host plus the
-    // tmsh:: surface.
+    // F5 reclassification (measurements §4a,
+    // `docs/design/bigip-irule-parser-measurements.md`): the old D8
+    // "TCL85|TMSH" hypothesis is falsified — `TmshCliScript` reports
+    // patchlevel 8.4.6 and fails every 8.5 discriminator — so f5-tmsh is
+    // the `f5-tcl` fork's 8.4 line plus the tmsh:: surface.
     // TP (the fix): the tmsh:: surface stops drawing unknown-command.
     for ok in [
         "tmsh::create ltm pool p1",
@@ -12869,21 +13262,21 @@ fn tmsh_first_class_resolves_its_surface_and_gates_later_core() {
             "f5-tmsh: {ok:?} is the tmsh surface, got {codes:?}"
         );
     }
-    // TN: the 8.5 core is real.
-    for ok in [
-        "dict get {a 1} a",
-        "lassign {1 2} a b",
-        "apply {{x} {return $x}} 1",
-    ] {
+    // TN: the fork's 8.4 core is real.
+    for ok in ["string tolower ABC", "array exists a", "catch {set x 1} e"] {
         let codes = codes_for_dialect(ok, "f5-tmsh");
         assert!(
             !codes.iter().any(|c| c == "W123" || c == "W002"),
-            "f5-tmsh: {ok:?} is 8.5 core, got {codes:?}"
+            "f5-tmsh: {ok:?} is 8.4 core, got {codes:?}"
         );
     }
-    // Reverse-regression (§7.2, budgeted): 8.6/9.0 core is newly unknown
-    // on the 8.5 base — the old interim ALL_TCL mask hid these.
+    // Reverse-regression, now measurement-backed (measurements §4: all
+    // sixteen 8.4/8.5 discriminators behave as 8.4 in tmsh — `dict`,
+    // `lassign`, `apply` included): 8.5+ core is unknown on the fork.
     for gated in [
+        "dict get {a 1} a",
+        "lassign {1 2} a b",
+        "apply {{x} {return $x}} 1",
         "lmap x {1 2} {set x}",
         "coroutine c ::apply {{} {}}",
         "zipfs root",
@@ -12891,7 +13284,7 @@ fn tmsh_first_class_resolves_its_surface_and_gates_later_core() {
         let codes = codes_for_dialect(gated, "f5-tmsh");
         assert!(
             codes.iter().any(|c| c == "W123" || c == "W002"),
-            "f5-tmsh: {gated:?} is later-than-8.5 core and must flag, got {codes:?}"
+            "f5-tmsh: {gated:?} is later-than-8.4 core and must flag, got {codes:?}"
         );
     }
     // FP-guard: the iApp-only surface is NOT part of the tmsh shell — it
@@ -13068,12 +13461,19 @@ fn w004_version_gated_options_follow_the_profile_ceiling() {
     );
     // FP-fix: it is clean at/above 8.5 — the composed vendor profiles
     // included (the old contains rule could never satisfy a composed mask).
-    for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "f5-iapps", "expect"] {
+    for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "expect"] {
         assert!(
             !has_code("switch -nocase a {a {} default {}}", dialect, "W004"),
             "{dialect}: switch -nocase is real 8.5+ core"
         );
     }
+    // F5 reclassification (measurements §4/§4a): f5-iapps left this list —
+    // its host is the 8.4.6 fork, so the 8.5+ option now correctly flags
+    // there, exactly as it does under f5-irules.
+    assert!(
+        has_code("switch -nocase a {a {} default {}}", "f5-iapps", "W004"),
+        "f5-iapps: switch -nocase is 8.5+ on a measured 8.4.6 fork"
+    );
 }
 
 #[test]
@@ -13628,7 +14028,6 @@ fn dynamic_apply_lambda_word_is_still_a_caller_frame_read() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Issue #1329 — bareword `my <method>` was never recorded as a dispatch site,
 // so W308 ("unknown method") could not fire for `TclOO`'s commonest
 // same-object spelling. Issue #1330 — the spans every `CmdCommandSite`- and
@@ -13637,7 +14036,6 @@ fn dynamic_apply_lambda_word_is_still_a_caller_frame_read() {
 // The #1330 assertions are deliberately *exact ranges*: those diagnostics
 // already fired before the fix and only their span was wrong, so a test that
 // checked the code alone would have passed against the bug.
-// ---------------------------------------------------------------------------
 
 /// Analyse `src` on both the whole-file and the per-item (incremental) path
 /// and return the `(code, text-under-span)` pairs for the dispatch codes,
@@ -13965,5 +14363,33 @@ fn w144_core_subcommand_lifecycle_uses_registry_safe_fix() {
             .any(|diagnostic| diagnostic.code == DiagCode::W144),
         "slaves predates the Tcl 8.6 preferred spelling: {:?}",
         legacy.diagnostics
+    );
+}
+
+/// Invariant I4 (P1a, ledger C3/B8): analyser-hook selection requires the
+/// binding proof — a version-gated head outside the document's release
+/// window resolves under no proof (`Absent`), so no hook specialises and
+/// the generic walk handles the call; the same head under a release that
+/// provides it selects its hook as before. The walk state is set up the
+/// way `analyse*` does mid-run (`resolve_walk_environment` + the profile
+/// registry); `analyse` itself clears the run state on exit.
+#[test]
+fn analyser_hook_selection_requires_binding_proof() {
+    let args = vec!["{ }".to_string(), "finally".to_string(), "{ }".to_string()];
+    let mut old = crate::analyser::Analyser::new();
+    let _ = old.resolve_walk_environment("tcl8.4");
+    old.registry = Some(old.profile_registry());
+    assert!(
+        old.resolve_analyser_hook("try", &args).is_none(),
+        "`try` is 8.6+: under tcl8.4 the binding is Absent, so no analyser \
+         hook may specialise (I4)"
+    );
+    let mut new = crate::analyser::Analyser::new();
+    let _ = new.resolve_walk_environment("tcl9.0");
+    new.registry = Some(new.profile_registry());
+    assert_eq!(
+        new.resolve_analyser_hook("try", &args),
+        Some(tcl_registry::hooks::AnalyserHookId::Try),
+        "a proved binding keeps its hook"
     );
 }

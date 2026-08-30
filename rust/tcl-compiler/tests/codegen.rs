@@ -423,6 +423,11 @@ fn irule_equals() {
 }
 
 #[test]
+fn irule_matches() {
+    assert!(emit_binop(BinOp::Matches).contains(&Op::IRULE_MATCHES));
+}
+
+#[test]
 fn irule_matches_glob() {
     assert!(emit_binop(BinOp::MatchesGlob).contains(&Op::IRULE_MATCHES_GLOB));
 }

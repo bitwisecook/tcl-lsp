@@ -28,15 +28,17 @@
 //! Usage: `cargo run -q --example dialect_surface`
 
 use tcl_dialect::DialectProfile;
-use tcl_registry::{ProfileQueries, registry_for_dialect};
+use tcl_registry::model::ingress::{
+    static_context_for, static_document_context_for_profile as ctx_for,
+};
 
 fn main() {
     let mut out = String::new();
     for profile in DialectProfile::all() {
-        let registry = registry_for_dialect(profile.name);
+        let registry = static_context_for(profile.name).commands();
         let mut names: Vec<&str> = registry
             .command_names()
-            .filter(|name| profile.resolve_command(registry, name).is_some())
+            .filter(|name| ctx_for(profile).resolve_spec(registry, name).is_some())
             .collect();
         names.sort_unstable();
         names.dedup();

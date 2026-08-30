@@ -1,0 +1,20 @@
+# Can each context define ordinary procs and call them ordinarily?
+# Same format as 10-context-parity.cases. Sources are eval'd at runtime, so the
+# iRule compiler never sees the proc name as a literal command head — that is
+# deliberate: it isolates RUNTIME proc semantics from the load-time command
+# resolution measured in ctx_unknown_cmd.conf.
+p_define_call	proc	proc __p1 {a} {return [expr {$a*2}]}\n__p1 21
+p_no_args	proc	proc __p2 {} {return plain}\n__p2
+p_default_arg	proc	proc __p3 {{a 7}} {return $a}\n__p3
+p_varargs	proc	proc __p4 {args} {return [llength $args]}\n__p4 a b c
+p_recursion	proc	proc __p5 {n} {if {$n <= 1} {return 1}\nreturn [expr {$n * [__p5 [expr {$n - 1}]]}]}\n__p5 5
+p_upvar	proc	proc __p6 {vn} {upvar 1 $vn v\nset v 9}\nset zz 0\n__p6 zz\nset zz
+p_global	proc	set ::gv 11\nproc __p7 {} {global gv\nreturn $gv}\n__p7
+p_nested_define	proc	proc __p8 {} {proc __p8inner {} {return in}\nreturn [__p8inner]}\n__p8
+p_redefine	proc	proc __p9 {} {return one}\nproc __p9 {} {return two}\n__p9
+p_info_procs	proc	proc __p10 {} {return x}\ninfo procs __p10
+p_call_cmd	proc	proc __p11 {a} {return $a}\ncall __p11 5
+p_proc_in_proc_scope	proc	proc __p12 {} {set loc 3\nreturn $loc}\n__p12
+p_return_code	proc	proc __p13 {} {return -code error boom}\ncatch {__p13} e\nset e
+p_rename	proc	proc __p14 {} {return orig}\nrename __p14 __p14b\n__p14b
+p_uplevel	proc	proc __p15 {} {uplevel 1 {set ul 4}}\n__p15\nset ul

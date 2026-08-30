@@ -20,6 +20,7 @@
 
 use crate::hooks::InlineCodegenHookId;
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "continue",
@@ -32,7 +33,7 @@ const COMPLETION_CODES: &[CompletionCode] = &[CompletionCode::Continue];
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "continue",
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD

@@ -26,7 +26,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fileutil::writeFile",
-        dialects: None,
+        surface: None,
         arity: Arity::new(2, 4),
         hover: Some(HoverSnippet {
             summary: "Write data to a file, replacing any existing content.",

@@ -26,7 +26,10 @@
 //! widen the affected state domains conservatively.
 
 use crate::invocation_words::{InvocationArguments, InvocationWordKind};
-use crate::world_effect::{TransitionEffectCoverage, TransitionEffectCoverages};
+use crate::side_effects::SideEffectTarget;
+use crate::world_effect::{
+    TransitionEffectCoverage, TransitionEffectCoverages, WorldEffectWriteSource, WorldStateDomain,
+};
 
 /// A state-domain whose precise identity is invalidated by a dynamic
 /// transition operand.
@@ -167,6 +170,13 @@ pub enum CommandBindingTransition {
         target_interpreter: TransitionSubject,
         /// Command reached by the alias.
         target: TransitionSubject,
+        /// Arguments Tcl bakes in ahead of the caller's own.
+        ///
+        /// `interp alias {} Cat {} Dog extra` makes `Cat x` the call `Dog
+        /// extra x`, so an alias with baked arguments is **not** a plain
+        /// second name for its target — a consumer resolving a call through
+        /// the alias has to know. Empty for the ordinary form.
+        arguments: Vec<TransitionSubject>,
     },
     /// One or more command binding operations whose precise kind depends on
     /// dynamic operands.
@@ -659,6 +669,37 @@ impl StateTransitions {
         self.facts.extend(other.facts);
     }
 
+    /// The command-binding facts, in Tcl execution order — the one
+    /// vocabulary for "this call changed the command table" (ledger C8).
+    pub fn command_bindings(&self) -> impl Iterator<Item = &CommandBindingTransition> {
+        self.facts.iter().filter_map(|fact| match &fact.transition {
+            StateTransition::CommandBinding(binding) => Some(binding),
+            _ => None,
+        })
+    }
+
+    /// Whether a dynamic operand widened `domain` — the precise identity in
+    /// that domain is unknown after this invocation.
+    #[must_use]
+    pub fn widens(&self, domain: StateTransitionDomain) -> bool {
+        self.facts.iter().any(|fact| {
+            matches!(&fact.transition, StateTransition::Widen(widening)
+                if widening.domains.contains(&domain))
+        })
+    }
+
+    /// Whether this invocation changes command-name bindings at all, precisely
+    /// or conservatively.
+    ///
+    /// A consumer that only gates ("may this call have moved a binding?")
+    /// asks this rather than re-deriving it from the fact list, so a
+    /// dynamic operand that produced only a widening still counts.
+    #[must_use]
+    pub fn touches_command_bindings(&self) -> bool {
+        self.command_bindings().next().is_some()
+            || self.widens(StateTransitionDomain::CommandBindings)
+    }
+
     fn set_commit(&mut self, commit: StateTransitionCommit) {
         for fact in &mut self.facts {
             fact.commit = commit;
@@ -942,6 +983,265 @@ impl ResolvedStateTransitions {
             }
         }
         (transitions, coverage)
+    }
+}
+
+/// The **stock command-binding transition descriptors** — one per
+/// [`crate::CommandTableEffect`] shape (centralisation ledger C8, redesign
+/// §11.2 D9).
+///
+/// Before this module there were three vocabularies for "this command
+/// changed the command table": these transitions, the coarse
+/// `CommandTableEffect` a consumer dispatched on, and the argument
+/// destructuring each consumer then repeated for itself. The destructuring
+/// is here now, once, and it is the **only** producer: a shipped spec
+/// names one of these descriptors, and a `SpecTcl` pack that can only
+/// write the `command_table_effect` shorthand (a pack cannot supply a Rust
+/// resolver) gets the very same descriptor through
+/// [`crate::CommandTableEffect::transitions`]. One declaration, one
+/// resolver, one fact vocabulary for every consumer.
+pub mod command_binding {
+    use super::{
+        CommandBindingDefinitionKind, CommandBindingTransition, InvocationArguments,
+        NamespaceTransition, NamespaceTransitionTarget, SideEffectTarget, StateTransition,
+        StateTransitionArgumentShape, StateTransitionCommit, StateTransitionComposition,
+        StateTransitionDescriptor, StateTransitionDomain, StateTransitionOperandLayout,
+        StateTransitionWideningRule, StateTransitions, TransitionEffectCoverage, TransitionSubject,
+        WorldEffectWriteSource, WorldStateDomain,
+    };
+
+    /// The identity domains a command-table mutation can invalidate. A
+    /// binding move can create a namespace and fires command traces, so a
+    /// dynamic operand widens all three.
+    const BINDING_DOMAINS: &[StateTransitionDomain] = &[
+        StateTransitionDomain::CommandBindings,
+        StateTransitionDomain::Namespaces,
+        StateTransitionDomain::CommandTraces,
+    ];
+
+    /// [`BINDING_DOMAINS`] plus the interpreter axis an alias crosses.
+    const ALIAS_DOMAINS: &[StateTransitionDomain] = &[
+        StateTransitionDomain::CommandBindings,
+        StateTransitionDomain::Namespaces,
+        StateTransitionDomain::Interpreters,
+        StateTransitionDomain::CommandTraces,
+    ];
+
+    /// The transition is authoritative for the command-table write the
+    /// legacy bridges report — both the command-table descriptor's and a
+    /// `ProcDefinition` side effect's, for a definer that declares one.
+    const DEFINING_COVERAGE: &[TransitionEffectCoverage] = &[
+        TransitionEffectCoverage {
+            source: WorldEffectWriteSource::LegacyCommandTable,
+            domains: &[WorldStateDomain::CommandBindings],
+        },
+        TransitionEffectCoverage {
+            source: WorldEffectWriteSource::LegacySideEffect(SideEffectTarget::ProcDefinition),
+            domains: &[WorldStateDomain::CommandBindings],
+        },
+    ];
+
+    /// An alias declares no `ProcDefinition` side effect, so only the
+    /// command-table bridge is covered.
+    const ALIAS_COVERAGE: &[TransitionEffectCoverage] = &[TransitionEffectCoverage {
+        source: WorldEffectWriteSource::LegacyCommandTable,
+        domains: &[WorldStateDomain::CommandBindings],
+    }];
+
+    /// `proc name params body` — bind argument 0 as a procedure.
+    pub const DEFINES_PROCEDURE: StateTransitionDescriptor = StateTransitionDescriptor {
+        composition: StateTransitionComposition::Extend,
+        resolver: Some(defines_procedure),
+        argument_shape: StateTransitionArgumentShape::Positional,
+        dynamic_widening: &[StateTransitionWideningRule {
+            operands: StateTransitionOperandLayout::Indices(&[0]),
+            domains: BINDING_DOMAINS,
+        }],
+        effect_coverage: DEFINING_COVERAGE,
+        commit: StateTransitionCommit::OnOkOnly,
+    };
+
+    /// `rename oldName newName` — move argument 0 to argument 1, or delete
+    /// it when the target is empty.
+    pub const RENAMES_COMMANDS: StateTransitionDescriptor = StateTransitionDescriptor {
+        composition: StateTransitionComposition::Extend,
+        resolver: Some(renames_commands),
+        argument_shape: StateTransitionArgumentShape::Positional,
+        dynamic_widening: &[StateTransitionWideningRule {
+            operands: StateTransitionOperandLayout::Indices(&[0, 1]),
+            domains: BINDING_DOMAINS,
+        }],
+        effect_coverage: DEFINING_COVERAGE,
+        // Keep the transition visible on an abrupt edge.  It is deliberately
+        // conservative for command traces and re-entrant callbacks, which can
+        // observe the command-table change while Tcl is completing the
+        // operation.
+        commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+    };
+
+    /// `interp alias srcPath srcCmd ?targetPath targetCmd ?args…??` —
+    /// create, delete, or query a command alias.
+    pub const CREATES_ALIASES: StateTransitionDescriptor = StateTransitionDescriptor {
+        composition: StateTransitionComposition::Extend,
+        resolver: Some(creates_aliases),
+        argument_shape: StateTransitionArgumentShape::Positional,
+        dynamic_widening: &[StateTransitionWideningRule {
+            // The subcommand at index 0 is already known to have selected
+            // this descriptor. The source/target interpreter and command
+            // positions carry the transition's identity; baked alias
+            // arguments do not.
+            operands: StateTransitionOperandLayout::Indices(&[1, 2, 3, 4]),
+            domains: ALIAS_DOMAINS,
+        }],
+        effect_coverage: ALIAS_COVERAGE,
+        // Alias setup can cross interpreter boundaries and invoke observable
+        // lifecycle hooks before reporting an error.
+        commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
+    };
+
+    fn defines_procedure(arguments: InvocationArguments<'_>) -> StateTransitions {
+        let mut transitions = StateTransitions::default();
+        if let Some(name) = TransitionSubject::from_argument(arguments, 0) {
+            transitions.push(StateTransition::CommandBinding(
+                CommandBindingTransition::Define {
+                    name,
+                    kind: CommandBindingDefinitionKind::Procedure,
+                },
+            ));
+        }
+        transitions
+    }
+
+    fn renames_commands(arguments: InvocationArguments<'_>) -> StateTransitions {
+        let mut transitions = StateTransitions::default();
+        // `rename` takes exactly two arguments in every release and dialect
+        // that has it; any other arity is a `wrong # args` error that moves
+        // nothing, so a malformed call states nothing rather than half a
+        // fact.
+        if arguments.len() != 2 {
+            return transitions;
+        }
+        let (Some(from), Some(to)) = (
+            TransitionSubject::from_argument(arguments, 0),
+            TransitionSubject::from_argument(arguments, 1),
+        ) else {
+            return transitions;
+        };
+        match to.literal() {
+            Some("") => transitions.push(StateTransition::CommandBinding(
+                CommandBindingTransition::Delete {
+                    interpreter: None,
+                    name: from,
+                },
+            )),
+            Some(target) => {
+                // Tcl creates the target's namespace lineage when it is
+                // absent; record that separately from the command binding so
+                // generic world-state consumers retain both facts.
+                let namespace = super::namespace_qualifiers(target);
+                if !namespace.is_empty() {
+                    transitions.push(StateTransition::Namespace(NamespaceTransition::Ensure {
+                        namespace: NamespaceTransitionTarget::Named(TransitionSubject::Literal(
+                            namespace.to_owned(),
+                        )),
+                    }));
+                }
+                transitions.push(StateTransition::CommandBinding(
+                    CommandBindingTransition::Move { from, to },
+                ));
+            }
+            None => transitions.push(StateTransition::CommandBinding(
+                CommandBindingTransition::Unknown {
+                    operands: vec![from, to],
+                },
+            )),
+        }
+        transitions
+    }
+
+    /// Whether this invocation is `interp alias`-shaped — a literal
+    /// `alias` subcommand word at position 0.
+    ///
+    /// The shipped registry stamps the alias effect on `interp`'s `alias`
+    /// subcommand, so the word is guaranteed there. A `SpecTcl` pack may
+    /// stamp the same effect at *command* level on something that only
+    /// builds an alias internally (`struct::tree` and `struct::graph` in the
+    /// tcllib draft under `docs/design/spec-dsl-examples/external/` do
+    /// exactly that), and such a call carries none of `interp alias`'s
+    /// words. Reading them as if it did would invent an alias out of the
+    /// command's own arguments. Registry data must not be able to do that,
+    /// so the shape check is a **fact**: a call that is not `interp
+    /// alias`-shaped states no alias.
+    fn is_alias_subcommand_shape(arguments: InvocationArguments<'_>) -> bool {
+        arguments.literal_at(0) == Some("alias")
+    }
+
+    fn creates_aliases(arguments: InvocationArguments<'_>) -> StateTransitions {
+        let mut transitions = StateTransitions::default();
+        if !is_alias_subcommand_shape(arguments) {
+            return transitions;
+        }
+        let (Some(source_interpreter), Some(alias)) = (
+            TransitionSubject::from_argument(arguments, 1),
+            TransitionSubject::from_argument(arguments, 2),
+        ) else {
+            return transitions;
+        };
+
+        match arguments.len() {
+            // `interp alias sourcePath sourceCmd` queries an existing alias.
+            0..=3 => {}
+            // `interp alias sourcePath sourceCmd {}` deletes it. A computed
+            // target-path position could be empty at runtime, so retain a
+            // typed wildcard transition rather than pretending this is alias
+            // creation.
+            // A brace-quoted empty word's Tcl **value** is the empty
+            // string, but not every source-word reconstruction strips the
+            // braces before handing the registry a literal, so both
+            // spellings mean "delete" here.
+            4 => match arguments.literal_at(3) {
+                Some("" | "{}") => transitions.push(StateTransition::CommandBinding(
+                    CommandBindingTransition::Delete {
+                        interpreter: Some(source_interpreter),
+                        name: alias,
+                    },
+                )),
+                Some(_) => {}
+                None => {
+                    let Some(target_path) = TransitionSubject::from_argument(arguments, 3) else {
+                        return transitions;
+                    };
+                    transitions.push(StateTransition::CommandBinding(
+                        CommandBindingTransition::Unknown {
+                            operands: vec![source_interpreter, alias, target_path],
+                        },
+                    ));
+                }
+            },
+            // The create form requires both target interpreter path and
+            // command.
+            _ => {
+                let (Some(target_interpreter), Some(target)) = (
+                    TransitionSubject::from_argument(arguments, 3),
+                    TransitionSubject::from_argument(arguments, 4),
+                ) else {
+                    return transitions;
+                };
+                let arguments = (5..arguments.len())
+                    .filter_map(|index| TransitionSubject::from_argument(arguments, index))
+                    .collect();
+                transitions.push(StateTransition::CommandBinding(
+                    CommandBindingTransition::Alias {
+                        source_interpreter,
+                        alias,
+                        target_interpreter,
+                        target,
+                        arguments,
+                    },
+                ));
+            }
+        }
+        transitions
     }
 }
 

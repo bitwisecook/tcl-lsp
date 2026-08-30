@@ -32,6 +32,7 @@
 use crate::prelude::*;
 
 use super::SOURCE;
+use tcl_dialect::model::SpecSurface;
 
 /// A row statement: a leading subject word, then flags.
 fn row(
@@ -45,7 +46,7 @@ fn row(
     CommandSpec {
         name,
         traits: Traits::LANGUAGE_KEYWORD,
-        dialects: Some(DialectSet::SPECTCL),
+        surface: Some(SpecSurface::SPECTCL),
         arity,
         hover: Some(HoverSnippet {
             summary,
@@ -137,11 +138,18 @@ const MANUFACTURER_OPTIONS: &[OptionSpec] = &[
     ),
 ];
 
-const OPTION_CONFLICT_OPTIONS: &[OptionSpec] = &[valued(
-    "-dialects",
-    "set",
-    "restrict this constraint to a dialect set",
-)];
+const OPTION_CONFLICT_OPTIONS: &[OptionSpec] = &[
+    valued(
+        "-dialects",
+        "set",
+        "restrict this relation to a dialect set",
+    ),
+    valued(
+        "-message",
+        "prose",
+        "the library's own error text, quoted instead of generated",
+    ),
+];
 
 const SETTER_CONSTRAINT_OPTIONS: &[OptionSpec] = &[
     valued("-prefix", "text", "the prefix the value must carry"),
@@ -264,14 +272,55 @@ fn call_shape_rows() -> Vec<CommandSpec> {
             "Declare one instance-manufacturing method of the command.",
             "`-names-instance-at` and `-constructor-args-from` are read by other consumers; only `-definition-body-at` feeds `arg_role_resolver from-manufacturers`, and only as a `Body` role.",
         ),
+    ]
+}
+
+/// The four E-R14 option-relation rows (redesign §11.1 O1).
+///
+/// Their own function because they share one shape and one flag set: a
+/// statement word, an optional subject term, a term list, and the flags every
+/// relation row takes. Splitting them out is also what keeps
+/// [`call_shape_rows`] readable now that there are four of them, not one.
+fn option_relation_rows() -> Vec<CommandSpec> {
+    vec![
         row(
             "option_conflict",
             Arity::at_least(1),
             VALUE0,
             OPTION_CONFLICT_OPTIONS,
             "Declare a set of options that may not co-occur.",
-            "`OptionConstraint` is a flat may-not-co-occur set with no directionality, so only the `forbid` half of a real library's constraints maps. Option *requirement* relationships are a recorded registry gap, not DSL syntax.",
+            "`option_conflict {-a -b}` — the symmetric relation, and the only one 1.x could express. A term is `-name`, `{-name value}`, `{arg N}` or `{arg N value}`.",
         ),
+        row(
+            "option_requires",
+            Arity::at_least(2),
+            VALUE0,
+            OPTION_CONFLICT_OPTIONS,
+            "Declare that one option or argument requires every term of a set.",
+            "`option_requires SUBJECT {TERM …}` — E-R14's directional relation (`bibtex::parse -command` requires `-channel`). Checked natively in Rust; no hook, no VM.",
+        ),
+        row(
+            "option_requires_one_of",
+            Arity::at_least(2),
+            VALUE0,
+            OPTION_CONFLICT_OPTIONS,
+            "Declare that one option or argument requires at least one term of a set.",
+            "`option_requires_one_of SUBJECT {TERM …}`. An empty subject (`{}`) makes the relation unconditional — `bibtex::parse` needs `-channel` or a text argument on every call.",
+        ),
+        row(
+            "option_forbids",
+            Arity::at_least(2),
+            VALUE0,
+            OPTION_CONFLICT_OPTIONS,
+            "Declare that one option or argument excludes every term of a set.",
+            "`option_forbids SUBJECT {TERM …}` — the asymmetric exclusion a symmetric set cannot phrase (`struct::tree walk -order in` is illegal with `-type bfs`).",
+        ),
+    ]
+}
+
+/// The rows that constrain individual values and second-level words.
+fn value_shape_rows() -> Vec<CommandSpec> {
+    vec![
         row(
             "setter_constraint",
             Arity::at_least(1),
@@ -381,6 +430,8 @@ fn semantic_rows() -> Vec<CommandSpec> {
 
 pub(super) fn specs() -> Vec<CommandSpec> {
     let mut specs = call_shape_rows();
+    specs.extend(option_relation_rows());
+    specs.extend(value_shape_rows());
     specs.extend(semantic_rows());
     specs
 }

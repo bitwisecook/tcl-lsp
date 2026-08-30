@@ -127,6 +127,7 @@ fn fold_format(args: &[&str], version: Option<TclVersion>) -> Option<String> {
     Some(out)
 }
 
+use tcl_dialect::model::SpecSurface;
 /// The specifier *grammar* (flags / width / `.precision` / verb parsing) lives
 /// in the shared `tcl-syntax` crate so the WASM runtime reuses it; the
 /// version-aware renderers below are this const-folder's own.
@@ -598,7 +599,7 @@ fn fmt_general(v: f64, prec: usize, upper: bool) -> String {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "format",
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         byte_array_effect: ByteArrayEffect::Coerces,
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED

@@ -19,6 +19,7 @@
 //! `command` / `subcommand` — the two `SpecTcl` statements that open a
 //! per-command declaration block.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const OPTIONS: &[OptionSpec] = &[OptionSpec {
     name: "-override",
@@ -66,7 +67,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "command",
         traits: Traits::CREATES_BARRIER | Traits::NEVER_INLINE_BODY | Traits::LANGUAGE_KEYWORD,
-        dialects: Some(DialectSet::SPECTCL),
+        surface: Some(SpecSurface::SPECTCL),
         arity: Arity::new(2, 3),
         hover: Some(HoverSnippet {
             summary: "Declare one command in a SpecTcl pack.",
@@ -94,7 +95,7 @@ pub fn subcommand_spec() -> CommandSpec {
     CommandSpec {
         name: "subcommand",
         traits: Traits::CREATES_BARRIER | Traits::NEVER_INLINE_BODY | Traits::LANGUAGE_KEYWORD,
-        dialects: Some(DialectSet::SPECTCL),
+        surface: Some(SpecSurface::SPECTCL),
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {
             summary: "Declare one subcommand of the enclosing command.",

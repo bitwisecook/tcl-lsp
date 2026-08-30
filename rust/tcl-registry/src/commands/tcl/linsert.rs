@@ -18,38 +18,42 @@
 
 //! `linsert` — insert elements into a list.
 //
-// Manpage comparison across Tcl 8.4, 8.5, 8.6, 9.0, and 9.1
-// (tcl-lang.org's TclCmd/linsert.html, `.htm` for the 8.6 tree): 8.4 and
-// 8.5 require at least one `element` in the synopsis ("list index
-// element ?element element ...?"), while 8.6 loosens this so `element`
-// is fully optional ("list index ?element element ...?") — a bare
-// `linsert list index` becomes a legal no-op that returns an unmodified
-// copy of `list`. Unchanged through 9.0 and 9.1, and already how
-// `tcl-vm/src/cmd_list.rs::cmd_linsert` matches its arguments (`[list,
-// index, elems @ ..]`, `elems` possibly empty) regardless of dialect.
-// The 8.6+ manpage also adds a paragraph spelling out that a
-// start-relative `index` positions the *first* inserted element while
-// an end-relative one positions the *last*; nothing indicates the
-// underlying placement itself changed pre-8.6, only that the wording
-// became more explicit, so that description is folded into the hover
-// snippet as plain, version-independent prose rather than a dialect
-// gate. Not disabled or overridden in any modelled dialect — `linsert`
-// carries the `IRULES` bit explicitly (its `dialects` group is
-// `ALL_TCL.union(IRULES)`, so it resolves under the bare `IRULES` mask),
-// and no irules/iapps/tk/expect/eda/itcl override file exists — so the
+// Manpage comparison across Tcl 8.4, 8.5, 8.6, 9.0, and 9.1 (tcl-lang.org's
+// TclCmd/linsert.html, `.htm` for the 8.6 tree): 8.4 and 8.5 require at least
+// one `element` in the synopsis ("list index element ?element element ...?"),
+// while 8.6 loosens this so `element` is fully optional ("list index ?element
+// element ...?") — a bare `linsert list index` becomes a legal no-op that
+// returns an unmodified copy of `list`. Unchanged through 9.0 and 9.1, and
+// already how `tcl-vm/src/cmd_list.rs::cmd_linsert` matches its arguments
+// (`[list, index, elems @ ..]`, `elems` possibly empty) regardless of dialect.
+// The 8.6+ manpage also adds a paragraph spelling out that a start-relative
+// `index` positions the *first* inserted element while an end-relative one
+// positions the *last*; nothing indicates the underlying placement itself
+// changed pre-8.6, only that the wording became more explicit, so that
+// description is folded into the hover snippet as plain, version-independent
+// prose rather than a dialect gate. Not disabled or overridden in any modelled
+// dialect — `linsert` carries an iRules row explicitly (its surface is
+// `ALL_TCL.union(IRULES)`, so it resolves under the bare `IRULES` mask), and
+// no irules/iapps/tk/expect/eda/itcl override file exists — so the
 // command-level group is correct as-is.
 use crate::hooks::{CodegenHookId, InlineCodegenHookId};
 use crate::prelude::*;
+use tcl_dialect::model::Family;
+use tcl_dialect::model::SpecSurface;
+use tcl_dialect::surface;
 
 const FORMS: &[FormSpec] = &[
     FormSpec {
         synopsis: "linsert list index ?element element ...?",
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         ..FormSpec::DEFAULT
     },
     FormSpec {
         synopsis: "linsert list index element ?element element ...?",
-        dialects: Some(DialectSet::TCL84.union(DialectSet::TCL85)),
+        surface: Some(surface![SpecSurface::core_in(
+            Family::Tcl,
+            &[("8.4", Some("8.6"))]
+        )]),
         ..FormSpec::DEFAULT
     },
 ];
@@ -57,7 +61,7 @@ const FORMS: &[FormSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "linsert",
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED
             | Traits::PURE

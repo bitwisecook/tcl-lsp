@@ -26,7 +26,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fileutil::test",
-        dialects: None,
+        surface: None,
         arity: Arity::new(2, 4),
         hover: Some(HoverSnippet {
             summary: "Test file properties.",

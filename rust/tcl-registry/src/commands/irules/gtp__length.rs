@@ -18,10 +18,11 @@
 
 //! `GTP::length` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "GTP::length",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "This value is returned as read from the message header.",
@@ -40,7 +41,7 @@ pub const fn spec() -> CommandSpec {
                 name: "-message",
                 value: OptionValue::value(""),
                 detail: "Option -message.",
-                dialects: None,
+                surface: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,

@@ -1,0 +1,23 @@
+# A templated pack: a data table adjacent to the loop that consumes it
+# (design E §15.3's authoring rule), registering three commands from one
+# declaration.
+#
+# This is the half of the smoke that only the *evaluation* loader can pass:
+# a CST walk sees one `foreach` and no commands at all.
+speclib studio_smoke_templated 2.0 {
+
+    proc smoke-port {name arity} {
+        command smoke::$name {
+            arity $arity
+        }
+    }
+
+    foreach {name arity} {
+        alpha 1
+        beta  2
+        gamma 3
+    } {
+        smoke-port $name $arity
+    }
+
+}

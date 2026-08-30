@@ -107,7 +107,7 @@ pub fn detect_global_write_procs(module: &Module) -> HashMap<String, GlobalWrite
     // than reconstructing a few hundred `CommandSpec`s each time (issue #1035,
     // where `build_default()` here also leaked the generated mathop/mathfunc
     // ensembles on every call).
-    let registry = tcl_registry::cache::default_registry();
+    let registry = tcl_registry::default_registry();
     let mut own: HashMap<String, GlobalWriteInfo> = HashMap::new();
     let mut direct_calls: HashMap<String, BTreeSet<String>> = HashMap::new();
     // Iterate procedures in a deterministic (qualified-name) order, for the same

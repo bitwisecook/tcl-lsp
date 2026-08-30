@@ -18,6 +18,7 @@
 
 //! `tcl_wordBreakAfter` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: true,
     ..SideEffect::DEFAULT
@@ -27,7 +28,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl_wordBreakAfter",
         traits: Traits::PURE | Traits::OVERRIDABLE_LIBRARY_PROC,
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {
             summary: "Return the index of the first word boundary after *start* in *str*.",

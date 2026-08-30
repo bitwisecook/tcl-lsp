@@ -18,6 +18,7 @@
 
 //! `session` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
@@ -82,7 +83,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "session",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Utilizes the persistence table to store arbitrary information based on the same keys as persistence.",
@@ -101,9 +102,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &[],
             also_in: &["PERSIST_DOWN"],
-            init_only: false,
             flow: true,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "session add SESSION_MODE",

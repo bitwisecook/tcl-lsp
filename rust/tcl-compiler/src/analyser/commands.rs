@@ -1209,10 +1209,20 @@ impl Analyser {
         }
         let registry = self.registry.clone().unwrap_or_else(fallback_registry);
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let resolved = registry.resolve_call(
+        // The C3 selection primitive under invariant I4 (P1a): with the
+        // walk's resolved context carried, the head must prove its
+        // binding under the document's environment before any analyser
+        // hook is selected — an unprovided head (a version-gated command
+        // outside the release window, an iRules-disabled builtin) takes
+        // the generic path instead of a specialised handler. A harness
+        // walk with no context keeps the store selection (NotRequired).
+        let resolved = tcl_registry::model::resolve_call_in_context(
+            &registry,
+            self.context
+                .as_deref()
+                .map(tcl_registry::model::ContextRegistry::context),
             cmd_name,
             &arg_strs,
-            tcl_registry::prelude::DialectSet::empty(),
         )?;
         Some(ResolvedAnalyserHook {
             hook: resolved.analyser_hook?,
@@ -1722,6 +1732,7 @@ impl Analyser {
         self.emit_w121_invalid_subnet_mask(args, arg_tokens);
         self.emit_w108_non_ascii(arg_tokens);
         self.emit_w148_numeral_release(args, arg_tokens);
+        self.emit_w151_range_numerals(args, arg_tokens);
         self.emit_bounds_family_diagnostics(cmd_name, args, arg_tokens);
         self.emit_registry_argument_diagnostics(site);
         self.emit_w304_missing_option_terminator(cmd_name, args, cmd_tok, arg_tokens);
@@ -1782,6 +1793,146 @@ impl Analyser {
                     ),
                     Severity::Warning,
                 ));
+        }
+    }
+
+    /// §5.4 cross-target numeral portability (**W151**): a literal word
+    /// that does not read as the *same* number under every numeral
+    /// grammar the declared target range spans.
+    ///
+    /// Two divergence shapes, both from the numeral axis the dialect
+    /// model already carries ([`tcl_dialect::NumberSyntax`], §3.1):
+    ///
+    /// * **meaning** — the word parses everywhere but to different
+    ///   values: the motivating leading-zero case (`010` is 8 under
+    ///   Tcl 8.x targets and 10 under 9.0 — a silent behaviour change);
+    /// * **validity** — the word is a numeral under some targets only
+    ///   (`0b101`/`0o17` predate 8.5; `0d5` and `_` separators predate
+    ///   9.0).
+    ///
+    /// A word the **primary** grammar itself rejects is W148's
+    /// single-target fact and is skipped here — one word, one
+    /// diagnostic. Dynamic/substituted words are ignored exactly as
+    /// W148 ignores them, and the whole walk is off unless the declared
+    /// range spans at least two numeral grammars
+    /// ([`Analyser::range_numeral_grammars`]).
+    fn emit_w151_range_numerals(&mut self, args: &[String], tokens: &[Token]) {
+        if self.range_numeral_grammars.len() < 2 {
+            return;
+        }
+        let grammars = self.range_numeral_grammars.clone();
+        let primary = self.profile.grammar.numbers;
+        let mut new_diags: Vec<crate::analyser::types::Diagnostic> = Vec::new();
+        for (arg, token) in args.iter().zip(tokens.iter()) {
+            if !matches!(token.kind, TokenType::Str | TokenType::Esc)
+                || arg.contains('$')
+                || arg.contains('[')
+            {
+                continue;
+            }
+            let word = arg.trim();
+            if word.is_empty() {
+                continue;
+            }
+            let read = |syntax: tcl_dialect::NumberSyntax| {
+                tcl_syntax::number::parse_whole_with(
+                    word,
+                    tcl_syntax::number::ParseFlags::for_syntax(syntax),
+                )
+            };
+            let readings: Vec<(
+                tcl_dialect::NumberSyntax,
+                Option<tcl_syntax::number::Number>,
+            )> = grammars
+                .iter()
+                .map(|&syntax| (syntax, read(syntax)))
+                .collect();
+            if readings.iter().all(|(_, reading)| reading.is_none()) {
+                continue;
+            }
+            // The primary's own rejection is W148's fact, not a range one.
+            if read(primary).is_none() {
+                continue;
+            }
+            let message = if let Some((rejecting, _)) =
+                readings.iter().find(|(_, reading)| reading.is_none())
+            {
+                format!(
+                    "Numeral '{word}' is not accepted under the declared target(s) {}.",
+                    self.range_numeral_target_names(*rejecting)
+                )
+            } else {
+                let (first_grammar, first) = &readings[0];
+                let Some((diverging, other)) = readings
+                    .iter()
+                    .find(|(_, reading)| reading != first)
+                    .map(|(grammar, reading)| (*grammar, reading.clone()))
+                else {
+                    continue; // every target reads the same value
+                };
+                let spell = |reading: &Option<tcl_syntax::number::Number>| match reading {
+                    Some(tcl_syntax::number::Number::Int(value)) => value.to_string(),
+                    _ => "a different value".to_owned(),
+                };
+                format!(
+                    "Numeral '{word}' means {} under declared target(s) {} but {} under {} — a silent meaning change across the declared range.",
+                    spell(first),
+                    self.range_numeral_target_names(*first_grammar),
+                    spell(&other),
+                    self.range_numeral_target_names(diverging)
+                )
+            };
+            new_diags.push(crate::analyser::types::Diagnostic::new(
+                DiagCode::W151,
+                token.span,
+                message,
+                Severity::Warning,
+            ));
+        }
+        self.result.diagnostics.extend(new_diags);
+    }
+
+    /// The declared core-target names a W151 message cites for the
+    /// targets that resolve `grammar` — the declared set intersected
+    /// with the grammar's era, named at ladder granularity.
+    fn range_numeral_target_names(&self, grammar: tcl_dialect::NumberSyntax) -> String {
+        use tcl_dialect::model::{Family, VersionAxisId};
+        let axis = VersionAxisId::core(Family::Tcl);
+        let fallback = || {
+            format!(
+                "Tcl {}",
+                match grammar {
+                    tcl_dialect::NumberSyntax::Tcl84 => "8.4",
+                    tcl_dialect::NumberSyntax::Tcl85 => "8.5",
+                    tcl_dialect::NumberSyntax::Tcl90 => "9.0",
+                }
+            )
+        };
+        let Some(declared) = self
+            .range_context
+            .as_ref()
+            .and_then(|context| context.declared_targets(&axis))
+        else {
+            return fallback();
+        };
+        let requirement = match grammar {
+            tcl_dialect::NumberSyntax::Tcl84 => "0-8.5",
+            tcl_dialect::NumberSyntax::Tcl85 => "8.5-9.0",
+            tcl_dialect::NumberSyntax::Tcl90 => "9.0-",
+        };
+        let Ok(era) =
+            tcl_dialect::model::VersionSet::from_requirements(axis.clone(), &[requirement])
+        else {
+            return fallback();
+        };
+        let Ok(overlap) = declared.intersect(&era) else {
+            return fallback();
+        };
+        let names = tcl_registry::model::ladder_releases_in(&overlap);
+        if names.is_empty() {
+            fallback()
+        } else {
+            names.join(", ")
         }
     }
 
@@ -1913,9 +2064,12 @@ impl Analyser {
         } else {
             self.command_resolution_namespace(scope_path)
         };
-        let Some(registry) = self.registry.as_deref() else {
+        // Cloned `Arc` (not `as_deref`) so the §4c dynamic-eval widening —
+        // a `&mut self` call below — can run while the registry is in hand.
+        let Some(registry) = self.registry.clone() else {
             return;
         };
+        let registry = &*registry;
         let body_args: Vec<&str> = args.iter().map(String::as_str).collect();
         // Body-role resolution stays dialect-scoped *deliberately*: a command
         // that owns a body only in another dialect (e.g. the iRules-only
@@ -1943,6 +2097,13 @@ impl Analyser {
         if body_indices.is_empty() {
             return;
         }
+        self.widen_irules_dynamic_eval_bindings(
+            cmd_name,
+            args,
+            arg_tokens,
+            &body_indices,
+            scope_path,
+        );
         // The `Tcl_ConcatObj` eval family: when the spec carries
         // `SCRIPT_CONCATENATES_ARGS` and words follow the first body index,
         // the script is the *concatenation* of every trailing word, not the
@@ -1968,29 +2129,8 @@ impl Analyser {
         // `Copy`, so extracting them here ends the `registry` borrow before the
         // `&mut self` body recursion below.
         let body_cmd: &str = body_cmd_owned.as_deref().unwrap_or(cmd_name);
-        let body_scope: Option<&'static tcl_registry::scoped::ScopedCommandEnv> =
-            registry.get(body_cmd).and_then(|s| s.body_scope);
-        let sibling_name_idx = if body_scope.is_some_and(|e| e.include_sibling_definitions) {
-            registry
-                .arg_indices_for_role(body_cmd, &body_args, tcl_registry::arg_role::ArgRole::Name)
-                .first()
-                .copied()
-        } else {
-            None
-        };
-        // A definer that makes its own instances callable inside sibling bodies
-        // (a later `report::defstyle` may invoke an earlier style by name):
-        // record the defined name so the W123 pass treats it as known there.
-        if let (Some(env), Some(ni)) = (body_scope, sibling_name_idx)
-            && let Some(name) = args.get(ni)
-            && !name.is_empty()
-        {
-            self.result
-                .scoped_sibling_defs
-                .entry(env.name)
-                .or_default()
-                .insert(name.clone());
-        }
+        let body_scope =
+            self.record_scoped_sibling_definition(registry, body_cmd, &body_args, args);
         // The event handler carries `IS_EVENT_HANDLER` — `when` today, but
         // a dialect that adds another gets the same treatment without an edit
         // here; its synopsis (`when EVENT { body }`) puts the event name in
@@ -2046,6 +2186,113 @@ impl Analyser {
         }
     }
 
+    /// The scoped command environment `body_cmd`'s spec declares for its
+    /// body arguments, if any — plus the sibling-definition recording that
+    /// rides it: a definer that makes its own instances callable inside
+    /// sibling bodies (a later `report::defstyle` may invoke an earlier
+    /// style by name) records the defined name so the W123 pass treats it
+    /// as known there. Extracted from [`Self::dispatch_body_arguments`]
+    /// verbatim.
+    fn record_scoped_sibling_definition(
+        &mut self,
+        registry: &tcl_registry::CommandRegistry,
+        body_cmd: &str,
+        body_args: &[&str],
+        args: &[String],
+    ) -> Option<&'static tcl_registry::scoped::ScopedCommandEnv> {
+        let body_scope: Option<&'static tcl_registry::scoped::ScopedCommandEnv> =
+            registry.get(body_cmd).and_then(|s| s.body_scope);
+        let sibling_name_idx = if body_scope.is_some_and(|e| e.include_sibling_definitions) {
+            registry
+                .arg_indices_for_role(body_cmd, body_args, tcl_registry::arg_role::ArgRole::Name)
+                .first()
+                .copied()
+        } else {
+            None
+        };
+        if let (Some(env), Some(ni)) = (body_scope, sibling_name_idx)
+            && let Some(name) = args.get(ni)
+            && !name.is_empty()
+        {
+            self.result
+                .scoped_sibling_defs
+                .entry(env.name)
+                .or_default()
+                .insert(name.clone());
+        }
+        body_scope
+    }
+
+    /// **Measurements §4c** — the iRules dynamic-code widening. The rule
+    /// compiler's load-time bans are *lexical*: they scan braced script
+    /// literals (so `eval {proc …}` is rejected like bare `proc` — the
+    /// recursion above handles that), but script text held in a variable
+    /// escapes the scan entirely. A dynamic `eval`/`uplevel` (any level
+    /// spelling) whose script head the analyser cannot read therefore
+    /// makes every literal-surface check abstain AND widens the realm
+    /// state: the hidden script may define procs, and a runtime-defined
+    /// proc is a **persistent per-TMM global** — created once (typically
+    /// in `RULE_INIT`), surviving across events, connections, and separate
+    /// requests on the same TMM (§4c: `persist=YES`, identical on a
+    /// second request). That is exactly the "runtime set of commands is
+    /// unknowable" fact the existing dynamic-provider machinery models
+    /// ([`super::types::AnalysisResult::has_dynamic_providers`] — the
+    /// oracle's `CommandDomainWidening::DynamicProviders`, under which
+    /// every head answers `BindingKnowledge::Unknown`), so it is wired
+    /// through that flag rather than new state: W123/W120-class
+    /// unresolved-name conclusions abstain for the rest of the document.
+    ///
+    /// Scope: iRules only, and only at top-level-or-event scope — the
+    /// scopes §4c measured; the load-time *lexical* rejections themselves
+    /// (a literal `proc` in a `when` body, a literal call head) are NOT
+    /// softened, because the rule compiler cannot see runtime definitions
+    /// either. Commands in the §4b disabled split never widen: an
+    /// interpreter-absent head does not run, and a compiler-refused head
+    /// never loads.
+    fn widen_irules_dynamic_eval_bindings(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        body_indices: &[usize],
+        scope_path: &[usize],
+    ) {
+        if self.result.has_dynamic_providers || !self.profile.is_irules() {
+            return;
+        }
+        let dynamic_eval = self.registry.as_deref().is_some_and(|registry| {
+            registry.get(cmd_name).is_some_and(|spec| {
+                spec.traits
+                    .contains(tcl_registry::Traits::DYNAMIC_EVAL_BODY)
+            })
+        }) && tcl_registry::irules_policy::irules_disabled_class(cmd_name)
+            .is_none();
+        if !dynamic_eval {
+            return;
+        }
+        // The script *head* is hidden exactly when the first script word is
+        // a substitution (`$s`, `[build]`) or interpolates one; a bare
+        // literal head (`uplevel 1 helper`) is still resolved at load time.
+        let hidden_head = body_indices.first().is_some_and(|&first| {
+            arg_tokens.get(first).is_some_and(|tok| {
+                matches!(tok.kind, TokenType::Var | TokenType::Cmd)
+                    || args.get(first).is_some_and(|text| {
+                        super::diagnostics::helpers::has_substitution(text.trim(), tok)
+                    })
+            })
+        });
+        if !hidden_head {
+            return;
+        }
+        if matches!(
+            self.irules_execution_context(scope_path),
+            tcl_registry::events::IrulesExecutionContext::TopLevel
+                | tcl_registry::events::IrulesExecutionContext::EventBody
+        ) {
+            self.result.has_dynamic_providers = true;
+        }
+    }
+
     fn enter_event_context(
         &mut self,
         enters_event_context: bool,
@@ -2092,10 +2339,13 @@ impl Analyser {
             return true;
         }
         let words: Vec<&str> = args.iter().map(String::as_str).collect();
-        let registry = self
-            .registry
-            .as_deref()
-            .unwrap_or_else(|| tcl_registry::registry_for_profile(self.profile));
+        let generation;
+        let registry = if let Some(stashed) = self.registry.as_deref() {
+            stashed
+        } else {
+            generation = self.analysis_context();
+            generation.commands()
+        };
         let closed = tcl_registry::events::closed_braced_argument_words(
             &self.source,
             arg_tokens,
@@ -3901,7 +4151,7 @@ impl Analyser {
     /// therefore names a method on the enclosing object.
     ///
     /// Registry-first and dialect-aware: `method_dispatch_keyword` answers
-    /// under the active profile's availability mask, so a `tcl8.4` /
+    /// at the active profile's point, so a `tcl8.4` /
     /// `tcl8.5` document — with no `TclOO` at all — answers `false` for
     /// every spelling, and it resolves the `::`-qualified form itself.
     ///
@@ -4856,9 +5106,7 @@ fn record_command_invocations(
                     &args,
                     registry
                         .profile()
-                        .map_or(tcl_registry::dialects::DialectSet::ALL_TCL, |profile| {
-                            profile.availability_mask
-                        }),
+                        .map(tcl_dialect::DialectProfile::surface_query),
                 ) else {
                     continue;
                 };
@@ -5041,9 +5289,7 @@ fn definition_handler_owns_body(registry: &CommandRegistry, name: &str) -> bool 
 fn case_list_body_index(registry: &CommandRegistry, name: &str, args: &[&str]) -> Option<usize> {
     let dialect = registry
         .profile()
-        .map_or(tcl_registry::dialects::DialectSet::ALL_TCL, |profile| {
-            profile.availability_mask
-        });
+        .map(tcl_dialect::DialectProfile::surface_query);
     registry
         .case_invocation(name, args, dialect)
         .and_then(|(_, invocation)| invocation.clause_list_index)
@@ -5826,6 +6072,12 @@ mod tests {
     #[test]
     fn process_interp_alias_records_target() {
         let mut a = Analyser::new();
+        // The handler reads the registry's one command-table transition
+        // vocabulary (ledger C8), so a bare harness has to carry a registry
+        // the way a real walk does.
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         a.process_command(
             &[
                 "interp".to_string(),

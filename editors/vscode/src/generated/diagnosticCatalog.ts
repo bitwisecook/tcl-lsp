@@ -347,6 +347,27 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W150",
+    section: "warning",
+    description:
+      "Not available across the project's declared version-target range — the item resolves at the primary target but is missing from one or more declared targets (range targeting).",
+    defaultEnabled: true,
+  },
+  {
+    code: "W151",
+    section: "warning",
+    description:
+      "Numeral changes meaning or validity across the project's declared version-target range — e.g. a leading-zero literal is octal under Tcl 8.x targets and decimal under 9.0.",
+    defaultEnabled: true,
+  },
+  {
+    code: "W152",
+    section: "warning",
+    description:
+      "A registry-declared option relation is unmet — an option or argument the call supplied requires a companion option or argument it did not (`-command` without `-channel`), or the invocation supplies none of a required set.",
+    defaultEnabled: true,
+  },
+  {
     code: "W200",
     section: "warning",
     description: "`exec` result not captured or binary format modifier requires newer Tcl.",
@@ -578,6 +599,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "H301",
+    section: "hint",
+    description:
+      "Command used above the `package require` that provides it — the file reads top-down as if the package were not yet loaded, though Tcl only resolves the name when the call runs.",
+    defaultEnabled: true,
+  },
+  {
     code: "I230",
     section: "hint",
     description: "Constant branch condition — the alternate branch is provably unreachable.",
@@ -743,6 +771,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     code: "IRULE2003",
     section: "irules",
     description: "Unsafe iRules command.",
+    defaultEnabled: true,
+  },
+  {
+    code: "IRULE2004",
+    section: "irules",
+    description:
+      "Command refused by the iRules rule compiler at load — present in TMM's interpreter and reachable via `eval` at runtime.",
     defaultEnabled: true,
   },
   {

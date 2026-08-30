@@ -18,11 +18,12 @@
 
 //! `SSL::respond` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SSL::respond",
         traits: Traits::DIAGRAM_ACTION,
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Return data back to the origin via SSL.",
@@ -38,9 +39,7 @@ pub const fn spec() -> CommandSpec {
             transport: Some("tcp"),
             profiles: &["CLIENTSSL", "SERVERSSL"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "SSL::respond DATA",

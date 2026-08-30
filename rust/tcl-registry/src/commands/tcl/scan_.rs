@@ -18,6 +18,7 @@
 
 //! `scan` — parse a string using scanf-style conversion.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::Variable,
@@ -217,7 +218,7 @@ fn scan_int(s: &[u8], mut si: usize, conv: u8) -> Option<(String, usize)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "scan",
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::BYTE_COMPILED | Traits::FRAME_HASH_BUILTIN,
         arity: Arity::at_least(2),
         // Documented return is the int conversion count (`scan str fmt

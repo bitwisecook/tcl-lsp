@@ -238,7 +238,10 @@ Consider capturing the result: catch {\u{2026}} result"
         // walk: `package require` may appear anywhere in the file, so the
         // owning package's resolved version is not known until the post-walk
         // flush, by which time the fix has already been attached.
-        let documented = spec.optional_trailing_arg_names(self.profile.availability_mask, None);
+        let documented = spec.optional_trailing_arg_names(
+            Some(self.analysis_context().context().authoring_query()),
+            None,
+        );
         let offered = writable.min(documented.len());
         if offered == 0 {
             return Vec::new();

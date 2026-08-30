@@ -47,12 +47,10 @@ use std::time::{Duration, Instant};
 
 use tcl_compiler::analyser::Analyser;
 use tcl_spectcl::discovery::{DiscoveryOptions, Origin, PackFile, Tier};
-use tcl_spectcl::loader::load_pack;
+use tcl_spectcl::loader::evaluate_pack;
 use tcl_spectcl::pack::{self, PackSet};
 
-// ---------------------------------------------------------------------------
 // Harness
-// ---------------------------------------------------------------------------
 
 /// A private on-disk workspace for one test.
 fn scratch(name: &str) -> PathBuf {
@@ -159,9 +157,7 @@ fn within<T: Send + 'static>(
     }
 }
 
-// ---------------------------------------------------------------------------
 // Axis 1a — the byte level
-// ---------------------------------------------------------------------------
 
 /// Every degenerate byte sequence a file can hold loads to *something* and
 /// never panics.
@@ -169,7 +165,7 @@ fn within<T: Send + 'static>(
 /// The assertion is deliberately weak on content and absolute on liveness: for
 /// most of these there is no useful pack to recover, and pinning the exact
 /// notice text would make the test a change-detector. What must hold is that
-/// `load_pack` returns.
+/// `evaluate_pack` returns.
 #[test]
 fn degenerate_byte_sequences_never_panic() {
     let cases: Vec<(&str, String)> = vec![
@@ -224,7 +220,9 @@ fn degenerate_byte_sequences_never_panic() {
 
     for (label, source) in cases {
         let owned = source.clone();
-        let pack = within(label, Duration::from_secs(20), move || load_pack(&owned));
+        let pack = within(label, Duration::from_secs(20), move || {
+            evaluate_pack(&owned)
+        });
         // Nothing is asserted about *what* loaded — only that a `Pack` came
         // back and its own invariants hold.
         assert!(
@@ -289,7 +287,9 @@ fn truncation_at_each_parse_state_loads() {
 
     for (label, source) in cases {
         let owned = source.to_owned();
-        let pack = within(label, Duration::from_secs(20), move || load_pack(&owned));
+        let pack = within(label, Duration::from_secs(20), move || {
+            evaluate_pack(&owned)
+        });
         assert!(
             pack.commands.iter().all(|c| !c.spec.name.is_empty()),
             "`{label}` produced a nameless command"
@@ -321,7 +321,7 @@ fn every_prefix_of_a_valid_pack_loads() {
         let pack = within(
             &format!("prefix-{cut}"),
             Duration::from_secs(20),
-            move || load_pack(&prefix),
+            move || evaluate_pack(&prefix),
         );
         assert!(
             pack.commands.iter().all(|c| !c.spec.name.is_empty()),
@@ -350,7 +350,7 @@ fn deep_brace_nesting_does_not_overflow_the_stack() {
         let pack = within(
             &format!("nest-{depth}"),
             Duration::from_secs(30),
-            move || load_pack(&source),
+            move || evaluate_pack(&source),
         );
         assert!(
             pack.commands.iter().all(|c| !c.spec.name.is_empty()),
@@ -387,7 +387,9 @@ fn unbalanced_braces_degrade_rather_than_crash() {
     ];
     for (label, source) in cases {
         let owned = source.to_owned();
-        let pack = within(label, Duration::from_secs(20), move || load_pack(&owned));
+        let pack = within(label, Duration::from_secs(20), move || {
+            evaluate_pack(&owned)
+        });
         assert!(
             pack.commands.iter().all(|c| !c.spec.name.is_empty()),
             "`{label}` produced a nameless command"
@@ -430,7 +432,9 @@ fn absurd_sizes_load_in_bounded_time() {
 
     for (label, source) in cases {
         let started = Instant::now();
-        let pack = within(label, Duration::from_mins(1), move || load_pack(&source));
+        let pack = within(label, Duration::from_mins(1), move || {
+            evaluate_pack(&source)
+        });
         assert!(
             started.elapsed() < Duration::from_mins(1),
             "`{label}` took {:?}",
@@ -482,9 +486,7 @@ fn a_non_utf8_pack_file_is_a_notice_and_its_neighbour_still_loads() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
-// ---------------------------------------------------------------------------
 // Axis 1b — semantics
-// ---------------------------------------------------------------------------
 
 /// An invalid lifecycle ordering is a notice and drops that lifecycle, and the
 /// command carrying it still loads — the "notice-only for packs" rule from
@@ -495,7 +497,7 @@ fn a_non_utf8_pack_file_is_a_notice_and_its_neighbour_still_loads() {
 /// wrong reason.
 #[test]
 fn an_invalid_lifecycle_ordering_is_a_notice_and_the_command_survives() {
-    let pack = load_pack(
+    let pack = evaluate_pack(
         "speclib demo 1.1 {\n\
         \x20 command demo::backwards {\n\
         \x20   arity 1\n\
@@ -544,7 +546,7 @@ fn an_invalid_lifecycle_ordering_is_a_notice_and_the_command_survives() {
 /// *containment* rule beside it, which is reported but **kept**.
 #[test]
 fn lifecycle_ordering_and_containment_are_checked_at_every_level() {
-    let pack = load_pack(
+    let pack = evaluate_pack(
         "speclib demo 1.1 {\n\
         \x20 command demo::cmd {\n\
         \x20   arity 1\n\
@@ -583,12 +585,13 @@ fn lifecycle_ordering_and_containment_are_checked_at_every_level() {
 }
 
 /// A `speclib` version this build does not know still loads what it can, and
-/// says so once.
+/// says so once — for every spelling except an unsupported **major**, which
+/// design §6.1 makes a load error rather than a notice.
 #[test]
 fn an_unknown_vocabulary_version_loads_what_it_can() {
-    for declared in ["2", "99.99", "banana", "1.1.1", "-1"] {
+    for declared in ["2.9", "banana", "1.1.1", "-1"] {
         let source = format!("speclib demo {declared} {{\n  command demo::cmd {{ arity 1 }}\n}}\n");
-        let pack = load_pack(&source);
+        let pack = evaluate_pack(&source);
         assert!(
             pack.command("demo::cmd").is_some(),
             "vocabulary `{declared}` must not cost the commands: {:#?}",
@@ -598,6 +601,37 @@ fn an_unknown_vocabulary_version_loads_what_it_can() {
             !pack.notices.is_empty(),
             "vocabulary `{declared}` must be reported"
         );
+        assert_eq!(pack.load_error, None, "{declared}");
+    }
+}
+
+/// A `speclib` **major** past this build fails the whole pack closed
+/// (design §6.1): a new major may redefine words this loader thinks it
+/// knows, so reading the ones it recognises would publish confident answers
+/// derived from a vocabulary it does not speak.
+#[test]
+fn an_unsupported_speclib_major_fails_the_pack_closed() {
+    for declared in ["3.0", "99.99"] {
+        let source = format!("speclib demo {declared} {{\n  command demo::cmd {{ arity 1 }}\n}}\n");
+        let pack = evaluate_pack(&source);
+        assert!(
+            pack.commands.is_empty(),
+            "vocabulary `{declared}` must load nothing: {:#?}",
+            pack.notices
+        );
+        assert_eq!(
+            pack.load_error,
+            Some(tcl_spectcl::LoadError::UnsupportedMajor(
+                declared.to_owned()
+            )),
+            "{declared}"
+        );
+        assert_eq!(pack.notices.len(), 1, "{:#?}", pack.notices);
+        assert!(
+            pack.notices[0].message.contains("nothing is loaded"),
+            "{:#?}",
+            pack.notices
+        );
     }
 }
 
@@ -605,7 +639,7 @@ fn an_unknown_vocabulary_version_loads_what_it_can() {
 /// still load — the compatibility policy's central promise.
 #[test]
 fn unknown_words_at_every_level_are_dropped_with_a_notice() {
-    let pack = load_pack(
+    let pack = evaluate_pack(
         "speclib demo 1.1 {\n\
         \x20 no_such_pack_level_word {whatever}\n\
         \x20 command demo::cmd {\n\
@@ -637,7 +671,7 @@ fn unknown_words_at_every_level_are_dropped_with_a_notice() {
 /// a bogus `dialects` word does not take the command down.
 #[test]
 fn bogus_dialect_names_degrade_to_a_notice() {
-    let pack = load_pack(
+    let pack = evaluate_pack(
         "speclib demo 1.1 {\n\
         \x20 file_extension dem -dialect no-such-dialect-at-all\n\
         \x20 command demo::cmd { arity 1 dialects no-such-dialect-at-all }\n\
@@ -1000,7 +1034,7 @@ fn a_pack_redefining_a_builtin_reports_and_does_not_silently_win() {
     );
     let set = load_files(&[path]);
 
-    let plain = tcl_registry::registry_for_dialect("tcl9.1");
+    let plain = tcl_registry::model::static_context_for("tcl9.1").commands();
     let with_packs = tcl_spectcl::install::registry_for_dialect_with_packs("tcl9.1", &set);
     let shipped = plain.get("lsort").expect("`lsort` is shipped");
     let after = with_packs.get("lsort").expect("`lsort` is still there");
@@ -1018,9 +1052,7 @@ fn a_pack_redefining_a_builtin_reports_and_does_not_silently_win() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
-// ---------------------------------------------------------------------------
 // Axis 2 — scale
-// ---------------------------------------------------------------------------
 
 /// A generated pack with thousands of commands loads, installs, and stays
 /// queryable in bounded time.
@@ -1170,9 +1202,7 @@ fn one_broken_pack_does_not_cost_the_others() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
-// ---------------------------------------------------------------------------
 // Axis 6 — adversarial content
-// ---------------------------------------------------------------------------
 
 /// Injection shapes inside spec *strings* are data, not code.
 ///
@@ -1205,7 +1235,7 @@ fn injection_shapes_in_spec_strings_stay_literal() {
         \x20 }}\n\
         }}\n"
     );
-    let pack = load_pack(&source);
+    let pack = evaluate_pack(&source);
     let cmd = pack.command("evil::cmd").expect("the command must load");
     let summary = cmd.spec.hover.map(|h| h.summary).unwrap_or_default();
     assert!(
@@ -1222,7 +1252,7 @@ fn injection_shapes_in_spec_strings_stay_literal() {
 /// by the loader.
 #[test]
 fn path_traversal_in_a_path_field_is_not_resolved() {
-    let pack = load_pack(
+    let pack = evaluate_pack(
         "speclib evil 1.1 {\n\
         \x20 command evil::cmd {\n\
         \x20   arity 1\n\
@@ -1261,9 +1291,7 @@ fn adversarial_pack_names_do_not_confuse_notice_routing() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
-// ---------------------------------------------------------------------------
 // Axis 4 — the version gate, at the loader/analyser altitude
-// ---------------------------------------------------------------------------
 
 /// Analyse `source` with `packs` overlaid, returning the version-gate codes and
 /// messages only.
@@ -1465,9 +1493,7 @@ fn editing_a_lifecycle_stamp_changes_the_verdict_on_reload() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
-// ---------------------------------------------------------------------------
 // Regressions for the notice gaps this sweep found (#1634, #1635, #1637, #1638)
-// ---------------------------------------------------------------------------
 
 /// A `.tclspec` saved with a UTF-8 BOM loads normally (#1635).
 ///
@@ -1476,7 +1502,7 @@ fn editing_a_lifecycle_stamp_changes_the_verdict_on_reload() {
 /// lost to an editor that defaults to "UTF-8 with BOM".
 #[test]
 fn a_bom_prefixed_pack_loads_like_any_other() {
-    let pack = load_pack("\u{feff}speclib demo 1.1 {\n  command demo::a { arity 1 }\n}\n");
+    let pack = evaluate_pack("\u{feff}speclib demo 1.1 {\n  command demo::a { arity 1 }\n}\n");
 
     assert_eq!(
         pack.name, "demo",
@@ -1497,7 +1523,7 @@ fn a_bom_prefixed_pack_loads_like_any_other() {
 /// entry point with its own `LexerConfig` — the pack-loading test above does
 /// not exercise it. If the two disagreed about whether a leading mark is a
 /// prologue, the upgrade would compute a byte range against a different
-/// tokenisation than the one `load_pack` used and rewrite the wrong span.
+/// tokenisation than the one `evaluate_pack` used and rewrite the wrong span.
 /// (Caught by mutation testing during the #1641 review: flipping this entry's
 /// disposition alone left every existing test green.)
 #[test]
@@ -1524,7 +1550,7 @@ fn the_version_span_skips_a_leading_bom_like_the_loader() {
 /// would reach the registry a character short.
 #[test]
 fn a_bom_inside_a_block_is_content_not_a_prologue() {
-    let pack = load_pack(
+    let pack = evaluate_pack(
         "speclib demo 1.1 {\n\
         \x20 command demo::a {\n\
         \x20   arity 1\n\
@@ -1555,8 +1581,8 @@ fn a_bom_inside_a_block_is_content_not_a_prologue() {
 /// # What this does *not* claim
 ///
 /// It does not pin the BOM disposition's presence in the memo key. That is
-/// deliberate: a memo is installed per file (`load_pack_cached` seeds one
-/// `load_pack` call from that file's own entry), and within a file the
+/// deliberate: a memo is installed per file (the cache seeds one load from
+/// that file's own entry), and within a file the
 /// file-entry text and any block's text can never be equal, so the two
 /// dispositions cannot meet in one memo and no test can force them to. The key
 /// still carries the disposition because a key that omits something affecting
@@ -1627,7 +1653,7 @@ fn a_bom_prefixed_pack_survives_the_cache_round_trip() {
 /// with nothing naming it.
 #[test]
 fn a_command_with_no_body_is_named_in_a_notice() {
-    let pack = load_pack("speclib demo 1.1 {\n  command demo::bar\n  {\n    arity 1\n  }\n}\n");
+    let pack = evaluate_pack("speclib demo 1.1 {\n  command demo::bar\n  {\n    arity 1\n  }\n}\n");
 
     assert!(pack.command("demo::bar").is_none(), "it cannot load");
     let naming = pack
@@ -1647,7 +1673,7 @@ fn a_command_with_no_body_is_named_in_a_notice() {
 /// notice, not its own body quoted back (#1634).
 #[test]
 fn an_orphaned_block_notice_is_one_readable_line() {
-    let pack = load_pack("speclib demo 1.1 {\n  command demo::bar\n  {\n    arity 1\n  }\n}\n");
+    let pack = evaluate_pack("speclib demo 1.1 {\n  command demo::bar\n  {\n    arity 1\n  }\n}\n");
 
     let orphan = pack
         .notices
@@ -1677,7 +1703,7 @@ fn an_orphaned_block_notice_is_one_readable_line() {
 /// one bounded line.
 #[test]
 fn a_long_unknown_property_is_elided_rather_than_quoted_whole() {
-    let pack = load_pack(
+    let pack = evaluate_pack(
         "speclib demo 1.1 {\n\
         \x20 command demo::a {\n\
         \x20   arity 1\n\
@@ -1712,7 +1738,7 @@ fn a_long_unknown_property_is_elided_rather_than_quoted_whole() {
 /// A second `speclib` block in one file is reported, with what it costs (#1634).
 #[test]
 fn a_second_speclib_block_is_reported_with_its_command_count() {
-    let pack = load_pack(
+    let pack = evaluate_pack(
         "speclib one 1.1 {\n\
         \x20 command one::a { arity 1 }\n\
         }\n\
@@ -1763,7 +1789,7 @@ fn a_whitespace_bearing_command_name_loads_and_is_installable() {
             "tab\tname",
         ),
     ] {
-        let pack = load_pack(source);
+        let pack = evaluate_pack(source);
         assert!(
             pack.commands.iter().any(|c| c.spec.name == expected),
             "a whitespace-bearing name is valid Tcl and must load; wanted \
@@ -1916,7 +1942,7 @@ fn an_extension_collision_names_the_file_that_declared_the_row() {
 /// `spec_packs_loaded`, so a multi-line blob there is not a cosmetic problem.
 #[test]
 fn a_speclib_without_a_version_does_not_become_a_pack_name() {
-    let pack = load_pack("speclib {\n command x { arity 1 }\n}\n");
+    let pack = evaluate_pack("speclib {\n command x { arity 1 }\n}\n");
 
     assert_eq!(pack.name, "", "a braced word is not a pack name");
     assert!(pack.commands.is_empty());

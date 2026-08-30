@@ -40,15 +40,14 @@ use tcl_lsp_core::refactor::{
     DataGroupDefinition, Refactoring, data_group_tcl, extract_to_datagroup,
     extract_to_datagroup_from_if, extract_to_datagroup_from_switch,
 };
-use tcl_registry::{CommandRegistry, registry_for_dialect};
+use tcl_registry::CommandRegistry;
+use tcl_registry::model::ingress::static_context_for;
 
-// ---------------------------------------------------------------------------
 // Harness
-// ---------------------------------------------------------------------------
 
 /// The iRules registry (so `if` / `switch` / `class` are all modelled).
 fn reg() -> &'static CommandRegistry {
-    registry_for_dialect("f5-irules")
+    static_context_for("f5-irules").commands()
 }
 
 fn if_dg(source: &str, name: &str) -> Option<Refactoring> {
@@ -75,9 +74,7 @@ fn dg(r: &Refactoring) -> &DataGroupDefinition {
     r.data_group.as_ref().expect("a generated data group")
 }
 
-// ===========================================================================
 // data_group_tcl rendering — every branch of the tmsh emitter.
-// ===========================================================================
 
 #[test]
 fn data_group_tcl_empty_records_omits_records_block() {
@@ -141,9 +138,7 @@ fn data_group_tcl_mixed_membership_and_valued_records() {
     );
 }
 
-// ===========================================================================
 // Value-type inference — string / ip / integer, and the mixed fallback.
-// ===========================================================================
 
 #[test]
 fn infer_ip_type_from_ipv4_and_cidr() {
@@ -248,9 +243,7 @@ fn ipv6_cidr_in_range_is_ip() {
     assert_eq!(dg(&if_dg(source, "ip").expect("result")).value_type, "ip");
 }
 
-// ===========================================================================
 // Data-group name normalisation / resolution.
-// ===========================================================================
 
 #[test]
 fn empty_dg_name_derives_from_if_target_var() {
@@ -293,9 +286,7 @@ fn empty_name_from_underscore_only_var_falls_back_to_extracted_dg() {
     assert_eq!(dg(&r).name, "whitelist");
 }
 
-// ===========================================================================
 // if-chain extraction — membership (identical bodies) vs mapping.
-// ===========================================================================
 
 #[test]
 fn if_membership_with_else_emits_else_branch() {
@@ -413,9 +404,7 @@ fn if_then_after_first_condition_does_not_produce_broken_extraction() {
     }
 }
 
-// ===========================================================================
 // if-chain decline (`None`) edges.
-// ===========================================================================
 
 #[test]
 fn if_single_value_declines() {
@@ -471,9 +460,7 @@ fn if_mapping_multi_command_body_declines() {
     assert!(if_dg(source, "n").is_none());
 }
 
-// ===========================================================================
 // switch extraction — membership, mapping, default handling.
-// ===========================================================================
 
 #[test]
 fn switch_membership_with_default_emits_else() {
@@ -547,9 +534,7 @@ fn switch_membership_no_default_no_else() {
     assert!(!applied.contains("else"), "{applied}");
 }
 
-// ===========================================================================
 // switch decline edges.
-// ===========================================================================
 
 #[test]
 fn switch_fewer_than_three_arms_declines() {
@@ -598,9 +583,7 @@ fn switch_mapping_inconsistent_bodies_declines() {
     assert!(switch_dg(source, "x").is_none());
 }
 
-// ===========================================================================
 // Unified dispatch + nested bodies.
-// ===========================================================================
 
 #[test]
 fn unified_dispatch_prefers_if_then_switch() {
@@ -635,9 +618,7 @@ fn nested_if_inside_when_body_resolves_at_cursor() {
     assert_eq!(dg(&r).records.len(), 3);
 }
 
-// ===========================================================================
 // Refactoring metadata — title, kind, edit span.
-// ===========================================================================
 
 #[test]
 fn refactoring_title_and_kind() {
@@ -651,10 +632,8 @@ fn refactoring_title_and_kind() {
     assert_eq!(r.edits.len(), 1);
 }
 
-// ===========================================================================
 // Residual-branch coverage — value-type inference edges, var-name parsing,
 // or-chain parsing, and arm-body extraction corners.
-// ===========================================================================
 
 #[test]
 fn cidr_with_non_ip_address_part_is_not_ip() {

@@ -47,8 +47,8 @@ the formatter's registry lookups agree with the analyser's.
    `FormatterConfig::profile` (a `&'static DialectProfile`) is the single
    dialect fact; the three the engine needs are derived accessors on it —
    `lexer_config()` (the grammar it tokenises with, including the iRules `}{`
-   ghost separator and whether `{*}` expands), `dialect_bits()` (the
-   availability mask that filters per-release rewrite candidates), and
+   ghost separator and whether `{*}` expands), `dialect_query()` (the
+   surface point that filters per-release rewrite candidates), and
    `target_range()` (the forward range a rewrite must stay correct across).
    Callers build the config with `FormatterConfig::for_profile` /
    `for_dialect`, never by setting the derived facts, so a caller cannot set a

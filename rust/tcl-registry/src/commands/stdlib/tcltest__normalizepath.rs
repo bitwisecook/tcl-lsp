@@ -18,10 +18,11 @@
 
 //! `tcltest::normalizePath` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcltest::normalizePath",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Normalise a file path (8.4 compatibility shim for ``file normalize``).",

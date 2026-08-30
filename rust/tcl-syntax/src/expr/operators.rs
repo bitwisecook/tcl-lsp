@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! `expr` operator metadata — the single source of truth for which
-//! [`BinOp`]/[`UnaryOp`] variants exist, which dialects gate them, and how
+//! [`BinOp`]/[`UnaryOp`] variants exist, which surfaces gate them, and how
 //! (if at all) they surface as a `::tcl::mathop::*` command.
 //!
 //! `BinOp`/`UnaryOp` are a **closed grammar production**, unlike math
@@ -34,12 +34,13 @@
 //! already accepts it as expr grammar, but no bare/`tcl::mathop::`-prefixed
 //! command exists for it (verified against `tclsh` 8.4 through 9.1 — `info
 //! commands ::tcl::mathop::*` never lists `&&`, `||`, `and`, `or`, `not`,
-//! `contains`, `starts_with`, `ends_with`, `equals`, `matches_glob`, or
-//! `matches_regex`, on any version).
+//! `contains`, `starts_with`, `ends_with`, `equals`, `matches`,
+//! `matches_glob`, or `matches_regex`, on any version).
 
-use tcl_dialect::{DialectSet, TclVersion};
+use tcl_dialect::TclVersion;
 
 use super::ast::{BinOp, UnaryOp};
+use tcl_dialect::model::SpecSurface;
 
 /// A command's argument-count contract — deliberately not `tcl_registry::Arity`
 /// (`tcl-registry` depends on `tcl-syntax`, never the reverse).
@@ -156,8 +157,8 @@ pub struct OperatorSpec {
     pub spelling: &'static str,
     /// The dialect(s) this operator is gated to, or `None` when it's
     /// available in every dialect since the expr grammar's own base version
-    /// (queried separately via `DialectSet::expr_grammar_base_version`).
-    pub dialects: Option<DialectSet>,
+    /// (queried separately via `DialectProfile::expr_grammar_base`).
+    pub surface: Option<&'static [SpecSurface]>,
     /// The `::tcl::mathop::*` command shape this operator shares, or `None`
     /// when the operator has no mathop command form at all (`&&`, `||`,
     /// every iRules word operator).
@@ -167,21 +168,25 @@ pub struct OperatorSpec {
     /// The oldest Tcl release whose `expr` **grammar** parses this
     /// operator's syntax at all, or `None` when it's part of the base
     /// grammar every dialect's `expr` has always had. Distinct from
-    /// [`Self::dialects`] (which gates the *command-table* form, `dialects:
+    /// [`Self::surface`] (which gates the *command-table* form, `surface:
     /// None` there just meaning "no extra gate beyond `::tcl::mathop`'s own
     /// 8.5+ requirement"): `**`/`in`/`ni` (TIP 123/201) need Tcl 8.5's
     /// grammar to parse at all but — like every other pre-9.0 operator —
-    /// carry `dialects: None`, so this field is the fact a *grammar*-level
-    /// version diagnostic (W003) needs and `dialects` doesn't give it.
+    /// carry `surface: None`, so this field is the fact a *grammar*-level
+    /// version diagnostic (W003) needs and `surface` doesn't give it.
     /// `None` for the iRules word operators too — they're gated by dialect
     /// *identity*, not a Tcl version threshold, an axis this field doesn't
-    /// model (see [`Self::dialects`] for that gate instead).
+    /// model (see [`Self::surface`] for that gate instead).
     pub expr_grammar_min_version: Option<TclVersion>,
 }
 
-/// The `(dialects, mathop_shape, summary)` triple `BinOp::spec()`/
+/// The `(surface, mathop_shape, summary)` triple `BinOp::spec()`/
 /// `UnaryOp::spec()` each assemble into a full [`OperatorSpec`].
-type SpecFacts = (Option<DialectSet>, Option<OperatorShape>, &'static str);
+type SpecFacts = (
+    Option<&'static [SpecSurface]>,
+    Option<OperatorShape>,
+    &'static str,
+);
 
 impl BinOp {
     /// Static metadata for this operator — see the module docs for how
@@ -193,7 +198,7 @@ impl BinOp {
     /// compile error here, not a silent gap.
     #[must_use]
     pub const fn spec(self) -> OperatorSpec {
-        let (dialects, mathop_shape, summary) = match self {
+        let (surface, mathop_shape, summary) = match self {
             Self::Add
             | Self::Sub
             | Self::Mul
@@ -227,12 +232,13 @@ impl BinOp {
             | Self::StartsWith
             | Self::EndsWith
             | Self::StrEquals
+            | Self::Matches
             | Self::MatchesGlob
             | Self::MatchesRegex => Self::spec_irules_words(self),
         };
         OperatorSpec {
             spelling: self.as_str(),
-            dialects,
+            surface,
             mathop_shape,
             summary,
             expr_grammar_min_version: self.expr_grammar_min_version(),
@@ -369,22 +375,22 @@ impl BinOp {
             // baseline (verified absent under `::tcl::mathop::*` on tclsh
             // 8.4/8.5/8.6, present on 9.0/9.1).
             Self::StrLt => (
-                Some(DialectSet::TCL90_PLUS),
+                Some(SpecSurface::TCL90_PLUS),
                 Some(OperatorShape::BoolChain { string_only: true }),
                 "string less-than",
             ),
             Self::StrLe => (
-                Some(DialectSet::TCL90_PLUS),
+                Some(SpecSurface::TCL90_PLUS),
                 Some(OperatorShape::BoolChain { string_only: true }),
                 "string less-or-equal",
             ),
             Self::StrGt => (
-                Some(DialectSet::TCL90_PLUS),
+                Some(SpecSurface::TCL90_PLUS),
                 Some(OperatorShape::BoolChain { string_only: true }),
                 "string greater-than",
             ),
             Self::StrGe => (
-                Some(DialectSet::TCL90_PLUS),
+                Some(SpecSurface::TCL90_PLUS),
                 Some(OperatorShape::BoolChain { string_only: true }),
                 "string greater-or-equal",
             ),
@@ -402,7 +408,7 @@ impl BinOp {
         }
     }
 
-    /// The 9 iRules word operators (well, 8 of the 9 — `not` is
+    /// The 10 iRules word operators (well, 9 of the 10 — `not` is
     /// [`UnaryOp::WordNot`]): parsed as expr grammar only in the iRules
     /// dialect, with no `::tcl::mathop` command form at all (verified
     /// absent on every Tcl version — these aren't a version-gated *mathop*
@@ -411,25 +417,39 @@ impl BinOp {
     const fn spec_irules_words(self) -> SpecFacts {
         match self {
             Self::WordAnd => (
-                Some(DialectSet::IRULES),
+                Some(SpecSurface::IRULES),
                 None,
                 "logical AND (iRules word form)",
             ),
             Self::WordOr => (
-                Some(DialectSet::IRULES),
+                Some(SpecSurface::IRULES),
                 None,
                 "logical OR (iRules word form)",
             ),
-            Self::Contains => (Some(DialectSet::IRULES), None, "substring containment"),
-            Self::StartsWith => (Some(DialectSet::IRULES), None, "string prefix test"),
-            Self::EndsWith => (Some(DialectSet::IRULES), None, "string suffix test"),
+            Self::Contains => (Some(SpecSurface::IRULES), None, "substring containment"),
+            Self::StartsWith => (Some(SpecSurface::IRULES), None, "string prefix test"),
+            Self::EndsWith => (Some(SpecSurface::IRULES), None, "string suffix test"),
             Self::StrEquals => (
-                Some(DialectSet::IRULES),
+                Some(SpecSurface::IRULES),
                 None,
                 "string equality (iRules word form)",
             ),
-            Self::MatchesGlob => (Some(DialectSet::IRULES), None, "glob pattern match"),
-            Self::MatchesRegex => (Some(DialectSet::IRULES), None, "regular-expression match"),
+            // The bare `matches` is the tenth word form. Only its
+            // *presence* is measured
+            // (`docs/design/bigip-irule-parser-measurements.md` §4a's
+            // `e_matches`: `expr {"abc" matches "abc"}` answers `1` in
+            // all three F5 contexts and fails on both host builds); the
+            // probe is an exact-equality case, so it discriminates none
+            // of the string-match readings. §12 carries the outstanding
+            // semantic re-probe, and the summary says so rather than
+            // implying a pinned meaning.
+            Self::Matches => (
+                Some(SpecSurface::IRULES),
+                None,
+                "string match (semantics unpinned — measured present only)",
+            ),
+            Self::MatchesGlob => (Some(SpecSurface::IRULES), None, "glob pattern match"),
+            Self::MatchesRegex => (Some(SpecSurface::IRULES), None, "regular-expression match"),
             _ => unreachable!(),
         }
     }
@@ -499,7 +519,7 @@ impl UnaryOp {
     /// their `BinOp` counterparts also use).
     #[must_use]
     pub const fn spec(self) -> OperatorSpec {
-        let (dialects, mathop_shape, summary) = match self {
+        let (surface, mathop_shape, summary) = match self {
             Self::Neg => (
                 None,
                 Some(OperatorShape::SubtractOrDivide {
@@ -516,14 +536,14 @@ impl UnaryOp {
             Self::BitNot => (None, Some(OperatorShape::Unary), "bitwise complement"),
             Self::Not => (None, Some(OperatorShape::Unary), "logical NOT"),
             Self::WordNot => (
-                Some(DialectSet::IRULES),
+                Some(SpecSurface::IRULES),
                 None,
                 "logical NOT (iRules word form)",
             ),
         };
         OperatorSpec {
             spelling: self.as_str(),
-            dialects,
+            surface,
             mathop_shape,
             summary,
             // No `UnaryOp` needs a grammar-version gate: `-`/`+`/`~`/`!` are
@@ -572,6 +592,7 @@ pub const ALL_BIN_OPS: &[BinOp] = &[
     BinOp::StartsWith,
     BinOp::EndsWith,
     BinOp::StrEquals,
+    BinOp::Matches,
     BinOp::MatchesGlob,
     BinOp::MatchesRegex,
 ];
@@ -588,6 +609,7 @@ pub const ALL_UNARY_OPS: &[UnaryOp] = &[
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tcl_dialect::model::SpecSurface;
 
     /// Adding a `BinOp` variant without extending this match is a compile
     /// error — the actual exhaustiveness guard. The length assert on
@@ -630,6 +652,7 @@ mod tests {
                 | BinOp::StartsWith
                 | BinOp::EndsWith
                 | BinOp::StrEquals
+                | BinOp::Matches
                 | BinOp::MatchesGlob
                 | BinOp::MatchesRegex => {}
             }
@@ -637,7 +660,7 @@ mod tests {
         for &op in ALL_BIN_OPS {
             exhaustive(op);
         }
-        assert_eq!(ALL_BIN_OPS.len(), 35);
+        assert_eq!(ALL_BIN_OPS.len(), 36);
     }
 
     /// See [`all_bin_ops_lists_every_variant`] — same guard for `UnaryOp`'s
@@ -715,11 +738,11 @@ mod tests {
     #[test]
     fn tip_461_string_ordering_ops_are_tcl90_plus() {
         for op in [BinOp::StrLt, BinOp::StrLe, BinOp::StrGt, BinOp::StrGe] {
-            assert_eq!(op.spec().dialects, Some(DialectSet::TCL90_PLUS));
+            assert_eq!(op.spec().surface, Some(SpecSurface::TCL90_PLUS));
         }
         // Their pre-existing (8.5+) counterparts are ungated.
         for op in [BinOp::StrEq, BinOp::StrNe] {
-            assert_eq!(op.spec().dialects, None);
+            assert_eq!(op.spec().surface, None);
         }
     }
 
@@ -728,15 +751,15 @@ mod tests {
         use tcl_dialect::TclVersion;
 
         // TIP 123/201 (Tcl 8.5): `**`/`in`/`ni` don't parse at all pre-8.5,
-        // yet (unlike the TIP-461 four) carry `dialects: None` — no
+        // yet (unlike the TIP-461 four) carry `surface: None` — no
         // *additional* mathop command-table gate beyond the ensemble's own
         // 8.5+ requirement. This is exactly the axis mismatch
         // `expr_grammar_min_version` exists to resolve for a grammar-level
-        // consumer (W003) that `dialects` alone can't answer.
+        // consumer (W003) that `surface` alone can't answer.
         for op in [BinOp::Pow, BinOp::In, BinOp::Ni] {
             assert_eq!(op.spec().expr_grammar_min_version, Some(TclVersion::V8_5));
             assert_eq!(
-                op.spec().dialects,
+                op.spec().surface,
                 None,
                 "{op:?}: unchanged from before this field existed"
             );
@@ -776,16 +799,17 @@ mod tests {
             BinOp::StartsWith,
             BinOp::EndsWith,
             BinOp::StrEquals,
+            BinOp::Matches,
             BinOp::MatchesGlob,
             BinOp::MatchesRegex,
         ];
         for op in irules_ops {
             let spec = op.spec();
-            assert_eq!(spec.dialects, Some(DialectSet::IRULES));
+            assert_eq!(spec.surface, Some(SpecSurface::IRULES));
             assert_eq!(spec.mathop_shape, None);
         }
         let word_not = UnaryOp::WordNot.spec();
-        assert_eq!(word_not.dialects, Some(DialectSet::IRULES));
+        assert_eq!(word_not.surface, Some(SpecSurface::IRULES));
         assert_eq!(word_not.mathop_shape, None);
     }
 
@@ -793,7 +817,7 @@ mod tests {
     fn short_circuit_ops_have_no_mathop_form() {
         for op in [BinOp::And, BinOp::Or] {
             let spec = op.spec();
-            assert_eq!(spec.dialects, None);
+            assert_eq!(spec.surface, None);
             assert_eq!(spec.mathop_shape, None);
         }
     }
@@ -899,7 +923,9 @@ mod tests {
     }
 
     /// Drift guard for `tcl-lexer`'s hand-typed operator-spelling tables
-    /// (`MULTI_OPS`/`is_single_op`/`irules_ops` in `expr_lexer.rs`).
+    /// (`MULTI_OPS`/`is_single_op` in `expr_lexer.rs`; the F5 word
+    /// operators are derived there from `tcl_dialect`'s family
+    /// `ExprGrammar` word table rather than a lexer-local list).
     /// `tcl-lexer` sits *below* `tcl-syntax` in the dependency graph (see
     /// this crate's own architecture doc comment), so those tables can't
     /// derive from `ALL_BIN_OPS`/`ALL_UNARY_OPS` directly — this proves,
@@ -909,8 +935,8 @@ mod tests {
     /// variant lands here without a matching lexer update.
     #[test]
     fn tcl_lexer_recognises_every_operator_spelling_as_one_operator_token() {
-        let check = |spelling: &str, dialects: Option<DialectSet>| {
-            let dialect = (dialects == Some(DialectSet::IRULES)).then_some("f5-irules");
+        let check = |spelling: &str, surface: Option<&'static [SpecSurface]>| {
+            let dialect = (surface == Some(SpecSurface::IRULES)).then_some("f5-irules");
             let tokens = tcl_lexer::tokenise_expr(spelling, dialect);
             assert_eq!(
                 tokens.len(),
@@ -926,11 +952,11 @@ mod tests {
         };
         for &op in ALL_BIN_OPS {
             let spec = op.spec();
-            check(spec.spelling, spec.dialects);
+            check(spec.spelling, spec.surface);
         }
         for &op in ALL_UNARY_OPS {
             let spec = op.spec();
-            check(spec.spelling, spec.dialects);
+            check(spec.spelling, spec.surface);
         }
     }
 

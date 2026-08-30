@@ -68,6 +68,7 @@ mod command_backing;
 mod diag_emission;
 mod diag_tables;
 mod editor_extensions;
+mod environment;
 mod f5query_builtins_doc;
 mod fp_sweep;
 mod gen_ai;
@@ -82,8 +83,10 @@ mod gen_zed_queries;
 mod kcs_index_links;
 mod number_drift;
 mod owner_resolution;
+mod pack_goldens;
 mod registry_oracle;
 mod resolution_drift;
+mod retired_api_gate;
 mod sslictcl_data;
 mod tcltest_sweep;
 mod tzdata_bundle;
@@ -293,10 +296,33 @@ enum Command {
         check: bool,
     },
 
+    /// Flag any code use of the dialect/registry APIs retired in P1-G
+    /// (`DialectProfile::by_name` and kin, the string-keyed registry
+    /// doors, external `ProfileQueries`) — the zero-reference gate of the
+    /// centralisation ledger.
+    #[command(name = "retired-api-gate")]
+    RetiredApiGate {
+        /// Accepted for symmetry with the other gates (the lint always
+        /// verifies; it never rewrites).
+        #[arg(long)]
+        check: bool,
+    },
+
     /// Verify that the shared semantic-owner contract resolves to live source
     /// files, public entry points, and registered Makefile drift gates.
     #[command(name = "owner-resolution")]
     OwnerResolution,
+
+    /// Regenerate — or, with `--check`, verify — the golden snapshots of
+    /// every shipped `.tclspec`. The gate that a loader change cannot
+    /// silently alter what a shipped pack means.
+    #[command(name = "pack-goldens")]
+    PackGoldens {
+        /// Verify instead of rewriting: fail listing every pack whose
+        /// snapshot moved.
+        #[arg(long)]
+        check: bool,
+    },
 
     /// Update or verify the embedded `SslicTcl` source-data bundle.
     SslictclData {
@@ -391,7 +417,9 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::WorkflowSync { check } => workflow_sync::run(check),
         Command::NumberDrift { check } => Ok(number_drift::run(check)),
         Command::ResolutionDrift { check } => Ok(resolution_drift::run(check)),
+        Command::RetiredApiGate { check } => Ok(retired_api_gate::run(check)),
         Command::OwnerResolution => owner_resolution::run(),
+        Command::PackGoldens { check } => Ok(pack_goldens::run(check)),
         Command::SslictclData {
             operation,
             max_age_days,

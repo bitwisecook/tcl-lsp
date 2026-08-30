@@ -139,7 +139,7 @@ pub(in crate::analyser) mod widget_command;
 /// head.  No command name appears here.
 struct UnitCommandResolver<'a> {
     registry: &'a tcl_registry::CommandRegistry,
-    profile: &'static tcl_dialect::DialectProfile,
+    generation: std::sync::Arc<tcl_registry::model::ContextRegistry>,
     /// Every spelling under which this document's own definitions —
     /// procedures, classes, `interp alias` / `rename` targets, declared
     /// stubs, and created object-instance commands — can be called.
@@ -155,7 +155,9 @@ impl UnitCommandResolver<'_> {
         if self.defined.contains(bare) {
             return true;
         }
-        tcl_registry::ProfileQueries::resolve_command(self.profile, self.registry, command)
+        self.generation
+            .context()
+            .resolve_spec(self.registry, command)
             .is_some()
     }
 }
@@ -193,8 +195,8 @@ impl Analyser {
         for stub in &self.result.stub_commands {
             add(&stub.name);
         }
-        if let Some(overlay) = &self.stub_overlay {
-            for (name, _) in overlay.iter() {
+        if let Some(declared) = &self.declared_commands {
+            for (name, _) in declared.iter() {
                 add(name);
             }
         }
@@ -203,7 +205,7 @@ impl Analyser {
         }
         UnitCommandResolver {
             registry,
-            profile: tcl_dialect::DialectProfile::by_name(self.dialect()),
+            generation: self.analysis_context(),
             defined,
         }
     }
@@ -341,7 +343,8 @@ impl Analyser {
     /// then walks the top-level + every procedure, dispatching
     /// per-function emitters.
     pub fn emit_cfg_ssa_diagnostics(&mut self, source: &str) {
-        let registry = tcl_registry::cache::registry_for_profile(self.profile);
+        let generation = self.analysis_context();
+        let registry = generation.commands().as_ref();
         // Seed each proc's SCCP with caller-side parameter constants so a
         // branch on a param every caller passes the same literal folds (the
         // `if {$x}` body is provably taken under uniform `q 1` callers, so a
@@ -374,19 +377,24 @@ impl Analyser {
             // `contains` condition) as an operator, and the lattice pipeline
             // needs it to fold one.
             //
-            // The *lexer* config stays the default rather than
-            // `for_dialect(dialect)`: the hosts that supply this unit through
-            // the `cu_override` seam (`tcl diag`'s `collect_rows`,
-            // `tcl_lsp_db::file_analysis_incremental`) build it with the
-            // default config, and the supplied unit must be the one this
-            // branch would have built. Changing it here would make an iRules
-            // document's diagnostics depend on which path built the unit.
+            // The *lexer* config is the document's own environment grammar,
+            // and every host that supplies this unit through the
+            // `cu_override` seam (`tcl diag`'s `collect_rows`,
+            // `tcl_lsp_db::analyse_per_item_with`, `xtask fp_sweep`) builds it
+            // the same way, so the supplied unit is the one this branch would
+            // have built. It used to be `LexerConfig::default()` on all four —
+            // agreeing, but wrong: an 8.x document lexed `${a{b}c}` under the
+            // 9.0 close rule and decoded escapes as 9.0, and an iRules
+            // document lexed with `{*}` expansion and no F5 word break
+            // (redesign §11.4 row E1, §9.1 defect 1).
             let cu = crate::compilation_unit::CompilationUnit::build_with_options(
                 source,
                 crate::compilation_unit::UnitBuildOptions {
                     registry,
                     defer_top_level: false,
-                    config: tcl_lexer::LexerConfig::default(),
+                    config: tcl_lexer::LexerConfig::for_dialect(
+                        dialect_owned.as_deref().unwrap_or_default(),
+                    ),
                     dialect: dialect_opt,
                     external_call_sites: None,
                 },
@@ -488,7 +496,7 @@ impl Analyser {
             let ia = crate::interprocedural::build_interprocedural_analysis(
                 &cu.ir_module,
                 registry,
-                Some(tcl_dialect::DialectProfile::by_name(self.dialect())),
+                Some(self.profile),
                 crate::interprocedural::ObjectTypeMap::none(),
                 &self.head_identities,
             );
@@ -861,7 +869,11 @@ impl Analyser {
         // Alias recognition is registry-driven; fall back to the cached
         // default registry when the analyser has none loaded.
         let scan_registry = self.registry.as_deref().map_or_else(
-            || tcl_registry::cache::registry_for_dialect("tcl8.6"),
+            || {
+                tcl_registry::model::ingress::static_context_for("tcl8.6")
+                    .commands()
+                    .as_ref()
+            },
             |r| r,
         );
         let scope_aliases =
@@ -924,7 +936,7 @@ impl Analyser {
             &considered,
             initial_global,
             &global_aliases,
-            self.profile.availability_mask,
+            Some(self.analysis_context().context().authoring_query()),
         );
         let exists_guards = collect_existence_guards(function_unit);
         let rbs_params: HashSet<&str> = ir_proc
@@ -947,7 +959,7 @@ impl Analyser {
             &dataflow::ReturnUndefCtx {
                 initial_global,
                 global_aliases: &global_aliases,
-                dialect: self.profile.availability_mask,
+                dialect: Some(self.analysis_context().context().authoring_query()),
                 params: &rbs_params,
                 exists_guards: &exists_guards,
                 scope_aliases: &scope_aliases,

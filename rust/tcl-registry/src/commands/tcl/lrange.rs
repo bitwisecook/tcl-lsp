@@ -18,62 +18,57 @@
 
 //! `lrange` — return a range of list elements.
 //
-// Manpage comparison across Tcl 8.4, 8.5, 8.6, 9.0, and 9.1
-// (tcl-lang.org's TclCmd/lrange.html, `.htm` for the 8.6 tree): the
-// synopsis ("lrange list first last"), the core description paragraph,
-// the three out-of-range clamp rules (first < 0 -> treated as 0; last >=
-// length -> treated as end; first > last -> empty string result), the
-// lrange-vs-lindex note, and all four worked examples are identical
-// word-for-word in every one of the five releases. The DESCRIPTION's
-// wording for first/last does change at 8.5 ("First or last may be end
-// (or any abbreviation of it)" in 8.4, vs. "interpreted the same as
+// Manpage comparison across Tcl 8.4, 8.5, 8.6, 9.0, and 9.1 (tcl-lang.org's
+// TclCmd/lrange.html, `.htm` for the 8.6 tree): the synopsis ("lrange list
+// first last"), the core description paragraph, the three out-of-range clamp
+// rules (first < 0 -> treated as 0; last >= length -> treated as end; first >
+// last -> empty string result), the lrange-vs-lindex note, and all four worked
+// examples are identical word-for-word in every one of the five releases. The
+// DESCRIPTION's wording for first/last does change at 8.5 ("First or last may
+// be end (or any abbreviation of it)" in 8.4, vs. "interpreted the same as
 // index values for the command string index, supporting simple index
-// arithmetic and indices relative to the end of the list" from 8.5 on)
-// — and this is a REAL grammar extension, not just a documentation
-// reword, even though 8.4's own EXAMPLES already exercise `end-2`/
-// `end-1`. Verified directly against Tcl's own C source
-// (generic/tclUtil.c, tcltk/tcl tags `core-8-4-20` and `core-8-5-19`):
-// 8.4's `SetEndOffsetFromAny` only special-cases `bytes[3] == '-'` (a
-// literal `end-N`), falling through to `bad index "...": must be
-// integer or end?-integer?` for `end+N`, and its `TclGetIntForIndex`
-// has no arithmetic path at all for a plain-integer base — only a
-// bare, whole `Tcl_GetIntFromObj`-parseable integer, or `end`/`end-N`.
+// arithmetic and indices relative to the end of the list" from 8.5 on) — and
+// this is a REAL grammar extension, not just a documentation reword, even
+// though 8.4's own EXAMPLES already exercise `end-2`/ `end-1`. Verified
+// directly against Tcl's own C source (generic/tclUtil.c, tcltk/tcl tags
+// `core-8-4-20` and `core-8-5-19`): 8.4's `SetEndOffsetFromAny` only
+// special-cases `bytes[3] == '-'` (a literal `end-N`), falling through to `bad
+// index "...": must be integer or end?-integer?` for `end+N`, and its
+// `TclGetIntForIndex` has no arithmetic path at all for a plain-integer base —
+// only a bare, whole `Tcl_GetIntFromObj`-parseable integer, or `end`/`end-N`.
 // 8.5 adds `bytes[3] == '+'` to `SetEndOffsetFromAny` and a new
-// `integer[+-]integer` path to `TclGetIntForIndex`, with the error
-// text changing to match (`end?[+-]integer?`) — exactly, and only
-// since 8.5, the grammar `tcl-cmd-core::index` models. The hover
-// snippet below states the 8.4-vs-8.5+ split explicitly, matching the
-// precedent already established in `lindex.rs`/`lset.rs`/
-// `lsearch_.rs` ("Tcl 8.4 supports only a bare integer or the fixed
-// end-integer form"); an earlier pass here had stated the fuller
-// arithmetic grammar (including `end+1`) as if true unconditionally,
-// which is wrong for 8.4 by the C source above. `tcl-cmd-core::index`
-// (the parser this command, `lindex`, and `string index` all share)
-// accepts a base (`end` or a signed integer, any radix) plus at most
-// one trailing `+`/`-` connector and integer operand — verified
-// against the tclsh 8.6/9.0 oracle in that module's own tests — not
-// arbitrary chained arithmetic; it has no per-dialect branch, so it
-// models the 8.5+ grammar unconditionally and the 8.4 restriction is
-// documentation-only here, same as its sibling index-consuming
-// commands. (Separately, 8.4-8.6's "or any abbreviation of it" — a
-// bare `e`/`en` also meaning `end`, from a truncated-length `strncmp`
-// in `SetEndOffsetFromAny`/`GetEndOffsetFromObj` — is confirmed
-// dropped in 9.0/9.1's rewritten parser, which requires the literal
-// 3-byte "end". Not modelled by `tcl-cmd-core::index` at any version
-// and not added to the hover text below: it is shared-parser
-// behaviour affecting every index-consuming command identically, not
-// something specific to lrange, and no sibling file documents it
-// either.) The SEE ALSO list grows in the 9.0/9.1 pages (gaining
-// lassign, ledit, lmap, lpop, lremove, lrepeat, lreverse, lseq
-// alongside the 8.x set) purely because those sibling list commands
-// did not exist before 8.5/8.6/9.0 — cross-reference churn, not a
-// change to lrange itself. Not disabled or overridden in any modelled
-// dialect: `lrange` carries the `IRULES` bit explicitly (its `dialects`
-// group is `ALL_TCL.union(IRULES)`, resolving under the bare `IRULES`
-// mask), and no irules/iapps/tmsh/expect/eda*/tk/itcl spec file names
-// `lrange` — so the command-level group is correct as-is.
+// `integer[+-]integer` path to `TclGetIntForIndex`, with the error text
+// changing to match (`end?[+-]integer?`) — exactly, and only since 8.5, the
+// grammar `tcl-cmd-core::index` models. The hover snippet below states the
+// 8.4-vs-8.5+ split explicitly, matching the precedent already established in
+// `lindex.rs`/`lset.rs`/ `lsearch_.rs` ("Tcl 8.4 supports only a bare integer
+// or the fixed end-integer form"); an earlier pass here had stated the fuller
+// arithmetic grammar (including `end+1`) as if true unconditionally, which is
+// wrong for 8.4 by the C source above. `tcl-cmd-core::index` (the parser this
+// command, `lindex`, and `string index` all share) accepts a base (`end` or a
+// signed integer, any radix) plus at most one trailing `+`/`-` connector and
+// integer operand — verified against the tclsh 8.6/9.0 oracle in that module's
+// own tests — not arbitrary chained arithmetic; it has no per-dialect branch,
+// so it models the 8.5+ grammar unconditionally and the 8.4 restriction is
+// documentation-only here, same as its sibling index-consuming commands.
+// (Separately, 8.4-8.6's "or any abbreviation of it" — a bare `e`/`en` also
+// meaning `end`, from a truncated-length `strncmp` in
+// `SetEndOffsetFromAny`/`GetEndOffsetFromObj` — is confirmed dropped in
+// 9.0/9.1's rewritten parser, which requires the literal 3-byte "end". Not
+// modelled by `tcl-cmd-core::index` at any version and not added to the hover
+// text below: it is shared-parser behaviour affecting every index-consuming
+// command identically, not something specific to lrange, and no sibling file
+// documents it either.) The SEE ALSO list grows in the 9.0/9.1 pages (gaining
+// lassign, ledit, lmap, lpop, lremove, lrepeat, lreverse, lseq alongside the
+// 8.x set) purely because those sibling list commands did not exist before
+// 8.5/8.6/9.0 — cross-reference churn, not a change to lrange itself. Not
+// disabled or overridden in any modelled dialect: `lrange` carries an iRules
+// row explicitly (its surface is `ALL_TCL.union(IRULES)`, resolving under the
+// bare `IRULES` mask), and no irules/iapps/tmsh/expect/eda*/tk/itcl spec file
+// names `lrange` — so the command-level group is correct as-is.
 use crate::hooks::{CodegenHookId, InlineCodegenHookId};
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "lrange list first last",
     ..FormSpec::DEFAULT
@@ -82,7 +77,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lrange",
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         const_fold: Some(crate::const_fold::fold_lrange),
         // `lrange list first last` has fixed arity 3, so *every* call is a
         // `HEAD NAME BRACED BRACED` shape once first/last happen to be

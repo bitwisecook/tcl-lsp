@@ -18,12 +18,13 @@
 
 //! `timestamp` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-seconds",
         value: OptionValue::value("N"),
         detail: "Specify epoch seconds instead of current time.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -32,7 +33,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-format",
         value: OptionValue::value("fmt"),
         detail: "strftime-style format string.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -41,7 +42,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-gmt",
         value: OptionValue::flag(),
         detail: "Use GMT instead of local time.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -56,7 +57,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "timestamp",
-        dialects: Some(DialectSet::EXPECT),
+        surface: Some(SpecSurface::EXPECT),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Return the current time or format a timestamp.",

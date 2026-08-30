@@ -18,10 +18,11 @@
 
 //! `FLOW::peer` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "FLOW::peer",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Returns the TCL flow handle for the peer flow.",
@@ -44,9 +45,7 @@ pub const fn spec() -> CommandSpec {
                 "SERVER_CONNECTED",
                 "SERVER_DATA",
             ],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "FLOW::peer ANY_CHARS",

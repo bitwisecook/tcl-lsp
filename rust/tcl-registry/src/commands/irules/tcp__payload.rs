@@ -18,6 +18,7 @@
 
 //! `TCP::payload` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
@@ -41,7 +42,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "TCP::payload",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::new(0, 4),
         data_collection: Some(TCP_PAYLOAD),
         hover: Some(HoverSnippet {
@@ -62,9 +63,7 @@ pub const fn spec() -> CommandSpec {
             transport: Some("tcp"),
             profiles: &[],
             also_in: &["SIP_REQUEST", "SIP_REQUEST_SEND", "SIP_RESPONSE"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             kind: FormKind::Getter,

@@ -18,12 +18,13 @@
 
 //! `tx` — the `XDP_TX` verdict (bounce the packet back out).
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 pub fn spec() -> CommandSpec {
     const OP: BpfOpSpec = BpfOpSpec::verdict(BpfVerdictKind::Tx, BpfProgTypeSet::XDP_ONLY);
     CommandSpec {
         name: "tx",
-        dialects: Some(DialectSet::BPF),
+        surface: Some(SpecSurface::BPF),
         arity: Arity::exact(0),
         bpf_op: Some(&OP),
         ..CommandSpec::DEFAULT

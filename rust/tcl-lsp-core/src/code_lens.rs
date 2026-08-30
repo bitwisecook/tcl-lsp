@@ -494,7 +494,7 @@ mod tests {
         assert!(
             code_lenses(
                 "proc foo {} {}\n",
-                tcl_dialect::DialectProfile::by_name("tcl"),
+                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
                 None,
                 None,
                 ""
@@ -509,7 +509,7 @@ mod tests {
         let analysis = analyse(src);
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -523,7 +523,7 @@ mod tests {
         let analysis = analyse(src);
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -538,7 +538,7 @@ mod tests {
         let analysis = analyse(src);
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -556,7 +556,7 @@ mod tests {
         let analysis = analyse(src);
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -574,7 +574,7 @@ mod tests {
         let analysis = analyse(src);
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -597,7 +597,7 @@ mod tests {
         let analysis = analyse(src);
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -626,7 +626,7 @@ mod tests {
         }
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -654,7 +654,7 @@ mod tests {
         }
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -685,7 +685,7 @@ mod tests {
         }
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -712,7 +712,7 @@ mod tests {
         }
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -733,7 +733,7 @@ mod tests {
         }
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -764,7 +764,7 @@ mod tests {
         let analysis = analyse(src);
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -788,7 +788,7 @@ mod tests {
         let analysis = analyse(src);
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -814,7 +814,7 @@ mod tests {
         let analysis = analyse(src);
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -852,7 +852,7 @@ mod tests {
         }
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -873,7 +873,7 @@ mod tests {
         }
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -891,7 +891,7 @@ mod tests {
         let analysis = analyse90(src);
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -918,7 +918,7 @@ mod tests {
         let analysis = analyse90(src);
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -944,7 +944,7 @@ mod tests {
         let analysis = analyse90(src);
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -969,7 +969,7 @@ mod tests {
         let analysis = analyse(src);
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -994,7 +994,7 @@ mod tests {
         let analysis = analyse(src);
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -1012,7 +1012,7 @@ mod tests {
         let analysis = analyse(src);
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -1030,7 +1030,7 @@ mod tests {
         let analysis = analyse(src);
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -1049,7 +1049,7 @@ mod tests {
         let analysis = analyse(src);
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -1083,7 +1083,7 @@ mod tests {
         // cross-document calls.
         let lenses = code_lenses(
             lib_src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&lib),
             Some(&index),
             "file:///lib.tcl",
@@ -1101,7 +1101,7 @@ mod tests {
         let analysis = analyse(src);
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -1130,7 +1130,7 @@ mod tests {
         let analysis = analyse(src);
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -1141,7 +1141,7 @@ mod tests {
             .unwrap_or_else(|| panic!("no lens on line {name_line}: {lenses:?}"));
         let refs = crate::references::references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             lens.range.start_line,
             lens.range.start_character,
             &analysis,
@@ -1166,7 +1166,7 @@ mod tests {
         let analysis = analyse(src);
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -1236,7 +1236,7 @@ mod tests {
         let analysis = analyse(src);
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -1294,7 +1294,7 @@ mod tests {
         assert!(!analysis.all_classes.is_empty(), "class not analysed");
         let lenses = code_lenses(
             ISSUE_864_SRC,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -1322,7 +1322,7 @@ mod tests {
         let analysis = analyse(ISSUE_864_SRC);
         let lenses = code_lenses(
             ISSUE_864_SRC,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -1352,7 +1352,7 @@ mod tests {
         }
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -1381,7 +1381,7 @@ mod tests {
         }
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -1414,7 +1414,7 @@ mod tests {
         }
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -1450,7 +1450,7 @@ mod tests {
         }
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -1483,7 +1483,7 @@ mod tests {
         }
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -1517,7 +1517,7 @@ mod tests {
         }
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -1545,7 +1545,7 @@ mod tests {
         }
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some(&analysis),
             None,
             "",
@@ -1692,7 +1692,7 @@ mod tests {
         let analysis = analyse90(src);
         let lenses = code_lenses(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             Some(&analysis),
             None,
             "",

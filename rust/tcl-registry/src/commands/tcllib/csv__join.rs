@@ -26,7 +26,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "csv::join",
-        dialects: None,
+        surface: None,
         arity: Arity::new(1, 4),
         hover: Some(HoverSnippet {
             summary: "Join a list of values into a CSV-formatted line.",

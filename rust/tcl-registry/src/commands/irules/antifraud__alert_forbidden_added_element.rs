@@ -18,10 +18,11 @@
 
 //! `ANTIFRAUD::alert_forbidden_added_element` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ANTIFRAUD::alert_forbidden_added_element",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Deprecated: For the external_sources alert: returns forbidden added HTML element and its content, in an escaped base64 format.",
@@ -37,9 +38,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &["ANTIFRAUD"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "ANTIFRAUD::alert_forbidden_added_element",

@@ -18,11 +18,12 @@
 
 //! `priority` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "priority",
         traits: Traits::IRULES_TOP_LEVEL_ONLY.union(Traits::SETS_EVENT_PRIORITY),
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::exact(1),
         irules_top_level_effect: Some(IrulesTopLevelEffect::Priority),
         hover: Some(HoverSnippet {

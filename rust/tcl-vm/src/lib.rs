@@ -69,6 +69,7 @@ mod cmd_thread;
 mod cmd_trace;
 mod cmd_try;
 mod command;
+mod environment;
 mod exec;
 mod expr;
 mod frame;

@@ -53,16 +53,15 @@ use tcl_lsp_core::formatting::{FormatterConfig, format_tcl};
 use tcl_lsp_core::minify::minify_tcl;
 use tcl_lsp_core::refactor::inline_variable;
 use tcl_lsp_core::semantic_tokens::{diff, full, legend_token_types, range};
-use tcl_registry::{CommandRegistry, registry_for_dialect};
+use tcl_registry::CommandRegistry;
+use tcl_registry::model::ingress::static_context_for;
 
 fn reg() -> &'static CommandRegistry {
-    registry_for_dialect("tcl8.6")
+    static_context_for("tcl8.6").commands()
 }
 
-// ===========================================================================
 // formatting/engine.rs — layout edges (whitespace only; tclsh-cited where the
 // reflow could plausibly change meaning).
-// ===========================================================================
 
 fn fmt(src: &str) -> String {
     format_tcl(src, &FormatterConfig::default(), reg())
@@ -256,12 +255,10 @@ fn fmt_already_formatted_is_unchanged() {
     assert_eq!(fmt(canonical), canonical);
 }
 
-// ===========================================================================
 // refactor/inline_variable.rs — inline a `set x V` into its use(s).
 //
 // Each positive case pins the applied program text AND cites the tclsh proof
 // that BEFORE and AFTER print the same thing. Decline cases return `None`.
-// ===========================================================================
 
 fn inline(src: &str, cursor: u32) -> Option<String> {
     let analysis = Analyser::new().analyse(src, "tcl8.6").clone();
@@ -388,14 +385,12 @@ fn inline_declines_read_form_and_non_set() {
     assert!(inline("puts \"hello\"", 0).is_none());
 }
 
-// ===========================================================================
 // semantic_tokens.rs — the less-common token kinds + modifiers, delta
 // encoding, and the range variant.
 //
 // Token-kind classification is editor presentation (tclsh has no opinion), so
 // these decode the LSP stream and assert structurally against the
 // `legend_token_types` order.
-// ===========================================================================
 
 /// One decoded token: absolute `(line, char, length, type-name)`.
 #[derive(Debug, Clone)]
@@ -409,10 +404,10 @@ struct Tok {
 /// Decode the packed LSP delta stream into absolute tokens (the inverse of
 /// the provider's relative encoding).
 fn decode(source: &str, dialect: &str) -> Vec<Tok> {
-    let registry = registry_for_dialect(dialect);
+    let registry = static_context_for(dialect).commands();
     let st = full(
         source,
-        tcl_dialect::DialectProfile::by_name(dialect),
+        tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
         registry,
     );
     assert_eq!(st.data.len() % 5, 0, "stream must be 5-int aligned");
@@ -507,7 +502,7 @@ fn st_proc_name_carries_definition_modifier() {
     // (legend modifier index 1 → bit 2). Assert via the raw packed stream.
     let st = full(
         "proc myproc {} {}\n",
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         reg(),
     );
     // Tokens: [proc(keyword), myproc(function+definition), {} , {}].
@@ -539,7 +534,7 @@ fn st_subcommand_word_is_keyword_with_default_library() {
     // `keyword` + `defaultLibrary` (bit 3). Find the `length` token.
     let toks_packed = full(
         "string length $s\n",
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         reg(),
     );
     // Decode positions to find the subcommand word (col 7, len 6).
@@ -588,7 +583,7 @@ fn st_range_variant_restarts_delta_from_first_surviving_token() {
     let src = "set a 1\nset b 2\nset c 3\n";
     let r = range(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         LspRange {
             start_line: 1,
             start_character: 0,
@@ -609,9 +604,13 @@ fn st_range_variant_restarts_delta_from_first_surviving_token() {
     // Strictly fewer tokens than the full document.
     assert!(
         r.data.len()
-            < full(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), reg())
-                .data
-                .len()
+            < full(
+                src,
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+                reg()
+            )
+            .data
+            .len()
     );
 }
 
@@ -626,13 +625,13 @@ fn st_diff_appends_a_single_token_via_provider() {
     // returns `None`; we change the token *count* instead.
     let before = full(
         "set x 1\n",
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         reg(),
     )
     .data;
     let after = full(
         "set x 1 2\n",
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         reg(),
     )
     .data;
@@ -646,7 +645,7 @@ fn st_diff_appends_a_single_token_via_provider() {
     // A same-length literal edit produces an identical stream → no diff.
     let same_len = full(
         "set x 2\n",
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         reg(),
     )
     .data;
@@ -657,15 +656,17 @@ fn st_diff_appends_a_single_token_via_provider() {
     );
 }
 
-// ===========================================================================
 // minify.rs — continuation / brace-quote preservation / expr / decline edges.
 //
 // Default-tier minify is semantics-preserving; each pinned output cites the
 // tclsh proof that BEFORE and AFTER compute the same value.
-// ===========================================================================
 
 fn minc(src: &str) -> String {
-    minify_tcl(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), reg())
+    minify_tcl(
+        src,
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        reg(),
+    )
 }
 
 #[test]
@@ -781,7 +782,6 @@ fn minify_expr_comparison_inversion_in_value_context_is_safe() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FIXED: minify's double-negation rewrite (`!!x` → `x`) was NOT semantics-
 // preserving in an `expr` VALUE context — it dropped the 0/1 boolean coercion.
 //

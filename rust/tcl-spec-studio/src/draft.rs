@@ -49,11 +49,11 @@
 //! seeded as a JSON object whose methods are ordinary subcommand drafts.
 
 use serde_json::{Map, Value, json};
-use tcl_dialect::DialectSet;
 use tcl_registry::arg_role::{AppendedArity, ArgRole};
 use tcl_registry::arity::Arity;
 use tcl_registry::definer::ManufacturerMethod;
 use tcl_registry::deprecation::{DeprecationFixHook, DeprecationFixSafety};
+use tcl_registry::forms::CommandForm;
 use tcl_registry::handle_binding::{
     HandleBindingSpec, HandleClassSource, HandleKeyword, HandleName,
 };
@@ -68,7 +68,7 @@ use tcl_registry::repeated::RepeatedArgLayout;
 use tcl_registry::representation::RepresentationEffect;
 use tcl_registry::side_effects::SideEffect;
 use tcl_registry::spec::{
-    BytePayloadSpec, CommandSpec, ObjectClassSpec, OoContextFact, OptionConstraint, SubCommand,
+    BytePayloadSpec, CommandSpec, ObjectClassSpec, OoContextFact, OptionRelation, SubCommand,
     SubSubCommand, VersionedArgValue,
 };
 use tcl_registry::symbol_def::SymbolDef;
@@ -78,6 +78,7 @@ use tcl_registry::types::{ReturnElements, VarElementsEffect, VarWriteTyping};
 
 use crate::catalogue;
 use crate::render_rs::rust_string;
+use tcl_dialect::model::SpecSurface;
 
 /// Draft key listing the fields a live spec sets but whose defining Rust
 /// expression could not be recovered. Absent (or empty) when everything
@@ -134,10 +135,17 @@ fn opt_index(value: Option<u8>) -> Value {
     value.map_or(Value::Null, |n| json!(n))
 }
 
-fn dialects(value: Option<DialectSet>) -> Value {
+fn dialects(value: Option<&'static [SpecSurface]>) -> Value {
     match value {
         None => Value::Null,
-        Some(set) => Value::Array(set.member_names().into_iter().map(|n| json!(n)).collect()),
+        // The draft's vocabulary is catalogue dialect names; the registry
+        // owns the one projection from rows onto them.
+        Some(rows) => Value::Array(
+            tcl_registry::model::surface::dialect_names_for_rows(rows)
+                .into_iter()
+                .map(|name| json!(name))
+                .collect(),
+        ),
     }
 }
 
@@ -185,27 +193,6 @@ pub(crate) fn arity_windows(windows: &[tcl_registry::arity::ArityWindow]) -> Val
                         "deprecated": opt_str(window.lifecycle.deprecated),
                         "retired": opt_str(window.lifecycle.retired),
                     },
-                })
-            })
-            .collect::<Vec<_>>(),
-    )
-}
-
-/// The authored per-argument rows as a draft value — the source the parallel
-/// `arg_*` tables are projected from (#1627).
-pub(crate) fn arg_rows(rows: &[tcl_registry::spec::VersionedArgRow]) -> Value {
-    Value::Array(
-        rows.iter()
-            .map(|row| {
-                json!({
-                    "index": row.index,
-                    "lifecycle": {
-                        "introduced": opt_str(row.lifecycle.introduced),
-                        "deprecated": opt_str(row.lifecycle.deprecated),
-                        "retired": opt_str(row.lifecycle.retired),
-                    },
-                    "role": row.role.map_or(Value::Null, |r| json!(format!("{r:?}"))),
-                    "closed": row.closed,
                 })
             })
             .collect::<Vec<_>>(),
@@ -473,7 +460,7 @@ pub(crate) fn option_spec(opt: &OptionSpec) -> (Value, OptionDraftCompleteness) 
         json!({
             "name": opt.name,
             "detail": opt.detail,
-            "dialects": dialects(opt.dialects),
+            "surface": dialects(opt.surface),
             "aliases": str_list(opt.aliases),
             "introduced_version": opt_str(opt.lifecycle.introduced),
             "deprecated_version": opt_str(opt.lifecycle.deprecated),
@@ -494,7 +481,7 @@ pub(crate) fn form_spec(form: &FormSpec) -> (Value, bool) {
     let mut d = Map::new();
     d.insert("kind".into(), json!(catalogue::variant_name(&form.kind)));
     d.insert("synopsis".into(), json!(form.synopsis));
-    d.insert("dialects".into(), dialects(form.dialects));
+    d.insert("surface".into(), dialects(form.surface));
     let complete = insert_lifecycle(&mut d, form.lifecycle);
     (Value::Object(d), complete)
 }
@@ -511,7 +498,7 @@ pub(crate) fn side_effect(effect: &SideEffect) -> (Value, bool) {
         "connection_side".into(),
         json!(catalogue::variant_name(&effect.connection_side)),
     );
-    d.insert("dialects".into(), dialects(effect.dialects));
+    d.insert("surface".into(), dialects(effect.surface));
     let complete = insert_lifecycle(&mut d, effect.lifecycle);
     (Value::Object(d), complete)
 }
@@ -588,7 +575,7 @@ pub(crate) fn sub_subcommand(sub: &SubSubCommand) -> (Value, bool) {
     d.insert("name".into(), json!(sub.name));
     d.insert("detail".into(), json!(sub.detail));
     d.insert("synopsis".into(), json!(sub.synopsis));
-    d.insert("dialects".into(), dialects(sub.dialects));
+    d.insert("surface".into(), dialects(sub.surface));
     let mut lost = Unrecovered::default();
     // `null` — declares nothing, inherits the subcommand's table — is a
     // different draft value from `[]`, which declares that there are no
@@ -822,7 +809,7 @@ fn representation_effect_expr(effect: RepresentationEffect) -> String {
     }
 }
 
-fn dialect_set_expr(set: DialectSet) -> String {
+fn dialect_set_expr(set: &'static [SpecSurface]) -> String {
     let members = dialects(Some(set));
     crate::render_rs::dialect_set(
         members
@@ -831,27 +818,57 @@ fn dialect_set_expr(set: DialectSet) -> String {
     )
 }
 
-/// The Rust expression for a `&'static [OptionConstraint]` field.
+/// The Rust expression for one [`tcl_registry::OptionTerm`].
+fn relation_term_expr(term: tcl_registry::OptionTerm) -> String {
+    use tcl_registry::OptionTerm as T;
+    match term {
+        T::Option(name) => format!("OptionTerm::Option({})", rust_string(name)),
+        T::OptionValue(name, value) => format!(
+            "OptionTerm::OptionValue({}, {})",
+            rust_string(name),
+            rust_string(value)
+        ),
+        T::Argument(index) => format!("OptionTerm::Argument({index})"),
+        T::ArgumentValue(index, value) => {
+            format!("OptionTerm::ArgumentValue({index}, {})", rust_string(value))
+        }
+    }
+}
+
+/// The Rust expression for a `&'static [OptionRelation]` field.
 ///
-/// A full struct literal per constraint, `lifecycle` included: a conflict can
-/// itself be gated — it only exists once both options do.
-fn option_constraints_expr(constraints: &[OptionConstraint]) -> Option<String> {
+/// A full struct literal per relation, `lifecycle` included: a relation can
+/// itself be gated — it only exists once both its operands do.
+fn option_relations_expr(constraints: &[OptionRelation]) -> Option<String> {
     let items: Option<Vec<String>> = constraints
         .iter()
-        .map(|constraint| {
-            let options = constraint
-                .options
+        .map(|relation| {
+            let terms = relation
+                .terms
                 .iter()
-                .map(|option| rust_string(option))
+                .copied()
+                .map(relation_term_expr)
                 .collect::<Vec<_>>()
                 .join(", ");
-            let dialects = constraint.dialects.map_or_else(
+            let subject = relation.subject.map_or_else(
+                || "None".to_owned(),
+                |term| format!("Some({})", relation_term_expr(term)),
+            );
+            let dialects = relation.surface.map_or_else(
                 || "None".to_owned(),
                 |set| format!("Some({})", dialect_set_expr(set)),
             );
+            let message = relation.message.map_or_else(
+                || "None".to_owned(),
+                |text| format!("Some({})", rust_string(text)),
+            );
             Some(format!(
-                "OptionConstraint {{ options: &[{options}], dialects: {dialects}, lifecycle: {} }}",
-                lifecycle_expr(constraint.lifecycle)?,
+                "OptionRelation {{ kind: RelationKind::{:?}, mode: RelationMode::{:?}, \
+                 subject: {subject}, terms: &[{terms}], surface: {dialects}, \
+                 lifecycle: {}, message: {message} }}",
+                relation.kind,
+                relation.mode,
+                lifecycle_expr(relation.lifecycle)?,
             ))
         })
         .collect();
@@ -925,7 +942,6 @@ fn subcommand_identity(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) 
     d.insert("traits".into(), traits(sub.traits));
     d.insert("arity".into(), arity(sub.arity));
     d.insert("arity_windows".into(), arity_windows(sub.arity_windows));
-    d.insert("arg_rows".into(), arg_rows(sub.arg_rows));
     d.insert("detail".into(), json!(sub.detail));
     d.insert("synopsis".into(), json!(sub.synopsis));
     d.insert("hover".into(), hover(sub.hover));
@@ -1056,12 +1072,103 @@ fn subcommand_hooks(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
         lost.expr("result_stability", sub.result_stability.is_some()),
     );
     d.insert(
+        "constraints".into(),
+        lost.expr("constraints", sub.constraints.is_some()),
+    );
+    d.insert(
         "literal_argument_validator".into(),
         lost.expr(
             "literal_argument_validator",
             sub.literal_argument_validator.is_some(),
         ),
     );
+}
+
+/// The `command_forms` / `subcommand_forms` table as draft rows.
+fn refinement_rows(forms: &[CommandForm], key: &'static str, lost: &mut Unrecovered) -> Value {
+    Value::Array(
+        forms
+            .iter()
+            .map(|form| {
+                let (row, complete) = command_form(form, lost);
+                if !complete {
+                    lost.note(key);
+                }
+                row
+            })
+            .collect(),
+    )
+}
+
+/// One invocation refinement (`CommandForm` / `SubCommandForm`) as draft rows
+/// (design Q12/D2).
+///
+/// The overlay fields are tri-state — absent inherits, present replaces — so a
+/// `null` here is a real declaration, not a missing one. The descriptor's
+/// remaining native halves (completion, dispatch proofs, the literal-argument
+/// validator, the compiler hook ids) have no recoverable expression, exactly
+/// as they do not at command scope, so a form that carries one is noted lost
+/// rather than silently thinned.
+fn command_form(form: &CommandForm, lost: &mut Unrecovered) -> (Value, bool) {
+    let mut d = Map::new();
+    d.insert("name".into(), json!(form.name));
+    d.insert("arity".into(), arity(form.arity));
+    d.insert(
+        "selector".into(),
+        form.literal_argument_prefix.map_or(Value::Null, |prefix| {
+            json!({
+                "words": str_list(prefix.words),
+                "prefix_matching": catalogue::variant_name(&prefix.prefix_matching),
+            })
+        }),
+    );
+    d.insert("arg_roles".into(), role_map(form.arg_roles));
+    d.insert("options".into(), option_rows(form.options, lost));
+    d.insert(
+        "option_relations".into(),
+        if form.option_relations.is_empty() {
+            Value::Null
+        } else {
+            option_relations_expr(form.option_relations).map_or(Value::Null, |expr| json!(expr))
+        },
+    );
+    d.insert("surface".into(), dialects(form.surface));
+    d.insert("traits".into(), form.traits.map_or(Value::Null, traits));
+    d.insert(
+        "mutator".into(),
+        form.mutator.map_or(Value::Null, |flag| json!(flag)),
+    );
+    d.insert(
+        "side_effects".into(),
+        form.side_effects.map_or(Value::Null, |effects| {
+            Value::Array(effects.iter().map(|effect| side_effect(effect).0).collect())
+        }),
+    );
+    d.insert(
+        "representation_effect".into(),
+        form.representation_effect
+            .map_or(Value::Null, |e| json!(representation_effect_expr(e))),
+    );
+    d.insert(
+        "lowering_hook".into(),
+        form.lowering_hook
+            .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
+    );
+    d.insert(
+        "codegen_hook".into(),
+        form.codegen_hook
+            .map_or(Value::Null, |h| json!(catalogue::variant_name(&h))),
+    );
+    // What is left of the descriptor is native: a compiler proof or a
+    // function pointer, with no expression to recover.
+    let native = form.semantic_operation.is_some()
+        || form.completion.is_some()
+        || form.result_stability.is_some()
+        || form.world_effects.is_some()
+        || form.state_transitions.is_some()
+        || form.dispatch_dependencies.is_some()
+        || form.literal_argument_validator.is_some();
+    (Value::Object(d), !native)
 }
 
 fn option_rows(options: &[OptionSpec], lost: &mut Unrecovered) -> Value {
@@ -1083,15 +1190,27 @@ fn option_rows(options: &[OptionSpec], lost: &mut Unrecovered) -> Value {
 }
 
 /// Options, values, availability, behaviour flags, taint, and effects.
-fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
+/// The subcommand's option table and the E-R14 relation fields over it.
+///
+/// Split out of [`subcommand_rest`] so neither grows past the line budget:
+/// the option surface is one topic and the rest of the descriptor is another.
+fn subcommand_option_surface(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     d.insert("options".into(), option_rows(sub.options, lost));
-    let option_constraints = if sub.option_constraints.is_empty() {
+    let option_relations = if sub.option_relations.is_empty() {
         Value::Null
     } else {
-        option_constraints_expr(sub.option_constraints)
-            .map_or_else(|| lost.expr("option_constraints", true), |expr| json!(expr))
+        option_relations_expr(sub.option_relations)
+            .map_or_else(|| lost.expr("option_relations", true), |expr| json!(expr))
     };
-    d.insert("option_constraints".into(), option_constraints);
+    d.insert("option_relations".into(), option_relations);
+    d.insert(
+        "option_placement".into(),
+        json!(catalogue::variant_name(&sub.option_placement)),
+    );
+}
+
+fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
+    subcommand_option_surface(d, sub, lost);
     d.insert("min_abbrev".into(), opt_index(sub.min_abbrev));
     d.insert(
         "prefix_matching".into(),
@@ -1109,9 +1228,9 @@ fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     d.insert("versioned_arg_values".into(), versioned_arg_values);
     d.insert(
         "subcommand_forms".into(),
-        lost.expr("subcommand_forms", !sub.subcommand_forms.is_empty()),
+        refinement_rows(sub.subcommand_forms, "subcommand_forms", lost),
     );
-    d.insert("dialects".into(), dialects(sub.dialects));
+    d.insert("surface".into(), dialects(sub.surface));
     if !insert_lifecycle(d, sub.lifecycle) {
         lost.note("deprecation_fix");
     }
@@ -1161,7 +1280,6 @@ fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
         sub.format_string_type
             .map_or(Value::Null, |t| json!(catalogue::variant_name(&t))),
     );
-    d.insert("xc_operation".into(), opt_str(sub.xc_operation));
     d.insert(
         "side_effects".into(),
         nested_rows(sub.side_effects, "side_effects", lost, side_effect),
@@ -1208,10 +1326,9 @@ pub fn from_command_spec(spec: &CommandSpec) -> Draft {
 fn command_identity(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert("name".into(), json!(spec.name));
     d.insert("traits".into(), traits(spec.traits));
-    d.insert("dialects".into(), dialects(spec.dialects));
+    d.insert("surface".into(), dialects(spec.surface));
     d.insert("arity".into(), arity(spec.arity));
     d.insert("arity_windows".into(), arity_windows(spec.arity_windows));
-    d.insert("arg_rows".into(), arg_rows(spec.arg_rows));
     d.insert("arg_roles".into(), role_map(spec.arg_roles));
     d.insert(
         "arg_presentation".into(),
@@ -1312,6 +1429,10 @@ fn command_docs(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         json!(spec.allow_unknown_subcommands),
     );
     d.insert(
+        "option_placement".into(),
+        json!(catalogue::variant_name(&spec.option_placement)),
+    );
+    d.insert(
         "prefix_matching".into(),
         json!(catalogue::variant_name(&spec.prefix_matching)),
     );
@@ -1327,7 +1448,7 @@ fn command_docs(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     );
     d.insert(
         "command_forms".into(),
-        lost.expr("command_forms", !spec.command_forms.is_empty()),
+        refinement_rows(spec.command_forms, "command_forms", lost),
     );
     d.insert(
         "assigns_variable_at".into(),
@@ -1403,6 +1524,10 @@ fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         lost.expr("result_stability", spec.result_stability.is_some()),
     );
     d.insert(
+        "constraints".into(),
+        lost.expr("constraints", spec.constraints.is_some()),
+    );
+    d.insert(
         "literal_argument_validator".into(),
         lost.expr(
             "literal_argument_validator",
@@ -1476,13 +1601,13 @@ fn command_options(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         ),
     );
     d.insert("options".into(), option_rows(spec.options, lost));
-    let option_constraints = if spec.option_constraints.is_empty() {
+    let option_relations = if spec.option_relations.is_empty() {
         Value::Null
     } else {
-        option_constraints_expr(spec.option_constraints)
-            .map_or_else(|| lost.expr("option_constraints", true), |expr| json!(expr))
+        option_relations_expr(spec.option_relations)
+            .map_or_else(|| lost.expr("option_relations", true), |expr| json!(expr))
     };
-    d.insert("option_constraints".into(), option_constraints);
+    d.insert("option_relations".into(), option_relations);
     d.insert(
         "reserved_trailing_words".into(),
         json!(spec.reserved_trailing_words),
@@ -1601,7 +1726,6 @@ fn command_advanced(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         "xc_translatable".into(),
         spec.xc_translatable.map_or(Value::Null, |b| json!(b)),
     );
-    d.insert("xc_operation".into(), opt_str(spec.xc_operation));
     d.insert(
         "deprecated_replacement".into(),
         opt_str(spec.deprecated_replacement),

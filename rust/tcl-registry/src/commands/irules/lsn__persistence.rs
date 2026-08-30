@@ -18,10 +18,11 @@
 
 //! `LSN::persistence` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "LSN::persistence",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Set the translation address and port selection mode for the current connection, and the translation entry timeout.",
@@ -59,9 +60,7 @@ pub const fn spec() -> CommandSpec {
                 "SIP_REQUEST",
                 "STREAM_MATCHED",
             ],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "LSN::persistence none (TIMEOUT)?",

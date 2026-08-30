@@ -900,7 +900,7 @@ mod tests {
     /// Out-vars a condition-embedded `[cmd …]` contributes, as
     /// [`condition_command_out_vars`] sees them.
     fn cond_out_vars(cmd_text: &str) -> Vec<String> {
-        let registry = tcl_registry::cache::registry_for_dialect("tcl8.6");
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let expr = ExprNode::Command {
             text: format!("[{cmd_text}]"),
             start: 0,

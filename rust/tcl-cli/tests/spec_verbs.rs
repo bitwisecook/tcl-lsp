@@ -350,3 +350,257 @@ fn the_github_flags_require_github() {
         assert!(stderr.contains("--github"), "{args:?}: {stderr}");
     }
 }
+
+/// `tcl spec upgrade` rewrites the 1.x `dialects` vocabulary in place,
+/// moves the `speclib` word, and leaves every other byte alone.
+#[test]
+fn spec_upgrade_translates_dialects_rows_and_moves_the_version_word() {
+    let tree = Tree::new("upgrade");
+    let pack = tree.path().join("demo.tclspec");
+    let source = "# a comment the rewriter must not touch\n\
+                  speclib demo 1.2 {\n\
+                  \x20   command demo::greet {\n\
+                  \x20       arity 1\n\
+                  \x20       dialects {tcl8.6+ tk}\n\
+                  \x20   }\n\
+                  }\n";
+    std::fs::write(&pack, source).expect("write pack");
+
+    let path = pack.to_string_lossy().into_owned();
+    let (stdout, _stderr, code) = run(&["spec", "upgrade", "--check", &path]);
+    assert_eq!(code, 0, "{stdout}");
+    assert!(stdout.contains("would translate 1 row(s)"), "{stdout}");
+    assert_eq!(
+        std::fs::read_to_string(&pack).expect("read back"),
+        source,
+        "--check writes nothing"
+    );
+
+    let (stdout, _stderr, code) = run(&["spec", "upgrade", &path]);
+    assert_eq!(code, 0, "{stdout}");
+    let upgraded = std::fs::read_to_string(&pack).expect("read back");
+    assert_eq!(
+        upgraded,
+        "# a comment the rewriter must not touch\n\
+         speclib demo 2.0 {\n\
+         \x20   command demo::greet {\n\
+         \x20       arity 1\n\
+         \x20       available {tcl 8.6-} {package Tk}\n\
+         \x20   }\n\
+         }\n"
+    );
+}
+
+/// `--verify` proves the rewrite is behaviour-preserving (U9) and never
+/// writes; `--to` older than `--from` is refused (U10).
+#[test]
+fn spec_upgrade_verifies_and_refuses_downgrades() {
+    let tree = Tree::new("upgrade-verify");
+    let pack = tree.path().join("demo.tclspec");
+    let source = "speclib demo 1.2 {\n\
+                  \x20 command demo::greet {\n\
+                  \x20   arity 1\n\
+                  \x20   dialects tcl8.x\n\
+                  \x20 }\n\
+                  }\n";
+    std::fs::write(&pack, source).expect("write pack");
+    let path = pack.to_string_lossy().into_owned();
+
+    let (stdout, stderr, code) = run(&["spec", "upgrade", "--verify", &path]);
+    assert_eq!(code, 0, "{stdout}{stderr}");
+    assert!(stdout.contains("byte-identical"), "{stdout}");
+    assert_eq!(
+        std::fs::read_to_string(&pack).expect("read back"),
+        source,
+        "--verify writes nothing"
+    );
+
+    let (_stdout, stderr, code) = run(&["spec", "upgrade", "--from", "2.0", "--to", "1.2", &path]);
+    assert_ne!(code, 0, "a downgrade must not succeed");
+    assert!(stderr.contains("refusing to downgrade"), "{stderr}");
+}
+
+/// An environment-membership token whose environment declares **no**
+/// ambient package provider (`spectcl` — its surface is compiled) is
+/// left byte-identical, marked, and the file reports partial; a token
+/// whose environment does declare one (`f5-iapps`) translates for real
+/// through the live registry (upgrade spec U3, landed with P2-H — this
+/// test previously pinned the pre-U3 all-deferred behaviour and had gone
+/// stale against `tcl-spectcl`'s own U3 gates).
+#[test]
+fn spec_upgrade_defers_environment_membership_tokens() {
+    let tree = Tree::new("upgrade-partial");
+    let pack = tree.path().join("demo.tclspec");
+    std::fs::write(
+        &pack,
+        "speclib demo 1.2 {\n command demo::greet {\n arity 1\n \
+         dialects {tcl8.6 spectcl}\n }\n}\n",
+    )
+    .expect("write pack");
+    let path = pack.to_string_lossy().into_owned();
+
+    let (stdout, _stderr, code) = run(&["spec", "upgrade", &path]);
+    assert_ne!(code, 0, "a partial upgrade exits non-zero: {stdout}");
+    assert!(stdout.contains("partially upgraded"), "{stdout}");
+    let written = std::fs::read_to_string(&pack).expect("read back");
+    assert!(written.contains("# TODO(spectcl 2.0):"), "{written}");
+    assert!(written.contains("speclib demo 1.2"), "{written}");
+    assert!(written.contains("dialects {tcl8.6 spectcl}"), "{written}");
+
+    // The ambient-provider half really translates (U3): the row becomes
+    // the environment's own package claim and the header moves to 2.0.
+    let full = tree.path().join("full.tclspec");
+    std::fs::write(
+        &full,
+        "speclib demo 1.2 {\n command demo::greet {\n arity 1\n \
+         dialects {tcl8.6 f5-iapps}\n }\n}\n",
+    )
+    .expect("write pack");
+    let path = full.to_string_lossy().into_owned();
+    let (stdout, stderr, code) = run(&["spec", "upgrade", &path]);
+    assert_eq!(code, 0, "{stdout}{stderr}");
+    let written = std::fs::read_to_string(&full).expect("read back");
+    assert!(
+        written.contains("available {tcl 8.6} {package f5-iapps-cmds}"),
+        "{written}"
+    );
+    assert!(written.contains("speclib demo 2.0"), "{written}");
+}
+
+// `tcl spec export` — the canonical renderer (design E §15.1, E-R11)
+
+/// A templated pack — the shape `spec export` exists for.
+const PROGRAM: &str = "speclib fleet 2.0 {
+    proc fleet-command {name arity} {
+        command math::fleet::$name {
+            arity $arity
+            traits {PURE}
+            option -verbose -detail {Report each step as it runs.}
+
+            subcommand probe {
+                arity 0
+                detail {Probe one input.}
+            }
+        }
+    }
+
+    foreach {name arity} {alpha 2 beta 1 gamma 3} {
+        fleet-command $name $arity
+    }
+}
+";
+
+#[test]
+fn spec_export_expands_a_programmed_pack_into_canonical_source() {
+    let tree = Tree::new("export");
+    let pack = tree.path().join("fleet.tclspec");
+    std::fs::write(&pack, PROGRAM).expect("write pack");
+    let path = pack.to_string_lossy().into_owned();
+
+    let (stdout, stderr, code) = run(&["spec", "export", &path]);
+    assert_eq!(code, 0, "stderr: {stderr}");
+
+    // One literal declaration per iteration, and none of the program.
+    for name in ["alpha", "beta", "gamma"] {
+        assert!(
+            stdout.contains(&format!("command math::fleet::{name} {{")),
+            "{stdout}"
+        );
+    }
+    for word in ["proc ", "foreach ", "$name", "$arity"] {
+        assert!(!stdout.contains(word), "{stdout}");
+    }
+    // The loop's data is in place, per iteration.
+    assert!(
+        stdout.contains("arity 2") && stdout.contains("arity 3"),
+        "{stdout}"
+    );
+    // The pack's own vocabulary word survives: raising it is `spec upgrade`.
+    assert!(stdout.contains("speclib fleet 2.0 {"), "{stdout}");
+
+    // And the expansion is a pack: it reloads to the same snapshot with no
+    // templating left to run.
+    let reloaded = tcl_spectcl::evaluate_pack(&stdout);
+    assert!(reloaded.load_error.is_none(), "{:#?}", reloaded.notices);
+    let names: Vec<&str> = reloaded.commands.iter().map(|c| c.spec.name).collect();
+    assert_eq!(
+        names,
+        vec![
+            "math::fleet::alpha",
+            "math::fleet::beta",
+            "math::fleet::gamma"
+        ]
+    );
+}
+
+#[test]
+fn spec_export_round_trips_a_canonical_pack_through_the_shared_formatter() {
+    // Every shipped example pack: export, reload, and compare the snapshot
+    // the registry would see. This is the CLI-side half of the E-R11 gate —
+    // the part that also passes the text through `format_pack`.
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../docs/design/spec-dsl-examples");
+    let mut packs = 0;
+    for entry in std::fs::read_dir(&dir).expect("the spec-dsl-examples directory") {
+        let path = entry.expect("a directory entry").path();
+        if path.extension().is_none_or(|ext| ext != "tclspec") {
+            continue;
+        }
+        let source = std::fs::read_to_string(&path).expect("readable pack");
+        let (stdout, stderr, code) = run(&["spec", "export", &path.to_string_lossy()]);
+        assert_eq!(code, 0, "{}: {stderr}", path.display());
+
+        let before = tcl_spectcl::evaluate_pack(&source);
+        let after = tcl_spectcl::evaluate_pack(&stdout);
+        let render = |pack: &tcl_spectcl::Pack| {
+            pack.commands
+                .iter()
+                .map(|c| format!("{:?}", c.spec))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            render(&before),
+            render(&after),
+            "{}: the formatted export is not the same snapshot",
+            path.display()
+        );
+        packs += 1;
+    }
+    assert!(packs >= 8, "only {packs} example packs exported");
+}
+
+#[test]
+fn spec_export_json_reports_the_expansion_and_its_notices() {
+    let tree = Tree::new("export-json");
+    let pack = tree.path().join("fleet.tclspec");
+    std::fs::write(&pack, PROGRAM).expect("write pack");
+
+    let (stdout, stderr, code) = run(&["spec", "export", &pack.to_string_lossy(), "--json"]);
+    assert_eq!(code, 0, "stderr: {stderr}");
+    let value: serde_json::Value = serde_json::from_str(&stdout).expect("JSON");
+    assert_eq!(value["pack"], serde_json::json!("fleet"));
+    assert_eq!(value["commands"], serde_json::json!(3));
+    assert_eq!(value["target_dependent"], serde_json::json!(false));
+    assert!(
+        value["canonical_source"]
+            .as_str()
+            .expect("canonical source")
+            .contains("command math::fleet::alpha {"),
+        "{stdout}"
+    );
+    assert!(value["notices"].is_array(), "{stdout}");
+}
+
+#[test]
+fn spec_export_reports_a_pack_whose_evaluation_failed() {
+    let tree = Tree::new("export-denied");
+    let pack = tree.path().join("clocky.tclspec");
+    std::fs::write(
+        &pack,
+        "speclib clocky 2.0 {\n    set now [clock seconds]\n    command demo { arity 1 }\n}\n",
+    )
+    .expect("write pack");
+
+    let (_stdout, stderr, code) = run(&["spec", "export", &pack.to_string_lossy()]);
+    assert_eq!(code, 1, "a failed evaluation exits non-zero: {stderr}");
+    assert!(stderr.contains("determinism axis"), "{stderr}");
+}

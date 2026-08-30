@@ -118,7 +118,7 @@ pub fn generate_irule_test(args: &Value) -> Value {
         .collect();
     let ordered_events = event_registry.order_events(&event_names);
     let profiles = infer_profiles(&ordered_events);
-    let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
+    let registry = crate::environment::store_for_dialect("f5-irules");
     // Build the event-rooted executable closure once for this request.  Every
     // execution-sensitive output below consumes this exact proof of liveness;
     // re-building it for object references could make setup disagree with the
@@ -614,12 +614,18 @@ fn build_assertion(cmd: &str, args: &[String]) -> Vec<String> {
 
 /// Build request-setup lines based on path conditions (`_build_request_setup`).
 fn build_request_setup(event_name: &str, conditions: &[&Value]) -> Vec<String> {
-    // The word operators real iRules use are `matches_glob`/`matches_regex`
-    // (`tcl_syntax::expr::ast::BinOp`'s `MatchesGlob`/`MatchesRegex`), never a
-    // bare "matches", so a condition like `HTTP::uri matches_glob "/api/*"`
-    // must yield "/api/*" rather than falling through to the bare-value
-    // fallback below. Derived from `BinOp` rather than hand-typed so the
-    // spelling cannot drift.
+    // The *pattern-bearing* word operators are `matches_glob` /
+    // `matches_regex` (`tcl_syntax::expr::ast::BinOp`'s
+    // `MatchesGlob`/`MatchesRegex`), so a condition like `HTTP::uri
+    // matches_glob "/api/*"` must yield "/api/*" rather than falling
+    // through to the bare-value fallback below. The F5 trunk does also
+    // carry a bare `matches` (`BinOp::Matches`, measured present in
+    // `docs/design/bigip-irule-parser-measurements.md` §4a), but it is
+    // deliberately **not** in this alternation: it carries no pattern to
+    // synthesise an example from, and a bare `matches` branch would also
+    // shadow the two longer spellings in the regex alternation below.
+    // Derived from `BinOp` rather than hand-typed so the spelling cannot
+    // drift.
     let uri_ops = [
         tcl_syntax::expr::ast::BinOp::StrEq.as_str(),
         tcl_syntax::expr::ast::BinOp::StartsWith.as_str(),
@@ -995,7 +1001,7 @@ mod tests {
     }
 
     fn registry() -> &'static tcl_registry::CommandRegistry {
-        tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules())
+        crate::environment::store_for_dialect("f5-irules")
     }
 
     fn executable(src: &str) -> Vec<tcl_irules::IrulesExecutableCommand> {
@@ -1031,10 +1037,10 @@ mod tests {
         }
     }
 
-    /// The URI hint must recognise the real iRules word operators
-    /// `matches_glob`/`matches_regex` — a bare "matches" alternative matches
-    /// nothing — and extract the pattern instead of falling through to the
-    /// "/" default.
+    /// The URI hint must recognise the pattern-bearing iRules word
+    /// operators `matches_glob`/`matches_regex` — the bare `matches` is
+    /// kept out of the alternation, so it never shadows them — and extract
+    /// the pattern instead of falling through to the "/" default.
     #[test]
     fn uri_hint_extracts_matches_glob_and_matches_regex() {
         let cond = if_cond(r#"[HTTP::uri] matches_glob "/api/*""#);

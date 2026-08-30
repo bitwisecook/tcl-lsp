@@ -1,0 +1,87 @@
+@@ while_body_nextline | WRAP | while with its body brace on the following line
+set n 1
+while {$n < 30}
+{
+  set n [expr {$n + 30}]
+}
+@@ if_body_nextline | WRAP | if with its body brace on the following line
+if {1}
+{
+  set x 1
+}
+@@ else_nextline | WRAP | else on the line after the if body closes
+if {1} {
+  set x 1
+}
+else {
+  set x 2
+}
+@@ elseif_nextline | WRAP | elseif on the line after the if body closes
+if {0} {
+  set x 1
+}
+elseif {1} {
+  set x 2
+}
+@@ foreach_body_nextline | WRAP | foreach with its body brace on the following line
+foreach i {a b}
+{
+  set x $i
+}
+@@ for_split_lines | WRAP | for with all four arguments on separate lines
+for
+{set x 0}
+{$x<10}
+{incr x} {
+  set y $x
+}
+@@ switch_body_nextline | WRAP | switch with its pattern block on the following line
+switch "a"
+{
+  a {set x 1}
+  default {set x 2}
+}
+@@ proc_body_nextline | RAW | proc with its body brace on the following line
+proc pnl {a}
+{
+  return $a
+}
+when HTTP_REQUEST {
+  set x [call pnl 1]
+}
+@@ backslash_nl | WRAP | backslash newline continuation before the body brace
+set n 1
+while {$n < 30}      \
+{
+  set n [expr {$n + 30}]
+}
+@@ backslash_space_nl | WRAP | backslash followed by a space then newline
+set n 1
+while {$n < 30}      \ 
+{
+  set n [expr {$n + 30}]
+}
+@@ plaincmd_arg_nextline | WRAP | ordinary command with an argument on the next line
+set x
+1
+@@ logcmd_arg_nextline | WRAP | log with its message argument on the next line
+log local0.
+"message"
+@@ cmdsub_arg_nextline | WRAP | command substitution argument on the next line
+set x [string length
+"abc"]
+@@ switch_brace_adjacent | WRAP | switch value and body both brace adjacent
+switch    {4}{
+  {4}{set x 4} }
+@@ switch_regex_mixed | WRAP | switch -regexp with quoted and braced patterns
+set myvar x12y-az09.example.com
+switch -regexp -- $myvar {
+    "x[0-9][0-9]y\-[a-z0-9]+\.example\.com" {
+        set r 1
+    }
+    {z[0-9]\-[a-z0-9]+\.example\.net} {
+        set r 2
+    }
+}
+@@ expr_bad_function | WRAP | expr calling an undefined function
+set varname [expr { SomeInvalidOperator() }]

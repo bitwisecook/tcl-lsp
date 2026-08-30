@@ -32,7 +32,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "sha1::sha1",
         traits: Traits::PURE,
-        dialects: None,
+        surface: None,
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Compute the SHA-1 hash of a string or file.",

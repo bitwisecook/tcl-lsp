@@ -54,9 +54,9 @@ stub <command-name> {arg1:role arg2 ?optArg:role?} ?flags...?
 ### Argument roles
 
 Each role word maps to one registry `ArgRole` through
-`StubOverlay::parse_role`. An unrecognised word is **not** an error — it falls
-through to `Value`, so a typo silently degrades to the generic role rather
-than rejecting the stub.
+`tcl_registry::model::role_for_word`. An unrecognised word is **not** an error
+— it falls through to `Value`, so a typo silently degrades to the generic role
+rather than rejecting the stub.
 
 | Role | `ArgRole` | Meaning |
 |------|---|---------|
@@ -77,8 +77,10 @@ Wrap in `?...?` to mark as optional: `?-filter?`, `?count:value?`.
 ### Flags
 
 The trailing flag set is parsed into the analyser-side `StubFlags` bitflags
-(`analyser/types.rs`) and carried into the overlay as `StubSigFlags`
-(`stub_overlay.rs`), whose bits stand for the registry-side `Traits`:
+(`analyser/types.rs`). It is recorded and never read: no consumer has ever
+asked a stub for a flag, so gap ruling R1's ingestion deliberately does not
+carry the set onto the declaration — principle P-C, a fact comes back with the
+consumer that needs it. The recognised words are:
 
 | Flag | Meaning |
 |---|---|
@@ -115,28 +117,46 @@ name, parsed argument list, the span of the declaring comment line, a
 `AnalysisResult` and keep their spans so diagnostics can point at the
 declaration.
 
-## The registry overlay
+## Stubs are declarations (gap ruling R1)
 
 A stub is a **per-document** declaration, so it must not pollute the
 `CommandRegistry` that every document in a workspace shares — mutating the
-global registry per analysis call would also defeat the interning and caching
-the registry relies on. Instead, `tcl_registry::stub_overlay::StubOverlay` is
-a per-document overlay rebuilt on each `analyse()` call. Consumers consult the
-registry first, then the overlay.
+shared registry per analysis call would also defeat the interning and caching
+the registry relies on. It is nevertheless the *same kind of fact* the
+catalogue states, so it ingests through the same pipeline rather than into a
+parallel one:
 
-Two properties of that design are load-bearing:
+- `StubCommandDef::to_declared_command` produces a
+  `tcl_registry::model::DeclaredCommand` — a name, registry `ArgRole`
+  arguments, and an ordinary `SurfaceDeclaration` whose provider is
+  `Provider::Document`, whose applicability is the whole
+  `VersionAxisId::document()` axis, and whose predicate is `None`.
+- The declaration carries its **provenance**: `Provenance::Document` for an
+  inline block, `Provenance::WorkspaceUntrusted` for a `.tcl.stubs` sidecar —
+  §6.4's two lowest trust classes.
+- `build_declared_surface` collects them into the document's
+  `DeclaredSurface`, rebuilt on each `analyse()` call and held on the
+  (single-threaded) analyser.
 
-- **Roles are typed at overlay-construction time.** The source string
-  (`"body"`, `"var"`, …) is canonicalised to `ArgRole` through
-  `StubOverlay::parse_role` once, so every subsequent query is typed and no
-  consumer re-parses a role word.
-- **The overlay is fingerprinted.** `StubOverlay::fingerprint` is a stable
-  64-bit hash of its contents, included in the compilation-unit and
-  interprocedural-summary cache keys, so editing a stub invalidates exactly
-  the cached entries that depended on the previous stub set.
+`tcl_registry::model::DocumentCommandSurface` is **the** door onto the command
+surface one document analyses against: the catalogue generation plus that
+document's own declarations, asked once. No consumer holds a registry and a
+second table and unions the answers itself.
 
-The overlay is what feeds parameter-trait inference, role lookup, scope-alias
-detection, and barrier detection for stubbed commands.
+Two properties are load-bearing:
+
+- **Roles are typed at ingestion.** The source string (`"body"`, `"var"`, …)
+  is canonicalised to `ArgRole` through `role_for_word` once, so every
+  subsequent query is typed and no consumer re-parses a role word.
+- **A declaration widens, never narrows.** `DocumentCommandSurface`'s role
+  lookup unions the catalogue's answer with the document's, which is §6.4's
+  untrusted-tier rule read literally: a declaration may improve assistance and
+  can never weaken a shipped analysis fact.
+
+The declared surface is what feeds parameter-trait inference, role lookup, and
+command-resolution for stubbed commands. Cache invalidation rides the ordinary
+inputs — the document's own text for an inline block, and lsp-db's
+`sidecar_stubs_epoch` salsa input for a sidecar — not a bespoke fingerprint.
 
 ## Parsing
 
@@ -153,8 +173,8 @@ The spec studio renders a `CommandSpec` back out as a stub line
 is narrower than a full spec, so **what a stub cannot carry is emitted as a
 comment beside it** rather than dropped — see
 [command-spec-studio.md](command-spec-studio.md). Roles map through the
-inverse of `StubOverlay::parse_role`, so a rendered stub parses back to the
-roles the draft declared.
+inverse of `role_for_word`, so a rendered stub parses back to the roles the
+draft declared.
 
 ## Key files
 
@@ -162,6 +182,6 @@ roles the draft declared.
 |---|---|
 | `rust/tcl-compiler/src/analyser/utils.rs` | `scan_source_for_stubs`, `scan_sidecar_stubs` |
 | `rust/tcl-compiler/src/analyser/types.rs` | `StubCommandDef`, `StubArgDef`, `StubExprDef`, `StubFlags` |
-| `rust/tcl-registry/src/stub_overlay.rs` | `StubOverlay`, `StubSig`, `StubSigFlags`, `StubArg`, `parse_role`, `fingerprint` |
+| `rust/tcl-registry/src/model/declaration.rs` | `DeclaredCommand`, `DeclaredArgument`, `DeclaredSurface`, `DocumentCommandSurface`, `role_for_word` |
 | `rust/tcl-spec-studio/src/render_stub.rs` | stub rendering |
 | `samples/` | example sidecar and inline stub files |

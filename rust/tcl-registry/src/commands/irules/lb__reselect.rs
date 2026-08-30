@@ -18,10 +18,11 @@
 
 //! `LB::reselect` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "LB::reselect",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Advance to the next available node in a pool.",
@@ -42,9 +43,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &[],
             also_in: &["LB_FAILED", "LB_QUEUED", "LB_SELECTED", "PERSIST_DOWN"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "LB::reselect (clone pool POOL_OBJ (member IP_ADDR)?)?",

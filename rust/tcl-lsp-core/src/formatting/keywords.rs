@@ -65,10 +65,11 @@
 
 use tcl_registry::abbrev::PrefixMatching;
 use tcl_registry::hover::OptionSpec;
-use tcl_registry::prelude::DialectSet;
 use tcl_registry::{ArgRole, CommandRegistry, CommandSpec};
 
 use super::config::{BooleanForm, FormatterConfig};
+use tcl_dialect::model::SpecSurface;
+use tcl_dialect::model::SurfaceQuery;
 
 /// A word the formatter would rewrite: the argument index (0-based, after the
 /// command name) and the replacement text.
@@ -187,18 +188,18 @@ enum RangeTable<'a> {
 /// shortened what `string c…` could mean), and expanding it would rewrite
 /// source that a newer interpreter reads differently.
 ///
-/// An empty range (the default, and every vendor dialect with no core version
-/// bit) means "no range was declared", so the target's own answer stands —
-/// the pre-existing behaviour. A release that no longer carries the command
+/// An empty range (the default, and every vendor dialect with no core release
+/// row) means "no range was declared", so the target's own answer stands — the
+/// pre-existing behaviour. A release that no longer carries the command
 /// contributes an empty table, which can never vouch for the word, so the
-/// rewrite is abandoned.
-/// The keyword table `scope` names on `cmd_name`'s spec in one specific
-/// `release`, filtered by that release's own dialect bit — empty when
-/// `registry` has no such spec (or, for [`RangeTable::SubcommandOptions`], no
-/// such named subcommand), which can never vouch for any word.
+/// rewrite is abandoned. The keyword table `scope` names on `cmd_name`'s spec
+/// in one specific `release`, filtered by that release's own dialect bit —
+/// empty when `registry` has no such spec (or, for
+/// [`RangeTable::SubcommandOptions`], no such named subcommand), which can
+/// never vouch for any word.
 ///
 /// Takes the release's registry as a parameter rather than reaching for
-/// [`tcl_registry::registry_for_dialect`] itself, so the range machinery can
+/// [`crate::context_for_dialect`] itself, so the range machinery can
 /// be exercised against a synthetic spec in tests — the process-wide cache
 /// only ever holds the real registry data, never a fixture (issue #1268).
 fn release_table(
@@ -207,7 +208,11 @@ fn release_table(
     cmd_name: &str,
     scope: RangeTable<'_>,
 ) -> tcl_registry::abbrev::KeywordTable<'static> {
-    let bits = DialectSet::parse(release);
+    // The release's own authoring point, derived from its environment
+    // rather than re-parsed from the name (ledger C1/C2): for the five
+    // core ladder names this is exactly the single release bit
+    // `DialectProfile::find` produced, sweep-pinned in the registry model.
+    let point = Some(crate::document_context_for_dialect(release).authoring_query());
     let empty =
         || tcl_registry::abbrev::KeywordTable::new(std::iter::empty(), PrefixMatching::Enabled);
     // Each release's table is filtered by *its own* dialect bit — a keyword
@@ -217,13 +222,13 @@ fn release_table(
         return empty();
     };
     match scope {
-        RangeTable::Subcommands => spec.subcommand_table(bits, None, None),
-        RangeTable::CommandOptions => spec.option_table(bits, None, None),
+        RangeTable::Subcommands => spec.subcommand_table(point, None, None),
+        RangeTable::CommandOptions => spec.option_table(point, None, None),
         RangeTable::SubcommandOptions(name) => spec
             .subcommands
             .iter()
             .find(|s| s.name == name)
-            .map_or_else(empty, |sub| sub.option_table(bits, None, None)),
+            .map_or_else(empty, |sub| sub.option_table(point, None, None)),
     }
 }
 
@@ -255,9 +260,9 @@ fn resolves_in_release(
 /// shortened what `string c…` could mean), and expanding it would rewrite
 /// source that a newer interpreter reads differently.
 ///
-/// An empty range (the default, and every vendor dialect with no core version
-/// bit) means "no range was declared", so the target's own answer stands —
-/// the pre-existing behaviour: `releases` is already empty in that case
+/// An empty range (the default, and every vendor dialect with no core release
+/// row) means "no range was declared", so the target's own answer stands — the
+/// pre-existing behaviour: `releases` is already empty in that case
 /// ([`tcl_registry::version_range::core_releases_in`]), and `.all()` over an
 /// empty iterator is vacuously `true`. A release that no longer carries the
 /// command contributes an empty table, which can never vouch for the word, so
@@ -302,7 +307,7 @@ fn options_for_scope<'a>(spec: &'a CommandSpec, scope: RangeTable<'_>) -> &'a [O
 /// the range or it rewrites nothing.
 ///
 /// An empty `releases` (the default, and every vendor dialect with no core
-/// version bit) means "no range was declared", so the target's own verdict
+/// release row) means "no range was declared", so the target's own verdict
 /// stands — `fold` over an empty slice returns `target` unchanged.
 fn boolean_site_across_range(
     releases: &[(&str, &CommandRegistry)],
@@ -312,11 +317,11 @@ fn boolean_site_across_range(
     target: BooleanSite,
 ) -> BooleanSite {
     releases.iter().fold(target, |site, &(release, registry)| {
-        let bits = DialectSet::parse(release);
+        let point = Some(crate::document_context_for_dialect(release).authoring_query());
         let found = registry.get(cmd_name).and_then(|spec| {
             options_for_scope(spec, scope)
                 .iter()
-                .find(|opt| opt.matches(canonical) && opt.supports_dialect(bits, spec.dialects))
+                .find(|opt| opt.matches(canonical) && opt.supports_dialect(point, spec.surface))
                 .map(|opt| BooleanSite::of(opt.value_role()))
         });
         site.min(found.unwrap_or(BooleanSite::None))
@@ -376,7 +381,7 @@ fn declared_boolean_site_at(
 /// release can disagree.
 ///
 /// An empty `releases` (the default, and every vendor dialect with no core
-/// version bit) means "no range was declared", so the target's own verdict
+/// release row) means "no range was declared", so the target's own verdict
 /// stands, exactly as [`boolean_site_across_range`] does.
 fn positional_site_across_range(
     releases: &[(&str, &CommandRegistry)],
@@ -418,10 +423,10 @@ fn positional_site_across_range(
 /// these plus only what is specific to their own half of the scan.
 struct RewriteCtx<'a> {
     registry: &'a CommandRegistry,
-    dialect: Option<DialectSet>,
+    dialect: Option<SurfaceQuery<'a>>,
     /// The command's own dialect set, for the option table's
     /// `supports_dialect` filter — a `SubCommand` inherits it via `None`.
-    spec_dialects: Option<DialectSet>,
+    spec_surface: Option<&'static [SpecSurface]>,
     config: &'a FormatterConfig,
     releases: &'a [(&'a str, &'a CommandRegistry)],
     cmd_name: &'a str,
@@ -451,7 +456,7 @@ struct OptionScope {
 /// and it cannot know which option table applies either.
 fn subcommand_scope(
     spec: &tcl_registry::CommandSpec,
-    dialect: Option<DialectSet>,
+    dialect: Option<SurfaceQuery<'_>>,
     config: &FormatterConfig,
     releases: &[(&str, &CommandRegistry)],
     cmd_name: &str,
@@ -513,7 +518,7 @@ fn scan_options(
     let table = tcl_registry::abbrev::KeywordTable::from_keywords(
         options
             .iter()
-            .filter(|opt| opt.supports_dialect(ctx.dialect, ctx.spec_dialects))
+            .filter(|opt| opt.supports_dialect(ctx.dialect, ctx.spec_surface))
             .flat_map(|opt| {
                 std::iter::once(opt.name)
                     .chain(opt.aliases.iter().copied())
@@ -658,7 +663,7 @@ fn push_positional_boolean_rewrites(
 /// are data rather than a keyword).
 pub(crate) fn rewrites_for_command(
     registry: &CommandRegistry,
-    dialect: Option<DialectSet>,
+    dialect: Option<SurfaceQuery<'_>>,
     config: &FormatterConfig,
     cmd_name: &str,
     args: &[String],
@@ -681,7 +686,7 @@ pub(crate) fn rewrites_for_command(
     let release_names = tcl_registry::version_range::core_releases_in(config.target_range());
     let releases: Vec<(&str, &CommandRegistry)> = release_names
         .iter()
-        .map(|&release| (release, tcl_registry::registry_for_dialect(release)))
+        .map(|&release| (release, crate::registry_for_dialect(release)))
         .collect();
 
     let mut out: Vec<KeywordRewrite> = Vec::new();
@@ -724,7 +729,7 @@ pub(crate) fn rewrites_for_command(
     let ctx = RewriteCtx {
         registry,
         dialect,
-        spec_dialects: spec.dialects,
+        spec_surface: spec.surface,
         config,
         releases: &releases,
         cmd_name,
@@ -746,6 +751,8 @@ pub(crate) fn rewrites_for_command(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tcl_dialect::model::Family;
+    use tcl_dialect::model::{SpecSurface, SurfaceQuery};
 
     fn config(expand: bool, form: BooleanForm) -> FormatterConfig {
         FormatterConfig {
@@ -756,12 +763,12 @@ mod tests {
     }
 
     fn rewrites(cmd: &str, args: &[&str], config: &FormatterConfig) -> Vec<(usize, String)> {
-        let registry = tcl_registry::registry_for_dialect("tcl8.6");
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let owned: Vec<String> = args.iter().map(|s| (*s).to_string()).collect();
         let dynamic = vec![false; owned.len()];
         rewrites_for_command(
             registry,
-            DialectSet::parse("tcl8.6"),
+            Some(SurfaceQuery::core(Family::Tcl, "8.6")),
             config,
             cmd,
             &owned,
@@ -811,12 +818,12 @@ mod tests {
     #[test]
     fn a_dynamic_word_abstains() {
         let cfg = config(true, BooleanForm::Preserve);
-        let registry = tcl_registry::registry_for_dialect("tcl8.6");
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let args = vec!["le".to_owned(), "$s".to_owned()];
         // Marked dynamic by the caller (a `{*}`-expanded word).
         let out = rewrites_for_command(
             registry,
-            DialectSet::parse("tcl8.6"),
+            Some(SurfaceQuery::core(Family::Tcl, "8.6")),
             &cfg,
             "string",
             &args,
@@ -1088,7 +1095,7 @@ mod tests {
     fn a_subcommand_scoped_positional_boolean_honours_the_dialect_and_range_gates() {
         static GATED: &[tcl_registry::SubCommand] = &[tcl_registry::SubCommand {
             name: "flag",
-            dialects: Some(DialectSet::TCL90_PLUS),
+            surface: Some(SpecSurface::TCL90_PLUS),
             arg_roles: &[(0, ArgRole::Boolean)],
             ..tcl_registry::SubCommand::DEFAULT
         }];
@@ -1100,9 +1107,10 @@ mod tests {
         let mut registry = CommandRegistry::build_default();
         registry.insert(spec);
 
-        let run = |dialect: Option<DialectSet>, target_range: DialectSet| {
+        let run = |dialect: Option<SurfaceQuery<'_>>,
+                   target_range: Option<&'static [&'static str]>| {
             let cfg = FormatterConfig {
-                target_range_override: Some(target_range),
+                target_range_override: target_range,
                 ..config(false, BooleanForm::TrueFalse)
             };
             let owned = vec!["flag".to_owned(), "yes".to_owned()];
@@ -1116,13 +1124,13 @@ mod tests {
         // TP: the document's own release carries the subcommand, and no range
         // was declared (the empty default) — the target's own verdict stands.
         assert_eq!(
-            run(Some(DialectSet::TCL90), DialectSet::empty()),
+            run(Some(SurfaceQuery::core(Family::Tcl, "9.0")), None),
             vec![(1, "true".to_owned())]
         );
         // FN guard (dialect): a document targeting a release that does not
         // carry the subcommand never reaches the positional pass at all — the
         // subcommand scan itself abstains, same as an ambiguous/unknown word.
-        assert!(run(Some(DialectSet::TCL86), DialectSet::empty()).is_empty());
+        assert!(run(Some(SurfaceQuery::core(Family::Tcl, "8.6")), None).is_empty());
 
         // The range-agreement half (#1257), exercised directly: a range
         // spanning a release that drops the subcommand drags the verdict to
@@ -1167,7 +1175,7 @@ mod tests {
         static OPTIONS_90: &[OptionSpec] = &[OptionSpec {
             name: "-validate",
             value: OptionValue::boolean(),
-            dialects: Some(DialectSet::TCL90_PLUS),
+            surface: Some(SpecSurface::TCL90_PLUS),
             detail: "Only from Tcl 9.0.",
             ..OptionSpec::DEFAULT
         }];

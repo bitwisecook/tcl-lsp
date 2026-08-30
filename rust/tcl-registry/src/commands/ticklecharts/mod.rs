@@ -37,6 +37,7 @@
 //! its `-option value` pairs fall through to the generic option highlighting.
 
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 /// A value-taking option (`-name value`) — the ticklecharts norm (even
 /// booleans are written `-opt True`).
@@ -45,7 +46,7 @@ const fn vopt(name: &'static str, detail: &'static str) -> OptionSpec {
         name,
         value: OptionValue::value(""),
         detail,
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -62,7 +63,7 @@ const fn vopt_since(
         name,
         value: OptionValue::value(""),
         detail,
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::introduced_in(introduced),
         min_abbrev: None,
@@ -75,7 +76,7 @@ const fn eopt(name: &'static str, detail: &'static str, values: &'static [ArgVal
         name,
         value: OptionValue::enumerated(values, false, ""),
         detail,
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -449,7 +450,7 @@ fn class_spec(
         // A desktop Tcl charting package — available in every Tcl version but
         // never in the iRules / iApps / EDA dialects (where it has no place and
         // would otherwise inflate their valid-command counts).
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::at_least(1),
         subcommands: CTOR_SUBCOMMANDS,
         manufacturer_methods: MANUFACTURERS,

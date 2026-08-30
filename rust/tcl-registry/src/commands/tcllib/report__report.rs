@@ -40,9 +40,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
     ..FormSpec::DEFAULT
 }];
 
-// ---------------------------------------------------------------------------
 // Report object methods — the instance command's subcommands.
-// ---------------------------------------------------------------------------
 
 /// The ordered `left|right|both` padding-side values (`pad` method).
 const PAD_WHERE_VALUES: &[ArgValue] = &[

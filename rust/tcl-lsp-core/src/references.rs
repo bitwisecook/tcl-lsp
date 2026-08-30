@@ -1996,8 +1996,7 @@ fn scan_method_sites_by_kind(
     callbacks_only: bool,
 ) -> Vec<tcl_lexer::Span> {
     let registry = crate::registry_for_dialect_profile(dialect);
-    let identities =
-        tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
+    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
     let ctx = MyMethodScan {
         source,
         dialect,
@@ -2035,7 +2034,7 @@ struct MyMethodScan<'a> {
     source: &'a str,
     dialect: &'static tcl_dialect::DialectProfile,
     registry: &'a tcl_registry::CommandRegistry,
-    identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
+    identities: &'a tcl_compiler::realm::CommandBindingRealm,
     method: &'a str,
     skip: Option<tcl_lexer::Span>,
     /// `[list [self] METHOD ...]` later dispatches through the external
@@ -2137,9 +2136,11 @@ fn collect_stored_callback_writes(
         // value immediately follows the VarWrite name.  Other VarWrite
         // commands (lassign, scan, array set, …) deliberately do not enter
         // this callback-value path.
-        let resolved_call =
-            ctx.registry
-                .resolve_call(resolved, &args, ctx.dialect.availability_mask);
+        let resolved_call = ctx.registry.resolve_call(
+            resolved,
+            &args,
+            Some(crate::document_context_for_profile(ctx.dialect).authoring_query()),
+        );
         has_scope_alias |= resolved_call.is_some_and(|call| {
             matches!(
                 call.lowering_hook,
@@ -2454,10 +2455,11 @@ fn command_prefix_targets_from_word(
         .head_words(builder_written, builder_head.span.start())
         .resolved;
     let args: Vec<&str> = builder.texts.iter().skip(1).map(String::as_str).collect();
-    let Some(invocation) =
-        ctx.registry
-            .resolve_invocation(builder_resolved, &args, ctx.dialect.availability_mask)
-    else {
+    let Some(invocation) = ctx.registry.resolve_invocation(
+        builder_resolved,
+        &args,
+        Some(crate::document_context_for_profile(ctx.dialect).authoring_query()),
+    ) else {
         return Vec::new();
     };
     let traits = invocation.semantics.traits;
@@ -2534,8 +2536,7 @@ fn command_prefix_target_at_cursor(
     cursor_offset: u32,
 ) -> Option<PrefixTargetAtSpan> {
     let registry = crate::registry_for_dialect_profile(dialect);
-    let identities =
-        tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
+    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
     let base_ctx = MyMethodScan {
         source,
         dialect,
@@ -2706,8 +2707,7 @@ fn scan_next_dispatch_sites_with_target(
     body: tcl_lexer::Span,
 ) -> Vec<(tcl_lexer::Span, Option<String>)> {
     let registry = crate::registry_for_dialect_profile(dialect);
-    let identities =
-        tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
+    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
     let ctx = NextDispatchScan {
         source,
         dialect,
@@ -2734,7 +2734,7 @@ struct NextDispatchScan<'a> {
     source: &'a str,
     dialect: &'static tcl_dialect::DialectProfile,
     registry: &'a tcl_registry::CommandRegistry,
-    identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
+    identities: &'a tcl_compiler::realm::CommandBindingRealm,
 }
 
 fn scan_next_dispatch_region_with_target(
@@ -3253,8 +3253,7 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
     }
     let mut seen: FxHashSet<(u32, u32)> = out.iter().map(|s| (s.start(), s.end())).collect();
     let registry = crate::registry_for_dialect_profile(dialect);
-    let identities =
-        tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
+    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
     let ctx = ObjMethodScan {
         source,
         dialect,
@@ -3527,7 +3526,7 @@ struct ObjMethodScan<'a> {
     source: &'a str,
     dialect: &'static tcl_dialect::DialectProfile,
     registry: &'a tcl_registry::CommandRegistry,
-    identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
+    identities: &'a tcl_compiler::realm::CommandBindingRealm,
     analysis: &'a AnalysisResult,
     var_set: &'a FxHashSet<&'a str>,
     /// [`lattice_dispatch_family`] — the classes a `$v` receiver's
@@ -3750,8 +3749,7 @@ pub(crate) fn nested_dispatch_regions(
     cmd: &tcl_compiler::segmenter::SegmentedCommand,
 ) -> Vec<(usize, usize)> {
     let registry = crate::registry_for_dialect_profile(dialect);
-    let identities =
-        tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
+    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
     nested_dispatch_regions_with_identities(source, dialect, registry, &identities, cmd)
 }
 
@@ -3762,7 +3760,7 @@ pub(crate) fn nested_dispatch_regions_with_identities(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
     registry: &tcl_registry::CommandRegistry,
-    identities: &tcl_compiler::head_identity::HeadIdentityMap,
+    identities: &tcl_compiler::realm::CommandBindingRealm,
     cmd: &tcl_compiler::segmenter::SegmentedCommand,
 ) -> Vec<(usize, usize)> {
     let mut regions: Vec<(usize, usize)> = Vec::new();
@@ -4061,7 +4059,11 @@ fn case_list_clause_body_regions(
 ) -> Option<Vec<(usize, usize)>> {
     // Locating and validating the form is the registry's typed case invocation.
     let profile = registry.profile()?;
-    let (_, invocation) = registry.case_invocation(name, args, profile.availability_mask)?;
+    let (_, invocation) = registry.case_invocation(
+        name,
+        args,
+        Some(crate::document_context_for_profile(profile).authoring_query()),
+    )?;
     if let Some(start) = invocation.inline_clause_start {
         let clauses = case_list.inline_clauses(args, start)?;
         let mut out = Vec::new();
@@ -4478,7 +4480,7 @@ mod tests {
         // Cursor on the STALE original `proc button` declaration (line 0).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             6,
             &analysis,
@@ -4511,7 +4513,7 @@ mod tests {
         // Cursor on the `greet` declaration (line 1, col 29).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             29,
             &analysis,
@@ -4525,7 +4527,7 @@ mod tests {
         // …and from the call site itself, the declaration answers back.
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             4,
             4,
             &analysis,
@@ -4552,7 +4554,7 @@ mod tests {
         // Cursor on the `greet` declaration (line 1, col 29).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             29,
             &analysis,
@@ -4577,7 +4579,7 @@ mod tests {
         // Cursor on the first `greet` reference (line 1).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             2,
             &analysis,
@@ -4602,7 +4604,7 @@ mod tests {
         // Cursor on the `bar` declaration (line 1, col 9).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             9,
             &analysis,
@@ -4630,7 +4632,7 @@ mod tests {
         // Cursor on the `p` declaration (line 1, col 9).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             9,
             &analysis,
@@ -4656,7 +4658,7 @@ mod tests {
         // Cursor on the `p` declaration (line 1, col 9).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             9,
             &analysis,
@@ -4682,7 +4684,7 @@ mod tests {
         // Cursor on the `p` declaration (line 1, col 9).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             9,
             &analysis,
@@ -4712,7 +4714,7 @@ mod tests {
         // Cursor on `::src::p`'s declaration (line 1, col 9).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             9,
             &analysis,
@@ -4735,7 +4737,7 @@ mod tests {
         let analysis = analyse(src);
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             9,
             &analysis,
@@ -4760,7 +4762,7 @@ mod tests {
         // Cursor on `::C::p`'s declaration (line 1, col 9).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             9,
             &analysis,
@@ -4789,7 +4791,7 @@ mod tests {
         // Cursor on the `classvar` declaration (line 0, col 20).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             20,
             &analysis,
@@ -4816,7 +4818,7 @@ mod tests {
         // Cursor on the `::oo::Helpers::classvar` declaration (line 0, col 20).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             20,
             &analysis,
@@ -4848,7 +4850,7 @@ mod tests {
         // Cursor on the `$tolComp` read inside the proc (line 2, col 14).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             2,
             14,
             &analysis,
@@ -4883,7 +4885,7 @@ mod tests {
         // "tolComp" — `set ::tolComp 0.05` has "tolComp" starting at col 6).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             4,
             8,
             &analysis,
@@ -4917,7 +4919,7 @@ mod tests {
         // Cursor on the unqualified `set tolComp` declaration (line 4, col 6).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             4,
             6,
             &analysis,
@@ -4947,7 +4949,7 @@ mod tests {
         // Cursor on `A::tolComp`'s declaration (line 1, col 13).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             13,
             &analysis,
@@ -4985,7 +4987,7 @@ mod tests {
         // the exact query shape the finding's own repro used.
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             21,
             &analysis,
@@ -5019,7 +5021,7 @@ mod tests {
         // Cursor on the `other` declaration (line 2, col 9).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             2,
             9,
             &analysis,
@@ -5044,7 +5046,7 @@ mod tests {
         // Cursor on the SHADOWED (first) declaration (line 0, col 6).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             6,
             &analysis,
@@ -5073,7 +5075,7 @@ mod tests {
         let analysis = analyse(src);
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             6,
             &analysis,
@@ -5100,7 +5102,7 @@ mod tests {
         let analysis = analyse(src);
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             6,
             &analysis,
@@ -5126,7 +5128,7 @@ mod tests {
         let analysis = analyse(src);
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             6,
             &analysis,
@@ -5150,7 +5152,7 @@ mod tests {
         let analysis = analyse(src);
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             6,
             &analysis,
@@ -5184,7 +5186,7 @@ mod tests {
         let analysis = analyse(src);
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             6,
             &analysis,
@@ -5205,7 +5207,7 @@ mod tests {
         let analysis = analyse(src);
         let with_decl = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             2,
             &analysis,
@@ -5213,7 +5215,7 @@ mod tests {
         );
         let without_decl = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             2,
             &analysis,
@@ -5229,7 +5231,7 @@ mod tests {
         assert!(
             references(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl"),
+                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
                 0,
                 6,
                 &analysis,
@@ -5252,7 +5254,7 @@ mod tests {
         // Cursor on "foo" in the first call site (0-based line 7, col 8).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             7,
             8,
             &analysis,
@@ -5292,7 +5294,7 @@ mod tests {
         // Cursor on the declaration of ::e::Foo (0-based line 5).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             5,
             11,
             &analysis,
@@ -5314,7 +5316,7 @@ mod tests {
         let analysis = analyse(src);
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             5,
             11,
             &analysis,
@@ -5354,7 +5356,7 @@ mod tests {
         // Line 8 is `proc ::app::widget::Show …`; `Show` starts at column 20.
         let from_decl = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             8,
             21,
             &analysis,
@@ -5363,7 +5365,7 @@ mod tests {
         // Line 10 is `puts [::app::widget show]`; `show` starts at column 20.
         let from_call = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             10,
             21,
             &analysis,
@@ -5404,7 +5406,7 @@ mod tests {
         // Cursor on `Show` in its declaration (line 3, column 20).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             3,
             21,
             &analysis,
@@ -5426,7 +5428,7 @@ mod tests {
         // Cursor on `greet` in Sub's declaration (line 5).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             5,
             13,
             &analysis,
@@ -5453,7 +5455,7 @@ mod tests {
         // `constructor` keyword on line 1, col 4.
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             6,
             &analysis,
@@ -5472,7 +5474,7 @@ mod tests {
         let analysis = analyse(src);
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             6,
             &analysis,
@@ -5489,7 +5491,7 @@ mod tests {
         let analysis = analyse(src);
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             6,
             &analysis,
@@ -5507,7 +5509,7 @@ mod tests {
         // `Base`'s constructor (line 1) picks up the chain.
         let base_refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             6,
             &analysis,
@@ -5525,7 +5527,7 @@ mod tests {
         let analysis = analyse(src);
         let grandparent_refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             6,
             &analysis,
@@ -5534,7 +5536,7 @@ mod tests {
         assert_eq!(grandparent_refs.len(), 1, "{grandparent_refs:?}");
         let base_refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             4,
             6,
             &analysis,
@@ -5554,7 +5556,7 @@ mod tests {
         let analysis = analyse(src);
         let grandparent_refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             6,
             &analysis,
@@ -5563,7 +5565,7 @@ mod tests {
         assert_eq!(grandparent_refs.len(), 1, "{grandparent_refs:?}");
         let base_refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             4,
             6,
             &analysis,
@@ -5579,7 +5581,7 @@ mod tests {
         // `destructor` keyword on line 1, col 4.
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             5,
             &analysis,
@@ -5598,7 +5600,7 @@ mod tests {
         let analysis = analyse(src);
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             6,
             &analysis,
@@ -5620,7 +5622,7 @@ mod tests {
         // `Base`'s `constructor` keyword, line 1.
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             6,
             &analysis,
@@ -5641,7 +5643,7 @@ mod tests {
         // Cursor on `$x` first reference.
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             7,
             &analysis,
@@ -5665,7 +5667,7 @@ mod tests {
         // Cursor on `name` inside the parameter list (col 12-16).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             13,
             &analysis,
@@ -5690,7 +5692,7 @@ mod tests {
         // Cursor on the catch result-var `name` (line 1, col 16-20).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             17,
             &analysis,
@@ -5713,7 +5715,7 @@ mod tests {
         // Cursor inside `$x`.
         let highlights = document_highlights(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             7,
             &analysis,
@@ -5768,8 +5770,13 @@ mod tests {
         // Source matches the spans we injected so
         // line/character translation works.
         let src = "set x 1\nputs $x\n";
-        let highlights =
-            document_highlights(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 6, &a);
+        let highlights = document_highlights(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            1,
+            6,
+            &a,
+        );
         // Write at definition.
         assert!(
             highlights
@@ -5792,7 +5799,7 @@ mod tests {
         let analysis = analyse(src);
         let highlights = document_highlights(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             6,
             &analysis,
@@ -5823,7 +5830,7 @@ mod tests {
         assert!(
             document_highlights(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl"),
+                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
                 0,
                 6,
                 &analysis
@@ -5846,7 +5853,7 @@ mod tests {
         // Cursor on the proc declaration.
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             8,
             &analysis,
@@ -5869,7 +5876,7 @@ mod tests {
         let analysis = analyse(src);
         let highlights = document_highlights(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             6,
             &analysis,
@@ -5939,7 +5946,7 @@ mod tests {
         // `references` from `bar`'s declaration (line 5, col 11).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             5,
             11,
             &analysis,
@@ -5963,7 +5970,7 @@ mod tests {
         // Cursor on the `greet` declaration (line 1, col 11).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             11,
             &analysis,
@@ -5978,7 +5985,7 @@ mod tests {
         let analysis = analyse(src);
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             2,
             11,
             &analysis,
@@ -6002,7 +6009,7 @@ mod tests {
         let analysis = analyse(src);
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             1,
             11,
             &analysis,
@@ -6022,7 +6029,7 @@ mod tests {
         let analysis = analyse(src);
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             11,
             &analysis,
@@ -6042,7 +6049,7 @@ mod tests {
         let analysis = analyse(src);
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             11,
             &analysis,
@@ -6062,7 +6069,7 @@ mod tests {
         let analysis = analyse(src);
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             11,
             &analysis,
@@ -6099,7 +6106,7 @@ mod tests {
         let analysis = analyse(src);
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             11,
             &analysis,
@@ -6137,7 +6144,7 @@ mod tests {
         // Cursor on the `bar` declaration (line 1, col 11).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             11,
             &analysis,
@@ -6157,7 +6164,7 @@ mod tests {
         let analysis = analyse(src);
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             11,
             &analysis,
@@ -6174,7 +6181,7 @@ mod tests {
         let analysis = analyse(src);
         let h = document_highlights(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             11,
             &analysis,
@@ -6201,7 +6208,7 @@ mod tests {
         // Cursor on the `Helper` declaration (line 4, col 11).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             4,
             11,
             &analysis,
@@ -6227,7 +6234,7 @@ mod tests {
         // Cursor on the `animTick` declaration (line 1, col 11).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             11,
             &analysis,
@@ -6250,7 +6257,7 @@ mod tests {
         let analysis = analyse(src);
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             2,
             11,
             &analysis,
@@ -6269,7 +6276,7 @@ mod tests {
         let src = "package require Tk\noo::class create C {\n    method tick {} { return 1 }\n    method wire {wl} {\n        bind $wl <Expose> [list [self object] tick]\n    }\n}\n";
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             2,
             11,
             &analyse(src),
@@ -6289,7 +6296,7 @@ mod tests {
         let src = "oo::class create C {\n    method tick {} { return 1 }\n    method wire {} {\n        after idle [list [self] tick]\n    }\n}\n";
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             11,
             &analyse(src),
@@ -6309,7 +6316,7 @@ mod tests {
         let src = "oo::class create C {\n    method compare {a b} { return 0 }\n    method sort {items} {\n        lsort -command [list [self] compare] $items\n    }\n}\n";
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             11,
             &analyse(src),
@@ -6330,7 +6337,7 @@ mod tests {
         let src = "oo::class create C {\n    method read {} { return 1 }\n    unexport read\n    method wire {chan} {\n        fileevent $chan readable [namespace code [list my read]]\n    }\n}\n";
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             1,
             11,
             &analyse(src),
@@ -6347,7 +6354,7 @@ mod tests {
         let src = "oo::class create C {\n    method changed {} { return 1 }\n    method wire {} {\n        trace add variable v write [namespace code [list [self] changed]]\n    }\n}\n";
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             1,
             11,
             &analyse(src),
@@ -6364,7 +6371,7 @@ mod tests {
         let src = "oo::class create C {\n    method tick {} { return 1 }\n    method build {} {\n        set inert [list [self] tick]\n    }\n}\n";
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             11,
             &analyse(src),
@@ -6381,7 +6388,7 @@ mod tests {
         let src = "oo::class create C {\n    method tick {} { return 1 }\n    method build {methodName} {\n        after idle [list [self] $methodName]\n    }\n}\n";
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             11,
             &analyse(src),
@@ -6401,7 +6408,7 @@ mod tests {
         let src = "oo::class create C {\n    method tick {} { return 1 }\n    method build {} {\n        after idle [list [self] tick]Suffix\n    }\n}\n";
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             11,
             &analyse(src),
@@ -6421,7 +6428,7 @@ mod tests {
         let src = "package require Tk\noo::class create C {\n    method tick {} { return 1 }\n    method wire {wl} {\n        bind $wl <Expose> {[self] tick}\n    }\n}\n";
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             2,
             11,
             &analyse(src),
@@ -6440,7 +6447,7 @@ mod tests {
         let src = "package require Tk\noo::class create C {\n    method tick {} { return 1 }\n    unexport tick\n    method wire {wl} {\n        bind $wl <Expose> [list [self] tick]\n    }\n}\n";
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             2,
             11,
             &analyse(src),
@@ -6460,7 +6467,7 @@ mod tests {
         assert_eq!(
             list_built_self_method_target_at_cursor(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
                 &analysis,
                 "tick",
                 cursor,
@@ -6474,7 +6481,7 @@ mod tests {
         let src = "package require Tk\nproc list args { return not-a-command-prefix }\noo::class create C {\n    method tick {} { return 1 }\n    method wire {wl} {\n        bind $wl <Expose> [list [self] tick]\n    }\n}\n";
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             3,
             11,
             &analyse(src),
@@ -6491,7 +6498,7 @@ mod tests {
         let src = "package require Tk\nproc self args { return ::notTheCurrentObject }\noo::class create C {\n    method tick {} { return 1 }\n    method wire {wl} {\n        bind $wl <Expose> [list [self] tick]\n    }\n}\n";
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             3,
             11,
             &analyse(src),
@@ -6508,7 +6515,7 @@ mod tests {
         let src = "oo::class create C {\n    method tick {} { return 1 }\n    method wire {} {\n        after idle [list [self object junk] tick]\n    }\n}\n";
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             11,
             &analyse(src),
@@ -6525,7 +6532,7 @@ mod tests {
         let src = "proc ::self {} { return ::notTheCurrentObject }\noo::class create C {\n    method tick {} { return 1 }\n    method wire {} {\n        after idle [list [::self] tick]\n    }\n}\n";
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             2,
             11,
             &analyse(src),
@@ -6542,7 +6549,7 @@ mod tests {
         let src = "oo::class create C {\n    method tick {} { return 1 }\n    method wire {} {\n        after idle [list [::oo::Helpers::self] tick]\n    }\n}\n";
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             11,
             &analyse(src),
@@ -6558,7 +6565,7 @@ mod tests {
     fn callback_cursor_classifier_reaches_constructor_and_destructor_bodies() {
         let src = "oo::class create C {\n    method tick {} { return 1 }\n    constructor {} {\n        after idle [list [self] tick]\n    }\n    destructor {\n        after idle [list [self] tick]\n    }\n}\n";
         let analysis = analyse(src);
-        let dialect = tcl_dialect::DialectProfile::by_name("tcl");
+        let dialect = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
         let first = src.find("] tick").unwrap() + 2;
         let second = src[first + 1..].find("] tick").unwrap() + first + 3;
         for cursor in [first, second] {
@@ -6579,7 +6586,7 @@ mod tests {
     fn callback_cursor_classifier_rejects_ordinary_method_dispatches() {
         let src = "oo::class create C {\n    method tick {} { return 1 }\n    method wire {} {\n        my tick\n        [self] tick\n    }\n}\n";
         let analysis = analyse(src);
-        let dialect = tcl_dialect::DialectProfile::by_name("tcl");
+        let dialect = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
         let my_cursor = u32::try_from(src.find("my tick").unwrap() + 3).unwrap();
         let self_cursor = u32::try_from(src.find("] tick").unwrap() + 2).unwrap();
         assert!(
@@ -6597,7 +6604,7 @@ mod tests {
         let src = "oo::class create Base {\n    method tick {} { return 1 }\n}\noo::class create Child {\n    superclass Base\n    unexport tick\n    method wire {} {\n        after idle [list [self] tick]\n    }\n}\n";
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             11,
             &analyse(src),
@@ -6617,7 +6624,7 @@ mod tests {
         // and cursor-origin navigation must abstain together.
         let src = "oo::class create Base {\n    method tick {} { return 1 }\n}\noo::class create Child {\n    superclass Base\n    method wire {} {\n        after idle [list [self] tick]\n    }\n}\n";
         let analysis = analyse(src);
-        let dialect = tcl_dialect::DialectProfile::by_name("tcl");
+        let dialect = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
         let cursor = u32::try_from(src.find("] tick").unwrap() + 2).unwrap();
         assert!(
             list_built_self_method_target_at_cursor(src, dialect, &analysis, "tick", cursor,)
@@ -6643,7 +6650,7 @@ mod tests {
         // Cursor on `bark` in `$d bark` (line 4, col 3).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             4,
             3,
             &analysis,
@@ -6664,7 +6671,7 @@ mod tests {
         let analysis = analyse(src);
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             11,
             &analysis,
@@ -6681,7 +6688,7 @@ mod tests {
         let analysis = analyse(src);
         let sites = find_obj_method_call_sites(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &analysis,
             "::Dog",
             "bark",
@@ -6697,7 +6704,7 @@ mod tests {
         let analysis = analyse(src);
         let sites = find_obj_method_call_sites(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &analysis,
             "::Dog",
             "bark",
@@ -6715,7 +6722,7 @@ mod tests {
         let analysis = analyse(src);
         let sites = find_obj_method_call_sites(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &analysis,
             "::Dog",
             "bark",
@@ -6744,7 +6751,7 @@ mod tests {
         let analysis = analyse(src);
         let sites = find_obj_method_call_sites(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &analysis,
             "::ActiveRecord",
             "find",
@@ -6776,7 +6783,7 @@ mod tests {
         let analysis = analyse(src);
         let sites = find_obj_method_call_sites(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &analysis,
             "::Factory",
             "make",
@@ -6809,7 +6816,7 @@ mod tests {
         let analysis = analyse(src);
         let sites = find_obj_method_call_sites(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &analysis,
             "::Dog",
             "bark",
@@ -6834,7 +6841,7 @@ mod tests {
         let analysis = analyse(src);
         let sites = find_obj_method_call_sites(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &analysis,
             "::Factory",
             "make",
@@ -6854,7 +6861,7 @@ mod tests {
         let analysis = analyse(src);
         let sites = find_obj_method_call_sites(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &analysis,
             "::Widget",
             "make",
@@ -6880,7 +6887,7 @@ mod tests {
         // Cursor on the declaration (line 1, `find` at col 16).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             16,
             &analysis,
@@ -6906,7 +6913,7 @@ mod tests {
         // Cursor on `find` in `ActiveRecord find foo bar` (line 3, col 13).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             3,
             13,
             &analysis,
@@ -6925,7 +6932,7 @@ mod tests {
         let analysis = analyse(src);
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             11,
             &analysis,
@@ -6945,7 +6952,7 @@ mod tests {
         let analysis = analyse(src);
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             4,
             4,
             &analysis,
@@ -6965,7 +6972,7 @@ mod tests {
         let analysis = analyse(src);
         let sites = find_obj_method_call_sites(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &analysis,
             "::Dog",
             "bark",
@@ -6988,7 +6995,7 @@ mod tests {
         // Line 0 — cursor on "greet" right after `::tcl::OptProc` (col 15).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             15,
             &analysis,
@@ -7010,7 +7017,7 @@ mod tests {
         // Line 0 — cursor on `greetD`'s declaration name (col 6).
         let refs = references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             6,
             &analysis,
@@ -7033,7 +7040,7 @@ mod tests {
             .expect("expect command");
         let regions = nested_dispatch_regions(
             source,
-            tcl_dialect::DialectProfile::by_name("expect"),
+            tcl_registry::model::ingress::resolve_environment("expect").analyser_profile(),
             &command,
         );
         assert_eq!(
@@ -7062,7 +7069,7 @@ mod tests {
             .expect("expect command");
         let regions = nested_dispatch_regions(
             source,
-            tcl_dialect::DialectProfile::by_name("expect"),
+            tcl_registry::model::ingress::resolve_environment("expect").analyser_profile(),
             &command,
         );
         assert_eq!(
@@ -7095,7 +7102,7 @@ mod tests {
             assert!(
                 nested_dispatch_regions(
                     source,
-                    tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                    tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
                     &command
                 )
                 .is_empty(),
@@ -7115,7 +7122,7 @@ mod tests {
         assert!(
             nested_dispatch_regions(
                 source,
-                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
                 &commands[0]
             )
             .is_empty(),
@@ -7123,7 +7130,7 @@ mod tests {
         );
         let regions = nested_dispatch_regions(
             source,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &commands[2],
         );
         assert!(
@@ -7155,7 +7162,7 @@ mod tests {
             assert!(
                 nested_dispatch_regions(
                     source,
-                    tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                    tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
                     &command
                 )
                 .is_empty(),
@@ -7180,7 +7187,7 @@ mod tests {
         ] {
             let regions = nested_dispatch_regions(
                 source,
-                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
                 command,
             );
             assert!(
@@ -7207,7 +7214,7 @@ mod tests {
         // `target` begins after the four-space indent plus `method `.
         let refs = references(
             source,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             2,
             11,
             &analysis,
@@ -7227,7 +7234,7 @@ mod tests {
         let analysis = analyse(source);
         let refs = references(
             source,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             5,
             &analysis,

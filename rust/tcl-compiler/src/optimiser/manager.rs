@@ -832,7 +832,8 @@ pub fn optimise_raw(
     optimise_raw_for_profile(
         source,
         registry,
-        dialect.map(tcl_dialect::DialectProfile::by_name),
+        dialect
+            .map(|name| crate::environment_ingress::resolve_environment(name).analyser_profile()),
     )
 }
 
@@ -859,7 +860,7 @@ pub fn optimise_raw_for_profile(
         tcl_lexer::LexerConfig::for_dialect(dialect.map_or("", |profile| profile.name)),
     );
     let object_types = crate::object_types::object_handle_classes(&cu, registry);
-    let identities = crate::head_identity::command_head_identities_with_config(
+    let identities = crate::realm::document_realm_bindings_with_config(
         &cu.source,
         tcl_lexer::LexerConfig::for_dialect(dialect.map_or("", |profile| profile.name)),
         registry,
@@ -1383,7 +1384,7 @@ mod tests {
         let tcl_opts = optimise_with_dialect(
             src,
             &registry(),
-            Some(tcl_dialect::DialectProfile::by_name("tcl")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile()),
         );
         assert!(
             tcl_opts.iter().all(|o| o.code != DiagCode::O124),

@@ -18,10 +18,11 @@
 
 //! `TCP::nagle` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "TCP::nagle",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Toggles the Nagle mode.",
@@ -37,9 +38,7 @@ pub const fn spec() -> CommandSpec {
             transport: Some("tcp"),
             profiles: &[],
             also_in: &["SIP_REQUEST", "SIP_REQUEST_SEND", "SIP_RESPONSE"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "TCP::nagle (enable | disable | auto)",

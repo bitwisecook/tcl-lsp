@@ -50,20 +50,22 @@
 //! tclsh **8.6** + **9.0** and cited with a `// tclsh-proof:` comment.
 
 use std::collections::HashSet;
+use tcl_dialect::model::{Family, SurfaceLayer};
 
 use tcl_lsp_core::definition::LspRange;
 use tcl_lsp_core::semantic_tokens::{full, legend_token_types, range};
-use tcl_registry::{ArgRole, Arity, CommandRegistry, CommandSpec, Traits, registry_for_dialect};
+use tcl_registry::model::ingress::static_context_for;
+use tcl_registry::{ArgRole, Arity, CommandRegistry, CommandSpec, Traits};
 
 fn reg() -> &'static CommandRegistry {
-    registry_for_dialect("tcl8.6")
+    static_context_for("tcl8.6").commands()
 }
 
 /// An iRules-enabled registry (loads the BIG-IP / iRules dialect on top of the
 /// default command set) for the `f5-irules` object-overlay tests.
 fn irules_registry() -> CommandRegistry {
     let mut r = CommandRegistry::build_default();
-    r.load_dialect(tcl_dialect::DialectSet::IRULES);
+    r.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
     r
 }
 
@@ -81,7 +83,7 @@ struct Tok {
 fn decode_with(source: &str, dialect: &str, registry: &CommandRegistry) -> Vec<Tok> {
     let st = full(
         source,
-        tcl_dialect::DialectProfile::by_name(dialect),
+        tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
         registry,
     );
     assert_eq!(st.data.len() % 5, 0, "stream must be 5-int aligned");
@@ -129,14 +131,12 @@ fn legend_idx(ty: &str) -> u32 {
     u32::try_from(legend_token_types().iter().position(|t| *t == ty).unwrap()).unwrap()
 }
 
-// ===========================================================================
 // ARE regex sub-tokenisation — `scan_are_token` / `scan_are_class` /
 // `scan_are_brace_quant` / `scan_are_escape` branches reached via `regexp`.
 //
 // Tcl-language facts asserted here: `regexp` is a real builtin and each pattern
 // is a valid ARE that compiles. tclsh-proof: `[llength [info commands regexp]]`
 // == 1 and `regexp {<pat>} <str>` runs without error (8.6 + 9.0).
-// ===========================================================================
 
 #[test]
 fn st_regex_non_capturing_group_is_one_group_token() {
@@ -308,13 +308,11 @@ fn st_regex_escaped_metachar_is_escape_not_metachar() {
     );
 }
 
-// ===========================================================================
 // switch -regexp braced case list — `collect_switch_case_list` (regexp mode).
 //
 // tclsh-proof: the case list parses and dispatches by regex. tclsh8.6/9.0:
 //   `set x abc; switch -regexp $x {{^a(b)} {set r 1} default {set r 2}}; set r`
 //   -> 1
-// ===========================================================================
 
 #[test]
 fn st_switch_regexp_case_list_subtokenises_patterns_and_recurses_bodies() {
@@ -368,7 +366,6 @@ fn st_switch_regexp_literal_pattern_without_metachars_is_plain_regexp() {
     );
 }
 
-// ===========================================================================
 // switch (plain, non-regexp) braced case list — `collect_switch_case_list`
 // (exact / glob mode).  Regression for #758: the whole `{ pat body … }` list
 // used to be walked as one opaque body, so the case bodies got no tokens.
@@ -376,7 +373,6 @@ fn st_switch_regexp_literal_pattern_without_metachars_is_plain_regexp() {
 // tclsh-proof: the case list parses and dispatches. tclsh8.6/9.0:
 //   `set x b; switch $x {a {set r 1} b {set r 2} default {set r 3}}; set r`
 //   -> 2
-// ===========================================================================
 
 #[test]
 fn st_switch_plain_case_list_recurses_bodies_without_regex_tokens() {
@@ -466,13 +462,11 @@ fn st_switch_hash_pattern_is_not_a_comment_and_has_no_overlap() {
     }
 }
 
-// ===========================================================================
 // format / scan %-spec edges — `parse_sprintf_cuts`.
 //
 // `format` / `scan` are real builtins. tclsh-proof:
 //   `[llength [info commands format]]` + `[... scan]` == 2 (8.6 + 9.0).
 // The %-decomposition is presentation; assert structurally.
-// ===========================================================================
 
 #[test]
 fn st_sprintf_positional_argument_specifier() {
@@ -559,12 +553,10 @@ fn st_sprintf_percent_without_type_is_literal() {
     );
 }
 
-// ===========================================================================
 // clock field strings — `push_clock_subtokens`.
 //
 // `clock format`/`scan` are real builtins. tclsh-proof:
 //   `string length [clock format 0 -format {%Y-%m-%d} -gmt 1]` == 10 (8.6/9.0).
-// ===========================================================================
 
 #[test]
 fn st_clock_locale_modifier_then_spec() {
@@ -601,12 +593,10 @@ fn st_clock_trailing_percent_not_a_spec_stays_string() {
     assert!(type_set("clock format $t -format {100%}\n", "tcl8.6").contains("string"));
 }
 
-// ===========================================================================
 // binary field strings — `push_binary_subtokens`.
 //
 // `binary format`/`scan` are real builtins. tclsh-proof:
 //   `binary scan [binary format a3 hello] a3 r; set r` -> hel (8.6 + 9.0).
-// ===========================================================================
 
 #[test]
 fn st_binary_whitespace_inside_field_string_is_skipped() {
@@ -682,12 +672,10 @@ fn st_binary_modifier_only_after_integer_specifier() {
     );
 }
 
-// ===========================================================================
 // regsub replacement spec — `push_regsub_subtokens`.
 //
 // tclsh-proof: regsub backrefs are meaningful. tclsh8.6/9.0:
 //   `regsub {(b)} abc {[\1\&]} out; set out` -> a[b&]c
-// ===========================================================================
 
 #[test]
 fn st_regsub_replacement_backref_and_whole_match() {
@@ -719,10 +707,8 @@ fn st_regsub_replacement_without_backrefs_is_string() {
     assert!(!of_type(&toks, "string").is_empty(), "{toks:?}");
 }
 
-// ===========================================================================
 // Namespace-qualified command / proc names — `emit_command_head`,
 // `classify_arg_token`.
-// ===========================================================================
 
 #[test]
 fn st_namespaced_builtin_head_tail_is_function_with_default_library() {
@@ -735,7 +721,7 @@ fn st_namespaced_builtin_head_tail_is_function_with_default_library() {
     //   `::set x 7; set x` -> 7
     let st = full(
         "::set x 1\n",
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         reg(),
     );
     let ns_idx = legend_idx("namespace");
@@ -778,11 +764,9 @@ fn st_namespaced_bareword_argument_classified_as_namespace() {
     );
 }
 
-// ===========================================================================
 // expr sub-tokens — `collect_expr` arms (Command / String / Bool / function).
 //
 // `expr` math functions are real. tclsh-proof: `expr {abs(-5)}` -> 5 (8.6/9.0).
-// ===========================================================================
 
 #[test]
 fn st_expr_nested_command_substitution_recurses() {
@@ -845,7 +829,7 @@ fn st_expr_math_function_carries_default_library() {
     // the modifier via the packed stream.
     let st = full(
         "set y [expr {abs($a)}]\n",
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         reg(),
     );
     let fn_idx = legend_idx("function");
@@ -877,10 +861,8 @@ fn st_expr_non_braced_argument_falls_back_to_classification() {
     );
 }
 
-// ===========================================================================
 // Bareword backslash escapes & structural keyword args — `push_escape_subtokens`,
 // `push_keyword_arg`.
-// ===========================================================================
 
 #[test]
 fn st_bareword_backslash_escape_splits_into_string_and_escape() {
@@ -927,11 +909,9 @@ fn st_quoted_structural_keyword_arg_trims_delimiters() {
     );
 }
 
-// ===========================================================================
 // f5-irules object-reference overlay — `push_object_token`.
 //
 // The overlay is iRules-only; assert under the iRules registry/dialect.
-// ===========================================================================
 
 #[test]
 fn st_irules_declaration_body_shape_gates_event_and_proc_definition_tokens() {
@@ -1061,7 +1041,7 @@ fn st_irules_event_fallback_survives_generic_tcl_registry() {
 }
 
 #[test]
-fn st_irules_declaration_boundary_tracks_resolved_head_identity() {
+fn st_irules_declaration_boundary_tracks_resolved_realm_binding() {
     // The shared top-level boundary owner resolves command identity at the
     // source offset: redefining `when` means the later spelling is no longer
     // an iRules event handler, even though its words retain declaration shape.
@@ -1148,9 +1128,7 @@ fn st_irules_object_overlay_absent_in_plain_tcl() {
     );
 }
 
-// ===========================================================================
 // Decorator option switches & subcommand keywords on real specs.
-// ===========================================================================
 
 #[test]
 fn st_known_option_is_decorator_unknown_stays_string() {
@@ -1183,7 +1161,7 @@ fn st_subcommand_word_is_keyword_with_default_library() {
     // Confirm the defaultLibrary modifier on that (2nd) token in the packed stream.
     let st = full(
         "string length $s\n",
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         reg(),
     );
     assert_eq!(
@@ -1194,9 +1172,7 @@ fn st_subcommand_word_is_keyword_with_default_library() {
     );
 }
 
-// ===========================================================================
 // Range variant & multi-line dropping.
-// ===========================================================================
 
 #[test]
 fn st_range_variant_drops_tokens_outside_window_and_rebases_delta() {
@@ -1205,7 +1181,7 @@ fn st_range_variant_drops_tokens_outside_window_and_rebases_delta() {
     let src = "set a 1\nset b 2\nset c 3\n";
     let r = range(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         LspRange {
             start_line: 1,
             start_character: 0,
@@ -1226,9 +1202,13 @@ fn st_range_variant_drops_tokens_outside_window_and_rebases_delta() {
     // Strictly fewer tokens than the whole document.
     assert!(
         r.data.len()
-            < full(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), reg())
-                .data
-                .len(),
+            < full(
+                src,
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+                reg()
+            )
+            .data
+            .len(),
         "{:?}",
         r.data
     );
@@ -1241,7 +1221,7 @@ fn st_range_empty_window_yields_no_tokens() {
     let src = "set a 1\nset b 2\n";
     let r = range(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         LspRange {
             start_line: 0,
             start_character: 0,
@@ -1281,10 +1261,8 @@ fn st_multiline_braced_body_is_recursed_not_emitted_whole() {
     );
 }
 
-// ===========================================================================
 // regexp option-skip to the pattern word — the `-start N` / `--` arms of the
 // `pattern_type == Regex` positional-skip loop in `special_arg_kinds`.
-// ===========================================================================
 
 #[test]
 fn st_regexp_start_option_value_skipped_before_pattern() {
@@ -1332,10 +1310,8 @@ fn st_regexp_double_dash_ends_options_before_pattern() {
     );
 }
 
-// ===========================================================================
 // binary subcommand that is neither `format` nor `scan` — the `_ => None`
 // arm of the `binary` field-word selection (no BinaryFormat override).
-// ===========================================================================
 
 #[test]
 fn st_binary_non_format_subcommand_has_no_field_override() {

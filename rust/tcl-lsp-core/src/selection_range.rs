@@ -95,7 +95,7 @@ pub fn selection_range(
         line,
         character,
         analysis,
-        tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        crate::profile_for_dialect("tcl9.0"),
     )
 }
 
@@ -305,7 +305,7 @@ fn command_span_at(
         profile: &'static tcl_dialect::DialectProfile,
         config: tcl_lexer::LexerConfig,
         registry: &tcl_registry::CommandRegistry,
-        identities: &tcl_compiler::head_identity::HeadIdentityMap,
+        identities: &tcl_compiler::realm::CommandBindingRealm,
         depth: u32,
         definition_grammar: Option<&'static tcl_registry::definer::DefinitionBodyGrammar>,
         best: &mut Option<Span>,
@@ -341,11 +341,11 @@ fn command_span_at(
             } else {
                 canonical
             };
-            let head = tcl_compiler::head_identity::HeadWords {
+            let head = tcl_compiler::realm::HeadWords {
                 written: command.name(),
                 resolved: &semantic_head,
             };
-            let availability = profile.availability_mask;
+            let availability = Some(crate::document_context_for_profile(profile).authoring_query());
             let body_indices = definition_grammar
                 .filter(|grammar| grammar.is_member(head.written))
                 .map_or_else(
@@ -521,7 +521,7 @@ fn command_span_at(
     let profile = dialect;
     let registry = crate::registry_for_dialect_profile(profile);
     let identities =
-        tcl_compiler::head_identity::command_head_identities_with_config(source, config, registry);
+        tcl_compiler::realm::document_realm_bindings_with_config(source, config, registry);
     let mut best = None;
     visit(
         source,
@@ -845,7 +845,7 @@ mod tests {
                 src,
                 cursor,
                 tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             )
             .expect("inner command");
             assert!(span.start() > 0 && span.end() - span.start() < source_len);
@@ -870,7 +870,7 @@ mod tests {
             src,
             cursor,
             tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         )
         .expect("nested command substitution");
         assert_eq!(
@@ -895,7 +895,7 @@ mod tests {
             src,
             cursor,
             tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         )
         .expect("inner command through aliased Body role");
         assert_eq!(

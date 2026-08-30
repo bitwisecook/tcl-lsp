@@ -84,8 +84,10 @@ impl GraphContext {
     pub fn new() -> Self {
         let registry = BigipRegistry::build();
         let index = ObjectTypeIndex::build(&registry);
-        let irules_registry =
-            tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
+        let irules_registry = tcl_registry::model::ingress::static_context_for_profile(
+            tcl_dialect::DialectProfile::irules(),
+        )
+        .commands();
         Self {
             index,
             irules_registry,

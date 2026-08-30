@@ -43,7 +43,7 @@
 //! - `compute_aliases` + `build_memory_ssa` driver.
 
 use std::collections::{BTreeSet, HashMap};
-use tcl_registry::dialects::DialectSet;
+use tcl_registry::model::semantic::SemanticContext;
 use tcl_registry::{
     CallerFrameSelection, CommandRegistry, FrameLevel, StateTransition, StateTransitionKnowledge,
     Traits, VariableAliasTarget,
@@ -358,10 +358,10 @@ fn command_tokens(stmt: &Statement) -> Option<&crate::ir::CommandTokens> {
 fn registry_resolution(
     stmt: &Statement,
     registry: &CommandRegistry,
-    dialect: DialectSet,
+    context: Option<SemanticContext>,
 ) -> Option<RegistryInvocationResolution> {
     let tokens = command_tokens(stmt)?;
-    resolve_command_tokens(registry, dialect, tokens).ok()
+    resolve_command_tokens(registry, context, tokens).ok()
 }
 
 fn literal_subject(subject: &tcl_registry::TransitionSubject) -> Option<&str> {
@@ -371,10 +371,10 @@ fn literal_subject(subject: &tcl_registry::TransitionSubject) -> Option<&str> {
 fn transition_alias_pairs(
     stmt: &Statement,
     registry: &CommandRegistry,
-    dialect: DialectSet,
+    context: Option<SemanticContext>,
 ) -> Vec<RegistryAliasPair> {
     let Some(RegistryInvocationResolution::Resolved(facts)) =
-        registry_resolution(stmt, registry, dialect)
+        registry_resolution(stmt, registry, context)
     else {
         return Vec::new();
     };
@@ -467,9 +467,9 @@ fn transition_alias_pairs(
 fn transition_requires_wildcard(
     stmt: &Statement,
     registry: &CommandRegistry,
-    dialect: DialectSet,
+    context: Option<SemanticContext>,
 ) -> bool {
-    match registry_resolution(stmt, registry, dialect) {
+    match registry_resolution(stmt, registry, context) {
         Some(RegistryInvocationResolution::Unresolved(_)) | None => {
             matches!(stmt, Statement::Call { .. } | Statement::Barrier { .. })
         }
@@ -492,9 +492,9 @@ fn transition_requires_wildcard(
 pub fn statement_has_wildcard_aliasing(
     stmt: &Statement,
     registry: &CommandRegistry,
-    dialect: DialectSet,
+    context: Option<SemanticContext>,
 ) -> bool {
-    transition_requires_wildcard(stmt, registry, dialect)
+    transition_requires_wildcard(stmt, registry, context)
 }
 
 /// The spec-declared trait set that classifies a call as a memory clobber.
@@ -509,10 +509,14 @@ const CLOBBER_TRAITS: Traits = Traits::EVALUATES_CODE.union(Traits::CREATES_BARR
 /// clobbers: no raw command spelling or argument text is inspected as a
 /// fallback.
 #[must_use]
-pub fn is_clobber(stmt: &Statement, registry: &CommandRegistry, dialect: DialectSet) -> bool {
+pub fn is_clobber(
+    stmt: &Statement,
+    registry: &CommandRegistry,
+    context: Option<SemanticContext>,
+) -> bool {
     match stmt {
         Statement::Barrier { .. } | Statement::UpFrame { .. } => true,
-        Statement::Call { .. } => match registry_resolution(stmt, registry, dialect) {
+        Statement::Call { .. } => match registry_resolution(stmt, registry, context) {
             Some(RegistryInvocationResolution::Resolved(facts)) => {
                 let subcommand_is_determinate = matches!(
                     &facts.subcommand,
@@ -595,14 +599,14 @@ impl AliasUnionFind {
 /// correctly merges `a` and `b` into the same alias set because
 /// they share the caller-side variable `x`.
 ///
-/// The registry receives the explicit selected `dialect`; this pass never
+/// The registry receives the explicitly resolved `context`; this pass never
 /// falls back to an all-dialects interpretation of command or subcommand
 /// shapes.
 #[must_use]
 pub fn compute_aliases(
     ssa: &SsaFunction,
     registry: &CommandRegistry,
-    dialect: DialectSet,
+    context: Option<SemanticContext>,
 ) -> Vec<AliasSet> {
     let mut uf = AliasUnionFind::default();
 
@@ -615,7 +619,7 @@ pub fn compute_aliases(
         for stmt_ssa in &block.statements {
             let stmt = &stmt_ssa.statement;
 
-            for pair in transition_alias_pairs(stmt, registry, dialect) {
+            for pair in transition_alias_pairs(stmt, registry, context) {
                 uf.union(&pair.target, &pair.local, pair.reason);
             }
         }
@@ -655,12 +659,12 @@ pub fn compute_aliases(
 pub fn has_wildcard_aliasing(
     ssa: &SsaFunction,
     registry: &CommandRegistry,
-    dialect: DialectSet,
+    context: Option<SemanticContext>,
 ) -> bool {
     ssa.blocks
         .values()
         .flat_map(|block| &block.statements)
-        .any(|statement| statement_has_wildcard_aliasing(&statement.statement, registry, dialect))
+        .any(|statement| statement_has_wildcard_aliasing(&statement.statement, registry, context))
 }
 
 /// Build memory-SSA annotations for an SSA function.
@@ -676,10 +680,10 @@ pub fn has_wildcard_aliasing(
 pub fn build_memory_ssa(
     ssa: &SsaFunction,
     registry: &CommandRegistry,
-    dialect: DialectSet,
+    context: Option<SemanticContext>,
 ) -> MemorySsaFunction {
-    let alias_sets = compute_aliases(ssa, registry, dialect);
-    let has_wildcard_aliasing = has_wildcard_aliasing(ssa, registry, dialect);
+    let alias_sets = compute_aliases(ssa, registry, context);
+    let has_wildcard_aliasing = has_wildcard_aliasing(ssa, registry, context);
     let aliased_names: BTreeSet<String> = alias_sets.iter().flat_map(AliasSet::names).collect();
 
     let mut memory_ops: Vec<MemoryOp> = Vec::new();
@@ -723,8 +727,8 @@ pub fn build_memory_ssa(
             let stmt = &stmt_ssa.statement;
             let idx_i32 = i32::try_from(idx).unwrap_or(i32::MAX);
 
-            if is_clobber(stmt, registry, dialect)
-                || transition_requires_wildcard(stmt, registry, dialect)
+            if is_clobber(stmt, registry, context)
+                || transition_requires_wildcard(stmt, registry, context)
             {
                 version_counter += 1;
                 memory_ops.push(MemoryOp::new_clobber(version_counter, bn, idx_i32));
@@ -804,7 +808,9 @@ pub fn build_memory_ssa(
 mod tests {
     use super::*;
 
-    const DIALECT: DialectSet = DialectSet::TCL86;
+    fn test_context() -> SemanticContext {
+        SemanticContext::for_environment("tcl8.6")
+    }
 
     fn literal_tokens(command: &str, args: &[String]) -> crate::ir::CommandTokens {
         let words: Vec<String> = std::iter::once(command.to_owned())
@@ -928,7 +934,7 @@ mod tests {
         let upvar = transition_alias_pairs(
             &call("upvar", &["1", "a", "la", "b", "lb"]),
             &registry,
-            DIALECT,
+            Some(test_context()),
         );
         assert_eq!(upvar.len(), 2);
         assert_eq!(upvar[0].target.kind, MemoryLocationKind::Upvar);
@@ -940,7 +946,7 @@ mod tests {
         let namespace = transition_alias_pairs(
             &call("namespace", &["upvar", "::scope", "other", "local"]),
             &registry,
-            DIALECT,
+            Some(test_context()),
         );
         assert!(matches!(
             namespace.as_slice(),
@@ -951,8 +957,11 @@ mod tests {
                     && pair.local.name == "local"
         ));
 
-        let global =
-            transition_alias_pairs(&call("global", &["::pkg::shared"]), &registry, DIALECT);
+        let global = transition_alias_pairs(
+            &call("global", &["::pkg::shared"]),
+            &registry,
+            Some(test_context()),
+        );
         assert!(matches!(
             global.as_slice(),
             [pair]
@@ -977,8 +986,12 @@ mod tests {
             spelling: "$name".to_owned(),
             source: crate::ir::SourceSite::source(tcl_lexer::Span::new(0, 0)),
         };
-        assert!(transition_alias_pairs(&dynamic, &registry, DIALECT).is_empty());
-        assert!(transition_requires_wildcard(&dynamic, &registry, DIALECT));
+        assert!(transition_alias_pairs(&dynamic, &registry, Some(test_context())).is_empty());
+        assert!(transition_requires_wildcard(
+            &dynamic,
+            &registry,
+            Some(test_context())
+        ));
 
         let mut expanded = call("proc", &["p", "args", "body"]);
         let Statement::Call {
@@ -995,11 +1008,15 @@ mod tests {
                 source: crate::ir::SourceSite::source(tcl_lexer::Span::new(0, 0)),
             }),
         };
-        assert!(transition_alias_pairs(&expanded, &registry, DIALECT).is_empty());
-        assert!(transition_requires_wildcard(&expanded, &registry, DIALECT));
+        assert!(transition_alias_pairs(&expanded, &registry, Some(test_context())).is_empty());
+        assert!(transition_requires_wildcard(
+            &expanded,
+            &registry,
+            Some(test_context())
+        ));
 
         let expanded_ssa = make_ssa_with_entry_stmts(vec![expanded]);
-        let memory = build_memory_ssa(&expanded_ssa, &registry, DIALECT);
+        let memory = build_memory_ssa(&expanded_ssa, &registry, Some(test_context()));
         assert!(memory.has_wildcard_aliasing);
         assert_eq!(memory.count_clobbers, 1);
     }
@@ -1007,14 +1024,26 @@ mod tests {
     #[test]
     fn is_clobber_barrier_and_eval() {
         let reg = CommandRegistry::build_default();
-        assert!(is_clobber(&barrier("eval", &["x"]), &reg, DIALECT));
-        assert!(is_clobber(&call("eval", &["script"]), &reg, DIALECT));
+        assert!(is_clobber(
+            &barrier("eval", &["x"]),
+            &reg,
+            Some(test_context())
+        ));
+        assert!(is_clobber(
+            &call("eval", &["script"]),
+            &reg,
+            Some(test_context())
+        ));
         assert!(is_clobber(
             &call("uplevel", &["1", "script"]),
             &reg,
-            DIALECT
+            Some(test_context())
         ));
-        assert!(!is_clobber(&call("set", &["x", "1"]), &reg, DIALECT));
+        assert!(!is_clobber(
+            &call("set", &["x", "1"]),
+            &reg,
+            Some(test_context())
+        ));
     }
 
     /// The old hardcoded name list spelt these as the compound strings
@@ -1028,18 +1057,22 @@ mod tests {
         assert!(is_clobber(
             &call("interp", &["eval", "{}", "script"]),
             &reg,
-            DIALECT
+            Some(test_context())
         ));
         assert!(is_clobber(
             &call("namespace", &["eval", "ns", "script"]),
             &reg,
-            DIALECT
+            Some(test_context())
         ));
-        assert!(!is_clobber(&call("namespace", &["current"]), &reg, DIALECT));
+        assert!(!is_clobber(
+            &call("namespace", &["current"]),
+            &reg,
+            Some(test_context())
+        ));
         assert!(!is_clobber(
             &call("interp", &["exists", "x"]),
             &reg,
-            DIALECT
+            Some(test_context())
         ));
 
         let mut computed_subcommand = call("namespace", &["current"]);
@@ -1054,7 +1087,7 @@ mod tests {
             spelling: "$operation".to_owned(),
             source: crate::ir::SourceSite::source(tcl_lexer::Span::new(0, 0)),
         };
-        assert!(is_clobber(&computed_subcommand, &reg, DIALECT));
+        assert!(is_clobber(&computed_subcommand, &reg, Some(test_context())));
     }
 
     // -- compute_aliases + build_memory_ssa --
@@ -1091,7 +1124,11 @@ mod tests {
     #[test]
     fn compute_aliases_finds_upvar_set() {
         let ssa = make_ssa_with_entry_stmts(vec![call("upvar", &["1", "caller_x", "local_x"])]);
-        let sets = compute_aliases(&ssa, &CommandRegistry::build_default(), DIALECT);
+        let sets = compute_aliases(
+            &ssa,
+            &CommandRegistry::build_default(),
+            Some(test_context()),
+        );
         assert_eq!(sets.len(), 1);
         let set = &sets[0];
         assert!(set.contains_name("caller_x"));
@@ -1109,7 +1146,11 @@ mod tests {
             call("upvar", &["1", "x", "a"]),
             call("upvar", &["1", "x", "b"]),
         ]);
-        let sets = compute_aliases(&ssa, &CommandRegistry::build_default(), DIALECT);
+        let sets = compute_aliases(
+            &ssa,
+            &CommandRegistry::build_default(),
+            Some(test_context()),
+        );
         assert_eq!(sets.len(), 1, "shared-caller upvars must merge");
         let set = &sets[0];
         assert!(set.contains_name("a"));
@@ -1120,7 +1161,11 @@ mod tests {
     #[test]
     fn compute_aliases_global_variable_pair() {
         let ssa = make_ssa_with_entry_stmts(vec![call("global", &["shared"])]);
-        let sets = compute_aliases(&ssa, &CommandRegistry::build_default(), DIALECT);
+        let sets = compute_aliases(
+            &ssa,
+            &CommandRegistry::build_default(),
+            Some(test_context()),
+        );
         assert_eq!(sets.len(), 1);
         let set = &sets[0];
         // Global and Local kinds for the same name merge.
@@ -1140,8 +1185,19 @@ mod tests {
     #[test]
     fn compute_aliases_empty_when_no_aliasing_commands() {
         let ssa = make_ssa_with_entry_stmts(vec![call("set", &["x", "1"])]);
-        assert!(compute_aliases(&ssa, &CommandRegistry::build_default(), DIALECT).is_empty());
-        let memory = build_memory_ssa(&ssa, &CommandRegistry::build_default(), DIALECT);
+        assert!(
+            compute_aliases(
+                &ssa,
+                &CommandRegistry::build_default(),
+                Some(test_context())
+            )
+            .is_empty()
+        );
+        let memory = build_memory_ssa(
+            &ssa,
+            &CommandRegistry::build_default(),
+            Some(test_context()),
+        );
         assert!(memory.has_wildcard_aliasing);
         assert_eq!(memory.count_clobbers, 1);
     }
@@ -1149,7 +1205,11 @@ mod tests {
     #[test]
     fn build_memory_ssa_empty_function() {
         let ssa = make_ssa_with_entry_stmts(Vec::new());
-        let m = build_memory_ssa(&ssa, &CommandRegistry::build_default(), DIALECT);
+        let m = build_memory_ssa(
+            &ssa,
+            &CommandRegistry::build_default(),
+            Some(test_context()),
+        );
         assert!(m.alias_sets.is_empty());
         assert!(m.memory_ops.is_empty());
         assert_eq!(m.count_defs, 0);
@@ -1160,7 +1220,11 @@ mod tests {
     #[test]
     fn build_memory_ssa_emits_clobber_for_eval() {
         let ssa = make_ssa_with_entry_stmts(vec![call("eval", &["foo"])]);
-        let m = build_memory_ssa(&ssa, &CommandRegistry::build_default(), DIALECT);
+        let m = build_memory_ssa(
+            &ssa,
+            &CommandRegistry::build_default(),
+            Some(test_context()),
+        );
         assert_eq!(m.count_clobbers, 1);
         assert_eq!(m.memory_ops[0].kind, MemoryOpKind::Clobber);
         assert_eq!(m.memory_ops[0].location.name, "*");
@@ -1181,10 +1245,14 @@ mod tests {
         assert!(is_clobber(
             &upframe,
             &CommandRegistry::build_default(),
-            DIALECT
+            Some(test_context())
         ));
         let ssa = make_ssa_with_entry_stmts(vec![upframe]);
-        let m = build_memory_ssa(&ssa, &CommandRegistry::build_default(), DIALECT);
+        let m = build_memory_ssa(
+            &ssa,
+            &CommandRegistry::build_default(),
+            Some(test_context()),
+        );
         assert_eq!(m.count_clobbers, 1);
         assert_eq!(m.memory_ops[0].kind, MemoryOpKind::Clobber);
     }
@@ -1233,7 +1301,11 @@ mod tests {
             },
         );
         ssa.dominator_tree.insert(entry, Vec::new());
-        let m = build_memory_ssa(&ssa, &CommandRegistry::build_default(), DIALECT);
+        let m = build_memory_ssa(
+            &ssa,
+            &CommandRegistry::build_default(),
+            Some(test_context()),
+        );
         assert_eq!(m.count_defs, 1);
         assert_eq!(m.count_uses, 1);
         // Version for def must be > version visible at preceding
@@ -1304,7 +1376,11 @@ mod tests {
             },
         );
         ssa.dominator_tree.insert(entry, Vec::new());
-        let m = build_memory_ssa(&ssa, &CommandRegistry::build_default(), DIALECT);
+        let m = build_memory_ssa(
+            &ssa,
+            &CommandRegistry::build_default(),
+            Some(test_context()),
+        );
         // The def and use from the self-referential statement (index 2).
         let self_def = m
             .memory_ops

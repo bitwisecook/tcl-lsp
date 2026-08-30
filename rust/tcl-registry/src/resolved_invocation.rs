@@ -49,6 +49,7 @@ use crate::traits::Traits;
 use crate::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 use crate::world_effect::TransitionEffectCoverages;
 use crate::world_effect::{EffectFootprint, ResolvedWorldEffects};
+use tcl_dialect::model::SpecSurface;
 
 pub(crate) fn descriptor_operation(
     semantic: Option<SemanticOperationId>,
@@ -209,11 +210,6 @@ fn resolve_invocation_semantics<'r>(
             .and_then(|form| form.lowering_hook)
             .or(sub.and_then(|sub| sub.lowering_hook))
             .or(inherit_command.then_some(spec.lowering_hook).flatten()),
-        command_table_effect: sub
-            .and_then(|sub| sub.command_table_effect)
-            .or(inherit_command
-                .then_some(spec.command_table_effect)
-                .flatten()),
         side_effects: form
             .and_then(|form| form.side_effects)
             .unwrap_or(inherited_side_effects),
@@ -223,8 +219,26 @@ fn resolve_invocation_semantics<'r>(
             form: form.and_then(|form| form.world_effects),
         },
         state_transitions: ResolvedStateTransitions {
-            command: inherit_command.then_some(spec.state_transitions).flatten(),
-            subcommand: sub.and_then(|sub| sub.state_transitions),
+            // A `SpecTcl` pack cannot supply a Rust resolver, so it declares
+            // a command-table mutation with the one-word
+            // `command_table_effect` selector instead. Resolve it to the
+            // very stock descriptor a shipped spec names, so the pack
+            // shorthand and the shipped declaration produce one transition
+            // vocabulary through one resolver (ledger C8).
+            command: inherit_command
+                .then(|| {
+                    spec.state_transitions.or_else(|| {
+                        spec.command_table_effect
+                            .map(CommandTableEffect::transitions)
+                    })
+                })
+                .flatten(),
+            subcommand: sub.and_then(|sub| {
+                sub.state_transitions.or_else(|| {
+                    sub.command_table_effect
+                        .map(CommandTableEffect::transitions)
+                })
+            }),
             form: form.and_then(|form| form.state_transitions),
         },
         dispatch_dependencies: ResolvedDispatchDependencies {
@@ -548,7 +562,7 @@ pub struct InvocationSemantics<'r> {
     /// Result Tcl internal-representation type, when declared.
     pub return_type: Option<TclType>,
     /// Dialects in which this invocation safely initialises an unset target.
-    pub safe_on_uninit: Option<crate::dialects::DialectSet>,
+    pub safe_on_uninit: Option<&'static [SpecSurface]>,
     /// How the invocation types variables it writes.
     pub var_write_typing: VarWriteTyping,
     /// Result-to-container-element relationship, when declared.
@@ -565,8 +579,6 @@ pub struct InvocationSemantics<'r> {
     /// registry-to-common-IR dispatch key and will ultimately become the
     /// semantic operation selected by the registry.
     pub lowering_hook: Option<LoweringHookId>,
-    /// Command-table mutation semantics, when this invocation has them.
-    pub command_table_effect: Option<CommandTableEffect>,
     /// Structured side effects.  A non-empty resolved-subcommand declaration
     /// takes precedence over the command-level declaration, matching the
     /// existing side-effect classifier.
@@ -758,15 +770,19 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     /// mistaken for a proof that no other Tcl-world effect can occur.
     #[must_use]
     pub fn effect_footprint(&self) -> EffectFootprint {
-        let (_, coverage) = self
+        let (transitions, coverage) = self
             .semantics
             .state_transitions
             .resolve_with_effect_coverage(self.words.arguments());
-        self.effect_footprint_with_transition_coverage(&coverage)
+        self.effect_footprint_with_transition_coverage(
+            transitions.touches_command_bindings(),
+            &coverage,
+        )
     }
 
     fn effect_footprint_with_transition_coverage(
         &self,
+        command_table_mutation: bool,
         coverage: &TransitionEffectCoverages,
     ) -> EffectFootprint {
         let mut footprint = if self.semantics.world_effects.is_declared() {
@@ -776,8 +792,11 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         } else {
             EffectFootprint::conservative_unknown_invocation()
         };
+        // Whether this call mutated the command table is read from the one
+        // transition vocabulary (ledger C8), never from a second coarse
+        // effect word stamped beside it.
         footprint.extend(EffectFootprint::from_legacy_with_transition_coverage(
-            self.semantics.command_table_effect,
+            command_table_mutation,
             self.semantics.frame_effect,
             self.semantics.side_effects,
             coverage,
@@ -846,7 +865,10 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             completion: self.semantics.completion,
             result_stability: self.semantics.result_stability,
             representation_effect: self.semantics.representation_effect,
-            effects: self.effect_footprint_with_transition_coverage(&transition_effect_coverage),
+            effects: self.effect_footprint_with_transition_coverage(
+                transitions.touches_command_bindings(),
+                &transition_effect_coverage,
+            ),
             state_transitions: if self.semantics.state_transitions.is_declared() {
                 StateTransitionKnowledge::Declared(transitions)
             } else {
@@ -874,7 +896,6 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
 mod tests {
     use super::*;
     use crate::InvocationArguments;
-    use crate::dialects::DialectSet;
     use crate::world_effect::{
         CallbackKinds, EffectAccess, EffectAccessMode, EffectFootprint, StaticEffectAccess,
         StaticEffectFootprint, StaticInterpreterScope, StaticNamespaceScope, StaticSubjectScope,
@@ -888,6 +909,8 @@ mod tests {
         StateTransition, StateTransitionCommit, StateTransitionDescriptor, StateTransitionDomain,
         StateTransitionKnowledge, TransitionSubject, VariableAliasTarget,
     };
+    use tcl_dialect::model::SpecSurface;
+    use tcl_dialect::model::{Family, SurfaceQuery};
 
     const COMMAND_CODES: &[CompletionCode] = &[CompletionCode::Error];
     const SUBCOMMAND_CODES: &[CompletionCode] = &[CompletionCode::Break];
@@ -1008,7 +1031,7 @@ mod tests {
         SubCommand {
             name: "narrow",
             arity: Arity::exact(0),
-            safe_on_uninit: Some(DialectSet::TCL85_PLUS),
+            safe_on_uninit: Some(SpecSurface::TCL85_PLUS),
             ..SubCommand::DEFAULT
         },
         SubCommand {
@@ -1053,7 +1076,7 @@ mod tests {
         let registry = registry_with_completion_fixture();
 
         let form = registry
-            .resolve_invocation("completion-fixture", &["run"], DialectSet::empty())
+            .resolve_invocation("completion-fixture", &["run"], None)
             .expect("fixture command resolves");
         assert_eq!(
             form.semantics.completion.codes,
@@ -1062,7 +1085,7 @@ mod tests {
         );
 
         let subcommand = registry
-            .resolve_invocation("completion-fixture", &["plain"], DialectSet::empty())
+            .resolve_invocation("completion-fixture", &["plain"], None)
             .expect("fixture command resolves");
         assert_eq!(
             subcommand.semantics.completion.codes,
@@ -1071,7 +1094,7 @@ mod tests {
         );
 
         let command = registry
-            .resolve_invocation("completion-fixture", &[], DialectSet::empty())
+            .resolve_invocation("completion-fixture", &[], None)
             .expect("fixture command resolves without a subcommand");
         assert_eq!(
             command.semantics.completion.codes,
@@ -1085,7 +1108,7 @@ mod tests {
         let mut registry = CommandRegistry::build_default();
 
         let error = registry
-            .resolve_invocation("error", &["boom"], DialectSet::empty())
+            .resolve_invocation("error", &["boom"], None)
             .expect("error is a core command");
         assert_eq!(
             error.semantics.completion.codes,
@@ -1098,7 +1121,7 @@ mod tests {
             ..CommandSpec::DEFAULT
         });
         let generic = registry
-            .resolve_invocation("completion-generic-fallback", &[], DialectSet::empty())
+            .resolve_invocation("completion-generic-fallback", &[], None)
             .expect("unstamped fixture command resolves");
         assert_eq!(
             generic.semantics.completion,
@@ -1124,7 +1147,7 @@ mod tests {
             ..CommandSpec::DEFAULT
         });
         let explicit_empty = registry
-            .resolve_invocation("explicit-closed-effect-fixture", &[], DialectSet::empty())
+            .resolve_invocation("explicit-closed-effect-fixture", &[], None)
             .expect("explicitly effect-free fixture resolves")
             .effect_footprint();
         assert!(explicit_empty.accesses().is_empty());
@@ -1144,11 +1167,7 @@ mod tests {
             ..CommandSpec::DEFAULT
         });
         let explicit_transitions = registry
-            .resolve_invocation(
-                "explicit-closed-transition-fixture",
-                &[],
-                DialectSet::empty(),
-            )
+            .resolve_invocation("explicit-closed-transition-fixture", &[], None)
             .expect("explicitly transition-free fixture resolves")
             .facts()
             .state_transitions;
@@ -1161,7 +1180,7 @@ mod tests {
     #[test]
     fn semantic_operations_keep_structural_lowering_and_precise_leaf_intrinsics_distinct() {
         let registry = CommandRegistry::build_default();
-        let dialect = DialectSet::TCL90;
+        let dialect = Some(SurfaceQuery::core(Family::Tcl, "9.0"));
 
         for (command, arguments, lowering) in [
             ("incr", &["counter"][..], LoweringHookId::Incr),
@@ -1231,7 +1250,7 @@ mod tests {
         });
 
         let command = registry
-            .resolve_invocation("world-effect-fixture", &[], DialectSet::empty())
+            .resolve_invocation("world-effect-fixture", &[], None)
             .expect("fixture command resolves");
         let command_effects = command.effect_footprint();
         assert_eq!(command_effects.accesses().len(), 1);
@@ -1242,7 +1261,7 @@ mod tests {
         );
 
         let subcommand = registry
-            .resolve_invocation("world-effect-fixture", &["sub"], DialectSet::empty())
+            .resolve_invocation("world-effect-fixture", &["sub"], None)
             .expect("fixture subcommand resolves");
         let subcommand_effects = subcommand.effect_footprint();
         assert!(
@@ -1259,11 +1278,7 @@ mod tests {
         );
 
         let form = registry
-            .resolve_invocation(
-                "world-effect-fixture",
-                &["sub", "targetCell"],
-                DialectSet::empty(),
-            )
+            .resolve_invocation("world-effect-fixture", &["sub", "targetCell"], None)
             .expect("fixture form resolves");
         let form_effects = form.effect_footprint();
         assert!(
@@ -1284,11 +1299,7 @@ mod tests {
         }));
 
         let refined = registry
-            .resolve_invocation(
-                "world-effect-fixture",
-                &["refine", "targetCell"],
-                DialectSet::empty(),
-            )
+            .resolve_invocation("world-effect-fixture", &["refine", "targetCell"], None)
             .expect("refining fixture form resolves");
         let refined_effects = refined.effect_footprint();
         assert_eq!(refined_effects.accesses().len(), 1);
@@ -1324,7 +1335,7 @@ mod tests {
                     crate::InvocationWord::Literal("world-effect-fixture"),
                     &arguments,
                 ),
-                DialectSet::empty(),
+                None,
             )
             .resolved()
             .expect("literal fixture command resolves");
@@ -1357,11 +1368,7 @@ mod tests {
             ..CommandSpec::DEFAULT
         });
         let invocation = registry
-            .resolve_invocation(
-                "world-effect-fixture",
-                &["sub", "targetCell"],
-                DialectSet::empty(),
-            )
+            .resolve_invocation("world-effect-fixture", &["sub", "targetCell"], None)
             .expect("literal fixture command resolves");
         let facts = invocation.facts();
 
@@ -1412,7 +1419,11 @@ mod tests {
 
         for (command, arguments) in cases {
             let facts = registry
-                .resolve_invocation(command, arguments, DialectSet::TCL91)
+                .resolve_invocation(
+                    command,
+                    arguments,
+                    Some(SurfaceQuery::core(Family::Tcl, "9.1")),
+                )
                 .unwrap_or_else(|| panic!("{command} resolves"))
                 .facts();
 
@@ -1442,7 +1453,11 @@ mod tests {
     fn clock_result_dependencies_are_selected_by_subcommand() {
         let registry = CommandRegistry::build_default();
         let seconds = registry
-            .resolve_invocation("clock", &["seconds"], DialectSet::TCL90)
+            .resolve_invocation(
+                "clock",
+                &["seconds"],
+                Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+            )
             .expect("clock seconds resolves")
             .facts();
         assert_eq!(seconds.result_stability, ResultStability::Volatile);
@@ -1458,7 +1473,11 @@ mod tests {
         );
 
         let add = registry
-            .resolve_invocation("clock", &["add", "0", "1", "day"], DialectSet::TCL90)
+            .resolve_invocation(
+                "clock",
+                &["add", "0", "1", "day"],
+                Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+            )
             .expect("clock add resolves")
             .facts();
         assert!(matches!(
@@ -1486,7 +1505,7 @@ mod tests {
                     crate::InvocationWord::Literal("proc"),
                     &arguments,
                 ),
-                DialectSet::TCL86,
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
             )
             .resolved()
             .expect("literal proc resolves");
@@ -1529,7 +1548,7 @@ mod tests {
                     crate::InvocationWord::Literal("proc"),
                     &arguments,
                 ),
-                DialectSet::TCL86,
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
             )
             .resolved()
             .expect("literal proc resolves despite an expanded argument");
@@ -1563,7 +1582,11 @@ mod tests {
     fn namespace_eval_and_dynamic_delete_materialise_closed_namespace_facts() {
         let registry = CommandRegistry::build_default();
         let eval = registry
-            .resolve_invocation("namespace", &["eval", "::a", "error x"], DialectSet::TCL86)
+            .resolve_invocation(
+                "namespace",
+                &["eval", "::a", "error x"],
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            )
             .expect("namespace eval resolves")
             .facts();
         let [ensure] = eval
@@ -1605,7 +1628,7 @@ mod tests {
                     crate::InvocationWord::Literal("namespace"),
                     &arguments,
                 ),
-                DialectSet::TCL86,
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
             )
             .resolved()
             .expect("literal namespace delete resolves")
@@ -1627,7 +1650,11 @@ mod tests {
     fn interp_alias_query_and_delete_do_not_claim_alias_creation() {
         let registry = CommandRegistry::build_default();
         let query = registry
-            .resolve_invocation("interp", &["alias", "", "shortcut"], DialectSet::TCL86)
+            .resolve_invocation(
+                "interp",
+                &["alias", "", "shortcut"],
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            )
             .expect("interp alias query resolves")
             .facts();
         assert!(
@@ -1640,7 +1667,11 @@ mod tests {
         );
 
         let delete = registry
-            .resolve_invocation("interp", &["alias", "", "shortcut", ""], DialectSet::TCL86)
+            .resolve_invocation(
+                "interp",
+                &["alias", "", "shortcut", ""],
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            )
             .expect("interp alias delete resolves")
             .facts();
         let [transition] = delete
@@ -1668,7 +1699,11 @@ mod tests {
     fn frame_and_namespace_alias_transitions_follow_registry_layouts() {
         let registry = CommandRegistry::build_default();
         let upvar = registry
-            .resolve_invocation("upvar", &["1", "other", "local"], DialectSet::TCL86)
+            .resolve_invocation(
+                "upvar",
+                &["1", "other", "local"],
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            )
             .expect("upvar resolves")
             .facts();
         assert!(matches!(
@@ -1695,7 +1730,7 @@ mod tests {
             .resolve_invocation(
                 "namespace",
                 &["upvar", "::scope", "other", "local"],
-                DialectSet::TCL86,
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
             )
             .expect("namespace upvar resolves")
             .facts();
@@ -1733,11 +1768,7 @@ mod tests {
             ..CommandSpec::DEFAULT
         });
         let facts = registry
-            .resolve_invocation(
-                "resolver-backed-roles-fixture",
-                &["first", "second"],
-                DialectSet::empty(),
-            )
+            .resolve_invocation("resolver-backed-roles-fixture", &["first", "second"], None)
             .expect("fixture command resolves")
             .facts();
 
@@ -1765,7 +1796,7 @@ mod tests {
                     crate::InvocationWord::Literal("resolver-backed-dynamic-roles-fixture"),
                     &arguments,
                 ),
-                DialectSet::empty(),
+                None,
             )
             .resolved()
             .expect("fixture command resolves")
@@ -1785,7 +1816,7 @@ mod tests {
                 ..CommandSpec::DEFAULT
             });
             registry
-                .resolve_invocation("unstamped-dispatch-fixture", &[], DialectSet::empty())
+                .resolve_invocation("unstamped-dispatch-fixture", &[], None)
                 .expect("fixture command resolves")
                 .facts()
         };
@@ -1808,25 +1839,25 @@ mod tests {
         registry.insert(CommandSpec {
             name: "safe-on-uninit-fixture",
             arity: Arity::any(),
-            safe_on_uninit: Some(DialectSet::ALL_TCL),
+            safe_on_uninit: Some(SpecSurface::ALL_TCL),
             subcommands: SAFE_ON_UNINIT_SUBCOMMANDS,
             ..CommandSpec::DEFAULT
         });
 
         let narrow = registry
-            .resolve_invocation("safe-on-uninit-fixture", &["narrow"], DialectSet::empty())
+            .resolve_invocation("safe-on-uninit-fixture", &["narrow"], None)
             .expect("fixture subcommand resolves");
         assert_eq!(
             narrow.semantics.safe_on_uninit,
-            Some(DialectSet::TCL85_PLUS)
+            Some(SpecSurface::TCL85_PLUS)
         );
 
         let inherited = registry
-            .resolve_invocation("safe-on-uninit-fixture", &["inherit"], DialectSet::empty())
+            .resolve_invocation("safe-on-uninit-fixture", &["inherit"], None)
             .expect("fixture subcommand resolves");
         assert_eq!(
             inherited.semantics.safe_on_uninit,
-            Some(DialectSet::ALL_TCL)
+            Some(SpecSurface::ALL_TCL)
         );
     }
 
@@ -1844,11 +1875,7 @@ mod tests {
                 ..CommandSpec::DEFAULT
             });
             registry
-                .resolve_invocation(
-                    "dispatch-composition-fixture",
-                    &["run"],
-                    DialectSet::empty(),
-                )
+                .resolve_invocation("dispatch-composition-fixture", &["run"], None)
                 .expect("fixture command resolves")
                 .facts()
         };
@@ -1873,7 +1900,11 @@ mod tests {
     fn transition_coverage_replaces_only_the_duplicate_legacy_write() {
         let registry = CommandRegistry::build_default();
         let invocation = registry
-            .resolve_invocation("rename", &["old", "new"], DialectSet::TCL86)
+            .resolve_invocation(
+                "rename",
+                &["old", "new"],
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            )
             .expect("core registry command resolves");
         let footprint = invocation.effect_footprint();
 
@@ -1891,10 +1922,10 @@ mod tests {
             access.domain == WorldStateDomain::CommandTraces
                 && access.mode == EffectAccessMode::Read
         }));
-        assert_eq!(
-            footprint.legacy().command_table_effects,
-            vec![crate::CommandTableEffect::RenamesCommands],
-            "the typed existing command-table declaration remains available"
+        assert!(
+            footprint.legacy().command_table_mutation,
+            "the command-table mutation the transition states remains visible \
+             to the legacy effect bridge"
         );
         assert_eq!(footprint.legacy().side_effects.len(), 1);
 
@@ -1916,7 +1947,11 @@ mod tests {
     fn transition_coverage_does_not_hide_an_uncovered_variable_value_write() {
         let registry = CommandRegistry::build_default();
         let variable = registry
-            .resolve_invocation("variable", &["name", "value"], DialectSet::TCL86)
+            .resolve_invocation(
+                "variable",
+                &["name", "value"],
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            )
             .expect("variable resolves")
             .facts();
         assert!(

@@ -66,16 +66,15 @@ use tcl_compiler::cfg_layout::{EdgeKind, assign_lanes, build_cfg_edges, ordered_
 use tcl_compiler::expr_ast::render_expr;
 use tcl_compiler::ir::Statement;
 use tcl_compiler::lowering::lower_to_ir;
-use tcl_registry::{CommandRegistry, registry_for_dialect};
+use tcl_registry::CommandRegistry;
+use tcl_registry::model::ingress::static_context_for;
 
-// ---------------------------------------------------------------------------
 // Shared helpers (mirror dataflow.rs / optimiser.rs registry setup)
-// ---------------------------------------------------------------------------
 
 const TCL: &str = "tcl8.6";
 
 fn registry() -> &'static CommandRegistry {
-    registry_for_dialect(TCL)
+    static_context_for(TCL).commands()
 }
 
 /// `source → CfgModule` via the analysis (faithful) builder.
@@ -130,9 +129,7 @@ fn assigns_const_reachable(func: &Function, name: &str) -> bool {
     })
 }
 
-// ===========================================================================
 // CFG construction
-// ===========================================================================
 
 #[test]
 fn linear_script_cfg() {
@@ -397,9 +394,7 @@ fn return_terminates_block() {
     );
 }
 
-// ===========================================================================
 // Shared CFG edge-routing (lane) model
-// ===========================================================================
 
 /// Do two closed integer intervals overlap (touching endpoints count as
 /// overlap)?
@@ -619,7 +614,6 @@ fn block_ordering_follows_creation_order() {
     );
 }
 
-// ===========================================================================
 // Codegen-build shape (un-rotated, header-tested loop)
 //
 // The analysis `for_creates_loop_cfg` above asserts the ROTATED shape. The
@@ -627,7 +621,6 @@ fn block_ordering_follows_creation_order() {
 // loop header-tested — so the `$i < 3` condition stays on the `for_header`
 // block. Pinning it here keeps both shapes covered and documents the rotation
 // as analysis-only.
-// ===========================================================================
 
 #[test]
 fn codegen_for_loop_is_header_tested() {
@@ -655,10 +648,8 @@ fn codegen_for_loop_is_header_tested() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Deterministic PRNG for the no-collision property test (no time/Math.random).
 // A 64-bit xorshift* — fixed seed in, identical stream out on every run.
-// ---------------------------------------------------------------------------
 
 struct XorShift(u64);
 

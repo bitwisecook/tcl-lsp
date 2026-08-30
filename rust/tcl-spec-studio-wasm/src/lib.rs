@@ -272,9 +272,7 @@ pub fn import_package_versions(
     )
 }
 
-// ---------------------------------------------------------------------------
 // The pack store — the DSL document is the model
-// ---------------------------------------------------------------------------
 //
 // Every export here takes the `.tclspec` **source** and returns JSON, so the
 // browser holds exactly one piece of state — the document — and the Rust side
@@ -387,7 +385,10 @@ pub fn pack_set_command(source: &str, name: &str, draft_json: &str, overrides: b
         Ok(draft) => draft,
         Err(message) => return error(&message),
     };
-    let (next, write) = with_store_mut(source, |store| store.set_command(name, &draft, overrides));
+    let (next, (write, patch)) = with_store_mut(source, |store| {
+        let write = store.set_command(name, &draft, overrides);
+        (write, patch_json(store))
+    });
     let upgraded_to = write
         .upgraded_from
         .as_ref()
@@ -399,19 +400,86 @@ pub fn pack_set_command(source: &str, name: &str, draft_json: &str, overrides: b
         "upgraded_from": write.upgraded_from,
         "upgraded_to": upgraded_to,
         "name": name,
+        // E-R12: `"patched"` write-backs left `source` alone and put the edit
+        // in the patch pack instead, so the caller must persist `patch` beside
+        // the document and hand it back through `pack_adopt_patch`.
+        "patch": patch,
     }))
 }
 
 /// Drop `name` from the document, returning the new document.
+///
+/// On a **programmed** document this can only take back a standing patch
+/// override (E-R12) — the author's program is never rewritten.
 #[wasm_bindgen]
 #[must_use]
 pub fn pack_remove_command(source: &str, name: &str) -> String {
-    let (next, removed) = with_store_mut(source, |store| store.remove_command(name));
+    let (next, (removed, patch)) = with_store_mut(source, |store| {
+        (store.remove_command(name), patch_json(store))
+    });
     if removed {
-        to_string(&json!({ "source": next, "removed": name }))
+        to_string(&json!({ "source": next, "removed": name, "patch": patch }))
     } else {
         error(&format!("the pack does not declare `{name}`"))
     }
+}
+
+/// The patch pack standing over `source`, and the overrides it holds.
+///
+/// The second half of the studio's state once a **programmed** pack has been
+/// edited (E-R12): the author's document is one string and this is the other.
+#[wasm_bindgen]
+#[must_use]
+pub fn pack_patch(source: &str) -> String {
+    with_store(source, |store| to_string(&patch_json(store)))
+}
+
+/// Restore a patch pack over `source` — the other end of [`pack_patch`], so a
+/// reload or a reopened workspace comes back with its overrides standing.
+///
+/// Blank `patch` text clears the patch, which is how a caller drops every
+/// override at once.
+#[wasm_bindgen]
+#[must_use]
+pub fn pack_adopt_patch(source: &str, patch: &str) -> String {
+    let (_, out) = with_store_mut(source, |store| {
+        store.adopt_patch(patch);
+        patch_json(store)
+    });
+    to_string(&out)
+}
+
+/// Take one command back out of the patch pack, restoring the base
+/// declaration.
+#[wasm_bindgen]
+#[must_use]
+pub fn pack_remove_override(source: &str, name: &str) -> String {
+    let (_, (removed, patch)) = with_store_mut(source, |store| {
+        (store.remove_override(name), patch_json(store))
+    });
+    if removed {
+        to_string(&json!({ "removed": name, "patch": patch }))
+    } else {
+        error(&format!("no patch pack overrides `{name}`"))
+    }
+}
+
+/// The patch half of the studio's state, as every export above reports it.
+fn patch_json(store: &PackStore) -> serde_json::Value {
+    json!({
+        "programmed": store.programmed().map(|why| json!({
+            "why": why.key(),
+            "reason": why.reason(),
+        })),
+        "pack": store.patch_name(),
+        "source": store.patch_source(),
+        "untrusted_tier_refusal": store
+            .patch_untrusted_tier_refusal()
+            .map(|(line, why)| json!({ "line": line, "reason": why })),
+        "standing_overrides": tcl_spec_studio::store::standing_overrides_json(
+            &store.standing_overrides(),
+        ),
+    })
 }
 
 /// Re-render the whole document from its derived drafts — the pack's canonical
@@ -439,9 +507,7 @@ pub fn pack_validate(source: &str, dialect: &str) -> String {
     })
 }
 
-// ---------------------------------------------------------------------------
 // The Test tab — the pack, installed, under the real analyser
-// ---------------------------------------------------------------------------
 
 /// Analyse `sample` with `source`'s pack installed over the `dialect`
 /// registry.
@@ -484,9 +550,7 @@ pub fn pack_test_inspect(source: &str, sample: &str, dialect: &str, offset: usiz
     })
 }
 
-// ---------------------------------------------------------------------------
 // The Pack DSL tab — client-side highlight and hover for the DSL itself
-// ---------------------------------------------------------------------------
 
 /// Classified byte-span tokens for `.tclspec` `source` — what the Pack DSL
 /// editor's overlay paints. `[{start, end, class, text}, …]`, non-overlapping

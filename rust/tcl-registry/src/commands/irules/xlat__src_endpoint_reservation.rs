@@ -18,10 +18,11 @@
 
 //! `XLAT::src_endpoint_reservation` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "XLAT::src_endpoint_reservation",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "XLAT:src_endpoint_reservation",
@@ -45,7 +46,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-no-persist",
                     value: OptionValue::flag(),
                     detail: "Skip creation of persist entry.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -54,7 +55,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-dslite",
                     value: OptionValue::value("LOCAL_ADDR REMOTE_ADDR"),
                     detail: "DS-Lite local and remote endpoint.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -63,7 +64,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-pool",
                     value: OptionValue::value("POOL_NAME"),
                     detail: "Specify pool for endpoint reservation.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -72,7 +73,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-translation-loose",
                     value: OptionValue::value("IP PORT"),
                     detail: "Hint data; command won't fail if hints can't be used.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -81,7 +82,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-translation-strict",
                     value: OptionValue::value("IP PORT"),
                     detail: "Hint data; command fails if hints can't be used.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,

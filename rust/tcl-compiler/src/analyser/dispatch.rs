@@ -30,7 +30,6 @@
 
 use std::collections::{BTreeSet, HashMap};
 
-use tcl_registry::ProfileQueries;
 use tcl_registry::abbrev::{Keyword, KeywordMatch, KeywordTable, PrefixMatching};
 use tcl_registry::prelude::OptionSpec;
 use tcl_registry::scoped::ScopedCommand;
@@ -81,9 +80,22 @@ pub struct CommandSig {
     /// `leading_options`.
     pub leading_option_specs: Vec<&'static OptionSpec>,
 
-    /// Registry-declared relationships between leading options. The generic
-    /// validity pass reports conflicts without naming a command.
-    pub option_constraints: Vec<&'static tcl_registry::OptionConstraint>,
+    /// Registry-declared relations between this invocation's options and
+    /// arguments (E-R14). The generic validity pass evaluates them **natively**
+    /// — no hook, no VM — and reports W147 / W152 without naming a command.
+    pub option_relations: Vec<&'static tcl_registry::OptionRelation>,
+
+    /// The resolved command / subcommand's `constraints` escape hatch, when
+    /// it declares one. Consulted only after `option_relations` reported
+    /// nothing, so a spec without one never reaches the hook seam
+    /// (principle P-B).
+    pub constraints_hook: Option<tcl_registry::ConstraintsHook>,
+
+    /// Where this invocation's options may appear, from
+    /// [`tcl_registry::CommandSpec::option_placement`]. Read only by the
+    /// relation checker: the arity check's leading-option skip is a different
+    /// question and keeps its own scan.
+    pub option_placement: tcl_registry::OptionPlacement,
 
     /// The resolved command / subcommand's primary invocation synopsis
     /// ([`tcl_registry::CommandSpec::primary_synopsis`] /
@@ -218,26 +230,25 @@ pub enum CommandSignature {
 ///   has no subcommands.
 /// - `None` when the registry doesn't know the command.
 ///
-/// The `profile` argument selects which dialect-specific subcommand and
-/// option sets are materialised (availability mask + version ceiling +
-/// the subtractive iRules disable filter); pass
-/// `DialectProfile::plain_tcl()` when the caller has no specific dialect
-/// context.
+/// The `context` argument selects which dialect-specific subcommand and
+/// option sets are materialised (authoring mask + version ceiling); pass
+/// the lenient `tcl` environment's context when the caller has no
+/// specific dialect context.
 #[must_use]
 pub fn signature_for_command(
     registry: &CommandRegistry,
     cmd_name: &str,
-    profile: &tcl_dialect::DialectProfile,
+    context: &tcl_registry::model::ResolvedContext,
 ) -> Option<CommandSignature> {
-    let spec = profile.resolve_command(registry, cmd_name)?;
+    let spec = context.resolve_spec(registry, cmd_name)?;
 
     if !spec.subcommands.is_empty() {
         let mut subs: HashMap<String, CommandSig> = HashMap::new();
         for sub in spec.subcommands {
-            // The profile filters out subcommands not available in the
-            // current dialect (own gate falling back to the parent's,
-            // intersected with the availability mask).
-            if !profile.is_subcommand_available(spec, sub) {
+            // The profile filters out subcommands not available in the current
+            // dialect (own gate falling back to the parent's, intersected with
+            // the availability point).
+            if !context.subcommand_available(spec, sub) {
                 continue;
             }
             let arg_roles = sub
@@ -250,12 +261,12 @@ pub fn signature_for_command(
             // option skip.  The option dialect inherits from the
             // subcommand (falling back to the parent command) when it
             // does not pin its own (§5.2 gating: intersects + ceiling).
-            let leading_options = profile
+            let leading_options = context
                 .available_sub_option_names(spec, sub)
                 .into_iter()
                 .map(str::to_string)
                 .collect();
-            let leading_option_specs = profile.available_sub_option_specs(spec, sub);
+            let leading_option_specs = context.available_sub_option_specs(spec, sub);
             subs.insert(
                 sub.name.to_string(),
                 CommandSig {
@@ -265,21 +276,23 @@ pub fn signature_for_command(
                     traits: sub.traits,
                     leading_options,
                     leading_option_specs,
-                    option_constraints: sub
-                        .option_constraints
+                    option_relations: sub
+                        .option_relations
                         .iter()
                         .chain(
                             sub.subcommand_forms
                                 .iter()
-                                .flat_map(|form| form.option_constraints.iter()),
+                                .flat_map(|form| form.option_relations.iter()),
                         )
                         .filter(|constraint| {
                             constraint.supports_dialect(
-                                Some(profile.availability_mask),
-                                sub.dialects.or(spec.dialects),
+                                Some(context.authoring_query()),
+                                sub.surface.or(spec.surface),
                             )
                         })
                         .collect(),
+                    constraints_hook: sub.constraints,
+                    option_placement: sub.option_placement,
                     synopsis: sub.primary_synopsis(),
                     min_abbrev: sub.min_abbrev,
                 },
@@ -300,12 +313,12 @@ pub fn signature_for_command(
         .iter()
         .map(|(idx, role)| (*idx, *role))
         .collect();
-    let leading_options = profile
+    let leading_options = context
         .available_option_names(spec)
         .into_iter()
         .map(str::to_string)
         .collect();
-    let leading_option_specs = profile.available_option_specs(spec);
+    let leading_option_specs = context.available_option_specs(spec);
     Some(CommandSignature::Simple(CommandSig {
         arity: spec.arity,
         arity_windows: spec.arity_windows,
@@ -313,18 +326,20 @@ pub fn signature_for_command(
         traits: spec.traits,
         leading_options,
         leading_option_specs,
-        option_constraints: spec
-            .option_constraints
+        option_relations: spec
+            .option_relations
             .iter()
             .chain(
                 spec.command_forms
                     .iter()
-                    .flat_map(|form| form.option_constraints.iter()),
+                    .flat_map(|form| form.option_relations.iter()),
             )
             .filter(|constraint| {
-                constraint.supports_dialect(Some(profile.availability_mask), spec.dialects)
+                constraint.supports_dialect(Some(context.authoring_query()), spec.surface)
             })
             .collect(),
+        constraints_hook: spec.constraints,
+        option_placement: spec.option_placement,
         // The walk cannot know the file's resolved package-version floor
         // yet (`package require` may appear anywhere), so form selection
         // stays permissive here — the post-walk gate is what version-aware
@@ -356,11 +371,11 @@ pub fn signature_for_command_any_dialect(
                 .map(|(idx, role)| (*idx, *role))
                 .collect();
             let leading_options = sub
-                .switch_names(None, spec.dialects)
+                .switch_names(None, spec.surface)
                 .into_iter()
                 .map(str::to_string)
                 .collect();
-            let leading_option_specs = sub.option_specs(None, spec.dialects);
+            let leading_option_specs = sub.option_specs(None, spec.surface);
             subs.insert(
                 sub.name.to_string(),
                 CommandSig {
@@ -370,15 +385,17 @@ pub fn signature_for_command_any_dialect(
                     traits: sub.traits,
                     leading_options,
                     leading_option_specs,
-                    option_constraints: sub
-                        .option_constraints
+                    option_relations: sub
+                        .option_relations
                         .iter()
                         .chain(
                             sub.subcommand_forms
                                 .iter()
-                                .flat_map(|form| form.option_constraints.iter()),
+                                .flat_map(|form| form.option_relations.iter()),
                         )
                         .collect(),
+                    constraints_hook: sub.constraints,
+                    option_placement: sub.option_placement,
                     synopsis: sub.primary_synopsis(),
                     min_abbrev: sub.min_abbrev,
                 },
@@ -411,15 +428,17 @@ pub fn signature_for_command_any_dialect(
         traits: spec.traits,
         leading_options,
         leading_option_specs,
-        option_constraints: spec
-            .option_constraints
+        option_relations: spec
+            .option_relations
             .iter()
             .chain(
                 spec.command_forms
                     .iter()
-                    .flat_map(|form| form.option_constraints.iter()),
+                    .flat_map(|form| form.option_relations.iter()),
             )
             .collect(),
+        constraints_hook: spec.constraints,
+        option_placement: spec.option_placement,
         // Deliberately permissive, like every other gate on this
         // dialect-agnostic path: the question it answers is "does this exist
         // in ANY dialect", so filtering forms by a version floor would defeat
@@ -459,7 +478,9 @@ pub fn signature_for_scoped_command(scoped: &ScopedCommand) -> CommandSignature 
                     // Scoped ensemble operations declare no option flags.
                     leading_options: BTreeSet::new(),
                     leading_option_specs: Vec::new(),
-                    option_constraints: Vec::new(),
+                    option_relations: Vec::new(),
+                    constraints_hook: sub.constraints,
+                    option_placement: sub.option_placement,
                     synopsis: sub.primary_synopsis(),
                     min_abbrev: sub.min_abbrev,
                 },
@@ -489,7 +510,11 @@ pub fn signature_for_scoped_command(scoped: &ScopedCommand) -> CommandSignature 
         traits: Traits::empty(),
         leading_options: BTreeSet::new(),
         leading_option_specs: Vec::new(),
-        option_constraints: Vec::new(),
+        option_relations: Vec::new(),
+        // A scoped ensemble declares no relations, so it has no escape hatch
+        // either.
+        constraints_hook: None,
+        option_placement: tcl_registry::OptionPlacement::Leading,
         synopsis: scoped
             .hover
             .as_ref()
@@ -509,19 +534,21 @@ mod tests {
     #[test]
     fn unknown_command_returns_none() {
         let reg = registry();
-        let sig = signature_for_command(
-            &reg,
-            "definitely_not_a_command_xyz",
+        let plain = crate::environment_ingress::context_for_profile(
             tcl_dialect::DialectProfile::plain_tcl(),
         );
+        let sig = signature_for_command(&reg, "definitely_not_a_command_xyz", plain.context());
         assert!(sig.is_none());
     }
 
     #[test]
     fn simple_command_returns_simple_sig() {
         let reg = registry();
-        let sig = signature_for_command(&reg, "set", tcl_dialect::DialectProfile::plain_tcl())
-            .expect("set should be in registry");
+        let plain = crate::environment_ingress::context_for_profile(
+            tcl_dialect::DialectProfile::plain_tcl(),
+        );
+        let sig =
+            signature_for_command(&reg, "set", plain.context()).expect("set should be in registry");
         let CommandSignature::Simple(cs) = sig else {
             panic!("expected Simple, got {sig:?}");
         };
@@ -532,7 +559,10 @@ mod tests {
     #[test]
     fn subcommand_command_returns_with_subcommands() {
         let reg = registry();
-        let sig = signature_for_command(&reg, "string", tcl_dialect::DialectProfile::plain_tcl())
+        let plain = crate::environment_ingress::context_for_profile(
+            tcl_dialect::DialectProfile::plain_tcl(),
+        );
+        let sig = signature_for_command(&reg, "string", plain.context())
             .expect("string should be in registry");
         let CommandSignature::WithSubcommands(scs) = sig else {
             panic!("expected WithSubcommands, got {sig:?}");
@@ -548,8 +578,11 @@ mod tests {
     #[test]
     fn proc_returns_simple_sig_with_arity() {
         let reg = registry();
-        let sig = signature_for_command(&reg, "proc", tcl_dialect::DialectProfile::plain_tcl())
-            .expect("proc should be there");
+        let plain = crate::environment_ingress::context_for_profile(
+            tcl_dialect::DialectProfile::plain_tcl(),
+        );
+        let sig =
+            signature_for_command(&reg, "proc", plain.context()).expect("proc should be there");
         let CommandSignature::Simple(cs) = sig else {
             panic!("proc should be Simple");
         };
@@ -563,9 +596,11 @@ mod tests {
         // `info` exists in every Tcl dialect; we just verify the
         // helper returns a non-empty subcommand map under a
         // narrow dialect.
+        let tcl84 = crate::environment_ingress::context_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
+        );
         let sig =
-            signature_for_command(&reg, "info", tcl_dialect::DialectProfile::by_name("tcl8.4"))
-                .expect("info present in 8.4");
+            signature_for_command(&reg, "info", tcl84.context()).expect("info present in 8.4");
         let CommandSignature::WithSubcommands(scs) = sig else {
             panic!("info should have subcommands");
         };

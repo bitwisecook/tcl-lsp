@@ -18,6 +18,7 @@
 
 //! `HTTP::respond` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 /// Bareword option tokens that follow the `<status>` positional
 /// argument (`HTTP::respond 302 content|noserver|reset|version`).
@@ -48,7 +49,7 @@ pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::respond",
         traits: Traits::DIAGRAM_ACTION,
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(1),
         // Option set: `-version`/`-content`/`-ifile`/`-noserver`/`-reset`.
         // (`-status` is the positional status arg, not an option.)
@@ -58,7 +59,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-version",
                     value: OptionValue::value("1.0 | 1.1"),
                     detail: "Protocol version on the synthesised response.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -67,7 +68,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-content",
                     value: OptionValue::value("CONTENT"),
                     detail: "Response body content.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -76,7 +77,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-ifile",
                     value: OptionValue::value("IFILE_OBJ"),
                     detail: "Serve the response body from an iFile object.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -85,7 +86,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-noserver",
                     value: OptionValue::flag(),
                     detail: "Suppress the auto-injected `Server` response header.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -94,7 +95,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-reset",
                     value: OptionValue::flag(),
                     detail: "Reset the connection after sending the response.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -128,9 +129,7 @@ pub const fn spec() -> CommandSpec {
                 "MR_FAILED",
                 "NAME_RESOLVED",
             ],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         // Command-level arg-value completion: the bareword option
         // tokens that follow the `<status>` positional argument

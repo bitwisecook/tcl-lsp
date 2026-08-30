@@ -18,10 +18,11 @@
 
 //! `IP::addr` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "IP::addr",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "IP address comparison.",
@@ -44,7 +45,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-swap",
                     value: OptionValue::flag(),
                     detail: "Swap byte order.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -53,7 +54,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-ipv4",
                     value: OptionValue::flag(),
                     detail: "Parse as IPv4 address.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -62,7 +63,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-ipv6",
                     value: OptionValue::flag(),
                     detail: "Parse as IPv6 address.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,

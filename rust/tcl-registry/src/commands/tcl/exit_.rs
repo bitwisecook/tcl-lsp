@@ -19,6 +19,7 @@
 //! `exit` — end the application.
 
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "exit ?returnCode?",
@@ -37,19 +38,18 @@ const FORMS: &[FormSpec] = &[FormSpec {
 /// present in 8.4–8.5) but the command's synopsis, description, and
 /// behaviour are unchanged.
 ///
-/// `exit` is one of the K36322151 commands F5's TMM interpreter strips
-/// from iRules, so its `dialects` group below is `ALL_TCL`, which does
-/// not carry the `IRULES` bit and therefore never intersects the bare
-/// `IRULES` availability mask — this exclusion is correct and deliberate
-/// (same pattern as `open`, also banned from the TMM sandbox).
-/// Expect registers its own unrelated `exit` (`-onexit`/`-noexit`,
-/// closing spawned processes rather than the interpreter) as a fully
-/// separate spec under `commands/expect/exit.rs`, loaded only for the
-/// `EXPECT` dialect, so no dialect-specific form is needed here either.
+/// `exit` is one of the K36322151 commands F5's TMM interpreter strips from
+/// iRules, so its surface below is `ALL_TCL`, which does not carry an iRules
+/// row and therefore is simply absent under iRules — this exclusion is correct
+/// and deliberate (same pattern as `open`, also banned from the TMM sandbox).
+/// Expect registers its own unrelated `exit` (`-onexit`/`-noexit`, closing
+/// spawned processes rather than the interpreter) as a fully separate spec
+/// under `commands/expect/exit.rs`, loaded only for the `EXPECT` dialect, so
+/// no dialect-specific form is needed here either.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "exit",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED
             | Traits::TERMINATES_BLOCK
             | Traits::TERMINATES_PROCESS

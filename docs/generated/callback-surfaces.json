@@ -1690,6 +1690,24 @@
     "notes": "static script-body position"
   },
   {
+    "id": "constraints/arg[1]@spectcl",
+    "owner": "constraints",
+    "surface": "command",
+    "kind": "body-script",
+    "provenance": "SpecTcl (docs/design/spec-packs.md)",
+    "dialects": [
+      "spectcl"
+    ],
+    "lifecycle": "all known owning-package versions",
+    "timing": "same-invocation",
+    "appended_arity": null,
+    "callback_taint_inputs": [],
+    "forms": [],
+    "registry_derived": true,
+    "registry_owner": "constraints",
+    "notes": "static script-body position"
+  },
+  {
     "id": "context_gate/arg[1]@spectcl",
     "owner": "context_gate",
     "surface": "command",
@@ -3266,6 +3284,158 @@
     "notes": "static script-body position"
   },
   {
+    "id": "fileutil::traverse instance foreach/arg[1]@bpf+cadence-eda-tcl+expect+f5-bigip+f5-iapps+f5-irules+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
+    "owner": "fileutil::traverse instance foreach",
+    "surface": "instance-method",
+    "kind": "body-script",
+    "provenance": "tcllib fileutil::traverse manual/source (2.0 corpus)",
+    "dialects": [
+      "bpf",
+      "cadence-eda-tcl",
+      "expect",
+      "f5-bigip",
+      "f5-iapps",
+      "f5-irules",
+      "f5-tmsh",
+      "intel-quartus-eda-tcl",
+      "mentor-eda-tcl",
+      "microchip-libero-eda-tcl",
+      "spectcl",
+      "synopsys-eda-tcl",
+      "tcl8.4",
+      "tcl8.5",
+      "tcl8.6",
+      "tcl9.0",
+      "tcl9.1",
+      "tk",
+      "xilinx-eda-tcl"
+    ],
+    "lifecycle": "all known owning-package versions",
+    "timing": "same-invocation",
+    "appended_arity": null,
+    "callback_taint_inputs": [],
+    "forms": [
+      "traverser foreach filevar body"
+    ],
+    "registry_derived": true,
+    "registry_owner": "fileutil::traverse",
+    "notes": "static script-body position"
+  },
+  {
+    "id": "fileutil::traverse/option -errorcmd value@bpf+cadence-eda-tcl+expect+f5-bigip+f5-iapps+f5-irules+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
+    "owner": "fileutil::traverse",
+    "surface": "command-option",
+    "kind": "command-prefix",
+    "provenance": "tcllib fileutil::traverse package",
+    "dialects": [
+      "bpf",
+      "cadence-eda-tcl",
+      "expect",
+      "f5-bigip",
+      "f5-iapps",
+      "f5-irules",
+      "f5-tmsh",
+      "intel-quartus-eda-tcl",
+      "mentor-eda-tcl",
+      "microchip-libero-eda-tcl",
+      "spectcl",
+      "synopsys-eda-tcl",
+      "tcl8.4",
+      "tcl8.5",
+      "tcl8.6",
+      "tcl9.0",
+      "tcl9.1",
+      "tk",
+      "xilinx-eda-tcl"
+    ],
+    "lifecycle": "all known owning-package versions",
+    "timing": "same-invocation",
+    "appended_arity": "exactly 2",
+    "callback_taint_inputs": [],
+    "forms": [
+      "::fileutil::traverse ?objectName? basedir ?option value ...? [all known owning-package versions]"
+    ],
+    "registry_derived": true,
+    "registry_owner": "fileutil::traverse",
+    "notes": "OptionSpec value descriptor"
+  },
+  {
+    "id": "fileutil::traverse/option -filter value@bpf+cadence-eda-tcl+expect+f5-bigip+f5-iapps+f5-irules+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
+    "owner": "fileutil::traverse",
+    "surface": "command-option",
+    "kind": "command-prefix",
+    "provenance": "tcllib fileutil::traverse package",
+    "dialects": [
+      "bpf",
+      "cadence-eda-tcl",
+      "expect",
+      "f5-bigip",
+      "f5-iapps",
+      "f5-irules",
+      "f5-tmsh",
+      "intel-quartus-eda-tcl",
+      "mentor-eda-tcl",
+      "microchip-libero-eda-tcl",
+      "spectcl",
+      "synopsys-eda-tcl",
+      "tcl8.4",
+      "tcl8.5",
+      "tcl8.6",
+      "tcl9.0",
+      "tcl9.1",
+      "tk",
+      "xilinx-eda-tcl"
+    ],
+    "lifecycle": "all known owning-package versions",
+    "timing": "same-invocation",
+    "appended_arity": "exactly 1",
+    "callback_taint_inputs": [],
+    "forms": [
+      "::fileutil::traverse ?objectName? basedir ?option value ...? [all known owning-package versions]"
+    ],
+    "registry_derived": true,
+    "registry_owner": "fileutil::traverse",
+    "notes": "OptionSpec value descriptor"
+  },
+  {
+    "id": "fileutil::traverse/option -prefilter value@bpf+cadence-eda-tcl+expect+f5-bigip+f5-iapps+f5-irules+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
+    "owner": "fileutil::traverse",
+    "surface": "command-option",
+    "kind": "command-prefix",
+    "provenance": "tcllib fileutil::traverse package",
+    "dialects": [
+      "bpf",
+      "cadence-eda-tcl",
+      "expect",
+      "f5-bigip",
+      "f5-iapps",
+      "f5-irules",
+      "f5-tmsh",
+      "intel-quartus-eda-tcl",
+      "mentor-eda-tcl",
+      "microchip-libero-eda-tcl",
+      "spectcl",
+      "synopsys-eda-tcl",
+      "tcl8.4",
+      "tcl8.5",
+      "tcl8.6",
+      "tcl9.0",
+      "tcl9.1",
+      "tk",
+      "xilinx-eda-tcl"
+    ],
+    "lifecycle": "all known owning-package versions",
+    "timing": "same-invocation",
+    "appended_arity": "exactly 1",
+    "callback_taint_inputs": [],
+    "forms": [
+      "::fileutil::traverse ?objectName? basedir ?option value ...? [all known owning-package versions]"
+    ],
+    "registry_derived": true,
+    "registry_owner": "fileutil::traverse",
+    "notes": "OptionSpec value descriptor"
+  },
+  {
     "id": "for/arg[0]@bpf+cadence-eda-tcl+expect+f5-bigip+f5-iapps+f5-irules+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
     "owner": "for",
     "surface": "command",
@@ -4557,6 +4727,158 @@
     "notes": "static script-body position"
   },
   {
+    "id": "http::geturl/option -command value@bpf+cadence-eda-tcl+expect+f5-bigip+f5-iapps+f5-irules+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
+    "owner": "http::geturl",
+    "surface": "command-option",
+    "kind": "command-prefix",
+    "provenance": "Tcl stdlib http package",
+    "dialects": [
+      "bpf",
+      "cadence-eda-tcl",
+      "expect",
+      "f5-bigip",
+      "f5-iapps",
+      "f5-irules",
+      "f5-tmsh",
+      "intel-quartus-eda-tcl",
+      "mentor-eda-tcl",
+      "microchip-libero-eda-tcl",
+      "spectcl",
+      "synopsys-eda-tcl",
+      "tcl8.4",
+      "tcl8.5",
+      "tcl8.6",
+      "tcl9.0",
+      "tcl9.1",
+      "tk",
+      "xilinx-eda-tcl"
+    ],
+    "lifecycle": "all known owning-package versions",
+    "timing": "deferred",
+    "appended_arity": "exactly 1",
+    "callback_taint_inputs": [],
+    "forms": [
+      "http::geturl url ?options?"
+    ],
+    "registry_derived": true,
+    "registry_owner": "http::geturl",
+    "notes": "OptionSpec value descriptor"
+  },
+  {
+    "id": "http::geturl/option -handler value@bpf+cadence-eda-tcl+expect+f5-bigip+f5-iapps+f5-irules+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
+    "owner": "http::geturl",
+    "surface": "command-option",
+    "kind": "command-prefix",
+    "provenance": "Tcl stdlib http package",
+    "dialects": [
+      "bpf",
+      "cadence-eda-tcl",
+      "expect",
+      "f5-bigip",
+      "f5-iapps",
+      "f5-irules",
+      "f5-tmsh",
+      "intel-quartus-eda-tcl",
+      "mentor-eda-tcl",
+      "microchip-libero-eda-tcl",
+      "spectcl",
+      "synopsys-eda-tcl",
+      "tcl8.4",
+      "tcl8.5",
+      "tcl8.6",
+      "tcl9.0",
+      "tcl9.1",
+      "tk",
+      "xilinx-eda-tcl"
+    ],
+    "lifecycle": "all known owning-package versions",
+    "timing": "deferred",
+    "appended_arity": "exactly 2",
+    "callback_taint_inputs": [],
+    "forms": [
+      "http::geturl url ?options?"
+    ],
+    "registry_derived": true,
+    "registry_owner": "http::geturl",
+    "notes": "OptionSpec value descriptor"
+  },
+  {
+    "id": "http::geturl/option -progress value@bpf+cadence-eda-tcl+expect+f5-bigip+f5-iapps+f5-irules+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
+    "owner": "http::geturl",
+    "surface": "command-option",
+    "kind": "command-prefix",
+    "provenance": "Tcl stdlib http package",
+    "dialects": [
+      "bpf",
+      "cadence-eda-tcl",
+      "expect",
+      "f5-bigip",
+      "f5-iapps",
+      "f5-irules",
+      "f5-tmsh",
+      "intel-quartus-eda-tcl",
+      "mentor-eda-tcl",
+      "microchip-libero-eda-tcl",
+      "spectcl",
+      "synopsys-eda-tcl",
+      "tcl8.4",
+      "tcl8.5",
+      "tcl8.6",
+      "tcl9.0",
+      "tcl9.1",
+      "tk",
+      "xilinx-eda-tcl"
+    ],
+    "lifecycle": "all known owning-package versions",
+    "timing": "deferred",
+    "appended_arity": "exactly 3",
+    "callback_taint_inputs": [],
+    "forms": [
+      "http::geturl url ?options?"
+    ],
+    "registry_derived": true,
+    "registry_owner": "http::geturl",
+    "notes": "OptionSpec value descriptor"
+  },
+  {
+    "id": "http::geturl/option -queryprogress value@bpf+cadence-eda-tcl+expect+f5-bigip+f5-iapps+f5-irules+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
+    "owner": "http::geturl",
+    "surface": "command-option",
+    "kind": "command-prefix",
+    "provenance": "Tcl stdlib http package",
+    "dialects": [
+      "bpf",
+      "cadence-eda-tcl",
+      "expect",
+      "f5-bigip",
+      "f5-iapps",
+      "f5-irules",
+      "f5-tmsh",
+      "intel-quartus-eda-tcl",
+      "mentor-eda-tcl",
+      "microchip-libero-eda-tcl",
+      "spectcl",
+      "synopsys-eda-tcl",
+      "tcl8.4",
+      "tcl8.5",
+      "tcl8.6",
+      "tcl9.0",
+      "tcl9.1",
+      "tk",
+      "xilinx-eda-tcl"
+    ],
+    "lifecycle": "all known owning-package versions",
+    "timing": "deferred",
+    "appended_arity": "exactly 3",
+    "callback_taint_inputs": [],
+    "forms": [
+      "http::geturl url ?options?"
+    ],
+    "registry_derived": true,
+    "registry_owner": "http::geturl",
+    "notes": "OptionSpec value descriptor"
+  },
+  {
     "id": "if/dynamic-arg-role@bpf+cadence-eda-tcl+expect+f5-bigip+f5-iapps+f5-irules+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
     "owner": "if",
     "surface": "command",
@@ -4671,7 +4993,7 @@
     "notes": "script-timing resolver; timing is invocation-dependent"
   },
   {
-    "id": "interp bgerror/dynamic-command-prefix@bpf+expect+f5-iapps+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
+    "id": "interp bgerror/dynamic-command-prefix@bpf+expect+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
     "owner": "interp bgerror",
     "surface": "subcommand",
     "kind": "dynamic",
@@ -4679,8 +5001,6 @@
     "dialects": [
       "bpf",
       "expect",
-      "f5-iapps",
-      "f5-tmsh",
       "intel-quartus-eda-tcl",
       "mentor-eda-tcl",
       "microchip-libero-eda-tcl",
@@ -4705,7 +5025,7 @@
     "notes": "command-prefix resolver; position and appended arity are invocation-dependent"
   },
   {
-    "id": "interp bgerror/dynamic-script-timing@bpf+expect+f5-iapps+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
+    "id": "interp bgerror/dynamic-script-timing@bpf+expect+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
     "owner": "interp bgerror",
     "surface": "subcommand",
     "kind": "dynamic",
@@ -4713,8 +5033,6 @@
     "dialects": [
       "bpf",
       "expect",
-      "f5-iapps",
-      "f5-tmsh",
       "intel-quartus-eda-tcl",
       "mentor-eda-tcl",
       "microchip-libero-eda-tcl",
@@ -4777,7 +5095,7 @@
     "notes": "static script-body position"
   },
   {
-    "id": "interp limit/option -command value@bpf+expect+f5-iapps+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
+    "id": "interp limit/option -command value@bpf+expect+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
     "owner": "interp limit",
     "surface": "subcommand-option",
     "kind": "body-script",
@@ -4785,8 +5103,6 @@
     "dialects": [
       "bpf",
       "expect",
-      "f5-iapps",
-      "f5-tmsh",
       "intel-quartus-eda-tcl",
       "mentor-eda-tcl",
       "microchip-libero-eda-tcl",
@@ -6797,7 +7113,7 @@
     "notes": "argument-role resolver; executable positions, if any, are invocation-dependent"
   },
   {
-    "id": "namespace ensemble/option -unknown value@bpf+expect+f5-iapps+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
+    "id": "namespace ensemble/option -unknown value@bpf+expect+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
     "owner": "namespace ensemble",
     "surface": "subcommand-option",
     "kind": "command-prefix",
@@ -6805,8 +7121,6 @@
     "dialects": [
       "bpf",
       "expect",
-      "f5-iapps",
-      "f5-tmsh",
       "intel-quartus-eda-tcl",
       "mentor-eda-tcl",
       "microchip-libero-eda-tcl",
@@ -6907,7 +7221,7 @@
     "notes": "static script-body position"
   },
   {
-    "id": "namespace unknown/arg[0]@bpf+expect+f5-iapps+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
+    "id": "namespace unknown/arg[0]@bpf+expect+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
     "owner": "namespace unknown",
     "surface": "subcommand",
     "kind": "command-prefix",
@@ -6915,8 +7229,6 @@
     "dialects": [
       "bpf",
       "expect",
-      "f5-iapps",
-      "f5-tmsh",
       "intel-quartus-eda-tcl",
       "mentor-eda-tcl",
       "microchip-libero-eda-tcl",
@@ -6941,7 +7253,7 @@
     "notes": "static CommandSpec command-prefix position"
   },
   {
-    "id": "namespace unknown/dynamic-script-timing@bpf+expect+f5-iapps+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
+    "id": "namespace unknown/dynamic-script-timing@bpf+expect+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
     "owner": "namespace unknown",
     "surface": "subcommand",
     "kind": "dynamic",
@@ -6949,8 +7261,6 @@
     "dialects": [
       "bpf",
       "expect",
-      "f5-iapps",
-      "f5-tmsh",
       "intel-quartus-eda-tcl",
       "mentor-eda-tcl",
       "microchip-libero-eda-tcl",
@@ -9607,6 +9917,82 @@
     "notes": "static CommandSpec command-prefix position"
   },
   {
+    "id": "struct::tree instance walk/dynamic-arg-role@bpf+cadence-eda-tcl+expect+f5-bigip+f5-iapps+f5-irules+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
+    "owner": "struct::tree instance walk",
+    "surface": "instance-method",
+    "kind": "dynamic",
+    "provenance": "tcllib struct::tree manual/source (2.0 corpus)",
+    "dialects": [
+      "bpf",
+      "cadence-eda-tcl",
+      "expect",
+      "f5-bigip",
+      "f5-iapps",
+      "f5-irules",
+      "f5-tmsh",
+      "intel-quartus-eda-tcl",
+      "mentor-eda-tcl",
+      "microchip-libero-eda-tcl",
+      "spectcl",
+      "synopsys-eda-tcl",
+      "tcl8.4",
+      "tcl8.5",
+      "tcl8.6",
+      "tcl9.0",
+      "tcl9.1",
+      "tk",
+      "xilinx-eda-tcl"
+    ],
+    "lifecycle": "all known owning-package versions",
+    "timing": "dynamic",
+    "appended_arity": null,
+    "callback_taint_inputs": [],
+    "forms": [
+      "treeName walk node ?-order pre|post|in|both? ?-type bfs|dfs? ?--? loopvar script"
+    ],
+    "registry_derived": true,
+    "registry_owner": "struct::tree",
+    "notes": "argument-role resolver; executable positions, if any, are invocation-dependent"
+  },
+  {
+    "id": "struct::tree instance walk/option -command value@bpf+cadence-eda-tcl+expect+f5-bigip+f5-iapps+f5-irules+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
+    "owner": "struct::tree instance walk",
+    "surface": "instance-method-option",
+    "kind": "command-prefix",
+    "provenance": "tcllib struct::tree manual/source (2.0 corpus)",
+    "dialects": [
+      "bpf",
+      "cadence-eda-tcl",
+      "expect",
+      "f5-bigip",
+      "f5-iapps",
+      "f5-irules",
+      "f5-tmsh",
+      "intel-quartus-eda-tcl",
+      "mentor-eda-tcl",
+      "microchip-libero-eda-tcl",
+      "spectcl",
+      "synopsys-eda-tcl",
+      "tcl8.4",
+      "tcl8.5",
+      "tcl8.6",
+      "tcl9.0",
+      "tcl9.1",
+      "tk",
+      "xilinx-eda-tcl"
+    ],
+    "lifecycle": "retired 2.0",
+    "timing": "same-invocation",
+    "appended_arity": "exactly 0",
+    "callback_taint_inputs": [],
+    "forms": [
+      "treeName walk node ?-order pre|post|in|both? ?-type bfs|dfs? ?--? loopvar script"
+    ],
+    "registry_derived": true,
+    "registry_owner": "struct::tree",
+    "notes": "OptionSpec value descriptor"
+  },
+  {
     "id": "struct::tree instance walkproc/dynamic-command-prefix@bpf+cadence-eda-tcl+expect+f5-bigip+f5-iapps+f5-irules+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
     "owner": "struct::tree instance walkproc",
     "surface": "instance-method",
@@ -9633,7 +10019,7 @@
       "tk",
       "xilinx-eda-tcl"
     ],
-    "lifecycle": "all known owning-package versions",
+    "lifecycle": "introduced 2.0",
     "timing": "dynamic",
     "appended_arity": null,
     "callback_taint_inputs": [],
@@ -12096,7 +12482,7 @@
     "notes": "OptionSpec value descriptor"
   },
   {
-    "id": "trace add/dynamic-arg-role@bpf+cadence-eda-tcl+expect+f5-bigip+f5-iapps+f5-irules+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
+    "id": "trace add/dynamic-arg-role@bpf+cadence-eda-tcl+expect+f5-iapps+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
     "owner": "trace add",
     "surface": "subcommand",
     "kind": "dynamic",
@@ -12105,9 +12491,7 @@
       "bpf",
       "cadence-eda-tcl",
       "expect",
-      "f5-bigip",
       "f5-iapps",
-      "f5-irules",
       "f5-tmsh",
       "intel-quartus-eda-tcl",
       "mentor-eda-tcl",
@@ -12134,7 +12518,7 @@
     "notes": "argument-role resolver; executable positions, if any, are invocation-dependent"
   },
   {
-    "id": "trace add/dynamic-command-prefix@bpf+cadence-eda-tcl+expect+f5-bigip+f5-iapps+f5-irules+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
+    "id": "trace add/dynamic-command-prefix@bpf+cadence-eda-tcl+expect+f5-iapps+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
     "owner": "trace add",
     "surface": "subcommand",
     "kind": "dynamic",
@@ -12143,9 +12527,7 @@
       "bpf",
       "cadence-eda-tcl",
       "expect",
-      "f5-bigip",
       "f5-iapps",
-      "f5-irules",
       "f5-tmsh",
       "intel-quartus-eda-tcl",
       "mentor-eda-tcl",
@@ -12172,7 +12554,7 @@
     "notes": "command-prefix resolver; position and appended arity are invocation-dependent"
   },
   {
-    "id": "trace add/dynamic-script-timing@bpf+cadence-eda-tcl+expect+f5-bigip+f5-iapps+f5-irules+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
+    "id": "trace add/dynamic-script-timing@bpf+cadence-eda-tcl+expect+f5-iapps+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
     "owner": "trace add",
     "surface": "subcommand",
     "kind": "dynamic",
@@ -12181,9 +12563,7 @@
       "bpf",
       "cadence-eda-tcl",
       "expect",
-      "f5-bigip",
       "f5-iapps",
-      "f5-irules",
       "f5-tmsh",
       "intel-quartus-eda-tcl",
       "mentor-eda-tcl",
@@ -12210,7 +12590,7 @@
     "notes": "script-timing resolver; timing is invocation-dependent"
   },
   {
-    "id": "trace remove/dynamic-arg-role@bpf+cadence-eda-tcl+expect+f5-bigip+f5-iapps+f5-irules+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
+    "id": "trace remove/dynamic-arg-role@bpf+cadence-eda-tcl+expect+f5-iapps+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
     "owner": "trace remove",
     "surface": "subcommand",
     "kind": "dynamic",
@@ -12219,9 +12599,7 @@
       "bpf",
       "cadence-eda-tcl",
       "expect",
-      "f5-bigip",
       "f5-iapps",
-      "f5-irules",
       "f5-tmsh",
       "intel-quartus-eda-tcl",
       "mentor-eda-tcl",
@@ -12248,7 +12626,7 @@
     "notes": "argument-role resolver; executable positions, if any, are invocation-dependent"
   },
   {
-    "id": "trace remove/dynamic-command-prefix@bpf+cadence-eda-tcl+expect+f5-bigip+f5-iapps+f5-irules+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
+    "id": "trace remove/dynamic-command-prefix@bpf+cadence-eda-tcl+expect+f5-iapps+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
     "owner": "trace remove",
     "surface": "subcommand",
     "kind": "dynamic",
@@ -12257,9 +12635,7 @@
       "bpf",
       "cadence-eda-tcl",
       "expect",
-      "f5-bigip",
       "f5-iapps",
-      "f5-irules",
       "f5-tmsh",
       "intel-quartus-eda-tcl",
       "mentor-eda-tcl",
@@ -12286,7 +12662,7 @@
     "notes": "command-prefix resolver; position and appended arity are invocation-dependent"
   },
   {
-    "id": "trace remove/dynamic-script-timing@bpf+cadence-eda-tcl+expect+f5-bigip+f5-iapps+f5-irules+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
+    "id": "trace remove/dynamic-script-timing@bpf+cadence-eda-tcl+expect+f5-iapps+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
     "owner": "trace remove",
     "surface": "subcommand",
     "kind": "dynamic",
@@ -12295,9 +12671,7 @@
       "bpf",
       "cadence-eda-tcl",
       "expect",
-      "f5-bigip",
       "f5-iapps",
-      "f5-irules",
       "f5-tmsh",
       "intel-quartus-eda-tcl",
       "mentor-eda-tcl",
@@ -12364,7 +12738,7 @@
     "notes": "The prefix identifies a registration to remove. It is navigable executable text but is neither invoked nor stored by trace remove."
   },
   {
-    "id": "trace variable/dynamic-arg-role@cadence-eda-tcl+expect+f5-iapps+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tk+xilinx-eda-tcl",
+    "id": "trace variable/dynamic-arg-role@cadence-eda-tcl+expect+f5-iapps+f5-irules+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tk+xilinx-eda-tcl",
     "owner": "trace variable",
     "surface": "subcommand",
     "kind": "dynamic",
@@ -12373,6 +12747,7 @@
       "cadence-eda-tcl",
       "expect",
       "f5-iapps",
+      "f5-irules",
       "f5-tmsh",
       "intel-quartus-eda-tcl",
       "mentor-eda-tcl",
@@ -12396,7 +12771,7 @@
     "notes": "argument-role resolver; executable positions, if any, are invocation-dependent"
   },
   {
-    "id": "trace variable/dynamic-command-prefix@cadence-eda-tcl+expect+f5-iapps+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tk+xilinx-eda-tcl",
+    "id": "trace variable/dynamic-command-prefix@cadence-eda-tcl+expect+f5-iapps+f5-irules+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tk+xilinx-eda-tcl",
     "owner": "trace variable",
     "surface": "subcommand",
     "kind": "dynamic",
@@ -12405,6 +12780,7 @@
       "cadence-eda-tcl",
       "expect",
       "f5-iapps",
+      "f5-irules",
       "f5-tmsh",
       "intel-quartus-eda-tcl",
       "mentor-eda-tcl",
@@ -12428,7 +12804,7 @@
     "notes": "command-prefix resolver; position and appended arity are invocation-dependent"
   },
   {
-    "id": "trace variable/dynamic-script-timing@cadence-eda-tcl+expect+f5-iapps+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tk+xilinx-eda-tcl",
+    "id": "trace variable/dynamic-script-timing@cadence-eda-tcl+expect+f5-iapps+f5-irules+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tk+xilinx-eda-tcl",
     "owner": "trace variable",
     "surface": "subcommand",
     "kind": "dynamic",
@@ -12437,6 +12813,7 @@
       "cadence-eda-tcl",
       "expect",
       "f5-iapps",
+      "f5-irules",
       "f5-tmsh",
       "intel-quartus-eda-tcl",
       "mentor-eda-tcl",
@@ -12460,7 +12837,7 @@
     "notes": "script-timing resolver; timing is invocation-dependent"
   },
   {
-    "id": "trace vdelete/dynamic-arg-role@cadence-eda-tcl+expect+f5-iapps+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tk+xilinx-eda-tcl",
+    "id": "trace vdelete/dynamic-arg-role@cadence-eda-tcl+expect+f5-iapps+f5-irules+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tk+xilinx-eda-tcl",
     "owner": "trace vdelete",
     "surface": "subcommand",
     "kind": "dynamic",
@@ -12469,6 +12846,7 @@
       "cadence-eda-tcl",
       "expect",
       "f5-iapps",
+      "f5-irules",
       "f5-tmsh",
       "intel-quartus-eda-tcl",
       "mentor-eda-tcl",
@@ -12492,7 +12870,7 @@
     "notes": "argument-role resolver; executable positions, if any, are invocation-dependent"
   },
   {
-    "id": "trace vdelete/dynamic-command-prefix@cadence-eda-tcl+expect+f5-iapps+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tk+xilinx-eda-tcl",
+    "id": "trace vdelete/dynamic-command-prefix@cadence-eda-tcl+expect+f5-iapps+f5-irules+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tk+xilinx-eda-tcl",
     "owner": "trace vdelete",
     "surface": "subcommand",
     "kind": "dynamic",
@@ -12501,6 +12879,7 @@
       "cadence-eda-tcl",
       "expect",
       "f5-iapps",
+      "f5-irules",
       "f5-tmsh",
       "intel-quartus-eda-tcl",
       "mentor-eda-tcl",
@@ -12524,7 +12903,7 @@
     "notes": "command-prefix resolver; position and appended arity are invocation-dependent"
   },
   {
-    "id": "trace vdelete/dynamic-script-timing@cadence-eda-tcl+expect+f5-iapps+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tk+xilinx-eda-tcl",
+    "id": "trace vdelete/dynamic-script-timing@cadence-eda-tcl+expect+f5-iapps+f5-irules+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tk+xilinx-eda-tcl",
     "owner": "trace vdelete",
     "surface": "subcommand",
     "kind": "dynamic",
@@ -12533,6 +12912,7 @@
       "cadence-eda-tcl",
       "expect",
       "f5-iapps",
+      "f5-irules",
       "f5-tmsh",
       "intel-quartus-eda-tcl",
       "mentor-eda-tcl",

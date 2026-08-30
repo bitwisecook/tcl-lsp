@@ -29,11 +29,10 @@
 //! receive only the resulting [`EffectFootprint`] through
 //! [`crate::ResolvedInvocation::effect_footprint`]; they never infer an effect
 //! from a command name.  The resolved footprint also bridges the established
-//! [`crate::CommandTableEffect`], [`crate::FrameEffectSpec`], and
+//! [`crate::CommandBindingTransition`], [`crate::FrameEffectSpec`], and
 //! [`crate::SideEffect`] declarations, so this vocabulary augments rather than
 //! replaces the registry's existing facts.
 
-use crate::command_table::CommandTableEffect;
 use crate::frame_effect::{FrameArgLayout, FrameEffectSpec};
 use crate::invocation_words::InvocationArguments;
 use crate::side_effects::{SideEffect, SideEffectTarget};
@@ -554,8 +553,17 @@ impl StaticEffectFootprint {
 /// silently erasing information.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct LegacyEffectBridge {
-    /// Command-table descriptors contributing to this footprint.
-    pub command_table_effects: Vec<CommandTableEffect>,
+    /// Whether a **command-binding transition** contributes to this
+    /// footprint.
+    ///
+    /// This is a boolean, not a list of command-table effect words, because
+    /// there is one transition vocabulary now (centralisation ledger C8):
+    /// *what* the call did to the command table is the
+    /// [`crate::CommandBindingTransition`] facts, read from
+    /// [`crate::ResolvedInvocation::state_transitions`]. All the effect
+    /// bridge needs is *whether* it did, so it can add the wildcard
+    /// command-binding write and the synchronous command-trace read.
+    pub command_table_mutation: bool,
     /// Frame-crossing descriptors contributing to this footprint.
     pub frame_effects: Vec<FrameEffectSpec>,
     /// Structured side-effect declarations contributing to this footprint.
@@ -563,12 +571,6 @@ pub struct LegacyEffectBridge {
 }
 
 impl LegacyEffectBridge {
-    fn add_command_table_effect(&mut self, effect: CommandTableEffect) {
-        if !self.command_table_effects.contains(&effect) {
-            self.command_table_effects.push(effect);
-        }
-    }
-
     fn add_frame_effect(&mut self, effect: FrameEffectSpec) {
         if !self.frame_effects.contains(&effect) {
             self.frame_effects.push(effect);
@@ -582,9 +584,7 @@ impl LegacyEffectBridge {
     }
 
     fn extend(&mut self, other: &Self) {
-        for effect in other.command_table_effects.iter().copied() {
-            self.add_command_table_effect(effect);
-        }
+        self.command_table_mutation |= other.command_table_mutation;
         for effect in other.frame_effects.iter().copied() {
             self.add_frame_effect(effect);
         }
@@ -719,12 +719,12 @@ impl EffectFootprint {
     /// Resolve and bridge the established registry effect descriptors.
     #[must_use]
     pub fn from_legacy(
-        command_table_effect: Option<CommandTableEffect>,
+        command_table_mutation: bool,
         frame_effect: Option<FrameEffectSpec>,
         side_effects: &[SideEffect],
     ) -> Self {
         Self::from_legacy_with_transition_coverage(
-            command_table_effect,
+            command_table_mutation,
             frame_effect,
             side_effects,
             &TransitionEffectCoverages::default(),
@@ -735,14 +735,14 @@ impl EffectFootprint {
     /// a selected completion-edge transition explicitly covers.
     #[must_use]
     pub fn from_legacy_with_transition_coverage(
-        command_table_effect: Option<CommandTableEffect>,
+        command_table_mutation: bool,
         frame_effect: Option<FrameEffectSpec>,
         side_effects: &[SideEffect],
         coverage: &TransitionEffectCoverages,
     ) -> Self {
         let mut footprint = Self::default();
-        if let Some(effect) = command_table_effect {
-            footprint.bridge_command_table_effect(effect, coverage);
+        if command_table_mutation {
+            footprint.bridge_command_table_mutation(coverage);
         }
         if let Some(effect) = frame_effect {
             footprint.bridge_frame_effect(effect, coverage);
@@ -753,35 +753,24 @@ impl EffectFootprint {
         footprint
     }
 
-    fn bridge_command_table_effect(
-        &mut self,
-        effect: CommandTableEffect,
-        coverage: &TransitionEffectCoverages,
-    ) {
-        self.legacy.add_command_table_effect(effect);
+    fn bridge_command_table_mutation(&mut self, coverage: &TransitionEffectCoverages) {
+        self.legacy.command_table_mutation = true;
         self.add_access_if_uncovered(
             current_wildcard(WorldStateDomain::CommandBindings, EffectAccessMode::Write),
             WorldEffectWriteSource::LegacyCommandTable,
             coverage,
         );
-        if matches!(
-            effect,
-            CommandTableEffect::RenamesCommands
-                | CommandTableEffect::DefinesProcedure
-                | CommandTableEffect::CreatesAliases
-        ) {
-            // Replacing, renaming, deleting, or aliasing a command can run a
-            // matching command trace synchronously. The bridge is keyed by
-            // the existing typed descriptor, never by a command spelling.
-            self.add_access(current_wildcard(
-                WorldStateDomain::CommandTraces,
-                EffectAccessMode::Read,
-            ));
-            self.add_callback(CallbackEffect {
-                kinds: CallbackKinds::TRACE,
-                reentrancy: Reentrancy::CurrentInterpreter,
-            });
-        }
+        // Defining, replacing, renaming, deleting, or aliasing a command can
+        // run a matching command trace synchronously. The bridge is keyed by
+        // the resolved transition facts, never by a command spelling.
+        self.add_access(current_wildcard(
+            WorldStateDomain::CommandTraces,
+            EffectAccessMode::Read,
+        ));
+        self.add_callback(CallbackEffect {
+            kinds: CallbackKinds::TRACE,
+            reentrancy: Reentrancy::CurrentInterpreter,
+        });
     }
 
     fn bridge_frame_effect(
@@ -1082,14 +1071,10 @@ mod tests {
     }
 
     #[test]
-    fn legacy_command_rename_preserves_the_descriptor_and_trace_callback() {
-        let footprint =
-            EffectFootprint::from_legacy(Some(CommandTableEffect::RenamesCommands), None, &[]);
+    fn a_command_table_mutation_bridges_the_write_and_the_trace_callback() {
+        let footprint = EffectFootprint::from_legacy(true, None, &[]);
 
-        assert_eq!(
-            footprint.legacy().command_table_effects,
-            vec![CommandTableEffect::RenamesCommands]
-        );
+        assert!(footprint.legacy().command_table_mutation);
         assert!(footprint.accesses().iter().any(|access| {
             access.domain == WorldStateDomain::CommandBindings
                 && access.mode == EffectAccessMode::Write
@@ -1106,22 +1091,14 @@ mod tests {
     }
 
     #[test]
-    fn command_definition_and_alias_bridges_preserve_command_trace_reentrancy() {
-        for effect in [
-            CommandTableEffect::DefinesProcedure,
-            CommandTableEffect::CreatesAliases,
-        ] {
-            let footprint = EffectFootprint::from_legacy(Some(effect), None, &[]);
-            assert!(footprint.accesses().iter().any(|access| {
-                access.domain == WorldStateDomain::CommandTraces
-                    && access.mode == EffectAccessMode::Read
-            }));
-            assert!(footprint.callback().kinds.contains(CallbackKinds::TRACE));
-            assert_eq!(
-                footprint.callback().reentrancy,
-                Reentrancy::CurrentInterpreter
-            );
-        }
+    fn no_command_table_mutation_bridges_no_command_trace_read() {
+        let footprint = EffectFootprint::from_legacy(false, None, &[]);
+        assert!(!footprint.legacy().command_table_mutation);
+        assert!(!footprint.accesses().iter().any(|access| {
+            access.domain == WorldStateDomain::CommandTraces
+                || access.domain == WorldStateDomain::CommandBindings
+        }));
+        assert!(!footprint.callback().kinds.contains(CallbackKinds::TRACE));
     }
 
     #[test]
@@ -1130,7 +1107,7 @@ mod tests {
             level_word: crate::frame_effect::FrameLevelWord::LeadingProbe,
             layout: FrameArgLayout::ScriptInSelectedFrame,
         };
-        let footprint = EffectFootprint::from_legacy(None, Some(frame), &[]);
+        let footprint = EffectFootprint::from_legacy(false, Some(frame), &[]);
 
         assert_eq!(footprint.legacy().frame_effects, vec![frame]);
         assert!(footprint.accesses().iter().any(|access| {
@@ -1160,7 +1137,7 @@ mod tests {
         let mut coverage = TransitionEffectCoverages::default();
         coverage.extend(LEGACY_VARIABLE_WRITE);
         let legacy = EffectFootprint::from_legacy_with_transition_coverage(
-            None,
+            false,
             None,
             &[SideEffect {
                 target: SideEffectTarget::Variable,

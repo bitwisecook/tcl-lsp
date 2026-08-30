@@ -53,6 +53,8 @@ use std::fmt::Write as _;
 use std::fs;
 use std::process::ExitCode;
 use std::sync::LazyLock;
+use tcl_dialect::model::Family;
+use tcl_dialect::model::surface_admits_from;
 
 use anyhow::{Context, Result};
 use regex::Regex;
@@ -470,22 +472,18 @@ enum Status {
 /// *implementation* commands (`::tcl::…`) stay in the set so their
 /// classification is explicit.
 ///
-/// Adversarial-review finding: this used to check `d.contains(TCL90)` — a
-/// single-version bit that a `TCL91`-only gate (like TIP 745's) never has
-/// set, since 9.1-only is a *distinct* bit from 9.0, not a superset of it.
-/// That silently dropped every 9.1-only-gated command from this set
-/// entirely — not "classified as a gap", genuinely invisible to the gate.
-/// `intersects(TCL90_PLUS)` is the established idiom this repo already uses
-/// elsewhere for "is this gate compatible with dialect X or later"
-/// (`tcl-registry`'s `registry.rs`/`profile_queries.rs`).
+/// Adversarial-review finding, twice over: the question is "9.0 **or
+/// later**", and asking about the 9.0 point alone silently drops every
+/// command introduced in 9.1 — not "classified as a gap", genuinely
+/// invisible to the gate. [`surface_admits_from`] is the question this
+/// wants.
 fn core_commands() -> BTreeSet<String> {
-    use tcl_dialect::DialectSet;
     tcl_registry::commands::tcl::tcl_command_specs()
         .iter()
         .filter(|s| s.required_package.is_none())
         .filter(|s| {
-            s.dialects
-                .is_none_or(|d| d.intersects(DialectSet::TCL90_PLUS))
+            s.surface
+                .is_none_or(|rows| surface_admits_from(rows, Family::Tcl, "9.0"))
         })
         .map(|s| s.name.to_string())
         .collect()

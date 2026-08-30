@@ -29,11 +29,12 @@ pub use tcl_irules::object_ref_spans;
 #[cfg(test)]
 mod tests {
     use super::object_ref_spans;
+    use tcl_dialect::model::{Family, SurfaceLayer};
     use tcl_registry::CommandRegistry;
 
     fn spans(src: &str) -> Vec<(usize, &str)> {
         let mut reg = CommandRegistry::build_default();
-        reg.load_dialect(tcl_dialect::DialectSet::IRULES);
+        reg.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         object_ref_spans(src, &reg)
             .into_iter()
             .map(|s| (s.start() as usize, &src[s.as_range()]))

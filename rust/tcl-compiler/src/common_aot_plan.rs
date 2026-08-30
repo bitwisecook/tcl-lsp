@@ -13,7 +13,8 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
-use tcl_registry::{DispatchDependencies, DispatchDependencyDomain, Traits, dialects::DialectSet};
+use tcl_registry::model::semantic::SemanticContext;
+use tcl_registry::{DispatchDependencies, DispatchDependencyDomain, Traits};
 use tcl_registry::{SemanticOperationId, hooks::LoweringHookId};
 
 use crate::analyses::LatticeValue;
@@ -100,8 +101,8 @@ pub struct DirectProcEvidence {
     pub actual_types: Vec<TypeLattice>,
     /// Exact caller values corresponding to each formal, when retained by SSA.
     pub actual_values: Vec<DirectActualValue>,
-    /// Exact dialect/version premise used for Tcl numeric and completion rules.
-    pub dialect: DialectSet,
+    /// Exact environment premise used for Tcl numeric and completion rules.
+    pub context: Option<SemanticContext>,
     /// Mutable dispatch domains a later runtime guard must cover.
     pub dispatch_dependencies: DispatchDependencies,
     /// Whether the entire body is authorised for specialised execution.
@@ -192,8 +193,8 @@ pub fn semantic_operation_binding_is_trusted(
 pub enum DirectProcDecline {
     /// The pass is disabled by default and was not explicitly enabled.
     PassDisabled,
-    /// No single registry dialect profile was selected.
-    DialectUnavailable,
+    /// No resolved environment was carried by the unit's semantic bundle.
+    ContextUnavailable,
     /// Flow-sensitive command binding did not name the original procedure.
     BindingNotProcedure {
         /// Flow-sensitive binding class observed at the call site.
@@ -232,7 +233,7 @@ impl DirectProcDecline {
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::PassDisabled => "pass-disabled",
-            Self::DialectUnavailable => "dialect-unavailable",
+            Self::ContextUnavailable => "context-unavailable",
             Self::BindingNotProcedure { .. } => "binding-not-procedure",
             Self::ReboundOrAliased => "rebound-or-aliased",
             Self::DynamicCommandMutation => "dynamic-command-mutation",
@@ -294,8 +295,8 @@ pub struct SemanticCallEvidence {
     pub operation: SemanticOperationId,
     /// Registry form identity, when a determinate form matched.
     pub form: Option<SemanticFormIdentity>,
-    /// Dialect/version premise used for registry resolution.
-    pub dialect: DialectSet,
+    /// Environment premise used for registry resolution.
+    pub context: Option<SemanticContext>,
     /// Mutable interpreter domains a runtime guard must cover.
     pub dispatch_dependencies: DispatchDependencies,
     /// Registry-declared behaviour traits used by boundary coverage proofs.
@@ -309,8 +310,8 @@ pub struct SemanticCallEvidence {
 pub enum SemanticCallDecline {
     /// The pass is independently disabled by default.
     PassDisabled,
-    /// No single registry dialect profile was selected.
-    DialectUnavailable,
+    /// No resolved environment was carried by the unit's semantic bundle.
+    ContextUnavailable,
     /// Compatibility lowering did not retain structured invocation words.
     TokensUnavailable,
     /// Structured registry resolution could not select an exact operation/form.
@@ -535,20 +536,20 @@ impl CommonAotProofPlan {
     pub fn build(
         unit: &CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
-        dialect: DialectSet,
+        context: Option<SemanticContext>,
         config: SemanticOptimisationConfig,
         environment: CommonAotEnvironment,
     ) -> Self {
         let escape = analyse_var_escape_cu(unit, true);
         let mutations =
             crate::command_binding::scan_module_command_mutations(&unit.ir_module, registry);
-        let direct = collect_direct_calls(unit, registry, dialect, config, &escape, &mutations);
+        let direct = collect_direct_calls(unit, registry, context, config, &escape, &mutations);
         let direct_calls = direct.decisions;
         let declined_direct_callees = direct.declined_callees;
         let propagated = direct.propagated;
 
         let semantic_calls =
-            collect_semantic_calls(unit, registry, dialect, config, &mutations, &direct_calls);
+            collect_semantic_calls(unit, registry, context, config, &mutations, &direct_calls);
 
         let closed_program_coverage = prove_closed_program_coverage(
             unit,
@@ -735,7 +736,7 @@ struct DirectCollection {
 fn collect_direct_calls(
     unit: &CompilationUnit,
     registry: &tcl_registry::CommandRegistry,
-    dialect: DialectSet,
+    context: Option<SemanticContext>,
     config: SemanticOptimisationConfig,
     escape: &HashMap<String, ProcEscapeSummary>,
     mutations: &crate::command_binding::ModuleCommandMutations,
@@ -779,7 +780,7 @@ fn collect_direct_calls(
                 proc_def,
                 summary: escape.get(&callee_name),
                 mutations,
-                dialect,
+                context,
                 enabled: config.is_enabled(SemanticOptimisationPassId::DirectProc),
                 frame_elision_enabled: config.is_enabled(SemanticOptimisationPassId::FrameElision),
                 native_integer_enabled: config
@@ -835,7 +836,7 @@ fn propagate_actual_types(
 fn collect_semantic_calls(
     unit: &CompilationUnit,
     registry: &tcl_registry::CommandRegistry,
-    dialect: DialectSet,
+    context: Option<SemanticContext>,
     config: SemanticOptimisationConfig,
     mutations: &crate::command_binding::ModuleCommandMutations,
     direct_calls: &BTreeMap<DirectCallSiteId, DirectProcDecision>,
@@ -850,7 +851,7 @@ fn collect_semantic_calls(
             let decision = semantic_call_decision(&SemanticCallInputs {
                 unit,
                 registry,
-                dialect,
+                context,
                 site: &site,
                 bindings: &bindings,
                 mutations,
@@ -867,7 +868,7 @@ fn collect_semantic_calls(
 struct SemanticCallInputs<'a> {
     unit: &'a CompilationUnit,
     registry: &'a tcl_registry::CommandRegistry,
-    dialect: DialectSet,
+    context: Option<SemanticContext>,
     site: &'a CallCandidate<'a>,
     bindings: &'a crate::command_binding::CommandBinding<'a>,
     mutations: &'a crate::command_binding::ModuleCommandMutations,
@@ -880,8 +881,8 @@ fn semantic_call_decision(input: &SemanticCallInputs<'_>) -> SemanticCallDecisio
     if !input.enabled {
         return decline(SemanticCallDecline::PassDisabled);
     }
-    if input.dialect.bits().count_ones() != 1 {
-        return decline(SemanticCallDecline::DialectUnavailable);
+    if input.context.is_none() {
+        return decline(SemanticCallDecline::ContextUnavailable);
     }
     if input.mutations.has_dynamic_mutation() {
         return decline(SemanticCallDecline::DynamicCommandMutation);
@@ -890,7 +891,7 @@ fn semantic_call_decision(input: &SemanticCallInputs<'_>) -> SemanticCallDecisio
         return decline(SemanticCallDecline::TokensUnavailable);
     };
     let Ok(RegistryInvocationResolution::Resolved(facts)) =
-        resolve_command_tokens(input.registry, input.dialect, tokens)
+        resolve_command_tokens(input.registry, input.context, tokens)
     else {
         return decline(SemanticCallDecline::RegistryUnresolved);
     };
@@ -941,7 +942,7 @@ fn semantic_call_decision(input: &SemanticCallInputs<'_>) -> SemanticCallDecisio
     SemanticCallDecision::Selected(SemanticCallEvidence {
         operation: facts.operation,
         form: facts.form.clone().map(SemanticFormIdentity),
-        dialect: input.dialect,
+        context: input.context,
         dispatch_dependencies: facts.dispatch_dependencies,
         traits: facts.traits,
         arguments,
@@ -1182,7 +1183,7 @@ struct DirectInputs<'a> {
     proc_def: &'a Procedure,
     summary: Option<&'a ProcEscapeSummary>,
     mutations: &'a crate::command_binding::ModuleCommandMutations,
-    dialect: DialectSet,
+    context: Option<SemanticContext>,
     enabled: bool,
     frame_elision_enabled: bool,
     native_integer_enabled: bool,
@@ -1193,8 +1194,8 @@ fn direct_decision(input: &DirectInputs<'_>) -> DirectProcDecision {
     if !input.enabled {
         return decline(DirectProcDecline::PassDisabled);
     }
-    if input.dialect.bits().count_ones() != 1 {
-        return decline(DirectProcDecline::DialectUnavailable);
+    if input.context.is_none() {
+        return decline(DirectProcDecline::ContextUnavailable);
     }
     if input.mutations.has_dynamic_mutation() {
         return decline(DirectProcDecline::DynamicCommandMutation);
@@ -1270,7 +1271,7 @@ fn direct_decision(input: &DirectInputs<'_>) -> DirectProcDecision {
         formals: formals.into_iter().map(|formal| formal.name).collect(),
         actual_types,
         actual_values,
-        dialect: input.dialect,
+        context: input.context,
         dispatch_dependencies: DispatchDependencies::BASE.union(DispatchDependencies::one(
             DispatchDependencyDomain::UnknownHandling,
         )),
@@ -1464,12 +1465,9 @@ fn collect_materialisable_slots(
             &function.cfg,
             &function.ssa,
             &function.sccp.values,
-            numbers_for_dialect(
-                unit.ir_module
-                    .dialect
-                    .as_deref()
-                    .map(tcl_dialect::DialectProfile::by_name),
-            ),
+            numbers_for_dialect(unit.ir_module.dialect.as_deref().map(|name| {
+                crate::environment_ingress::resolve_environment(name).analyser_profile()
+            })),
         );
         for key in ssa_value_keys(function, unit.ir_module.procedures.get(qname)) {
             let identity = SsaValueIdentity {
@@ -1576,6 +1574,7 @@ fn materialisable_decision(input: &MaterialisableInputs<'_>) -> MaterialisableSl
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use tcl_registry::{IntrinsicId, TclType};
 
@@ -1590,7 +1589,13 @@ mod tests {
     ) -> CommonAotProofPlan {
         let registry = tcl_registry::CommandRegistry::build_default();
         let unit = CompilationUnit::build_for_dialect(source, &registry, false, "tcl9.0");
-        CommonAotProofPlan::build(&unit, &registry, DialectSet::TCL90, config, environment)
+        CommonAotProofPlan::build(
+            &unit,
+            &registry,
+            unit.top_level.semantic_facts.context(),
+            config,
+            environment,
+        )
     }
 
     fn enabled() -> SemanticOptimisationConfig {
@@ -1901,17 +1906,25 @@ mod tests {
     #[test]
     fn dialect_tcloo_and_variable_trace_premises_are_retained() {
         let registry = tcl_registry::CommandRegistry::build_default();
-        let unit = CompilationUnit::build_for_dialect(ADD, &registry, false, "tcl9.0");
+        // **Enumerated delta of the ledger C1 / §11.2 D1 re-key.** This
+        // assertion used to feed a multi-dialect availability set no
+        // production caller could produce, and pin the resulting decline.
+        // The executable-IR vocabulary is now a resolved
+        // environment, which names exactly one context or none, so an
+        // ambiguous premise is unrepresentable rather than declined. The
+        // decline it pins is therefore the surviving one: a unit built with
+        // no dialect carries no context.
+        let unit = CompilationUnit::build_for(ADD, &registry, false);
         let ambiguous = CommonAotProofPlan::build(
             &unit,
             &registry,
-            DialectSet::ALL_TCL,
+            unit.top_level.semantic_facts.context(),
             enabled(),
             CommonAotEnvironment::Hosted,
         );
         assert!(ambiguous.direct_calls().any(|(_, decision)| matches!(
             decision,
-            DirectProcDecision::Declined(DirectProcDecline::DialectUnavailable)
+            DirectProcDecision::Declined(DirectProcDecline::ContextUnavailable)
         )));
 
         let oo = plan(

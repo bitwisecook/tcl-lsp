@@ -18,6 +18,7 @@
 
 //! `tcl::mathfunc` — namespace of `expr` math-function commands.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::mathfunc",
@@ -26,7 +27,7 @@ pub fn spec() -> CommandSpec {
         // in Tcl 8.5 — see mathfunc_generated.rs's module docs for why
         // that's the floor for every function regardless of when its own
         // `expr` grammar entry appeared.
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         arity: Arity::at_least(0),
         return_type: Some(TclType::Numeric),
         hover: Some(HoverSnippet::brief(

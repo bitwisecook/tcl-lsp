@@ -78,17 +78,16 @@ use tcl_compiler::dataflow_graph::{
 use tcl_compiler::dead_stores::liveness_dead_stores;
 use tcl_compiler::def_use::{DefKind, DefUseChain, UseKind};
 use tcl_compiler::ssa::Version;
-use tcl_registry::dialects::DialectSet;
-use tcl_registry::{CommandRegistry, registry_for_dialect};
+use tcl_registry::CommandRegistry;
+use tcl_registry::model::ingress::static_context_for;
+use tcl_registry::model::semantic::SemanticContext;
 
-// ---------------------------------------------------------------------------
 // Shared helpers
-// ---------------------------------------------------------------------------
 
 const TCL: &str = "tcl8.6";
 
 fn registry() -> &'static CommandRegistry {
-    registry_for_dialect(TCL)
+    static_context_for(TCL).commands()
 }
 
 /// `source → CompilationUnit` (lower → CFG → SSA → def-use → SCCP).
@@ -137,13 +136,14 @@ fn build_graph(cu: &CompilationUnit) -> DataFlowGraph {
 
 /// Build the data-flow graph for `source`, with memory-SSA populated.
 fn graph_for(source: &str) -> DataFlowGraph {
-    let cu = build_cu(source).with_memory_ssa(&CommandRegistry::build_default(), DialectSet::TCL86);
+    let cu = build_cu(source).with_memory_ssa(
+        &CommandRegistry::build_default(),
+        Some(SemanticContext::for_environment("tcl8.6")),
+    );
     build_graph(&cu)
 }
 
-// ===========================================================================
 // Def-use chains
-// ===========================================================================
 
 // -- TestDefUseBasic --
 
@@ -372,9 +372,7 @@ fn def_use_foreach_loop() {
     assert!(!reaching_defs(fu, "item").is_empty());
 }
 
-// ===========================================================================
 // The SSA data-flow graph
-// ===========================================================================
 
 // -- TestDataFlowGraphExtraction --
 
@@ -497,8 +495,10 @@ fn dataflow_prebuilt_cu() {
     // the same ≥2 defs. The API *only* consumes pre-built per-function inputs,
     // so this is the same path as `build_graph` but spelled out: reuse one
     // `CompilationUnit`.
-    let cu = build_cu("set x 1\nset y $x")
-        .with_memory_ssa(&CommandRegistry::build_default(), DialectSet::TCL86);
+    let cu = build_cu("set x 1\nset y $x").with_memory_ssa(
+        &CommandRegistry::build_default(),
+        Some(SemanticContext::for_environment("tcl8.6")),
+    );
     let g = build_graph(&cu);
     assert!(g.total_defs() >= 2);
 }
@@ -532,7 +532,6 @@ fn dataflow_empty_source() {
     assert_eq!(g.total_defs(), 0);
 }
 
-// ===========================================================================
 // dead_stores::liveness_dead_stores  +  DefUseChain::is_dead
 //
 // See the module-level note: the liveness pass answers "is the value unread",
@@ -540,7 +539,6 @@ fn dataflow_empty_source() {
 // tclsh-anchored invariants (globals/side-effects kept) hold directly; the
 // terminal/multi-write/param cases where liveness flags a store a deletion pass
 // would keep are noted at each site.
-// ===========================================================================
 
 /// Variable names `liveness_dead_stores` flags as dead stores in `qname`.
 fn dead_store_vars(source: &str, qname: &str) -> Vec<String> {

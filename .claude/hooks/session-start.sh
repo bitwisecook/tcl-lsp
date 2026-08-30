@@ -324,8 +324,22 @@ install_tcl_sources() {
         echo "session-start: fetch-tcl-source skill missing at $fetcher" >&2
         return 1
     fi
-    echo "session-start: ensuring Tcl 8.4 / 8.5 / 8.6 / 9.0 source trees"
+    echo "session-start: ensuring Tcl 8.4 / 8.5 / 8.6 / 9.0 / 9.1 source trees"
     bash "$fetcher" all
+}
+
+# ---------------------------------------------------------------------------
+# 5a. Tk source trees, matching the Tcl releases above — same skill, the
+#     tk* selectors. Idempotent: skips versions already fetched into tmp/.
+# ---------------------------------------------------------------------------
+install_tk_sources() {
+    local fetcher="${REPO_ROOT}/.claude/skills/fetch-tcl-source/fetch_tcl_source.sh"
+    if [ ! -x "$fetcher" ]; then
+        echo "session-start: fetch-tcl-source skill missing at $fetcher" >&2
+        return 1
+    fi
+    echo "session-start: ensuring Tk 8.4 / 8.5 / 8.6 / 9.0 / 9.1 source trees"
+    bash "$fetcher" tkall
 }
 
 # ---------------------------------------------------------------------------
@@ -576,6 +590,7 @@ STEPS=(
     install_wasi_sdk
     install_rust
     install_tcl_sources
+    install_tk_sources
     install_tcllib
     install_remaining_test_deps
     setup_tcl_library

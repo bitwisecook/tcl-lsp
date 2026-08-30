@@ -19,6 +19,7 @@
 //! `fileevent` — execute a script when a channel becomes readable or writable.
 
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[
     FormSpec {
@@ -65,13 +66,12 @@ pub fn spec() -> CommandSpec {
         // pointing to `chan event`) name it `channel` — cosmetic only, no
         // calling-convention change, and `channelId` is kept below in
         // FORMS/hover to match `chan_.rs`'s own `chan event channelId event
-        // ?script?` synopsis. F5's TMM interpreter strips the whole event-loop /
-        // channel-config command surface from the sandboxed interpreter
-        // (the K36322151 bans), which excludes `fileevent` there — and that
-        // exclusion is expressed directly by this `dialects` group:
-        // `ALL_TCL` omits the `IRULES` bit, so the spec never intersects
-        // the bare `IRULES` availability mask.
-        dialects: Some(DialectSet::ALL_TCL),
+        // ?script?` synopsis. F5's TMM interpreter strips the whole event-loop
+        // / channel-config command surface from the sandboxed interpreter (the
+        // K36322151 bans), which excludes `fileevent` there — and that
+        // exclusion is expressed directly by this surface: `ALL_TCL` omits an
+        // iRules row, so the spec is simply absent under iRules.
+        surface: Some(SpecSurface::ALL_TCL),
         // `DEFERS_BODY`: the handler script is *registered*, and runs only
         // when the channel becomes ready and the event loop dispatches it —
         // the same fact `body_kind` records below, said where a consumer

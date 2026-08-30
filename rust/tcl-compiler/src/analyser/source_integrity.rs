@@ -109,7 +109,7 @@ mod tests {
             filtered_bidi_control_diagnostics(
                 source,
                 &HashSet::new(),
-                tcl_dialect::DialectProfile::by_name("tcl9.0")
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
             )
             .is_empty(),
             "the case-list arm's noqa must reach the next physical line"
@@ -123,7 +123,7 @@ mod tests {
             filtered_bidi_control_diagnostics(
                 source,
                 &HashSet::new(),
-                tcl_dialect::DialectProfile::by_name("tcl9.0")
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
             )
             .is_empty()
         );

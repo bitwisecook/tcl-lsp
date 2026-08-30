@@ -377,6 +377,20 @@ pub struct Analyser {
     /// answer — availability masks, behaviour policies, the lexer grammar —
     /// from this; the original string round-trips as [`Self::dialect`].
     pub profile: &'static tcl_dialect::DialectProfile,
+    /// The resolved document environment (centralisation R-a): set beside
+    /// [`Self::profile`] at each `analyse*` ingress by
+    /// [`crate::environment_ingress::resolve_environment`]. The profile
+    /// above is now *derived from* this resolution (wave-1 interop,
+    /// retired with ledger C1's re-type); availability queries go through
+    /// [`Self::analysis_context`] instead of the profile.
+    pub(super) environment: Option<crate::environment_ingress::DocumentEnvironment>,
+    /// The registry generation this walk reads — the per-context
+    /// [`tcl_registry::model::ContextRegistry`] carrying both the
+    /// availability context and the (possibly pack-overlaid) command
+    /// store [`Self::registry`] aliases. Stashed by the `analyse*`
+    /// entries; [`Self::analysis_context`] supplies the bare-harness
+    /// fallback.
+    pub(super) context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
     /// The identity of the `SpecTcl` pack set layered onto this dialect's
     /// registry — the `PackSet::key` its owner installed under, or `0` for
     /// "no packs".
@@ -442,11 +456,17 @@ pub struct Analyser {
     /// `tk` dialect / `package require Tk` fact resolved at flush time.  Set
     /// per walk by the `analyse*` entry points so non-Tk files pay nothing.
     pub(super) tk_accumulation_enabled: bool,
-    /// Whether the ingest dialect string was literally `"tk"` (a wish
-    /// shell). `tk` is a library over a Tcl base, not a catalog profile
-    /// (dialect-profile-model.md §7.2), so its shell identity is recorded
-    /// here at ingest for the Tk geometry checks.
-    pub(super) tk_dialect: bool,
+    /// Whether this document's environment ships the `Tk` package
+    /// **ambient** — i.e. Tk is already loaded before the first byte runs,
+    /// so no `package require Tk` exists to find (a `wish` shell).
+    ///
+    /// P3 (ledger F4): resolved at ingest from the environment's placement
+    /// (`ResolvedContext::ambient_package("Tk")`), not from the ingest
+    /// dialect *string* being literally `"tk"`. `Tk` is a package with a
+    /// placement, so any environment — compiled or pack-declared — that
+    /// says "Tk is ambient here" activates the Tk geometry checks without
+    /// a require, and nothing has to be named `tk` to do it.
+    pub(super) tk_ambient: bool,
     /// Tk checks (TK1002 / TK1003): diagnostics buffered during the walk and
     /// emitted post-walk by [`Self::flush_tk_geometry_diagnostics`], once the
     /// `tk` dialect / `package require Tk` activation condition is resolved.
@@ -472,7 +492,7 @@ pub struct Analyser {
     /// [`Self::flush_dsl_gate_diagnostics`] against the effective Tcl
     /// version.
     pub(super) dsl_gate_sites: Vec<super::diagnostics::version_gate::DslGateSite>,
-    /// Proven W147 option conflicts whose `OptionConstraint` is version-gated
+    /// Proven W147 option conflicts whose `OptionRelation` is version-gated
     /// — decided post-walk by [`Self::flush_gated_option_conflicts`], which
     /// promotes the ones the resolved floor actually has onto
     /// [`Self::pending_arity`]. A constraint with no lifecycle bypasses this
@@ -497,6 +517,28 @@ pub struct Analyser {
     /// D5 oldest-supported default; feeds
     /// [`tcl_dialect::DialectProfile::library_floor`].
     pub library_versions: tcl_dialect::LibraryVersionOverrides,
+    /// §5.4 range targeting — configuration-declared version targets
+    /// (`tclLsp.targets`) as `(provider, range clauses)` pairs, e.g.
+    /// `("tcl", "8.5-9.0")` / `("Tk", "8.5-8.6")`. Merged at each walk
+    /// ingress with the source's `# tcl-lsp: supports NAME RANGE`
+    /// directives (the directive wins per provider) by
+    /// [`Self::resolve_declared_targets`]. Empty — the default — leaves
+    /// range mode off and every answer byte-identical to today.
+    pub declared_targets: Vec<(String, String)>,
+    /// The resolved range-mode context: the walk generation's
+    /// [`tcl_registry::model::ResolvedContext`] with the merged target
+    /// declarations recorded on it (§5.4). `None` whenever nothing is
+    /// declared — the no-range fast path every existing document takes.
+    pub(super) range_context: Option<tcl_registry::model::ResolvedContext>,
+    /// The numeral grammars represented across the declared core-Tcl
+    /// targets (fewer than two ⇒ no numeral divergence is possible and
+    /// the W151 walk is off). Derived beside [`Self::range_context`].
+    pub(super) range_numeral_grammars: Vec<tcl_dialect::NumberSyntax>,
+    /// §5.4 mask-gated range sites (W150): availability gates whose
+    /// spelling is `SpecSurface` ladder bits rather than a lifecycle,
+    /// buffered during the walk and decided post-walk beside the
+    /// lifecycle sites so one word still draws one diagnostic.
+    pub(super) range_gate_sites: Vec<super::diagnostics::version_gate::RangeGateSite>,
     /// Cached set of built-in command names for redefined-builtin
     /// detection. `None` until first lookup; filled lazily.
     pub builtin_names: Option<HashSet<String>>,
@@ -825,17 +867,20 @@ pub struct Analyser {
     /// intended for asynchronous use behind the `S*` call-graph
     /// / symbol-graph / dataflow-graph / semantic-graph builders.
     pub deep_param_traits: bool,
-    /// Per-document stub-command overlay built at the top of
-    /// [`Self::analyse`] from `result.stub_commands` via
-    /// [`super::types::build_stub_overlay`].  Lets analyser /
-    /// compiler queries see user-declared `# tcl-lsp: stub`
-    /// commands as first-class members of the command surface
-    /// without mutating the global [`tcl_registry::CommandRegistry`].
-    /// `None` outside an active analysis run.  Tied to the
-    /// (single-threaded) analyser instance rather than a thread-local.
-    pub stub_overlay: Option<tcl_registry::stub_overlay::StubOverlay>,
+    /// The commands this **document** declares for itself, ingested at
+    /// the top of [`Self::analyse`] from `result.stub_commands` via
+    /// [`super::types::build_declared_surface`] — inline
+    /// `# tcl-lsp: stub` blocks and workspace `.tcl.stubs` sidecars as
+    /// provenance-tagged surface declarations (gap ruling R1).  Paired
+    /// with the walk's registry generation by
+    /// [`Self::command_surface`], the one door analyser and compiler
+    /// queries ask; nothing mutates the shared
+    /// [`tcl_registry::CommandRegistry`].  `None` outside an active
+    /// analysis run.  Tied to the (single-threaded) analyser instance
+    /// rather than a thread-local.
+    pub declared_commands: Option<tcl_registry::model::DeclaredSurface>,
     /// The document's statically proven command-identity facts
-    /// ([`crate::head_identity`]) — which registry command each head spelling
+    /// ([`crate::realm`]) — which registry command each head spelling
     /// really names, folding in `namespace import`, `interp alias`, `rename`,
     /// and a built-in-shadowing `proc`.  Rebuilt alongside
     /// [`Self::registry`] at the top of every entry point so a per-proc
@@ -843,7 +888,7 @@ pub struct Analyser {
     /// bindings rather than their written spellings (issue #1275).  Empty
     /// outside an active analysis run, and for the overwhelmingly common
     /// document that binds nothing.
-    pub head_identities: crate::head_identity::HeadIdentityMap,
+    pub head_identities: crate::realm::CommandBindingRealm,
     /// Sorted byte offsets of every ``\n`` in [`Self::source`],
     /// precomputed at the top of [`Self::analyse`] /
     /// [`Self::analyse_chunked`] / [`Self::analyse_commands`] so
@@ -1384,7 +1429,11 @@ impl Analyser {
     /// the analyser has none loaded (direct handler calls in unit tests).
     pub(super) fn command_takes_regex_pattern(&self, cmd_name: &str) -> bool {
         let registry = self.registry.as_deref().map_or_else(
-            || tcl_registry::cache::registry_for_dialect("tcl8.6"),
+            || {
+                tcl_registry::model::ingress::static_context_for("tcl8.6")
+                    .commands()
+                    .as_ref()
+            },
             |r| r,
         );
         registry.get(cmd_name).and_then(|spec| spec.pattern_type)
@@ -1404,6 +1453,8 @@ impl Analyser {
             current_scope_path: Vec::new(),
             source: String::new(),
             profile: tcl_dialect::DialectProfile::plain_tcl(),
+            environment: None,
+            context: None,
             pack_overlay: 0,
             disabled_diagnostics: disabled,
             extra_commands: Arc::new(HashSet::new()),
@@ -1414,7 +1465,7 @@ impl Analyser {
             regex_vars: HashSet::new(),
             current_event: None,
             tk_accumulation_enabled: false,
-            tk_dialect: false,
+            tk_ambient: false,
             tk_pending_diags: Vec::new(),
             tk_domains: std::collections::BTreeMap::new(),
             version_gate_sites: Vec::new(),
@@ -1423,6 +1474,10 @@ impl Analyser {
             pending_gated_arity: Vec::new(),
             pending_gated_bare_ensemble: Vec::new(),
             library_versions: tcl_dialect::LibraryVersionOverrides::default(),
+            declared_targets: Vec::new(),
+            range_context: None,
+            range_numeral_grammars: Vec::new(),
+            range_gate_sites: Vec::new(),
             builtin_names: None,
             builtin_dialect: None,
             conditional_depth: 0,
@@ -1464,8 +1519,8 @@ impl Analyser {
             command_trust: None,
             recovery_known_commands: super::utils::RecoveryKnownCommands::default(),
             deep_param_traits: false,
-            stub_overlay: None,
-            head_identities: crate::head_identity::HeadIdentityMap::default(),
+            declared_commands: None,
+            head_identities: crate::realm::CommandBindingRealm::default(),
             line_offsets: None,
             cached_line_index: tcl_lexer::LineIndex::new(""),
             cached_line_index_source_len: 0,
@@ -1516,18 +1571,55 @@ impl Analyser {
         self
     }
 
-    /// The registry this analysis reads: the cached per-profile one, carrying
-    /// [`Self::pack_overlay`]'s packs when that entry exists.
+    /// The registry this analysis reads: the walk's generation's command
+    /// store, carrying [`Self::pack_overlay`]'s packs when that entry
+    /// exists.
     ///
-    /// **Look-up only.** Building the entry needs the pack *contents*, which
-    /// only the loader has, so a miss falls back to the un-overlaid registry
-    /// rather than caching a pack-less one under the pack's key forever. A miss
-    /// means the packs are not installed yet — the state the process was in a
-    /// moment ago — so the fallback is the honest answer, not a wrong one.
+    /// **Look-up only.** Building an overlay entry needs the pack
+    /// *contents*, which only the loader has, so a miss falls back to the
+    /// un-overlaid generation rather than caching a pack-less one under
+    /// the pack's key forever. A miss means the packs are not installed
+    /// yet — the state the process was in a moment ago — so the fallback
+    /// is the honest answer, not a wrong one.
     #[must_use]
     pub fn profile_registry(&self) -> std::sync::Arc<tcl_registry::registry::CommandRegistry> {
-        tcl_registry::cache::registry_for_profile_if_built(self.profile, self.pack_overlay)
-            .unwrap_or_else(|| tcl_registry::cache::registry_handle_for_profile(self.profile))
+        std::sync::Arc::clone(self.analysis_context().commands())
+    }
+
+    /// The registry generation this analysis answers under — the
+    /// [`tcl_registry::model::ContextRegistry`] stashed at the `analyse*`
+    /// ingress ([`Self::resolve_walk_environment`]), or — for a bare
+    /// harness driving handlers without an ingress — the generation of
+    /// the stashed profile's environment at this walk's overlay key.
+    /// Availability queries read `.context()`; raw spec content reads
+    /// `.commands()`.
+    #[must_use]
+    pub(crate) fn analysis_context(&self) -> std::sync::Arc<tcl_registry::model::ContextRegistry> {
+        if let Some(context) = &self.context {
+            return std::sync::Arc::clone(context);
+        }
+        let environment = crate::environment_ingress::resolve_environment(self.profile.name);
+        let keyed =
+            crate::environment_ingress::DocumentEnvironment::keyed_versions(&self.library_versions);
+        environment.context_registry(&keyed, self.pack_overlay)
+    }
+
+    /// Resolve `dialect` at a walk ingress (centralisation R-a): stash
+    /// the environment and this walk's registry generation, derive the
+    /// interop [`Self::profile`], and return whether this environment
+    /// ships `Tk` **ambient** ([`Self::tk_ambient`] — the fact
+    /// `availability_for_name`'s `TK`-bit union used to carry, now a
+    /// placement query on the walk's own context).
+    pub(super) fn resolve_walk_environment(&mut self, dialect: &str) -> bool {
+        let environment = crate::environment_ingress::resolve_environment(dialect);
+        self.profile = environment.analyser_profile();
+        let keyed =
+            crate::environment_ingress::DocumentEnvironment::keyed_versions(&self.library_versions);
+        let generation = environment.context_registry(&keyed, self.pack_overlay);
+        let tk_ambient = generation.context().ambient_package("Tk");
+        self.context = Some(generation);
+        self.environment = Some(environment);
+        tk_ambient
     }
 
     /// Set the W108 non-ASCII detection mode (`tclLsp.style.nonAscii`),
@@ -1545,6 +1637,108 @@ impl Analyser {
     pub fn with_bigip_version(mut self, version: Option<String>) -> Self {
         self.library_versions.bigip_version = version;
         self
+    }
+
+    /// Set the configuration-declared version targets (`tclLsp.targets`,
+    /// §5.4 range targeting) as `(provider, range clauses)` pairs,
+    /// returning `self` for builder-style configuration. A source-level
+    /// `# tcl-lsp: supports NAME RANGE` directive overrides the
+    /// configured pair for the same provider.
+    #[must_use]
+    pub fn with_declared_targets(mut self, targets: Vec<(String, String)>) -> Self {
+        self.declared_targets = targets;
+        self
+    }
+
+    /// Resolve the §5.4 declared version targets for this walk: the
+    /// configured [`Self::declared_targets`] pairs plus the source's
+    /// `# tcl-lsp: supports NAME RANGE` directives (the directive wins
+    /// per provider — most specific source, §5.4), parsed under the
+    /// targets grammar ([`tcl_registry::model::targets_from_clauses`])
+    /// and recorded on a document-level clone of this walk's resolved
+    /// context. A malformed or empty declaration is dropped rather than
+    /// guessed at. A provider named after a **family** declares targets
+    /// on that family's core axis and is honoured only when the
+    /// document's own core is that family — the Tcl, iRules and Jim
+    /// ladders are separate axes, and a declaration on one says nothing
+    /// about another (invariant I2).
+    ///
+    /// Also derives the numeral-grammar era set the W151 cross-target
+    /// numeral check walks under; fewer than two represented grammars
+    /// switches that check off.
+    pub(super) fn resolve_declared_targets(&mut self, source: &str) {
+        use tcl_dialect::model::{Family, VersionAxisId};
+        self.range_context = None;
+        self.range_numeral_grammars = Vec::new();
+        let directives = super::utils::parse_supports_directives(source);
+        if self.declared_targets.is_empty() && directives.is_empty() {
+            return;
+        }
+        let mut merged: Vec<(String, String)> = self.declared_targets.clone();
+        for (name, clauses) in directives {
+            merged.retain(|(existing, _)| *existing != name);
+            merged.push((name, clauses));
+        }
+        let generation = self.analysis_context();
+        let mut context = generation.context().clone();
+        let core_family = context.environment.core.map(|core| core.family);
+        let mut declared_any = false;
+        for (name, clauses) in &merged {
+            // A **family name** (`tcl`, `jim`, `f5-irules`, …) declares
+            // targets on that family's own core axis, and only when the
+            // document's core is that family: a `supports tcl 8.5-9.0`
+            // under a jim core, or a `supports jim 0.81-` under a Tcl
+            // one, is a declaration about a ladder this document is not
+            // on, and invariant I2 says it must be dropped rather than
+            // coerced. Before P6 only `tcl` was recognised here, so
+            // `supports jim 0.81-` minted a fictitious *package* axis
+            // named `jim` and switched range mode on against it.
+            let family = Family::ALL
+                .into_iter()
+                .find(|family| name.eq_ignore_ascii_case(family.name()));
+            let axis = match family {
+                Some(family) if core_family == Some(family) => VersionAxisId::core(family),
+                Some(_) => continue,
+                None => VersionAxisId::package(name),
+            };
+            let clause_list: Vec<&str> = clauses.split_whitespace().collect();
+            let Ok(targets) = tcl_registry::model::targets_from_clauses(&axis, &clause_list) else {
+                continue;
+            };
+            if targets.is_empty() {
+                continue;
+            }
+            context.declare_targets(targets);
+            declared_any = true;
+        }
+        if !declared_any {
+            return;
+        }
+        let core_axis = VersionAxisId::core(Family::Tcl);
+        if let Some(declared) = context.declared_targets(&core_axis) {
+            for &grammar in tcl_dialect::NumberSyntax::ALL {
+                // Exhaustive on purpose: a future grammar variant must
+                // name its interval here before it compiles.
+                let requirement = match grammar {
+                    tcl_dialect::NumberSyntax::Tcl84 => "0-8.5",
+                    tcl_dialect::NumberSyntax::Tcl85 => "8.5-9.0",
+                    tcl_dialect::NumberSyntax::Tcl90 => "9.0-",
+                };
+                let Ok(era) = tcl_dialect::model::VersionSet::from_requirements(
+                    core_axis.clone(),
+                    &[requirement],
+                ) else {
+                    continue;
+                };
+                if declared
+                    .intersect(&era)
+                    .is_ok_and(|overlap| !overlap.is_empty())
+                {
+                    self.range_numeral_grammars.push(grammar);
+                }
+            }
+        }
+        self.range_context = Some(context);
     }
 
     /// Set the user-declared extra command names (`tclLsp.extraCommands`),
@@ -1700,7 +1894,7 @@ impl Analyser {
         // Stash the source so handlers (recovery, diagnostic
         // emitters) can re-slice it.
         self.source = source.to_string();
-        self.profile = tcl_dialect::DialectProfile::by_name(dialect);
+        let tk_ambient = self.resolve_walk_environment(dialect);
         // Tell pack hooks which dialect they are running under, for the
         // length of this walk. A hook's `ctx.dialect` used to be derived from
         // the call's `TclVersion`, which can only spell a release — so an
@@ -1711,10 +1905,12 @@ impl Analyser {
         let _dialect_scope = tcl_registry::pack_hooks::DialectScope::enter(Some(self.profile.name));
         self.result.dialect = dialect.to_string();
         self.result.library_versions = self.library_versions.clone();
-        let availability = tcl_dialect::DialectProfile::availability_for_name(dialect);
-        self.tk_accumulation_enabled =
-            super::tk_checks::tk_checks_could_apply(source, availability);
-        self.tk_dialect = availability.contains(tcl_dialect::DialectSet::TK);
+        self.tk_accumulation_enabled = super::tk_checks::tk_checks_could_apply(source, tk_ambient);
+        self.tk_ambient = tk_ambient;
+        // §5.4 range targeting: resolve configured + directive-declared
+        // version targets for this walk (a no-op for the undeclared
+        // majority).
+        self.resolve_declared_targets(source);
         // Clear the per-run iRules file-profile memo so a reused analyser
         // instance recomputes it for the new source / dialect.
         self.irules_file_profiles = None;
@@ -1753,10 +1949,7 @@ impl Analyser {
         // runs per segmented command in the dispatch loop below.
         merge_noqa_line_suppressions(
             &mut self.result.suppressed_lines,
-            super::utils::parse_noqa_line_suppressions_for_dialect(
-                source,
-                tcl_dialect::DialectProfile::by_name(dialect),
-            ),
+            super::utils::parse_noqa_line_suppressions_for_dialect(source, self.profile),
         );
         // Inline ``# tcl-lsp: stub …`` block scan.  After
         // capturing the parsed records, build the per-document
@@ -1770,7 +1963,7 @@ impl Analyser {
         // The document-local declaration is nearest in scope and wins over a
         // workspace sidecar with the same name.
         overlay_cmds.extend(stub_cmds.iter().cloned());
-        self.stub_overlay = Some(super::types::build_stub_overlay(&overlay_cmds));
+        self.declared_commands = Some(super::types::build_declared_surface(&overlay_cmds));
         self.result.stub_commands = overlay_cmds;
         let mut all_exprs = sidecar_exprs;
         all_exprs.extend(stub_exprs);
@@ -1782,7 +1975,7 @@ impl Analyser {
         // ``self`` so per-command handlers (registry-driven body
         // iteration in ``process_command``) reuse it.
         self.registry = Some(self.profile_registry());
-        self.head_identities = crate::head_identity::command_head_identities_with_config(
+        self.head_identities = crate::realm::document_realm_bindings_with_config(
             source,
             self.lexer_config(),
             self.registry.as_deref().expect("registry just stashed"),
@@ -2116,13 +2309,13 @@ impl Analyser {
         self.source = source.to_string();
         // Same-source memo, cleared with the source it was derived from.
         self.irules_event_bodies = None;
-        self.profile = tcl_dialect::DialectProfile::by_name(dialect);
+        let tk_ambient = self.resolve_walk_environment(dialect);
         self.result.dialect = dialect.to_string();
         self.result.library_versions = self.library_versions.clone();
-        let availability = tcl_dialect::DialectProfile::availability_for_name(dialect);
-        self.tk_accumulation_enabled =
-            super::tk_checks::tk_checks_could_apply(source, availability);
-        self.tk_dialect = availability.contains(tcl_dialect::DialectSet::TK);
+        self.tk_accumulation_enabled = super::tk_checks::tk_checks_could_apply(source, tk_ambient);
+        self.tk_ambient = tk_ambient;
+        // §5.4 range targeting — same resolution as `analyse`.
+        self.resolve_declared_targets(source);
         self.unresolved_commands_emitted = false;
 
         let file_codes = super::utils::parse_file_suppression(source);
@@ -2142,10 +2335,7 @@ impl Analyser {
         // rationale.
         merge_noqa_line_suppressions(
             &mut self.result.suppressed_lines,
-            super::utils::parse_noqa_line_suppressions_for_dialect(
-                source,
-                tcl_dialect::DialectProfile::by_name(dialect),
-            ),
+            super::utils::parse_noqa_line_suppressions_for_dialect(source, self.profile),
         );
 
         // Build + stash the dialect-aware registry so
@@ -2156,7 +2346,7 @@ impl Analyser {
         // for the ``line_offsets`` index used by
         // ``apply_preceding_noqa``.
         self.registry = Some(self.profile_registry());
-        self.head_identities = crate::head_identity::command_head_identities_with_config(
+        self.head_identities = crate::realm::document_realm_bindings_with_config(
             source,
             self.lexer_config(),
             self.registry.as_deref().expect("registry just stashed"),
@@ -2213,13 +2403,13 @@ impl Analyser {
         self.source = source.to_string();
         // Same-source memo, cleared with the source it was derived from.
         self.irules_event_bodies = None;
-        self.profile = tcl_dialect::DialectProfile::by_name(dialect);
+        let tk_ambient = self.resolve_walk_environment(dialect);
         self.result.dialect = dialect.to_string();
         self.result.library_versions = self.library_versions.clone();
-        let availability = tcl_dialect::DialectProfile::availability_for_name(dialect);
-        self.tk_accumulation_enabled =
-            super::tk_checks::tk_checks_could_apply(source, availability);
-        self.tk_dialect = availability.contains(tcl_dialect::DialectSet::TK);
+        self.tk_accumulation_enabled = super::tk_checks::tk_checks_could_apply(source, tk_ambient);
+        self.tk_ambient = tk_ambient;
+        // §5.4 range targeting — same resolution as `analyse`.
+        self.resolve_declared_targets(source);
         self.unresolved_commands_emitted = false;
 
         let file_codes = super::utils::parse_file_suppression(source);
@@ -2237,10 +2427,7 @@ impl Analyser {
         // rationale.
         merge_noqa_line_suppressions(
             &mut self.result.suppressed_lines,
-            super::utils::parse_noqa_line_suppressions_for_dialect(
-                source,
-                tcl_dialect::DialectProfile::by_name(dialect),
-            ),
+            super::utils::parse_noqa_line_suppressions_for_dialect(source, self.profile),
         );
 
         // Same registry + line-index prelude as
@@ -2249,7 +2436,7 @@ impl Analyser {
         // ``process_command`` silently skips body recursion on
         // the incremental path.
         self.registry = Some(self.profile_registry());
-        self.head_identities = crate::head_identity::command_head_identities_with_config(
+        self.head_identities = crate::realm::document_realm_bindings_with_config(
             source,
             self.lexer_config(),
             self.registry.as_deref().expect("registry just stashed"),
@@ -2271,7 +2458,7 @@ impl Analyser {
             super::utils::scan_sidecar_stubs(self.file_path.as_deref(), dialect);
         let mut overlay_cmds = sidecar_cmds;
         overlay_cmds.extend(stub_cmds.iter().cloned());
-        self.stub_overlay = Some(super::types::build_stub_overlay(&overlay_cmds));
+        self.declared_commands = Some(super::types::build_declared_surface(&overlay_cmds));
         self.result.stub_commands = overlay_cmds;
         let mut all_exprs = sidecar_exprs;
         all_exprs.extend(stub_exprs);
@@ -2334,20 +2521,16 @@ impl Analyser {
         // path would walk, or leaves any partial command.  (This also subsumes
         // the plain-segmentation-metadata check: the recovery segmenter is the
         // authority on the command stream + its attached comments.)
-        let registry = tcl_registry::cache::registry_for_profile_if_built(
-            tcl_dialect::DialectProfile::by_name(dialect),
-            self.pack_overlay,
-        )
-        .unwrap_or_else(|| {
-            tcl_registry::cache::registry_handle_for_profile(tcl_dialect::DialectProfile::by_name(
-                dialect,
-            ))
-        });
-        let known: std::collections::HashSet<&str> = registry.command_names().collect();
+        let environment = crate::environment_ingress::resolve_environment(dialect);
+        let keyed =
+            crate::environment_ingress::DocumentEnvironment::keyed_versions(&self.library_versions);
+        let generation = environment.context_registry(&keyed, self.pack_overlay);
+        let known: std::collections::HashSet<&str> =
+            generation.commands().command_names().collect();
         let recovery_cmds = crate::segmenter::segment_commands_with_recovery_and_config(
             new_text,
             &known,
-            tcl_lexer::LexerConfig::for_dialect(dialect),
+            tcl_lexer::LexerConfig::from_grammar(environment.analyser_profile().grammar),
         );
         if recovery_cmds != cmds || recovery_cmds.iter().any(|c| c.is_partial) {
             return self.fresh_full_analyse(new_text, dialect);
@@ -2470,22 +2653,35 @@ impl Analyser {
         }
     }
 
-    /// Resolve (and cache) the set of built-in command names for
-    /// the active dialect.
+    /// Resolve (and cache) the set of built-in command names that
+    /// **exist** under the active dialect — the registry tier of the one
+    /// `exists` oracle (centralisation R-c, ledger C5): every store name
+    /// the resolved context actually provides
+    /// ([`tcl_registry::model::ResolvedContext::resolve_spec`]), plus the
+    /// measured iRules §4b interpreter-present extension
+    /// ([`Self::extend_with_irules_interpreter_present_names`]).
     ///
-    /// The registry is built once per dialect and the resulting name
-    /// set is held on ``self.builtin_names`` for subsequent
+    /// This is the same set the W123 unresolved-command pass resolves
+    /// registry names against, so settlement
+    /// (`finalise_invocation_resolutions`), constant-dispatch, W113, and
+    /// W123 can no longer disagree about which registry commands exist —
+    /// the pre-P1a split where settlement read the *unfiltered* store
+    /// name set (and so believed in commands W123 did not) is retired.
+    ///
+    /// The name set is held on ``self.builtin_names`` for subsequent
     /// proc / class registrations to consult without rebuilding.
-    /// Used by **W113** (proc shadows built-in) at proc-emit time
-    /// and the emitters that gate on built-in vs user-defined.
-    ///
     /// The dialect resolves through the profile catalog; unknown dialect
     /// names sink to the permissive fallback profile's registry.
-    pub fn builtin_command_names(&mut self) -> &std::collections::HashSet<String> {
+    pub(crate) fn builtin_command_names(&mut self) -> &std::collections::HashSet<String> {
         if self.builtin_dialect != Some(self.profile.name) || self.builtin_names.is_none() {
-            let registry = self.profile_registry();
-            let names: std::collections::HashSet<String> =
-                registry.command_names().map(str::to_string).collect();
+            let generation = self.analysis_context();
+            let registry = generation.commands();
+            let mut names: std::collections::HashSet<String> = registry
+                .command_names()
+                .filter(|name| generation.context().resolve_spec(registry, name).is_some())
+                .map(str::to_string)
+                .collect();
+            self.extend_with_irules_interpreter_present_names(&mut names);
             self.builtin_names = Some(names);
             self.builtin_dialect = Some(self.profile.name);
         }
@@ -2493,6 +2689,26 @@ impl Analyser {
         self.builtin_names
             .as_ref()
             .expect("builtin_names populated above")
+    }
+
+    /// measurements §4b: under `f5-irules` the 15 **compiler-refused**
+    /// builtins are present in TMM's interpreter — reachable via `eval` at
+    /// runtime — so the oracle must not claim they do not exist (no
+    /// "Unknown command" W123). Their literal-source load refusal is
+    /// IRULE2004's job (a policy warning, emitted by the disabled-command
+    /// pass). The 16 interpreter-absent commands stay unknown here: their
+    /// absence is a language fact. No-op outside the iRules profile.
+    pub(in crate::analyser) fn extend_with_irules_interpreter_present_names(
+        &self,
+        names: &mut std::collections::HashSet<String>,
+    ) {
+        if self.profile.is_irules() {
+            names.extend(
+                tcl_registry::irules_policy::IRULES_COMPILER_REFUSED
+                    .iter()
+                    .map(|name| (*name).to_string()),
+            );
+        }
     }
 
     /// Run the post-walk diagnostic-emission tail: the W123 / arity / missing-
@@ -2571,6 +2787,9 @@ impl Analyser {
         self.flush_ctor_arity_diagnostics();
         self.flush_next_arity_diagnostics();
         self.emit_missing_package_require_diagnostics(&diag_registry);
+        // Q8's assistance half. Disjoint from W120 by construction — that
+        // fires when the requirement is absent, this when it is merely late.
+        self.emit_package_require_ordering_hints(&diag_registry);
         self.emit_variable_usage_diagnostics();
         self.emit_cfg_ssa_diagnostics(source);
         self.flush_objdefine_abort_diagnostics();
@@ -2729,6 +2948,8 @@ impl Analyser {
 
     pub(super) fn clear_run_state(&mut self) {
         self.registry = None;
+        self.context = None;
+        self.environment = None;
         self.command_trust = None;
         self.objdefine_bindings.clear();
         self.objdefine_abort_candidates.clear();
@@ -2864,7 +3085,7 @@ mod tests {
         let mut a = Analyser::new();
 
         // 9.x nests, so `${a{b}c}::setdef` dispatches on `a{b}c`.
-        a.profile = tcl_dialect::DialectProfile::by_name("tcl9.0");
+        a.profile = tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
         assert_eq!(a.split_braced_head("ns}::setdef"), ("ns", "::setdef"));
         assert_eq!(a.split_braced_head("a{b}c}::setdef"), ("a{b}c", "::setdef"));
         // A pure `${…}` token has no closer inside its text: all name.
@@ -2874,7 +3095,7 @@ mod tests {
         assert_eq!(a.split_braced_head("ns::v"), ("ns::v", ""));
 
         // 8.x ends the name at the first literal `}`.
-        a.profile = tcl_dialect::DialectProfile::by_name("tcl8.6");
+        a.profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
         assert_eq!(a.split_braced_head("ns}::setdef"), ("ns", "::setdef"));
         assert_eq!(a.split_braced_head("a{b}c}::setdef"), ("a{b", "c}::setdef"));
     }
@@ -3953,15 +4174,27 @@ mod tests {
         // with the same dialect return the same set.
         let mut a = Analyser::new();
         a.profile = tcl_dialect::DialectProfile::plain_tcl();
-        let initial_len = a.builtin_command_names().len();
         // ``set`` is a core built-in across all dialects.
         assert!(a.builtin_command_names().contains("set"));
-        // Cache invalidation: switching dialect rebuilds.
+        // I4/R-c (ledger C5): the set is the one `exists` oracle's
+        // registry tier — the names the resolved context actually
+        // provides, no longer the unfiltered store name set. Cache
+        // invalidation: switching dialect rebuilds onto the new context.
         a.profile = tcl_dialect::DialectProfile::irules();
-        let irules_len = a.builtin_command_names().len();
         assert!(
-            irules_len > initial_len,
-            "f5-irules should add commands beyond core (got {irules_len} vs {initial_len})",
+            a.builtin_command_names().contains("HTTP::header"),
+            "the iRules surface is provided under f5-irules"
+        );
+        assert!(
+            !a.builtin_command_names().contains("exec"),
+            "a compiler-disabled, interpreter-absent core command does not \
+             exist under the closed iRules world (R-c; pre-P1a the unfiltered \
+             store set believed in it)"
+        );
+        assert!(
+            a.builtin_command_names().contains("vwait"),
+            "a §4b interpreter-present (compiler-refused) builtin still exists \
+             for the oracle"
         );
     }
 
@@ -4031,7 +4264,7 @@ mod tests {
         let source = "proc set {} {}"; // would normally trip W113
         let commands = segment_commands(source);
         let mut a = Analyser::new();
-        a.profile = tcl_dialect::DialectProfile::by_name("tcl");
+        a.profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
         let r = a.analyse_commands(source, &commands, "tcl", false);
         // W113 was emitted by handle_proc but the tail didn't
         // run, so apply_disabled_diagnostics / dedupe didn't

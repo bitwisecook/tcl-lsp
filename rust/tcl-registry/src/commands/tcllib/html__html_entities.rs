@@ -32,7 +32,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "html::html_entities",
         traits: Traits::PURE,
-        dialects: None,
+        surface: None,
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Replace special characters with HTML entities.",

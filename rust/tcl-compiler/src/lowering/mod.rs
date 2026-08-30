@@ -27,10 +27,11 @@ use std::collections::{HashMap, HashSet};
 use tcl_lexer::TokenType;
 use tcl_registry::events::{IrulesCommandPlacement, IrulesExecutionContext};
 use tcl_registry::hooks::LoweringHookId;
-use tcl_registry::prelude::DialectSet;
 use tcl_registry::{ArgRole, CommandRegistry};
 
-use crate::alias::{CommandAliasMap, detect_interp_alias, detect_rename, resolve_alias};
+use crate::alias::{
+    CommandAliasMap, command_table_transitions, is_current_interpreter, resolve_alias,
+};
 use crate::ir::{
     CommandTokens, ForeachIterator, MethodDef, MethodKind, Module, Procedure, Script, Statement,
 };
@@ -39,6 +40,7 @@ use crate::naming::normalise_var_name;
 use crate::segmenter::{
     SegmentedCommand, segment_commands, segment_commands_with_offset_and_config,
 };
+use tcl_dialect::model::surface_admits;
 
 pub(crate) mod hooks;
 mod structured;
@@ -124,18 +126,18 @@ impl Lowerer<'_> {
     /// result, not a consumer-side command-name or read-modify-write rule.
     fn safe_on_uninit(&self, command: &str, args: &[String]) -> bool {
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let dialect = self.registry.own_availability_mask();
+        let dialect = self.registry.own_surface_query();
         // A profile-less registry is an intentionally dialect-blind union.
         // `safe_on_uninit` is a release/runtime guarantee, so the union cannot
         // prove it: in particular, `incr` differs between Tcl 8.4 and 8.5.
         // Abstain until a concrete profile selects the applicable fact.
-        if dialect.is_empty() {
+        if dialect.is_none() {
             return false;
         }
         self.registry
             .resolve_invocation(command, &arg_refs, dialect)
             .and_then(|resolved| resolved.semantics.safe_on_uninit)
-            .is_some_and(|allowed| allowed.is_empty() || allowed.intersects(dialect))
+            .is_none_or(|allowed| surface_admits(allowed, dialect.as_ref()))
     }
 
     /// Classify one command as a statically-extractable definer call, from
@@ -588,10 +590,13 @@ fn body_has_dynamic_barrier(body_text: &str, registry: &CommandRegistry) -> bool
         // A "dynamic barrier" command evaluates a script (`eval`,
         // `uplevel`, `namespace eval`, `interp eval`, …).  Sourced from
         // the registry's `EVALUATES_CODE` trait rather than a hardcoded
-        // name list.  `DialectSet::empty()` because the question is the
+        // name list.  `None` because the question is the
         // command's *shape*, not its availability: a barrier is a barrier
-        // whichever dialect the file is analysed as.
-        let traits = registry.invocation_traits(name, &args, DialectSet::empty());
+        // whichever dialect the file is analysed as.  Deliberate under
+        // invariant I4 — a barrier answer *widens* (falls back to
+        // `Statement::Barrier`), never specialises on an unproved
+        // binding.
+        let traits = registry.invocation_traits(name, &args, None);
         if !traits.contains(Traits::EVALUATES_CODE) {
             // Recurse into braced args of non-barrier commands so
             // nested barriers still trip the gate.
@@ -820,6 +825,12 @@ pub struct Lowerer<'r> {
     /// dialect's *word* tokenisation, this carries its *expression* grammar.
     /// Set by [`Lowerer::with_dialect`] / [`lower_to_ir_with_dialect`].
     dialect: Option<&'static tcl_dialect::DialectProfile>,
+    /// The dialect's resolved registry generation, derived beside
+    /// [`Self::dialect`] — the context [`try_lower_hook`]'s selection
+    /// primitive reads for the I4 binding proof (P1a): a head the
+    /// environment does not provide selects no lowering hook and falls to
+    /// the default `Statement::Call` path.
+    dialect_context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
     /// Which lowering pass this instance performs — folds what would
     /// otherwise be two related bool fields (`for_bytecode`, `trace_visible`)
     /// into one three-state enum (`clippy::struct_excessive_bools`); see
@@ -908,6 +919,7 @@ impl<'r> Lowerer<'r> {
             suppress_proc_register: false,
             config,
             dialect: None,
+            dialect_context: None,
             target: CompileTarget::Analysis,
             body_cache: None,
             nest_depth: 0,
@@ -927,6 +939,7 @@ impl<'r> Lowerer<'r> {
     #[must_use]
     pub fn with_dialect(mut self, dialect: Option<&'static tcl_dialect::DialectProfile>) -> Self {
         self.dialect = dialect;
+        self.dialect_context = dialect.map(crate::environment_ingress::context_for_profile);
         self
     }
 
@@ -1402,8 +1415,8 @@ impl<'r> Lowerer<'r> {
     ) -> Option<Statement> {
         let args = seg.args();
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        // Resolved under the registry's own availability mask (issues
-        // #1462/#1463): a profile-built registry suppresses the structured
+        // Resolved at the registry's own point (issues #1462/#1463): a
+        // profile-built registry suppresses the structured
         // lowering of a command its release does not have (`lmap` at 8.4),
         // so the call flows to `lower_default` and reaches the runtime's
         // availability gate as a generic dispatch. A profile-less registry
@@ -1411,7 +1424,7 @@ impl<'r> Lowerer<'r> {
         let resolved = self.registry.resolve_invocation(
             cmd_name,
             &arg_refs,
-            self.registry.own_availability_mask(),
+            self.registry.own_surface_query(),
         )?;
         let hook = resolved.semantics.lowering_hook?;
         // The expansion gate lives here, keyed on the same typed hook the
@@ -1516,7 +1529,7 @@ impl<'r> Lowerer<'r> {
             // `when EVENT ?priority N? body` — iRules event
             // handler.  The hook stamp lives on the `when` spec
             // in `tcl-registry/src/commands/irules/when.rs`,
-            // which `load_dialect(DialectSet::IRULES)` brings
+            // which `load_dialect(SpecSurface::IRULES)` brings
             // into the registry.  Production callers (the LSP
             // server) load the active dialect
             // before lowering; tests that lower iRule code call
@@ -1666,7 +1679,7 @@ impl<'r> Lowerer<'r> {
             if let Some(resolved) = self.registry.resolve_invocation(
                 cmd_name,
                 &arg_refs,
-                self.registry.own_availability_mask(),
+                self.registry.own_surface_query(),
             ) && let Some(tcl_registry::events::IrulesTopLevelDeclaration::Priority { value }) =
                 self.registry
                     .irules_top_level_effect(resolved.canonical_command, &arg_refs)
@@ -1690,24 +1703,56 @@ impl<'r> Lowerer<'r> {
         // `resolve_alias` looks the name back up (current namespace, then
         // global) and `command_binding`'s own namespace-relative candidates.
         let args_owned: Vec<String> = args.to_vec();
-        match self
-            .registry
-            .command_table_effect(cmd_name, args_owned.first().map(String::as_str))
+        // What the call did to the command table is registry data, read
+        // through the one transition vocabulary (ledger C8); the alias
+        // table is this pass's *index* over those facts.
+        for transition in
+            command_table_transitions(self.registry, cmd_name, &args_owned).command_bindings()
         {
-            Some(tcl_registry::CommandTableEffect::CreatesAliases) => {
-                if let Some((qualified, target, prepended)) = detect_interp_alias(&args_owned) {
-                    self.aliases.insert(qualified, (target, prepended));
-                }
-            }
-            Some(tcl_registry::CommandTableEffect::RenamesCommands) => {
-                if let Some((old, new)) = detect_rename(&args_owned) {
+            match transition {
+                tcl_registry::CommandBindingTransition::Alias {
+                    source_interpreter,
+                    alias,
+                    target_interpreter,
+                    target,
+                    arguments,
+                } => {
+                    if !is_current_interpreter(source_interpreter)
+                        || !is_current_interpreter(target_interpreter)
+                    {
+                        continue;
+                    }
+                    let (Some(alias_name), Some(target_cmd)) = (alias.literal(), target.literal())
+                    else {
+                        continue;
+                    };
+                    let qualified = if alias_name.is_empty() {
+                        String::new()
+                    } else {
+                        crate::naming::normalise_qualified_name(alias_name)
+                    };
+                    let prepended = arguments
+                        .iter()
+                        .filter_map(tcl_registry::TransitionSubject::literal)
+                        .map(str::to_owned)
+                        .collect();
                     self.aliases
-                        .insert(join_namespace(namespace, &new), (old, Vec::new()));
+                        .insert(qualified, (target_cmd.to_owned(), prepended));
                 }
+                tcl_registry::CommandBindingTransition::Move { from, to } => {
+                    let (Some(old), Some(new)) = (from.literal(), to.literal()) else {
+                        continue;
+                    };
+                    self.aliases
+                        .insert(join_namespace(namespace, new), (old.to_owned(), Vec::new()));
+                }
+                // A definition feeds the alias table nothing — it is lowered
+                // by its own hook below — and a deletion or an unknown
+                // mutation states no new name for it to index.
+                tcl_registry::CommandBindingTransition::Define { .. }
+                | tcl_registry::CommandBindingTransition::Delete { .. }
+                | tcl_registry::CommandBindingTransition::Unknown { .. } => {}
             }
-            // `proc` feeds the alias table nothing — its definition is
-            // lowered by its own hook below.
-            _ => {}
         }
 
         self.record_namespace_directives(cmd_name, args, seg, namespace);
@@ -1738,6 +1783,9 @@ impl<'r> Lowerer<'r> {
             &hook_cmd,
             &self.aliases,
             self.registry,
+            self.dialect_context
+                .as_deref()
+                .map(tcl_registry::model::ContextRegistry::context),
             self.safe_on_uninit(cmd_name, args),
         ) {
             return Some(stmt);
@@ -2729,7 +2777,7 @@ impl<'r> Lowerer<'r> {
                     &role_cmd,
                     &role_args_ref,
                     index,
-                    self.registry.own_availability_mask(),
+                    self.registry.own_surface_query(),
                 )
                 .is_none_or(|timing| timing == tcl_registry::ScriptTiming::SameInvocation)
         });
@@ -2764,7 +2812,7 @@ impl<'r> Lowerer<'r> {
                             &role_cmd,
                             &role_args_ref,
                             i,
-                            self.registry.own_availability_mask(),
+                            self.registry.own_surface_query(),
                         ) == Some(tcl_registry::VariableScope::Global)
                             && !name.starts_with("::")
                         {
@@ -2785,7 +2833,7 @@ impl<'r> Lowerer<'r> {
                             &role_cmd,
                             &role_args_ref,
                             i,
-                            self.registry.own_availability_mask(),
+                            self.registry.own_surface_query(),
                         ) == Some(tcl_registry::VariableScope::Global)
                             && !name.starts_with("::")
                         {
@@ -4195,7 +4243,7 @@ mod tests {
     #[test]
     fn irules_event_priorities_follow_file_state_and_keep_repeated_handlers() {
         let profile = tcl_dialect::DialectProfile::irules();
-        let registry = tcl_registry::registry_for_profile(profile);
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
         let module = lower_to_ir_with_config(
             "priority 700\n\
              when HTTP_REQUEST {}\n\
@@ -4222,7 +4270,7 @@ mod tests {
     #[test]
     fn irules_declaration_body_shape_gates_lowered_regions() {
         let profile = tcl_dialect::DialectProfile::irules();
-        let registry = tcl_registry::registry_for_profile(profile);
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
         let module = lower_to_ir_with_config(
             "when HTTP_REQUEST priority 1001 {}\n\
              when HTTP_REQUEST bare_body\n\
@@ -4258,7 +4306,7 @@ mod tests {
     #[test]
     fn irules_declarations_only_lower_at_the_file_surface() {
         let profile = tcl_dialect::DialectProfile::irules();
-        let registry = tcl_registry::registry_for_profile(profile);
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
         let module = lower_to_ir_with_config(
             "if {1} {\n\
                  when CLIENT_DATA { pool top_level_nested_when }\n\

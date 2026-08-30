@@ -63,7 +63,7 @@ the full list with a one-line meaning each. When no trait fits, leave them \
 all off — an empty set is always safe, it just tells the tools less.",
     ),
     (
-        "dialects",
+        "surface",
         "Which Tcl worlds the command exists in — every dialect the picker \
 lists, from the core releases through the F5, Tk, Expect, BPF and SpecTcl \
 surfaces. A command only present from 8.5 onwards ticks 8.5 and every later \
@@ -312,19 +312,19 @@ form editor exposes availability controls.",
     ),
     (
         "command_forms",
-        "A structured, per-form Rust descriptor for commands whose forms \
-differ more deeply than a synopsis line can say. Alongside arity, roles, \
-options, and hooks, each `CommandForm` may replace the inherited `traits`, \
-`mutator`, and `side_effects` facts. Replacement lets a query form remove a \
-coarse parent mutation or callback classification instead of only adding more \
-effects. `literal_argument_prefix` selects overlapping-arity forms from known \
-literal source words, with optional unique-prefix matching. The longest static \
-selector wins when one selector extends another; substitutions and expansions \
-abstain while a longer selector remains possible and retain the conservative \
-parent facts.\n\nThis is deliberately one opaque Rust expression editor. The \
-descriptor also contains native validators, compiler hooks, and proof metadata, \
-so SpecTcl cannot author or round-trip any `command_forms` descriptor today. \
-Use plain `forms` only when the difference is documentation-only.",
+        "A per-form refinement for commands whose forms differ more deeply \
+than a synopsis line can say. Alongside arity, roles and options, each form \
+may replace the inherited `traits`, `mutator`, and `side_effects` facts. \
+Replacement lets a query form remove a coarse parent mutation or callback \
+classification instead of only adding more effects. A `selector` picks between \
+overlapping-arity forms from known literal source words, with unique-prefix \
+matching unless `-exact` says otherwise. The longest static selector wins when \
+one selector extends another; substitutions and expansions abstain while a \
+longer selector remains possible and retain the conservative parent facts.\n\n\
+SpecTcl authors these as `refine NAME { … }` blocks. The descriptor's native \
+halves — the completion contract, dispatch proofs, and the literal-argument \
+validator — stay Rust-only, and a form carrying one is reported rather than \
+thinned. Use plain `forms` only when the difference is documentation-only.",
     ),
     (
         "semantic_operation",
@@ -455,6 +455,25 @@ the same value. `string length` always does; `clock seconds` never does; \
 says \"no side effects\"; this says \"same answer again\" — a command can \
 be pure yet unstable (`clock seconds` changes nothing but never repeats). \
 The optimiser only reuses results it can prove stable.",
+    ),
+    (
+        "option_placement",
+        "Where this command's declared options may be found. `Leading` — the \
+default, and what every core Tcl command does — stops option parsing at the \
+first word that is not a declared option, so a later `-`-looking word is a \
+positional. `Anywhere` keeps recognising options between the positional words \
+up to an explicit `--`, which is the shape of a script-level parser that loops \
+`foreach {flag value} $args` after taking its fixed arguments (`http::geturl`). \
+Getting this wrong invents option relations the interpreter never applies.",
+    ),
+    (
+        "constraints",
+        "The rare escape hatch for an option relation no declarative row can \
+express (E-R14). It is consulted **only** when the spec declares one and every \
+`option_conflict` / `option_requires` / `option_requires_one_of` / \
+`option_forbids` row already reported nothing — reach for a declarative row \
+first, because those are checked natively with no VM entry. Declare \
+`-inputs {invocation}` so the verdict is cached on the call's content.",
     ),
     (
         "literal_argument_validator",
@@ -630,10 +649,20 @@ checks, and correct highlighting of flag-versus-value; undeclared ones are \
 reported as unknown.",
     ),
     (
-        "option_constraints",
-        "Pairs or sets of options that must not appear together in one call \
-— mutually exclusive modes like `-glob` and `-regexp`. The checker reports \
-a call using both, with no code written for the specific command.",
+        "option_relations",
+        "What this command's options and arguments require of one another. \
+Four relations, and the checker evaluates every one of them natively — no \
+script runs, whatever the document does. `option_conflict {-glob -regexp}` is \
+the symmetric \"not together\"; `option_requires -command {-channel}` is the \
+directional one (`bibtex::parse`'s `-command` is a channel callback and is \
+useless without `-channel`); `option_requires_one_of {} {-channel {arg 0}}` \
+says a call must supply at least one of a set, subject optional; and \
+`option_forbids {-order in} {{-type bfs}}` is the asymmetric exclusion \
+(`struct::tree walk` rejects an in-order breadth-first walk). A term is an \
+option (`-channel`), an option carrying a value (`{-type bfs}`), a positional \
+argument (`{arg 0}`), or a positional carrying a value (`{arg 1 text}`). \
+Absence is only ever proven on a call the analyser could read to its end, so a \
+`{*}$opts` call abstains instead of accusing.",
     ),
     (
         "reserved_trailing_words",
@@ -846,11 +875,6 @@ across. Unset follows the default rules; set it only to override them in \
 either direction.",
     ),
     (
-        "xc_operation",
-        "F5 only: the XC-side operation this command (or subcommand) maps to \
-when translated.",
-    ),
-    (
         "deprecated_replacement",
         "The command to use instead, shown in the deprecation warning and \
 offered by the quick fix — the `lmap` to your deprecated mapping \
@@ -1023,13 +1047,6 @@ document's resolved floor. Windows must not overlap, so consecutive ones are \
 written closed: retire each where the next is introduced.",
     ),
     (
-        "arg_rows",
-        "The authored per-argument rows the argument tables above are \
-projected from, kept so a document with a resolved package floor can \
-re-project at it. Empty unless some argument carries a release window; when \
-it is empty the tables above are the whole truth.",
-    ),
-    (
         "versioned_arg_values",
         "Version gates for individual literal argument values — when one mode \
 word appeared in (or left) a specific package release, like a persistence \
@@ -1040,16 +1057,13 @@ value.",
     ),
     (
         "subcommand_forms",
-        "Structured per-form routing for this subcommand — the \
-subcommand-level twin of `command_forms`. A `SubCommandForm` may replace the \
-parent row's `traits`, `mutator`, and `side_effects`, which is how one method \
-can be a read at one arity and a mutation at another. Its optional \
-`literal_argument_prefix` also separates same-arity operation words without \
-treating a computed word as literal, and the longest statically matched \
-selector wins when selectors overlap.\n\nThe studio preserves the whole value \
-as an opaque Rust expression. Because the same descriptor may carry native \
-compiler routing and proof metadata, SpecTcl cannot author or round-trip any \
-`subcommand_forms` descriptor today; no partial form DSL is claimed.",
+        "Per-form refinement for this subcommand — the subcommand-level twin \
+of `command_forms`, written the same way, as `refine NAME { … }`. A form may \
+replace the parent row's `traits`, `mutator`, and `side_effects`, which is how \
+one method can be a read at one arity and a mutation at another. Its optional \
+`selector` also separates same-arity operation words without treating a \
+computed word as literal, and the longest statically matched selector wins \
+when selectors overlap.",
     ),
     (
         "loop_list_header",
@@ -1418,6 +1432,18 @@ dialect set decides where it resolves; unset means everywhere.\n\nThe EDA \
 shells are not on it: a vendor shell is a base Tcl release plus \
 package-gated command libraries, so an EDA command is scoped by its \
 `required_package`, not by a dialect of its own.",
+    ),
+    (
+        "optionPlacement",
+        "Option placement",
+        "Where a command's declared options may be found in its invocation. \
+`Leading` is the default and what almost every core Tcl command does: its C \
+option loop `break`s on the first word that is not a declared option, so an \
+option-shaped word after that is a positional argument. `Anywhere` is the \
+script-level shape — a parser that takes its fixed arguments and then loops \
+`foreach {flag value} $args`, recognising options between positionals up to an \
+explicit `--`. The option-relation checker reads this to find the options it \
+judges; the wrong answer either misses a relation or invents one.",
     ),
     (
         "defaultFormFirstWord",

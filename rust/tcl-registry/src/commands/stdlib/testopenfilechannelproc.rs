@@ -18,10 +18,11 @@
 
 //! `testopenfilechannelproc` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testopenfilechannelproc",
-        dialects: Some(DialectSet::TCL84),
+        surface: Some(SpecSurface::TCL84),
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {
             summary: "Install or remove a test Tcl_OpenFileChannel hook proc (Tcl 8.4 only).",

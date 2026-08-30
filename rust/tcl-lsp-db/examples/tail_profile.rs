@@ -104,6 +104,7 @@ fn main() {
         None,
         None,
         0,
+        Vec::new(),
     );
     let file = SourceFile::new(&db, src.clone(), dialect.to_owned(), None);
     let _ = file_analysis_incremental(&db, file, cfg);
@@ -142,7 +143,7 @@ fn main() {
     println!("\n== compiler-check tail breakdown (whole-file, no memo) ==");
     let registry = db.registry(dialect);
     let cfg_lexer = tcl_lexer::LexerConfig::for_dialect(dialect);
-    let profile = tcl_dialect::DialectProfile::by_name(dialect);
+    let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
     let build = || {
         CompilationUnit::build_for_with_config(&src, registry, false, cfg_lexer)
             .with_interprocedural(registry, Some(profile))
@@ -199,12 +200,11 @@ fn main() {
     println!("\n== 2b gate: warm duplicate-build cost (function_lattice cache hot) ==");
     {
         const DUP_ITERS: u32 = 5;
-        let cfg_d = tcl_lexer::LexerConfig::for_dialect(dialect);
         // Warm the shared build (populates function_lattice / taint_cascade) on the
         // *edited* text, mirroring the per-edit state proc_taint_solve runs in.
         file.set_text(&mut db).to(edited.clone());
         let _ = compiler_check_diagnostics(&db, file, cfg);
-        let cfg_key = LexerCfgKey::new(&db, cfg_d.expand_syntax, cfg_d.irules_brace_separator);
+        let cfg_key = LexerCfgKey::new(&db, dialect.to_owned());
         let mut dup_files = (0..DUP_ITERS)
             .map(|_| SourceFile::new(&db, edited.clone(), dialect.to_owned(), None))
             .collect::<Vec<_>>()
@@ -241,6 +241,7 @@ fn breadth_for_edit(src: &str, dialect: &str, edited: &str) -> (Vec<String>, Vec
         None,
         None,
         0,
+        Vec::new(),
     );
     let file = SourceFile::new(&db, src.to_owned(), dialect.to_owned(), None);
     let _ = file_analysis_incremental(&db, file, cfg);

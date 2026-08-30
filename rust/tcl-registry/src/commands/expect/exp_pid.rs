@@ -18,11 +18,12 @@
 
 //! `exp_pid` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 const OPTIONS: &[OptionSpec] = &[OptionSpec {
     name: "-i",
     value: OptionValue::value("spawn_id"),
     detail: "Query the specified spawn id.",
-    dialects: None,
+    surface: None,
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
@@ -37,7 +38,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "exp_pid",
         traits: Traits::PURE,
-        dialects: Some(DialectSet::EXPECT),
+        surface: Some(SpecSurface::EXPECT),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Return the process id of a spawned process.",

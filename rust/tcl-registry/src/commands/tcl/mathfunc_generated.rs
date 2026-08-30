@@ -35,7 +35,7 @@
 //! `::tcl::mathfunc::*` in practice (unlike `::tcl::mathop::*`, whose
 //! operators are commonly imported for exactly that purpose).
 //!
-//! Every function gates to at least `DialectSet::TCL85_PLUS`: TIP 232 (Tcl
+//! Every function gates to at least `SpecSurface::TCL85_PLUS`: TIP 232 (Tcl
 //! 8.5) is what created the `::tcl::mathfunc` command-table mechanism
 //! itself, so even an 8.4-vintage function (`abs`, `sin`, …, gated `Tcl84`
 //! by [`tcl_syntax::expr::mathfunc::MathFuncSince`] because *that* axis
@@ -45,6 +45,7 @@
 use std::sync::OnceLock;
 
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 use tcl_syntax::expr::mathfunc::{self, MathFuncSince};
 
 /// All `tcl::mathfunc` math-function command specs (both qualified
@@ -73,7 +74,7 @@ pub fn specs() -> Vec<CommandSpec> {
 const PREFIXES: [&str; 2] = ["tcl::mathfunc::", "::tcl::mathfunc::"];
 
 fn push_spellings(out: &mut Vec<CommandSpec>, spec: &mathfunc::MathFuncSpec) {
-    let dialects = Some(since_to_dialects(spec.since));
+    let surface = Some(since_to_surface(spec.since));
     let arity = to_registry_arity(spec.arity);
     for prefix in PREFIXES {
         let name = leak(format!("{prefix}{}", spec.name));
@@ -84,7 +85,7 @@ fn push_spellings(out: &mut Vec<CommandSpec>, spec: &mathfunc::MathFuncSpec) {
         ));
         out.push(CommandSpec {
             name,
-            dialects,
+            surface,
             traits: Traits::PURE,
             arity,
             return_type: Some(TclType::Numeric),
@@ -108,11 +109,11 @@ fn push_spellings(out: &mut Vec<CommandSpec>, spec: &mathfunc::MathFuncSpec) {
 /// The command-table gate for a function first recognised in `since`'s
 /// `expr` grammar release — see the module docs for why this is never
 /// looser than `TCL85_PLUS` regardless of `since`.
-fn since_to_dialects(since: MathFuncSince) -> DialectSet {
+fn since_to_surface(since: MathFuncSince) -> &'static [SpecSurface] {
     match since {
-        MathFuncSince::Tcl84 | MathFuncSince::Tcl85 => DialectSet::TCL85_PLUS,
-        MathFuncSince::Tcl90 => DialectSet::TCL90_PLUS,
-        MathFuncSince::Tcl91 => DialectSet::TCL91,
+        MathFuncSince::Tcl84 | MathFuncSince::Tcl85 => SpecSurface::TCL85_PLUS,
+        MathFuncSince::Tcl90 => SpecSurface::TCL90_PLUS,
+        MathFuncSince::Tcl91 => SpecSurface::TCL91,
     }
 }
 
@@ -153,7 +154,7 @@ fn leak_slice<T>(v: Vec<T>) -> &'static [T] {
 #[cfg(test)]
 mod tests {
     use super::specs;
-    use crate::prelude::DialectSet;
+    use tcl_dialect::model::SpecSurface;
 
     /// Issue #1035, mathfunc half — see `mathop_generated`'s twin for the full
     /// rationale.  `specs()` leaks `&'static` strings, so it must memoise:
@@ -190,8 +191,8 @@ mod tests {
                 .find(|s| s.name == name)
                 .unwrap_or_else(|| panic!("{name:?} missing from tcl::mathfunc registry data"));
             assert_eq!(
-                spec.dialects,
-                Some(DialectSet::TCL91),
+                spec.surface,
+                Some(SpecSurface::TCL91),
                 "{name:?} (TIP 745) should be gated to TCL91"
             );
         }
@@ -205,8 +206,8 @@ mod tests {
                 .find(|s| s.name == name)
                 .unwrap_or_else(|| panic!("{name:?} missing from tcl::mathfunc registry data"));
             assert_eq!(
-                spec.dialects,
-                Some(DialectSet::TCL90_PLUS),
+                spec.surface,
+                Some(SpecSurface::TCL90_PLUS),
                 "{name:?} (TIP 521) should be gated to TCL90_PLUS"
             );
         }
@@ -224,7 +225,7 @@ mod tests {
                 .into_iter()
                 .find(|s| s.name == name)
                 .unwrap_or_else(|| panic!("{name:?} missing from tcl::mathfunc registry data"));
-            assert_eq!(spec.dialects, Some(DialectSet::TCL85_PLUS), "{name:?}");
+            assert_eq!(spec.surface, Some(SpecSurface::TCL85_PLUS), "{name:?}");
         }
     }
 

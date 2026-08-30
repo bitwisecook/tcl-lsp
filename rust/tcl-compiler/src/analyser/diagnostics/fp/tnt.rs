@@ -21,9 +21,7 @@
 
 use super::{D, codes, fires};
 
-// ---------------------------------------------------------------------------
 // FP-TNT-01 — T100 direct-operand expr filter.
-// ---------------------------------------------------------------------------
 
 const FP_TNT_01_REPRO: &str = "\
 proc f {} {
@@ -66,9 +64,7 @@ fn fp_tnt_01_function_arg_direct_operand_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-TNT-02 — T101 puts channel-position filter.
-// ---------------------------------------------------------------------------
 
 const FP_TNT_02_REPRO: &str = "\
 proc f {} {
@@ -112,9 +108,7 @@ fn fp_tnt_02_content_with_channel_still_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-TNT-03 — eval/uplevel/interp-eval LIST_CANONICAL position filter.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_tnt_03_eval_list_tainted_head_fires_t100() {
@@ -183,9 +177,7 @@ fn fp_tnt_03_interp_eval_list_literal_head_no_t105() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-TNT-04 — late `--` does not protect earlier option candidates (T102).
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_tnt_04_late_terminator_does_not_protect_tainted_var() {
@@ -220,9 +212,7 @@ fn fp_tnt_04_no_terminator_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-TNT-05 — T104 honours registry network-sink arg positions.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_tnt_05_tainted_url_fires_t104() {

@@ -18,6 +18,7 @@
 
 //! `ACCESS::saml` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
@@ -90,7 +91,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ACCESS::saml",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Access or manipulate SAML related messages.",
@@ -111,9 +112,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &["ACCESS"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "ACCESS::saml <subcommand> ?content?",

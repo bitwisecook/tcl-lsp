@@ -51,8 +51,8 @@ pub enum Mode {
 /// The stub-language role name for an [`ArgRole`](tcl_registry::ArgRole)
 /// variant, or `None` when the role is the implicit `value` default.
 ///
-/// The inverse of `StubOverlay::parse_role`, so a stub this renders parses
-/// back to the role the draft declared.
+/// The inverse of [`tcl_registry::model::role_for_word`], so a stub this
+/// renders parses back to the role the draft declared.
 fn stub_role(role: &str) -> Option<&'static str> {
     match role {
         "Body" => Some("body"),

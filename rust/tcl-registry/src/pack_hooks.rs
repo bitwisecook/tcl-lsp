@@ -49,7 +49,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, Ordering};
 use std::sync::{LazyLock, Mutex, OnceLock};
 
 use tcl_dialect::TclVersion;
@@ -105,11 +105,15 @@ pub enum HookFamily {
     /// The option-arity hook, written `-arity-hook` inside an option row —
     /// emits `consume N ?-invalid MESSAGE?`.
     OptionArity,
+    /// `constraints` — E-R14's escape hatch. Reads the whole invocation
+    /// through `option-present` / `option-value` / `arg-count` / `literal`
+    /// and emits `invalid SLOT MESSAGE ?-conflict?` / `abstain REASON`.
+    Constraints,
 }
 
 /// Every family, in declaration order — the index a slot's family contributes
 /// to the per-family tables.
-pub const HOOK_FAMILIES: [HookFamily; 10] = [
+pub const HOOK_FAMILIES: [HookFamily; 11] = [
     HookFamily::ArgRoleResolver,
     HookFamily::CommandPrefixResolver,
     HookFamily::ScriptTimingResolver,
@@ -120,6 +124,7 @@ pub const HOOK_FAMILIES: [HookFamily; 10] = [
     HookFamily::LiteralArgumentValidator,
     HookFamily::ClauseShapeCheck,
     HookFamily::OptionArity,
+    HookFamily::Constraints,
 ];
 
 impl HookFamily {
@@ -136,6 +141,17 @@ impl HookFamily {
             Self::LiteralArgumentValidator => &["invalid", "abstain"],
             Self::ClauseShapeCheck => &["missing-expr", "missing-body", "extra-words"],
             Self::OptionArity => &["consume"],
+            // Four readers and two emitters: the reading half is how a body
+            // reaches the invocation it is judging, and every spelling is one
+            // another family already uses (`invalid`, `abstain`, `literal`).
+            Self::Constraints => &[
+                "invalid",
+                "abstain",
+                "option-present",
+                "option-value",
+                "literal",
+                "arg-count",
+            ],
         }
     }
 
@@ -154,6 +170,9 @@ impl HookFamily {
             Self::LiteralArgumentValidator => "valid",
             Self::ClauseShapeCheck => "the shape is accepted",
             Self::OptionArity => "consume one word",
+            // The declarative relations already answered; a silent hook adds
+            // nothing to their verdict.
+            Self::Constraints => "no report",
         }
     }
 
@@ -188,6 +207,7 @@ impl HookFamily {
             Self::LiteralArgumentValidator => "literal_argument_validator",
             Self::ClauseShapeCheck => "clause_shape_check",
             Self::OptionArity => "options.arity_hook",
+            Self::Constraints => "constraints",
         }
     }
 
@@ -203,6 +223,7 @@ impl HookFamily {
             Self::LiteralArgumentValidator => 7,
             Self::ClauseShapeCheck => 8,
             Self::OptionArity => 9,
+            Self::Constraints => 10,
         }
     }
 }
@@ -233,6 +254,11 @@ pub enum HookInput {
     /// The option-arity family's `option` / `option-index` /
     /// `option-value-start`.
     Option,
+    /// The `constraints` family's structured view of the whole invocation —
+    /// which options were supplied, their literal values, and the positional
+    /// words after them. Content, so it keys the cache by content rather than
+    /// by shape.
+    Invocation,
 }
 
 /// The inputs a hook declared it reads — the cacheability rule's input.
@@ -285,6 +311,7 @@ impl HookInputs {
                 "dialect" => HookInput::Dialect,
                 "in-event-body" => HookInput::InEventBody,
                 "option" | "option-index" | "option-value-start" => HookInput::Option,
+                "invocation" => HookInput::Invocation,
                 _ => return Self::unrestricted(),
             };
             inputs.push(input);
@@ -324,19 +351,86 @@ impl HookInputs {
     /// shape-cacheable by this rule is not handed the words at all.
     #[must_use]
     pub fn shape_only(&self) -> bool {
+        self.declared
+            .as_ref()
+            .is_some_and(|inputs| inputs.iter().all(|input| Self::is_shape_input(*input)))
+    }
+
+    const fn is_shape_input(input: HookInput) -> bool {
+        matches!(
+            input,
+            HookInput::Nwords
+                | HookInput::Kinds
+                | HookInput::Command
+                | HookInput::Subcommand
+                | HookInput::TclVersion
+                | HookInput::InEventBody
+        )
+    }
+
+    /// **The content-cacheability rule** (E-R14, principle P-B). A hook that
+    /// declared its inputs and reads the *content* of the call — the words'
+    /// values, or the `constraints` family's structured invocation view — is
+    /// still memoisable: the sandbox is deterministic (E-R2), so the same
+    /// content on the same slot has the same answer. It is keyed by a hash of
+    /// that content instead of by the shape alone.
+    ///
+    /// This is what makes "an edit elsewhere in the document must not re-run
+    /// hooks for unrelated call sites" true: an unchanged call site hashes the
+    /// same and is answered from the cache.
+    ///
+    /// An **undeclared** hook stays uncacheable — it made no claim about what
+    /// it reads, so nothing can be hashed on its behalf.
+    #[must_use]
+    pub fn content_cacheable(&self) -> bool {
         self.declared.as_ref().is_some_and(|inputs| {
             inputs.iter().all(|input| {
-                matches!(
-                    input,
-                    HookInput::Nwords
-                        | HookInput::Kinds
-                        | HookInput::Command
-                        | HookInput::Subcommand
-                        | HookInput::TclVersion
-                        | HookInput::InEventBody
-                )
+                Self::is_shape_input(*input)
+                    || matches!(input, HookInput::Words | HookInput::Invocation)
             })
         })
+    }
+}
+
+/// How a slot's answers may be memoised, decided once at allocation from its
+/// declared inputs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CacheMode {
+    /// Never cached: the hook declared no inputs, so it may read anything.
+    None,
+    /// Keyed on the call's shape — word count, kinds, version, event flag.
+    Shape,
+    /// Keyed on the shape **and** a hash of the call's content.
+    Content,
+}
+
+impl CacheMode {
+    /// The mode `inputs` earn.
+    #[must_use]
+    pub fn of(inputs: &HookInputs) -> Self {
+        if inputs.shape_only() {
+            Self::Shape
+        } else if inputs.content_cacheable() {
+            Self::Content
+        } else {
+            Self::None
+        }
+    }
+
+    const fn as_u8(self) -> u8 {
+        match self {
+            Self::None => 0,
+            Self::Shape => 1,
+            Self::Content => 2,
+        }
+    }
+
+    const fn from_u8(value: u8) -> Self {
+        match value {
+            1 => Self::Shape,
+            2 => Self::Content,
+            _ => Self::None,
+        }
     }
 }
 
@@ -395,6 +489,22 @@ pub struct HookWord<'w> {
     pub kind: InvocationWordKind,
 }
 
+/// The `constraints` family's structured view of the invocation — what its
+/// reading verbs answer from.
+///
+/// Borrowed straight from the analyser's leading-option walk, so building it
+/// costs nothing beyond the slices that walk already produced.
+#[derive(Debug, Clone, Copy)]
+pub struct ConstraintCallCtx<'w> {
+    /// Canonical option name → its first literal value, in call order.
+    pub options: &'w [(&'static str, Option<&'w str>)],
+    /// The positional words after the leading option run, `None` where not
+    /// statically known.
+    pub positionals: &'w [Option<&'w str>],
+    /// Whether the invocation was read to its end — the hook's `complete`.
+    pub complete: bool,
+}
+
 /// The option-arity family's extra context — the one family whose Rust
 /// signature takes more than `args`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -420,6 +530,8 @@ pub struct HookCall<'w> {
     pub in_event_body: bool,
     /// The option-arity family's extra keys.
     pub option: Option<OptionCallCtx<'w>>,
+    /// The `constraints` family's structured invocation view.
+    pub constraints: Option<ConstraintCallCtx<'w>>,
     /// `dialect` — the profile name the call is being analysed under
     /// (`f5-irules`, `tcl9.0`, …), or [`None`] when nothing set one.
     ///
@@ -470,6 +582,8 @@ pub enum HookAnswer {
     Literal(LiteralArgumentValidation),
     /// `missing-expr` / `missing-body` / `extra-words`.
     ClauseShape(ClauseShapeError),
+    /// `invalid SLOT MESSAGE ?-conflict?`, one per report.
+    Constraints(Vec<crate::spec::ConstraintReport>),
     /// `consume N ?-invalid MESSAGE?`.
     Consume {
         /// Words consumed, valid or not. `0` is a report, not an abstention.
@@ -495,22 +609,12 @@ pub trait PackHookHost {
 
 /// Per-family allocation counters. Process-global because a slot is baked
 /// into a leaked `&'static CommandSpec` that every thread shares.
-static NEXT_SLOT: [AtomicU32; 10] = [
-    AtomicU32::new(0),
-    AtomicU32::new(0),
-    AtomicU32::new(0),
-    AtomicU32::new(0),
-    AtomicU32::new(0),
-    AtomicU32::new(0),
-    AtomicU32::new(0),
-    AtomicU32::new(0),
-    AtomicU32::new(0),
-    AtomicU32::new(0),
-];
+static NEXT_SLOT: [AtomicU32; HOOK_FAMILIES.len()] =
+    [const { AtomicU32::new(0) }; HOOK_FAMILIES.len()];
 
-/// Per-slot cacheability, decided by the declared inputs at allocation.
-static CACHEABLE: [[AtomicBool; SLOTS_PER_FAMILY]; 10] =
-    [const { [const { AtomicBool::new(false) }; SLOTS_PER_FAMILY] }; 10];
+/// Per-slot cache mode, decided by the declared inputs at allocation.
+static CACHE_MODE: [[AtomicU8; SLOTS_PER_FAMILY]; HOOK_FAMILIES.len()] =
+    [const { [const { AtomicU8::new(0) }; SLOTS_PER_FAMILY] }; HOOK_FAMILIES.len()];
 
 /// Allocate a slot for a hook of `family` whose body declared `inputs`.
 ///
@@ -523,7 +627,7 @@ pub fn allocate(family: HookFamily, inputs: &HookInputs) -> Option<HookSlot> {
     if index >= SLOTS_PER_FAMILY {
         return None;
     }
-    CACHEABLE[family.index()][index].store(inputs.shape_only(), Ordering::Relaxed);
+    CACHE_MODE[family.index()][index].store(CacheMode::of(inputs).as_u8(), Ordering::Relaxed);
     Some(HookSlot {
         family,
         index: u16::try_from(index).ok()?,
@@ -566,8 +670,8 @@ pub fn allocate_stable(
     if let Some(&slot) = table.get(&key) {
         // Rebind: the body behind this identity may have changed, and with it
         // whether it is shape-cacheable.
-        CACHEABLE[family.index()][usize::from(slot.index)]
-            .store(inputs.shape_only(), Ordering::Relaxed);
+        CACHE_MODE[family.index()][usize::from(slot.index)]
+            .store(CacheMode::of(inputs).as_u8(), Ordering::Relaxed);
         // A slot's cached answers describe the *old* body.
         clear_cache();
         return Some(slot);
@@ -577,10 +681,18 @@ pub fn allocate_stable(
     Some(slot)
 }
 
-/// Whether this slot's declared inputs make it shape-cacheable.
+/// How this slot's declared inputs let its answers be memoised.
+#[must_use]
+pub fn cache_mode(slot: HookSlot) -> CacheMode {
+    CacheMode::from_u8(
+        CACHE_MODE[slot.family.index()][usize::from(slot.index)].load(Ordering::Relaxed),
+    )
+}
+
+/// Whether this slot's answers are memoised at all.
 #[must_use]
 pub fn is_cacheable(slot: HookSlot) -> bool {
-    CACHEABLE[slot.family.index()][usize::from(slot.index)].load(Ordering::Relaxed)
+    cache_mode(slot) != CacheMode::None
 }
 
 thread_local! {
@@ -694,6 +806,11 @@ pub fn has_host() -> bool {
 /// `kinds` is two bits per word, so a call with more than 64 words has no
 /// shape key and is answered by the host every time (uncached, still
 /// correct).
+///
+/// `content` is `0` for a [`CacheMode::Shape`] slot and a hash of the call's
+/// literal content for a [`CacheMode::Content`] one — which is what lets a
+/// hook that genuinely reads values still be answered from the cache when
+/// nothing at *its* call site changed (E-R14, principle P-B).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct ShapeKey {
     slot: HookSlot,
@@ -703,6 +820,7 @@ struct ShapeKey {
     /// `Hash`, and only its identity matters here.
     version: Option<&'static str>,
     in_event_body: bool,
+    content: u64,
 }
 
 #[derive(Default)]
@@ -747,7 +865,27 @@ pub fn clear_cache() {
     });
 }
 
-fn shape_key(slot: HookSlot, call: &HookCall<'_>) -> Option<ShapeKey> {
+/// A stable hash of everything a [`CacheMode::Content`] slot may read beyond
+/// the shape: the words' literal values and the `constraints` family's
+/// structured invocation view.
+fn content_hash(call: &HookCall<'_>) -> u64 {
+    use std::hash::{Hash as _, Hasher as _};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    for word in call.words {
+        word.value.hash(&mut hasher);
+    }
+    if let Some(constraints) = call.constraints {
+        for (name, value) in constraints.options {
+            name.hash(&mut hasher);
+            value.hash(&mut hasher);
+        }
+        constraints.positionals.hash(&mut hasher);
+        constraints.complete.hash(&mut hasher);
+    }
+    hasher.finish()
+}
+
+fn shape_key(slot: HookSlot, call: &HookCall<'_>, mode: CacheMode) -> Option<ShapeKey> {
     if call.words.len() > 64 {
         return None;
     }
@@ -767,8 +905,20 @@ fn shape_key(slot: HookSlot, call: &HookCall<'_>) -> Option<ShapeKey> {
         kinds,
         version: call.version.map(TclVersion::version_string),
         in_event_body: call.in_event_body,
+        content: match mode {
+            CacheMode::Content => content_hash(call),
+            CacheMode::None | CacheMode::Shape => 0,
+        },
     })
 }
+
+/// Resident-entry ceiling for the shape cache.
+///
+/// A content-keyed entry is per *distinct call content*, so a very large
+/// workspace could otherwise grow the table without bound. At the ceiling the
+/// table is dropped wholesale rather than evicted one by one: the cache is a
+/// pure memo, so losing it costs a re-run and never an answer.
+const MAX_CACHE_ENTRIES: usize = 8192;
 
 /// Invoke a pack hook: the cache first when the slot's declared inputs allow
 /// it, then this thread's host, then the family's silence.
@@ -777,7 +927,10 @@ pub fn dispatch(slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
     if !ANY_HOST.load(Ordering::Relaxed) {
         return HookAnswer::Abstain;
     }
-    let key = is_cacheable(slot).then(|| shape_key(slot, call)).flatten();
+    let mode = cache_mode(slot);
+    let key = (mode != CacheMode::None)
+        .then(|| shape_key(slot, call, mode))
+        .flatten();
     if let Some(key) = key
         && let Some(hit) = SHAPE_CACHE.with(|cache| {
             let mut cache = cache.borrow_mut();
@@ -810,6 +963,9 @@ pub fn dispatch(slot: HookSlot, call: &HookCall<'_>) -> HookAnswer {
         SHAPE_CACHE.with(|cache| {
             let mut cache = cache.borrow_mut();
             cache.misses += 1;
+            if cache.entries.len() >= MAX_CACHE_ENTRIES {
+                cache.entries.clear();
+            }
             cache.entries.insert(key, answer.clone());
         });
     }
@@ -877,6 +1033,7 @@ fn call_of<'w>(words: &'w [HookWord<'w>], version: Option<TclVersion>) -> HookCa
         version,
         in_event_body: false,
         option: None,
+        constraints: None,
         dialect: current_dialect(),
     }
 }
@@ -979,6 +1136,7 @@ fn context_gate_thunk<const N: u16>(args: &[&str], in_event_body: bool) -> Optio
         version: None,
         in_event_body,
         option: None,
+        constraints: None,
         dialect: current_dialect(),
     };
     match dispatch(
@@ -1035,6 +1193,7 @@ fn option_arity_thunk<const N: u16>(args: &[&str], start: usize) -> OptionValueO
         version: None,
         in_event_body: false,
         option: Some(option),
+        constraints: None,
         dialect: current_dialect(),
     };
     match dispatch(
@@ -1054,6 +1213,65 @@ fn option_arity_thunk<const N: u16>(args: &[&str], start: usize) -> OptionValueO
             words: 1,
             invalid: None,
         },
+    }
+}
+
+/// The `constraints` family's thunk (E-R14).
+///
+/// Reached **only** from a spec that declared a `constraints` hook, and only
+/// after the declarative relations reported nothing — so a pack that declares
+/// none never runs this, and neither does any shipped command.
+fn constraints_thunk<const N: u16>(
+    facts: &crate::spec::OptionFacts<'_>,
+) -> Vec<crate::spec::ConstraintReport> {
+    // The flattened word view is what `words` / `kinds` / `nwords` answer
+    // from; the structured view beside it is what the reading verbs use.
+    let mut words: Vec<HookWord<'_>> = Vec::with_capacity(facts.options.len() * 2);
+    for (name, value) in facts.options {
+        words.push(HookWord {
+            value: name,
+            kind: InvocationWordKind::Literal,
+        });
+        if let Some(value) = value {
+            words.push(HookWord {
+                value,
+                kind: InvocationWordKind::Literal,
+            });
+        }
+    }
+    for positional in facts.positionals {
+        words.push(match positional {
+            Some(value) => HookWord {
+                value,
+                kind: InvocationWordKind::Literal,
+            },
+            None => HookWord {
+                value: "",
+                kind: InvocationWordKind::Dynamic,
+            },
+        });
+    }
+    let call = HookCall {
+        words: &words,
+        version: None,
+        in_event_body: false,
+        option: None,
+        constraints: Some(ConstraintCallCtx {
+            options: facts.options,
+            positionals: facts.positionals,
+            complete: facts.complete,
+        }),
+        dialect: current_dialect(),
+    };
+    match dispatch(
+        HookSlot {
+            family: HookFamily::Constraints,
+            index: N,
+        },
+        &call,
+    ) {
+        HookAnswer::Constraints(reports) => reports,
+        _ => Vec::new(),
     }
 }
 
@@ -1093,6 +1311,8 @@ macro_rules! slot_tables {
             [$(clause_shape_thunk::<$index>),*];
         static OPTION_ARITY_THUNKS: [OptionValueHook; SLOTS_PER_FAMILY] =
             [$(option_arity_thunk::<$index>),*];
+        static CONSTRAINTS_THUNKS: [crate::spec::ConstraintsHook; SLOTS_PER_FAMILY] =
+            [$(constraints_thunk::<$index>),*];
     };
 }
 
@@ -1162,6 +1382,12 @@ pub fn clause_shape_check_fn(slot: HookSlot) -> Option<ClauseShapeChecker> {
 #[must_use]
 pub fn option_arity_fn(slot: HookSlot) -> Option<OptionValueHook> {
     thunk_index(slot, HookFamily::OptionArity).map(|index| OPTION_ARITY_THUNKS[index])
+}
+
+/// The `constraints` function pointer for `slot`.
+#[must_use]
+pub fn constraints_fn(slot: HookSlot) -> Option<crate::spec::ConstraintsHook> {
+    thunk_index(slot, HookFamily::Constraints).map(|index| CONSTRAINTS_THUNKS[index])
 }
 
 #[cfg(test)]

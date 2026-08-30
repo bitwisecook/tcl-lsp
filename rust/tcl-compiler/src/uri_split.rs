@@ -89,10 +89,10 @@ pub type UriFamilies = HashMap<String, (Option<String>, Option<String>)>;
 #[must_use]
 pub fn uri_families(registry: &CommandRegistry) -> UriFamilies {
     let mut all_names: HashSet<String> = HashSet::new();
+    let irules = crate::environment_ingress::irules_context();
     for name in registry.command_names() {
-        use tcl_registry::ProfileQueries;
         if let Some(spec) = registry.get(name)
-            && tcl_dialect::DialectProfile::irules().is_available(spec)
+            && irules.context().spec_available(spec)
         {
             all_names.insert(name.to_owned());
         }
@@ -571,6 +571,7 @@ fn is_comparison_op(op: BinOp) -> bool {
         BinOp::StartsWith
             | BinOp::EndsWith
             | BinOp::Contains
+            | BinOp::Matches
             | BinOp::MatchesGlob
             | BinOp::MatchesRegex
             | BinOp::StrEq
@@ -1299,7 +1300,7 @@ set parts [split [HTTP::uri /path] "?"]"#,
         let ws = warnings_for_dialect(
             r#"set x "foo"
 set parts [split $x "?"]"#,
-            Some(tcl_dialect::DialectProfile::by_name("tcl")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile()),
         );
         assert!(ws.is_empty());
     }

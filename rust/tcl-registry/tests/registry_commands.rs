@@ -23,16 +23,16 @@
 //!   - the `is_irules_dialect` predicate
 //!   - the dialect-name surface (see the NOTE below)
 //!
-//! These assert behaviour on the `tcl_registry` crate via `reg.get_for_dialect`,
+//! These assert behaviour on the `tcl_registry` crate via `reg.get_for_surface`,
 //! `spec.switch_names(Some(ds))`, the `spec.options` scan, `spec.arg_values_at`,
-//! `reg.command_names()`, and per-dialect `reg.get_for_dialect`.
+//! `reg.command_names()`, and per-dialect `reg.get_for_surface`.
 //!
 //! NOTE on dialect detection: the dialect-detection function
 //! (`detect_dialect_from_source`) does NOT live in the `tcl-registry` crate —
 //! it is implemented in `tcl-compiler` / `tcl-lsp-core`, which are out of
 //! scope for this crate's tests. The
 //! dialect-name surface that *is* in `tcl-registry` (`KNOWN_DIALECTS`,
-//! `available_dialects()`, `DialectSet::parse`, `DialectSet::is_irules_dialect`)
+//! `available_dialects()`, `DialectProfile::find`, `tcl_dialect::DialectProfile::name_is_irules`)
 //! is covered below instead.
 //!
 //! ## C-Tcl proof
@@ -45,45 +45,46 @@
 //! arg-role classification are registry-internal metadata, marked
 //! `// registry-metadata`.
 
-use tcl_dialect::DialectSet;
+use tcl_dialect::model::SurfaceQuery;
+use tcl_dialect::model::{Family, SurfaceLayer};
 use tcl_registry::arity::Arity;
 use tcl_registry::events::EventRegistry;
+use tcl_registry::model::ingress::{static_context_for, static_document_context_for};
 use tcl_registry::profiles::ProfileRegistry;
 use tcl_registry::{
     ArgRole, CommandRegistry, DataCollectionAction, KNOWN_DIALECTS, MethodDispatchKind,
     PayloadCollectionRequirement, SideSwitchTarget, Traits, available_dialects,
-    registry_for_dialect,
 };
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
-/// `registry_for_dialect(name)` returns a registry with that dialect loaded;
-/// pair it with the parsed `DialectSet` for `get_for_dialect`.
-fn reg_and_set(dialect: &str) -> (&'static CommandRegistry, DialectSet) {
+/// `static_context_for(name).commands()` returns a registry with that dialect loaded;
+/// pair it with the parsed `SpecSurface` for `get_for_surface`.
+fn reg_and_set(dialect: &str) -> (&'static CommandRegistry, Option<SurfaceQuery<'static>>) {
     // "Available under dialect D" is membership in D's *profile availability
-    // mask*, not the bare single dialect bit. For the additive vendor
+    // point*, not the bare single dialect bit. For the additive vendor
     // dialects the mask is `(base Tcl version | vendor bit)` — e.g. expect is
-    // `TCL86 | EXPECT` — so a core command (now an explicit `ALL_TCL` group,
-    // no longer universal `None`) resolves through the version half. Using
-    // the bare bit here would wrongly exclude the whole Tcl core from every
-    // vendor dialect.
+    // `TCL86 | EXPECT` — so a core command (now an explicit `ALL_TCL` surface,
+    // no longer universal `None`) resolves through the version half. Using the
+    // bare bit here would wrongly exclude the whole Tcl core from every vendor
+    // dialect.
     (
-        registry_for_dialect(dialect),
-        tcl_dialect::DialectProfile::by_name(dialect).availability_mask,
+        static_context_for(dialect).commands(),
+        Some(
+            tcl_registry::model::ingress::resolve_environment(dialect)
+                .analyser_profile()
+                .surface_query(),
+        ),
     )
 }
 
 /// Whether `cmd` resolves in `dialect`.
 fn present_in(dialect: &str, cmd: &str) -> bool {
     let (reg, ds) = reg_and_set(dialect);
-    reg.get_for_dialect(cmd, ds).is_some()
+    reg.get_for_surface(cmd, ds).is_some()
 }
 
-// ===========================================================================
 // Registry structure
-// ===========================================================================
 
 /// `socket` carries `-server` and `-myaddr`.
 ///
@@ -94,9 +95,9 @@ fn present_in(dialect: &str, cmd: &str) -> bool {
 fn socket_is_registered_with_switches() {
     let (reg, ds) = reg_and_set("tcl8.6");
     let socket = reg
-        .get_for_dialect("socket", ds)
+        .get_for_surface("socket", ds)
         .expect("socket registered");
-    let switches = socket.switch_names(Some(ds));
+    let switches = socket.switch_names(ds);
     assert!(switches.contains(&"-server"), "switches={switches:?}");
     assert!(switches.contains(&"-myaddr"), "switches={switches:?}");
 }
@@ -111,7 +112,7 @@ fn irules_http_commands_are_dialect_scoped() {
     assert!(present_in("f5-irules", "HTTP::header"));
     let (reg86, ds86) = reg_and_set("tcl8.6");
     assert!(
-        reg86.get_for_dialect("HTTP::header", ds86).is_none(),
+        reg86.get_for_surface("HTTP::header", ds86).is_none(),
         "HTTP::header must not be visible in tcl8.6"
     );
 }
@@ -125,7 +126,7 @@ fn irules_http_commands_are_dialect_scoped() {
 fn http_header_subcommand_values_are_registered() {
     let (reg, ds) = reg_and_set("f5-irules");
     let spec = reg
-        .get_for_dialect("HTTP::header", ds)
+        .get_for_surface("HTTP::header", ds)
         .expect("HTTP::header registered");
     assert!(spec.subcommand("insert").is_some());
     assert!(spec.subcommand("replace").is_some());
@@ -141,7 +142,7 @@ fn http_header_subcommand_values_are_registered() {
 fn socket_server_option_is_documented() {
     let (reg, ds) = reg_and_set("tcl8.6");
     let socket = reg
-        .get_for_dialect("socket", ds)
+        .get_for_surface("socket", ds)
         .expect("socket registered");
     let server = socket
         .options
@@ -203,7 +204,7 @@ fn registry_covers_core_commands_in_every_tcl_dialect() {
         let missing: Vec<&str> = CORE
             .iter()
             .copied()
-            .filter(|c| reg.get_for_dialect(c, ds).is_none())
+            .filter(|c| reg.get_for_surface(c, ds).is_none())
             .collect();
         assert!(missing.is_empty(), "{d} missing core commands: {missing:?}");
     }
@@ -217,7 +218,7 @@ fn registry_covers_core_commands_in_every_tcl_dialect() {
 fn parray_has_hover_with_source() {
     let (reg, ds) = reg_and_set("tcl8.6");
     let parray = reg
-        .get_for_dialect("parray", ds)
+        .get_for_surface("parray", ds)
         .expect("parray registered");
     let hover = parray.hover.as_ref().expect("parray has hover");
     assert!(!hover.source.is_empty(), "parray hover has a source");
@@ -233,7 +234,7 @@ fn parray_has_hover_with_source() {
 fn irules_specs_carry_clouddocs_source() {
     let (reg, ds) = reg_and_set("f5-irules");
     let acl = reg
-        .get_for_dialect("ACCESS::acl", ds)
+        .get_for_surface("ACCESS::acl", ds)
         .expect("ACCESS::acl registered");
     let acl_src = acl.hover.as_ref().expect("hover").source;
     assert!(
@@ -243,7 +244,7 @@ fn irules_specs_carry_clouddocs_source() {
 
     // The curated HTTP::header override pins the exact documentation URL.
     let hh = reg
-        .get_for_dialect("HTTP::header", ds)
+        .get_for_surface("HTTP::header", ds)
         .expect("HTTP::header registered");
     assert_eq!(
         hh.hover.as_ref().expect("hover").source,
@@ -259,21 +260,19 @@ fn irules_specs_carry_clouddocs_source() {
 fn validation_metadata_is_available() {
     let (reg, ds) = reg_and_set("tcl8.6");
     let socket = reg
-        .get_for_dialect("socket", ds)
+        .get_for_surface("socket", ds)
         .expect("socket registered");
     assert_eq!(socket.arity.min, 2);
     assert!(socket.arity.is_unlimited());
 
     let (rg, irules) = reg_and_set("f5-irules");
     let acl = rg
-        .get_for_dialect("ACCESS::acl", irules)
+        .get_for_surface("ACCESS::acl", irules)
         .expect("ACCESS::acl registered");
     assert!(acl.arity.is_unlimited());
 }
 
-// ===========================================================================
 // Control-flow and needs-start-cmd traits
-// ===========================================================================
 
 /// registry-metadata: the `CONTROL_FLOW` trait is our classification. (`if`,
 /// `for`, `while`, `foreach` and `set`, `puts` are all real tclsh commands —
@@ -520,9 +519,7 @@ fn fire_and_forget_teardown_membership() {
     }
 }
 
-// ===========================================================================
 // Commands-for-event / command legality (iRules event ⇄ command cross-product)
-// ===========================================================================
 
 /// `HTTP::header` is valid/legal in `HTTP_REQUEST`.
 ///
@@ -636,7 +633,7 @@ fn legality_matches_valid_command_listing() {
 fn excluded_events_are_respected() {
     let (reg, ds) = reg_and_set("f5-irules");
     let spec = reg
-        .get_for_dialect("TCP::rcv_scale", ds)
+        .get_for_surface("TCP::rcv_scale", ds)
         .expect("TCP::rcv_scale registered");
     assert!(
         !spec.excluded_events.is_empty(),
@@ -653,9 +650,7 @@ fn excluded_events_are_respected() {
     assert!(!legal_events.contains(&excluded));
 }
 
-// ===========================================================================
 // Registry info helpers (event_info)
-// ===========================================================================
 
 /// `event_info` resolves a known event with a side label, ≥1 valid command,
 /// and serialises a dual transport as `tcp/udp`.
@@ -703,9 +698,7 @@ fn event_info_for_unknown_event() {
     assert!(info.transport.is_none());
 }
 
-// ===========================================================================
 // Form kind and form resolution
-// ===========================================================================
 
 /// The `FormKind` variants exist.
 ///
@@ -737,9 +730,7 @@ fn http_uri_getter_setter_forms() {
     assert_eq!(setter.spec.name, "HTTP::uri");
 }
 
-// ===========================================================================
 // Subcommand form resolution
-// ===========================================================================
 
 /// `HTTP::header lws` takes zero args.
 ///
@@ -748,7 +739,7 @@ fn http_uri_getter_setter_forms() {
 fn http_header_lws_subcommand_is_nullary() {
     let (reg, ds) = reg_and_set("f5-irules");
     let spec = reg
-        .get_for_dialect("HTTP::header", ds)
+        .get_for_surface("HTTP::header", ds)
         .expect("HTTP::header registered");
     let lws = spec.subcommand("lws").expect("lws subcommand");
     assert_eq!(lws.arity, Arity::exact(0));
@@ -762,15 +753,13 @@ fn http_header_lws_subcommand_is_nullary() {
 fn http_header_value_subcommand_takes_one_arg() {
     let (reg, ds) = reg_and_set("f5-irules");
     let spec = reg
-        .get_for_dialect("HTTP::header", ds)
+        .get_for_surface("HTTP::header", ds)
         .expect("HTTP::header registered");
     let value = spec.subcommand("value").expect("value subcommand");
     assert_eq!(value.arity, Arity::exact(1));
 }
 
-// ===========================================================================
 // Closed value arguments
-// ===========================================================================
 
 /// `HTTP::version` arg 0 is a closed value set of exactly the HTTP/1.x version
 /// strings.
@@ -782,7 +771,7 @@ fn http_header_value_subcommand_takes_one_arg() {
 fn http_version_arg0_is_closed_value_set() {
     let (reg, ds) = reg_and_set("f5-irules");
     let spec = reg
-        .get_for_dialect("HTTP::version", ds)
+        .get_for_surface("HTTP::version", ds)
         .expect("HTTP::version registered");
     assert!(
         spec.closed_value_args.contains(&0),
@@ -800,13 +789,11 @@ fn http_version_arg0_is_closed_value_set() {
 #[test]
 fn set_has_no_closed_value_args() {
     let (reg, ds) = reg_and_set("tcl8.6");
-    let spec = reg.get_for_dialect("set", ds).expect("set registered");
+    let spec = reg.get_for_surface("set", ds).expect("set registered");
     assert!(spec.closed_value_args.is_empty());
 }
 
-// ===========================================================================
 // `when` argument values cover the event corpus
-// ===========================================================================
 
 /// Event-name completion is driven by `Traits::IS_EVENT_HANDLER` + the
 /// `EventRegistry` rather than baked into `when`'s `arg_values`. Assert that
@@ -817,7 +804,7 @@ fn set_has_no_closed_value_args() {
 #[test]
 fn when_is_event_handler_and_events_are_known() {
     let (reg, ds) = reg_and_set("f5-irules");
-    let when = reg.get_for_dialect("when", ds).expect("when registered");
+    let when = reg.get_for_surface("when", ds).expect("when registered");
     assert!(
         when.traits.contains(Traits::IS_EVENT_HANDLER),
         "when drives event-name completion"
@@ -828,9 +815,7 @@ fn when_is_event_handler_and_events_are_known() {
     }
 }
 
-// ===========================================================================
 // CFG-rewrite alias resolution (`cfg_rewrite_name`)
-// ===========================================================================
 
 /// `dict for` / `dict map` declare their CFG-rewrite qualified names on the
 /// subcommand.
@@ -852,9 +837,7 @@ fn dict_iteration_subcommands_declare_cfg_rewrite_names() {
     );
 }
 
-// ===========================================================================
 // Body kind / namespace export
-// ===========================================================================
 
 /// `proc`'s body argument is structural.
 ///
@@ -944,13 +927,11 @@ fn when_defines_its_event_as_an_outline_symbol() {
 fn when_body_is_structural() {
     use tcl_registry::body_kind::BodyKind;
     let (reg, ds) = reg_and_set("f5-irules");
-    let when = reg.get_for_dialect("when", ds).expect("when registered");
+    let when = reg.get_for_surface("when", ds).expect("when registered");
     assert_eq!(when.body_kind, BodyKind::Structural);
 }
 
-// ===========================================================================
 // iRules nesting script bodies (side switches)
-// ===========================================================================
 
 /// `clientside`, `serverside`, `peer` are side-switches.
 ///
@@ -1049,19 +1030,17 @@ fn side_switch_arities() {
     let (reg, ds) = reg_and_set("f5-irules");
     for name in ["clientside", "serverside"] {
         let spec = reg
-            .get_for_dialect(name, ds)
+            .get_for_surface(name, ds)
             .unwrap_or_else(|| panic!("{name}"));
         assert_eq!(spec.arity.min, 0, "{name} min");
         assert_eq!(spec.arity.max, 1, "{name} max");
     }
-    let peer = reg.get_for_dialect("peer", ds).expect("peer registered");
+    let peer = reg.get_for_surface("peer", ds).expect("peer registered");
     assert_eq!(peer.arity.min, 1);
     assert_eq!(peer.arity.max, 1);
 }
 
-// ===========================================================================
 // Dialect-differentiated side effects
-// ===========================================================================
 
 /// `close` is a file-I/O op in plain Tcl and a connection-control op in iRules
 /// (two specs under one name).
@@ -1074,7 +1053,7 @@ fn close_side_effects_differ_by_dialect() {
     use tcl_registry::side_effects::SideEffectTarget;
     let (tcl_reg, tcl_ds) = reg_and_set("tcl8.6");
     let tcl_close = tcl_reg
-        .get_for_dialect("close", tcl_ds)
+        .get_for_surface("close", tcl_ds)
         .expect("close in tcl");
     assert!(
         tcl_close
@@ -1086,7 +1065,7 @@ fn close_side_effects_differ_by_dialect() {
 
     let (ir_reg, ir_ds) = reg_and_set("f5-irules");
     let ir_close = ir_reg
-        .get_for_dialect("close", ir_ds)
+        .get_for_surface("close", ir_ds)
         .expect("close in irules");
     assert!(
         ir_close
@@ -1097,9 +1076,7 @@ fn close_side_effects_differ_by_dialect() {
     );
 }
 
-// ===========================================================================
 // Lazy dialect loading
-// ===========================================================================
 
 /// A freshly built default registry has core commands but not iRules / non-Tk
 /// dialect commands.
@@ -1122,12 +1099,11 @@ fn default_registry_has_core_but_not_irules() {
     );
 }
 
-/// Tk widget/window commands are dialect-gated to standard Tcl + the `tk`
-/// dialect (`DialectSet::TK_AND_TCL`) — they must resolve in a `wish` /
-/// `package require Tk` `.tcl` file but never in the restricted embedded
-/// dialects (F5 iRules / iApps), where Tk does not exist.  (The *loaded*
-/// gating — only offered once `package require Tk` ran — is layered on in
-/// the LSP completion path, not here.)
+/// Tk widget/window commands state `SpecSurface::TK_AND_TCL` — they must
+/// resolve in a `wish` / `package require Tk` `.tcl` file but never in the
+/// restricted embedded environments (F5 iRules / iApps), where Tk cannot be
+/// loaded at all.  (The *loaded* gating — only offered once `package require
+/// Tk` ran — is layered on in the LSP completion path, not here.)
 #[test]
 fn tk_commands_are_gated_to_tcl_and_tk_not_irules_or_iapps() {
     let reg = CommandRegistry::build_default();
@@ -1137,51 +1113,54 @@ fn tk_commands_are_gated_to_tcl_and_tk_not_irules_or_iapps() {
         // Available in standard Tcl (a `.tcl` that loads Tk) and the `tk`
         // dialect.
         assert!(
-            spec.supports_dialect(DialectSet::TCL86),
+            spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.6"))),
             "{name} available under tcl8.6 (wish / package require Tk)"
         );
         assert!(
-            spec.supports_dialect(DialectSet::TCL90),
+            spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.0"))),
             "{name} available under tcl9.0"
         );
         assert!(
-            spec.supports_dialect(DialectSet::TK),
+            spec.supports_dialect(Some(
+                SurfaceQuery::any_release(Family::Tcl).with_packages(&["Tk"])
+            )),
             "{name} available under the tk dialect"
         );
-        // NOT available in the F5 embedded dialects.
-        assert!(
-            !spec.supports_dialect(DialectSet::IRULES),
-            "{name} must NOT be offered in iRules"
-        );
-        assert!(
-            !spec.supports_dialect(DialectSet::IAPPS),
-            "{name} must NOT be offered in iApps"
-        );
+        // NOT available in the F5 embedded environments.  Tk's rows admit
+        // core Tcl, and iApps *is* an 8.4 core — so the exclusion is a fact
+        // about the environment (Tk cannot be loaded there), not about the
+        // point.  Asking the context is asking the honest question.
+        for environment in ["f5-irules", "f5-iapps"] {
+            assert!(
+                !static_document_context_for(environment).spec_available(spec),
+                "{name} must NOT be offered in {environment}"
+            );
+        }
     }
 }
 
-/// `load_dialect` makes iRules commands resolvable and listed.
+/// `load_surface` makes iRules commands resolvable and listed.
 ///
 /// f5-dialect.
 #[test]
 fn load_dialect_makes_irules_commands_visible() {
     let mut reg = CommandRegistry::build_default();
     assert!(reg.get("HTTP::header").is_none());
-    reg.load_dialect(DialectSet::IRULES);
+    reg.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
     assert!(reg.get("HTTP::header").is_some());
     let names: std::collections::HashSet<&str> = reg.command_names().collect();
     assert!(names.contains("HTTP::header"));
 }
 
-/// `load_dialect` is idempotent.
+/// `load_surface` is idempotent.
 ///
 /// f5-dialect / registry behaviour.
 #[test]
 fn load_dialect_is_idempotent() {
     let mut reg = CommandRegistry::build_default();
-    reg.load_dialect(DialectSet::IRULES);
+    reg.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
     let after_first = reg.len();
-    reg.load_dialect(DialectSet::IRULES); // second load is a no-op
+    reg.load_surface(SurfaceLayer::Core(Family::F5Irules, "")); // second load is a no-op
     assert_eq!(
         reg.len(),
         after_first,
@@ -1189,9 +1168,7 @@ fn load_dialect_is_idempotent() {
     );
 }
 
-// ===========================================================================
 // Signature membership per dialect
-// ===========================================================================
 
 /// `dict`/`try`/`tailcall` are absent in 8.4.
 ///
@@ -1201,10 +1178,10 @@ fn load_dialect_is_idempotent() {
 #[test]
 fn tcl84_excludes_newer_commands() {
     let (reg, ds) = reg_and_set("tcl8.4");
-    assert!(reg.get_for_dialect("dict", ds).is_none(), "dict is 8.5+");
-    assert!(reg.get_for_dialect("try", ds).is_none(), "try is 8.6+");
+    assert!(reg.get_for_surface("dict", ds).is_none(), "dict is 8.5+");
+    assert!(reg.get_for_surface("try", ds).is_none(), "try is 8.6+");
     assert!(
-        reg.get_for_dialect("tailcall", ds).is_none(),
+        reg.get_for_surface("tailcall", ds).is_none(),
         "tailcall is 8.6+"
     );
 }
@@ -1216,8 +1193,8 @@ fn tcl84_excludes_newer_commands() {
 #[test]
 fn tcl85_has_dict_not_try() {
     let (reg, ds) = reg_and_set("tcl8.5");
-    assert!(reg.get_for_dialect("dict", ds).is_some());
-    assert!(reg.get_for_dialect("try", ds).is_none());
+    assert!(reg.get_for_surface("dict", ds).is_some());
+    assert!(reg.get_for_surface("try", ds).is_none());
 }
 
 /// `TclOO` (`oo::class`, `oo::define`) is 8.6+.
@@ -1227,12 +1204,12 @@ fn tcl85_has_dict_not_try() {
 #[test]
 fn tcloo_is_tcl86_plus() {
     let (r86, d86) = reg_and_set("tcl8.6");
-    assert!(r86.get_for_dialect("oo::class", d86).is_some());
-    assert!(r86.get_for_dialect("oo::define", d86).is_some());
+    assert!(r86.get_for_surface("oo::class", d86).is_some());
+    assert!(r86.get_for_surface("oo::define", d86).is_some());
 
     let (r85, d85) = reg_and_set("tcl8.5");
-    assert!(r85.get_for_dialect("oo::class", d85).is_none());
-    assert!(r85.get_for_dialect("oo::define", d85).is_none());
+    assert!(r85.get_for_surface("oo::class", d85).is_none());
+    assert!(r85.get_for_surface("oo::define", d85).is_none());
 }
 
 /// The iRules profile pulls in `when`, the HTTP family, the seeded AAA catalog,
@@ -1255,7 +1232,7 @@ fn f5_irules_profile_membership() {
         "HTTP::path",
     ] {
         assert!(
-            reg.get_for_dialect(name, ds).is_some(),
+            reg.get_for_surface(name, ds).is_some(),
             "{name} should be in the f5-irules profile"
         );
     }
@@ -1269,7 +1246,7 @@ fn f5_irules_profile_membership() {
 #[test]
 fn f5_irules_keeps_base_proc_signature() {
     let (reg, ds) = reg_and_set("f5-irules");
-    let proc = reg.get_for_dialect("proc", ds).expect("proc registered");
+    let proc = reg.get_for_surface("proc", ds).expect("proc registered");
     assert_eq!(proc.arity, Arity::exact(3));
     assert_eq!(proc.arg_role_at(2), Some(ArgRole::Body));
 }
@@ -1281,17 +1258,17 @@ fn f5_irules_keeps_base_proc_signature() {
 fn f5_irules_curated_signatures_are_concrete() {
     let (reg, ds) = reg_and_set("f5-irules");
     let header = reg
-        .get_for_dialect("HTTP::header", ds)
+        .get_for_surface("HTTP::header", ds)
         .expect("HTTP::header registered");
     assert!(header.subcommand("value").is_some());
     assert!(header.subcommand("insert").is_some());
 
-    let when = reg.get_for_dialect("when", ds).expect("when registered");
+    let when = reg.get_for_surface("when", ds).expect("when registered");
     assert_eq!(when.arity.max, 6);
-    assert_eq!(reg.get_for_dialect("pool", ds).expect("pool").arity.min, 1);
-    assert_eq!(reg.get_for_dialect("node", ds).expect("node").arity.min, 1);
+    assert_eq!(reg.get_for_surface("pool", ds).expect("pool").arity.min, 1);
+    assert_eq!(reg.get_for_surface("node", ds).expect("node").arity.min, 1);
     assert_eq!(
-        reg.get_for_dialect("HTTP::respond", ds)
+        reg.get_for_surface("HTTP::respond", ds)
             .expect("HTTP::respond")
             .arity
             .min,
@@ -1306,11 +1283,11 @@ fn f5_irules_curated_signatures_are_concrete() {
 #[test]
 fn f5_iapps_profile_membership() {
     let (reg, ds) = reg_and_set("f5-iapps");
-    assert!(reg.get_for_dialect("iapp::template", ds).is_some());
-    assert!(reg.get_for_dialect("iapp::conf", ds).is_some());
+    assert!(reg.get_for_surface("iapp::template", ds).is_some());
+    assert!(reg.get_for_surface("iapp::conf", ds).is_some());
     // f5-iapps is a separate catalog from f5-irules.
     assert!(
-        reg.get_for_dialect("AAA::acct_result", ds).is_none(),
+        reg.get_for_surface("AAA::acct_result", ds).is_none(),
         "iRules catalog must not leak into f5-iapps"
     );
 }
@@ -1326,17 +1303,17 @@ fn expect_profile_membership() {
     let (reg, ds) = reg_and_set("expect");
     for name in ["spawn", "expect", "send", "interact", "log_user"] {
         assert!(
-            reg.get_for_dialect(name, ds).is_some(),
+            reg.get_for_surface(name, ds).is_some(),
             "{name} should be in the expect profile"
         );
     }
     // Base Tcl is still present.
     for name in ["set", "proc", "if"] {
-        assert!(reg.get_for_dialect(name, ds).is_some(), "{name} (base tcl)");
+        assert!(reg.get_for_surface(name, ds).is_some(), "{name} (base tcl)");
     }
     // iRules commands are not.
-    assert!(reg.get_for_dialect("when", ds).is_none());
-    assert!(reg.get_for_dialect("HTTP::header", ds).is_none());
+    assert!(reg.get_for_surface("when", ds).is_none());
+    assert!(reg.get_for_surface("HTTP::header", ds).is_none());
 }
 
 /// `when EVENT … { body }` marks the trailing body argument.
@@ -1399,9 +1376,7 @@ fn proc_marks_body_argument() {
     assert_eq!(bodies, vec![2]);
 }
 
-// ===========================================================================
 // `is_irules_dialect` predicate
-// ===========================================================================
 
 /// The iRules predicate accepts `f5-irules` and the legacy `irules` alias,
 /// rejects everything else and `None`.
@@ -1409,22 +1384,26 @@ fn proc_marks_body_argument() {
 /// registry-metadata: dialect-name predicate.
 #[test]
 fn is_irules_dialect_predicate() {
-    assert!(DialectSet::is_irules_dialect(Some("f5-irules")));
-    assert!(DialectSet::is_irules_dialect(Some("irules")));
-    assert!(!DialectSet::is_irules_dialect(Some("tcl8.6")));
-    assert!(!DialectSet::is_irules_dialect(Some("f5-iapps")));
-    assert!(!DialectSet::is_irules_dialect(Some("f5-bigip")));
-    assert!(!DialectSet::is_irules_dialect(None));
+    assert!(tcl_dialect::DialectProfile::name_is_irules(Some(
+        "f5-irules"
+    )));
+    assert!(tcl_dialect::DialectProfile::name_is_irules(Some("irules")));
+    assert!(!tcl_dialect::DialectProfile::name_is_irules(Some("tcl8.6")));
+    assert!(!tcl_dialect::DialectProfile::name_is_irules(Some(
+        "f5-iapps"
+    )));
+    assert!(!tcl_dialect::DialectProfile::name_is_irules(Some(
+        "f5-bigip"
+    )));
+    assert!(!tcl_dialect::DialectProfile::name_is_irules(None));
 }
 
-// ===========================================================================
 // Dialect-name surface (the part that lives in this crate)
 //
 // `detect_dialect_from_source` itself is implemented in tcl-compiler /
 // tcl-lsp-core, not tcl-registry, so the source-scanning behaviour is out of
 // scope here. The dialect *vocabulary* it resolves into — and which this
 // crate owns — is covered instead.
-// ===========================================================================
 
 /// The detection targets (`tcl8.4`, `tcl8.5`, `tcl8.6`, `tcl9.0`, `f5-irules`,
 /// `expect`) that dialect detection produces as outputs are all
@@ -1441,7 +1420,12 @@ fn detection_target_dialects_are_known() {
         "f5-irules",
         "expect",
     ] {
-        assert!(DialectSet::parse(d).is_some(), "{d} should parse");
+        assert!(
+            tcl_dialect::DialectProfile::find(d)
+                .map(tcl_dialect::DialectProfile::surface_query)
+                .is_some(),
+            "{d} should parse"
+        );
     }
     // The detection targets are catalogued names.
     for d in [
@@ -1455,7 +1439,11 @@ fn detection_target_dialects_are_known() {
         assert!(KNOWN_DIALECTS.contains(&d), "{d} should be a known dialect");
     }
     // `tcl-dialect: unknown` has no parse — the analogue of returning `None`.
-    assert!(DialectSet::parse("unknown").is_none());
+    assert!(
+        tcl_dialect::DialectProfile::find("unknown")
+            .map(tcl_dialect::DialectProfile::surface_query)
+            .is_none()
+    );
 }
 
 /// `available_dialects()` is the sorted catalog backing the CLI `--dialect`
@@ -1473,27 +1461,42 @@ fn available_dialects_is_sorted_and_complete() {
     assert!(dialects.contains(&"tcl9.0"));
 }
 
-/// `DialectSet::parse` round-trips the canonical names and rejects junk —
+/// `DialectProfile::find` round-trips the canonical names and rejects junk —
 /// underpinning the cache key normalisation a typo'd dialect collapses to.
 ///
 /// registry-metadata.
 #[test]
-fn dialect_parse_roundtrip() {
-    assert_eq!(DialectSet::parse("tcl8.6"), Some(DialectSet::TCL86));
-    assert_eq!(DialectSet::parse("tcl9.0"), Some(DialectSet::TCL90));
-    assert_eq!(DialectSet::parse("f5-irules"), Some(DialectSet::IRULES));
-    assert_eq!(DialectSet::parse("expect"), Some(DialectSet::EXPECT));
-    assert_eq!(DialectSet::parse("definitely-not-a-dialect"), None);
+fn dialect_name_resolves_to_its_point() {
+    assert_eq!(
+        tcl_dialect::DialectProfile::find("tcl8.6").map(tcl_dialect::DialectProfile::surface_query),
+        Some(SurfaceQuery::core(Family::Tcl, "8.6"))
+    );
+    assert_eq!(
+        tcl_dialect::DialectProfile::find("tcl9.0").map(tcl_dialect::DialectProfile::surface_query),
+        Some(SurfaceQuery::core(Family::Tcl, "9.0"))
+    );
+    assert_eq!(
+        tcl_dialect::DialectProfile::find("f5-irules")
+            .map(tcl_dialect::DialectProfile::surface_query),
+        Some(SurfaceQuery::any_release(Family::F5Irules))
+    );
+    assert_eq!(
+        tcl_dialect::DialectProfile::find("expect").map(tcl_dialect::DialectProfile::surface_query),
+        Some(SurfaceQuery::core(Family::Tcl, "8.6").with_packages(&["expect"]))
+    );
+    assert_eq!(
+        tcl_dialect::DialectProfile::find("definitely-not-a-dialect")
+            .map(tcl_dialect::DialectProfile::surface_query),
+        None
+    );
 }
 
-// ===========================================================================
 // C-Tcl ground-truth: subcommand sets of string / dict / info match tclsh.
 //
 // These are direct tclsh facts. The registry must register at least the
 // subcommands common to tclsh8.6 AND tclsh9.0 (the version-specific extras —
 // 8.6's `string bytelength`, 9.0's `string insert` / `dict getdef` /
 // `info cmdtype` — are registry-superset entries and are not required here).
-// ===========================================================================
 
 /// `string` subcommands.
 ///
@@ -1620,14 +1623,14 @@ fn info_subcommands_match_tclsh() {
 fn regsub_switches_are_version_gated() {
     let reg = CommandRegistry::build_default();
     let regsub = reg.get("regsub").expect("regsub registered");
-    let in_86 = regsub.switch_names(Some(DialectSet::TCL86));
+    let in_86 = regsub.switch_names(Some(SurfaceQuery::core(Family::Tcl, "8.6")));
     assert!(in_86.contains(&"-all"), "8.6: {in_86:?}");
     assert!(in_86.contains(&"-nocase"), "8.6: {in_86:?}");
     assert!(
         !in_86.contains(&"-command"),
         "9.0-only -command leaked into 8.6: {in_86:?}"
     );
-    let in_90 = regsub.switch_names(Some(DialectSet::TCL90));
+    let in_90 = regsub.switch_names(Some(SurfaceQuery::core(Family::Tcl, "9.0")));
     assert!(in_90.contains(&"-command"), "9.0: {in_90:?}");
 }
 
@@ -1641,14 +1644,14 @@ fn regsub_switches_are_version_gated() {
 fn source_nopkg_is_version_gated() {
     let reg = CommandRegistry::build_default();
     let source = reg.get("source").expect("source registered");
-    let in_86 = source.switch_names(Some(DialectSet::TCL86));
+    let in_86 = source.switch_names(Some(SurfaceQuery::core(Family::Tcl, "8.6")));
     assert!(
         !in_86.contains(&"-nopkg"),
         "Tcl 9-only -nopkg leaked into 8.6: {in_86:?}"
     );
-    let in_90 = source.switch_names(Some(DialectSet::TCL90));
+    let in_90 = source.switch_names(Some(SurfaceQuery::core(Family::Tcl, "9.0")));
     assert!(in_90.contains(&"-nopkg"), "9.0: {in_90:?}");
-    let in_91 = source.switch_names(Some(DialectSet::TCL91));
+    let in_91 = source.switch_names(Some(SurfaceQuery::core(Family::Tcl, "9.1")));
     assert!(in_91.contains(&"-nopkg"), "9.1: {in_91:?}");
 }
 
@@ -1658,8 +1661,8 @@ fn source_nopkg_is_version_gated() {
 ///
 /// `const` (Tcl 9.0, TIP 677) is present from 9.0 and — after the
 /// registry-wide explicit-dialect sweep — correctly ABSENT before it. It used
-/// to be declared `dialects: None` (universal) as a workaround to reach iRules
-/// events, which wrongly made `get_for_dialect("const", TCL86)` return `Some`
+/// to be declared `surface: None` (universal) as a workaround to reach iRules
+/// events, which wrongly made `get_for_surface("const", TCL86)` return `Some`
 /// even though real tclsh8.6 lacks the command. It is now `TCL90_PLUS`, so the
 /// registry matches C-Tcl on both axes: present in 9.0/9.1, absent in 8.x (and
 /// absent from iRules, whose embedded 8.4.6 also predates it).
@@ -1675,14 +1678,12 @@ fn const_is_present_in_tcl90_and_absent_before() {
     );
     let (reg86, ds86) = reg_and_set("tcl8.6");
     assert!(
-        reg86.get_for_dialect("const", ds86).is_none(),
+        reg86.get_for_surface("const", ds86).is_none(),
         "const is a Tcl 9.0 command; it must not resolve under tcl8.6"
     );
 }
 
-// ===========================================================================
 // Registry construction basics (the `build_default` checks)
-// ===========================================================================
 
 /// The cached per-dialect registries are non-empty and round-trip a lookup.
 ///
@@ -1698,12 +1699,12 @@ fn cached_dialect_registries_are_populated() {
         "f5-iapps",
         "expect",
     ] {
-        let reg = registry_for_dialect(d);
+        let reg = static_context_for(d).commands();
         assert!(!reg.is_empty(), "{d} registry is empty");
         assert!(reg.get("set").is_some(), "{d} should have `set`");
     }
     // An unparseable dialect collapses to the plain-Tcl entry (still usable).
-    let junk = registry_for_dialect("not-a-real-dialect");
+    let junk = static_context_for("not-a-real-dialect").commands();
     assert!(junk.get("set").is_some());
     assert!(
         junk.get("HTTP::header").is_none(),
@@ -1711,9 +1712,7 @@ fn cached_dialect_registries_are_populated() {
     );
 }
 
-// ===========================================================================
 // Issue #806 — report package command specs + scoped-body / object model.
-// ===========================================================================
 
 /// `report::defstyle` carries the scoped style-definition environment, with the
 /// report configuration methods and their operations as registry data.
@@ -1721,7 +1720,7 @@ fn cached_dialect_registries_are_populated() {
 fn report_defstyle_has_scoped_body_environment() {
     let (reg, ds) = reg_and_set("tcl8.6");
     let spec = reg
-        .get_for_dialect("report::defstyle", ds)
+        .get_for_surface("report::defstyle", ds)
         .expect("report::defstyle registered in tcl8.6");
     let env = spec
         .body_scope
@@ -1762,7 +1761,7 @@ fn report_defstyle_has_scoped_body_environment() {
 fn report_report_object_class_is_modelled() {
     let (reg, ds) = reg_and_set("tcl8.6");
     let spec = reg
-        .get_for_dialect("report::report", ds)
+        .get_for_surface("report::report", ds)
         .expect("report::report registered");
     assert_eq!(
         spec.creates_instance_at,
@@ -1843,7 +1842,7 @@ fn tk_widget_constructors_declare_creates_instance_at() {
     ];
     for name in widgets {
         let spec = reg
-            .get_for_dialect(name, ds)
+            .get_for_surface(name, ds)
             .unwrap_or_else(|| panic!("{name} registered"));
         assert_eq!(
             spec.creates_instance_at,
@@ -1878,7 +1877,7 @@ fn tk_widgets_with_subcommands_self_reference_their_object_class() {
     ];
     for (name, own_sub, foreign_sub) in cases {
         let spec = reg
-            .get_for_dialect(name, ds)
+            .get_for_surface(name, ds)
             .unwrap_or_else(|| panic!("{name} registered"));
         assert!(
             !spec.subcommands.is_empty(),
@@ -1923,7 +1922,7 @@ fn instance_methods_follow_the_owning_package_lifecycle() {
     // command-level availability. The registry must make the same answer
     // available to every downstream object-method consumer.
     for (dialect, current_is_available) in [("tcl9.0", false), ("tcl9.1", true)] {
-        let reg = registry_for_dialect(dialect);
+        let reg = static_context_for(dialect).commands();
         assert_eq!(
             reg.instance_method("ttk::treeview", "current").is_some(),
             current_is_available,
@@ -1947,7 +1946,7 @@ fn instance_methods_follow_the_owning_package_lifecycle() {
 fn object_method_prefix_policy_is_strict_by_default_and_enabled_for_tk() {
     let (reg, ds) = reg_and_set("tcl8.6");
 
-    let entry = reg.get_for_dialect("entry", ds).unwrap();
+    let entry = reg.get_for_surface("entry", ds).unwrap();
     let entry_class = entry.object_class.unwrap();
     assert_eq!(
         entry_class.method_prefix_matching,
@@ -1966,7 +1965,7 @@ fn object_method_prefix_policy_is_strict_by_default_and_enabled_for_tk() {
         "ambiguous Tk method prefix must abstain"
     );
 
-    let report = reg.get_for_dialect("report::report", ds).unwrap();
+    let report = reg.get_for_surface("report::report", ds).unwrap();
     let report_class = report.object_class.unwrap();
     assert_eq!(
         report_class.method_prefix_matching,
@@ -1992,7 +1991,7 @@ fn report_namespace_commands_have_specs() {
         "report::styles",
     ] {
         let spec = reg
-            .get_for_dialect(cmd, ds)
+            .get_for_surface(cmd, ds)
             .unwrap_or_else(|| panic!("{cmd} present"));
         assert!(spec.hover.is_some(), "{cmd} carries hover");
         assert_eq!(
@@ -2018,7 +2017,7 @@ fn report_commands_gated_out_of_tcl84() {
 /// The `::tcl::` namespace does not exist at all before Tcl 8.5 (TIP 174
 /// added `::tcl::mathop`; there is no `::tcl` namespace in a real Tcl 8.4).
 /// Every dated addition under it must be gated to its real introduction
-/// release, not left universally available (`dialects: None`), which would
+/// release, not left universally available (`surface: None`), which would
 /// wrongly resolve under `tcl8.4` and every pre-that-version profile.
 #[test]
 fn tcl_namespace_commands_gated_to_their_real_introduction_version() {
@@ -2076,9 +2075,7 @@ fn tcl_namespace_commands_gated_to_their_real_introduction_version() {
     }
 }
 
-// ===========================================================================
 // defines_command_at — spec-declared "argument names a new command" facts.
-// ===========================================================================
 
 /// `coroutine NAME cmd ?arg …?` creates the command NAME
 /// (`TclNRCoroutineObjCmd`, `tclBasic.c`) — the spec carries the name index
@@ -2090,7 +2087,7 @@ fn tcl_namespace_commands_gated_to_their_real_introduction_version() {
 fn coroutine_defines_command_at_its_name_argument() {
     let (reg, ds) = reg_and_set("tcl8.6");
     let spec = reg
-        .get_for_dialect("coroutine", ds)
+        .get_for_surface("coroutine", ds)
         .expect("coroutine registered in tcl8.6");
     assert_eq!(spec.defines_command_at, Some(0), "coroutine names arg 0");
 }
@@ -2104,7 +2101,7 @@ fn coroutine_defines_command_at_its_name_argument() {
 fn interp_create_defines_command_at_its_name_argument() {
     let (reg, ds) = reg_and_set("tcl8.6");
     let spec = reg
-        .get_for_dialect("interp", ds)
+        .get_for_surface("interp", ds)
         .expect("interp registered in tcl8.6");
     let create = spec.subcommand("create").expect("interp create modelled");
     assert_eq!(create.defines_command_at, Some(0), "create names sub-arg 0");
@@ -2113,9 +2110,7 @@ fn interp_create_defines_command_at_its_name_argument() {
     assert_eq!(eval.defines_command_at, None);
 }
 
-// ===========================================================================
 // TclOO method-context keywords + the `Tcl_ConcatObj` eval family (#1050, #1051)
-// ===========================================================================
 
 /// The `TclOO` method-context keyword set is exactly `my` / `next` / `nextto`
 /// / `self`, and `CommandRegistry::method_dispatch_keyword` answers with the
@@ -2132,7 +2127,7 @@ fn interp_create_defines_command_at_its_name_argument() {
 /// real tclsh 8.6/9.0 `TclOO` commands.)
 #[test]
 fn tcloo_dispatch_keyword_membership() {
-    let reg = registry_for_dialect("tcl8.6");
+    let reg = static_context_for("tcl8.6").commands();
     assert_eq!(
         reg.method_dispatch_keyword("my"),
         Some(MethodDispatchKind::SelfDispatch)
@@ -2199,7 +2194,7 @@ fn tcloo_dispatch_keyword_membership() {
 /// `CommandRegistry::resolves_only_in_method_context`.
 #[test]
 fn tcloo_method_context_membership() {
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     let mut carriers = reg.commands_with_trait(Traits::TCLOO_METHOD_CONTEXT);
     carriers.sort_unstable();
     carriers.dedup();
@@ -2248,7 +2243,7 @@ fn tcloo_method_context_membership() {
     // no Tcllib route) is not method-context-scoped because it does not
     // exist, while `link`, `mymethod`, and `classvariable` still are — each
     // has an 8.6 spelling via the `ooutil`-gated twin.
-    let reg86 = registry_for_dialect("tcl8.6");
+    let reg86 = static_context_for("tcl8.6").commands();
     assert!(!reg86.resolves_only_in_method_context("callback"));
     for name in [
         "link",
@@ -2265,7 +2260,7 @@ fn tcloo_method_context_membership() {
         );
     }
     // 8.5 has no TclOO at all, so the whole query answers `false` there.
-    let reg85 = registry_for_dialect("tcl8.5");
+    let reg85 = static_context_for("tcl8.5").commands();
     for name in ["link", "my", "next", "nextto", "self", "classvariable"] {
         assert!(
             !reg85.resolves_only_in_method_context(name),
@@ -2280,7 +2275,7 @@ fn tcloo_method_context_membership() {
 /// literal (issue #1026).
 #[test]
 fn tcloo_method_alias_binding_membership() {
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     let mut carriers = reg.commands_with_trait(Traits::TCLOO_BINDS_METHOD_ALIAS);
     carriers.sort_unstable();
     carriers.dedup();
@@ -2294,7 +2289,11 @@ fn tcloo_method_alias_binding_membership() {
         );
     }
     // 8.5 has no `link` at all.
-    assert!(!registry_for_dialect("tcl8.5").binds_method_alias("link"));
+    assert!(
+        !static_context_for("tcl8.5")
+            .commands()
+            .binds_method_alias("link")
+    );
 }
 
 /// **Resolving is not calling.** Every `::oo::Helpers` member needs a real
@@ -2319,7 +2318,7 @@ fn tcloo_method_alias_binding_membership() {
 /// frame there is no such command at all — so this set is a strict subset.
 #[test]
 fn tcloo_method_frame_membership() {
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     let mut carriers = reg.commands_with_trait(Traits::TCLOO_REQUIRES_METHOD_FRAME);
     carriers.sort_unstable();
     carriers.dedup();
@@ -2358,13 +2357,13 @@ fn tcloo_method_frame_membership() {
     // 8.6 core has the three it ships plus `ooutil`'s `link` and
     // `classvariable`; `callback` is 9.0-only (no Tcllib route). 8.5 has no
     // TclOO at all.
-    let reg86 = registry_for_dialect("tcl8.6");
+    let reg86 = static_context_for("tcl8.6").commands();
     assert!(!reg86.requires_oo_method_frame("callback"));
     assert!(!reg86.requires_oo_method_frame("my"));
     for name in ["link", "next", "nextto", "self", "classvariable"] {
         assert!(reg86.requires_oo_method_frame(name), "{name} under 8.6");
     }
-    let reg85 = registry_for_dialect("tcl8.5");
+    let reg85 = static_context_for("tcl8.5").commands();
     for name in ["link", "my", "next", "nextto", "self", "classvariable"] {
         assert!(!reg85.requires_oo_method_frame(name), "{name}: no TclOO");
     }
@@ -2382,22 +2381,20 @@ fn tcloo_method_frame_membership() {
 #[test]
 fn qualified_oo_helpers_spellings_track_their_bare_twin_per_dialect() {
     for dialect in ["tcl8.5", "tcl8.6", "tcl8.7", "tcl9.0"] {
-        let reg = registry_for_dialect(dialect);
-        let mask = reg
-            .profile()
-            .expect("built for a dialect")
-            .availability_mask;
+        let reg = static_context_for(dialect).commands();
+        let mask = reg.profile().expect("built for a dialect").surface_query();
+        let mask = Some(mask);
         for bare in ["link", "next", "nextto", "self", "classvariable"] {
             let qualified = format!("oo::Helpers::{bare}");
-            let bare_spec = reg.get_for_dialect(bare, mask);
-            let qual_spec = reg.get_for_dialect(&qualified, mask);
+            let bare_spec = reg.get_for_surface(bare, mask);
+            let qual_spec = reg.get_for_surface(&qualified, mask);
             assert_eq!(
                 bare_spec.is_some(),
                 qual_spec.is_some(),
                 "{dialect}: {bare} and {qualified} must agree on existence",
             );
             if let (Some(b), Some(q)) = (bare_spec, qual_spec) {
-                assert_eq!(b.dialects, q.dialects, "{dialect}: {qualified} dialects");
+                assert_eq!(b.surface, q.surface, "{dialect}: {qualified} dialects");
                 assert_eq!(
                     b.required_package, q.required_package,
                     "{dialect}: {qualified} required_package",
@@ -2420,7 +2417,7 @@ fn qualified_oo_helpers_spellings_track_their_bare_twin_per_dialect() {
 #[test]
 fn tcloo_dispatch_keyword_set_matches_the_trait_carriers_per_dialect() {
     for dialect in ["tcl8.6", "tcl9.0", "f5-irules", "f5-iapps", "expect"] {
-        let reg = registry_for_dialect(dialect);
+        let reg = static_context_for(dialect).commands();
         let mut carriers: Vec<&str> = reg
             .commands_with_trait(Traits::TCLOO_SELF_DISPATCH)
             .into_iter()
@@ -2450,7 +2447,7 @@ fn tcloo_dispatch_keyword_set_matches_the_trait_carriers_per_dialect() {
 #[test]
 fn tcloo_dispatch_keywords_are_absent_before_86() {
     for dialect in ["tcl8.4", "tcl8.5"] {
-        let reg = registry_for_dialect(dialect);
+        let reg = static_context_for(dialect).commands();
         for keyword in ["my", "next", "nextto", "self"] {
             assert_eq!(
                 reg.method_dispatch_keyword(keyword),
@@ -2460,7 +2457,7 @@ fn tcloo_dispatch_keywords_are_absent_before_86() {
         }
     }
     // …and still resolves under 9.0.
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     assert_eq!(
         reg.method_dispatch_keyword("my"),
         Some(MethodDispatchKind::SelfDispatch)
@@ -2487,7 +2484,7 @@ fn branch_selected_body_trait_membership() {
     assert_eq!(carriers, ["if", "try"]);
     for negative in ["while", "for", "foreach", "switch", "lmap", "catch"] {
         assert!(
-            !reg.get_for_dialect(negative, ds)
+            !reg.get_for_surface(negative, ds)
                 .expect("registered")
                 .traits
                 .contains(Traits::BRANCH_SELECTED_BODY),
@@ -2498,7 +2495,7 @@ fn branch_selected_body_trait_membership() {
     // subset rather than an orthogonal axis.
     for carrier in carriers {
         assert!(
-            reg.get_for_dialect(carrier, ds)
+            reg.get_for_surface(carrier, ds)
                 .expect("registered")
                 .traits
                 .contains(Traits::CONTROL_FLOW),
@@ -2520,14 +2517,14 @@ fn script_concat_family_membership() {
     let (reg, ds) = reg_and_set("tcl8.6");
     for name in ["eval", "uplevel"] {
         assert!(
-            reg.get_for_dialect(name, ds)
+            reg.get_for_surface(name, ds)
                 .expect("registered")
                 .traits
                 .contains(Traits::SCRIPT_CONCATENATES_ARGS),
             "{name} concatenates its script words"
         );
     }
-    let ns = reg.get_for_dialect("namespace", ds).expect("namespace");
+    let ns = reg.get_for_surface("namespace", ds).expect("namespace");
     for sub in ["eval", "inscope"] {
         assert!(
             ns.subcommand(sub)
@@ -2538,7 +2535,7 @@ fn script_concat_family_membership() {
         );
     }
     assert!(
-        reg.get_for_dialect("interp", ds)
+        reg.get_for_surface("interp", ds)
             .expect("interp")
             .subcommand("eval")
             .expect("interp eval modelled")
@@ -2547,7 +2544,7 @@ fn script_concat_family_membership() {
     );
     for negative in ["catch", "apply", "subst", "if"] {
         assert!(
-            !reg.get_for_dialect(negative, ds)
+            !reg.get_for_surface(negative, ds)
                 .expect("registered")
                 .traits
                 .contains(Traits::SCRIPT_CONCATENATES_ARGS),
@@ -2566,7 +2563,7 @@ fn script_concat_family_membership() {
 #[test]
 fn script_append_list_refinement_is_inscope_only() {
     let (reg, ds) = reg_and_set("tcl8.6");
-    let ns = reg.get_for_dialect("namespace", ds).expect("namespace");
+    let ns = reg.get_for_surface("namespace", ds).expect("namespace");
     let refined = reg.subcommands_with_trait("namespace", Traits::SCRIPT_APPENDS_LIST_ARGS);
     assert_eq!(refined, ["inscope"]);
     assert!(
@@ -2578,7 +2575,7 @@ fn script_append_list_refinement_is_inscope_only() {
     );
     for name in ["eval", "uplevel"] {
         assert!(
-            !reg.get_for_dialect(name, ds)
+            !reg.get_for_surface(name, ds)
                 .expect("registered")
                 .traits
                 .contains(Traits::SCRIPT_APPENDS_LIST_ARGS)
@@ -2586,7 +2583,6 @@ fn script_append_list_refinement_is_inscope_only() {
     }
 }
 
-// ===========================================================================
 // issue #923 idx 3/4 — tcllib `textutil::adjust` submodule vs the `textutil`
 // umbrella package's flattened re-export aliases.
 //
@@ -2603,7 +2599,6 @@ fn script_append_list_refinement_is_inscope_only() {
 //     umbrella, never after requiring the submodule alone.
 // The same shape recurs in `textutil::trim` (trim/trimleft/trimright) and
 // `textutil::tabify` (tabify/untabify/tabify2/untabify2).
-// ===========================================================================
 mod textutil_submodule_vs_umbrella {
     use super::*;
 
@@ -2620,7 +2615,7 @@ mod textutil_submodule_vs_umbrella {
             ("textutil::adjust::undent", "textutil::adjust"),
         ] {
             let spec = reg
-                .get_for_dialect(name, ds)
+                .get_for_surface(name, ds)
                 .unwrap_or_else(|| panic!("{name} must be registered"));
             assert_eq!(
                 spec.required_package,
@@ -2637,7 +2632,7 @@ mod textutil_submodule_vs_umbrella {
         let (reg, ds) = reg_and_set("tcl8.6");
         for name in ["textutil::adjust", "textutil::indent"] {
             let spec = reg
-                .get_for_dialect(name, ds)
+                .get_for_surface(name, ds)
                 .unwrap_or_else(|| panic!("{name} (umbrella alias) must be registered"));
             assert_eq!(
                 spec.required_package,
@@ -2657,10 +2652,10 @@ mod textutil_submodule_vs_umbrella {
     fn submodule_and_umbrella_names_are_distinct_keys() {
         let (reg, ds) = reg_and_set("tcl8.6");
         let submodule = reg
-            .get_for_dialect("textutil::adjust::adjust", ds)
+            .get_for_surface("textutil::adjust::adjust", ds)
             .expect("submodule command registered");
         let umbrella = reg
-            .get_for_dialect("textutil::adjust", ds)
+            .get_for_surface("textutil::adjust", ds)
             .expect("umbrella alias registered");
         assert_ne!(submodule.required_package, umbrella.required_package);
         assert_eq!(umbrella.required_package, Some("textutil"));
@@ -2676,7 +2671,7 @@ mod textutil_submodule_vs_umbrella {
     fn no_fabricated_textutil_indent_package_submodule() {
         let (reg, ds) = reg_and_set("tcl8.6");
         assert!(
-            reg.get_for_dialect("textutil::indent::indent", ds)
+            reg.get_for_surface("textutil::indent::indent", ds)
                 .is_none()
         );
     }
@@ -2699,7 +2694,7 @@ mod textutil_submodule_vs_umbrella {
             "textutil::string::longestCommonPrefix",
         ] {
             assert!(
-                reg.get_for_dialect(name, ds).is_some(),
+                reg.get_for_surface(name, ds).is_some(),
                 "{name} must be registered (tclsh 9.0.4-verified real tcllib command)"
             );
         }
@@ -2714,7 +2709,7 @@ mod textutil_submodule_vs_umbrella {
             "textutil::untabify2",
         ] {
             let spec = reg
-                .get_for_dialect(name, ds)
+                .get_for_surface(name, ds)
                 .unwrap_or_else(|| panic!("{name} (umbrella alias) must be registered"));
             assert_eq!(spec.required_package, Some("textutil"));
         }
@@ -2748,9 +2743,9 @@ mod textutil_submodule_vs_umbrella {
             ("textutil::untabify2", "textutil::tabify::untabify2"),
         ] {
             let umbrella_spec = reg
-                .get_for_dialect(umbrella, ds)
+                .get_for_surface(umbrella, ds)
                 .unwrap_or_else(|| panic!("{umbrella} (umbrella alias) must be registered"));
-            let submodule_spec = reg.get_for_dialect(submodule, ds).unwrap_or_else(|| {
+            let submodule_spec = reg.get_for_surface(submodule, ds).unwrap_or_else(|| {
                 panic!("{submodule} (submodule canonical name) must be registered")
             });
             assert_eq!(
@@ -2766,10 +2761,10 @@ mod textutil_submodule_vs_umbrella {
         // by `textutil_umbrella_aliases_registered_distinctly`'s sibling
         // tests; check it here too for the same trait-parity property.
         let umbrella_spec = reg
-            .get_for_dialect("textutil::longestCommonPrefix", ds)
+            .get_for_surface("textutil::longestCommonPrefix", ds)
             .expect("textutil::longestCommonPrefix (umbrella alias) must be registered");
         let submodule_spec = reg
-            .get_for_dialect("textutil::string::longestCommonPrefix", ds)
+            .get_for_surface("textutil::string::longestCommonPrefix", ds)
             .expect("textutil::string::longestCommonPrefix must be registered");
         assert_eq!(umbrella_spec.traits, submodule_spec.traits);
     }
@@ -2886,11 +2881,9 @@ fn only_namespace_eval_declares_a_namespace() {
     assert_eq!(declarers, vec!["namespace"]);
 }
 
-// ---------------------------------------------------------------------------
 // Object-handle bindings (issue #1185) — which argument of a call becomes a
 // handle, and of what class, is registry data rather than a walker's
 // command-name match.
-// ---------------------------------------------------------------------------
 
 /// `set` declares the handle-binding layout its value word implies, and the
 /// query resolves it through the same `get` path every other registry query
@@ -3207,7 +3200,7 @@ fn irules_payload_lifecycle_inventory_is_registry_complete() {
     use tcl_registry::DataCollectionAction::{Collect, Payload, Release};
 
     let mut reg = CommandRegistry::build_default();
-    reg.load_dialect(DialectSet::IRULES);
+    reg.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
     let mut actual: Vec<_> = reg
         .command_names()
         .filter_map(|name| {
@@ -3267,7 +3260,7 @@ fn mqtt_payload_forms_declare_event_and_collection_contracts() {
     use tcl_registry::PayloadCollectionRequirement::{ExplicitCollect, NotRequired};
 
     let mut reg = CommandRegistry::build_default();
-    reg.load_dialect(DialectSet::IRULES);
+    reg.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
     let operation = reg
         .data_collection_operation("MQTT::payload")
         .expect("MQTT payload lifecycle descriptor");
@@ -3321,7 +3314,8 @@ fn mqtt_payload_forms_declare_event_and_collection_contracts() {
 /// `-namespace` it accepts.
 #[test]
 fn the_ensemble_option_tables_match_their_owning_utility() {
-    let registry = tcl_registry::registry_handle_for_dialect("tcl");
+    let registry =
+        std::sync::Arc::clone(tcl_registry::model::ingress::static_context_for("tcl").commands());
     let spec = registry
         .get("namespace")
         .expect("`namespace` is a core command");
@@ -3370,7 +3364,8 @@ fn the_ensemble_option_tables_match_their_owning_utility() {
 /// `namespace ensemble exists` the whole union.
 #[test]
 fn an_explicitly_empty_operation_table_does_not_inherit_the_parents() {
-    let registry = tcl_registry::registry_handle_for_dialect("tcl");
+    let registry =
+        std::sync::Arc::clone(tcl_registry::model::ingress::static_context_for("tcl").commands());
     let spec = registry
         .get("namespace")
         .expect("`namespace` is a core command");
@@ -3388,7 +3383,7 @@ fn an_explicitly_empty_operation_table_does_not_inherit_the_parents() {
     );
 
     // …and the selector honours it: an empty scope, not the parent's union.
-    let scope = ensemble.option_scope(Some("exists"), None, None, spec.dialects);
+    let scope = ensemble.option_scope(Some("exists"), None, None, spec.surface);
     assert!(
         scope.options.is_empty(),
         "`exists` must resolve to no options: {:?}",

@@ -27,13 +27,13 @@
 //! via tclsh: each snippet below is a complete, runnable Tcl script).
 
 use tcl_lsp_core::folding::{FoldKind, FoldingRange, folding_ranges};
-use tcl_registry::registry_for_dialect;
+use tcl_registry::model::ingress::static_context_for;
 
 fn folds(source: &str) -> Vec<FoldingRange> {
-    let registry = registry_for_dialect("tcl8.6");
+    let registry = static_context_for("tcl8.6").commands();
     folding_ranges(
         source,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         registry,
     )
 }
@@ -241,11 +241,11 @@ fn alias_to_user_proc_named_method_does_not_fold_data_as_a_member_body() {
 /// command, so no `ArgRole::Body` and no fold).
 #[test]
 fn tcl9_leading_bom_does_not_suppress_the_first_body_fold() {
-    let registry = registry_for_dialect("tcl9.0");
+    let registry = static_context_for("tcl9.0").commands();
     let src = "\u{FEFF}proc greet {} {\n    return hi\n}\n";
     let with_bom: Vec<FoldingRange> = folding_ranges(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         registry,
     )
     .into_iter()
@@ -253,7 +253,7 @@ fn tcl9_leading_bom_does_not_suppress_the_first_body_fold() {
     .collect();
     let plain: Vec<FoldingRange> = folding_ranges(
         &src["\u{FEFF}".len()..],
-        tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         registry,
     )
     .into_iter()
@@ -271,11 +271,11 @@ fn tcl9_leading_bom_does_not_suppress_the_first_body_fold() {
 /// inner fold. The outer proc's own fold is unaffected.
 #[test]
 fn a_bom_inside_a_nested_body_is_data() {
-    let registry = registry_for_dialect("tcl9.0");
+    let registry = static_context_for("tcl9.0").commands();
     let src = "proc outer {} {\n    \u{FEFF}proc inner {} {\n        return 1\n    }\n}\n";
     let regions: Vec<FoldingRange> = folding_ranges(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         registry,
     )
     .into_iter()

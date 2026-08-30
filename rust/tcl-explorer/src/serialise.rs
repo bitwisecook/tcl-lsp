@@ -66,7 +66,6 @@ use tcl_compiler::state_ssa::adapters::{
 use tcl_compiler::state_ssa::{CfgStatePosition, StateOp, StateSite};
 use tcl_compiler::taint::find_taint_warnings_for_cu;
 use tcl_compiler::world_state_ssa::{WorldStateSsaDecline, project_transition_facts};
-use tcl_dialect::DialectProfile;
 use tcl_lexer::{LexerConfig, LineIndex, Span, TokenType};
 use tcl_registry::available_dialects;
 // See the note in `lib.rs`: the explorer resolves against the active pack set.
@@ -92,7 +91,7 @@ pub fn serialise_meta() -> Value {
     let dialects: Vec<Value> = available_dialects()
         .iter()
         .map(|d| {
-            let profile = tcl_dialect::DialectProfile::find(d);
+            let profile = crate::environment::catalogue_profile_for_dialect(d);
             json!({
                 "name": *d,
                 "displayName": profile.map_or(*d, |p| p.display_name),
@@ -1039,7 +1038,7 @@ fn serialise_world_invocations(availability: &ExecutableAnalysisAvailability) ->
 
 fn availability_kind(availability: &ExecutableAnalysisAvailability) -> &'static str {
     match availability {
-        ExecutableAnalysisAvailability::DialectUnavailable { .. } => "dialect-unavailable",
+        ExecutableAnalysisAvailability::ContextUnavailable => "context-unavailable",
         ExecutableAnalysisAvailability::Available(_) => "available",
         ExecutableAnalysisAvailability::WorldStateDeclined { .. } => "world-state-declined",
         ExecutableAnalysisAvailability::WorldStateNotRequired { .. } => "world-state-not-required",
@@ -1050,7 +1049,7 @@ fn availability_kind(availability: &ExecutableAnalysisAvailability) -> &'static 
 
 fn availability_reason_kind(availability: &ExecutableAnalysisAvailability) -> Option<&'static str> {
     match availability {
-        ExecutableAnalysisAvailability::DialectUnavailable { .. }
+        ExecutableAnalysisAvailability::ContextUnavailable
         | ExecutableAnalysisAvailability::Available(_)
         | ExecutableAnalysisAvailability::WorldStateNotRequired { .. }
         | ExecutableAnalysisAvailability::SourceUnavailable => None,
@@ -1120,7 +1119,7 @@ fn serialise_world_ssa(result: &ExplorerResult) -> Value {
 pub fn serialise_gvn(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     let registry_held = registry_for_dialect(&result.dialect);
     let registry = &*registry_held;
-    let dialect = DialectProfile::resolve_known(&result.dialect);
+    let dialect = crate::environment::known_profile_for_dialect(&result.dialect);
     let mut all = find_redundancies_for_cu(&result.unit, registry, dialect);
     all.extend(find_partial_redundancies_for_cu(
         &result.unit,
@@ -1171,7 +1170,7 @@ fn taint_severity(code: &str) -> &'static str {
 pub fn serialise_taint(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     let registry_held = registry_for_dialect(&result.dialect);
     let registry = &*registry_held;
-    let dialect = DialectProfile::resolve_known(&result.dialect);
+    let dialect = crate::environment::known_profile_for_dialect(&result.dialect);
     let out: Vec<Value> = find_taint_warnings_for_cu(&result.unit, registry, dialect)
         .iter()
         .map(|w| {
@@ -1223,7 +1222,7 @@ pub fn serialise_optimiser_passes(result: &ExplorerResult, li: &LineIndex, sourc
     let passes: Vec<Value> = optimise_by_pass(
         &result.unit,
         registry,
-        DialectProfile::resolve_known(&result.dialect),
+        crate::environment::known_profile_for_dialect(&result.dialect),
     )
     .iter()
     .map(|(pass, opts)| {
@@ -1671,7 +1670,7 @@ fn semantic_status(availability: &ExecutableAnalysisAvailability) -> &'static st
         ExecutableAnalysisAvailability::Available(_) => "available",
         ExecutableAnalysisAvailability::WorldStateDeclined { .. } => "world-state-declined",
         ExecutableAnalysisAvailability::WorldStateNotRequired { .. } => "world-state-not-required",
-        ExecutableAnalysisAvailability::DialectUnavailable { .. } => "dialect-unavailable",
+        ExecutableAnalysisAvailability::ContextUnavailable => "context-unavailable",
         ExecutableAnalysisAvailability::SourceDeclined(_) => "source-declined",
         ExecutableAnalysisAvailability::SourceUnavailable => "source-unavailable",
     }
@@ -1739,8 +1738,11 @@ fn source_decline_value(
 
 fn semantic_decline_value(availability: &ExecutableAnalysisAvailability) -> Option<Value> {
     match availability {
-        ExecutableAnalysisAvailability::DialectUnavailable { dialect } => {
-            Some(json!({"kind": "dialect-unavailable", "dialect": dialect.canonical_name()}))
+        // The re-keyed sidecar (ledger C1 / §11.2 D1) reaches this state by
+        // carrying no resolved environment at all, so there is no mask left to
+        // name in the payload.
+        ExecutableAnalysisAvailability::ContextUnavailable => {
+            Some(json!({"kind": "context-unavailable"}))
         }
         ExecutableAnalysisAvailability::WorldStateDeclined { decline, .. } => Some(
             json!({"kind": "world-state-declined", "reason": world_state_decline_label(decline)}),
@@ -2103,39 +2105,29 @@ fn serialise_memory_ssa(memory: &MemorySsaFunction) -> Value {
 pub fn serialise_irules_flow(result: &ExplorerResult, li: &LineIndex, source: &str) -> Value {
     let registry_held = registry_for_dialect(&result.dialect);
     let registry = &*registry_held;
-    let dialect = DialectProfile::resolve_known(&result.dialect);
+    let dialect = crate::environment::known_profile_for_dialect(&result.dialect);
     let cu = &result.unit;
     let mut warnings = find_unnormalised_getter_warnings(
         cu,
         registry,
-        dialect.map_or(tcl_dialect::DialectSet::empty(), |profile| {
-            profile.availability_mask
-        }),
+        dialect.map(tcl_dialect::DialectProfile::surface_query),
     );
     warnings.extend(find_unguarded_drop_warnings(
         cu,
-        dialect.map_or(tcl_dialect::DialectSet::empty(), |profile| {
-            profile.availability_mask
-        }),
+        dialect.map(tcl_dialect::DialectProfile::surface_query),
     ));
     warnings.extend(find_collect_flow_warnings(
         cu,
         registry,
-        dialect.map_or(tcl_dialect::DialectSet::empty(), |profile| {
-            profile.availability_mask
-        }),
+        dialect.map(tcl_dialect::DialectProfile::surface_query),
     ));
     warnings.extend(find_http_flow_warnings(
         cu,
-        dialect.map_or(tcl_dialect::DialectSet::empty(), |profile| {
-            profile.availability_mask
-        }),
+        dialect.map(tcl_dialect::DialectProfile::surface_query),
     ));
     warnings.extend(find_hoistable_set_warnings(
         cu,
-        dialect.map_or(tcl_dialect::DialectSet::empty(), |profile| {
-            profile.availability_mask
-        }),
+        dialect.map(tcl_dialect::DialectProfile::surface_query),
     ));
 
     let out: Vec<Value> = warnings
@@ -2249,9 +2241,9 @@ pub fn serialise_bounds(result: &ExplorerResult) -> Value {
                 &snap.unit.sccp.executable_blocks,
                 snap.unit
                     .semantic_facts
-                    .dialect()
-                    .canonical_name()
-                    .and_then(tcl_dialect::DialectProfile::find)
+                    .context()
+                    .map(tcl_registry::model::semantic::SemanticContext::environment_id)
+                    .and_then(crate::environment::catalogue_profile_for_dialect)
                     .and_then(tcl_dialect::DialectProfile::character_model),
             )
             .iter()
@@ -2520,9 +2512,9 @@ pub fn serialise_event_order(source: &str, line_index: &LineIndex, dialect: &str
 
     let mut per_event: HashMap<String, Vec<Handler>> = HashMap::new();
     let command_registry = registry_for_dialect(dialect);
-    let identities = tcl_compiler::head_identity::command_head_identities(
+    let identities = tcl_compiler::realm::document_realm_bindings(
         source,
-        tcl_dialect::DialectProfile::by_name(dialect),
+        crate::environment::analyser_profile_for_dialect(dialect),
         &command_registry,
     );
     for (matched, handler) in
@@ -2689,7 +2681,7 @@ fn serialise_source_map_units(result: &ExplorerResult) -> Value {
 fn serialise_stats(result: &ExplorerResult) -> Value {
     let registry_held = registry_for_dialect(&result.dialect);
     let registry = &*registry_held;
-    let dialect = DialectProfile::resolve_known(&result.dialect);
+    let dialect = crate::environment::known_profile_for_dialect(&result.dialect);
 
     let unreachable: usize = result
         .all_snapshots()
@@ -2802,7 +2794,7 @@ fn walk_barriers(script: &Script, scope: &str, out: &mut Vec<Ann>) {
 fn serialise_annotations(result: &ExplorerResult, li: &LineIndex, source: &str) -> (Value, Value) {
     let registry_held = registry_for_dialect(&result.dialect);
     let registry = &*registry_held;
-    let dialect = DialectProfile::resolve_known(&result.dialect);
+    let dialect = crate::environment::known_profile_for_dialect(&result.dialect);
     let mut anns: Vec<Ann> = Vec::new();
 
     // Barriers (IR walk).

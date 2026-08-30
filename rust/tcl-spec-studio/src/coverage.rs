@@ -78,7 +78,7 @@ use tcl_registry::lifecycle::Lifecycle;
 use tcl_registry::repeated::RepeatedArgLayout;
 use tcl_registry::side_effects::SideEffect;
 use tcl_registry::spec::{
-    BytePayloadSpec, CaseListSpec, CommandSpec, ObjectClassSpec, OptionConstraint, SubCommand,
+    BytePayloadSpec, CaseListSpec, CommandSpec, ObjectClassSpec, OptionRelation, SubCommand,
     SubSubCommand, VersionedArgValue,
 };
 use tcl_registry::symbol_def::SymbolDef;
@@ -137,9 +137,7 @@ const NAMED_CONSTANT: &str = "the studio edits the whole descriptor as one Rust 
      registry constant (`Some(&definer::SNIT_GRAMMAR)`); authoring a new one is an edit \
      to the registry module that owns it, not a form field";
 
-// ---------------------------------------------------------------------------
 // CommandSpec
-// ---------------------------------------------------------------------------
 
 /// Compile-time witness that [`COMMAND_SPEC`] accounts for every
 /// [`CommandSpec`] field.
@@ -168,8 +166,8 @@ pub fn witness_command_spec(spec: &CommandSpec) {
     // `Surface::Excluded("why")` and skip the first two.
     let CommandSpec {
         name: _, traits: _,
-        dialects: _,
-        arity: _, arity_windows: _, arg_rows: _,
+        surface: _,
+        arity: _, arity_windows: _,
         arg_roles: _,
         arg_role_resolver: _,
         arg_presentation: _,
@@ -224,7 +222,9 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         event_handler_priority: _,
         irules_top_level_effect: _,
         options: _,
-        option_constraints: _,
+        option_relations: _,
+        constraints: _,
+        option_placement: _,
         reserved_trailing_words: _,
         arg_values: _, versioned_arg_values: _,
         body_kind: _,
@@ -250,7 +250,6 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         warn_missing_import: _,
         is_namespace_exported: _,
         xc_translatable: _,
-        xc_operation: _,
         deprecated_replacement: _,
         deprecated_replacement_drop_in: _,
         byte_array_payload: _,
@@ -276,10 +275,9 @@ pub fn witness_command_spec(spec: &CommandSpec) {
 pub const COMMAND_SPEC: &[Field] = &[
     f("name", Surface::Key("name")),
     f("traits", Surface::Key("traits")),
-    f("dialects", Surface::Key("dialects")),
+    f("surface", Surface::Key("surface")),
     f("arity", Surface::Key("arity")),
     f("arity_windows", Surface::Key("arity_windows")),
-    f("arg_rows", Surface::Key("arg_rows")),
     f("arg_roles", Surface::Key("arg_roles")),
     f("arg_role_resolver", Surface::Key("arg_role_resolver")),
     f("arg_presentation", Surface::Key("arg_presentation")),
@@ -371,7 +369,9 @@ pub const COMMAND_SPEC: &[Field] = &[
         Surface::Key("irules_top_level_effect"),
     ),
     f("options", Surface::Key("options")),
-    f("option_constraints", Surface::Key("option_constraints")),
+    f("option_relations", Surface::Key("option_relations")),
+    f("constraints", Surface::Key("constraints")),
+    f("option_placement", Surface::Key("option_placement")),
     f(
         "reserved_trailing_words",
         Surface::Key("reserved_trailing_words"),
@@ -423,7 +423,6 @@ pub const COMMAND_SPEC: &[Field] = &[
         Surface::Key("is_namespace_exported"),
     ),
     f("xc_translatable", Surface::Key("xc_translatable")),
-    f("xc_operation", Surface::Key("xc_operation")),
     f(
         "deprecated_replacement",
         Surface::Key("deprecated_replacement"),
@@ -452,9 +451,7 @@ pub const COMMAND_SPEC: &[Field] = &[
     f("self_receiver_words", Surface::Key("self_receiver_words")),
 ];
 
-// ---------------------------------------------------------------------------
 // SubCommand
-// ---------------------------------------------------------------------------
 
 /// Compile-time witness that [`SUB_COMMAND`] accounts for every
 /// [`SubCommand`] field — see [`witness_command_spec`] for what to do when it
@@ -466,7 +463,6 @@ pub fn witness_sub_command(sub: &SubCommand) {
         traits: _,
         arity: _,
         arity_windows: _,
-        arg_rows: _,
         detail: _,
         synopsis: _,
         hover: _,
@@ -494,7 +490,9 @@ pub fn witness_sub_command(sub: &SubCommand) {
         analyser_hook: _,
         command_table_effect: _,
         options: _,
-        option_constraints: _,
+        option_relations: _,
+        constraints: _,
+        option_placement: _,
         min_abbrev: _,
         prefix_matching: _,
         arg_values: _,
@@ -502,7 +500,7 @@ pub fn witness_sub_command(sub: &SubCommand) {
         subcommand_forms: _,
         semantic_operation: _,
         completion: _,
-        dialects: _,
+        surface: _,
         lifecycle: _,
         safe_on_uninit: _,
         loop_list_header: _,
@@ -520,7 +518,6 @@ pub fn witness_sub_command(sub: &SubCommand) {
         sensitive_headers: _,
         pattern_type: _,
         format_string_type: _,
-        xc_operation: _,
         side_effects: _,
         world_effects: _,
         state_transitions: _,
@@ -544,7 +541,6 @@ pub const SUB_COMMAND: &[Field] = &[
     f("traits", Surface::Key("traits")),
     f("arity", Surface::Key("arity")),
     f("arity_windows", Surface::Key("arity_windows")),
-    f("arg_rows", Surface::Key("arg_rows")),
     f("detail", Surface::Key("detail")),
     f("synopsis", Surface::Key("synopsis")),
     f("hover", Surface::Key("hover")),
@@ -584,7 +580,9 @@ pub const SUB_COMMAND: &[Field] = &[
     f("analyser_hook", Surface::Key("analyser_hook")),
     f("command_table_effect", Surface::Key("command_table_effect")),
     f("options", Surface::Key("options")),
-    f("option_constraints", Surface::Key("option_constraints")),
+    f("option_relations", Surface::Key("option_relations")),
+    f("constraints", Surface::Key("constraints")),
+    f("option_placement", Surface::Key("option_placement")),
     f("min_abbrev", Surface::Key("min_abbrev")),
     f("prefix_matching", Surface::Key("prefix_matching")),
     f("arg_values", Surface::Key("arg_values")),
@@ -592,7 +590,7 @@ pub const SUB_COMMAND: &[Field] = &[
     f("subcommand_forms", Surface::Key("subcommand_forms")),
     f("semantic_operation", Surface::Key("semantic_operation")),
     f("completion", Surface::Key("completion")),
-    f("dialects", Surface::Key("dialects")),
+    f("surface", Surface::Key("surface")),
     f("lifecycle", Surface::Keys(LIFECYCLE_KEYS)),
     f("safe_on_uninit", Surface::Key("safe_on_uninit")),
     f("loop_list_header", Surface::Key("loop_list_header")),
@@ -622,7 +620,6 @@ pub const SUB_COMMAND: &[Field] = &[
     f("sensitive_headers", Surface::Key("sensitive_headers")),
     f("pattern_type", Surface::Key("pattern_type")),
     f("format_string_type", Surface::Key("format_string_type")),
-    f("xc_operation", Surface::Key("xc_operation")),
     f("side_effects", Surface::Key("side_effects")),
     f("world_effects", Surface::Key("world_effects")),
     f("state_transitions", Surface::Key("state_transitions")),
@@ -647,7 +644,6 @@ pub const SUB_COMMAND: &[Field] = &[
     ),
 ];
 
-// ---------------------------------------------------------------------------
 // The nested types a draft carries structurally.
 //
 // These have no `FieldSchema` entry of their own: they are edited inside the
@@ -655,7 +651,6 @@ pub const SUB_COMMAND: &[Field] = &[
 // `side_effects`, …), so their draft keys are keys of the JSON object
 // `crate::draft` builds for the type.  Same gate, same rule — a new field on
 // any of them fails to compile until it is carried or excluded.
-// ---------------------------------------------------------------------------
 
 /// Compile-time witness for [`SUB_SUB_COMMAND`].
 pub fn witness_sub_sub_command(sub: &SubSubCommand) {
@@ -663,7 +658,7 @@ pub fn witness_sub_sub_command(sub: &SubSubCommand) {
         name: _,
         detail: _,
         synopsis: _,
-        dialects: _,
+        surface: _,
         lifecycle: _,
         options: _,
     } = sub;
@@ -674,7 +669,7 @@ pub const SUB_SUB_COMMAND: &[Field] = &[
     f("name", Surface::Key("name")),
     f("detail", Surface::Key("detail")),
     f("synopsis", Surface::Key("synopsis")),
-    f("dialects", Surface::Key("dialects")),
+    f("surface", Surface::Key("surface")),
     f("lifecycle", Surface::Keys(LIFECYCLE_KEYS)),
     f("options", Surface::Key("options")),
 ];
@@ -685,7 +680,7 @@ pub fn witness_option_spec(opt: &OptionSpec) {
         name: _,
         value: _,
         detail: _,
-        dialects: _,
+        surface: _,
         aliases: _,
         lifecycle: _,
         min_abbrev: _,
@@ -697,7 +692,7 @@ pub const OPTION_SPEC: &[Field] = &[
     f("name", Surface::Key("name")),
     f("value", Surface::Key("value")),
     f("detail", Surface::Key("detail")),
-    f("dialects", Surface::Key("dialects")),
+    f("surface", Surface::Key("surface")),
     f("aliases", Surface::Key("aliases")),
     f("lifecycle", Surface::Keys(LIFECYCLE_KEYS)),
     f("min_abbrev", Surface::Key("min_abbrev")),
@@ -768,7 +763,7 @@ pub fn witness_form_spec(form: &FormSpec) {
     let FormSpec {
         kind: _,
         synopsis: _,
-        dialects: _,
+        surface: _,
         lifecycle: _,
     } = form;
 }
@@ -777,7 +772,7 @@ pub fn witness_form_spec(form: &FormSpec) {
 pub const FORM_SPEC: &[Field] = &[
     f("kind", Surface::Key("kind")),
     f("synopsis", Surface::Key("synopsis")),
-    f("dialects", Surface::Key("dialects")),
+    f("surface", Surface::Key("surface")),
     f("lifecycle", Surface::Keys(LIFECYCLE_KEYS)),
 ];
 
@@ -810,7 +805,7 @@ pub fn witness_side_effect(effect: &SideEffect) {
         reads: _,
         writes: _,
         connection_side: _,
-        dialects: _,
+        surface: _,
         lifecycle: _,
     } = effect;
 }
@@ -821,7 +816,7 @@ pub const SIDE_EFFECT: &[Field] = &[
     f("reads", Surface::Key("reads")),
     f("writes", Surface::Key("writes")),
     f("connection_side", Surface::Key("connection_side")),
-    f("dialects", Surface::Key("dialects")),
+    f("surface", Surface::Key("surface")),
     f("lifecycle", Surface::Keys(LIFECYCLE_KEYS)),
 ];
 
@@ -895,7 +890,6 @@ pub const LIFECYCLE: &[Field] = &[
     f("deprecation_fix", Surface::Key("deprecation_fix")),
 ];
 
-// ---------------------------------------------------------------------------
 // Plain-data descriptors.
 //
 // Each of these is pure data, so `crate::draft` renders it back out as a full
@@ -903,7 +897,6 @@ pub const LIFECYCLE: &[Field] = &[
 // that carries it, and
 // `descriptor_literals_name_every_field` proves the rendered literal really
 // mentions each one.
-// ---------------------------------------------------------------------------
 
 /// Compile-time witness for [`REPEATED_ARG_LAYOUT`].
 pub fn witness_repeated_arg_layout(layout: &RepeatedArgLayout) {
@@ -996,23 +989,31 @@ pub const BYTE_PAYLOAD_SPEC: &[Field] = &[
 ];
 
 /// Compile-time witness for [`OPTION_CONSTRAINT`].
-pub fn witness_option_constraint(constraint: &OptionConstraint) {
-    let OptionConstraint {
-        options: _,
-        dialects: _,
+pub fn witness_option_constraint(constraint: &OptionRelation) {
+    let OptionRelation {
+        kind: _,
+        mode: _,
+        subject: _,
+        terms: _,
+        surface: _,
         lifecycle: _,
+        message: _,
     } = constraint;
 }
 
-/// Where the studio surfaces each [`OptionConstraint`] field.
+/// Where the studio surfaces each [`OptionRelation`] field.
 ///
-/// The whole constraint is one `RustExpr` — `option_constraints` holds a
-/// rendered `&[OptionConstraint { … }]` — so every field is spelled in that
+/// The whole constraint is one `RustExpr` — `option_relations` holds a
+/// rendered `&[OptionRelation { … }]` — so every field is spelled in that
 /// literal rather than getting a picker of its own.
 pub const OPTION_CONSTRAINT: &[Field] = &[
-    f("options", Surface::Expression("option_constraints")),
-    f("dialects", Surface::Expression("option_constraints")),
-    f("lifecycle", Surface::Expression("option_constraints")),
+    f("kind", Surface::Expression("option_relations")),
+    f("mode", Surface::Expression("option_relations")),
+    f("subject", Surface::Expression("option_relations")),
+    f("terms", Surface::Expression("option_relations")),
+    f("surface", Surface::Expression("option_relations")),
+    f("lifecycle", Surface::Expression("option_relations")),
+    f("message", Surface::Expression("option_relations")),
 ];
 
 /// Compile-time witness for [`VERSIONED_ARG_VALUE`].
@@ -1031,14 +1032,12 @@ pub const VERSIONED_ARG_VALUE: &[Field] = &[
     f("lifecycle", Surface::Expression("versioned_arg_values")),
 ];
 
-// ---------------------------------------------------------------------------
 // Shared `&'static` descriptors.
 //
 // A grammar / class / clause-list descriptor is written once in the registry
 // module that owns it and referenced by every command that needs it, so the
 // studio's editor takes the *constant's path* rather than its contents.  Every
 // field is still listed here: the gate makes a new one a stated decision.
-// ---------------------------------------------------------------------------
 
 /// Compile-time witness for [`DEFINITION_BODY_GRAMMAR`].
 pub fn witness_definition_body_grammar(grammar: &DefinitionBodyGrammar) {
@@ -1189,7 +1188,7 @@ pub const OBJECT_CLASS_SPEC: &[Field] = &[
 pub fn witness_case_list_spec(spec: &CaseListSpec) {
     let CaseListSpec {
         subject_args: _,
-        two_arg_optionless_dialects: _,
+        two_arg_optionless_surface: _,
         regex_option: _,
         exact_option: _,
         glob_option: _,
@@ -1217,7 +1216,7 @@ pub fn witness_case_list_spec(spec: &CaseListSpec) {
 pub const CASE_LIST_SPEC: &[Field] = &[
     f("subject_args", Surface::Excluded(NAMED_CONSTANT)),
     f(
-        "two_arg_optionless_dialects",
+        "two_arg_optionless_surface",
         Surface::Excluded(NAMED_CONSTANT),
     ),
     f("regex_option", Surface::Excluded(NAMED_CONSTANT)),
@@ -1425,7 +1424,7 @@ mod tests {
             &object_keys("SideEffect", &effect),
         );
 
-        witness_option_constraint(&OptionConstraint::DEFAULT);
+        witness_option_constraint(&OptionRelation::DEFAULT);
         witness_setter_constraint(&SETTER);
         let constraint = draft::setter_constraint(&SETTER);
         assert_carried(
@@ -1570,9 +1569,12 @@ mod tests {
         lifecycle: Lifecycle::UNSPECIFIED,
     };
 
-    const WITNESS_CONSTRAINTS: &[OptionConstraint] = &[OptionConstraint {
-        options: &["-glob", "-regexp"],
-        ..OptionConstraint::DEFAULT
+    const WITNESS_CONSTRAINTS: &[OptionRelation] = &[OptionRelation {
+        terms: &[
+            tcl_registry::OptionTerm::Option("-glob"),
+            tcl_registry::OptionTerm::Option("-regexp"),
+        ],
+        ..OptionRelation::DEFAULT
     }];
 
     const WITNESS_SUBS: &[SubCommand] = &[SubCommand {
@@ -1598,7 +1600,7 @@ mod tests {
             defines_symbol: Some(WITNESS_SYMBOL),
             oo_context_facts: &[("class", OoContextFactWitness::FACT)],
             manufacturer_methods: WITNESS_MANUFACTURERS,
-            option_constraints: WITNESS_CONSTRAINTS,
+            option_relations: WITNESS_CONSTRAINTS,
             subcommands: WITNESS_SUBS,
             ..CommandSpec::DEFAULT
         }
@@ -1699,7 +1701,7 @@ mod tests {
             ("SymbolDef", SYMBOL_DEF),
             ("BytePayloadSpec", BYTE_PAYLOAD_SPEC),
             ("VersionedArgValue", VERSIONED_ARG_VALUE),
-            ("OptionConstraint", OPTION_CONSTRAINT),
+            ("OptionRelation", OPTION_CONSTRAINT),
             ("ManufacturerMethod", MANUFACTURER_METHOD),
         ] {
             for field in table {

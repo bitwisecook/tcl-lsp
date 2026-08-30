@@ -27,7 +27,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "control::control",
-        dialects: None,
+        surface: None,
         arity: Arity::at_least(2),
         hover: Some(HoverSnippet {
             summary: "Configure the customizable commands of the control package.",

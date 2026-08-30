@@ -28,7 +28,7 @@
 use tcl_compiler::analyser::Analyser;
 use tcl_lsp_core::definition::LspRange;
 use tcl_lsp_core::inlay_hints::{InlayHint, InlayHintKind, inlay_hints};
-use tcl_registry::registry_for_dialect;
+use tcl_registry::model::ingress::static_context_for;
 
 const FULL: LspRange = LspRange {
     start_line: 0,
@@ -38,12 +38,12 @@ const FULL: LspRange = LspRange {
 };
 
 fn hints_range(source: &str, range: LspRange) -> Vec<InlayHint> {
-    let registry = registry_for_dialect("tcl8.6");
+    let registry = static_context_for("tcl8.6").commands();
     let mut analyser = Analyser::new();
     let analysis = analyser.analyse(source, "tcl8.6");
     inlay_hints(
         source,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         range,
         Some(&analysis),
         Some(registry),

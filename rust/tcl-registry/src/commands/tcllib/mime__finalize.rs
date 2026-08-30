@@ -26,7 +26,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "mime::finalize",
-        dialects: None,
+        surface: None,
         arity: Arity::new(1, 3),
         hover: Some(HoverSnippet {
             summary: "Destroy a MIME part and free resources.",

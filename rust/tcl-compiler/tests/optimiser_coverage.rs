@@ -62,19 +62,18 @@ use tcl_compiler::optimiser::manager::{
     apply_optimisations, optimise_source_multipass, optimise_with_dialect,
 };
 use tcl_compiler::shimmer::{find_shimmer_warnings_for_cu, find_thunking_warnings_for_cu};
-use tcl_registry::registry_for_dialect;
+use tcl_registry::model::ingress::static_context_for;
 
 const TCL: &str = "tcl8.6";
 const IR: &str = "f5-irules";
 
-// ---------------------------------------------------------------------------
 // Helpers (mirror optimiser.rs: opt_codes / opt_fires / optimised)
-// ---------------------------------------------------------------------------
 
 /// Sorted, de-duplicated `Oxxx` codes emitted by a single optimiser pass.
 fn opt_codes(src: &str, dialect: &str) -> Vec<String> {
-    let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let registry = static_context_for(dialect).commands();
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     let mut v: Vec<String> = optimise_with_dialect(src, registry, d)
         .iter()
         .map(|o| o.code.as_str().to_owned())
@@ -86,8 +85,9 @@ fn opt_codes(src: &str, dialect: &str) -> Vec<String> {
 
 /// True if any optimisation with `code` fires on `src` under `dialect`.
 fn opt_fires(src: &str, dialect: &str, code: &str) -> bool {
-    let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let registry = static_context_for(dialect).commands();
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     optimise_with_dialect(src, registry, d)
         .iter()
         .any(|o| o.code.as_str() == code)
@@ -100,15 +100,17 @@ fn opt_absent(src: &str, dialect: &str, code: &str) -> bool {
 
 /// Apply all optimisations and return the rewritten source.
 fn optimised(src: &str, dialect: &str) -> String {
-    let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let registry = static_context_for(dialect).commands();
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     apply_optimisations(src, &optimise_with_dialect(src, registry, d))
 }
 
 /// True if any emitted code is in `wanted`.
 fn opt_any_of(src: &str, dialect: &str, wanted: &[&str]) -> bool {
-    let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let registry = static_context_for(dialect).commands();
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     optimise_with_dialect(src, registry, d)
         .iter()
         .any(|o| wanted.contains(&o.code.as_str()))
@@ -121,7 +123,7 @@ fn opt_any_of(src: &str, dialect: &str, wanted: &[&str]) -> bool {
 /// `FunctionUnit` path fails closed unless an occurrence has exact
 /// common-semantic registry facts, which has separate boundary tests in `gvn`.
 fn legacy_gvn_codes(src: &str) -> Vec<String> {
-    let registry = registry_for_dialect(TCL);
+    let registry = static_context_for(TCL).commands();
     let cu = CompilationUnit::build_for(src, registry, false);
     let mut v: Vec<String> = Vec::new();
     for function in cu.analysable_functions() {
@@ -129,7 +131,7 @@ fn legacy_gvn_codes(src: &str) -> Vec<String> {
             registry,
             &function.cfg,
             &function.ssa,
-            Some(tcl_dialect::DialectProfile::by_name(TCL)),
+            Some(tcl_registry::model::ingress::resolve_environment(TCL).analyser_profile()),
         ) {
             v.push(redundancy.code.as_str().to_owned());
         }
@@ -140,7 +142,7 @@ fn legacy_gvn_codes(src: &str) -> Vec<String> {
 
 /// Shimmer-warning codes (S100/S101 + S102 thunking).
 fn shimmer_codes(src: &str) -> Vec<String> {
-    let registry = registry_for_dialect(TCL);
+    let registry = static_context_for(TCL).commands();
     let cu = CompilationUnit::build_for(src, registry, false);
     let mut v: Vec<String> = Vec::new();
     for w in find_shimmer_warnings_for_cu(&cu, registry) {
@@ -167,9 +169,7 @@ fn int_x(body: &str) -> String {
     )
 }
 
-// ===========================================================================
 // O100 — constant propagation into expressions
-// ===========================================================================
 
 #[test]
 fn o100_constant_propagation() {
@@ -195,11 +195,11 @@ fn o100_constant_propagation() {
     // (`set a 2`) needs the fixpoint helper to reach the fold (one pass removes
     // the dead store and forwards the literal; the multipass folds `b`), as in
     // optimiser.rs.
-    let registry = registry_for_dialect(TCL);
+    let registry = static_context_for(TCL).commands();
     let (reassign, _) = optimise_source_multipass(
         "set a 1\nset a 2\nset b [expr {$a + 1}]",
         registry,
-        Some(tcl_dialect::DialectProfile::by_name(TCL)),
+        Some(tcl_registry::model::ingress::resolve_environment(TCL).analyser_profile()),
         10,
     );
     assert!(reassign.contains("set b 3"));
@@ -217,9 +217,7 @@ fn o100_constant_propagation() {
     );
 }
 
-// ===========================================================================
 // O101 — fold pure constant expressions
-// ===========================================================================
 
 #[test]
 fn o101_constant_folding_arithmetic() {
@@ -422,9 +420,7 @@ fn o101_module_wide_variable_trace_guard() {
     ));
 }
 
-// ===========================================================================
 // O102 — fold [expr {...}] command substitution
-// ===========================================================================
 
 #[test]
 fn o102_expr_command_substitution() {
@@ -449,7 +445,6 @@ fn o102_expr_command_substitution() {
     ));
 }
 
-// ===========================================================================
 // O102 — variable-trace / aliasing / frame-crossing safety
 //
 // Regression coverage for a confirmed silent miscompile: `run_load_forwarding`
@@ -462,7 +457,6 @@ fn o102_expr_command_substitution() {
 // through. Each `tclsh:` value was checked against `tclsh` 8.6.14 — trace,
 // `interp eval`, `uplevel`, and `unset` semantics are unchanged across
 // 8.4-9.0, so the same value holds under every dialect this suite targets.
-// ===========================================================================
 
 #[test]
 fn o102_read_trace_via_helper_proc_blocks_forward() {
@@ -877,9 +871,7 @@ fn o107_dynamic_variable_trace_target_blocks_elimination() {
     assert!(optimised(src, TCL).contains("puts no"));
 }
 
-// ===========================================================================
 // O103 — interprocedural folding
-// ===========================================================================
 
 #[test]
 fn o103_interprocedural_folding() {
@@ -922,9 +914,7 @@ fn o103_interprocedural_folding() {
     ));
 }
 
-// ===========================================================================
 // O104 — fold string build chains
-// ===========================================================================
 
 #[test]
 fn o104_string_build_chain() {
@@ -983,9 +973,7 @@ fn o104_string_build_chain() {
     ));
 }
 
-// ===========================================================================
 // O100 / O105 — propagate constants into command refs and strings
-// ===========================================================================
 
 #[test]
 fn o100_o105_const_ref_propagation() {
@@ -1050,9 +1038,7 @@ fn o100_o105_const_ref_propagation() {
     assert!(opt_absent(arr, TCL, "O100"));
 }
 
-// ===========================================================================
 // O107 / O108 / O109 — dead code & dead store elimination
-// ===========================================================================
 
 #[test]
 fn o107_dead_code_in_false_branch() {
@@ -1121,9 +1107,7 @@ fn o109_dead_store_elimination() {
     assert!(opt_fires(byname_tp, TCL, "O109"));
 }
 
-// ===========================================================================
 // O110 — InstCombine: reassociation / identity / annihilator
-// ===========================================================================
 
 #[test]
 fn o110_reassociation() {
@@ -1377,9 +1361,7 @@ fn o110_no_instcombine_with_command_subst() {
     ));
 }
 
-// ===========================================================================
 // O112 — structure elimination
-// ===========================================================================
 
 #[test]
 fn o112_if_elimination() {
@@ -1478,20 +1460,18 @@ fn o112_nested_via_multipass() {
     // `if {0}` dead block.
     let nested = "if {1} {\n    if {0} {\n        set dead 1\n    }\n    set alive 2\n}";
     assert!(optimised(nested, TCL).contains("set alive 2"));
-    let registry = registry_for_dialect(TCL);
+    let registry = static_context_for(TCL).commands();
     let (fixed, _) = optimise_source_multipass(
         nested,
         registry,
-        Some(tcl_dialect::DialectProfile::by_name(TCL)),
+        Some(tcl_registry::model::ingress::resolve_environment(TCL).analyser_profile()),
         10,
     );
     assert!(!fixed.contains("set dead 1"));
     assert!(fixed.contains("set alive 2"));
 }
 
-// ===========================================================================
 // O113 — strength reduction
-// ===========================================================================
 
 #[test]
 fn o113_strength_reduction() {
@@ -1516,9 +1496,7 @@ fn o113_strength_reduction() {
     assert!(opt_absent("if {[clock seconds] ** 2} {}", TCL, "O113"));
 }
 
-// ===========================================================================
 // O114 — incr idiom recognition (needs SSA-known INT type, kept live)
-// ===========================================================================
 
 #[test]
 fn o114_incr_idiom() {
@@ -1558,9 +1536,7 @@ fn o114_incr_idiom() {
     ));
 }
 
-// ===========================================================================
 // O115 — redundant nested expr elimination
-// ===========================================================================
 
 #[test]
 fn o115_nested_expr_unwrap() {
@@ -1583,9 +1559,7 @@ fn o115_nested_expr_unwrap() {
     // `set y [expr {[expr {...}]}]` are not unwrapped (only if/return paths fire).
 }
 
-// ===========================================================================
 // O116 — constant list folding
-// ===========================================================================
 
 #[test]
 fn o116_list_folding() {
@@ -1612,9 +1586,7 @@ fn o116_list_folding() {
     assert!(opt_absent("set x [list \"a b\" c]\nputs $x", TCL, "O116"));
 }
 
-// ===========================================================================
 // O117 — string length zero-check simplification
-// ===========================================================================
 
 #[test]
 fn o117_strlen_zero_check() {
@@ -1636,9 +1608,7 @@ fn o117_strlen_zero_check() {
     assert!(opt_absent("if {0 < [string length $s]} {}", TCL, "O117"));
 }
 
-// ===========================================================================
 // O118 — constant lindex folding
-// ===========================================================================
 
 #[test]
 fn o118_lindex_folding() {
@@ -1691,9 +1661,7 @@ fn o118_lindex_folding() {
     );
 }
 
-// ===========================================================================
 // O119 — multi-set packing
-// ===========================================================================
 
 #[test]
 fn o119_multi_set_packing() {
@@ -1718,9 +1686,7 @@ fn o119_multi_set_packing() {
     );
 }
 
-// ===========================================================================
 // O120 — prefer eq/ne for string comparisons
-// ===========================================================================
 
 #[test]
 fn o120_string_compare_eq_ne() {
@@ -1780,9 +1746,7 @@ fn o120_with_sccp_const_and_mixed() {
     assert!(opt_fires(vv, TCL, "O112"));
 }
 
-// ===========================================================================
 // De Morgan / inversion — exercised via O110 rewrites
-// ===========================================================================
 
 #[test]
 fn demorgan_logic_via_o110() {
@@ -1835,13 +1799,11 @@ fn invert_logic_covers_tip461_and_membership_operators() {
     assert!(optimised("set v [expr {!($a ni $b)}]", TCL9).contains("$a in $b"));
 }
 
-// ===========================================================================
 // apply_optimisations / find_optimisations — edge cases
-// ===========================================================================
 
 #[test]
 fn apply_optimisations_edge_cases() {
-    let registry = registry_for_dialect(TCL);
+    let registry = static_context_for(TCL).commands();
     // Empty optimisation set ⇒ source unchanged.
     assert_eq!(apply_optimisations("set x 1", &[]), "set x 1");
 
@@ -1861,7 +1823,7 @@ fn apply_optimisations_edge_cases() {
     let opts = optimise_with_dialect(
         src,
         registry,
-        Some(tcl_dialect::DialectProfile::by_name(TCL)),
+        Some(tcl_registry::model::ingress::resolve_environment(TCL).analyser_profile()),
     );
     let starts: Vec<u32> = opts.iter().map(|o| o.span.start()).collect();
     let mut sorted = starts.clone();
@@ -1872,9 +1834,7 @@ fn apply_optimisations_edge_cases() {
     );
 }
 
-// ===========================================================================
 // Variable-shape guardrails — array/namespaced refs not rewritten
-// ===========================================================================
 
 #[test]
 fn variable_shape_guardrails() {
@@ -1891,9 +1851,7 @@ fn variable_shape_guardrails() {
     }
 }
 
-// ===========================================================================
 // Cross-event DSE guardrails (f5-irules) — stores read in a later event survive
-// ===========================================================================
 
 #[test]
 fn cross_event_dse_guardrails() {
@@ -1909,9 +1867,7 @@ fn cross_event_dse_guardrails() {
     assert!(optimised(flag, IR).contains("set ans_cleared"));
 }
 
-// ===========================================================================
 // Shimmer detection — S100 / S101 / S102
-// ===========================================================================
 
 #[test]
 fn shimmer_no_false_positives() {
@@ -1974,9 +1930,7 @@ fn shimmer_loop_paths_no_crash() {
     );
 }
 
-// ===========================================================================
 // GVN / CSE — explicit legacy algorithm coverage (O105)
-// ===========================================================================
 
 #[test]
 fn legacy_gvn_cse_detection() {
@@ -2014,9 +1968,7 @@ fn legacy_gvn_cse_detection() {
     assert!(optimised(clk, TCL).contains("set b [clock seconds]"));
 }
 
-// ===========================================================================
 // Edge cases and robustness — must not crash, well-formed results
-// ===========================================================================
 
 #[test]
 fn edge_cases_no_crash() {
@@ -2092,9 +2044,7 @@ fn robustness_malformed_inputs() {
     assert!(bracelit.contains("$not_a_var")); // tclsh: prints literal "$not_a_var"
 }
 
-// ===========================================================================
 // O124 — comment out unused procs (f5-irules only)
-// ===========================================================================
 
 #[test]
 fn o124_unused_irule_procs() {
@@ -2147,9 +2097,7 @@ fn o124_unused_irule_procs() {
     assert!(opt_fires(unreach, IR, "O124"));
 }
 
-// ===========================================================================
 // O121 / O122 / O123 — tail-call / loop / accumulator
-// ===========================================================================
 
 #[test]
 fn tail_call_o121_o122_o123() {
@@ -2177,9 +2125,7 @@ fn tail_call_o121_o122_o123() {
     assert!(opt_absent(fib, TCL, "O122"));
 }
 
-// ===========================================================================
 // O125 — code sinking
-// ===========================================================================
 
 #[test]
 fn o125_code_sinking() {
@@ -2208,9 +2154,7 @@ fn o125_code_sinking() {
     assert!(optimised(with120, TCL).contains("$kind eq \"x\""));
 }
 
-// ===========================================================================
 // O127 — single-use store-to-load forwarding (proc-local)
-// ===========================================================================
 
 #[test]
 fn o127_load_forwarding() {
@@ -2264,9 +2208,7 @@ fn o127_load_forwarding() {
     // is not honoured.
 }
 
-// ===========================================================================
 // Pass interactions — composed rewrites
-// ===========================================================================
 
 #[test]
 fn pass_interactions() {
@@ -2319,9 +2261,7 @@ fn pass_interactions() {
     assert!(opt_any_of(expr_eq, TCL, &["O120", "O110"]));
 }
 
-// ===========================================================================
 // Profile directive survival + multipass string-build collapse
-// ===========================================================================
 
 #[test]
 fn profile_directive_and_multipass() {
@@ -2337,12 +2277,12 @@ fn profile_directive_and_multipass() {
     // Multipass: a write-only string build in a proc collapses to a single
     // `return {Hello World}`; the intermediate local is removed. tclsh: the proc
     // returns "Hello World" either way.
-    let registry = registry_for_dialect(TCL);
+    let registry = static_context_for(TCL).commands();
     let build = "proc build_banner {} {\n    set msg {Hello}\n    append msg { }\n    append msg World\n    return $msg\n}\n";
     let (mp, _) = optimise_source_multipass(
         build,
         registry,
-        Some(tcl_dialect::DialectProfile::by_name(TCL)),
+        Some(tcl_registry::model::ingress::resolve_environment(TCL).analyser_profile()),
         10,
     );
     assert!(mp.contains("return {Hello World}"));

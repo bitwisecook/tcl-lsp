@@ -18,10 +18,11 @@
 
 //! `UDP::respond` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "UDP::respond",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Sends data directly to a peer.",
@@ -42,9 +43,7 @@ pub const fn spec() -> CommandSpec {
                 "SIP_RESPONSE",
                 "STREAM_MATCHED",
             ],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "UDP::respond RESPONSE_STRING",

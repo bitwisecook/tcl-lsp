@@ -38,6 +38,7 @@
 use crate::prelude::*;
 
 use super::SOURCE;
+use tcl_dialect::model::SpecSurface;
 
 /// A bare-block statement: `hover { … }` / `NAME` / `none`.
 fn block(
@@ -49,7 +50,7 @@ fn block(
     CommandSpec {
         name,
         traits: Traits::CREATES_BARRIER | Traits::NEVER_INLINE_BODY | Traits::LANGUAGE_KEYWORD,
-        dialects: Some(DialectSet::SPECTCL),
+        surface: Some(SpecSurface::SPECTCL),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary,
@@ -146,7 +147,7 @@ fn descriptor() -> CommandSpec {
     CommandSpec {
         name: "descriptor",
         traits: Traits::CREATES_BARRIER | Traits::NEVER_INLINE_BODY | Traits::LANGUAGE_KEYWORD,
-        dialects: Some(DialectSet::SPECTCL),
+        surface: Some(SpecSurface::SPECTCL),
         arity: Arity::exact(3),
         hover: Some(HoverSnippet {
             summary: "Declare a shared, named block-valued descriptor.",
@@ -174,7 +175,7 @@ fn hook() -> CommandSpec {
     CommandSpec {
         name: "hook",
         traits: Traits::CREATES_BARRIER | Traits::NEVER_INLINE_BODY | Traits::LANGUAGE_KEYWORD,
-        dialects: Some(DialectSet::SPECTCL),
+        surface: Some(SpecSurface::SPECTCL),
         arity: Arity::exact(3),
         hover: Some(HoverSnippet {
             summary: "Declare a shared hook body.",
@@ -233,6 +234,26 @@ fn ambient_package_statement() -> CommandSpec {
         Arity::exact(2),
         "Declare a package the dialect provides with no `package require`.",
         "One row per package (`ambient_package mylib 2.1`). The version is the one the environment guarantees, and it floors that package for every document the pack is active in — so a call gated on `mylib 2.1` is not reported as needing a require the runtime already satisfies. Both words are required: a row naming no version would floor at nothing, which is the situation the row exists to prevent, so it is dropped with a notice. Two active packs declaring different versions for one package compose by taking the greater.",
+    )
+}
+
+/// `environment NAME { … }` — a pack-declared environment (`SpecTcl` 2.0).
+fn environment_statement() -> CommandSpec {
+    super::statement(
+        "environment",
+        Arity::exact(2),
+        "Declare a selectable environment identity.",
+        "`environment NAME { … }` declares the selectable, aliasable identity a `# tcl-dialect:` directive, a settings string, or a detected file extension resolves to (redesign §3.3). Rows: `core FAMILY RELEASE ?-build P?`, `ambient PACKAGE VERSION|tracks-base|keyed KEY`, `hosted PACKAGE REQUIREMENT`, `alias NAME`, `editor_identity ID` (selected from the fixed contributed set, never minted), `file_extension EXT ?-name NAME?`, `filename NAME`, `signature TEXT`, `display_name TEXT`, and `policy open|closed|ambient-plus-require`. Every compiled environment name and alias is reserved: a block claiming one is rejected. Unknown rows are semantic-class vocabulary and reject the whole block; the pack's other content still loads.",
+    )
+}
+
+/// `dialect NAME { … }` — a pack-declared language family (`SpecTcl` 2.0).
+fn dialect_statement() -> CommandSpec {
+    super::statement(
+        "dialect",
+        Arity::exact(2),
+        "Declare a language family and its grammar axes.",
+        "`dialect NAME { … }` declares a language family: `release R ?-build P?` rows build the ladder, and `axis NAME VALUE` rows set values for axes Rust defines (`expand_syntax`, `braced_var`, `expr_comments`, `numbers`, `escapes`, `irules_brace_separator`, `bom_skip`). The axis vocabulary is CLOSED — a new axis is a Rust change, because the lexer has to implement it — so an unknown axis or an unknown value rejects the whole block and names the axis. A block whose axes reproduce an existing family release is not a dialect at all but a selection of one, and is rejected with the `environment` it should have been (redesign §2).",
     )
 }
 
@@ -333,6 +354,8 @@ pub(super) fn specs() -> Vec<CommandSpec> {
         display_name_statement(),
         file_extension_statement(),
         ambient_package_statement(),
+        environment_statement(),
+        dialect_statement(),
         // --- documentation ---
         CommandSpec {
             body_scope: Some(&SPECTCL_HOVER_ENV),

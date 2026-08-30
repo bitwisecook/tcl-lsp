@@ -707,10 +707,11 @@ pub fn extract_to_datagroup(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tcl_dialect::model::{Family, SurfaceLayer};
 
     fn reg() -> CommandRegistry {
         let mut r = CommandRegistry::build_default();
-        r.load_dialect(tcl_dialect::DialectSet::IRULES);
+        r.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         r
     }
 

@@ -18,10 +18,11 @@
 
 //! `ONECONNECT::select` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ONECONNECT::select",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Instruct the proxy to use persistence data as a OneConnect keying label when connecting to a server.",

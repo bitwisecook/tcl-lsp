@@ -20,6 +20,9 @@
 
 use crate::hooks::{InlineCodegenHookId, LoweringHookId};
 use crate::prelude::*;
+use tcl_dialect::model::Family;
+use tcl_dialect::model::SpecSurface;
+use tcl_dialect::surface;
 
 // Tcl 8.4's SYNOPSIS is the single line `return ?-code code? ?-errorinfo
 // info? ?-errorcode code? ?string?`: only -code, -errorinfo, and
@@ -38,17 +41,17 @@ const FORMS: &[FormSpec] = &[
         // OptionSpec below, and the 8.4 SYNOPSIS split immediately
         // below this entry) — this form's own `dialects` must say so
         // too rather than inheriting the command's unrestricted
-        // `dialects: None`, or it would claim `-level` is legal
+        // `surface: None`, or it would claim `-level` is legal
         // syntax in Tcl 8.4 and iRules (embedded Tcl 8.4.6), which it
         // is not: the 8.4 manpage's SYNOPSIS/body recognise only
         // -code/-errorinfo/-errorcode.
         synopsis: "return ?-code code? ?-level level? ?result?",
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         ..FormSpec::DEFAULT
     },
     FormSpec {
         // `TCL84 | IRULES`, not bare `TCL84`: these are separate
-        // `DialectSet` bits (iRules' own embedded-8.4.6 base doesn't
+        // `SpecSurface` bits (iRules' own embedded-8.4.6 base doesn't
         // imply the `TCL84` bit), and this form — return used inside a
         // `proc`, not directly in a `when EVENT { … }` body — is exactly
         // what an iRules-defined proc uses: the full Tcl 8.4
@@ -59,7 +62,10 @@ const FORMS: &[FormSpec] = &[
         // read as invisible to iRules even though it's the form every
         // iRules proc actually uses.
         synopsis: "return ?-code code? ?-errorinfo info? ?-errorcode code? ?string?",
-        dialects: Some(DialectSet::TCL84.union(DialectSet::IRULES)),
+        surface: Some(surface![
+            SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.5"))]),
+            SpecSurface::core(Family::F5Irules)
+        ]),
         ..FormSpec::DEFAULT
     },
     // F5 `return(1)`: directly inside a `when EVENT { … }` body, `return`
@@ -72,13 +78,13 @@ const FORMS: &[FormSpec] = &[
     // `f5-irules` profile in `tcl-dialect/src/profile.rs` pins
     // signature_base/runtime_base/version_ceiling all to 8.4), so
     // -level/-options/-errorstack can never resolve there regardless of
-    // context — their DialectSet gates can't intersect the bare IRULES
-    // availability mask (`ProfileQueries::is_option_available`). This
+    // context — their Tcl-version gates cannot admit the iRules point
+    // (`ResolvedContext::option_available`). This
     // entry narrows the *form*, not the command's own Tcl-version gating
-    // — return itself stays universal (`dialects: None` below).
+    // — return itself stays universal (`surface: None` below).
     FormSpec {
         synopsis: "return",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         ..FormSpec::DEFAULT
     },
 ];
@@ -186,7 +192,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[
     SideEffect {
         target: SideEffectTarget::EventControl,
         writes: true,
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         ..SideEffect::DEFAULT
     },
 ];
@@ -217,7 +223,7 @@ pub fn spec() -> CommandSpec {
         // *argument shape* narrows further inside an iRules event body
         // (see `FORMS` / `return_context_gate`) — neither of which is a
         // whole-command dialect gate.
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD
@@ -265,7 +271,7 @@ pub fn spec() -> CommandSpec {
                         ..OptionArg::DEFAULT
                     }),
                     detail: "Stack levels up the code applies to (default 1). 0 means this `return` itself returns -code. Must be 0..=2147483647; a negative or larger value is a hard error (unlike -code's integer, which never errors in this range).",
-                    dialects: Some(DialectSet::TCL85_PLUS),
+                    surface: Some(SpecSurface::TCL85_PLUS),
                     ..OptionSpec::DEFAULT
                 },
                 OptionSpec {
@@ -288,14 +294,14 @@ pub fn spec() -> CommandSpec {
                         ..OptionArg::DEFAULT
                     }),
                     detail: "Initial error stack (must be an even-sized list). Only meaningful with -code error.",
-                    dialects: Some(DialectSet::TCL86_PLUS),
+                    surface: Some(SpecSurface::TCL86_PLUS),
                     ..OptionSpec::DEFAULT
                 },
                 OptionSpec {
                     name: "-options",
                     value: OptionValue::value("dict"),
                     detail: "Dictionary of additional option/value pairs, merged in as if each had been given directly.",
-                    dialects: Some(DialectSet::TCL85_PLUS),
+                    surface: Some(SpecSurface::TCL85_PLUS),
                     ..OptionSpec::DEFAULT
                 },
             ]

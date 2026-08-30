@@ -27,7 +27,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "cmdline::getArgv0",
         traits: Traits::PURE,
-        dialects: None,
+        surface: None,
         arity: Arity::exact(0),
         hover: Some(HoverSnippet {
             summary: "Return the application name from the command line.",

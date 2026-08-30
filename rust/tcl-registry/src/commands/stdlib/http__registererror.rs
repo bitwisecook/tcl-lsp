@@ -18,6 +18,7 @@
 
 //! `http::registerError` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::Variable,
     writes: true,
@@ -27,7 +28,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "http::registerError",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Register or retrieve an error message for a protocol handler.",

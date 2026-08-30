@@ -29,7 +29,6 @@
 
 use std::collections::HashSet;
 
-use tcl_dialect::DialectSet;
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
 use tcl_registry::hooks::LoweringHookId;
@@ -133,10 +132,12 @@ pub fn try_lower_hook(
     cmd: &LoweringCommand<'_>,
     aliases: &CommandAliasMap,
     registry: &CommandRegistry,
+    context: Option<&tcl_registry::model::ResolvedContext>,
     safe_on_uninit: bool,
 ) -> Option<Statement> {
     let arg_refs: Vec<&str> = cmd.args.iter().map(String::as_str).collect();
-    let resolved = registry.resolve_invocation(cmd.name, &arg_refs, DialectSet::empty())?;
+    let resolved =
+        tcl_registry::model::resolve_invocation_in_context(registry, context, cmd.name, &arg_refs)?;
     let hook = resolved.semantics.lowering_hook?;
     dispatch_lowering_hook(hook, cmd, aliases, safe_on_uninit)
 }
@@ -739,7 +740,7 @@ mod tests {
         src: &str,
         dialect: &'static tcl_dialect::DialectProfile,
     ) -> Statement {
-        let registry = tcl_registry::cache::registry_for_profile(dialect);
+        let registry = tcl_registry::model::ingress::static_context_for_profile(dialect).commands();
         let m = crate::lowering::lower_to_ir_with_config(
             src,
             registry,
@@ -759,8 +760,10 @@ mod tests {
     fn lower_set_refuses_a_computed_name_under_an_expansionless_grammar() {
         for dialect in ["tcl8.4", "f5-irules"] {
             for src in ["set {*}$n 1", "set x$n 1", "set pre[f] 1"] {
-                let stmt =
-                    first_stmt_for_dialect(src, tcl_dialect::DialectProfile::by_name(dialect));
+                let stmt = first_stmt_for_dialect(
+                    src,
+                    tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+                );
                 assert!(
                     matches!(&stmt, Statement::Call { command, .. } if command == "set"),
                     "{dialect}: {src:?} must stay a Call, got {stmt:?}",
@@ -776,8 +779,10 @@ mod tests {
     fn lower_set_keeps_the_static_assign_for_a_spelled_out_name() {
         for dialect in ["tcl9.0", "tcl8.6", "tcl8.4", "f5-irules"] {
             for src in ["set x 1", "set {$n} 1", "set \\$x 1", "set a($i) 1"] {
-                let stmt =
-                    first_stmt_for_dialect(src, tcl_dialect::DialectProfile::by_name(dialect));
+                let stmt = first_stmt_for_dialect(
+                    src,
+                    tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+                );
                 assert!(
                     matches!(
                         &stmt,
@@ -798,7 +803,7 @@ mod tests {
         for dialect in ["tcl9.0", "tcl8.6"] {
             let stmt = first_stmt_for_dialect(
                 "set {*}$n 1",
-                tcl_dialect::DialectProfile::by_name(dialect),
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
             );
             let Statement::Call {
                 command, tokens, ..
@@ -1108,7 +1113,7 @@ mod tests {
             arg_kinds: &kinds,
             dialect: None,
         };
-        let result = try_lower_hook(&cmd, &aliases, &registry, false);
+        let result = try_lower_hook(&cmd, &aliases, &registry, None, false);
         assert!(
             matches!(result, Some(Statement::AssignConst { .. })),
             "expected AssignConst from registry-driven dispatch; got {result:?}",
@@ -1135,6 +1140,6 @@ mod tests {
             arg_kinds: &kinds,
             dialect: None,
         };
-        assert!(try_lower_hook(&cmd, &aliases, &registry, false).is_none());
+        assert!(try_lower_hook(&cmd, &aliases, &registry, None, false).is_none());
     }
 }

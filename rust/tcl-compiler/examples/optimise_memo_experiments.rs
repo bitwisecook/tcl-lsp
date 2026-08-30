@@ -39,7 +39,6 @@ use std::time::Instant;
 
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::optimiser::optimise_unit;
-use tcl_dialect::DialectProfile;
 use tcl_registry::CommandRegistry;
 
 fn gather(dir: &Path, out: &mut Vec<PathBuf>, cap: usize) {
@@ -64,8 +63,10 @@ fn gather(dir: &Path, out: &mut Vec<PathBuf>, cap: usize) {
 
 fn registry(dialect: &str) -> CommandRegistry {
     let mut r = CommandRegistry::build_default();
-    if let Some(d) = tcl_registry::prelude::DialectSet::parse(dialect) {
-        r.load_dialect(d);
+    if let Some(profile) = tcl_dialect::DialectProfile::find(dialect) {
+        for &layer in profile.base_layers {
+            r.load_surface(layer);
+        }
     }
     r
 }
@@ -91,7 +92,7 @@ fn encode_interproc(cu: &CompilationUnit) -> usize {
 fn main() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tmp");
     let dialect = "tcl8.6";
-    let profile = DialectProfile::by_name(dialect);
+    let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
     let reg = registry(dialect);
     let cfg = tcl_lexer::LexerConfig::for_dialect(dialect);
 

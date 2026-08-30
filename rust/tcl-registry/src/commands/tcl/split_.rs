@@ -18,6 +18,7 @@
 
 //! `split` — split a string into a proper Tcl list.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "split string ?splitChars?",
     ..FormSpec::DEFAULT
@@ -26,17 +27,17 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "split",
-        // `split`'s `dialects` group carries the `IRULES` bit explicitly
-        // (`ALL_TCL.union(IRULES)`), deliberately, not by oversight: it is
-        // a pure string/list-manipulation command, exactly the class iRules
-        // keeps — the sandbox bans filesystem/process/interp commands
-        // (`open`, `exec`, `file`, `glob`, `namespace`, …), never a
-        // data-manipulation one — so it resolves under the bare `IRULES`
-        // availability mask; and none of the irules/, expect/, tk/, itcl/,
-        // iapps/, or eda_*/ command packs declares an override or an extra
-        // form for it, so it resolves identically everywhere — the common
-        // iRules idiom `split [HTTP::uri] "/"` relies on exactly this.
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        // `split`'s surface carries an iRules row explicitly
+        // (`ALL_TCL.union(IRULES)`), deliberately, not by oversight: it is a
+        // pure string/list-manipulation command, exactly the class iRules
+        // keeps — the sandbox bans filesystem/process/interp commands (`open`,
+        // `exec`, `file`, `glob`, `namespace`, …), never a data-manipulation
+        // one — so it resolves under the iRules point; and none of the
+        // irules/, expect/, tk/, itcl/, iapps/, or eda_*/ command packs
+        // declares an override or an extra form for it, so it resolves
+        // identically everywhere — the common iRules idiom `split [HTTP::uri]
+        // "/"` relies on exactly this.
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         byte_array_effect: ByteArrayEffect::Coerces,
         const_fold: Some(crate::const_fold::fold_split),
         traits: Traits::FRAMELESS_RUNTIME | Traits::PURE | Traits::CSE_CANDIDATE,

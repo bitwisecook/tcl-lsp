@@ -18,172 +18,105 @@
 
 //! Command-alias detection and resolution.
 //!
-//! Used by the lowerer to detect
-//! `interp alias {} name {} target ?args?` definitions and resolve
-//! command names through the alias table.
+//! Used by the lowerer to resolve command names through the alias table,
+//! and the compiler's bridge from **source words** to the registry's one
+//! command-table transition vocabulary.
 //!
-//! Which commands mutate the command table is registry data
-//! ([`tcl_registry::CommandTableEffect`], resolved via
-//! `CommandRegistry::command_table_effect`), so the destructuring
-//! helpers here take only the argument words: every caller has already
-//! dispatched on the effect ([`CommandTableEffect::CreatesAliases`]
-//! for the `interp alias` shapes, [`CommandTableEffect::RenamesCommands`]
-//! for `rename`) rather than matching the command name itself.
+//! ## The one vocabulary (centralisation ledger C8)
 //!
-//! [`CommandTableEffect::CreatesAliases`]: tcl_registry::CommandTableEffect::CreatesAliases
-//! [`CommandTableEffect::RenamesCommands`]: tcl_registry::CommandTableEffect::RenamesCommands
+//! What a call did to the command table is registry data, stated once as
+//! [`tcl_registry::CommandBindingTransition`] facts and read through
+//! [`command_table_transitions`]. This module used to carry the *other*
+//! half of a second vocabulary: `detect_interp_alias`, `detect_rename` and
+//! `detect_interp_alias_delete` re-destructured `interp alias`'s and
+//! `rename`'s argument layouts here, after each consumer had dispatched on
+//! the coarse `CommandTableEffect` word — a layout the registry's own
+//! resolvers already knew, and a dynamic-operand rule
+//! ([`is_dynamic_word`]) each consumer re-applied for itself. The layout
+//! now lives with the resolver
+//! (`tcl_registry::state_transition::command_binding`), and a dynamic
+//! operand arrives as a typed [`TransitionSubject::Unknown`] instead.
+//!
+//! [`TransitionSubject::Unknown`]: tcl_registry::TransitionSubject::Unknown
 
 use std::collections::{HashMap, HashSet};
 
+use tcl_registry::{
+    CommandRegistry, InvocationWord, InvocationWords, StateTransitions, TransitionSubject,
+};
+
 use crate::naming::{is_dynamic_word, normalise_qualified_name};
+
+/// Classify one reconstructed source word for the registry's structured
+/// invocation view.
+///
+/// A word carrying a `$` substitution or a `[…]` command substitution has
+/// no statically known Tcl value, so it becomes
+/// [`InvocationWord::Dynamic`] and every subject the registry derives from
+/// it is a typed unknown. This is the compiler's **one** dynamic-word rule
+/// reaching the registry; before ledger C8 each command-table consumer
+/// applied its own copy of it after the fact.
+#[must_use]
+pub fn source_word(text: &str) -> InvocationWord<'_> {
+    if is_dynamic_word(text) {
+        InvocationWord::Dynamic
+    } else {
+        InvocationWord::Literal(text)
+    }
+}
+
+/// The command-table transitions `head args…` establishes, read from the
+/// registry under its own profile's command surface.
+///
+/// This is the compiler's door onto
+/// [`CommandRegistry::command_binding_transitions`] for a call whose words
+/// are reconstructed source text rather than IR word expressions (the IR
+/// path resolves its own structured words through
+/// [`crate::registry_invocation`]).
+#[must_use]
+pub fn command_table_transitions(
+    registry: &CommandRegistry,
+    head: &str,
+    args: &[String],
+) -> StateTransitions {
+    let words: Vec<InvocationWord<'_>> = args.iter().map(|arg| source_word(arg)).collect();
+    registry.command_binding_transitions(InvocationWords::structured(
+        InvocationWord::Literal(head),
+        &words,
+    ))
+}
+
+/// Whether a transition's interpreter-path subject names the **current**
+/// interpreter — the empty path.
+///
+/// A brace-quoted empty word's Tcl value is the empty string; a source-word
+/// reconstruction that kept the braces spells the same value `{}`, so both
+/// are the current interpreter. A dynamic path is not: the caller must
+/// widen rather than assume.
+#[must_use]
+pub fn is_current_interpreter(subject: &TransitionSubject) -> bool {
+    matches!(subject.literal(), Some("" | "{}"))
+}
+
+/// The source word a transition subject came from.
+///
+/// A literal subject *is* its word. A typed unknown carries the post-head
+/// argument index it came from, so a consumer that must still inspect the
+/// **written** word — a dynamic-name overlap test such as
+/// `${ns}::define::$method` versus `::string` — recovers it here rather
+/// than re-deriving the argument layout for itself.
+#[must_use]
+pub fn subject_word<'a>(subject: &'a TransitionSubject, args: &'a [String]) -> Option<&'a str> {
+    match subject {
+        TransitionSubject::Literal(value) => Some(value.as_str()),
+        TransitionSubject::Unknown { argument_index, .. } => {
+            args.get(*argument_index).map(String::as_str)
+        }
+    }
+}
 
 /// Alias store: qualified name → (target command, prepended args).
 pub type CommandAliasMap = HashMap<String, (String, Vec<String>)>;
-
-/// Do `args` begin with the `alias` subcommand word the two destructuring
-/// helpers below model?
-///
-/// [`CommandTableEffect::CreatesAliases`] describes `interp alias`'s **word
-/// grammar**, and the shipped registry stamps it exactly there — on `interp`'s
-/// `alias` subcommand, so the word is guaranteed and this was a
-/// `debug_assert`. A `SpecTcl` pack can stamp the same effect at *command*
-/// level on something that only builds an alias internally (`struct::tree` and
-/// `struct::graph` in the tcllib draft under
-/// `docs/design/spec-dsl-examples/external/` do exactly that), and such a call
-/// carries none of `interp alias`'s words. Reading them as if it did would
-/// invent an alias out of the command's own arguments — and, before this
-/// guard, aborted a debug build outright. Registry data must not be able to do
-/// either, so the shape check is a *fact*, not an assertion: a call that is not
-/// `interp alias`-shaped states no alias.
-///
-/// [`CommandTableEffect::CreatesAliases`]: tcl_registry::CommandTableEffect::CreatesAliases
-#[must_use]
-pub fn is_interp_alias_shape(args: &[String]) -> bool {
-    args.first().map(String::as_str) == Some("alias")
-}
-
-/// Detect `interp alias {} name {} target ?args?`.
-///
-/// `args` are the words after the `interp` head, so `args[0]` is the
-/// `alias` subcommand word — checked here rather than assumed, because
-/// [`CommandTableEffect::CreatesAliases`] can also reach this from a pack
-/// command with a different grammar ([`is_interp_alias_shape`]).
-///
-/// Returns `(qualified_alias_name, target_cmd, prepended_args)` or
-/// `None` if this is not a current-interpreter alias definition.
-/// Only aliases in the current interpreter (empty source and target
-/// paths) are tracked.
-///
-/// [`CommandTableEffect::CreatesAliases`]: tcl_registry::CommandTableEffect::CreatesAliases
-#[must_use]
-pub fn detect_interp_alias(args: &[String]) -> Option<(String, String, Vec<String>)> {
-    if !is_interp_alias_shape(args) {
-        return None;
-    }
-    if args.len() < 5 {
-        return None;
-    }
-    let src_path = &args[1];
-    let alias_name = &args[2];
-    let target_path = &args[3];
-    let target_cmd = &args[4];
-    let prepended: Vec<String> = args[5..].to_vec();
-
-    if !matches!(src_path.as_str(), "" | "{}") || !matches!(target_path.as_str(), "" | "{}") {
-        return None;
-    }
-    // A dynamic target (`interp alias {} myEval {} $target`) cannot be
-    // resolved to a static command name; recording it verbatim would map
-    // `myEval` to the literal, never-registered string `"$target"`,
-    // silently dropping arg-role/body/sink treatment for `myEval` calls
-    // instead of just leaving them unaliased. A dynamic alias name
-    // (`interp alias {} $name {} eval`) is safe to skip too — the
-    // resulting key can never match a real call's literal command word.
-    if is_dynamic_word(alias_name) || is_dynamic_word(target_cmd) {
-        return None;
-    }
-
-    let qualified = if alias_name.is_empty() {
-        alias_name.clone()
-    } else {
-        normalise_qualified_name(alias_name)
-    };
-
-    Some((qualified, target_cmd.clone(), prepended))
-}
-
-/// Detect the `interp alias srcPath srcCmd {}` **deletion** form —
-/// present but empty `targetCmd` deletes a previously created
-/// current-interpreter alias (confirmed against tclsh 9.0.4: a call
-/// through the deleted name afterwards fails "invalid command name",
-/// exactly like a deleted `rename`). Distinct from the two-argument
-/// *query* form (`interp alias srcPath srcCmd`, target path absent
-/// entirely), which reads back the current target and deletes nothing —
-/// that shape fails this function's exact `args.len() == 4` guard and
-/// [`detect_interp_alias`]'s `args.len() >= 5` guard alike, so neither
-/// function fires for it.
-///
-/// `args` are the words after the `interp` head, exactly as for
-/// [`detect_interp_alias`].
-///
-/// Returns the qualified alias name to delete, or `None` when this
-/// isn't a current-interpreter deletion.
-#[must_use]
-pub fn detect_interp_alias_delete(args: &[String]) -> Option<String> {
-    if !is_interp_alias_shape(args) {
-        return None;
-    }
-    if args.len() != 4 {
-        return None;
-    }
-    let src_path = &args[1];
-    let alias_name = &args[2];
-    let target_path = &args[3];
-    if !matches!(src_path.as_str(), "" | "{}") || !matches!(target_path.as_str(), "" | "{}") {
-        return None;
-    }
-    if alias_name.is_empty() {
-        return None;
-    }
-    Some(normalise_qualified_name(alias_name))
-}
-
-/// Detect a static `rename oldName newName` **move** — both names literal
-/// text, `newName` non-empty (an empty `newName` *deletes* `oldName` rather
-/// than renaming it, per Tcl semantics, and creates no new alias), and neither
-/// dynamically substituted.
-///
-/// `args` are the words after the `rename` head (the caller has
-/// dispatched on [`CommandTableEffect::RenamesCommands`]).
-///
-/// Returns `(old_name, new_name)` — **both raw**, unlike [`detect_interp_alias`]
-/// which pre-qualifies its alias name at the global root. `rename` binds
-/// `newName` in the *current* namespace (`rename set myset` inside
-/// `namespace eval ::ns` creates `::ns::myset`, not global `::myset`), so the
-/// caller qualifies `new` against the namespace the `rename` runs in;
-/// qualifying here would wrongly root every renamed name globally. For every
-/// purpose the alias map serves (arg-role / body-form resolution, taint sink
-/// dispatch, canonical-command typing), a `rename` is then indistinguishable
-/// from an `interp alias {} newName {} oldName` — calling through the new name
-/// really does invoke the old command.
-///
-/// [`CommandTableEffect::RenamesCommands`]: tcl_registry::CommandTableEffect::RenamesCommands
-#[must_use]
-pub fn detect_rename(args: &[String]) -> Option<(String, String)> {
-    if args.len() != 2 {
-        return None;
-    }
-    let (old, new) = (&args[0], &args[1]);
-    // `rename $old newName` / `rename oldName [x]` — a dynamic component means
-    // the true target isn't known statically; recording it verbatim would map
-    // `newName` to a literal, never-registered string like `"$old"`, silently
-    // dropping arg-role/body/sink treatment for `newName` calls instead of just
-    // leaving them unaliased. An empty `new` is a deletion, not a rename.
-    if old.is_empty() || new.is_empty() || is_dynamic_word(old) || is_dynamic_word(new) {
-        return None;
-    }
-    Some((old.clone(), new.clone()))
-}
 
 /// Look up a command alias, namespace-aware.
 ///
@@ -244,172 +177,230 @@ pub fn expr_alias_names(aliases: &CommandAliasMap) -> HashSet<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tcl_registry::CommandBindingTransition;
 
-    #[test]
-    fn detect_basic_alias() {
-        let args: Vec<String> = vec![
-            "alias".into(),
-            "{}".into(),
-            "myalias".into(),
-            "{}".into(),
-            "puts".into(),
-            "-nonewline".into(),
-        ];
-        let result = detect_interp_alias(&args);
-        assert!(result.is_some());
-        let (name, target, prepended) = result.unwrap();
-        assert_eq!(name, "::myalias");
-        assert_eq!(target, "puts");
-        assert_eq!(prepended, vec!["-nonewline"]);
+    /// Test helper: the transitions a `head args…` source call establishes.
+    fn transitions(head: &str, args: &[&str]) -> Vec<CommandBindingTransition> {
+        let registry = CommandRegistry::build_default();
+        let owned: Vec<String> = args.iter().map(|a| (*a).to_string()).collect();
+        command_table_transitions(&registry, head, &owned)
+            .command_bindings()
+            .cloned()
+            .collect()
+    }
+
+    fn literal(subject: &TransitionSubject) -> Option<&str> {
+        subject.literal()
     }
 
     #[test]
-    fn detect_interp_alias_rejects_dynamic_target() {
-        // `interp alias {} myEval {} $target` — the true target isn't
-        // known statically; must not map `myEval` to the literal string
-        // `"$target"` (which would silently drop arg-role/sink treatment
-        // for `myEval` calls instead of just leaving them unaliased).
-        let args: Vec<String> = vec![
-            "alias".into(),
-            "{}".into(),
-            "myEval".into(),
-            "{}".into(),
-            "$target".into(),
-        ];
-        assert!(detect_interp_alias(&args).is_none());
-    }
-
-    #[test]
-    fn detect_interp_alias_rejects_dynamic_name() {
-        let args: Vec<String> = vec![
-            "alias".into(),
-            "{}".into(),
-            "$name".into(),
-            "{}".into(),
-            "eval".into(),
-        ];
-        assert!(detect_interp_alias(&args).is_none());
-    }
-
-    #[test]
-    fn detect_rename_basic() {
-        // Returns `(old, new)` raw — the caller namespace-qualifies `new`.
-        let args: Vec<String> = vec!["eval".into(), "myEval".into()];
-        let result = detect_rename(&args);
-        assert_eq!(result, Some(("eval".to_string(), "myEval".to_string())));
-    }
-
-    #[test]
-    fn detect_rename_rejects_dynamic_old_name() {
-        // `rename $old eval` — the true source isn't known statically;
-        // must not map `eval` to the literal string `"$old"` (which would
-        // silently drop arg-role/sink treatment for genuine `eval` calls
-        // later in the same script instead of just leaving them
-        // unaliased).
-        let args: Vec<String> = vec!["$old".into(), "eval".into()];
-        assert!(detect_rename(&args).is_none());
-    }
-
-    #[test]
-    fn detect_rename_rejects_dynamic_new_name() {
-        let args: Vec<String> = vec!["eval".into(), "myEval[x]".into()];
-        assert!(detect_rename(&args).is_none());
-    }
-
-    #[test]
-    fn detect_rename_deletion_form_is_not_an_alias() {
-        // `rename oldName {}` *deletes* oldName — not a rename.
-        let args: Vec<String> = vec!["eval".into(), String::new()];
-        assert!(detect_rename(&args).is_none());
-    }
-
-    #[test]
-    fn detect_rename_wrong_arity() {
-        assert!(detect_rename(&["eval".to_string()]).is_none());
-        assert!(detect_rename(&[]).is_none());
-    }
-
-    #[test]
-    fn detect_rename_qualified_new_name() {
-        // A `::`-qualified NEW is returned verbatim; the caller
-        // (`join_namespace`) leaves it rooted globally.
-        let args: Vec<String> = vec!["eval".into(), "::ns::myEval".into()];
-        let result = detect_rename(&args);
-        assert_eq!(
-            result,
-            Some(("eval".to_string(), "::ns::myEval".to_string()))
+    fn interp_alias_creation_states_the_alias_with_its_baked_arguments() {
+        let facts = transitions(
+            "interp",
+            &["alias", "", "myalias", "", "puts", "-nonewline"],
         );
+        let [
+            CommandBindingTransition::Alias {
+                source_interpreter,
+                alias,
+                target_interpreter,
+                target,
+                arguments,
+            },
+        ] = facts.as_slice()
+        else {
+            panic!("one alias fact, got {facts:?}");
+        };
+        assert!(is_current_interpreter(source_interpreter));
+        assert!(is_current_interpreter(target_interpreter));
+        assert_eq!(literal(alias), Some("myalias"));
+        assert_eq!(literal(target), Some("puts"));
+        assert_eq!(arguments.len(), 1);
+        assert_eq!(literal(&arguments[0]), Some("-nonewline"));
     }
 
     #[test]
-    fn detect_foreign_interp() {
-        let args: Vec<String> = vec![
-            "alias".into(),
-            "slave".into(),
-            "x".into(),
-            "{}".into(),
-            "y".into(),
-        ];
-        assert!(detect_interp_alias(&args).is_none());
+    fn a_dynamic_alias_target_is_a_typed_unknown_not_a_source_spelling() {
+        // `interp alias {} myEval {} $target` — the true target isn't known
+        // statically; the subject must never carry the literal string
+        // `"$target"`, which would silently map `myEval` onto a
+        // never-registered command name.
+        let facts = transitions("interp", &["alias", "", "myEval", "", "$target"]);
+        let [CommandBindingTransition::Alias { alias, target, .. }] = facts.as_slice() else {
+            panic!("one alias fact, got {facts:?}");
+        };
+        assert_eq!(literal(alias), Some("myEval"));
+        assert_eq!(literal(target), None);
     }
 
     #[test]
-    fn detect_delete_basic() {
-        let args: Vec<String> = vec!["alias".into(), "{}".into(), "bar".into(), "{}".into()];
-        assert_eq!(detect_interp_alias_delete(&args), Some("::bar".to_string()));
+    fn a_dynamic_alias_name_is_a_typed_unknown() {
+        let facts = transitions("interp", &["alias", "", "$name", "", "eval"]);
+        let [CommandBindingTransition::Alias { alias, .. }] = facts.as_slice() else {
+            panic!("one alias fact, got {facts:?}");
+        };
+        assert_eq!(literal(alias), None);
     }
 
     #[test]
-    fn detect_delete_rejects_query_form() {
-        // Only 2 args after `alias` (no target path at all) — a query,
-        // not a deletion.
-        let args: Vec<String> = vec!["alias".into(), "{}".into(), "bar".into()];
-        assert!(detect_interp_alias_delete(&args).is_none());
+    fn rename_states_a_move_of_both_names() {
+        let facts = transitions("rename", &["eval", "myEval"]);
+        let [CommandBindingTransition::Move { from, to }] = facts.as_slice() else {
+            panic!("one move, got {facts:?}");
+        };
+        assert_eq!(literal(from), Some("eval"));
+        assert_eq!(literal(to), Some("myEval"));
     }
 
     #[test]
-    fn detect_delete_rejects_creation_form() {
-        // 5 args (a real target command present) — a creation, not a
-        // deletion.
-        let args: Vec<String> = vec![
-            "alias".into(),
-            "{}".into(),
-            "bar".into(),
-            "{}".into(),
-            "foo".into(),
-        ];
-        assert!(detect_interp_alias_delete(&args).is_none());
+    fn a_dynamic_rename_operand_is_a_typed_unknown_at_either_end() {
+        // `rename $old eval` / `rename eval myEval[x]` — the true name isn't
+        // known statically, so no consumer may read the source spelling as a
+        // command name. A dynamic *source* still states the move (the
+        // destination is known); a dynamic *destination* makes the whole
+        // shape unknown, because an empty destination would have been a
+        // deletion instead.
+        let facts = transitions("rename", &["$old", "eval"]);
+        let [CommandBindingTransition::Move { from, to }] = facts.as_slice() else {
+            panic!("one move, got {facts:?}");
+        };
+        assert_eq!(literal(from), None);
+        assert_eq!(literal(to), Some("eval"));
+
+        let facts = transitions("rename", &["eval", "myEval[x]"]);
+        let [CommandBindingTransition::Unknown { operands }] = facts.as_slice() else {
+            panic!("one unknown, got {facts:?}");
+        };
+        assert_eq!(literal(&operands[0]), Some("eval"));
+        assert_eq!(literal(&operands[1]), None);
+    }
+
+    #[test]
+    fn renaming_to_the_empty_name_is_a_deletion_not_a_move() {
+        let facts = transitions("rename", &["eval", ""]);
+        let [
+            CommandBindingTransition::Delete {
+                interpreter: None,
+                name,
+            },
+        ] = facts.as_slice()
+        else {
+            panic!("one delete, got {facts:?}");
+        };
+        assert_eq!(literal(name), Some("eval"));
+    }
+
+    #[test]
+    fn a_wrong_arity_rename_states_nothing() {
+        // Any arity but two is `wrong # args`, which moves nothing.
+        assert!(transitions("rename", &["eval"]).is_empty());
+        assert!(transitions("rename", &[]).is_empty());
+        assert!(transitions("rename", &["a", "b", "c"]).is_empty());
+    }
+
+    #[test]
+    fn a_qualified_rename_target_keeps_its_global_root() {
+        let facts = transitions("rename", &["eval", "::ns::myEval"]);
+        let [CommandBindingTransition::Move { to, .. }] = facts.as_slice() else {
+            panic!("one move, got {facts:?}");
+        };
+        assert_eq!(literal(to), Some("::ns::myEval"));
+    }
+
+    #[test]
+    fn a_foreign_source_interpreter_is_stated_as_such() {
+        // `interp alias slave x {} y` binds a name in a child interpreter;
+        // the fact records which, and the consumer decides.
+        let facts = transitions("interp", &["alias", "slave", "x", "", "y"]);
+        let [
+            CommandBindingTransition::Alias {
+                source_interpreter, ..
+            },
+        ] = facts.as_slice()
+        else {
+            panic!("one alias fact, got {facts:?}");
+        };
+        assert!(!is_current_interpreter(source_interpreter));
+    }
+
+    #[test]
+    fn the_four_word_alias_form_deletes_and_the_three_word_form_queries() {
+        let facts = transitions("interp", &["alias", "", "bar", ""]);
+        let [CommandBindingTransition::Delete { interpreter, name }] = facts.as_slice() else {
+            panic!("one delete, got {facts:?}");
+        };
+        assert!(is_current_interpreter(
+            interpreter
+                .as_ref()
+                .expect("an alias delete names its interpreter")
+        ));
+        assert_eq!(literal(name), Some("bar"));
+
+        // Only two words after `alias` — a query, which deletes nothing.
+        assert!(transitions("interp", &["alias", "", "bar"]).is_empty());
+        // Five words — a creation, not a deletion.
+        assert!(matches!(
+            transitions("interp", &["alias", "", "bar", "", "foo"]).as_slice(),
+            [CommandBindingTransition::Alias { .. }]
+        ));
     }
 
     /// A `SpecTcl` pack may stamp `CommandTableEffect::CreatesAliases` on a
     /// command whose words are nothing like `interp alias` — the tcllib draft
     /// does it on `struct::tree` and `struct::graph`, which build their handle
-    /// through `interp alias` internally. Both detectors must read that as "no
-    /// alias stated" rather than inventing one out of the command's own
-    /// arguments; before the shape guard the first of them aborted a debug
-    /// build outright (`tcl-spectcl/tests/spec_corpus.rs` caught it).
+    /// through `interp alias` internally. The stock resolver must read that as
+    /// "no alias stated" rather than inventing one out of the command's own
+    /// arguments; before the shape guard the consumer-side detector aborted a
+    /// debug build outright (`tcl-spectcl/tests/spec_corpus.rs` caught it).
     #[test]
     fn a_call_that_is_not_interp_alias_shaped_states_no_alias() {
-        let args: Vec<String> = vec!["myTree".into(), "{}".into(), "x".into(), "{}".into()];
-        assert!(!is_interp_alias_shape(&args));
-        assert!(detect_interp_alias(&args).is_none());
-        assert!(detect_interp_alias_delete(&args).is_none());
-
-        let creation: Vec<String> = vec![
-            "myGraph".into(),
-            "{}".into(),
-            "g".into(),
-            "{}".into(),
-            "puts".into(),
-        ];
-        assert!(detect_interp_alias(&creation).is_none());
-        assert!(detect_interp_alias_delete(&creation).is_none());
+        let registry = CommandRegistry::build_default();
+        for args in [
+            vec![
+                "myTree".to_string(),
+                String::new(),
+                "x".into(),
+                String::new(),
+            ],
+            vec![
+                "myGraph".to_string(),
+                String::new(),
+                "g".into(),
+                String::new(),
+                "puts".into(),
+            ],
+        ] {
+            let stated = tcl_registry::CommandTableEffect::CreatesAliases
+                .transitions()
+                .resolve(tcl_registry::InvocationArguments::literals(
+                    &args.iter().map(String::as_str).collect::<Vec<_>>(),
+                ));
+            assert!(
+                stated.command_bindings().next().is_none(),
+                "a non-`interp alias`-shaped call states no alias: {args:?}",
+            );
+        }
+        // And a genuinely unknown head states nothing at all.
+        assert!(
+            command_table_transitions(&registry, "myTree", &[String::new()])
+                .command_bindings()
+                .next()
+                .is_none()
+        );
     }
 
     #[test]
-    fn detect_delete_rejects_foreign_interp() {
-        let args: Vec<String> = vec!["alias".into(), "slave".into(), "bar".into(), "{}".into()];
-        assert!(detect_interp_alias_delete(&args).is_none());
+    fn a_deleting_alias_in_a_foreign_interpreter_is_stated_as_foreign() {
+        let facts = transitions("interp", &["alias", "slave", "bar", ""]);
+        let [CommandBindingTransition::Delete { interpreter, name }] = facts.as_slice() else {
+            panic!("one delete, got {facts:?}");
+        };
+        assert!(!is_current_interpreter(
+            interpreter
+                .as_ref()
+                .expect("an alias delete names its interpreter")
+        ));
+        assert_eq!(literal(name), Some("bar"));
     }
 
     #[test]

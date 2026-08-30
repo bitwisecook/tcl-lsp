@@ -21,7 +21,7 @@
 //! bodies, `if` conditions, and GTM pool fan-out against fixed expected outputs.
 //! Self-contained — runs entirely in-process.
 
-use tcl_dialect::DialectSet;
+use tcl_dialect::model::{Family, SurfaceLayer};
 use tcl_irules::extract_irules_object_references;
 use tcl_registry::CommandRegistry;
 
@@ -34,7 +34,7 @@ fn walker_matches_golden() {
     let golden = std::fs::read_to_string(format!("{dir}/irule_refs.golden.tsv")).expect("golden");
 
     let mut reg = CommandRegistry::build_default();
-    reg.load_dialect(DialectSet::IRULES);
+    reg.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
 
     for (i, (line, (source, rule_module))) in golden.lines().zip(&cases).enumerate() {
         let want = line.split('\t').nth(1).unwrap_or("-");

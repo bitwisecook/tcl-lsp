@@ -55,7 +55,7 @@ pub mod bigip;
 pub mod body_kind;
 pub mod bpf_op;
 pub mod byte_array_effect;
-pub mod cache;
+pub(crate) mod cache;
 pub mod clause_shape;
 pub mod command_prefix_target;
 pub mod command_snapshot;
@@ -72,6 +72,7 @@ mod event_descriptions;
 pub mod event_facts;
 pub mod events;
 pub mod expr_surface;
+pub mod f5;
 pub mod forms;
 pub mod frame_effect;
 pub mod handle_binding;
@@ -79,30 +80,33 @@ pub mod hooks;
 pub mod hover;
 pub mod intrinsic;
 pub mod invocation_words;
+pub mod irules_policy;
 pub mod lifecycle;
 pub mod literal_validation;
 pub mod mathfunc;
+pub mod model;
 pub mod pack_hooks;
 pub mod patterns;
 pub mod presentation;
 pub mod private_tcl_namespaces;
 pub mod profile_defaults;
-pub mod profile_queries;
+pub(crate) mod profile_queries;
 pub mod profiles;
 pub mod registry;
+pub mod relation;
 pub mod repeated;
 pub mod representation;
 pub mod resolved_invocation;
 pub mod result_stability;
 pub mod return_type;
 pub mod scoped;
+pub mod security_floor;
 pub mod semantic_operation;
 pub mod side_effects;
 pub mod snapshot;
 pub mod spec;
 pub mod special_vars;
 pub mod state_transition;
-pub mod stub_overlay;
 pub mod symbol_def;
 pub mod taint;
 pub mod tk_geometry;
@@ -139,7 +143,6 @@ pub mod prelude {
         MemberSpec, MemberVisibility, RetractionWords,
     };
     pub use crate::deprecation::{DeprecationFixHook, DeprecationFixSafety};
-    pub use crate::dialects::DialectSet;
     pub use crate::dispatch_stability::{
         DispatchDependencies, DispatchDependencyComposition, DispatchDependencyDescriptor,
         DispatchDependencyDomain,
@@ -177,6 +180,10 @@ pub mod prelude {
     };
     pub use crate::patterns::{FormatType, PatternArg, PatternType};
     pub use crate::presentation::ArgPresentation;
+    pub use crate::relation::{
+        Relation, RelationFactSource, RelationKind, RelationMode, RelationTermKind,
+        RelationVerdict, RelationViolation, TermHolds,
+    };
     pub use crate::repeated::RepeatedArgLayout;
     pub use crate::representation::RepresentationEffect;
     pub use crate::result_stability::ResultStability;
@@ -186,9 +193,10 @@ pub mod prelude {
         ConnectionSide, SideEffect, SideEffectTarget, SideSwitchTarget, StorageType,
     };
     pub use crate::spec::{
-        ArgTables, BytePayloadSpec, CaseForceListShape, CaseListSpec, CommandSpec, ContextGate,
-        DefaultFormFirstWord, InlineCaseClause, ObjectClassSpec, OoContextFact, OptionConstraint,
-        OptionScope, ScriptTimingResolver, SubCommand, SubSubCommand, VersionedArgValue,
+        BytePayloadSpec, CaseForceListShape, CaseListSpec, CommandSpec, ConstraintReport,
+        ConstraintSlot, ConstraintsHook, ContextGate, DefaultFormFirstWord, InlineCaseClause,
+        ObjectClassSpec, OoContextFact, OptionFacts, OptionPlacement, OptionRelation, OptionScope,
+        OptionTerm, ScriptTimingResolver, SubCommand, SubSubCommand, VersionedArgValue,
         leading_option_word_count, leading_option_word_count_with, resolve_option_prefix,
         resolve_option_prefix_with,
     };
@@ -225,10 +233,7 @@ pub use arity::Arity;
 pub use bigip::{BigipObjectSpec, BigipPropertySpec, BigipRegistry, ValueKind};
 pub use body_kind::BodyKind;
 pub use byte_array_effect::ByteArrayEffect;
-pub use cache::{
-    registry_for_dialect, registry_for_profile, registry_for_profile_with_overlay,
-    registry_handle_for_dialect, registry_handle_for_profile,
-};
+pub use cache::{default_registry, registry_for_profile_with_overlay, safe_interp_hidden_commands};
 pub use clause_shape::{ClauseShapeChecker, ClauseShapeError};
 pub use command_prefix_target::CommandPrefixTarget;
 pub use command_table::CommandTableEffect;
@@ -265,9 +270,13 @@ pub use literal_validation::{
 };
 pub use patterns::{FormatType, PatternType};
 pub use presentation::ArgPresentation;
-pub use profile_queries::{ProfileQueries, VendorSurface};
+pub use profile_queries::VendorSurface;
 pub use registry::{
     CommandRegistry, FormatStringArg, MethodDispatchKind, ResolvedCall, ResolvedTerminator,
+};
+pub use relation::{
+    Relation, RelationFactSource, RelationKind, RelationMode, RelationTermKind, RelationVerdict,
+    RelationViolation, TermHolds,
 };
 pub use repeated::RepeatedArgLayout;
 pub use representation::RepresentationEffect;
@@ -280,9 +289,10 @@ pub use result_stability::ResultStability;
 pub use semantic_operation::{InlineBodyErrorContext, SemanticOperationId};
 pub use side_effects::SideSwitchTarget;
 pub use spec::{
-    ArgTables, BytePayloadSpec, CaseForceListShape, CaseListSpec, CommandSpec, ContextGate,
-    DefaultFormFirstWord, InlineCaseClause, ObjectClassSpec, OoContextFact, OptionConstraint,
-    OptionScope, ScriptTimingResolver, SubCommand, SubSubCommand, VersionedArgValue,
+    BytePayloadSpec, CaseForceListShape, CaseListSpec, CommandSpec, ConstraintReport,
+    ConstraintSlot, ConstraintsHook, ContextGate, DefaultFormFirstWord, InlineCaseClause,
+    ObjectClassSpec, OoContextFact, OptionFacts, OptionPlacement, OptionRelation, OptionScope,
+    OptionTerm, ScriptTimingResolver, SubCommand, SubSubCommand, VersionedArgValue,
 };
 pub use special_vars::{
     SPECIAL_VARS, SpecialVarKey, SpecialVarKind, SpecialVarSpec, StartupBinding, VarAccess,

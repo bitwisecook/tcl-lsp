@@ -43,7 +43,7 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use tcl_dialect::{DialectSet, NumberSyntax};
+use tcl_dialect::NumberSyntax;
 use tcl_registry::{CommandRegistry, ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 use tcl_syntax::number::{Number, ParseFlags, parse_whole_with};
 
@@ -358,6 +358,7 @@ fn infer_expr_type(
                 | BinOp::StartsWith
                 | BinOp::EndsWith
                 | BinOp::StrEquals
+                | BinOp::Matches
                 | BinOp::MatchesGlob
                 | BinOp::MatchesRegex => TypeLattice::of(TclType::Boolean),
 
@@ -518,6 +519,11 @@ fn lookup_var_type(
 /// everything a value word's type depends on at one program point.
 struct WordTypingCtx<'a, S: std::hash::BuildHasher> {
     uses: &'a HashMap<Symbol, u32>,
+    /// The resolved context this function's registry answers under, when
+    /// the registry carries a profile — the I4 binding proof for the
+    /// spec-fact specialisations below (`None` for a hand-assembled,
+    /// profile-less registry: the obligation is `NotRequired`).
+    context: Option<&'a tcl_registry::model::ResolvedContext>,
     types: &'a HashMap<ValueKey, TypeLattice>,
     /// SCCP constants at this point — purity evidence (a numeric-typed
     /// literal is still a pure string) and constant list/index values for
@@ -941,10 +947,12 @@ fn value_word_type<S: std::hash::BuildHasher>(
         // `[dict get $d k]` retrieves the container's tracked element shape
         // (subsuming the old object-only collection retrieval — an
         // `Object(class)` element shape IS the `OBJECT(class)` result).
-        if let Some(resolved) =
-            ctx.registry
-                .resolve_invocation(&cmd, &arg_refs, DialectSet::empty())
-            && let Some(fact) = resolved.semantics.return_elements
+        if let Some(resolved) = tcl_registry::model::resolve_invocation_in_context(
+            ctx.registry,
+            ctx.context,
+            &cmd,
+            &arg_refs,
+        ) && let Some(fact) = resolved.semantics.return_elements
         {
             // The fact's indices are relative to after the subcommand word
             // when one matched (`dict get $d k` counts from `$d`).
@@ -1047,9 +1055,12 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
                 return DefTyping::Uniform(value_word_type(ctx, arg_refs[1]));
             }
 
-            let resolved = ctx
-                .registry
-                .resolve_invocation(canon, &arg_refs, DialectSet::empty());
+            let resolved = tcl_registry::model::resolve_invocation_in_context(
+                ctx.registry,
+                ctx.context,
+                canon,
+                &arg_refs,
+            );
 
             // An in-place element write (`lappend VAR v…`, `dict set VAR … v`)
             // evolves the target's container elements — the registry's
@@ -1322,8 +1333,17 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
     // Constructor heads written `[Foo new]` inside this function resolve
     // relative names against the function's own namespace.
     let namespace = function_namespace(&cfg.name);
+    // The I4 binding proof for spec-fact specialisation: the dialect-
+    // selected registry's own environment context (a profile-less
+    // registry carries no obligation).
+    let generation = registry
+        .profile()
+        .map(crate::environment_ingress::context_for_profile);
     let ctx = StatementTypingCtx {
         ssa,
+        context: generation
+            .as_deref()
+            .map(tcl_registry::model::ContextRegistry::context),
         registry,
         known_classes,
         namespace: &namespace,
@@ -1418,6 +1438,8 @@ pub fn propagate_types<S: std::hash::BuildHasher>(
 /// Shared, read-only context for [`type_infer_process_statements`].
 struct StatementTypingCtx<'a, S: std::hash::BuildHasher> {
     ssa: &'a SsaFunction,
+    /// See [`WordTypingCtx::context`].
+    context: Option<&'a tcl_registry::model::ResolvedContext>,
     registry: &'a CommandRegistry,
     known_classes: &'a HashSet<String, S>,
     namespace: &'a str,
@@ -1472,6 +1494,7 @@ fn type_infer_process_statements<S: std::hash::BuildHasher>(
             _ => {
                 let word_ctx = WordTypingCtx {
                     uses: &ssa_stmt.uses,
+                    context: ctx.context,
                     types,
                     values: ctx.values,
                     registry: ctx.registry,
@@ -1697,6 +1720,7 @@ mod tests {
         let known_classes: HashSet<String> = HashSet::new();
         let ctx = WordTypingCtx {
             uses: &uses,
+            context: None,
             types: &types,
             values: &values,
             registry,

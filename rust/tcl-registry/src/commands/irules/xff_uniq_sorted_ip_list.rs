@@ -18,10 +18,11 @@
 
 //! `xff_uniq_sorted_ip_list` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "xff_uniq_sorted_ip_list",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::new(0, 1),
         hover: Some(HoverSnippet {
             summary: "Return a sorted, deduplicated list of valid non-loopback IP addresses from the X-Forwarded-For header.",
@@ -40,9 +41,7 @@ pub const fn spec() -> CommandSpec {
             transport: Some("tcp"),
             profiles: &["HTTP"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "xff_uniq_sorted_ip_list ?xff_header_name?",

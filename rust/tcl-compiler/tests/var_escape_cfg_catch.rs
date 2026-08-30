@@ -74,10 +74,11 @@ use tcl_compiler::lowering::lower_to_ir;
 use tcl_compiler::ssa::build_ssa;
 use tcl_compiler::var_escape::cfg_propagation::state::CfgEscapeResult;
 use tcl_compiler::var_escape::{EscapeTag, analyse_cfg_function};
-use tcl_registry::{CommandRegistry, registry_for_dialect};
+use tcl_registry::CommandRegistry;
+use tcl_registry::model::ingress::static_context_for;
 
 fn registry() -> &'static CommandRegistry {
-    registry_for_dialect("tcl8.6")
+    static_context_for("tcl8.6").commands()
 }
 
 /// Drive the low-level [`analyse_cfg_function`] entry point directly on a single
@@ -93,11 +94,9 @@ fn is_frame(r: &CfgEscapeResult, name: &str) -> bool {
     r.name_tags.get(name) == Some(&EscapeTag::Frame)
 }
 
-// ===========================================================================
 // PART 1 — `tree_assign_or_incr`: the opaque catch body escapes every name it
 // writes. A bare top-level `set x 1` is a pure local (negative control), but the
 // same write inside a `catch {…}` body is conservatively spilled.
-// ===========================================================================
 
 #[test]
 fn bare_set_is_local_control() {
@@ -152,10 +151,8 @@ fn catch_dynamic_body_records_coarse_fallback() {
     );
 }
 
-// ===========================================================================
 // PART 2 — `tree_call_or_barrier`: Call (upvar/global/variable), nested eval
 // block, uplevel barrier, return, expr-eval.
-// ===========================================================================
 
 #[test]
 fn catch_body_upvar_records_source_and_escapes_alias() {
@@ -211,12 +208,10 @@ fn catch_body_expr_eval_is_not_pessimistic() {
     );
 }
 
-// ===========================================================================
 // PART 3 — `tree_structural`: control flow nested inside the opaque catch body.
 // These are the arms the flat-walker tests never reach on the CFG path. The
 // loop conditions / switch values / lists are deliberately LITERAL (no `$`) so
 // `handle_catch` walks the body rather than bailing on a dynamic token.
-// ===========================================================================
 
 #[test]
 fn catch_if_branch_upvar_escapes() {
@@ -320,9 +315,7 @@ fn catch_try_body_and_finally_escape() {
     );
 }
 
-// ===========================================================================
 // PART 4 — top-level barrier / call arms reached *without* a catch wrapper.
-// ===========================================================================
 
 #[test]
 fn eval_dynamic_body_is_pessimistic() {

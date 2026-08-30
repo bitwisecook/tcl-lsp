@@ -1,0 +1,57 @@
+# A programmed pack with pack-level tables, prose blocks, and a loop that
+# reads its own data table — the shape the EDA vendor libraries take under
+# design E. The pack-level rows are declared *after* the loop that uses them,
+# so the export has to preserve evaluation order and the loader's two-pass
+# rule has to survive the round trip.
+
+speclib bench 2.0 {
+
+display_name {The bench tool language}
+
+proc bench-command {name summary} {
+    command bench::$name {
+        available {tcl 8.6-}
+        arity 1..
+        traits {PURE}
+
+        option -mode -takes mode -values bench-modes -closed \
+            -detail {Which run mode the command reports on.}
+
+        # A braced block substitutes nothing, so a templated block is built
+        # rather than written — the one idiom a programmed pack needs for
+        # prose, and the reason `expand` exists to check the result.
+        hover [format {
+            summary {%s}
+            description {Every bench command takes a mode and reports one
+        table of results.  The prose wraps across physical lines on purpose:
+        a braced word is every byte between its braces, so this margin is
+        part of the value and the export must not shift it.}
+        } $summary]
+
+        subcommand report {
+            arity 0..1
+            detail {Report the last run.}
+
+            hover {
+                summary {Report the last run.}
+                synopsis {bench report ?format?}
+            }
+        }
+    }
+}
+
+foreach {name summary} {
+    run {Run one benchmark.}
+    load {Load a benchmark definition.}
+    diff {Compare two benchmark runs.}
+} {
+    bench-command $name $summary
+}
+
+values bench-modes {
+    value quick -detail {A single short pass.}
+    value full  -detail {Every pass, in order.}
+}
+
+default dialects all-tcl
+}

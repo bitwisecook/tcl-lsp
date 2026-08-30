@@ -35,11 +35,12 @@
 //!
 //! Two distinct questions are involved, and conflating them was issue #1188:
 //!
-//! - **Is Tk active?** — the authoritative, *exact* fact: the `tk` dialect, or
-//!   a `package require Tk` that the registry's
+//! - **Is Tk active?** — the authoritative, *exact* fact: the environment
+//!   ships `Tk` **ambient** (a `wish` shell — P3's placement query), or a
+//!   `package require Tk` that the registry's
 //!   [`PackageRequire`](tcl_registry::hooks::AnalyserHookId::PackageRequire)
 //!   hook recorded into `result.package_requires` during the walk.  This is
-//!   [`Analyser::has_tk_require`] + `tk_dialect`, and it is the *only* gate on
+//!   [`Analyser::has_tk_require`] + `tk_ambient`, and it is the *only* gate on
 //!   whether any TK diagnostic is emitted.
 //! - **Is it worth accumulating?** — a pure performance precheck
 //!   ([`tk_checks_could_apply`]), run before the walk to skip the per-command
@@ -177,17 +178,17 @@ pub(super) const TK_PACKAGE: &str = "Tk";
 /// Cheap **necessary** condition for the per-command Tk accumulation to be
 /// worth running at all — *not* the activation decision (see the module docs).
 ///
-/// Activation requires either the `tk` dialect or a statically-resolvable
-/// `package require Tk`, and the latter cannot exist in a source that never
-/// contains the literal package name.  So this is sound: it never returns
-/// `false` for a document that goes on to activate.  It over-approximates
+/// Activation requires either an ambient `Tk` placement or a
+/// statically-resolvable `package require Tk`, and the latter cannot exist in
+/// a source that never contains the literal package name.  So this is sound:
+/// it never returns `false` for a document that goes on to activate.  It over-approximates
 /// freely — a `Tk` inside a comment, a string, or generated data trips it —
 /// which costs only a registry lookup per command, because
 /// [`Analyser::flush_tk_geometry_diagnostics`] discards everything the walk
 /// buffered unless the exact activation fact holds.
 #[must_use]
-pub(super) fn tk_checks_could_apply(source: &str, availability: tcl_dialect::DialectSet) -> bool {
-    availability.contains(tcl_dialect::DialectSet::TK) || source.contains(TK_PACKAGE)
+pub(super) fn tk_checks_could_apply(source: &str, tk_ambient: bool) -> bool {
+    tk_ambient || source.contains(TK_PACKAGE)
 }
 
 /// Compiler-facing wrapper around the registry-owned Tk widget-path grammar.
@@ -900,14 +901,14 @@ impl Analyser {
     /// Post-walk flush of all TK diagnostics.  Emits the buffered TK1002 /
     /// TK1003 and publishes TK1001 conflicts recorded by the temporal geometry
     /// transfer — but only
-    /// when the document is actually Tk: the `tk` dialect, or a detected
-    /// `package require Tk`.  Clears the accumulated state either way so a
+    /// when the document is actually Tk: an ambient `Tk` placement, or a
+    /// detected `package require Tk`.  Clears the accumulated state either way so a
     /// reused [`Analyser`] starts clean.
     pub(super) fn flush_tk_geometry_diagnostics(&mut self) {
         let _domains = std::mem::take(&mut self.tk_domains);
         let pending = std::mem::take(&mut self.tk_pending_diags);
 
-        if !self.tk_dialect && !self.has_tk_require() {
+        if !self.tk_ambient && !self.has_tk_require() {
             return;
         }
 

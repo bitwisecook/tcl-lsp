@@ -26,7 +26,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "logger::services",
-        dialects: None,
+        surface: None,
         arity: Arity::exact(0),
         hover: Some(HoverSnippet {
             summary: "Return a list of all active logger services.",

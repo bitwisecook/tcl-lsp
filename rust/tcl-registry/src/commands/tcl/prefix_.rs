@@ -30,6 +30,7 @@
 //! documentation.
 
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
@@ -69,7 +70,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     name: "-exact",
                     value: OptionValue::flag(),
                     detail: "Disable prefix matching — string must exactly equal a table element.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -78,7 +79,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     name: "-message",
                     value: OptionValue::value("string"),
                     detail: "Replace \"option\" in the generated error message with this text.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -87,7 +88,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     name: "-error",
                     value: OptionValue::value("options"),
                     detail: "Control error handling: {} returns \"\" on no match instead of erroring.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -104,7 +105,7 @@ pub fn spec() -> CommandSpec {
         name: "tcl::prefix",
         traits: Traits::NOT_PROC_FACTORY,
         // Added in Tcl 8.6 (TIP 265).
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
         hover: Some(HoverSnippet {

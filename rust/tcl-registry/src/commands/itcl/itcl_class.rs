@@ -18,6 +18,7 @@
 
 //! `itcl::class` command ([incr Tcl] class definition).
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
@@ -37,7 +38,7 @@ pub fn spec() -> CommandSpec {
             | Traits::NEVER_INLINE_BODY
             | Traits::CREATES_DYNAMIC_BARRIER
             | Traits::LANGUAGE_KEYWORD,
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::exact(2),
         hover: Some(HoverSnippet {
             summary: "Define a new [incr Tcl] class.",

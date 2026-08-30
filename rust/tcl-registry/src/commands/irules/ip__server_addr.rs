@@ -18,11 +18,12 @@
 
 //! `IP::server_addr` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "IP::server_addr",
         traits: Traits::PURE.union(Traits::CSE_CANDIDATE),
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Returns the server's IP address.",
@@ -32,15 +33,21 @@ pub const fn spec() -> CommandSpec {
             examples: "when SERVER_CONNECTED {\n   log local0. \"Node IP address: [IP::server_addr]\"\n}",
             return_value: "server's IP address",
         }),
+        // Not a server-side-only command. Measured on the appliance, the
+        // rule compiler accepts `IP::server_addr` in every one of the
+        // eight probed events except `RULE_INIT`, client-side events
+        // included (`docs/design/bigip-irule-parser-measurements.md` §8 —
+        // the same row shape as `LB::server` and `table`). The hover text
+        // says why: before the serverside connection exists the command
+        // returns `0` rather than failing, so only the absence of traffic
+        // flow refuses it.
         event_requires: Some(EventRequires {
             client_side: false,
-            server_side: true,
+            server_side: false,
             transport: None,
             profiles: &[],
             also_in: &["IP_GTM"],
-            init_only: false,
-            flow: false,
-            capability: None,
+            flow: true,
         }),
         forms: &[FormSpec {
             synopsis: "IP::server_addr",

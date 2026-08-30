@@ -18,6 +18,7 @@
 
 //! `exec` — invoke subprocesses.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 // The trailing `?&?` background marker is spelled out in the SYNOPSIS line
 // only from the 8.6 manpage onward (8.4/8.5 show `exec ?switches? arg
@@ -33,17 +34,15 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "exec",
-        // `Some(DialectSet::ALL_TCL)` is deliberate, not an oversight: F5
-        // iRules is the one modelled dialect that drops `exec` (the
-        // K36322151 TMM sandbox ban — no real process model), and that
-        // exclusion is expressed directly by this `dialects` group:
-        // `ALL_TCL` does not carry the `IRULES` bit, so this spec never
-        // intersects the bare `IRULES` availability mask. Every other
-        // modelled dialect that embeds a real Tcl runtime (Expect,
-        // f5-iapps, f5-tmsh, the EDA vendor shells) is included in
-        // `ALL_TCL` and keeps a real process model, so `exec` is available
-        // there too.
-        dialects: Some(DialectSet::ALL_TCL),
+        // `Some(SpecSurface::ALL_TCL)` is deliberate, not an oversight: F5
+        // iRules is the one modelled dialect that drops `exec` (the K36322151
+        // TMM sandbox ban — no real process model), and that exclusion is
+        // expressed directly by this surface: `ALL_TCL` does not carry an
+        // iRules row, so this spec is simply absent under iRules. Every other
+        // modelled dialect that embeds a real Tcl runtime (Expect, f5-iapps,
+        // f5-tmsh, the EDA vendor shells) is included in `ALL_TCL` and keeps a
+        // real process model, so `exec` is available there too.
+        surface: Some(SpecSurface::ALL_TCL),
         traits: Traits::BYTE_COMPILED
             | Traits::TAINT_SINK
             | Traits::TAINT_SOURCE
@@ -77,7 +76,7 @@ pub fn spec() -> CommandSpec {
                     name: "-encoding",
                     value: OptionValue::value("encodingName"),
                     detail: "Encoding used to decode subprocess output captured by exec, defaulting to the interpreter's system encoding ([encoding system]). Added in Tcl 9.0; earlier Tcl always uses the system encoding, and other encodings (including raw binary) require opening and reading the pipeline explicitly.",
-                    dialects: Some(DialectSet::TCL90_PLUS),
+                    surface: Some(SpecSurface::TCL90_PLUS),
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -86,7 +85,7 @@ pub fn spec() -> CommandSpec {
                     name: "-ignorestderr",
                     value: OptionValue::flag(),
                     detail: "Stops exec from treating unredirected output on a subprocess's stderr as an error case. Added in Tcl 8.5; in 8.4 any unredirected stderr output always makes exec raise an error.",
-                    dialects: Some(DialectSet::TCL85_PLUS),
+                    surface: Some(SpecSurface::TCL85_PLUS),
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -95,7 +94,7 @@ pub fn spec() -> CommandSpec {
                     name: "-keepnewline",
                     value: OptionValue::flag(),
                     detail: "Retains a trailing newline in the pipeline's result or error message; normally a single trailing newline is deleted.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -104,7 +103,7 @@ pub fn spec() -> CommandSpec {
                     name: "--",
                     value: OptionValue::flag(),
                     detail: "Marks the end of switches; the following argument is treated as the first pipeline word even if it begins with -.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,

@@ -32,7 +32,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "mime::uniqueID",
-        dialects: None,
+        surface: None,
         arity: Arity::exact(0),
         hover: Some(HoverSnippet {
             summary: "Generate a globally unique identifier.",

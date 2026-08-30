@@ -22,7 +22,7 @@
 //! C compiles them behind `#ifndef TCL_REMOVE_OBSOLETE_TRACES`
 //! (`tclTrace.c` 8.6.16:198-206); Tcl 9.0 dropped them, so the very same
 //! script is a working legacy trace at 8.x and a `bad option` at 9.x. The
-//! registry states that boundary (`DialectSet::TCL8X` on the three
+//! registry states that boundary (`SpecSurface::TCL8X` on the three
 //! subcommands), and the VM reads it rather than carrying its own list.
 //!
 //! The ops word is the `rwua` letter concatenation, expanded and validated by
@@ -51,7 +51,8 @@ impl CompileService for CompilerSvc {
     fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
         self.compile_for_profile(
             src,
-            DialectProfile::by_name(TclVersion::V9_0.dialect_name()),
+            tcl_registry::model::ingress::resolve_environment(TclVersion::V9_0.dialect_name())
+                .analyser_profile(),
         )
     }
 
@@ -60,7 +61,7 @@ impl CompileService for CompilerSvc {
         src: &str,
         profile: &'static DialectProfile,
     ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let registry = tcl_registry::registry_for_profile(profile);
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
         let ir = tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect(
             src,
@@ -88,7 +89,8 @@ impl std::io::Write for Capture {
 }
 
 fn vm_output(src: &str, version: TclVersion) -> String {
-    let profile = DialectProfile::by_name(version.dialect_name());
+    let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
+        .analyser_profile();
     let asm = CompilerSvc
         .compile_for_profile(src, profile)
         .expect("test script compiles for its selected profile");
@@ -286,19 +288,25 @@ fn the_registry_owns_the_release_boundary() {
     let registry = CommandRegistry::build_default();
     let spec = registry.get("trace").expect("trace is registered");
     for version in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V8_6] {
-        let mask = DialectProfile::by_name(version.dialect_name()).availability_mask;
+        let mask = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
+            .analyser_profile()
+            .surface_query();
         for name in ["variable", "vdelete", "vinfo"] {
             assert!(
-                spec.resolve_subcommand_for_dialect(name, mask).is_some(),
+                spec.resolve_subcommand_for_dialect(name, Some(mask))
+                    .is_some(),
                 "{version:?} should carry trace {name}"
             );
         }
     }
     for version in [TclVersion::V9_0, TclVersion::V9_1] {
-        let mask = DialectProfile::by_name(version.dialect_name()).availability_mask;
+        let mask = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
+            .analyser_profile()
+            .surface_query();
         for name in ["variable", "vdelete", "vinfo"] {
             assert!(
-                spec.resolve_subcommand_for_dialect(name, mask).is_none(),
+                spec.resolve_subcommand_for_dialect(name, Some(mask))
+                    .is_none(),
                 "{version:?} should not carry trace {name}"
             );
         }

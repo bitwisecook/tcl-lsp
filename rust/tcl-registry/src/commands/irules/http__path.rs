@@ -19,6 +19,7 @@
 //! `HTTP::path` iRules command.
 use crate::prelude::*;
 use crate::taint::SetterConstraint;
+use tcl_dialect::model::SpecSurface;
 
 /// The setter form of `HTTP::path` requires its value to start
 /// with `/` (IRULE3101). Registry-driven replacement for the hardcoded
@@ -37,14 +38,14 @@ pub const fn spec() -> CommandSpec {
             .union(Traits::CSE_CANDIDATE)
             .union(Traits::DIAGRAM_ACTION)
             .union(Traits::UNNORMALISED_HTTP_GETTER),
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         options: const {
             &[OptionSpec {
                 name: "-normalized",
                 value: OptionValue::flag(),
                 detail: "Return the canonicalised path (URL evasion patterns rejected).",
-                dialects: None,
+                surface: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,
@@ -65,9 +66,7 @@ pub const fn spec() -> CommandSpec {
             transport: Some("tcp"),
             profiles: &["FASTHTTP", "HTTP"],
             also_in: &["MR_INGRESS", "SERVER_CONNECTED"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[
             FormSpec {

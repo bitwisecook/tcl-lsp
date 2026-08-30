@@ -110,13 +110,11 @@ fn run(src: &str) -> (bool, String, String) {
     )
 }
 
-// ===========================================================================
 // try / throw  (cmd_try.rs)
 //
 // Driven through a computed command name `set t try; $t ...` so the construct
 // routes through the registered `cmd_try`/`cmd_throw` builtins. (The literal
 // `try { ... } on ... { ... }` form is mis-compiled — see `try_literal_form_*`.)
-// ===========================================================================
 
 /// `try body` with no handlers returns the body result; an unmatched error
 /// propagates.
@@ -383,9 +381,7 @@ fn try_literal_form_on_error_handler() {
     assert_eq!(msg, "oops");
 }
 
-// ===========================================================================
 // if  (cmd_control.rs, runtime fallback via computed command name)
-// ===========================================================================
 
 /// The runtime `if` fallback: then/elseif/else chains, the optional `then`/
 /// `else` keywords, and the implicit (bare) else body.
@@ -482,9 +478,7 @@ fn if_runtime_condition_error() {
     assert_eq!(msg, "expected boolean value but got \"notbool\"");
 }
 
-// ===========================================================================
 // while  (cmd_control.rs)
-// ===========================================================================
 
 /// The runtime `while` fallback loops while the condition holds, then returns
 /// empty.
@@ -571,9 +565,7 @@ fn while_runtime_condition_error() {
     assert_eq!(msg, "expected boolean value but got \"notbool\"");
 }
 
-// ===========================================================================
 // for  (cmd_control.rs)
-// ===========================================================================
 
 /// The runtime `for` fallback runs init once, then loops test/body/next.
 #[test]
@@ -697,9 +689,7 @@ fn for_runtime_return_propagates() {
     );
 }
 
-// ===========================================================================
 // foreach / lmap  (cmd_control.rs)
-// ===========================================================================
 
 /// The runtime `foreach` fallback: single var, multiple vars per group, and
 /// multiple groups (short groups pad with empty).
@@ -905,9 +895,7 @@ fn foreach_runtime_bad_list_value() {
     assert_eq!(msg, "unmatched open brace in list");
 }
 
-// ===========================================================================
 // switch  (cmd_switch.rs, runtime path via -glob/-regexp/-nocase/dynamic)
-// ===========================================================================
 
 /// `-glob` matching with a `default` fall-through clause.
 #[test]
@@ -1110,9 +1098,7 @@ fn switch_body_control_propagates() {
     );
 }
 
-// ===========================================================================
 // try / throw — additional error-path coverage  (cmd_try.rs)
-// ===========================================================================
 
 /// A hard *parse* error in a `try` body (not just a runtime error) is mapped to
 /// an error completion that a handler can catch — the `eval_body` `Err(e)` arm.
@@ -1196,9 +1182,7 @@ fn throw_bad_type_list() {
     assert_eq!(msg, "unmatched open brace in list");
 }
 
-// ===========================================================================
 // cmd_control.rs / cmd_switch.rs — additional error-path coverage
-// ===========================================================================
 
 /// A `foreach`/`lmap` loop-variable write that fails propagates the set error
 /// (the `set_var` Err arm in `each_loop`). Binding the loop var to a constant
@@ -1269,7 +1253,6 @@ fn switch_runtime_body_parse_error() {
     assert_eq!(msg, "extra characters after close-quote");
 }
 
-// ===========================================================================
 /// `add_during` REPLACES (does not duplicate) a `-during` key that is already
 /// present in the options dict it is given. Three nested `try`s: the outer body
 /// errors; the outer handler runs a nested `try` whose own handler throws
@@ -1329,7 +1312,6 @@ fn control_runtime_condition_parse_error() {
 
 // Former VM-vs-tclsh divergences: each now asserts the correct tclsh behaviour
 // and passes, guarding the fix against regression.
-// ===========================================================================
 
 /// BUG (`Vm::set_var`, surfaced via `cmd_try`'s `bind_handler_vars`): binding a
 /// `try` handler's result/options variable into an *array element whose base is
@@ -1354,14 +1336,12 @@ fn try_handler_var_bind_array_on_scalar_should_fail() {
     assert_eq!(msg, "can't set \"x(y)\": variable isn't array");
 }
 
-// ===========================================================================
 // Native-stack safety (issue #996) — the runtime `if`/`while`/`for` fallback
 // (this file) recurses on the host stack via `Vm::eval_source` when driven
 // through a computed command name (`set c if; $c ...`, defeating the
 // compiled fast path — see this file's module doc comment). Confirmed
 // empirically: before `NATIVE_EVAL_SOURCE_DEPTH_LIMIT`, this reliably
 // overflowed the stack (SIGABRT) between depth 50 and 60 on a 2 MiB thread.
-// ===========================================================================
 
 /// Deep dynamic-dispatch `if` nesting returns a catchable error instead of
 /// crashing the process. 100 is comfortably past both the measured 50-60

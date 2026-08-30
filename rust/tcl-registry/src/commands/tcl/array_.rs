@@ -20,6 +20,7 @@
 
 use crate::hooks::{CodegenHookId, InlineCodegenHookId};
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "array option arrayName ?arg arg ...?",
@@ -112,7 +113,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // /`exists` only read. The single flat entry covers all four verbs,
         // so this declares the union per the read/write field docs.
         mutator: true,
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         arg_values: &[(0, DEFAULT_VALUES)],
         closed_value_args: &[0],
         arg_values_accept_prefix: true,
@@ -170,7 +171,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         ],
         lowering_hook: Some(crate::hooks::LoweringHookId::ArrayFor),
         loop_list_header: true,
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         side_effects: &[SideEffect {
             target: SideEffectTarget::Variable,
             reads: true,
@@ -314,7 +315,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "array",
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         // The `unset` subform destroys elements or the whole array
         // (`ArrayUnsetCmd`, tclVar.c) — `FIRE_AND_FORGET_TEARDOWN` and the
         // `destructive` flag live on that subcommand.

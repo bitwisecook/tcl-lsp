@@ -81,7 +81,8 @@ use tcl_compiler::var_escape::{
     EscapeTag, ProcEscapeSummary, analyse_var_escape, analyse_var_escape_cu,
 };
 use tcl_lexer::Span;
-use tcl_registry::{CommandRegistry, registry_for_dialect};
+use tcl_registry::CommandRegistry;
+use tcl_registry::model::ingress::static_context_for;
 
 // ── Shared helpers ──────────────────────────────────────────────────────────
 
@@ -979,7 +980,7 @@ fn module_dispatch_empty_source_is_just_top_level_done() {
 // ════════════════════════════════════════════════════════════════════════════
 
 fn reg_static() -> &'static CommandRegistry {
-    registry_for_dialect("tcl8.6")
+    static_context_for("tcl8.6").commands()
 }
 
 /// CFG/SSA (codegen frame-analysis) summaries, interprocedural on.

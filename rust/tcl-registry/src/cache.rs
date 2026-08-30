@@ -85,7 +85,9 @@ pub fn default_registry() -> &'static CommandRegistry {
 /// overlay-`0` entry unconditionally, so these particular handles are never
 /// retired: the table's own reference outlives the process.
 #[must_use]
-pub fn registry_handle_for_profile(profile: &'static DialectProfile) -> Arc<CommandRegistry> {
+pub(crate) fn registry_handle_for_profile(
+    profile: &'static DialectProfile,
+) -> Arc<CommandRegistry> {
     registry_for_profile_with_overlay(profile, 0, |_| {})
 }
 
@@ -109,7 +111,7 @@ static LEAKED: OnceLock<Mutex<FxHashMap<&'static str, &'static CommandRegistry>>
 /// promotion leaks a clone of the profile's handle — one `Arc` per profile,
 /// eight bytes each — rather than a copy of the registry.
 #[must_use]
-pub fn registry_for_profile(profile: &'static DialectProfile) -> &'static CommandRegistry {
+pub(crate) fn registry_for_profile(profile: &'static DialectProfile) -> &'static CommandRegistry {
     let leaked = LEAKED.get_or_init(|| Mutex::new(FxHashMap::default()));
     if let Some(view) = leaked
         .lock()
@@ -158,7 +160,7 @@ pub fn registry_for_profile(profile: &'static DialectProfile) -> &'static Comman
 /// to be able to reach the pack-carrying entry without depending on the
 /// loader crate that sits above it.
 #[must_use]
-pub fn registry_for_profile_if_built(
+pub(crate) fn registry_for_profile_if_built(
     profile: &'static DialectProfile,
     overlay: u64,
 ) -> Option<Arc<CommandRegistry>> {
@@ -228,7 +230,7 @@ pub fn registry_for_profile_with_overlay(
 
     let mut registry = CommandRegistry::build_default();
     for &layer in profile.base_layers {
-        registry.load_dialect(layer);
+        registry.load_surface(layer);
     }
     extend(&mut registry);
     registry.set_profile(profile);
@@ -267,25 +269,59 @@ fn prune_overlays(map: &mut RegistryTable, current: u64) {
 /// so reaching this at all means a long editing session on a pack.
 const OVERLAY_LIMIT: usize = 64;
 
-/// Return the cached registry for `dialect`, building it on first use.
+/// Every command a safe interpreter hides, sorted.
 ///
-/// String-keyed convenience over [`registry_for_profile`]: the name is
-/// resolved through [`DialectProfile::by_name`], so a stream of typos
-/// cannot leak one registry per typo (they all share the plain-Tcl entry).
-#[must_use]
-pub fn registry_for_dialect(dialect: &str) -> &'static CommandRegistry {
-    registry_for_profile(DialectProfile::by_name(dialect))
-}
-
-/// [`registry_handle_for_profile`]'s string-keyed twin — the same entry
-/// [`registry_for_dialect`] returns, as a handle.
+/// The generic query behind both engines' `interp create -safe` (ledger row
+/// B2, issue #945 fault 7): the set is `Traits::SAFE_INTERP_HIDDEN`, and no
+/// consumer spells a command name. C's own set is `CmdInfo` rows lacking
+/// `CMD_IS_SAFE` plus the whole-command rows of `unsafeEnsembleCommands`
+/// (`tclBasic.c`), which is exactly what the trait records.
 ///
-/// Exists for the call sites that must hand an owned handle to something
-/// typed for one (the analyser's registry slot, chiefly), and would otherwise
-/// each spell out the `by_name` resolution.
+/// Deliberately **release-agnostic**: it is the union over every modelled
+/// release, and a caller narrows it by asking whether the command is
+/// actually present in the interpreter being made safe. That is not a
+/// shortcut — a release-gated command such as `unload` (8.5+) or `zipfs`
+/// (9.0+) is not registered under an older pin, so filtering by registration
+/// reproduces the measured per-release sets without a second availability
+/// rule. Measured on the reference interpreters
+/// (`interp create -safe s; lsort [interp hidden s]`, top-level command
+/// names only):
+///
+/// | release | hidden |
+/// |---|---|
+/// | 8.4.20 | the twelve below, minus `unload` and `zipfs` |
+/// | 8.5.19, 8.6.14 | + `unload` |
+/// | 9.0.4 | + `zipfs` |
+/// | 9.1b0 | + `clock` |
+///
+/// 9.1's `clock` is **not** in this set and must not be: 9.1 hides the C
+/// `clock` and immediately re-provides a safe one, so `clock format 0 -gmt 1`
+/// works inside a 9.1 safe child exactly as it does inside an 8.6 one
+/// (measured). The trait means "not callable in a safe interpreter", and
+/// `clock` is callable; putting it here would make the analyser's
+/// safe-context walk report a false positive on working code. Its presence
+/// in `interp hidden` is an artefact of the safe base's hide-then-alias, not
+/// of unsafety.
 #[must_use]
-pub fn registry_handle_for_dialect(dialect: &str) -> Arc<CommandRegistry> {
-    registry_handle_for_profile(DialectProfile::by_name(dialect))
+pub fn safe_interp_hidden_commands() -> &'static [&'static str] {
+    static HIDDEN: OnceLock<Vec<&'static str>> = OnceLock::new();
+    HIDDEN.get_or_init(|| {
+        // The default build carries every plain-Tcl release's commands; the
+        // trait itself is release-invariant, so no profile is needed.
+        let registry = crate::CommandRegistry::build_default();
+        let mut names: Vec<&'static str> = registry
+            .commands_with_trait(crate::Traits::SAFE_INTERP_HIDDEN)
+            .into_iter()
+            // The registry's own names are `'static` string literals from the
+            // compiled specs; `commands_with_trait` merely reborrows them
+            // through `&self`, so look each one back up to recover the
+            // lifetime rather than leaking a copy.
+            .filter_map(|name| registry.get(name).map(|spec| spec.name))
+            .collect();
+        names.sort_unstable();
+        names.dedup();
+        names
+    })
 }
 
 #[cfg(test)]
@@ -369,7 +405,7 @@ mod tests {
         const WATCHED: u64 = 0x5EED_0001;
         const FILL_BASE: u64 = 0x6000_0000;
 
-        let profile = DialectProfile::by_name("tcl");
+        let profile = crate::model::ingress::resolve_environment("tcl").analyser_profile();
 
         // The plain entry for this profile, captured before anything is
         // swept, so we can prove the sweep left it exactly where it was.

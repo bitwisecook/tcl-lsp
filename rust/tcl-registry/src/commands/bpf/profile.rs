@@ -18,12 +18,13 @@
 
 //! `profile` — select a built-in profile or declare one (`profile NAME { … }`).
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 pub fn spec() -> CommandSpec {
     const OP: BpfOpSpec = BpfOpSpec::framework(BpfDeclKind::Profile);
     CommandSpec {
         name: "profile",
-        dialects: Some(DialectSet::BPF),
+        surface: Some(SpecSurface::BPF),
         // `profile NAME`  or  `profile NAME { body }`
         arity: Arity::new(1, 2),
         bpf_op: Some(&OP),

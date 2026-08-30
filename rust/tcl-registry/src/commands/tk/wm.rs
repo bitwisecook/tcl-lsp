@@ -18,6 +18,7 @@
 
 //! `wm` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 /// Dynamic arg-role resolver for `wm protocol`.
 ///
@@ -105,7 +106,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "frame",
-        dialects: None,
+        surface: None,
         arity: Arity::exact(1),
         detail: "Return the platform-specific window identifier of the outermost frame.",
         synopsis: "wm frame window",
@@ -120,7 +121,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "grid",
-        dialects: None,
+        surface: None,
         arity: Arity::new(1, 5),
         detail: "Set or query the gridding information for the window.",
         synopsis: "wm grid window ?baseWidth baseHeight widthInc heightInc?",
@@ -138,7 +139,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::exact(2),
         detail: "Set a badge (a short overlay label) on the window's taskbar/dock icon.",
         synopsis: "wm iconbadge window badge",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -301,7 +302,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "wm",
-        dialects: Some(DialectSet::TK_AND_TCL),
+        surface: Some(SpecSurface::TK_AND_TCL),
         arity: Arity::at_least(2),
         hover: Some(HoverSnippet {
             summary: "Communicate with the window manager.",

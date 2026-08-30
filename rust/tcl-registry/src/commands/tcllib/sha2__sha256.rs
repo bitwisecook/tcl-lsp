@@ -27,7 +27,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "sha2::sha256",
         traits: Traits::PURE,
-        dialects: None,
+        surface: None,
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Compute the SHA-256 hash of a string or file.",
@@ -40,8 +40,11 @@ pub fn spec() -> CommandSpec {
             return_value: "The SHA-256 hash as a hex or binary string.",
         }),
         forms: FORMS,
-        tcllib_package: Some("sha2"),
-        required_package: Some("sha2"),
+        // The commands are `::sha2::*`, but tcllib provides them under
+        // `package require sha256` (`sha1/sha256.tcl` ends with
+        // `package provide sha256 1.0.6`); no `sha2` package exists.
+        tcllib_package: Some("sha256"),
+        required_package: Some("sha256"),
         ..CommandSpec::DEFAULT
     }
 }

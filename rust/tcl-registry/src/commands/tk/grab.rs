@@ -18,6 +18,7 @@
 
 //! `grab` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
@@ -62,7 +63,7 @@ const OPTIONS: &[OptionSpec] = &[OptionSpec {
     name: "-global",
     value: OptionValue::flag(),
     detail: "Make the grab global (applies to all displays).",
-    dialects: None,
+    surface: None,
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
@@ -76,7 +77,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "grab",
-        dialects: Some(DialectSet::TK_AND_TCL),
+        surface: Some(SpecSurface::TK_AND_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Confine pointer and keyboard events to a window sub-tree.",

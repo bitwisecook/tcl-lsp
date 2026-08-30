@@ -19,6 +19,7 @@
 //! `foreach` — iterate over one or more lists.
 
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     reads: true,
@@ -56,7 +57,7 @@ static REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "foreach",
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::CONTROL_FLOW

@@ -69,7 +69,7 @@ use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::compiler_checks::run_all_checks;
 use tcl_compiler::optimiser::manager::optimise_with_dialect;
 use tcl_core_types::DiagCode;
-use tcl_registry::registry_for_dialect;
+use tcl_registry::model::ingress::static_context_for;
 
 /// Default dialect for reproducers that are not dialect-sensitive.
 const D: &str = "tcl8.6";
@@ -87,9 +87,10 @@ fn codes(src: &str, dialect: &str) -> Vec<String> {
         .iter()
         .map(|d| d.code.to_string())
         .collect();
-    let registry = registry_for_dialect(dialect);
+    let registry = static_context_for(dialect).commands();
     let cu = CompilationUnit::build_for(src, registry, false);
-    let dialect_opt = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let dialect_opt = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     for d in run_all_checks(&cu, registry, dialect_opt) {
         if d.code.is_optimisation() {
             continue;
@@ -108,9 +109,10 @@ fn fires(src: &str, dialect: &str, code: &str) -> bool {
 /// O107 (unreachable dead code), which the optimiser emits, not the analyser.
 /// Copied from `src/analyser/diagnostics/fp/rch.rs::all_codes`.
 fn all_codes(src: &str, dialect: &str) -> Vec<String> {
-    let registry = registry_for_dialect(dialect);
+    let registry = static_context_for(dialect).commands();
     let cu = CompilationUnit::build_for(src, registry, false);
-    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     let mut v: Vec<String> = Analyser::new()
         .analyse(src, dialect)
         .diagnostics
@@ -133,8 +135,9 @@ fn all_codes(src: &str, dialect: &str) -> Vec<String> {
 /// True if the optimiser reports O107 (unreachable dead code) for `src`.
 /// Copied from `src/analyser/diagnostics/fp/rch.rs::o107_fires`.
 fn o107_fires(src: &str, dialect: &str) -> bool {
-    let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let registry = static_context_for(dialect).commands();
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     optimise_with_dialect(src, registry, d)
         .iter()
         .any(|o| o.code == DiagCode::O107)
@@ -142,14 +145,14 @@ fn o107_fires(src: &str, dialect: &str) -> bool {
 
 /// True if any optimisation with `code` fires on `src`.
 fn opt_fires(src: &str, dialect: &str, code: &str) -> bool {
-    let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let registry = static_context_for(dialect).commands();
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     optimise_with_dialect(src, registry, d)
         .iter()
         .any(|o| o.code.as_str() == code)
 }
 
-// ===========================================================================
 // RCH — reachability (`fp/rch.rs`, ~63%).
 //
 // The in-crate rch tests cover `while 1`+break, try-handler bodies, on-ok SSA
@@ -157,7 +160,6 @@ fn opt_fires(src: &str, dialect: &str, code: &str) -> bool {
 // terminator* analysis: O107 after `return`/`error` (the dead-code arm), the
 // `if {0}/while 0` constant-false guard fallout, and several loop-exit
 // reachability shapes the single rch pair never reaches.
-// ===========================================================================
 mod rch_depth {
     use super::*;
 
@@ -264,7 +266,6 @@ mod rch_depth {
     }
 }
 
-// ===========================================================================
 // HELPERS — shared `UndefSuppression` machinery (`helpers.rs`, ~66%).
 //
 // Exercises the branches of helpers.rs that the families consult:
@@ -276,7 +277,6 @@ mod rch_depth {
 //   * the phi-can-undef trace (conditional unset → maybe-undef merge);
 //   * `globals_written_by_procs` (a helper proc's `set ::g` suppresses a
 //     top-level `$g`; an unset-only proc does not).
-// ===========================================================================
 mod helpers_depth {
     use super::*;
 
@@ -590,7 +590,6 @@ proc f {} {
     }
 }
 
-// ===========================================================================
 // DS — dead-store / unused (`fp/ds.rs`, ~81%).
 //
 // The in-crate ds tests cover cmd-sub incr, expr cmd-sub reads, eval bodies,
@@ -598,7 +597,6 @@ proc f {} {
 // read-modify-write (RMW) liveness branches: `append`/`lappend`/`incr`/`dict
 // set` that read-then-write the same var (so the feeding init is alive), and a
 // cmd-sub read via a *different* command than `incr`.
-// ===========================================================================
 mod ds_depth {
     use super::*;
 
@@ -696,7 +694,6 @@ mod ds_depth {
     }
 }
 
-// ===========================================================================
 // INJ — injection / taint (`fp/inj.rs`, ~83%).
 //
 // The in-crate inj tests cover `uplevel 1 $body`, `eval [list …]`, and the
@@ -704,7 +701,6 @@ mod ds_depth {
 // *uplevel level-form* W301 carve-out (`#1`, no-level) and additional
 // list-returning canonical commands for the eval-W101 exemption, plus a clean
 // generic-taint T102 control via HTTP::header.
-// ===========================================================================
 mod inj_depth {
     use super::*;
 
@@ -811,7 +807,6 @@ mod inj_depth {
     }
 }
 
-// ===========================================================================
 // OPT — optimiser quick-fix carve-outs (`fp/opt.rs`, ~83%).
 //
 // The in-crate opt tests cover the catalogue's main O110/O116/O106/O109/O126/
@@ -819,7 +814,6 @@ mod inj_depth {
 // identity rewrites blocked without a numeric-type proof, O120 ==→eq blocked
 // without a provably-non-numeric operand, and O126 deletion blocked on an
 // impure RHS — each with the matching "provably safe → still fires" control.
-// ===========================================================================
 mod opt_depth {
     use super::*;
 
@@ -927,7 +921,6 @@ mod opt_depth {
     }
 }
 
-// ===========================================================================
 // STY — style / usage carve-outs (`fp/sty.rs`, ~84%).
 //
 // The in-crate sty tests cover the catalogue's W001/W306/W104/W126/W302/W122/
@@ -935,7 +928,6 @@ mod opt_depth {
 // suppression branches: braced-word W306 (braces inhibit substitution),
 // `args`-param W214, `file join` already-used W201, and a usage-template W104
 // shape — each with a control.
-// ===========================================================================
 mod sty_depth {
     use super::*;
 
@@ -1044,7 +1036,6 @@ mod sty_depth {
     }
 }
 
-// ===========================================================================
 // OBJ — object-dispatch carve-outs (`fp/obj.rs`, ~85%).
 //
 // The in-crate obj tests cover the catalogue's snit / TclOO / factory /
@@ -1053,7 +1044,6 @@ mod sty_depth {
 // object handle → suppressed) vs a *copy of that param into a fresh local*
 // (provenance does not propagate through a plain copy → fires), and the
 // multi-dispatch-on-same-local suppression vs its single-dispatch control.
-// ===========================================================================
 mod obj_depth {
     use super::*;
 
@@ -1137,7 +1127,6 @@ mod obj_depth {
     }
 }
 
-// ===========================================================================
 // `dict update` key-present value-var suppression (regression: was a W210 FP).
 //
 // `dict update dictVar key var ?key var ...? body` binds each `var` to the
@@ -1156,7 +1145,6 @@ mod obj_depth {
 // set, so a read of the bound value-var is no longer flagged read-before-set.
 // The empty-dict case still fires (key absent → value-var genuinely unset), and
 // the `dict with` analogue stays silent — the two controls below pin both ends.
-// ===========================================================================
 mod bug_dict_update_value_var {
     use super::*;
 
@@ -1201,7 +1189,6 @@ mod bug_dict_update_value_var {
         );
     }
 
-    // -----------------------------------------------------------------------
     // Issue #1247 depth: the FP above was re-introduced once by a registry
     // change and caught only by the single assertion above. The mechanism is
     // worth pinning from every side it can break from, because the harvester
@@ -1218,7 +1205,6 @@ mod bug_dict_update_value_var {
     // clause then gates off `dict_with_known_keys` in `suppresses_strict`.
     // The tests below pin the same invariant from the *behaviour* side, so
     // the two layers cannot drift apart silently.
-    // -----------------------------------------------------------------------
 
     #[test]
     fn dict_update_value_var_is_not_an_unconditional_definition() {

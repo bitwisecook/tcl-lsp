@@ -20,6 +20,7 @@
 
 use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "append varName ?value value value ...?",
@@ -30,7 +31,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "append",
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::BYTE_COMPILED
             | Traits::READS_BEFORE_WRITE
@@ -52,9 +53,9 @@ pub fn spec() -> CommandSpec {
         arg_roles: &[(0, ArgRole::VarWrite)],
         assigns_variable_at: Some(0),
         // iRules embeds Tcl 8.4.6 and retains append's documented
-        // auto-creation behaviour. Its bare availability mask therefore
-        // needs an explicit membership bit alongside the ordinary Tcl cores.
-        safe_on_uninit: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        // auto-creation behaviour. Its bare availability point therefore needs
+        // an explicit iRules row alongside the ordinary Tcl cores.
+        safe_on_uninit: Some(SpecSurface::ALL_TCL_AND_IRULES),
         return_type: Some(TclType::String),
         arg_types: &[(
             0,

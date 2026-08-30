@@ -102,7 +102,7 @@ fn irule_suffixes() -> &'static [&'static str] {
     SUFFIXES.get_or_init(|| {
         std::iter::once("tcl")
             .chain(
-                tcl_dialect::DialectProfile::by_name("f5-irules")
+                tcl_cli_support::environment::profile_for_dialect("f5-irules")
                     .file_extensions
                     .iter()
                     .map(|row| row.extension),
@@ -410,7 +410,7 @@ fn write_highlighted(
         text,
         use_colour,
         tab_width,
-        tcl_dialect::DialectProfile::irules(),
+        tcl_cli_support::environment::profile_for_dialect("f5-irules"),
     )
     .map_err(|e| e.to_string())
 }
@@ -592,10 +592,10 @@ fn run_event_info(
     output: &str,
 ) -> Result<u8, u8> {
     // The profile-stamped registry: the §9 operator-head exclusion applies
-    // inside the event/command cross-product, and availability otherwise
-    // comes from each spec's own `dialects` group — a raw `build_default`
-    // registry would re-admit commands that carry no `IRULES` bit.
-    let cmds = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
+    // inside the event/command cross-product, and availability otherwise comes
+    // from each spec's own surface — a raw `build_default` registry would
+    // re-admit commands that carry no iRules row.
+    let cmds = tcl_registry::model::static_context_for("f5-irules").commands();
     let events = tcl_registry::events::EventRegistry::build();
     let profiles = tcl_registry::profiles::ProfileRegistry::build();
     let info = cmds.event_info(event, &events, &profiles, bigip_version);
@@ -791,7 +791,7 @@ fn run_irule_context(
         .collect();
     let merged = tcl_bigip::lint::merge_configs(&config_refs);
 
-    let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
+    let registry = tcl_registry::model::static_context_for("f5-irules").commands();
 
     let filter: std::collections::HashSet<&str> = rule_filter.iter().map(String::as_str).collect();
     let transitive = !no_transitive;
@@ -901,7 +901,7 @@ fn run_irule_trace(event: &str, input: &IruleInputArgs, json: bool) -> Result<u8
         .collect();
     let merged = tcl_bigip::lint::merge_configs(&config_refs);
 
-    let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
+    let registry = tcl_registry::model::static_context_for("f5-irules").commands();
 
     let mut traces: Vec<Trace> = Vec::new();
     for entry in &loaded.inputs {
@@ -1167,7 +1167,7 @@ fn run_format(
     // One resolved profile drives both the registry and the formatter, so the
     // command table and the lexer can never disagree about the dialect
     // (`registry_for_dialect` resolves the same profile by name).
-    let profile = DialectProfile::by_name(&input.dialect);
+    let profile = tcl_cli_support::environment::analyser_profile_for_dialect(&input.dialect);
     let registry = registry_for_dialect(&input.dialect);
     let config = build_formatter_config(formatter, profile);
 

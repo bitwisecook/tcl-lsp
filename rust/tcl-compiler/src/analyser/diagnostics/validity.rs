@@ -31,12 +31,15 @@
 
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_core_types::DiagCode;
-use tcl_registry::{Arity, ProfileQueries};
+use tcl_dialect::model::SpecProvider;
+use tcl_registry::Arity;
+use tcl_registry::lifecycle::Lifecycle;
 
 use super::helpers::{has_substitution, is_ident_continue};
 use crate::analyser::state::Analyser;
 use crate::analyser::types::{PendingUserCallArity, Severity};
 use crate::expr_ast::{ExprNode, render_expr};
+use tcl_dialect::model::SpecSurface;
 
 /// The argument words of one command invocation, scoped to the prefix the
 /// caller has already consumed: `args` / `arg_tokens` / `arg_expand` are the
@@ -180,23 +183,278 @@ fn count_positionals(args: &[String], arg_expand: &[bool], start: usize) -> (usi
     (nargs_min, any_expand)
 }
 
-fn first_distinct_option_conflict(
-    seen_options: &[(&'static str, tcl_lexer::Span)],
-    constraints: &[&'static tcl_registry::OptionConstraint],
-) -> Option<(
-    &'static tcl_registry::OptionConstraint,
-    tcl_lexer::Span,
-    tcl_lexer::Span,
-)> {
-    constraints.iter().find_map(|constraint| {
-        let first = seen_options
-            .iter()
-            .find(|(name, _)| constraint.options.contains(name))?;
-        let second = seen_options
-            .iter()
-            .find(|(name, _)| constraint.options.contains(name) && name != &first.0)?;
-        Some((*constraint, first.1, second.1))
-    })
+/// One leading option word the call supplied, as the relation checker needs
+/// it: the canonical name, the flag word's span, and the option's first value
+/// word when that word is statically known.
+#[derive(Debug, Clone)]
+pub(in crate::analyser) struct SeenOption {
+    pub(in crate::analyser) name: &'static str,
+    pub(in crate::analyser) span: tcl_lexer::Span,
+    pub(in crate::analyser) value: Option<String>,
+}
+
+/// One positional word after the leading option run: its literal text when
+/// statically known, and its span.
+#[derive(Debug, Clone)]
+pub(in crate::analyser) struct SeenPositional {
+    pub(in crate::analyser) value: Option<String>,
+    pub(in crate::analyser) span: tcl_lexer::Span,
+}
+
+/// One invocation as the E-R14 relation checker reads it — the whole result
+/// of [`scan_invocation_words`], kept together so the three facts a verdict
+/// depends on cannot be passed apart.
+#[derive(Debug, Default)]
+pub(in crate::analyser) struct ScannedInvocation {
+    pub(in crate::analyser) options: Vec<SeenOption>,
+    pub(in crate::analyser) positionals: Vec<SeenPositional>,
+    /// Whether the call was read to its end with every word statically known.
+    /// **Only** this licenses proving a relation term *absent*.
+    pub(in crate::analyser) complete: bool,
+}
+
+/// The span a relation violation points at: the run from the first to the last
+/// word the violation names, or `fallback` when it names none the call
+/// actually supplied (a `requires-one-of` that found nothing).
+fn relation_span(
+    present: &[tcl_registry::OptionTerm],
+    seen_options: &[SeenOption],
+    positionals: &[SeenPositional],
+    fallback: tcl_lexer::Span,
+) -> tcl_lexer::Span {
+    let span_of = |term: tcl_registry::OptionTerm| -> Option<tcl_lexer::Span> {
+        match term {
+            tcl_registry::OptionTerm::Option(name)
+            | tcl_registry::OptionTerm::OptionValue(name, _) => seen_options
+                .iter()
+                .find(|option| option.name == name)
+                .map(|option| option.span),
+            tcl_registry::OptionTerm::Argument(index)
+            | tcl_registry::OptionTerm::ArgumentValue(index, _) => {
+                positionals.get(usize::from(index)).map(|word| word.span)
+            }
+        }
+    };
+    let spans: Vec<tcl_lexer::Span> = present.iter().copied().filter_map(span_of).collect();
+    match (spans.first(), spans.last()) {
+        (Some(first), Some(last)) => tcl_lexer::Span::new(first.start(), last.end()),
+        _ => fallback,
+    }
+}
+
+/// **The whole E-R14 consumer**, shared by the ordinary command path and the
+/// object-instance dispatch path so one invocation is judged by one rule.
+///
+/// Every relation is evaluated natively; the `constraints` hook is reached
+/// only when a spec declares one *and* nothing declarative had anything to
+/// report — so a registry with no `constraints` hook (which is every shipped
+/// command) never enters the VM at any call site.
+///
+/// Each entry pairs the relation's [`Lifecycle`] with its diagnostic, so the
+/// caller can buffer a version-gated relation for the post-walk floor and push
+/// an ungated one inline.
+pub(in crate::analyser) fn option_relation_diagnostics(
+    display_name: &str,
+    relations: &[&'static tcl_registry::OptionRelation],
+    constraints_hook: Option<tcl_registry::ConstraintsHook>,
+    call: &ScannedInvocation,
+    fallback_span: tcl_lexer::Span,
+) -> Vec<(Lifecycle, crate::analyser::types::Diagnostic)> {
+    let seen_options = &call.options;
+    let positionals = &call.positionals;
+    if relations.is_empty() && constraints_hook.is_none() {
+        tcl_registry::spec::note_relation_check(!seen_options.is_empty(), false, 0, false);
+        return Vec::new();
+    }
+    let options: Vec<(&'static str, Option<&str>)> = seen_options
+        .iter()
+        .map(|option| (option.name, option.value.as_deref()))
+        .collect();
+    let positional_values: Vec<Option<&str>> = positionals
+        .iter()
+        .map(|word| word.value.as_deref())
+        .collect();
+    let facts = tcl_registry::OptionFacts {
+        options: &options,
+        positionals: &positional_values,
+        complete: call.complete,
+    };
+
+    let mut out = Vec::new();
+    for relation in relations {
+        let tcl_registry::RelationVerdict::Violated(violation) = relation.evaluate(&facts) else {
+            continue;
+        };
+        let span = relation_span(&violation.present, seen_options, positionals, fallback_span);
+        let code = if violation.kind.is_exclusion() {
+            DiagCode::W147
+        } else {
+            DiagCode::W152
+        };
+        out.push((
+            relation.lifecycle,
+            crate::analyser::types::Diagnostic::new(
+                code,
+                span,
+                violation.message_for(display_name),
+                Severity::Warning,
+            ),
+        ));
+    }
+
+    // The escape hatch, and only here: a spec that declares no `constraints`
+    // hook never reaches the hook seam at all, and one that does is asked only
+    // when the declarative relations found nothing to report.
+    if !out.is_empty() {
+        tcl_registry::spec::note_relation_check(
+            !seen_options.is_empty(),
+            true,
+            relations.len(),
+            false,
+        );
+        return out;
+    }
+    let Some(hook) = constraints_hook else {
+        tcl_registry::spec::note_relation_check(
+            !seen_options.is_empty(),
+            true,
+            relations.len(),
+            false,
+        );
+        return out;
+    };
+    tcl_registry::spec::note_relation_check(!seen_options.is_empty(), true, relations.len(), true);
+    for report in hook(&facts) {
+        let span = match report.slot {
+            tcl_registry::ConstraintSlot::Option(name) => seen_options
+                .iter()
+                .find(|option| option.name == name)
+                .map_or(fallback_span, |option| option.span),
+            tcl_registry::ConstraintSlot::Argument(index) => positionals
+                .get(usize::from(index))
+                .map_or(fallback_span, |word| word.span),
+            tcl_registry::ConstraintSlot::Command => fallback_span,
+        };
+        let code = if report.conflict {
+            DiagCode::W147
+        } else {
+            DiagCode::W152
+        };
+        out.push((
+            Lifecycle::UNSPECIFIED,
+            crate::analyser::types::Diagnostic::new(code, span, report.message, Severity::Warning),
+        ));
+    }
+    out
+}
+
+/// Whether a word's value is statically known — the precondition for proving
+/// a relation term *absent*.
+///
+/// A `Var`/`Cmd` token is a substitution outright; a `$`/`[` anywhere else in
+/// the text is an interpolation inside a quoted word. Both mean the word could
+/// be anything at run time, including the very option a `requires` relation is
+/// about to complain is missing.
+fn statically_known_word(text: &str, token: Option<&tcl_lexer::Token>) -> bool {
+    if token.is_some_and(|tok| {
+        matches!(
+            tok.kind,
+            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+        )
+    }) {
+        return false;
+    }
+    !text.contains('$') && !text.contains('[')
+}
+
+/// Read one invocation's option and positional words — **the single walk the
+/// E-R14 relation checker judges from**, shared by the ordinary command path
+/// and the object-instance dispatch path.
+///
+/// `args` / `arg_tokens` / `arg_expand` are the words *after* whatever prefix
+/// the caller has already consumed (the command word, or the command and
+/// method words), so the indices a relation names line up with the synopsis.
+///
+/// The third return is `complete`: whether the call was read to its end with
+/// every word statically known. Only `complete` licenses proving a term
+/// *absent*, which is what keeps a `requires` relation from accusing a
+/// `{*}$opts` call of omitting an option the expansion may well supply.
+///
+/// [`tcl_registry::OptionPlacement`] decides where options may be found.
+/// `Leading` stops at the first non-option word — what core Tcl's own C option
+/// loops do, so a later option-shaped word there is a positional and reading
+/// it as an option would invent a relation the interpreter never applies.
+/// `Anywhere` keeps recognising declared options between positional words, up
+/// to an explicit `--`, which is the script-level `foreach {flag value}`
+/// shape (`http::geturl`).
+pub(in crate::analyser) fn scan_invocation_words(
+    option_specs: &[&'static tcl_registry::prelude::OptionSpec],
+    placement: tcl_registry::OptionPlacement,
+    args: &[String],
+    arg_tokens: &[tcl_lexer::Token],
+    arg_expand: &[bool],
+    source: &str,
+    fallback_span: tcl_lexer::Span,
+) -> ScannedInvocation {
+    let expanded = |i: usize| arg_expand.get(i).copied().unwrap_or(false);
+    let span_at = |index: usize| {
+        arg_tokens.get(index).map_or(fallback_span, |token| {
+            super::super::utils::full_word_span(*token, source)
+        })
+    };
+    let known = |index: usize| {
+        args.get(index)
+            .is_some_and(|text| statically_known_word(text, arg_tokens.get(index)))
+            && !expanded(index)
+    };
+    let mut options: Vec<SeenOption> = Vec::new();
+    let mut positionals: Vec<SeenPositional> = Vec::new();
+    let mut complete = true;
+    let mut i = 0usize;
+    let mut in_options = true;
+    while i < args.len() {
+        if expanded(i) {
+            // An expanded word could be anything, options included, so the
+            // walk stops and nothing may be proven absent.
+            complete = false;
+            break;
+        }
+        if in_options && args[i] == "--" {
+            in_options = false;
+            i += 1;
+            continue;
+        }
+        if in_options && let Some(opt) = option_specs.iter().find(|o| o.matches(&args[i])) {
+            let consumed = opt.value_word_count(args, i);
+            let value = (consumed > 0 && known(i + 1))
+                .then(|| args.get(i + 1).cloned())
+                .flatten();
+            options.push(SeenOption {
+                name: opt.name,
+                span: span_at(i),
+                value,
+            });
+            i += 1 + consumed;
+            continue;
+        }
+        if in_options && placement == tcl_registry::OptionPlacement::Leading {
+            // The leading run is over; everything from here is positional.
+            in_options = false;
+        }
+        if !known(i) {
+            complete = false;
+        }
+        positionals.push(SeenPositional {
+            value: known(i).then(|| args[i].clone()),
+            span: span_at(i),
+        });
+        i += 1;
+    }
+    ScannedInvocation {
+        options,
+        positionals,
+        complete,
+    }
 }
 
 /// Compatibility adapter for existing end-offset consumers. The delimiter
@@ -323,7 +581,7 @@ struct OptionScanContext {
     /// The resolved option table (command-level, or the subcommand's).
     options: &'static [tcl_registry::hover::OptionSpec],
     /// Dialect set the options inherit when they declare none.
-    parent_dialects: Option<tcl_registry::prelude::DialectSet>,
+    parent_surface: Option<&'static [SpecSurface]>,
     /// First argument index the scan starts at (1 past a subcommand word).
     start_idx: usize,
     /// The resolved subcommand path, for messages — just the subcommand
@@ -511,20 +769,22 @@ got {nargs_min}{usage_suffix}",
 /// "iRules") — this suffix is the highest-traffic dialect naming in
 /// editor-visible prose, so it uses the human spelling; a member with no
 /// catalog profile keeps its canonical name.
-fn dialect_availability_suffix(dialects: Option<tcl_registry::prelude::DialectSet>) -> String {
-    let Some(dialects) = dialects else {
+fn dialect_availability_suffix(surface: Option<&'static [SpecSurface]>) -> String {
+    let Some(rows) = surface else {
         return String::new();
     };
-    let names = dialects.member_names();
-    if names.is_empty() {
-        return String::new();
-    }
-    let labels: Vec<&str> = names
-        .iter()
+    // The dialect ids the rows name, in the registry's own projection —
+    // the reader wants the dialects they can select, not the row spelling.
+    let labels: Vec<String> = tcl_registry::model::surface::dialect_names_for_rows(rows)
+        .into_iter()
         .map(|name| {
-            tcl_dialect::DialectProfile::find(name).map_or(*name, |profile| profile.short_name)
+            tcl_dialect::DialectProfile::find(&name)
+                .map_or(name.clone(), |profile| profile.short_name.to_owned())
         })
         .collect();
+    if labels.is_empty() {
+        return String::new();
+    }
     format!(" (available in: {})", labels.join(", "))
 }
 
@@ -826,7 +1086,7 @@ impl Analyser {
                     tcl_registry::InvocationWord::Literal(cmd_name),
                     &words,
                 ),
-                self.profile.availability_mask,
+                Some(self.analysis_context().context().authoring_query()),
             )
             .resolved()
             .and_then(|invocation| invocation.validate_literal_arguments())
@@ -927,17 +1187,18 @@ impl Analyser {
         if bare.is_empty() {
             return;
         }
-        let profile = tcl_dialect::DialectProfile::by_name(self.dialect());
-        // EXISTS in the active dialect profile → fine.  UNKNOWN everywhere →
+        let generation = self.analysis_context();
+        // EXISTS in the active dialect's context → fine.  UNKNOWN everywhere →
         // W123's concern.  Only DISALLOWED (exists in some dialect, not this
-        // one) fires.  Resolution goes through the profile so the composed
-        // (version|vendor) mask admits the dialect's embedded Tcl core and
-        // the subtractive iRules disable list stays applied after the mask
-        // query.  Existence must be checked *dialect-agnostically*: the
-        // analyser registry only loads the active dialect, so `get(bare)`
-        // misses an iRules command like `when`/`log`/`session` under
-        // tcl8.6, so use the dialect-independent `known_in_any_dialect`.
-        if profile.resolve_command(registry, bare).is_some() || !registry.known_in_any_dialect(bare)
+        // one) fires.  Resolution goes through the resolved context so the
+        // composed (version|vendor) authoring mask admits the dialect's
+        // embedded Tcl core.  Existence must be checked
+        // *dialect-agnostically*: the analyser registry only loads the
+        // active dialect, so `get(bare)` misses an iRules command like
+        // `when`/`log`/`session` under tcl8.6, so use the
+        // dialect-independent `known_in_any_dialect`.
+        if generation.context().resolve_spec(registry, bare).is_some()
+            || !registry.known_in_any_dialect(bare)
         {
             return;
         }
@@ -946,6 +1207,37 @@ impl Analyser {
         let qualified = crate::naming::normalise_qualified_name(bare);
         if super::utils::proc_shadows_call(&self.result.all_procs, &qualified, cmd_tok.span.start())
         {
+            return;
+        }
+        // measurements §4b: the 31 iRules-"disabled" stock builtins are two
+        // mechanisms, not one. A command **present in TMM's interpreter but
+        // refused by the rule compiler** at load (reachable via `eval` at
+        // runtime — `rename` demonstrably works) is a *policy* statement
+        // about rule source, not a statement about the language, so it draws
+        // the distinct IRULE2004 policy warning instead of the
+        // undifferentiated W002. An interpreter-absent command falls through
+        // to W002 below — its unavailability is a language fact. A
+        // compiler-refused name reached only through dynamic `eval`
+        // (variable-held) is never a literal head here, so it is not
+        // flagged at all — it works at runtime (§4c).
+        if self.profile.is_irules()
+            && tcl_registry::irules_policy::irules_disabled_class(bare)
+                .is_some_and(|class| !class.is_language_fact())
+        {
+            let diag = crate::analyser::types::Diagnostic::new(
+                DiagCode::Irule2004,
+                cmd_tok.span,
+                format!(
+                    "'{cmd_name}' is refused by the iRules rule compiler when written \
+                     literally in rule source; the command exists in TMM's interpreter \
+                     and is reachable through eval at runtime."
+                ),
+                Severity::Warning,
+            );
+            let ns = self.command_resolution_namespace(scope_path);
+            let enforce_order = !self.scope_path_in_proc_body(scope_path);
+            self.pending_disabled_commands
+                .push((cmd_name.to_string(), ns, enforce_order, diag));
             return;
         }
         // Best-effort "available in: …" hint read straight from the
@@ -958,7 +1250,7 @@ impl Analyser {
         // and the message falls back to the plain form — never wrong, just
         // sometimes less specific.
         let suffix = registry.get(bare).map_or(String::new(), |spec| {
-            dialect_availability_suffix(spec.dialects)
+            dialect_availability_suffix(spec.surface)
         });
         let diag = crate::analyser::types::Diagnostic::new(
             DiagCode::W002,
@@ -992,7 +1284,8 @@ impl Analyser {
             return Some(super::dispatch::signature_for_scoped_command(scoped));
         }
         let registry = self.registry.as_deref()?;
-        super::dispatch::signature_for_command(registry, cmd_name, self.profile)
+        let generation = self.analysis_context();
+        super::dispatch::signature_for_command(registry, cmd_name, generation.context())
     }
 
     /// **W001.** Emit "Unknown subcommand" warning for commands
@@ -1045,7 +1338,6 @@ impl Analyser {
         scope_path: &[usize],
     ) {
         use super::dispatch::CommandSignature;
-        use tcl_registry::prelude::DialectSet;
 
         if self.registry.is_none() {
             return;
@@ -1080,8 +1372,11 @@ impl Analyser {
         let tk_fallback = || {
             let registry = self.registry.as_deref()?;
             let spec = registry.get(cmd_name)?;
-            spec.dialects
-                .is_some_and(|d| d.intersects(DialectSet::TK))
+            spec.surface
+                .is_some_and(|rows| {
+                    rows.iter()
+                        .any(|row| row.provider == SpecProvider::Package("Tk"))
+                })
                 .then(|| super::dispatch::signature_for_command_any_dialect(registry, cmd_name))
                 .flatten()
         };
@@ -1393,7 +1688,7 @@ impl Analyser {
                 .iter()
                 .find(|s| s.name == first_arg)
                 .map_or(String::new(), |sub| {
-                    dialect_availability_suffix(sub.dialects.or(spec.dialects))
+                    dialect_availability_suffix(sub.surface.or(spec.surface))
                 })
         });
         let diag = crate::analyser::types::Diagnostic::new(
@@ -1663,7 +1958,6 @@ impl Analyser {
         // — the same `value_word_count` skip the W004 dialect-option loop
         // uses.
         let mut i = 0usize;
-        let mut seen_options: Vec<(&'static str, tcl_lexer::Span)> = Vec::new();
         while i < args.len() {
             if expanded(i) {
                 break;
@@ -1674,12 +1968,6 @@ impl Analyser {
                 break;
             }
             if let Some(opt) = sig.leading_option_specs.iter().find(|o| o.matches(arg)) {
-                if let Some(token) = arg_tokens.get(i) {
-                    seen_options.push((
-                        opt.name,
-                        super::super::utils::full_word_span(*token, &self.source),
-                    ));
-                }
                 // Skip the flag itself plus however many value words it
                 // consumes at this position (0 for a bare flag).
                 i += 1 + opt.value_word_count(args, i);
@@ -1696,11 +1984,27 @@ impl Analyser {
         let (nargs_min, positional_any_expand) =
             count_positionals(args, arg_expand, positional_start);
 
-        self.queue_option_conflict(
+        // The relation checker reads its own walk rather than reusing the
+        // arity skip above: the arity question is "where do the positionals
+        // start", which stops at the first unclassifiable word, while a
+        // relation must also know the option *values*, the positional words,
+        // and whether the call was readable to its end.
+        let source = self.source.clone();
+        let call = scan_invocation_words(
+            &sig.leading_option_specs,
+            sig.option_placement,
+            args,
+            arg_tokens,
+            arg_expand,
+            &source,
+            cmd_tok.span,
+        );
+        self.queue_option_relation_violations(
             resolution_name,
             display_name,
             sig,
-            &seen_options,
+            &call,
+            cmd_tok,
             scope_path,
         );
 
@@ -1818,60 +2122,64 @@ impl Analyser {
         self.lifecycle_axis(spec)
     }
 
-    /// **W147** for the first proven conflict among the literal leading
-    /// option words.
+    /// **W147 / W152** for every registry-declared option relation this call
+    /// violates (E-R14).
     ///
-    /// Option relationships are registry data. The generic analyser only
-    /// projects the literal leading option words and reports the first proven
-    /// conflict; dynamic option names and `{*}` expansions remain
-    /// conservative abstentions. No repair is offered because choosing which
-    /// option expresses the caller's intent is inherently ambiguous.
+    /// Option relations are registry data, checked **natively**: the whole
+    /// evaluation is [`tcl_registry::OptionRelation::evaluate`] over the facts
+    /// the option walk above already collected, with no hook and no VM entry
+    /// (principle P-B). A `constraints` hook runs only where a spec declares
+    /// one *and* the declarative relations reported nothing.
     ///
-    /// A conflict whose [`tcl_registry::OptionConstraint`] carries a
-    /// lifecycle is *buffered* rather than queued: a relationship declared
-    /// `-introduced 2.0` does not exist in a file whose owning package
-    /// resolves to 1.x, and — like every other lifecycle fact — the floor is
-    /// not known until every `package require` has been walked. An
-    /// unversioned constraint keeps the inline path exactly as it was.
-    fn queue_option_conflict(
+    /// The generic analyser only projects the option words and the positional
+    /// words around them; dynamic option names and `{*}` expansions leave
+    /// `complete` false, and every relation whose verdict would need to prove
+    /// a term *absent* then abstains. No repair is offered because choosing
+    /// which option expresses the caller's intent is inherently ambiguous.
+    ///
+    /// A relation carrying a lifecycle is *buffered* rather than queued: a
+    /// relation declared `-introduced 2.0` does not exist in a file whose
+    /// owning package resolves to 1.x, and — like every other lifecycle fact —
+    /// the floor is not known until every `package require` has been walked.
+    /// An unversioned relation keeps the inline path exactly as it was.
+    fn queue_option_relation_violations(
         &mut self,
         resolution_name: &str,
         display_name: &str,
         sig: &super::dispatch::CommandSig,
-        seen_options: &[(&'static str, tcl_lexer::Span)],
+        call: &ScannedInvocation,
+        cmd_tok: tcl_lexer::Token,
         scope_path: &[usize],
     ) {
-        let Some((constraint, first, second)) =
-            first_distinct_option_conflict(seen_options, &sig.option_constraints)
-        else {
+        let reports = option_relation_diagnostics(
+            display_name,
+            &sig.option_relations,
+            sig.constraints_hook,
+            call,
+            cmd_tok.span,
+        );
+        if reports.is_empty() {
             return;
-        };
-        let names = constraint
-            .options
-            .iter()
-            .filter(|name| seen_options.iter().any(|(seen, _)| seen == *name))
-            .copied()
-            .collect::<Vec<_>>()
-            .join(", ");
+        }
         let ns = self.command_resolution_namespace(scope_path);
         let enforce_order = !self.scope_path_in_proc_body(scope_path);
-        let diagnostic = crate::analyser::types::Diagnostic::new(
-            DiagCode::W147,
-            tcl_lexer::Span::new(first.start(), second.end()),
-            format!("Options {names} cannot be used together for '{display_name}'"),
-            Severity::Warning,
-        );
-        if constraint.lifecycle.is_unspecified() {
-            self.pending_arity
-                .push((resolution_name.to_string(), ns, enforce_order, diagnostic));
-        } else {
-            self.record_gated_option_conflict(
-                resolution_name,
-                constraint.lifecycle,
-                ns,
-                enforce_order,
-                diagnostic,
-            );
+        for (lifecycle, diagnostic) in reports {
+            if lifecycle.is_unspecified() {
+                self.pending_arity.push((
+                    resolution_name.to_string(),
+                    ns.clone(),
+                    enforce_order,
+                    diagnostic,
+                ));
+            } else {
+                self.record_gated_option_conflict(
+                    resolution_name,
+                    lifecycle,
+                    ns.clone(),
+                    enforce_order,
+                    diagnostic,
+                );
+            }
         }
     }
 
@@ -2029,16 +2337,19 @@ impl Analyser {
     /// require argparse` has proven the identity, W120 does not fire, and a
     /// bad-arity call to it is still an error.
     fn spec_is_an_unloaded_package_command(&self, name: &str) -> bool {
-        use tcl_registry::ProfileQueries;
-        let registry = tcl_registry::cache::registry_for_profile(self.profile);
-        let Some(pkg) = self
-            .profile
-            .resolve_command(registry, name)
+        // Resolution reads the un-overlaid generation's store (as the old
+        // `registry_for_profile` call did); the ambient answer reads this
+        // walk's own — possibly pack-overlaid — context, exactly the old
+        // `profile_registry().is_ambient_package` split.
+        let base = crate::environment_ingress::context_for_profile(self.profile);
+        let Some(pkg) = base
+            .context()
+            .resolve_spec(base.commands(), name)
             .and_then(tcl_registry::CommandSpec::owning_package)
         else {
             return false;
         };
-        if self.profile_registry().is_ambient_package(pkg) {
+        if self.analysis_context().context().ambient_package(pkg) {
             return false;
         }
         !self
@@ -3061,8 +3372,6 @@ impl Analyser {
         cmd_tok: tcl_lexer::Token,
         arg_tokens: &[tcl_lexer::Token],
     ) {
-        use tcl_registry::prelude::DialectSet;
-
         let Some(registry) = self.registry.as_deref() else {
             return;
         };
@@ -3074,12 +3383,10 @@ impl Analyser {
         // resolving with no dialect means W304 still fires on a command
         // that the active dialect disables (e.g. `exec` / `glob` under
         // f5-irules, which also draw W002 / W123).  Passing the dialect
-        // here would over-filter via `get_for_dialect` and silently drop
+        // here would over-filter via `get_for_surface` and silently drop
         // those W304s.
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let Some(profile) =
-            registry.resolve_option_terminator(cmd_name, &arg_strs, DialectSet::empty())
-        else {
+        let Some(profile) = registry.resolve_option_terminator(cmd_name, &arg_strs, None) else {
             return;
         };
 
@@ -3313,7 +3620,8 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
             // The shared per-profile registry cache: same contents as a
             // fresh build_default + load_dialect, without rebuilding the
             // whole registry per analysed document.
-            let registry = tcl_registry::registry_for_dialect(self.dialect());
+            let registry =
+                tcl_registry::model::ingress::static_context_for(self.dialect()).commands();
             let commands: std::collections::HashSet<&str> = registry.command_names().collect();
             let hits: Vec<(String, tcl_lexer::Span)> = self
                 .result
@@ -3459,7 +3767,7 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
         let Some(call) = tcl_registry::private_tcl_namespaces::classify_private_tcl_namespace_call(
             cmd_name,
             registry,
-            self.profile.availability_mask,
+            Some(self.analysis_context().context().authoring_query()),
         ) else {
             return;
         };
@@ -3781,8 +4089,8 @@ before this value so it is treated as data, not an option."
         } else {
             spec.prefix_matching
         };
-        let (options, parent_dialects, start_idx, sub_name) = if spec.subcommands.is_empty() {
-            (spec.options, spec.dialects, 0usize, None::<String>)
+        let (options, parent_surface, start_idx, sub_name) = if spec.subcommands.is_empty() {
+            (spec.options, spec.surface, 0usize, None::<String>)
         } else {
             // Ensemble-shaped: index 0 is always the subcommand word.  A
             // `{*}`-expanded or substituted word resolves to an unknown name
@@ -3796,8 +4104,10 @@ before this value so it is treated as data, not an option."
             {
                 return None;
             }
-            let sub =
-                spec.resolve_subcommand_for_dialect(&args[0], self.profile.availability_mask)?;
+            let sub = spec.resolve_subcommand_for_dialect(
+                &args[0],
+                Some(self.analysis_context().context().authoring_query()),
+            )?;
             // A two-level ensemble dispatches once more on the next word, and
             // its operations can carry genuinely different option tables
             // (`namespace ensemble create` vs `configure`, issue #1610). Read
@@ -3813,19 +4123,19 @@ before this value so it is treated as data, not an option."
             });
             let scope = sub.option_scope(
                 dispatch.map(String::as_str),
-                Some(self.profile.availability_mask),
+                Some(self.analysis_context().context().authoring_query()),
                 None,
-                spec.dialects,
+                spec.surface,
             );
             let name = match scope.sub_subcommand {
                 Some(op) => format!("{} {op}", sub.name),
                 None => sub.name.to_owned(),
             };
-            (scope.options, scope.dialects, 1usize, Some(name))
+            (scope.options, scope.surface, 1usize, Some(name))
         };
         (!options.is_empty()).then_some(OptionScanContext {
             options,
-            parent_dialects,
+            parent_surface,
             start_idx,
             sub_name,
             prefix_matching,
@@ -3881,7 +4191,7 @@ before this value so it is treated as data, not an option."
         };
         let OptionScanContext {
             options,
-            parent_dialects,
+            parent_surface,
             start_idx,
             sub_name,
             prefix_matching,
@@ -3922,11 +4232,16 @@ before this value so it is treated as data, not an option."
             // it consumes, so a value that itself looks like a flag
             // (`-command -bar`) is not mistakenly tested as an option.
             if let Some(opt) = options.iter().find(|o| o.matches(arg)) {
-                // Profile gating (§5.2): gate.intersects(mask) plus the
+                // Profile gating (§5.2): surface_admits(gate, &mask) plus the
                 // version ceiling — an inherited option on a vendor command
                 // resolves under that vendor's composed profile, and a
                 // later-version option never leaks below its ceiling.
-                if !self.profile.is_option_available(opt, parent_dialects) && i < arg_tokens.len() {
+                if !self
+                    .analysis_context()
+                    .context()
+                    .option_available(opt, parent_surface)
+                    && i < arg_tokens.len()
+                {
                     let span = arg_tokens[i].span;
                     // Message exactly: `Option 'X' on 'cmd'[ sub] is not
                     // available in the active dialect (D).`
@@ -3958,9 +4273,10 @@ in the active dialect ({}).",
             // abbreviation. A unique prefix is legal and is left to the
             // canonical-option handling above once resolved; an ambiguous one
             // is a guaranteed runtime error (W145, issue #1234).
+            let generation = self.analysis_context();
             let table = option_keyword_table(
                 options,
-                |opt| self.profile.is_option_available(opt, parent_dialects),
+                |opt| generation.context().option_available(opt, parent_surface),
                 prefix_matching,
             );
             match table.resolve(arg) {
@@ -4106,7 +4422,7 @@ in the active dialect ({}).",
         if !contains_gated_word(expr_text) {
             return;
         }
-        let Some((base, is_irules)) = self.w003_gates() else {
+        let Some((base, f5_words)) = self.w003_gates() else {
             return;
         };
 
@@ -4123,7 +4439,7 @@ in the active dialect ({}).",
         // iRules words), so forcing it here never misparses an expression
         // that would otherwise parse; the real pass/fail gate decision
         // below still keys on the active dialect's actual `(base,
-        // is_irules)` facts, not this parsing dialect.
+        // f5_words)` facts, not this parsing dialect.
         let trimmed = expr_text.trim();
         let parsed = crate::parse_expr(trimmed, Some("f5-irules"));
         if matches!(parsed, ExprNode::Raw { .. }) {
@@ -4145,7 +4461,7 @@ in the active dialect ({}).",
         let gated: Vec<(&tcl_lexer::ExprToken, &'static str)> = tokens
             .iter()
             .filter(|t| t.kind == tcl_lexer::ExprTokenType::Operator)
-            .filter_map(|t| gated_operator_name(&t.text, base, is_irules).map(|name| (t, name)))
+            .filter_map(|t| gated_operator_name(&t.text, base, f5_words).map(|name| (t, name)))
             .collect();
         if gated.is_empty() {
             return;
@@ -4262,7 +4578,7 @@ in the active dialect ({}).",
         if !contains_gated_word(joined_text) {
             return;
         }
-        let Some((base, is_irules)) = self.w003_gates() else {
+        let Some((base, f5_words)) = self.w003_gates() else {
             return;
         };
         // Forced to `f5-irules` for the same reason as the braced-argument
@@ -4271,13 +4587,13 @@ in the active dialect ({}).",
         // than operators, so the parse below would never see a valid
         // infix application and would fall back to `ExprNode::Raw`,
         // silently skipping this whole check. The real gate decision below
-        // still uses the active dialect's actual `(base, is_irules)`.
+        // still uses the active dialect's actual `(base, f5_words)`.
         let parsed = crate::parse_expr(joined_text.trim(), Some("f5-irules"));
         if matches!(parsed, ExprNode::Raw { .. }) {
             return;
         }
         for (word, tok) in args.iter().zip(arg_tokens.iter()) {
-            let Some(op_name) = gated_operator_name(word, base, is_irules) else {
+            let Some(op_name) = gated_operator_name(word, base, f5_words) else {
                 continue;
             };
             self.result.diagnostics.push(crate::analyser::types::Diagnostic::new(
@@ -4297,15 +4613,22 @@ Vec::new()));
         }
     }
 
-    /// The active dialect's `expr`-grammar base version and iRules
-    /// identity, or `None` when the dialect string has no documented base
-    /// version (nothing for W003 to check — see [`gated_operator_name`],
-    /// which does the real per-operator gate comparison against this).
+    /// The active dialect's `expr`-grammar base version and F5-family
+    /// word-operator acceptance, or `None` when the dialect string has no
+    /// documented base version (nothing for W003 to check — see
+    /// [`gated_operator_name`], which does the real per-operator gate
+    /// comparison against this).
+    ///
+    /// The second half follows the **family fact**, not the iRules name:
+    /// the word-form operators are an `f5-tcl` trunk fact, measured valid
+    /// in tmsh and iApp `expr` too
+    /// (`docs/design/bigip-irule-parser-measurements.md` §4a), so any
+    /// F5Tcl-cored profile passes the word-operator gate.
     fn w003_gates(&self) -> Option<(tcl_dialect::TclVersion, bool)> {
-        let profile = tcl_dialect::DialectProfile::by_name(self.dialect());
+        let profile = self.profile;
         profile
             .expr_grammar_base
-            .map(|base| (base, profile.is_irules()))
+            .map(|base| (base, profile.f5_core_expr_grammar().is_some()))
     }
 }
 
@@ -4325,18 +4648,17 @@ fn is_builtin_math_function(name: &str) -> bool {
 /// iRules only (`+`, `in`, `**`, `eq`, …) — used by the W117 stub-shadow
 /// check. Derived from [`tcl_syntax::expr::operators`] (issue #983's
 /// unification) rather than a hand-typed list: a `BinOp`/`UnaryOp` whose
-/// `dialects` isn't exactly `Some(DialectSet::IRULES)` is available outside
+/// `dialects` isn't exactly `Some(SpecSurface::IRULES)` is available outside
 /// iRules (`None` = ungated, `Some(TCL90_PLUS)` etc. = version-gated but not
 /// dialect-*identity*-gated — both count as "built-in" here; only the nine
 /// iRules word operators are excluded).
 fn is_builtin_expr_op(name: &str) -> bool {
-    use tcl_registry::prelude::DialectSet;
     tcl_syntax::expr::operators::ALL_BIN_OPS.iter().any(|op| {
         let spec = op.spec();
-        spec.spelling == name && spec.dialects != Some(DialectSet::IRULES)
+        spec.spelling == name && spec.surface != Some(SpecSurface::IRULES)
     }) || tcl_syntax::expr::operators::ALL_UNARY_OPS.iter().any(|op| {
         let spec = op.spec();
-        spec.spelling == name && spec.dialects != Some(DialectSet::IRULES)
+        spec.spelling == name && spec.surface != Some(SpecSurface::IRULES)
     })
 }
 
@@ -4344,13 +4666,12 @@ fn is_builtin_expr_op(name: &str) -> bool {
 /// `contains`, `not`, …) — see [`is_builtin_expr_op`]'s doc for the
 /// derivation and why these are excluded there.
 fn is_irules_only_expr_op(name: &str) -> bool {
-    use tcl_registry::prelude::DialectSet;
     tcl_syntax::expr::operators::ALL_BIN_OPS.iter().any(|op| {
         let spec = op.spec();
-        spec.spelling == name && spec.dialects == Some(DialectSet::IRULES)
+        spec.spelling == name && spec.surface == Some(SpecSurface::IRULES)
     }) || tcl_syntax::expr::operators::ALL_UNARY_OPS.iter().any(|op| {
         let spec = op.spec();
-        spec.spelling == name && spec.dialects == Some(DialectSet::IRULES)
+        spec.spelling == name && spec.surface == Some(SpecSurface::IRULES)
     })
 }
 
@@ -4531,7 +4852,7 @@ fn w003_tip_string(spelling: &str) -> &'static str {
 /// [`tcl_syntax::expr::operators::OperatorSpec::expr_grammar_min_version`]
 /// is `Some(_)` — plus (issue #985) the 9 iRules-only word operators, every
 /// `BinOp`/`UnaryOp` whose `OperatorSpec::dialects` is exactly
-/// `Some(DialectSet::IRULES)`. Computed once (not `const`: `OperatorSpec`
+/// `Some(SpecSurface::IRULES)`. Computed once (not `const`: `OperatorSpec`
 /// isn't cheaply iterable in a const context) and cached for the process
 /// lifetime — W003 only calls into this after its own text prefilter narrows
 /// to expressions that already contain a gated keyword, so this never runs
@@ -4539,7 +4860,6 @@ fn w003_tip_string(spelling: &str) -> &'static str {
 fn gated_expr_ops() -> &'static [GatedExprOp] {
     static TABLE: std::sync::OnceLock<Vec<GatedExprOp>> = std::sync::OnceLock::new();
     TABLE.get_or_init(|| {
-        use tcl_registry::prelude::DialectSet;
         let version_gated = tcl_syntax::expr::operators::ALL_BIN_OPS
             .iter()
             .filter_map(|op| {
@@ -4556,7 +4876,7 @@ fn gated_expr_ops() -> &'static [GatedExprOp] {
             .iter()
             .filter_map(|op| {
                 let spec = op.spec();
-                (spec.dialects == Some(DialectSet::IRULES)).then(|| GatedExprOp {
+                (spec.surface == Some(SpecSurface::IRULES)).then(|| GatedExprOp {
                     op: spec.spelling,
                     word_shaped: true,
                     gate: ExprOpGate::IrulesOnly,
@@ -4567,7 +4887,7 @@ fn gated_expr_ops() -> &'static [GatedExprOp] {
             .iter()
             .filter_map(|op| {
                 let spec = op.spec();
-                (spec.dialects == Some(DialectSet::IRULES)).then(|| GatedExprOp {
+                (spec.surface == Some(SpecSurface::IRULES)).then(|| GatedExprOp {
                     op: spec.spelling,
                     word_shaped: true,
                     gate: ExprOpGate::IrulesOnly,
@@ -4606,14 +4926,15 @@ pub(super) fn contains_gated_word(text: &str) -> bool {
 }
 
 /// The gated operator name for `word` under a dialect whose `expr`-grammar
-/// base version is `base` and whose iRules-identity is `is_irules` — `None`
-/// when `word` isn't one of the dialect-gated keywords, or the active
-/// dialect already satisfies its gate (version threshold met, or the
-/// dialect *is* iRules for an iRules-only word).
+/// base version is `base` and whose F5-family word-operator acceptance is
+/// `f5_words` — `None` when `word` isn't one of the dialect-gated keywords,
+/// or the active dialect already satisfies its gate (version threshold met,
+/// or the dialect is F5Tcl-cored for a word-form operator — a trunk fact,
+/// measured valid in tmsh/iApp expr too, measurements §4a).
 fn gated_operator_name(
     word: &str,
     base: tcl_dialect::TclVersion,
-    is_irules: bool,
+    f5_words: bool,
 ) -> Option<&'static str> {
     gated_expr_ops()
         .iter()
@@ -4621,7 +4942,7 @@ fn gated_operator_name(
             g.op == word
                 && match g.gate {
                     ExprOpGate::MinVersion(min) => base < min,
-                    ExprOpGate::IrulesOnly => !is_irules,
+                    ExprOpGate::IrulesOnly => !f5_words,
                 }
         })
         .map(|g| g.op)

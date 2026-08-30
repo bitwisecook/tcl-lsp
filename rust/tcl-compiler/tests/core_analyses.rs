@@ -59,20 +59,18 @@ use tcl_compiler::analyser::Analyser;
 use tcl_compiler::analyses::{ConstValue, LatticeKind, LatticeValue};
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::types::{TclType, TypeKind};
-use tcl_registry::registry_for_dialect;
+use tcl_registry::model::ingress::static_context_for;
 
 /// Default dialect for reproducers that are not dialect-sensitive.
 const D: &str = "tcl8.6";
 
-// ===========================================================================
 // Lattice-level harness (the `analyse_source(...).top_level` surface).
-// ===========================================================================
 
 /// Build the shared compilation unit for `src` under [`D`]. `cu.top_level` is
 /// the module script's function analysis; `cu.procedures[qname]` are the
 /// per-proc ones.
 fn build(src: &str) -> CompilationUnit {
-    CompilationUnit::build_for(src, registry_for_dialect(D), false)
+    CompilationUnit::build_for(src, static_context_for(D).commands(), false)
 }
 
 /// The lattice value for `(name, version)`. Resolves `name` through the
@@ -169,9 +167,7 @@ fn ty<'a>(
     fu.types.get(&(sym, version))
 }
 
-// ===========================================================================
 // TestCoreAnalyses — SCCP / liveness / dead-store core analyses.
-// ===========================================================================
 mod core_analyses {
     use super::*;
 
@@ -364,9 +360,7 @@ if {$total > 5} {
     }
 }
 
-// ===========================================================================
 // TestNewLoweringAnalysis — pipeline works through newly lowered nodes.
-// ===========================================================================
 mod new_lowering_analysis {
     use super::*;
 
@@ -420,9 +414,7 @@ mod new_lowering_analysis {
     }
 }
 
-// ===========================================================================
 // TestInterpolationFolding — constant-folding through string interpolation.
-// ===========================================================================
 mod interpolation_folding {
     use super::*;
 
@@ -526,9 +518,7 @@ mod interpolation_folding {
     }
 }
 
-// ===========================================================================
 // TestVariableShapeCoreAnalyses — variable-shape flow + CONSTSET + folds.
-// ===========================================================================
 mod variable_shape {
     use super::*;
 
@@ -790,12 +780,10 @@ fn assert_overdefined_or_absent(fu: &FunctionUnit, name: &str, version: u32, wha
     );
 }
 
-// ===========================================================================
 // Existence-check diagnostic surface.
 //
 // `codes` / `fires` are copied verbatim from
 // `src/analyser/diagnostics/fp/mod.rs`.
-// ===========================================================================
 
 /// Every diagnostic code the merged pipeline surfaces for `src` under `dialect`
 /// (analyser pass ∪ `run_all_checks`, optimisation codes dropped).
@@ -806,9 +794,10 @@ fn codes(src: &str, dialect: &str) -> Vec<String> {
         .iter()
         .map(|d| d.code.to_string())
         .collect();
-    let registry = registry_for_dialect(dialect);
+    let registry = static_context_for(dialect).commands();
     let cu = CompilationUnit::build_for(src, registry, false);
-    let dialect_opt = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let dialect_opt = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     for d in tcl_compiler::compiler_checks::run_all_checks(&cu, registry, dialect_opt) {
         if d.code.is_optimisation() {
             continue;
@@ -846,9 +835,7 @@ fn w210_vars(src: &str) -> std::collections::HashSet<String> {
         .collect()
 }
 
-// ---------------------------------------------------------------------------
 // TestNoReadBeforeSet — the check itself never triggers W210.
-// ---------------------------------------------------------------------------
 mod no_read_before_set {
     use super::*;
 
@@ -1020,9 +1007,7 @@ mod no_read_before_set {
     }
 }
 
-// ---------------------------------------------------------------------------
 // TestProvablyAbsentFoldsFalse — a never-defined local folds the check false.
-// ---------------------------------------------------------------------------
 mod provably_absent_folds_false {
     use super::*;
 
@@ -1080,9 +1065,7 @@ mod provably_absent_folds_false {
     }
 }
 
-// ---------------------------------------------------------------------------
 // TestProvablyPresentFoldsTrue.
-// ---------------------------------------------------------------------------
 mod provably_present_folds_true {
     use super::*;
 
@@ -1118,7 +1101,6 @@ mod provably_present_folds_true {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Issue #1239 — `array exists PARAM` is constant **false**, not constant true.
 //
 // A formal parameter is bound as a scalar on entry (Tcl has no
@@ -1136,7 +1118,6 @@ mod provably_present_folds_true {
 //   h 1                       ;# → can't set "a(x)": variable isn't array
 //   proc k {a} { unset a; array set a {x 1}; array exists a }
 //   k 1                       ;# → 1
-// ---------------------------------------------------------------------------
 mod array_exists_parameter_is_false {
     use super::*;
 
@@ -1264,10 +1245,8 @@ mod array_exists_parameter_is_false {
     }
 }
 
-// ---------------------------------------------------------------------------
 // TestSoundnessGates — the fold bails when a local could be created/destroyed
 // invisibly.
-// ---------------------------------------------------------------------------
 mod soundness_gates {
     use super::*;
 
@@ -1361,7 +1340,6 @@ mod soundness_gates {
     }
 }
 
-// ---------------------------------------------------------------------------
 // TestFlowSensitiveNarrowing — true-region reads are safe; false region flags.
 //
 // The leading `uplevel 1 $cmd` barrier keeps both arms live (no fold), so
@@ -1376,7 +1354,6 @@ mod soundness_gates {
 // `{set x $helper}` raises `can't read "helper"`, while the same body under
 // `eval $b` reads `42`). Both are `Statement::Barrier`s, so either disables the
 // existence fold; only one of them is a name barrier.
-// ---------------------------------------------------------------------------
 mod flow_sensitive_narrowing {
     use super::*;
 
@@ -1434,7 +1411,6 @@ mod flow_sensitive_narrowing {
     }
 }
 
-// ---------------------------------------------------------------------------
 // TestInfoVarsNarrowing — `info vars` / `info locals` membership idioms.
 //
 // The analyser narrows only the direct `info exists` / `array exists` / `catch`
@@ -1443,7 +1419,6 @@ mod flow_sensitive_narrowing {
 // guard-safe in Tcl, but the over-warn is sound (it never *suppresses* a real
 // read); we capture the actual verdict. The two must-still-flag controls (`info
 // globals`, `-regexp`, glob `X*`) behave the same.
-// ---------------------------------------------------------------------------
 mod info_vars_narrowing {
     use super::*;
 
@@ -1498,7 +1473,6 @@ mod info_vars_narrowing {
     }
 }
 
-// ---------------------------------------------------------------------------
 // TestCatchNarrowing — `catch {set _ $X}` signals existence on its succeeded
 // (false) branch.
 //
@@ -1506,7 +1480,6 @@ mod info_vars_narrowing {
 // guarded reads (which are safe in Tcl) are still flagged. Sound over-warn;
 // captured at the actual verdict. The two must-still-flag controls
 // (failed/ambiguous arm, non-pure body) behave the same.
-// ---------------------------------------------------------------------------
 mod catch_narrowing {
     use super::*;
 
@@ -1543,9 +1516,7 @@ mod catch_narrowing {
     }
 }
 
-// ---------------------------------------------------------------------------
 // TestAnalysisLevel — direct assertions on the core analysis result.
-// ---------------------------------------------------------------------------
 mod analysis_level {
     use super::*;
 
@@ -1581,7 +1552,6 @@ mod analysis_level {
     }
 }
 
-// ===========================================================================
 // Issue #1109 — a brace-quoted *name* word inside a command substitution is a
 // literal name, not a substitution.
 //
@@ -1598,7 +1568,6 @@ mod analysis_level {
 //
 // The read went to the cell called `$n`, never to `n`; `n` really is assigned
 // and never read, and W220 should say so.
-// ===========================================================================
 mod brace_quoted_name_words {
     use super::*;
 

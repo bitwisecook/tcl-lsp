@@ -641,7 +641,10 @@ pub fn run_lint(
     };
 
     let events = EventRegistry::build();
-    let irules_registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
+    let irules_registry = tcl_registry::model::ingress::static_context_for_profile(
+        tcl_dialect::DialectProfile::irules(),
+    )
+    .commands();
 
     let mut findings: Vec<Finding> = Vec::new();
 

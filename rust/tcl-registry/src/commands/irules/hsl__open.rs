@@ -18,10 +18,11 @@
 
 //! `HSL::open` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HSL::open",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         return_type: Some(TclType::Channel),
         hover: Some(HoverSnippet {
@@ -45,7 +46,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-publisher",
                     value: OptionValue::value(""),
                     detail: "Option -publisher.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -54,7 +55,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-pub",
                     value: OptionValue::value(""),
                     detail: "Option -pub.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -63,7 +64,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-proto",
                     value: OptionValue::value(""),
                     detail: "Option -proto.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -72,7 +73,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-pool",
                     value: OptionValue::value(""),
                     detail: "Option -pool.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,

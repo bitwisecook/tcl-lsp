@@ -37,12 +37,13 @@
 // to a same-named variable in the global namespace when the current
 // namespace has none, through Tcl 8.6; Tcl 9.0 removed that fallback
 // (`tclVar.c`'s `TclLookupSimpleVar` now forces `TCL_NAMESPACE_ONLY`).
-// See `DialectSet::namespace_var_global_fallback` for the dialect-keyed
+// See `DialectProfile::namespace_var_global_fallback` for the dialect-keyed
 // version of this same fact, and the hover snippet below for the
 // developer-facing wording.
 
 use crate::hooks::LoweringHookId;
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::Variable,
@@ -89,19 +90,17 @@ fn set_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "set",
-        // A core variable primitive with no filesystem/process/network
-        // access, present unmodified in every dialect that hosts a real
-        // Tcl core (irules, iapps, tmsh, the EDA shells, expect, tk,
-        // itcl) — its `dialects` group carries the `IRULES` bit explicitly
-        // (`ALL_TCL.union(IRULES)`), so it resolves under the bare `IRULES`
-        // availability mask, and no dialect grants it extra options or an
-        // alternate form:
-        // every `"set"` hit under the irules/, expect/, iapps/, tk/,
-        // itcl/, and eda_*/ command packs is an unrelated subcommand of
-        // a different ensemble (`array set`, `dict set`, a Tk widget's
-        // `pathName set`, iRules' `table set`), never a redefinition of
-        // this command.
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        // A core variable primitive with no filesystem/process/network access,
+        // present unmodified in every dialect that hosts a real Tcl core
+        // (irules, iapps, tmsh, the EDA shells, expect, tk, itcl) — its
+        // surface carries an iRules row explicitly (`ALL_TCL.union(IRULES)`),
+        // so it resolves under the iRules point, and no dialect grants it
+        // extra options or an alternate form: every `"set"` hit under the
+        // irules/, expect/, iapps/, tk/, itcl/, and eda_*/ command packs is an
+        // unrelated subcommand of a different ensemble (`array set`, `dict
+        // set`, a Tk widget's `pathName set`, iRules' `table set`), never a
+        // redefinition of this command.
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED

@@ -18,10 +18,11 @@
 
 //! `MR::message` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "MR::message",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Returns or sets details in the message routing table.",
@@ -40,9 +41,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &["MR"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "MR::message clone (CLONE_ID)+",
@@ -53,7 +52,7 @@ pub const fn spec() -> CommandSpec {
                 name: "-count",
                 value: OptionValue::value(""),
                 detail: "Option -count.",
-                dialects: None,
+                surface: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,

@@ -18,10 +18,11 @@
 
 //! `CATEGORY::safesearch` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "CATEGORY::safesearch",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Get safe search key and value pairs.",
@@ -37,9 +38,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &["CATEGORY", "FASTHTTP"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "CATEGORY::safesearch URL ('-ip' IP)?",
@@ -50,7 +49,7 @@ pub const fn spec() -> CommandSpec {
                 name: "-ip",
                 value: OptionValue::value(""),
                 detail: "Option -ip.",
-                dialects: None,
+                surface: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,

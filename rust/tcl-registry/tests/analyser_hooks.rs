@@ -26,10 +26,8 @@
 //! changing alongside it.
 
 use std::collections::BTreeSet;
-
-use tcl_dialect::DialectSet;
 use tcl_registry::hooks::AnalyserHookId;
-use tcl_registry::{CommandRegistry, CommandTableEffect, Traits};
+use tcl_registry::{CommandRegistry, Traits};
 
 /// Every dialect name that loads a non-trivial *compiled-in* command pack —
 /// the same list `registry_sweep.rs` uses — so the sweep sees every spec,
@@ -61,13 +59,15 @@ fn bundled_packs() -> tcl_spectcl::PackSet {
 }
 
 /// A registry with every loadable dialect pack merged in — compiled-in
-/// dialects by their `DialectSet` bit, the EDA vendor libraries through the
+/// dialects by their `SpecSurface` bit, the EDA vendor libraries through the
 /// `SpecTcl` loader.
 fn full_registry() -> CommandRegistry {
     let mut reg = CommandRegistry::build_default();
     for name in LOADABLE_DIALECTS {
-        let dialect = DialectSet::parse(name).expect("a compiled-in dialect name");
-        reg.load_dialect(dialect);
+        let profile = tcl_dialect::DialectProfile::find(name).expect("a compiled-in dialect name");
+        for &layer in profile.base_layers {
+            reg.load_surface(layer);
+        }
     }
     let packs = bundled_packs();
     assert!(
@@ -277,87 +277,92 @@ fn analyser_hook_stamps_are_disjoint_from_definer_families() {
     }
 }
 
-/// The command-table-effect stamps, pinned to the former name matches
-/// in `tcl_compiler::command_binding::stmt_gen` (proc / rename /
-/// interp) and `tcl_compiler::alias`'s detectors (interp alias /
+/// The command-table transition declarations, pinned to the former name
+/// matches in `tcl_compiler::command_binding::stmt_gen` (proc / rename /
+/// interp) and `tcl_compiler::alias`'s retired detectors (interp alias /
 /// rename).
+///
+/// Centralisation ledger C8: `proc`, `rename` and `interp alias` name the
+/// stock descriptors directly and no longer stamp the coarse
+/// `command_table_effect` selector beside them; a pack-authored spec that
+/// can only write the selector resolves to the same stock descriptor. Both
+/// routes are pinned here through the one consumer door.
 #[test]
-fn command_table_effect_stamps_match_the_former_name_matches() {
-    use CommandTableEffect as E;
-    let expected: BTreeSet<(&str, &str, E)> = [
-        // `"proc" =>` in stmt_gen — Tcl_ProcObjCmd, tclProc.c.
-        ("proc", "", E::DefinesProcedure),
-        // `"rename" =>` in stmt_gen / `cmd_name != "rename"` in
-        // detect_rename — Tcl_RenameObjCmd (tclCmdMZ.c) dispatching to
-        // TclRenameCommand (tclBasic.c).
-        ("rename", "", E::RenamesCommands),
-        // `"interp" =>` + `args[0] == "alias"` — AliasCreate,
-        // tclInterp.c; the effect rides the `alias` subcommand.
-        ("interp", "alias", E::CreatesAliases),
-        // No former name match — `tcl::OptProc` genuinely defines a
-        // procedure (issue #923 idx 90), same as `proc` itself.
-        ("tcl::OptProc", "", E::DefinesProcedure),
-    ]
-    .into_iter()
-    .collect();
+fn command_table_transitions_match_the_former_name_matches() {
+    use tcl_registry::{CommandBindingTransition, InvocationWord, InvocationWords};
 
-    let reg = full_registry();
-    let mut actual: BTreeSet<(&str, &str, E)> = BTreeSet::new();
-    for name in reg.command_names() {
-        for spec in reg.specs(name) {
-            if let Some(effect) = spec.command_table_effect {
-                actual.insert((spec.name, "", effect));
-            }
-            for sub in spec.subcommands {
-                if let Some(effect) = sub.command_table_effect {
-                    actual.insert((spec.name, sub.name, effect));
-                }
-            }
-        }
+    /// The binding facts `head args…` states, under the plain profile.
+    fn bindings(reg: &CommandRegistry, head: &str, args: &[&str]) -> Vec<CommandBindingTransition> {
+        let words: Vec<InvocationWord<'_>> =
+            args.iter().map(|a| InvocationWord::Literal(a)).collect();
+        reg.command_binding_transitions(InvocationWords::structured(
+            InvocationWord::Literal(head),
+            &words,
+        ))
+        .command_bindings()
+        .cloned()
+        .collect()
     }
 
-    let missing: Vec<_> = expected.difference(&actual).collect();
-    let extra: Vec<_> = actual.difference(&expected).collect();
-    assert!(
-        missing.is_empty() && extra.is_empty(),
-        "command-table-effect stamps drifted from the pinned list\nmissing: {missing:?}\nextra: {extra:?}"
-    );
+    let reg = full_registry();
 
-    // The resolver honours the subcommand-over-spec rule and the
-    // exact-subcommand-spelling contract the retired matches had.
-    assert_eq!(
-        reg.command_table_effect("proc", Some("x")),
-        Some(E::DefinesProcedure)
-    );
-    assert_eq!(
-        reg.command_table_effect("rename", Some("old")),
-        Some(E::RenamesCommands)
-    );
-    assert_eq!(
-        reg.command_table_effect("interp", Some("alias")),
-        Some(E::CreatesAliases)
-    );
-    assert_eq!(reg.command_table_effect("interp", Some("aliases")), None);
-    assert_eq!(reg.command_table_effect("interp", None), None);
-    // A `::`-qualified head resolves the same effect as the bare one
+    // The four declaration sites, by the shape each really mutates.
+    // `proc` — Tcl_ProcObjCmd, tclProc.c.
+    assert!(matches!(
+        bindings(&reg, "proc", &["greet", "", ""]).as_slice(),
+        [CommandBindingTransition::Define { .. }]
+    ));
+    // `rename` — Tcl_RenameObjCmd (tclCmdMZ.c) dispatching to
+    // TclRenameCommand (tclBasic.c).
+    assert!(matches!(
+        bindings(&reg, "rename", &["format", "origfmt"]).as_slice(),
+        [CommandBindingTransition::Move { .. }]
+    ));
+    // `interp alias` — AliasCreate, tclInterp.c; the descriptor rides the
+    // `alias` subcommand.
+    assert!(matches!(
+        bindings(&reg, "interp", &["alias", "", "myfmt", "", "format"]).as_slice(),
+        [CommandBindingTransition::Alias { .. }]
+    ));
+    // No former name match — `tcl::OptProc` genuinely defines a procedure
+    // (issue #923 idx 90), same as `proc` itself. It reaches the same
+    // vocabulary through the `command_table_effect` selector.
+    assert!(matches!(
+        bindings(&reg, "tcl::OptProc", &["greet", "", ""]).as_slice(),
+        [CommandBindingTransition::Define { .. }]
+    ));
+
+    // The subcommand-over-spec rule and the exact-subcommand-spelling
+    // contract the retired matches had. `interp aliases` is its own
+    // subcommand and mutates nothing; a bare `interp` selects no
+    // subcommand at all.
+    assert!(bindings(&reg, "interp", &["aliases"]).is_empty());
+    assert!(bindings(&reg, "interp", &[]).is_empty());
+    // A `::`-qualified head states the same transitions as the bare one
     // (issue #1185): C Tcl resolves the explicitly global spelling to the
     // same command, so `::rename format ::origfmt` / `::interp alias {}
     // myfmt {} format` / `::proc ::greet {} {…}` really do mutate the
     // command table — verified byte-identical on tclsh 9.0.4 and 8.6.16.
-    assert_eq!(
-        reg.command_table_effect("::rename", Some("old")),
-        Some(E::RenamesCommands)
-    );
-    assert_eq!(
-        reg.command_table_effect("::interp", Some("alias")),
-        Some(E::CreatesAliases)
-    );
-    assert_eq!(
-        reg.command_table_effect("::proc", Some("x")),
-        Some(E::DefinesProcedure)
-    );
+    assert!(matches!(
+        bindings(&reg, "::rename", &["format", "::origfmt"]).as_slice(),
+        [CommandBindingTransition::Move { .. }]
+    ));
+    assert!(matches!(
+        bindings(&reg, "::interp", &["alias", "", "myfmt", "", "format"]).as_slice(),
+        [CommandBindingTransition::Alias { .. }]
+    ));
+    assert!(matches!(
+        bindings(&reg, "::proc", &["::greet", "", ""]).as_slice(),
+        [CommandBindingTransition::Define { .. }]
+    ));
     // Still nothing for an unrelated qualified name or a non-mutating
     // subcommand word.
-    assert_eq!(reg.command_table_effect("::interp", Some("aliases")), None);
-    assert_eq!(reg.command_table_effect("::puts", Some("x")), None);
+    assert!(bindings(&reg, "::interp", &["aliases"]).is_empty());
+    assert!(bindings(&reg, "::puts", &["x"]).is_empty());
+
+    // A `rename` at any arity but two is `wrong # args`, which moves
+    // nothing (ledger C8: the arity rule lives with the resolver now,
+    // where every consumer sees it).
+    assert!(bindings(&reg, "rename", &["old"]).is_empty());
+    assert!(bindings(&reg, "rename", &["a", "b", "c"]).is_empty());
 }

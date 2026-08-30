@@ -17,8 +17,8 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# fetch_tcl_source.sh — Download full Tcl source trees for 8.4, 8.5, 8.6, 9.0,
-# 9.1.
+# fetch_tcl_source.sh — Download full Tcl (and Tk) source trees for 8.4, 8.5,
+# 8.6, 9.0, 9.1.
 #
 # Usage:
 #   ./fetch_tcl_source.sh <version>
@@ -27,17 +27,26 @@
 #   ./fetch_tcl_source.sh 86        # or 8.6
 #   ./fetch_tcl_source.sh 90        # or 9.0
 #   ./fetch_tcl_source.sh 91        # or 9.1
-#   ./fetch_tcl_source.sh all       # all five versions
+#   ./fetch_tcl_source.sh all       # all five Tcl versions
+#   ./fetch_tcl_source.sh tk84      # or tk8.4 — the matching Tk tree
+#   ./fetch_tcl_source.sh tk85      # or tk8.5
+#   ./fetch_tcl_source.sh tk86      # or tk8.6
+#   ./fetch_tcl_source.sh tk90      # or tk9.0
+#   ./fetch_tcl_source.sh tk91      # or tk9.1
+#   ./fetch_tcl_source.sh tkall     # all five Tk versions
 #   ./fetch_tcl_source.sh status    # show what's present in tmp/
 #
 # Fetches pre-built release tarballs from GitHub's codeload CDN
-# (https://codeload.github.com/tcltk/tcl/tar.gz/refs/tags/<tag>).
+# (https://codeload.github.com/tcltk/tcl/tar.gz/refs/tags/<tag> for Tcl,
+# https://codeload.github.com/tcltk/tk/tar.gz/refs/tags/<tag> for Tk — the
+# two repos share the same `core-M-N-P` tag scheme for every release below).
 # These are CDN-cached by GitHub so the download is easy on the upstream
-# Tcl project, and tarballs avoid the disk + CPU overhead of git metadata.
+# Tcl/Tk projects, and tarballs avoid the disk + CPU overhead of git
+# metadata.
 #
-# Extracts to tmp/tcl<full_version>/ in the repo root — full source
-# (generic/, unix/, win/, tests/, library/, doc/, …), no .git directory.
-# Idempotent — skips download if already present.
+# Extracts to tmp/tcl<full_version>/ (Tk: tmp/tk<full_version>/) in the repo
+# root — full source (generic/, unix/, win/, tests/, library/, doc/, …), no
+# .git directory. Idempotent — skips download if already present.
 
 set -euo pipefail
 
@@ -45,6 +54,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 TMP_DIR="$REPO_ROOT/tmp"
 CODELOAD_BASE="https://codeload.github.com/tcltk/tcl/tar.gz/refs/tags"
+TK_CODELOAD_BASE="https://codeload.github.com/tcltk/tk/tar.gz/refs/tags"
 
 # Version → (full patch version, GitHub tag)
 # Update these when new patch releases come out.
@@ -57,6 +67,25 @@ declare -A LATEST_VERSIONS=(
 )
 
 declare -A GITHUB_TAGS=(
+    [8.4]="core-8-4-20"
+    [8.5]="core-8-5-19"
+    [8.6]="core-8-6-16"
+    [9.0]="core-9-0-4"
+    [9.1]="core-9-1-b0"
+)
+
+# Tk's tags follow the identical `core-M-N-P` scheme as Tcl's, verified
+# against `git ls-remote --tags https://github.com/tcltk/tk` — every tag
+# below exists on the Tk repo too, so Tk tracks the same version/tag maps.
+declare -A TK_LATEST_VERSIONS=(
+    [8.4]="8.4.20"
+    [8.5]="8.5.19"
+    [8.6]="8.6.16"
+    [9.0]="9.0.4"
+    [9.1]="9.1b0"
+)
+
+declare -A TK_GITHUB_TAGS=(
     [8.4]="core-8-4-20"
     [8.5]="core-8-5-19"
     [8.6]="core-8-6-16"
@@ -99,7 +128,25 @@ show_status() {
         fi
     done
     echo ""
-    echo "$found of 5 versions present."
+    echo "$found of 5 Tcl versions present."
+    echo ""
+    echo "Tk source trees in $TMP_DIR/:"
+    echo ""
+    local tk_found=0
+    for major_minor in 8.4 8.5 8.6 9.0 9.1; do
+        local full="${TK_LATEST_VERSIONS[$major_minor]}"
+        local dir="$TMP_DIR/tk${full}"
+        if [[ -d "$dir/generic" ]] && [[ -d "$dir/tests" ]]; then
+            local test_count
+            test_count=$(find "$dir/tests" -name '*.test' 2>/dev/null | wc -l)
+            echo "  tk${full}/  [present]  ${test_count} test files"
+            tk_found=$((tk_found + 1))
+        else
+            echo "  tk${full}/  [missing]"
+        fi
+    done
+    echo ""
+    echo "$tk_found of 5 Tk versions present."
 }
 
 # Fetch one version by downloading the GitHub codeload tarball.
@@ -173,12 +220,98 @@ fetch_version() {
     fi
 }
 
+# Fetch one Tk version — same codeload-then-shallow-clone shape as
+# fetch_version above, against the tcltk/tk repo, landing at tmp/tk<full>/.
+fetch_tk_version() {
+    local major_minor="$1"
+    local full="${TK_LATEST_VERSIONS[$major_minor]}"
+    local tag="${TK_GITHUB_TAGS[$major_minor]}"
+    local target_dir="$TMP_DIR/tk${full}"
+    local url="${TK_CODELOAD_BASE}/${tag}"
+
+    if [[ -d "$target_dir/generic" ]] && [[ -d "$target_dir/tests" ]]; then
+        echo "  tk${full}/ already exists — skipping"
+        return 0
+    fi
+
+    mkdir -p "$TMP_DIR"
+    rm -rf "$target_dir"
+
+    local tmp_tarball
+    tmp_tarball="$(mktemp -p "$TMP_DIR" "tk${full}.XXXXXX.tar.gz")"
+    trap "rm -f '$tmp_tarball'" RETURN
+
+    echo "  Downloading tk ${full} source tarball ..."
+    local got_tarball=0
+    local attempt
+    for attempt in 1 2 3 4; do
+        if curl -fsSL --connect-timeout 15 --max-time 600 \
+               -o "$tmp_tarball" "$url"; then
+            got_tarball=1
+            break
+        fi
+        if [[ $attempt -lt 4 ]]; then
+            local wait=$((2 ** attempt))
+            echo "    Retry $attempt (waiting ${wait}s) ..."
+            sleep "$wait"
+        fi
+    done
+
+    # Same codeload-blocked-by-proxy fallback as fetch_version above.
+    if [[ $got_tarball -eq 0 ]]; then
+        echo "    Tarball unavailable; falling back to a shallow git clone of ${tag} ..."
+        if git clone -q --depth 1 --branch "$tag" \
+               "https://github.com/tcltk/tk" "$target_dir" 2>/dev/null; then
+            rm -rf "$target_dir/.git"
+        else
+            echo "  ERROR: Failed to download tk ${full} (tarball and git clone)" >&2
+            rm -rf "$target_dir"
+            return 1
+        fi
+    else
+        echo "  Extracting to tk${full}/ ..."
+        mkdir -p "$target_dir"
+        tar -xzf "$tmp_tarball" -C "$target_dir" --strip-components=1
+    fi
+
+    if [[ -d "$target_dir/generic" ]] && [[ -d "$target_dir/tests" ]]; then
+        local test_count
+        test_count=$(find "$target_dir/tests" -name '*.test' 2>/dev/null | wc -l)
+        local size
+        size=$(du -sh "$target_dir" | awk '{print $1}')
+        echo "  Done: tk${full}/ (${test_count} test files, ${size})"
+    else
+        echo "  ERROR: generic/ or tests/ missing after extract" >&2
+        rm -rf "$target_dir"
+        return 1
+    fi
+}
+
+# Normalise user input for a Tk version selector (tk84, tk8.4, ...).
+normalise_tk_version() {
+    local input="$1"
+    case "$input" in
+        84|8.4)  echo "8.4" ;;
+        85|8.5)  echo "8.5" ;;
+        86|8.6)  echo "8.6" ;;
+        90|9.0)  echo "9.0" ;;
+        91|9.1)  echo "9.1" ;;
+        *)
+            echo "ERROR: Unknown Tk version '$input'" >&2
+            echo "Valid Tk versions: tk84/tk8.4, tk85/tk8.5, tk86/tk8.6, tk90/tk9.0, tk91/tk9.1, tkall" >&2
+            return 1
+            ;;
+    esac
+}
+
 # Main
 if [[ $# -lt 1 ]]; then
     echo "Usage: $0 <version|all|status>"
     echo ""
     echo "Versions: 84/8.4, 85/8.5, 86/8.6, 90/9.0, 91/9.1"
-    echo "  all     — fetch all five versions"
+    echo "  all     — fetch all five Tcl versions"
+    echo "  tk84/tk8.4, tk85/tk8.5, tk86/tk8.6, tk90/tk9.0, tk91/tk9.1 — the matching Tk tree"
+    echo "  tkall   — fetch all five Tk versions"
     echo "  status  — show what's already in tmp/"
     exit 1
 fi
@@ -196,6 +329,21 @@ case "$1" in
             echo ""
         done
         show_status
+        ;;
+    tkall)
+        echo "Fetching all Tk source trees to $TMP_DIR/"
+        echo ""
+        for v in 8.4 8.5 8.6 9.0 9.1; do
+            echo "=== Tk $v ==="
+            fetch_tk_version "$v"
+            echo ""
+        done
+        show_status
+        ;;
+    tk*)
+        major_minor=$(normalise_tk_version "${1#tk}")
+        echo "=== Tk $major_minor ==="
+        fetch_tk_version "$major_minor"
         ;;
     *)
         major_minor=$(normalise_version "$1")

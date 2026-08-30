@@ -30,28 +30,27 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "pkg::create",
-        // A Tcl-level library procedure (`library/package.tcl`, documented
-        // on its own dedicated `packagens.n` manual page — identical NAME
-        // and SYNOPSIS text on Tcl 8.4, 8.5, 8.6, 9.0, and 9.1; OPTIONS
-        // text identical too except one wording nuance: -load's target is
+        // A Tcl-level library procedure (`library/package.tcl`, documented on
+        // its own dedicated `packagens.n` manual page — identical NAME and
+        // SYNOPSIS text on Tcl 8.4, 8.5, 8.6, 9.0, and 9.1; OPTIONS text
+        // identical too except one wording nuance: -load's target is
         // documented as "a binary library" on 8.4-8.6 and "a library" (the
-        // word "binary" dropped, no other change) on 9.0-9.1 — plain
-        // prose in the hover snippet below, not a `dialects:` gate, since
-        // the option itself is legal and required-if-no-`-source` on every
-        // one of the five fetched versions),
-        // not a `Tcl_CreateObjCommand` builtin — same footing as
-        // `auto_mkindex`/`tclPkgSetup`/`tclPkgUnknown`, none of which carry
-        // a C `CmdInfo` row either. Stays `dialects: None` (fully
-        // universal — `supports_dialect` then holds for every dialect,
-        // iRules included) rather than `Some(DialectSet::ALL_TCL)` (as
-        // `auto_mkindex`/`tclPkgSetup`/`tclPkgUnknown` have it): `package`
-        // and `pkg_mkindex` are dropped from iRules by their own
-        // `Some(DialectSet::ALL_TCL)` groups — no `IRULES` bit, so they
-        // never intersect the bare `IRULES` mask (K36322151 — the TMM
-        // sandbox has no real package-loading surface) — whereas nothing
-        // restricts `pkg::create`, so a `dialects:` group here would
-        // instead drop it too. There is no disable list.
-        dialects: None,
+        // word "binary" dropped, no other change) on 9.0-9.1 — plain prose in
+        // the hover snippet below, not a `surface:` gate, since the option
+        // itself is legal and required-if-no-`-source` on every one of the
+        // five fetched versions), not a `Tcl_CreateObjCommand` builtin — same
+        // footing as `auto_mkindex`/`tclPkgSetup`/`tclPkgUnknown`, none of
+        // which carry a C `CmdInfo` row either. Stays `surface: None` (fully
+        // universal — `supports_dialect` then holds for every dialect, iRules
+        // included) rather than `Some(SpecSurface::ALL_TCL)` (as
+        // `auto_mkindex`/`tclPkgSetup`/`tclPkgUnknown` have it): `package` and
+        // `pkg_mkindex` are dropped from iRules by their own
+        // `Some(SpecSurface::ALL_TCL)` groups — no iRules row, so they never
+        // intersect the bare `IRULES` mask (K36322151 — the TMM sandbox has no
+        // real package-loading surface) — whereas nothing restricts
+        // `pkg::create`, so a `surface:` group here would instead drop it too.
+        // There is no disable list.
+        surface: None,
         // A redefinable Tcl library proc (see `Traits::OVERRIDABLE_LIBRARY_PROC`,
         // whose own doc comment names the `pkg_*` family directly) that only
         // builds and returns a string — it never touches a variable, channel,

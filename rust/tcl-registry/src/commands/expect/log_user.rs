@@ -18,11 +18,12 @@
 
 //! `log_user` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 const OPTIONS: &[OptionSpec] = &[OptionSpec {
     name: "-info",
     value: OptionValue::flag(),
     detail: "Return current setting.",
-    dialects: None,
+    surface: None,
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
@@ -36,7 +37,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "log_user",
-        dialects: Some(DialectSet::EXPECT),
+        surface: Some(SpecSurface::EXPECT),
         arity: Arity::new(0, 1),
         hover: Some(HoverSnippet {
             summary: "Control whether send/expect output is logged to stdout.",

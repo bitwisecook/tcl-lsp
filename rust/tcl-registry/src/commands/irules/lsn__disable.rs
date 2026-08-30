@@ -18,10 +18,11 @@
 
 //! `LSN::disable` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "LSN::disable",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Disables LSN translation for the current connection if LSN translation has been configured.",
@@ -56,9 +57,7 @@ pub const fn spec() -> CommandSpec {
                 "SIP_REQUEST",
                 "STREAM_MATCHED",
             ],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "LSN::disable",

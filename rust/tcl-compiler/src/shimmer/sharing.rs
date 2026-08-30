@@ -99,7 +99,6 @@ use std::collections::{HashMap, HashSet};
 use tcl_core_types::DiagCode;
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
-use tcl_registry::dialects::DialectSet;
 
 use crate::cfg::{BlockId, Function as CfgFunction};
 use crate::def_use::{DefUseResult, UseKind, UseSite};
@@ -125,15 +124,21 @@ struct CopyPair {
 ///
 /// The effective command, subcommand, form, target position, and arity floor
 /// are all registry data. Unknown or dynamic shapes abstain.
+///
+/// The context-less (`None`) primitive call is deliberate under invariant
+/// I4: this is a **widening** query — a mutation answer widens the S101
+/// shimmer warning set, so over-approximating across environments is the
+/// conservative direction, never a specialisation on an unproved binding.
 fn mutation_target<'a>(stmt: &'a Statement, registry: &CommandRegistry) -> Option<&'a str> {
     let Statement::Call { args, .. } = stmt else {
         return None;
     };
     let values: Vec<&str> = args.iter().map(String::as_str).collect();
-    let invocation = registry.resolve_invocation(
+    let invocation = tcl_registry::model::resolve_invocation_in_context(
+        registry,
+        None,
         stmt.canonical_command_or_source(),
         &values,
-        DialectSet::empty(),
     )?;
     let offset = invocation.semantics.argument_offset;
     let effective_count = args.len().checked_sub(offset)?;

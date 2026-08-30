@@ -18,10 +18,11 @@
 
 //! `HTTP::fallback` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::fallback",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Specifies or overrides a fallback host specified in the HTTP profile.",
@@ -37,9 +38,7 @@ pub const fn spec() -> CommandSpec {
             transport: Some("tcp"),
             profiles: &["FASTHTTP", "HTTP"],
             also_in: &["LB_FAILED", "MR_FAILED"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             kind: FormKind::Setter,

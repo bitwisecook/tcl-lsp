@@ -66,6 +66,7 @@
 //! explicitly `interp expose`s `zipfs` into a still-safe interpreter.
 
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "zipfs subcommand ?arg ...?",
@@ -94,7 +95,7 @@ static LIST_OPTIONS: [OptionSpec; 2] = [
         name: "-glob",
         value: OptionValue::flag(),
         detail: "Match pattern as a glob pattern, per the rules of `string match` — the default when neither -glob nor -regexp is given.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -103,7 +104,7 @@ static LIST_OPTIONS: [OptionSpec; 2] = [
         name: "-regexp",
         value: OptionValue::flag(),
         detail: "Match pattern as a regular expression instead of a glob pattern.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -113,7 +114,7 @@ static LIST_OPTIONS: [OptionSpec; 2] = [
 fn make_spec(name: &'static str) -> CommandSpec {
     CommandSpec {
         name,
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         // `BYTE_COMPILED` follows this codebase's convention (see
         // `traits.rs`'s doc comment): "recognised core builtin", not
         // literal bytecode compilation. Unlike `tcl::process`'s four

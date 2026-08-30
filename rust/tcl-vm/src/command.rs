@@ -315,14 +315,24 @@ fn cmd_source(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 /// `tcl::build-info ?option?` — report build-time configuration. With no
-/// argument it returns the patchlevel/build string; with an option name it
-/// returns 1 if that build option was set, else 0. This VM is a plain release
-/// build, so every queryable flag (`debug`, `purify`, `memdebug`,
-/// `no-deprecate`, …) is absent and reports 0.
-fn cmd_build_info(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+/// argument it returns the full build string; `patchlevel` / `version` /
+/// `commit` return their fields and any other word queries a build flag,
+/// which is absent (`0`) on this VM because it is a plain release build.
+///
+/// Both the string and the field split come from
+/// [`tcl_dialect::build_info`] keyed by this VM's pinned release, so the
+/// answer tracks `--tcl-version` instead of a hardcoded `9.0.4`, and cannot
+/// disagree with `runtime/rust` (ledger row B4). The registry gates the
+/// command itself to `TCL90_PLUS`, matching `tclsh8.6`, where
+/// `::tcl::build-info` is an invalid command name.
+fn cmd_build_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let data = tcl_dialect::build_info::build_info(vm.runtime_version(), "tclvm");
     match args {
-        [] => ok(Value::string("9.0.4")),
-        [_option] => ok(Value::int(0)),
+        [] => ok(Value::string(data)),
+        [option] => ok(Value::string(tcl_dialect::build_info::query(
+            &data,
+            &option.to_str(),
+        ))),
         _ => err("wrong # args: should be \"tcl::build-info ?option?\""),
     }
 }

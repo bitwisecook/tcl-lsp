@@ -90,10 +90,13 @@ use tcl_compiler::analyser::{AnalysisResult, ClassHierarchy};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::registry_invocation::segmented_command_arguments;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+use tcl_dialect::model::surface_admits;
 use tcl_lexer::{LineIndex, Span, Token, TokenType};
 
 use crate::definition::utf16_len;
-use tcl_dialect::{DialectSet, NumberSyntax};
+use tcl_dialect::NumberSyntax;
+use tcl_dialect::model::SpecSurface;
+use tcl_dialect::model::SurfaceQuery;
 use tcl_registry::definer::{DefinerFamily, DefinitionBodyGrammar, MemberKind};
 use tcl_registry::{CommandRegistry, InvocationArguments};
 
@@ -702,22 +705,17 @@ fn add_stub_var_roles(
         return;
     }
     let (stub_cmds, _exprs) = tcl_compiler::analyser::utils::scan_source_for_stubs(source);
-    let overlay = tcl_compiler::analyser::types::build_stub_overlay(&stub_cmds);
-    let indices_for = |sig: &tcl_registry::stub_overlay::StubSig, role: tcl_registry::ArgRole| {
-        sig.args
-            .iter()
-            .enumerate()
-            .filter(|(_, a)| a.role == role)
-            .filter_map(|(i, _)| u32::try_from(i).ok())
-            .collect::<Vec<u32>>()
-    };
-    for (name, sig) in overlay.iter() {
+    let declared = tcl_compiler::analyser::types::build_declared_surface(&stub_cmds);
+    for (name, command) in declared.iter() {
         for (role, out) in [
             (tcl_registry::ArgRole::VarWrite, &mut *out_write),
             (tcl_registry::ArgRole::VarRead, &mut *out_read),
             (tcl_registry::ArgRole::CommandPrefix, &mut *out_command),
         ] {
-            let indices = indices_for(sig, role);
+            let indices: Vec<u32> = command
+                .arg_indices_for_role(role)
+                .filter_map(|index| u32::try_from(index).ok())
+                .collect();
             if !indices.is_empty() {
                 out.entry(name.to_owned()).or_insert(indices);
             }
@@ -826,7 +824,7 @@ fn bigip_conf_entries(source: &str, registry: &CommandRegistry) -> Vec<Entry> {
         let origin = line_index.position_at_utf16(u32::try_from(bstart).unwrap_or(0), source);
         for (line, col, len, kind, mods) in collect_entries(
             body,
-            tcl_dialect::DialectProfile::irules(),
+            crate::profile_for_dialect("f5-irules"),
             registry,
             None,
             WorkspaceTokenFacts::default(),
@@ -912,7 +910,7 @@ fn apl_entries(source: &str, registry: &CommandRegistry) -> Vec<Entry> {
         let origin = line_index.position_at_utf16(u32::try_from(bstart).unwrap_or(0), source);
         for (line, col, len, kind, mods) in collect_entries(
             body,
-            tcl_dialect::DialectProfile::by_name(IAPPS_DIALECT),
+            crate::profile_for_dialect(IAPPS_DIALECT),
             registry,
             None,
             WorkspaceTokenFacts::default(),
@@ -1200,12 +1198,15 @@ pub fn range_with_cu_and_facts(
 /// [`legend_token_modifiers`]).
 type Entry = (u32, u32, u32, TokenKind, u32);
 
-/// The process-wide iRules registry, for the dialect-independent
-/// `when EVENT` overlay ([`special_arg_kinds`]) — resolved once so the
-/// per-command fallback lookup skips `registry_for_dialect`'s cache mutex.
+/// The process-wide iRules command store, for the dialect-independent
+/// `when EVENT` overlay ([`special_arg_kinds`]) — the `f5-irules`
+/// environment's registry generation (ledger row F5: the handle is now
+/// environment-keyed and generation-aware, resolved through the one
+/// ingress seam), memoised so the per-command fallback lookup skips the
+/// generation cache's mutex.
 fn irules_registry() -> &'static CommandRegistry {
     static IRULES: std::sync::OnceLock<&'static CommandRegistry> = std::sync::OnceLock::new();
-    IRULES.get_or_init(|| tcl_registry::registry_for_dialect("f5-irules"))
+    IRULES.get_or_init(|| crate::registry_for_dialect("f5-irules"))
 }
 
 /// Return the source offsets whose commands are admitted by the shared
@@ -1221,7 +1222,7 @@ fn irules_registry() -> &'static CommandRegistry {
 fn irules_top_level_declaration_heads(
     source: &str,
     registry: &CommandRegistry,
-    identities: &tcl_compiler::head_identity::HeadIdentityMap,
+    identities: &tcl_compiler::realm::CommandBindingRealm,
 ) -> FxHashSet<u32> {
     let mut heads: FxHashSet<u32> =
         tcl_registry::events::top_level_when_handler_candidates_with_registry_and_head_resolver(
@@ -1557,7 +1558,7 @@ fn special_arg_kinds(
     object_collections: &ObjectClassMap,
     classes: Option<&ClassHierarchy>,
     document_floor: Option<crate::document_floor::DocumentFloor<'_>>,
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     extra_var_write: &FxHashMap<String, Vec<u32>>,
     extra_var_read: &FxHashMap<String, Vec<u32>>,
     extra_command: &FxHashMap<String, Vec<u32>>,
@@ -1627,7 +1628,7 @@ fn special_arg_kinds(
             .traits
             .contains(tcl_registry::Traits::DEFINES_PROCEDURE)
         && spec.definition_body.is_none()
-        && (!dialect.intersects(DialectSet::IRULES)
+        && (!surface_admits(SpecSurface::IRULES, dialect.as_ref())
             || matches!(
                 irules_declaration.as_ref(),
                 Some(tcl_registry::events::IrulesTopLevelDeclaration::Procedure { .. })
@@ -1898,7 +1899,7 @@ fn insert_oo_body_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     oo_grammar: Option<&'static DefinitionBodyGrammar>,
     arg_texts: &[&str],
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     let Some(grammar) = oo_grammar else {
@@ -1934,7 +1935,7 @@ fn insert_oo_member_overrides(
     head: &str,
     arg_texts: &[&str],
     base: usize,
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     if !crate::oo_body::is_member(grammar, head) {
@@ -2048,7 +2049,7 @@ fn insert_regex_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
     head: &str,
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     // Sub-tokenise only the *literal* fragments of the pattern word as regex:
@@ -2143,7 +2144,7 @@ fn insert_format_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
     head: &str,
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     let source_args = segmented_command_arguments(seg);
@@ -2248,7 +2249,7 @@ fn insert_option_and_subcommand_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
     head: &str,
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     let Some(spec) = registry.get(head) else {
@@ -2300,7 +2301,7 @@ fn insert_option_and_subcommand_overrides(
     if let Some(sub_text) = seg.texts.get(1)
         && let Some(sub) = spec.resolve_subcommand_for_dialect(sub_text, dialect)
     {
-        option_names.extend(sub.switch_names(None, spec.dialects));
+        option_names.extend(sub.switch_names(None, spec.surface));
         option_prefix_matching = sub.prefix_matching;
         collect_value_options(sub.options);
         if let Some(tok) = seg.argv.get(1) {
@@ -2578,7 +2579,7 @@ fn insert_object_method_overrides(
     object_collections: &ObjectClassMap,
     classes: Option<&ClassHierarchy>,
     document_floor: Option<crate::document_floor::DocumentFloor<'_>>,
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     let (Some(head_tok), Some(head_text), Some(method)) =
@@ -2636,7 +2637,7 @@ fn insert_object_method_overrides(
         let package_version = registry
             .get(cls)
             .and_then(|spec| document_floor.and_then(|floor| floor.for_spec(spec)));
-        registry.instance_method_at(cls, method, package_version, Some(dialect))
+        registry.instance_method_at(cls, method, package_version, dialect)
     }) {
         mark_method_word(seg, overrides);
         insert_registry_method_options(seg, method_sub, overrides);
@@ -2748,8 +2749,7 @@ fn collection_head_element_classes<'a>(
 
     let (cmd, args) = tcl_compiler::value_shapes::parse_command_substitution(head_text)?;
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    let resolved =
-        registry.resolve_call(&cmd, &arg_refs, tcl_registry::dialects::DialectSet::empty())?;
+    let resolved = registry.resolve_call(&cmd, &arg_refs, None)?;
     let ReturnElements::ElementOf { container_arg } = resolved.return_elements()? else {
         return None;
     };
@@ -3064,7 +3064,7 @@ fn insert_enum_value_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
     head: &str,
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     let Some(spec) = registry.get(head) else {
@@ -3160,7 +3160,7 @@ fn insert_enum_value_overrides(
 fn insert_oo_define_keyword_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     let Some(spec) = registry.get(seg.texts[0].as_str()) else {
@@ -3487,7 +3487,7 @@ fn insert_case_list_override(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
     resolved_head: &str,
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     // The clause-list shape is registry data (`CommandSpec::case_list`), so this
@@ -4312,8 +4312,8 @@ struct ScriptCtx<'a> {
     /// that shadows a built-in (issue #1185).  Every fact is offset-keyed, so
     /// a binding cannot retroactively re-tag an earlier call; every shape that
     /// cannot be proven leaves the head alone.  Empty for a document that
-    /// binds nothing.  See [`tcl_compiler::head_identity`].
-    head_identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
+    /// binds nothing.  See [`tcl_compiler::realm`].
+    head_identities: &'a tcl_compiler::realm::CommandBindingRealm,
     /// Object-handle → class-name provenance for the whole document, so a
     /// `$var method …` dispatch can resolve the method's options through the
     /// registry's object-class model (issue #748).  Empty when no
@@ -4737,7 +4737,7 @@ struct CommandHead<'a> {
     tok: Token,
     text: &'a str,
     /// The registry name to resolve grammar against — empty when the head was
-    /// rebound (see [`tcl_compiler::head_identity::HeadIdentity::spec_name`]).
+    /// rebound (see [`tcl_compiler::realm::RealmBinding::spec_name`]).
     resolved: &'a str,
     /// Whether the head's registry binding was provably taken over by a
     /// `rename` / alias / shadowing `proc` (issue #1185).
@@ -4899,13 +4899,13 @@ fn emit_command_head(
 ///
 /// The overwhelmingly common document binds nothing, so the lookup is skipped
 /// entirely rather than hashing every head in the file.
-fn head_identity_of<'a>(
+fn realm_head_binding_of<'a>(
     ctx: ScriptCtx<'a>,
     head_text: &'a str,
     head_tok: Token,
-) -> tcl_compiler::head_identity::HeadIdentity<'a> {
+) -> tcl_compiler::realm::RealmBinding<'a> {
     if ctx.head_identities.is_empty() {
-        return tcl_compiler::head_identity::HeadIdentity::Command(head_text);
+        return tcl_compiler::realm::RealmBinding::Command(head_text);
     }
     ctx.head_identities
         .resolve(head_text, head_tok.span.start())
@@ -4924,7 +4924,7 @@ fn head_identity_of<'a>(
 fn emit_static_command_head(
     ctx: ScriptCtx<'_>,
     seg: &tcl_compiler::segmenter::SegmentedCommand,
-    identity: tcl_compiler::head_identity::HeadIdentity<'_>,
+    identity: tcl_compiler::realm::RealmBinding<'_>,
     entries: &mut Vec<Entry>,
 ) {
     let Some(&head_tok) = seg.argv.first() else {
@@ -4973,7 +4973,7 @@ fn collect_script(
         // built-in carries the `defaultLibrary` modifier.
         let head_tok = seg.argv[0];
         let head_text = &seg.texts[0];
-        let identity = head_identity_of(ctx, head_text, head_tok);
+        let identity = realm_head_binding_of(ctx, head_text, head_tok);
         let resolved_head: &str = identity.spec_name();
         let computed_head = head_is_computed(&seg);
         if !computed_head {
@@ -5000,7 +5000,7 @@ fn collect_script(
             ctx.classes,
             ctx.analysis
                 .map(|analysis| crate::document_floor::DocumentFloor::new(analysis, ctx.dialect)),
-            ctx.dialect.availability_mask,
+            Some(crate::document_context_for_profile(ctx.dialect).authoring_query()),
             ctx.extra_var_write,
             ctx.extra_var_read,
             ctx.extra_command,
@@ -5154,7 +5154,7 @@ fn merge_list_quoted_command_overrides(
         ctx.classes,
         ctx.analysis
             .map(|analysis| crate::document_floor::DocumentFloor::new(analysis, ctx.dialect)),
-        ctx.dialect.availability_mask,
+        Some(crate::document_context_for_profile(ctx.dialect).authoring_query()),
         ctx.extra_var_write,
         ctx.extra_var_read,
         ctx.extra_command,
@@ -6013,8 +6013,7 @@ fn collect_entries(
     // `test` = `tcltest::test`), plus every statically proven `interp alias` /
     // `rename` / built-in-shadowing `proc` (issue #1185).  Empty (no lookups)
     // unless the document actually binds something.
-    let head_identities =
-        tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
+    let head_identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
 
     // The iRules declaration overlay uses the shared top-level boundary facts
     // (including offset-resolved command identity) rather than this walk's
@@ -6609,12 +6608,13 @@ pub fn diff(old: &[u32], new: &[u32]) -> Option<TokenEdit> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tcl_dialect::model::{Family, SurfaceLayer};
 
     /// The plain-Tcl profile these tests tokenise under. A named helper keeps
     /// the 140-odd call sites readable — spelling the resolution out at each
     /// one buries the assertion it belongs to.
     fn tcl() -> &'static tcl_dialect::DialectProfile {
-        tcl_dialect::DialectProfile::by_name("tcl")
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile()
     }
 
     fn reg() -> CommandRegistry {
@@ -6623,7 +6623,7 @@ mod tests {
 
     fn expect_reg() -> CommandRegistry {
         let mut registry = reg();
-        registry.load_dialect(DialectSet::EXPECT);
+        registry.load_surface(SurfaceLayer::Package("expect"));
         registry
     }
 
@@ -6761,7 +6761,7 @@ mod tests {
         ] {
             let tokens = decode_full(
                 source,
-                tcl_dialect::DialectProfile::by_name("expect"),
+                tcl_registry::model::ingress::resolve_environment("expect").analyser_profile(),
                 &expect_reg(),
             );
             let flag_len = u32::try_from(flag.len()).unwrap();
@@ -6786,7 +6786,7 @@ mod tests {
             let source = format!("expect {{{pattern} {{puts matched}} default {{puts other}}}}\n");
             let tokens = decode_full(
                 &source,
-                tcl_dialect::DialectProfile::by_name("expect"),
+                tcl_registry::model::ingress::resolve_environment("expect").analyser_profile(),
                 &expect_reg(),
             );
             let puts_col = u32::try_from(source.find("puts matched").unwrap()).unwrap();
@@ -6804,7 +6804,7 @@ mod tests {
         let source = "switch subject {a {puts hidden} orphan}\n";
         let tokens = decode_full(
             source,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &reg(),
         );
         let puts_col = u32::try_from(source.find("puts hidden").unwrap()).unwrap();
@@ -6821,7 +6821,7 @@ mod tests {
         let source = "rename expect other\nexpect -re {a+} { puts matched }\n";
         let kinds = kinds(
             source,
-            tcl_dialect::DialectProfile::by_name("expect"),
+            tcl_registry::model::ingress::resolve_environment("expect").analyser_profile(),
             &expect_reg(),
         );
         assert!(
@@ -6882,7 +6882,7 @@ mod tests {
                 u32::try_from(source.find("a+").expect("claimed pattern")).unwrap();
             let tokens = full(
                 source,
-                tcl_dialect::DialectProfile::by_name(dialect),
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
                 &registry,
             );
             let mut line = 0u32;
@@ -7265,11 +7265,19 @@ mod tests {
         // rejects `string rev`).  Column 7 is `rev`.
         let src = "string rev abc\n";
         assert_eq!(
-            kind_at(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), 7),
+            kind_at(
+                src,
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+                7
+            ),
             TokenKind::Keyword as u32
         );
         assert_eq!(
-            kind_at(src, tcl_dialect::DialectProfile::by_name("tcl8.4"), 7),
+            kind_at(
+                src,
+                tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
+                7
+            ),
             TokenKind::String as u32,
             "`string rev` is not a subcommand in 8.4"
         );
@@ -7279,12 +7287,20 @@ mod tests {
         // → stays a string.  Column 11 is `def`.
         let src = "info class def ::C\n";
         assert_eq!(
-            kind_at(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), 11),
+            kind_at(
+                src,
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+                11
+            ),
             TokenKind::Keyword as u32,
             "`info class def` is `definition` in 8.6"
         );
         assert_eq!(
-            kind_at(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), 11),
+            kind_at(
+                src,
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+                11
+            ),
             TokenKind::String as u32,
             "`info class def` is ambiguous in 9.0"
         );
@@ -7631,7 +7647,7 @@ mod tests {
         // call stays a plain string.
         let plain = decode_semantic(&full_with_cu(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
             Some(&cu),
         ));
@@ -7642,7 +7658,7 @@ mod tests {
         // With analysis, the inferred `varName` role retags `arr(key)`.
         let toks = decode_semantic(&full_with_cu_and_analysis(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
             Some(&cu),
             Some(&analysis),
@@ -7669,7 +7685,7 @@ mod tests {
         let analysis = Analyser::new().analyse(src, "tcl9.0");
         let toks = decode_semantic(&full_with_cu_and_analysis(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
             Some(&cu),
             Some(&analysis),
@@ -7701,7 +7717,7 @@ mod tests {
         let analysis = Analyser::new().analyse(src, "tcl9.0");
         let toks = decode_semantic(&full_with_cu_and_analysis(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
             Some(&cu),
             Some(&analysis),
@@ -7735,7 +7751,7 @@ mod tests {
         let analysis = Analyser::new().analyse(src, "tcl9.0");
         let toks = decode_semantic(&full_with_cu_and_analysis(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
             Some(&cu),
             Some(&analysis),
@@ -7770,7 +7786,7 @@ mod tests {
         // Without analysis, `greet` is an unknown command's plain string arg.
         let plain = decode_semantic(&full_with_cu(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
             Some(&cu),
         ));
@@ -7786,7 +7802,7 @@ mod tests {
         // With analysis, `greet` (col 9 on the call line) highlights as a command.
         let toks = decode_semantic(&full_with_cu_and_analysis(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
             Some(&cu),
             Some(&analysis),
@@ -7815,7 +7831,7 @@ mod tests {
         let highlights_fn = |src: &str, name: &str| {
             decode_full(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 &registry,
             )
             .iter()
@@ -7990,7 +8006,7 @@ mod tests {
         // Without a CompilationUnit the `set` value is a plain string.
         let plain = decode_full(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
         );
         assert!(
@@ -8003,7 +8019,7 @@ mod tests {
         let cu = CompilationUnit::build_for(src, &registry, false);
         let st = full_with_cu(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
             Some(&cu),
         );
@@ -8034,7 +8050,7 @@ mod tests {
         let cu = CompilationUnit::build_for(src, &registry, false);
         let toks = decode_semantic(&full_with_cu(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
             Some(&cu),
         ));
@@ -8065,7 +8081,7 @@ mod tests {
         let cu = CompilationUnit::build_for(src, &registry, false);
         let toks = decode_semantic(&full_with_cu(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
             Some(&cu),
         ));
@@ -8104,7 +8120,7 @@ mod tests {
         let cu = CompilationUnit::build_for(src, &registry, false);
         let toks = decode_semantic(&full_with_cu(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
             Some(&cu),
         ));
@@ -8147,7 +8163,7 @@ mod tests {
         // `dict` (defaultLibrary) is a Function on the line.
         let plain = decode_semantic(&full_with_cu(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
             Some(&cu),
         ));
@@ -8158,7 +8174,7 @@ mod tests {
         // With analysis: the dynamic dispatch resolves `configure` as a method.
         let toks = decode_semantic(&full_with_cu_and_analysis(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
             Some(&cu),
             Some(&analysis),
@@ -8188,7 +8204,7 @@ mod tests {
         let analysis = Analyser::new().analyse(src, "tcl9.0");
         let toks = decode_semantic(&full_with_cu_and_analysis(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
             Some(&cu),
             Some(&analysis),
@@ -8218,7 +8234,7 @@ mod tests {
         let analysis = Analyser::new().analyse(src, "tcl9.0");
         let toks = decode_semantic(&full_with_cu_and_analysis(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
             Some(&cu),
             Some(&analysis),
@@ -8241,8 +8257,9 @@ mod tests {
 
         let src = "ttk::treeview .tree\n.tree current\n";
         for (dialect, expected) in [("tcl9.0", false), ("tcl9.1", true)] {
-            let profile = tcl_dialect::DialectProfile::by_name(dialect);
-            let registry = tcl_registry::registry_for_dialect(dialect);
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+            let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
             let cu = CompilationUnit::build_for(src, registry, false);
             let analysis = Analyser::new().analyse(src, dialect);
             let tokens = decode_semantic(&full_with_cu_and_analysis(
@@ -8286,7 +8303,7 @@ mod tests {
         let analysis = Analyser::new().analyse(src, "tcl9.0");
         let toks = decode_semantic(&full_with_cu_and_analysis(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
             Some(&cu),
             Some(&analysis),
@@ -8317,7 +8334,7 @@ mod tests {
         let analysis = Analyser::new().analyse(src, "tcl9.0");
         let toks = decode_semantic(&full_with_cu_and_analysis(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
             Some(&cu),
             Some(&analysis),
@@ -8349,7 +8366,7 @@ mod tests {
         let analysis = Analyser::new().analyse(src, "tcl9.0");
         let toks = decode_semantic(&full_with_cu_and_analysis(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
             Some(&cu),
             Some(&analysis),
@@ -8388,7 +8405,7 @@ mod tests {
             let analysis = Analyser::new().analyse(src, "tcl9.0");
             decode_semantic(&full_with_cu_and_analysis(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 &registry,
                 Some(&cu),
                 Some(&analysis),
@@ -8422,7 +8439,7 @@ mod tests {
             let analysis = Analyser::new().analyse(src, "tcl9.0");
             decode_semantic(&full_with_cu_and_analysis(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 &registry,
                 Some(&cu),
                 Some(&analysis),
@@ -8474,7 +8491,7 @@ mod tests {
         let analysis = Analyser::new().analyse(src, "tcl9.0");
         let toks = decode_semantic(&full_with_cu_and_analysis(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
             Some(&cu),
             Some(&analysis),
@@ -8503,7 +8520,7 @@ mod tests {
         let analysis = Analyser::new().analyse(src, "tcl9.0");
         let toks = decode_semantic(&full_with_cu_and_analysis(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
             Some(&cu),
             Some(&analysis),
@@ -8532,7 +8549,7 @@ mod tests {
         let analysis = Analyser::new().analyse(src, "tcl9.0");
         let toks = decode_semantic(&full_with_cu_and_analysis(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
             Some(&cu),
             Some(&analysis),
@@ -8565,7 +8582,7 @@ mod tests {
         let analysis = Analyser::new().analyse(src, "tcl9.0");
         let toks = decode_semantic(&full_with_cu_and_analysis(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
             Some(&cu),
             Some(&analysis),
@@ -8593,7 +8610,7 @@ mod tests {
         let analysis = Analyser::new().analyse(src, "tcl9.0");
         let toks = decode_semantic(&full_with_cu_and_analysis(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
             Some(&cu),
             Some(&analysis),
@@ -8840,7 +8857,7 @@ mod tests {
             let analysis = Analyser::new().analyse(src, "tcl9.0");
             let toks = decode_semantic(&full_with_cu_and_analysis(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 &registry,
                 Some(&cu),
                 Some(&analysis),
@@ -8901,7 +8918,7 @@ mod tests {
         let cu = CompilationUnit::build_for(user, &registry, false);
         let toks = decode_semantic(&full_with_cu_and_classes(
             user,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
             Some(&cu),
             Some(&hierarchy),
@@ -8917,7 +8934,7 @@ mod tests {
         // Without the hierarchy it stays an unresolved string.
         let none = decode_semantic(&full_with_cu_and_classes(
             user,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
             Some(&cu),
             None,
@@ -8948,7 +8965,7 @@ mod tests {
         let analysis = Analyser::new().analyse(src, "tcl9.0");
         let toks = decode_semantic(&full_with_cu_and_analysis(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
             Some(&cu),
             Some(&analysis),
@@ -8974,7 +8991,7 @@ mod tests {
         let analysis = Analyser::new().analyse(src, "tcl9.0");
         let toks = decode_semantic(&full_with_cu_and_analysis(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
             Some(&cu),
             Some(&analysis),
@@ -8999,7 +9016,7 @@ mod tests {
         let analysis = Analyser::new().analyse(src, "tcl9.0");
         let toks = decode_semantic(&full_with_cu_and_analysis(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
             Some(&cu),
             Some(&analysis),
@@ -9029,7 +9046,7 @@ mod tests {
         let cu = CompilationUnit::build_for(src, &registry, false);
         let toks = decode_semantic(&full_with_cu(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
             Some(&cu),
         ));
@@ -9057,7 +9074,7 @@ mod tests {
         let cu = CompilationUnit::build_for(src, &registry, false);
         let toks = decode_semantic(&full_with_cu(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
             Some(&cu),
         ));
@@ -9461,7 +9478,7 @@ mod tests {
         assert!(
             has_token_kind(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 &registry,
                 "foreach",
                 TokenKind::Keyword
@@ -9469,14 +9486,14 @@ mod tests {
             "uplevel 1 body: `foreach` must tokenise as a keyword; got {:?}",
             decode_full(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 &registry
             )
         );
         assert!(
             has_token_kind(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 &registry,
                 "puts",
                 TokenKind::Function
@@ -9489,7 +9506,7 @@ mod tests {
         assert!(
             has_token_kind(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 &registry,
                 "foreach",
                 TokenKind::Keyword
@@ -9502,7 +9519,7 @@ mod tests {
         assert!(
             has_token_kind(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 &registry,
                 "foreach",
                 TokenKind::Keyword
@@ -9515,7 +9532,7 @@ mod tests {
         assert!(
             has_token_kind(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 &registry,
                 "foreach",
                 TokenKind::Keyword
@@ -9534,7 +9551,7 @@ mod tests {
         assert!(
             has_token_kind(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 &registry,
                 "$body",
                 TokenKind::Variable
@@ -9542,7 +9559,7 @@ mod tests {
             "uplevel 1 $body: the body variable must stay a variable token; got {:?}",
             decode_full(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 &registry
             )
         );
@@ -9558,7 +9575,7 @@ mod tests {
         assert!(
             has_token_kind(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 &registry,
                 "foreach",
                 TokenKind::Keyword
@@ -9566,20 +9583,20 @@ mod tests {
             "issue #837: `foreach` inside the uplevel body must be a keyword; got {:?}",
             decode_full(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 &registry
             )
         );
         assert!(
             has_token_kind(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 &registry,
                 "namespace",
                 TokenKind::Keyword
             ) || has_token_kind(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 &registry,
                 "namespace",
                 TokenKind::Function
@@ -9591,7 +9608,7 @@ mod tests {
         assert!(
             decode_full(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 &registry
             )
             .iter()
@@ -9617,7 +9634,11 @@ mod tests {
     fn word_form_operator_command_heads_classified_as_operator() {
         for op in ["eq", "ne", "in", "ni", "lt", "le", "gt", "ge"] {
             let src = format!("{op} 1 1\n");
-            let ks = kinds(&src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &reg());
+            let ks = kinds(
+                &src,
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+                &reg(),
+            );
             assert_eq!(
                 ks.first(),
                 Some(&(TokenKind::Operator as u32)),
@@ -9675,7 +9696,7 @@ mod tests {
         ] {
             let tokens = decode_full(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 &registry,
             );
             assert!(
@@ -9693,7 +9714,7 @@ mod tests {
 
         let tokens = decode_full(
             "regsub $mode {a} $value {\\1}\n",
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
         );
         assert!(
@@ -9709,7 +9730,7 @@ mod tests {
         ] {
             let tokens = decode_full(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 &registry,
             );
             assert!(
@@ -9722,7 +9743,7 @@ mod tests {
 
         let tokens = decode_full(
             "regsub -start $start {a} $value {\\1}\n",
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
         );
         assert!(
@@ -9736,7 +9757,7 @@ mod tests {
     #[test]
     fn event_name_classified_as_event() {
         let mut registry = CommandRegistry::build_default();
-        registry.load_dialect(tcl_dialect::DialectSet::IRULES);
+        registry.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         let ks = kinds(
             "when HTTP_REQUEST {\n  set x 1\n}\n",
             tcl_dialect::DialectProfile::irules(),
@@ -9751,7 +9772,7 @@ mod tests {
     #[test]
     fn malformed_when_body_does_not_classify_an_event_declaration() {
         let mut registry = CommandRegistry::build_default();
-        registry.load_dialect(tcl_dialect::DialectSet::IRULES);
+        registry.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         for source in [
             "when HTTP_REQUEST bare_body\n",
             "when HTTP_REQUEST \"quoted body\"\n",
@@ -9768,12 +9789,12 @@ mod tests {
     #[test]
     fn bigip_object_ref_token_in_irules_body() {
         let mut registry = CommandRegistry::build_default();
-        registry.load_dialect(tcl_dialect::DialectSet::IRULES);
+        registry.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         // `pool web_pool` inside a multi-line `when` body → `object`.
         for dialect in ["f5-irules", "irules", "tcl-irule"] {
             let ks = kinds(
                 "when HTTP_REQUEST {\n  pool web_pool\n}\n",
-                tcl_dialect::DialectProfile::by_name(dialect),
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
                 &registry,
             );
             assert!(
@@ -9933,13 +9954,13 @@ mod tests {
     fn format_binary_specifier_is_release_gated() {
         let old = kinds(
             "format {%b} 1\n",
-            tcl_dialect::DialectProfile::by_name("tcl8.5"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
             &reg(),
         );
         assert!(!old.contains(&(TokenKind::FormatSpec as u32)), "{old:?}");
         let modern = kinds(
             "format {%b} 1\n",
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &reg(),
         );
         assert!(
@@ -9948,7 +9969,7 @@ mod tests {
         );
         let tcl9 = kinds(
             "format {%b} 1\n",
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &reg(),
         );
         assert!(tcl9.contains(&(TokenKind::FormatSpec as u32)), "{tcl9:?}");
@@ -9983,7 +10004,7 @@ mod tests {
     fn format_literal_percent_stays_string() {
         let ks = kinds(
             "format {100%%} 1\n",
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &reg(),
         );
         assert!(!ks.contains(&(TokenKind::FormatPercent as u32)), "{ks:?}");
@@ -10013,7 +10034,7 @@ mod tests {
     fn unsupported_clock_g_specifier_stays_string() {
         let ks = kinds(
             "clock scan $s -format {%g}\n",
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &reg(),
         );
         assert!(!ks.contains(&(TokenKind::ClockPercent as u32)), "{ks:?}");
@@ -10040,7 +10061,7 @@ mod tests {
         // `binary scan $d su r` (arg 3) → spec `s`, modifier `u`.
         let ks = kinds(
             "binary scan $d su r\n",
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &reg(),
         );
         assert!(ks.contains(&(TokenKind::BinarySpec as u32)), "{ks:?}");
@@ -10048,7 +10069,7 @@ mod tests {
         // `c*` → spec `c`, `*` flag.
         let ks = kinds(
             "binary format c* $l\n",
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &reg(),
         );
         assert!(ks.contains(&(TokenKind::BinaryFlag as u32)), "{ks:?}");
@@ -10060,7 +10081,7 @@ mod tests {
         // binaryFlag (no signed/unsigned modifier).
         let ks = kinds(
             "binary scan $d su r\n",
-            tcl_dialect::DialectProfile::by_name("tcl8.4"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
             &reg(),
         );
         assert!(ks.contains(&(TokenKind::BinarySpec as u32)), "{ks:?}");
@@ -10098,8 +10119,18 @@ mod tests {
         // extra `string` token.  So the packed token stream is longer on
         // 8.4.
         let src = "foo {*}$x\n";
-        let on_90 = full(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &reg()).data;
-        let on_84 = full(src, tcl_dialect::DialectProfile::by_name("tcl8.4"), &reg()).data;
+        let on_90 = full(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+            &reg(),
+        )
+        .data;
+        let on_84 = full(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
+            &reg(),
+        )
+        .data;
         assert!(
             on_84.len() > on_90.len(),
             "8.4 keeps `{{*}}` as a highlighted string token (longer stream): \
@@ -10391,12 +10422,12 @@ mod tests {
         let registry = reg();
         let modern = kinds(
             "puts 0o17\n",
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &registry,
         );
         let old = kinds(
             "puts 0o17\n",
-            tcl_dialect::DialectProfile::by_name("tcl8.4"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
             &registry,
         );
         assert!(

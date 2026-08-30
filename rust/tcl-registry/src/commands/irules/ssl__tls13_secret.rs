@@ -18,6 +18,7 @@
 
 //! `SSL::tls13_secret` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
@@ -89,7 +90,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SSL::tls13_secret",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Return data about various TLS 1.3 secrets.",
@@ -108,9 +109,7 @@ pub const fn spec() -> CommandSpec {
             transport: Some("tcp"),
             profiles: &["CLIENTSSL"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "SSL::tls13_secret <side> <secret_type>",

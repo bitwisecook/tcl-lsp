@@ -40,7 +40,7 @@ use tcl_spec_hooks::{HookProgram, PackPrograms, tclvm_host};
 /// Install a one-hook pack and return its slot.
 fn one_hook(program: HookProgram) -> pack_hooks::HookSlot {
     let host = Rc::new(tclvm_host());
-    let installed = host.load_pack(PackPrograms::new("mylib").with(program));
+    let installed = host.install_pack_hooks(PackPrograms::new("mylib").with(program));
     assert!(
         installed[0].declined.is_none(),
         "{:?}",
@@ -307,5 +307,158 @@ fn foldlist_is_available_and_quotes_like_the_shipped_list_fold() {
         folder(&["a b", "c"]),
         tcl_registry::const_fold::fold_list(&["a b", "c"])
     );
+    pack_hooks::clear_host();
+}
+
+/// **The E-R14 escape hatch, end to end** — a `constraints` body reading the
+/// whole invocation through its four reading verbs and reporting through
+/// `invalid SLOT MESSAGE ?-conflict?`.
+///
+/// The rule below is deliberately one no declarative relation can express: a
+/// *numeric comparison* between two option values. That is what the hatch is
+/// for; everything the vocabulary can say is checked natively instead.
+#[test]
+fn constraints_reads_the_invocation_and_reports_through_invalid() {
+    let slot = one_hook(
+        HookProgram::new(
+            "mylib::window",
+            HookFamily::Constraints,
+            "if {![dict get $ctx complete]} { abstain }\n\
+             if {![option-present -min] || ![option-present -max]} { return }\n\
+             set lo [option-value -min]\n\
+             set hi [option-value -max]\n\
+             if {$lo eq {} || $hi eq {}} { abstain }\n\
+             if {$lo > $hi} { invalid -min \"-min $lo exceeds -max $hi\" }\n",
+        )
+        .with_inputs(HookInputs::parse(&["invocation"])),
+    );
+    let hook = pack_hooks::constraints_fn(slot).expect("a constraints thunk");
+
+    let facts = |min: &'static str, max: &'static str| {
+        ([("-min", Some(min)), ("-max", Some(max))], [Some("body")])
+    };
+
+    let (options, positionals) = facts("9", "2");
+    let bad = hook(&tcl_registry::OptionFacts {
+        options: &options,
+        positionals: &positionals,
+        complete: true,
+    });
+    assert_eq!(bad.len(), 1, "{bad:?}");
+    assert_eq!(bad[0].slot, tcl_registry::ConstraintSlot::Option("-min"));
+    assert_eq!(bad[0].message, "-min 9 exceeds -max 2");
+    assert!(!bad[0].conflict, "the default report is W152, not W147");
+
+    let (options, positionals) = facts("2", "9");
+    assert!(
+        hook(&tcl_registry::OptionFacts {
+            options: &options,
+            positionals: &positionals,
+            complete: true,
+        })
+        .is_empty(),
+        "an ordered window is silent"
+    );
+
+    // Abstention: an invocation the analyser could not read to its end is
+    // judged by nobody, exactly as the `types` hook contract requires.
+    let (options, positionals) = facts("9", "2");
+    assert!(
+        hook(&tcl_registry::OptionFacts {
+            options: &options,
+            positionals: &positionals,
+            complete: false,
+        })
+        .is_empty(),
+        "an incomplete invocation abstains rather than accusing"
+    );
+    pack_hooks::clear_host();
+}
+
+/// **The P-B cache discipline** (redesign §0.05): a `constraints` hook that
+/// declared `-inputs {invocation}` is content-cached, so re-analysing a
+/// document after an edit elsewhere never re-runs it for an unchanged call
+/// site — while a call site whose own words changed does re-run.
+#[test]
+fn a_constraints_verdict_is_reused_when_the_call_site_did_not_change() {
+    let slot = one_hook(
+        HookProgram::new(
+            "mylib::cached",
+            HookFamily::Constraints,
+            "if {[option-present -min]} { invalid -min {reported} }\n",
+        )
+        .with_inputs(HookInputs::parse(&["invocation"])),
+    );
+    assert_eq!(
+        pack_hooks::cache_mode(slot),
+        pack_hooks::CacheMode::Content,
+        "declaring `invocation` earns content caching"
+    );
+    let hook = pack_hooks::constraints_fn(slot).expect("a constraints thunk");
+    let judge = |min: &'static str| {
+        let options = [("-min", Some(min))];
+        let positionals = [Some("body")];
+        hook(&tcl_registry::OptionFacts {
+            options: &options,
+            positionals: &positionals,
+            complete: true,
+        })
+    };
+
+    pack_hooks::clear_cache();
+    let first = judge("1");
+    assert_eq!(first.len(), 1);
+    let cold = pack_hooks::cache_stats();
+    assert_eq!((cold.hits, cold.misses), (0, 1), "the first call is cold");
+
+    // The same call site, re-analysed after an edit somewhere else in the
+    // document: identical content, so the verdict is reused and the VM is
+    // never entered.
+    for _ in 0..5 {
+        assert_eq!(judge("1").len(), 1);
+    }
+    let warm = pack_hooks::cache_stats();
+    assert_eq!(
+        (warm.hits, warm.misses),
+        (5, 1),
+        "an unchanged call site is answered from the cache"
+    );
+
+    // Editing *this* call site changes its content hash, so it is re-judged.
+    assert_eq!(judge("2").len(), 1);
+    let edited = pack_hooks::cache_stats();
+    assert_eq!(
+        (edited.hits, edited.misses),
+        (5, 2),
+        "a changed call site re-runs, and only it"
+    );
+    pack_hooks::clear_host();
+}
+
+/// An **undeclared** `constraints` hook stays uncacheable: it made no claim
+/// about what it reads, so nothing may be hashed on its behalf. The
+/// abstention is conservative, not a caching bug.
+#[test]
+fn an_undeclared_constraints_hook_is_not_cached() {
+    let slot = one_hook(HookProgram::new(
+        "mylib::undeclared",
+        HookFamily::Constraints,
+        "invalid command {always}\n",
+    ));
+    assert_eq!(pack_hooks::cache_mode(slot), pack_hooks::CacheMode::None);
+    let hook = pack_hooks::constraints_fn(slot).expect("a constraints thunk");
+    pack_hooks::clear_cache();
+    let options: [(&'static str, Option<&str>); 0] = [];
+    let positionals: [Option<&str>; 0] = [];
+    for _ in 0..3 {
+        let reports = hook(&tcl_registry::OptionFacts {
+            options: &options,
+            positionals: &positionals,
+            complete: true,
+        });
+        assert_eq!(reports[0].slot, tcl_registry::ConstraintSlot::Command);
+    }
+    let stats = pack_hooks::cache_stats();
+    assert_eq!((stats.hits, stats.misses), (0, 0), "never cached at all");
     pack_hooks::clear_host();
 }

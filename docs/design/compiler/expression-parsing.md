@@ -62,8 +62,20 @@ Pratt parsing:
 | `starts_with` | prefix eq | (14, 15) |
 | `ends_with` | suffix eq | (14, 15) |
 | `contains` | substring eq | (14, 15) |
+| `matches` | string eq (semantics unpinned) | (14, 15) |
 | `matches_glob` | glob match | (14, 15) |
 | `matches_regex` | regexp | (14, 15) |
+
+The bare `matches` is measured *present* only
+(`docs/design/bigip-irule-parser-measurements.md` §4a `e_matches`:
+`expr {"abc" matches "abc"}` answers `1` in all three F5 contexts and
+fails on both host builds). That probe is a single-operator,
+exact-equality expression, so it pins neither the operator's binding
+power nor which string-match reading it takes. It therefore inherits its
+siblings' equality class, the VM answers it as a string equality — the
+one reading the measured cell exercises — and the compiler deliberately
+declines to constant-fold it. §12 of the measurements carries the
+discriminating re-probe.
 
 These are registered in `binary_bp()` (`rust/tcl-syntax/src/expr/parser.rs`)
 alongside the standard operators, and recognised as operator tokens by

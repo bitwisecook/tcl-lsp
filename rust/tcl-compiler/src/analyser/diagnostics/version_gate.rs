@@ -60,16 +60,16 @@
 //! [`ArgValue::min_tcl`]: tcl_registry::ArgValue
 
 use tcl_core_types::DiagCode;
+use tcl_dialect::model::{Family, SpecProvider};
 use tcl_lexer::{Span, Token, TokenType};
-use tcl_registry::ProfileQueries as _;
 use tcl_registry::deprecation::{
     DeprecationFixContext, DeprecationFixSafety, DeprecationFixTarget, DeprecationFixWord,
 };
-use tcl_registry::dialects::DialectSet;
 use tcl_registry::lifecycle::{Lifecycle, LifecycleState};
 
 use super::super::state::Analyser;
 use super::super::types::{Diagnostic, Severity};
+use tcl_dialect::model::SpecSurface;
 
 /// A lifecycle-bearing registry use, recorded during the walk and checked
 /// post-walk against its package or core-Tcl version floor.
@@ -89,7 +89,7 @@ pub(in crate::analyser) struct VersionGateSite {
     dialect: &'static str,
 }
 
-/// A proven **W147** option conflict whose [`OptionConstraint`] is
+/// A proven **W147** option conflict whose [`OptionRelation`] is
 /// version-gated, held until the whole-file floor is known.
 ///
 /// A relationship such as `option_conflict {-a -b} -introduced 2.0` does not
@@ -104,7 +104,7 @@ pub(in crate::analyser) struct VersionGateSite {
 /// exists — the version gate is a filter in front of the ordinary queue, not
 /// a second reporting path.
 ///
-/// [`OptionConstraint`]: tcl_registry::OptionConstraint
+/// [`OptionRelation`]: tcl_registry::OptionRelation
 #[derive(Debug, Clone, PartialEq)]
 pub(in crate::analyser) struct GatedOptionConflict {
     /// The axis governing the constraint's lifecycle, or `None` when the
@@ -206,6 +206,47 @@ impl VersionGateAxis {
             Self::TclCore => "Tcl",
         }
     }
+
+    /// The model axis this gate axis names — the §5.4 declared-target
+    /// sets are keyed by [`tcl_dialect::model::VersionAxisId`].
+    fn version_axis(self) -> tcl_dialect::model::VersionAxisId {
+        match self {
+            Self::Package(package) => tcl_dialect::model::VersionAxisId::package(package),
+            Self::TclCore => {
+                tcl_dialect::model::VersionAxisId::core(tcl_dialect::model::Family::Tcl)
+            }
+        }
+    }
+}
+
+/// A §5.4 **mask-gated** range site (W150): an item whose availability is
+/// spelled as `SpecSurface` ladder bits rather than a lifecycle, admitted
+/// at the primary target but missing from part of the declared target
+/// set. Buffered during the walk and decided post-walk beside the
+/// lifecycle sites so one word still draws one diagnostic.
+#[derive(Debug)]
+pub(in crate::analyser) struct RangeGateSite {
+    /// Span the diagnostic anchors to.
+    span: Span,
+    /// Human phrase naming the gated syntax (`item_phrase` form).
+    what: String,
+    /// The gate's own version floor ("8.6"), when it spells one — the
+    /// "requires Tcl 8.6" half of the message.
+    requires: Option<String>,
+    /// The declared targets the gate does not cover.
+    uncovered: tcl_dialect::model::VersionSet,
+}
+
+/// The names a range diagnostic lists for `set`: the touched ladder
+/// releases where the axis has a version-spelled ladder, the
+/// requirement spelling otherwise.
+fn range_target_names(set: &tcl_dialect::model::VersionSet) -> String {
+    let names = tcl_registry::model::ladder_releases_in(set);
+    if names.is_empty() {
+        tcl_registry::model::requirement_spelling(set)
+    } else {
+        names.join(", ")
+    }
 }
 
 /// Owned word fact retained until the whole-file lifecycle floor is known.
@@ -273,7 +314,7 @@ fn deprecation_fix_payload(
 
 /// Payload distinguishing the package-version gate's syntax granularity.
 #[derive(Debug, Clone)]
-enum VersionGateItem {
+pub(in crate::analyser) enum VersionGateItem {
     Command(String),
     Subcommand {
         command: String,
@@ -446,13 +487,18 @@ impl Analyser {
         &self,
         spec: &tcl_registry::CommandSpec,
     ) -> Option<VersionGateAxis> {
-        self.profile
-            .keyed_pin_for(spec)
-            .map(|pin| pin.package)
+        self.analysis_context()
+            .context()
+            .keyed_ambient_placement(spec)
+            .map(|placement| crate::environment_ingress::interned_package_name(&placement.package))
             .or_else(|| spec.owning_package())
             .map(VersionGateAxis::Package)
             .or_else(|| {
-                spec.supports_dialect(DialectSet::ALL_TCL)
+                spec.surface
+                    .is_none_or(|rows| {
+                        rows.iter()
+                            .any(|row| row.provider == SpecProvider::Core(Family::Tcl))
+                    })
                     .then_some(VersionGateAxis::TclCore)
             })
     }
@@ -487,7 +533,11 @@ impl Analyser {
         // A subcommand the active profile does not have at all is W002's,
         // exactly as a missing `package require` is W120's: one word, one
         // diagnostic. Its inner gates are moot for the same reason.
-        if !self.profile.is_subcommand_available(spec, sub) {
+        if !self
+            .analysis_context()
+            .context()
+            .subcommand_available(spec, sub)
+        {
             return;
         }
         let sub_is_literal = invocation
@@ -512,16 +562,14 @@ impl Analyser {
                     ),
                 )
             };
-            self.record_lifecycle_site(
-                span,
-                invocation.axis,
-                sub.lifecycle,
-                VersionGateItem::Subcommand {
-                    command: invocation.command.to_owned(),
-                    subcommand: sub.name.to_owned(),
-                },
-                payload,
-            );
+            let item = VersionGateItem::Subcommand {
+                command: invocation.command.to_owned(),
+                subcommand: sub.name.to_owned(),
+            };
+            // §5.4 range mode: the subcommand's inherited mask gate
+            // across the declared core targets.
+            self.record_range_gate_site(span, &item, sub.surface.or(spec.surface));
+            self.record_lifecycle_site(span, invocation.axis, sub.lifecycle, item, payload);
         }
         if sub_is_literal && !sub.sub_subcommands.is_empty() {
             self.record_sub_subcommand_version_site(invocation, sub);
@@ -644,6 +692,7 @@ impl Analyser {
         invocation: LifecycleInvocation<'_>,
         options: &[tcl_registry::hover::OptionSpec],
         start_idx: usize,
+        parent_gate: Option<&'static [SpecSurface]>,
     ) {
         let mut i = start_idx;
         while i < invocation.args.len() {
@@ -671,16 +720,14 @@ impl Analyser {
                             ),
                         )
                     };
-                    self.record_lifecycle_site(
-                        span,
-                        invocation.axis,
-                        opt.lifecycle,
-                        VersionGateItem::Option {
-                            command: invocation.command.to_owned(),
-                            option: arg.to_owned(),
-                        },
-                        payload,
-                    );
+                    let item = VersionGateItem::Option {
+                        command: invocation.command.to_owned(),
+                        option: arg.to_owned(),
+                    };
+                    // §5.4 range mode: the option's inherited mask gate
+                    // across the declared core targets.
+                    self.record_range_gate_site(span, &item, opt.surface.or(parent_gate));
+                    self.record_lifecycle_site(span, invocation.axis, opt.lifecycle, item, payload);
                 }
                 i += 1 + opt.value_word_count(invocation.args, i);
                 continue;
@@ -717,7 +764,7 @@ impl Analyser {
         // or the declared 15.0 baseline, plus any removal release (W139) —
         // and a vendor-own spec needs no `required_package` to sit on the
         // axis (its pin resolves through the profile's vendor bit).
-        let keyed = self.profile.keyed_version_range(spec);
+        let keyed = self.analysis_context().context().keyed_version_range(spec);
         let Some(axis) = self.lifecycle_axis(spec) else {
             return;
         };
@@ -749,6 +796,17 @@ impl Analyser {
             payload,
         );
 
+        // §5.4 range mode: the command's mask-spelled availability across
+        // the declared core targets. Only an item the *primary* resolves
+        // is a range question — one absent at the primary stays W002's.
+        if self.range_context.is_some() && self.analysis_context().context().spec_available(spec) {
+            self.record_range_gate_site(
+                span,
+                &VersionGateItem::Command(cmd_name.to_owned()),
+                spec.surface,
+            );
+        }
+
         // Command-level literal argument values (`HTTP::respond <status>
         // noserver`, a vendor mode word) — the same gate the subcommand arm
         // applies, one level up.
@@ -771,15 +829,15 @@ impl Analyser {
         if let Some(sub) = sub_match {
             self.record_subcommand_version_sites(invocation, spec, sub);
         }
-        let (options, start_idx) = match sub_match {
-            Some(sub) => (sub.options, 1usize),
-            None => (spec.options, 0usize),
+        let (options, start_idx, parent_gate) = match sub_match {
+            Some(sub) => (sub.options, 1usize, sub.surface.or(spec.surface)),
+            None => (spec.options, 0usize, spec.surface),
         };
         if options.is_empty() {
             return;
         }
 
-        self.record_option_version_sites(invocation, options, start_idx);
+        self.record_option_version_sites(invocation, options, start_idx, parent_gate);
     }
 
     /// Emit W135/W136 for each buffered site whose package's resolved
@@ -791,41 +849,157 @@ impl Analyser {
     /// required without a version, or not required — the latter handled by
     /// W120) are skipped.
     pub(in crate::analyser) fn flush_version_gate_diagnostics(&mut self) {
-        if self.version_gate_sites.is_empty() {
+        if self.version_gate_sites.is_empty() && self.range_gate_sites.is_empty() {
             return;
         }
         let sites = std::mem::take(&mut self.version_gate_sites);
         let mut new_diags: Vec<Diagnostic> = Vec::new();
+        // Spans that drew a verdict, so the §5.4 range pass keeps the
+        // one-word-one-diagnostic rule: a primary (semantic-floor)
+        // verdict always outranks the assistance range warning.
+        let mut reported: std::collections::HashSet<(u32, u32)> = std::collections::HashSet::new();
         for site in sites {
-            let Some((floor, guarantee)) = self.axis_floor(site.axis) else {
-                continue;
-            };
+            let floor = self.axis_floor(site.axis);
             // A range that reaches a retirement outranks the floor's own
             // verdict *while the floor is satisfied*: "gone in part of the
             // accepted range" is the stronger fact than "deprecated here".
             // A floor that already fails keeps its own, more specific message.
-            let Some((code, message)) = self
-                .requirement_straddle_diagnostic(&site, &floor)
-                .or_else(|| version_gate_diagnostic(&site, &floor, &guarantee))
-            else {
+            let verdict = floor.as_ref().and_then(|(floor, guarantee)| {
+                self.requirement_straddle_diagnostic(&site, floor)
+                    .or_else(|| version_gate_diagnostic(&site, floor, guarantee))
+            });
+            if let Some((code, message)) = verdict {
+                let (floor, _) = floor.expect("a verdict implies a resolved floor");
+                let fixes = (code == DiagCode::W144)
+                    .then(|| lifecycle_deprecation_fix(&site, &floor))
+                    .flatten()
+                    .into_iter()
+                    .collect();
+                reported.insert((site.span.start(), site.span.end()));
+                new_diags.push(
+                    crate::analyser::types::Diagnostic::new(
+                        code,
+                        site.span,
+                        message,
+                        Severity::Warning,
+                    )
+                    .with_fixes(fixes),
+                );
                 continue;
-            };
-            let fixes = (code == DiagCode::W144)
-                .then(|| lifecycle_deprecation_fix(&site, &floor))
-                .flatten()
-                .into_iter()
-                .collect();
-            new_diags.push(
-                crate::analyser::types::Diagnostic::new(
-                    code,
+            }
+            // §5.4 range mode: the primary floor is satisfied (or none
+            // resolves), but a *declared* target can still sit outside
+            // the item's lifecycle window — the assistance range warning.
+            if let Some(message) = self.range_window_message(&site) {
+                reported.insert((site.span.start(), site.span.end()));
+                new_diags.push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::W150,
                     site.span,
                     message,
                     Severity::Warning,
-                )
-                .with_fixes(fixes),
-            );
+                ));
+            }
         }
         self.result.diagnostics.extend(new_diags);
+        self.flush_range_gate_sites(&reported);
+    }
+
+    /// The **W150** message for a lifecycle site whose window excludes
+    /// part of the declared target set (§5.4), or `None` when no targets
+    /// are declared on the site's axis or the window covers them all.
+    /// The introduction end outranks the retirement end, mirroring the
+    /// floor gate's own precedence; deprecation is not absence and never
+    /// range-warns.
+    fn range_window_message(&self, site: &VersionGateSite) -> Option<String> {
+        let context = self.range_context.as_ref()?;
+        let axis = site.axis.version_axis();
+        context.declared_targets(&axis)?;
+        let what = item_phrase(&site.item);
+        let package = site.axis.name();
+        if let Some(introduced) = site.lifecycle.introduced
+            && let Some(outside) = context.targets_outside_window(&axis, Some(introduced), None)
+        {
+            return Some(format!(
+                "{what} requires {package} {introduced} but the declared targets include {}.",
+                range_target_names(&outside)
+            ));
+        }
+        let retired = site.lifecycle.retired?;
+        let outside = context.targets_outside_window(&axis, None, Some(retired))?;
+        Some(format!(
+            "{what} was removed in {package} {retired} but the declared targets include {}.",
+            range_target_names(&outside)
+        ))
+    }
+
+    /// Buffer a §5.4 mask-gated range site: `gate` is the item's
+    /// effective `SpecSurface` availability gate (own or inherited). A
+    /// walk with no declared core targets records nothing.
+    pub(in crate::analyser) fn record_range_gate_site(
+        &mut self,
+        span: Span,
+        item: &VersionGateItem,
+        gate: Option<&'static [SpecSurface]>,
+    ) {
+        let Some(context) = self.range_context.as_ref() else {
+            return;
+        };
+        let Some(uncovered) = context.targets_uncovered_by_gate(gate) else {
+            return;
+        };
+        let requires = gate
+            .and_then(tcl_registry::model::core_tcl_floor)
+            .map(|version| version.as_package_version().to_owned());
+        self.range_gate_sites.push(RangeGateSite {
+            span,
+            what: item_phrase(item),
+            requires,
+            uncovered,
+        });
+    }
+
+    /// Emit **W150** for the buffered mask-gated range sites, skipping
+    /// any span the lifecycle pass already reported (one word, one
+    /// diagnostic).
+    fn flush_range_gate_sites(&mut self, reported: &std::collections::HashSet<(u32, u32)>) {
+        if self.range_gate_sites.is_empty() {
+            return;
+        }
+        let mut seen = reported.clone();
+        for site in std::mem::take(&mut self.range_gate_sites) {
+            if !seen.insert((site.span.start(), site.span.end())) {
+                continue;
+            }
+            let names = range_target_names(&site.uncovered);
+            // "requires X" is only the right story when the miss is
+            // *below* the gate's floor; a run that ends before a target
+            // (the removed-in-9.0 shape) gets the neutral phrasing.
+            let miss_is_below_floor = site.requires.as_ref().is_some_and(|requires| {
+                tcl_dialect::model::VersionSet::from_requirements(
+                    site.uncovered.axis().clone(),
+                    &[format!("0-{requires}")],
+                )
+                .is_ok_and(|below| site.uncovered.subset(&below).unwrap_or(false))
+            });
+            let message = match &site.requires {
+                Some(requires) if miss_is_below_floor => format!(
+                    "{} requires Tcl {requires} but the declared targets include {names}.",
+                    site.what
+                ),
+                _ => format!(
+                    "{} is not available at every declared Tcl target — missing at {names}.",
+                    site.what
+                ),
+            };
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::W150,
+                    site.span,
+                    message,
+                    Severity::Warning,
+                ));
+        }
     }
 
     /// The resolved version floor on `axis`, with the phrase naming what
@@ -862,7 +1036,7 @@ impl Analyser {
         }
     }
 
-    /// Buffer a *proven* option conflict whose [`OptionConstraint`] carries a
+    /// Buffer a *proven* option conflict whose [`OptionRelation`] carries a
     /// lifecycle, to be decided once the whole-file floor is known.
     ///
     /// The caller has already established that the conflict is violated and
@@ -871,7 +1045,7 @@ impl Analyser {
     /// post-walk fact for the same reason every other lifecycle check is one
     /// — `package require` may appear anywhere.
     ///
-    /// [`OptionConstraint`]: tcl_registry::OptionConstraint
+    /// [`OptionRelation`]: tcl_registry::OptionRelation
     pub(in crate::analyser) fn record_gated_option_conflict(
         &mut self,
         resolution_name: &str,
@@ -1213,17 +1387,25 @@ impl Analyser {
             .filter_map(|r| r.version.as_deref())
             .map(tcl_registry::version::requirement_lower_bound)
             .max_by(|a, b| tcl_registry::version::compare(a, b));
-        // An **ambient** pin (the F5 surfaces) is part of the runtime — its
-        // floor always applies. A **hosted** pin (Tk / Itcl on plain Tcl)
-        // floors only once the package is actually in play via a require:
-        // the missing-require case stays W120's alone, never double-flagged
-        // with a version diagnostic.
-        let pin_applies = self
-            .profile
-            .library_pin(pkg)
-            .is_some_and(|pin| pin.ambient || has_unconditional_require);
+        // An **ambient** placement (the F5 surfaces) is part of the
+        // runtime — its floor always applies. A **hosted** placement
+        // (Tk / Itcl on plain Tcl) floors only once the package is
+        // actually in play via a require: the missing-require case stays
+        // W120's alone, never double-flagged with a version diagnostic.
+        // Both read the resolved context's floor map, whose keyed axes
+        // already carry the session pins (`--bigip-version`) or their D5
+        // oldest-supported defaults.
+        let generation = self.analysis_context();
+        let context = generation.context();
+        let pin_applies = context
+            .placement(pkg)
+            .is_some_and(|placement| placement.ambient || has_unconditional_require);
         let pin_floor = pin_applies
-            .then(|| self.profile.library_floor(pkg, &self.library_versions))
+            .then(|| {
+                context
+                    .placement_floor(pkg)
+                    .map(|floor| floor.as_str().to_owned())
+            })
             .flatten();
         // A pack's `ambient_package` row is ambient by construction — the
         // package comes with the dialect, so like an ambient profile pin its
@@ -1233,7 +1415,7 @@ impl Analyser {
         let candidates = [
             require_floor.map(|floor| (floor.to_owned(), FloorSource::Require)),
             pack_floor.map(|floor| (floor.to_owned(), FloorSource::PackAmbient)),
-            pin_floor.map(|floor| (floor.to_owned(), FloorSource::ProfilePin)),
+            pin_floor.map(|floor| (floor, FloorSource::ProfilePin)),
         ];
         // Highest floor wins; at equal versions the earliest `FloorSource`
         // wins, since the variants are declared in reporting precedence.
@@ -1259,7 +1441,7 @@ impl Analyser {
         if self.pack_overlay == 0 {
             return None;
         }
-        self.profile_registry().ambient_package_floor(pkg)
+        self.analysis_context().context().pack_ambient_floor(pkg)
     }
 }
 
@@ -1447,6 +1629,28 @@ impl Analyser {
         let mut new_diags: Vec<Diagnostic> = Vec::new();
         for site in sites {
             if site.min <= effective {
+                // §5.4 range mode: the feature is fine at the effective
+                // (primary) version, but a *declared* core target can
+                // still predate it — the assistance range warning.
+                if let Some(context) = self.range_context.as_ref()
+                    && let Some(outside) = context.targets_outside_window(
+                        &VersionGateAxis::TclCore.version_axis(),
+                        Some(site.min.as_package_version()),
+                        None,
+                    )
+                {
+                    new_diags.push(crate::analyser::types::Diagnostic::new(
+                        DiagCode::W150,
+                        site.span,
+                        format!(
+                            "{} requires Tcl {} but the declared targets include {}.",
+                            site.what,
+                            site.min.as_package_version(),
+                            range_target_names(&outside)
+                        ),
+                        Severity::Warning,
+                    ));
+                }
                 continue;
             }
             new_diags.push(crate::analyser::types::Diagnostic::new(
@@ -1551,13 +1755,12 @@ mod tests {
         key: u64,
         rows: &[(&'static str, &'static str)],
     ) -> Analyser {
-        let profile = tcl_dialect::DialectProfile::by_name(dialect);
-        let _registry =
-            tcl_registry::cache::registry_for_profile_with_overlay(profile, key, |registry| {
-                for (package, version) in rows {
-                    registry.insert_ambient_package(package, version);
-                }
-            });
+        let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+        let _registry = tcl_registry::registry_for_profile_with_overlay(profile, key, |registry| {
+            for (package, version) in rows {
+                registry.insert_ambient_package(package, version);
+            }
+        });
         Analyser::new().with_pack_overlay(key)
     }
 
@@ -1747,20 +1950,20 @@ mod tests {
             },
         ];
 
-        let profile = tcl_dialect::DialectProfile::by_name("tcl8.6");
-        let _registry =
-            tcl_registry::cache::registry_for_profile_with_overlay(profile, key, |registry| {
-                registry.insert(tcl_registry::CommandSpec {
-                    name: "probe::grew",
-                    arity: Arity::exact(1),
-                    arity_windows: WINDOWS,
-                    required_package: Some("Probe"),
-                    ..tcl_registry::CommandSpec::DEFAULT
-                });
-                if let Some(version) = ambient {
-                    registry.insert_ambient_package("Probe", version);
-                }
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let _registry = tcl_registry::registry_for_profile_with_overlay(profile, key, |registry| {
+            registry.insert(tcl_registry::CommandSpec {
+                name: "probe::grew",
+                arity: Arity::exact(1),
+                arity_windows: WINDOWS,
+                required_package: Some("Probe"),
+                ..tcl_registry::CommandSpec::DEFAULT
             });
+            if let Some(version) = ambient {
+                registry.insert_ambient_package("Probe", version);
+            }
+        });
         Analyser::new().with_pack_overlay(key)
     }
 
@@ -1781,18 +1984,18 @@ mod tests {
             arity: Arity::exact(2),
         }];
 
-        let profile = tcl_dialect::DialectProfile::by_name("tcl8.6");
-        let _registry =
-            tcl_registry::cache::registry_for_profile_with_overlay(profile, key, |registry| {
-                registry.insert(tcl_registry::CommandSpec {
-                    name: "probe::shrank",
-                    // Fallback takes three; from 3.0 it takes two.
-                    arity: Arity::exact(3),
-                    arity_windows: WINDOWS,
-                    required_package: Some("Probe"),
-                    ..tcl_registry::CommandSpec::DEFAULT
-                });
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let _registry = tcl_registry::registry_for_profile_with_overlay(profile, key, |registry| {
+            registry.insert(tcl_registry::CommandSpec {
+                name: "probe::shrank",
+                // Fallback takes three; from 3.0 it takes two.
+                arity: Arity::exact(3),
+                arity_windows: WINDOWS,
+                required_package: Some("Probe"),
+                ..tcl_registry::CommandSpec::DEFAULT
             });
+        });
         Analyser::new().with_pack_overlay(key)
     }
 
@@ -1848,19 +2051,19 @@ mod tests {
             ..tcl_registry::SubCommand::DEFAULT
         }];
 
-        let profile = tcl_dialect::DialectProfile::by_name("tcl8.6");
-        let _registry =
-            tcl_registry::cache::registry_for_profile_with_overlay(profile, key, |registry| {
-                registry.insert(tcl_registry::CommandSpec {
-                    name: "probe::ens",
-                    // Below 3.0 a bare call has a defined default.
-                    arity: Arity::at_least(0),
-                    arity_windows: WINDOWS,
-                    subcommands: SUBS,
-                    required_package: Some("Probe"),
-                    ..tcl_registry::CommandSpec::DEFAULT
-                });
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let _registry = tcl_registry::registry_for_profile_with_overlay(profile, key, |registry| {
+            registry.insert(tcl_registry::CommandSpec {
+                name: "probe::ens",
+                // Below 3.0 a bare call has a defined default.
+                arity: Arity::at_least(0),
+                arity_windows: WINDOWS,
+                subcommands: SUBS,
+                required_package: Some("Probe"),
+                ..tcl_registry::CommandSpec::DEFAULT
             });
+        });
         Analyser::new().with_pack_overlay(key)
     }
 
@@ -2218,18 +2421,19 @@ mod tests {
 
     #[test]
     fn w200_binary_modifiers_follow_the_effective_version() {
-        // TIP 275: binary format/scan u/s modifiers are 8.5+.
+        // TIP 275: binary format/scan u/s modifiers are 8.5+. The F5
+        // trunk profiles all ride the fork of Tcl at 8.4.6 — measured,
+        // bigip-irule-parser-measurements.md §4a: iApps/tmsh fail every
+        // 8.5 discriminator, so the modifiers flag there too.
         let src = "binary format cu 5\n";
-        for d in ["tcl8.4", "f5-irules"] {
+        for d in ["tcl8.4", "f5-irules", "f5-iapps", "f5-tmsh"] {
             let diags = dsl_diags(src, d);
             assert!(
                 diags.iter().any(|(c, _)| c == "W200"),
                 "{d}: binary u modifier needs 8.5, got {diags:?}"
             );
         }
-        // The old hardcoded list wrongly flagged f5-iapps — its host is a
-        // real Tcl 8.5.13 where the modifiers work (FP fixed).
-        for d in ["f5-iapps", "tcl8.5", "tcl8.6", "f5-tmsh"] {
+        for d in ["tcl8.5", "tcl8.6"] {
             assert!(
                 dsl_diags(src, d).is_empty(),
                 "{d}: binary u modifier is real on 8.5+"
@@ -2578,30 +2782,36 @@ mod tests {
             },
         ];
 
-        const CONSTRAINTS: &[tcl_registry::OptionConstraint] = &[tcl_registry::OptionConstraint {
-            options: &["-alpha", "-beta"],
+        const CONSTRAINTS: &[tcl_registry::OptionRelation] = &[tcl_registry::OptionRelation {
+            terms: &[
+                tcl_registry::OptionTerm::Option("-alpha"),
+                tcl_registry::OptionTerm::Option("-beta"),
+            ],
             lifecycle: tcl_registry::lifecycle::Lifecycle::introduced_in("2.0"),
-            ..tcl_registry::OptionConstraint::DEFAULT
+            ..tcl_registry::OptionRelation::DEFAULT
         }];
 
         /// The same relationship with no lifecycle at all — the zero-change
         /// control for the inline path.
-        const UNGATED_CONSTRAINTS: &[tcl_registry::OptionConstraint] =
-            &[tcl_registry::OptionConstraint {
-                options: &["-alpha", "-beta"],
-                ..tcl_registry::OptionConstraint::DEFAULT
+        const UNGATED_CONSTRAINTS: &[tcl_registry::OptionRelation] =
+            &[tcl_registry::OptionRelation {
+                terms: &[
+                    tcl_registry::OptionTerm::Option("-alpha"),
+                    tcl_registry::OptionTerm::Option("-beta"),
+                ],
+                ..tcl_registry::OptionRelation::DEFAULT
             }];
 
         fn spec(
             name: &'static str,
-            constraints: &'static [tcl_registry::OptionConstraint],
+            constraints: &'static [tcl_registry::OptionRelation],
         ) -> tcl_registry::CommandSpec {
             tcl_registry::CommandSpec {
                 name,
                 required_package: Some("Fauxpkg"),
                 arity: tcl_registry::Arity::any(),
                 options: OPTIONS,
-                option_constraints: constraints,
+                option_relations: constraints,
                 ..tcl_registry::CommandSpec::DEFAULT
             }
         }
@@ -2609,7 +2819,8 @@ mod tests {
         /// Every W147 message `source` draws under `tcl8.6`, with the
         /// synthetic pack installed.
         fn conflicts(source: &str) -> Vec<String> {
-            let profile = tcl_dialect::DialectProfile::by_name("tcl8.6");
+            let profile =
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
             let _registry =
                 tcl_registry::registry_for_profile_with_overlay(profile, OVERLAY, |registry| {
                     registry.insert(spec("fauxgated", CONSTRAINTS));
@@ -2670,15 +2881,19 @@ mod tests {
         #[test]
         fn a_retired_conflict_stops_being_enforced_but_a_deprecated_one_does_not() {
             // Retirement is exclusive: the relationship is gone at 3.0…
-            const RETIRED: &[tcl_registry::OptionConstraint] = &[tcl_registry::OptionConstraint {
-                options: &["-alpha", "-beta"],
+            const RETIRED: &[tcl_registry::OptionRelation] = &[tcl_registry::OptionRelation {
+                terms: &[
+                    tcl_registry::OptionTerm::Option("-alpha"),
+                    tcl_registry::OptionTerm::Option("-beta"),
+                ],
                 lifecycle: tcl_registry::lifecycle::Lifecycle::UNSPECIFIED
                     .retired_from("3.0")
                     .deprecated_from("2.0"),
-                ..tcl_registry::OptionConstraint::DEFAULT
+                ..tcl_registry::OptionRelation::DEFAULT
             }];
             const KEY: u64 = 0x7e57_c0f2;
-            let profile = tcl_dialect::DialectProfile::by_name("tcl8.6");
+            let profile =
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
             let _registry =
                 tcl_registry::registry_for_profile_with_overlay(profile, KEY, |registry| {
                     registry.insert(spec("fauxretired", RETIRED));
@@ -2727,6 +2942,522 @@ mod tests {
             let met = "proc use {} { fauxgated -alpha -beta }\n\
                        package require Fauxpkg 2.0\n";
             assert_eq!(conflicts(met).len(), 1, "{:?}", conflicts(met));
+        }
+    }
+
+    // -- §5.4 range targeting, W150 / W151 (P1b) ---------------------------
+
+    mod range_targeting {
+        use super::super::super::super::state::Analyser;
+
+        /// Every range / version-gate / numeral code for `source` under
+        /// `dialect`, on a fresh analyser.
+        fn diags(source: &str, dialect: &str) -> Vec<(String, String)> {
+            diags_with(Analyser::new(), source, dialect)
+        }
+
+        fn diags_with(
+            mut analyser: Analyser,
+            source: &str,
+            dialect: &str,
+        ) -> Vec<(String, String)> {
+            analyser
+                .analyse(source, dialect)
+                .diagnostics
+                .iter()
+                .filter(|d| {
+                    matches!(
+                        d.code.as_str(),
+                        "W002"
+                            | "W135"
+                            | "W136"
+                            | "W137"
+                            | "W138"
+                            | "W139"
+                            | "W144"
+                            | "W148"
+                            | "W150"
+                            | "W151"
+                    )
+                })
+                .map(|d| (d.code.to_string(), d.message.clone()))
+                .collect()
+        }
+
+        fn fires(diags: &[(String, String)], code: &str) -> bool {
+            diags.iter().any(|(c, _)| c == code)
+        }
+
+        /// The owner's canonical case, both ways: a leading-zero literal
+        /// under a range spanning 8.x and 9.x draws the meaning-change
+        /// warning; a single-target 9.0 project — and an undeclared one —
+        /// stays clean.
+        #[test]
+        fn the_octal_case_both_ways() {
+            let spanning = "# tcl-lsp: supports tcl 8.5-9.0\nexpr {010}\n";
+            let diags = diags(spanning, "tcl8.6");
+            assert!(
+                diags.iter().any(|(c, m)| c == "W151"
+                    && m.contains("means 8")
+                    && m.contains("10")
+                    && m.contains("silent meaning change")),
+                "8.5-9.0 spans the octal/decimal boundary: {diags:?}"
+            );
+
+            let single = "# tcl-lsp: supports tcl 9.0\nexpr {010}\n";
+            assert!(
+                !fires(&super::range_targeting::diags(single, "tcl9.0"), "W151"),
+                "a single 9.0 target has one numeral grammar"
+            );
+            let undeclared = "expr {010}\n";
+            for dialect in ["tcl8.6", "tcl9.0", "tcl"] {
+                let diags = super::range_targeting::diags(undeclared, dialect);
+                assert!(
+                    !fires(&diags, "W151") && !fires(&diags, "W150"),
+                    "{dialect}: no declaration, no range mode: {diags:?}"
+                );
+            }
+        }
+
+        /// Prefix and separator numerals draw the validity half of W151
+        /// when a declared target predates them — and only then.
+        #[test]
+        fn prefix_numerals_follow_the_declared_range() {
+            // `0o17` predates nothing in 8.5-9.0…
+            let fine = "# tcl-lsp: supports tcl 8.5-9.0\nexpr {0o17}\n";
+            assert!(
+                !fires(&diags(fine, "tcl8.6"), "W151"),
+                "0o is 8.5+ and the range starts at 8.5"
+            );
+            // …but an 8.4 target rejects it.
+            let with_84 = "# tcl-lsp: supports tcl 8.4-9.0\nexpr {0o17}\n";
+            let d = diags(with_84, "tcl8.6");
+            assert!(
+                d.iter()
+                    .any(|(c, m)| c == "W151" && m.contains("not accepted") && m.contains("8.4")),
+                "0o17 is a bareword under 8.4: {d:?}"
+            );
+            // 9.x-only spellings under a range reaching back to 8.x — the
+            // primary (9.0) accepts them, the 8.x targets do not.
+            for word in ["0d5", "1_000"] {
+                let source = format!("# tcl-lsp: supports tcl 8.5-9.0\nset x {word}\n");
+                let d = diags(&source, "tcl9.0");
+                assert!(
+                    d.iter()
+                        .any(|(c, m)| c == "W151" && m.contains("not accepted")),
+                    "{word} is 9.0-only: {d:?}"
+                );
+                // Under an 8.6 primary the same word is W148's
+                // single-target fact, never double-reported as W151.
+                let d = diags(&source, "tcl8.6");
+                assert!(
+                    fires(&d, "W148") && !fires(&d, "W151"),
+                    "{word}: primary rejection stays W148's: {d:?}"
+                );
+            }
+        }
+
+        /// A command introduced at 8.6 under an 8.5–9.0 range: fine at the
+        /// primary, missing at the declared 8.5 target — the availability
+        /// half of the range family (mask-gated, no lifecycle involved).
+        #[test]
+        fn a_command_introduced_at_86_fails_the_85_target() {
+            let source = "# tcl-lsp: supports tcl 8.5-9.0\nlmap x {1 2} {set x}\n";
+            let d = diags(source, "tcl8.6");
+            assert!(
+                d.iter().any(|(c, m)| c == "W150"
+                    && m.contains("'lmap' requires Tcl 8.6")
+                    && m.contains("include 8.5")),
+                "lmap is 8.6+: {d:?}"
+            );
+            // A declared single target equal to the primary changes nothing.
+            let pinned = "# tcl-lsp: supports tcl 8.6\nlmap x {1 2} {set x}\n";
+            assert!(!fires(&diags(pinned, "tcl8.6"), "W150"));
+        }
+
+        /// The removal direction: `case` is gone from 9.0, so a range that
+        /// includes 9.0 flags it even though the 8.6 primary still has it.
+        #[test]
+        fn a_command_removed_at_9_fails_the_90_target() {
+            let source = "# tcl-lsp: supports tcl 8.5-9.0\ncase $x in {a {set y 1}}\n";
+            let d = diags(source, "tcl8.6");
+            assert!(
+                d.iter().any(|(c, m)| c == "W150"
+                    && m.contains("'case'")
+                    && m.contains("missing at 9.0")),
+                "case does not exist at the 9.0 target: {d:?}"
+            );
+        }
+
+        /// The assistance/semantic split: an item that fails at the
+        /// **primary** keeps today's semantic-floor diagnostic (W002 here)
+        /// and never draws the assistance range warning on top.
+        #[test]
+        fn a_primary_failure_stays_the_floor_diagnostic() {
+            let source = "# tcl-lsp: supports tcl 8.5-9.0\nlmap x {1 2} {set x}\n";
+            let d = diags(source, "tcl8.5");
+            assert!(
+                !fires(&d, "W150"),
+                "absent at the primary is W002's, not a range fact: {d:?}"
+            );
+            assert!(
+                fires(&d, "W002"),
+                "the semantic floor verdict stands: {d:?}"
+            );
+        }
+
+        /// A library range (`supports Tk 8.5-8.6`) gates package items
+        /// through the same placement/floor machinery: the require
+        /// satisfies the floor, the declared 8.5–8.6 window does not reach
+        /// the option's 8.7 introduction.
+        #[test]
+        fn a_package_item_under_a_library_range() {
+            let source = "# tcl-lsp: supports Tk 8.5-8.6\n\
+                          package require Tk 8.7\n\
+                          entry .e -placeholder hi\n";
+            let d = diags(source, "tcl8.6");
+            assert!(
+                !fires(&d, "W136"),
+                "the 8.7 require satisfies the floor: {d:?}"
+            );
+            assert!(
+                d.iter().any(|(c, m)| c == "W150"
+                    && m.contains("'-placeholder'")
+                    && m.contains("requires Tk 8.7")
+                    && m.contains("8.5")),
+                "the declared Tk range misses the 8.7 introduction: {d:?}"
+            );
+            // Without the declaration the same source is silent — the
+            // library range is what changes the verdict.
+            let undeclared = "package require Tk 8.7\nentry .e -placeholder hi\n";
+            assert!(!fires(&diags(undeclared, "tcl8.6"), "W150"));
+        }
+
+        /// Settings-declared targets (`tclLsp.targets`) resolve exactly as
+        /// the directive does, and the directive wins per provider.
+        #[test]
+        fn settings_and_directive_ingress() {
+            let configured = || {
+                Analyser::new()
+                    .with_declared_targets(vec![("tcl".to_owned(), "8.5-9.0".to_owned())])
+            };
+            let source = "lmap x {1 2} {set x}\n";
+            let d = diags_with(configured(), source, "tcl8.6");
+            assert!(
+                d.iter().any(|(c, m)| c == "W150" && m.contains("'lmap'")),
+                "settings alone switch range mode on: {d:?}"
+            );
+            // A source directive narrows the same provider back to the
+            // primary's own line — the more specific source wins.
+            let overridden = "# tcl-lsp: supports tcl 8.6\nlmap x {1 2} {set x}\n";
+            assert!(
+                !fires(&diags_with(configured(), overridden, "tcl8.6"), "W150"),
+                "the directive overrides the configured pair"
+            );
+            // A malformed declaration is dropped, never guessed at.
+            let malformed = "# tcl-lsp: supports tcl not-a-version\nlmap x {1 2} {set x}\n";
+            assert!(!fires(&diags(malformed, "tcl8.6"), "W150"));
+        }
+
+        /// The argument-DSL rung follows the range too: a conversion fine
+        /// at the primary but newer than a declared target warns.
+        #[test]
+        fn a_dsl_feature_fails_an_older_declared_target() {
+            let source = "# tcl-lsp: supports tcl 8.5-9.0\nformat %b 5\n";
+            let d = diags(source, "tcl8.6");
+            assert!(
+                d.iter().any(|(c, m)| c == "W150"
+                    && m.contains("%b")
+                    && m.contains("requires Tcl 8.6")
+                    && m.contains("8.5")),
+                "%b is 8.6+ and 8.5 is declared: {d:?}"
+            );
+            assert!(!fires(&d, "W138"), "the primary itself is satisfied");
+        }
+
+        /// The no-range pin: a declared single target equal to the
+        /// primary's own line leaves the diagnostic list byte-identical to
+        /// an undeclared document.
+        #[test]
+        fn a_single_target_matching_the_primary_changes_nothing() {
+            let body = "lmap x {1 2} {set x}\n\
+                        expr {010}\n\
+                        format %b 5\n\
+                        entry .e -placeholder hi\n\
+                        trace variable v w handler\n";
+            let declared = format!("# tcl-lsp: supports tcl 8.6\n{body}");
+            let base: Vec<String> = Analyser::new()
+                .analyse(body, "tcl8.6")
+                .diagnostics
+                .iter()
+                .map(|d| format!("{} {}", d.code.as_str(), d.message))
+                .collect();
+            let pinned: Vec<String> = Analyser::new()
+                .analyse(&declared, "tcl8.6")
+                .diagnostics
+                .iter()
+                .map(|d| format!("{} {}", d.code.as_str(), d.message))
+                .collect();
+            assert_eq!(base, pinned, "single target ⇒ today's behaviour");
+        }
+
+        // -- P3: the Tk pilot rides the same range machinery ------------
+        //
+        // §5.4's "packages take range targets exactly like cores" (§3.2,
+        // last bullet), proved on the acceptance case. `Tk` is a package
+        // axis, so `supports Tk …` is the library half of ruling R6's
+        // directive and nothing about it is Tcl-core-specific.
+
+        /// A project declaring `Tk 8.5-8.6` gets warned about an item Tk
+        /// only grew at 8.6 — the deliverable's canonical case. `tk busy`
+        /// is `Lifecycle::introduced_in("8.6")` on the `tk` ensemble.
+        #[test]
+        fn a_tk_range_warns_on_an_item_the_older_tk_lacks() {
+            let src = "# tcl-lsp: supports Tk 8.5-8.6\n\
+                       package require Tk\n\
+                       tk busy hold .\n";
+            let d = diags(src, "tcl8.6");
+            assert!(
+                d.iter().any(|(c, m)| c == "W150"
+                    && m.contains("Tk 8.6")
+                    && m.contains("declared targets include")
+                    && m.contains("8.5")),
+                "an 8.6-only Tk subcommand under Tk 8.5-8.6: {d:?}"
+            );
+        }
+
+        /// The three controls that keep the Tk range honest: a range that
+        /// starts at 8.6 is clean, a `tcl` declaration does not gate the
+        /// `Tk` axis (invariant I2 — values from different axes are never
+        /// compared), and an undeclared document is untouched.
+        #[test]
+        fn a_tk_range_is_scoped_to_the_tk_axis() {
+            let body = "package require Tk\ntk busy hold .\n";
+            let covered = format!("# tcl-lsp: supports Tk 8.6-9.0\n{body}");
+            assert!(
+                !fires(&diags(&covered, "tcl8.6"), "W150"),
+                "Tk 8.6-9.0 covers an 8.6 introduction"
+            );
+            // A *core* range naming the same numerals says nothing about
+            // the Tk axis.
+            let core_only = format!("# tcl-lsp: supports tcl 8.5-8.6\n{body}");
+            let d = diags(&core_only, "tcl8.6");
+            assert!(
+                !d.iter().any(|(c, m)| c == "W150" && m.contains("Tk 8.6")),
+                "the core axis must not gate the Tk axis: {d:?}"
+            );
+            assert!(!fires(&diags(body, "tcl8.6"), "W150"), "undeclared");
+        }
+
+        // -- P5: the tcllib adversarial modules ------------------------
+        //
+        // A tcllib module is an independently versioned package with its
+        // own axis, so `supports struct::tree …` gates on the *module's*
+        // train, not on tcllib-as-a-blob and not on the Tcl core. The
+        // acceptance item is `::struct::tree::prune`: `tree1.tcl` (the
+        // 1.2.3 train) has no such proc, `tree_tcl.tcl` (2.1.3) defines
+        // it as `return -code 5`, so it carries
+        // `introduced: "2.0"` on the `struct::tree` axis.
+
+        /// A project declaring `struct::tree 1.2-2.2` — both trains — is
+        /// told that `prune` does not exist across the whole range.
+        #[test]
+        fn a_tcllib_module_range_warns_on_an_item_the_older_release_lacks() {
+            let src = "# tcl-lsp: supports struct::tree 1.2-2.2\n\
+                       package require struct::tree\n\
+                       ::struct::tree::prune\n";
+            let d = diags(src, "tcl8.6");
+            assert!(
+                d.iter().any(|(c, m)| c == "W150"
+                    && m.contains("struct::tree 2.0")
+                    && m.contains("declared targets include")
+                    && m.contains("1.2")),
+                "a 2.0-only command under struct::tree 1.2-2.2: {d:?}"
+            );
+            // The declaration alone is enough — no `package require`
+            // needed, because a target set is a project fact, not a
+            // document one.
+            let bare = "# tcl-lsp: supports struct::tree 1.2-2.2\n::struct::tree::prune\n";
+            assert!(fires(&diags(bare, "tcl8.6"), "W150"));
+        }
+
+        /// The module range lives on **that module's** axis (invariant
+        /// I2), which a tcllib module can prove in a way `Tk` could not:
+        /// a *different tcllib module's* range with overlapping numerals
+        /// must say nothing about this one.
+        #[test]
+        fn a_tcllib_module_range_is_scoped_to_that_modules_axis() {
+            let body = "package require struct::tree\n::struct::tree::prune\n";
+            // Covered: a range that starts inside the 2.x train is clean.
+            let covered = format!("# tcl-lsp: supports struct::tree 2.1-\n{body}");
+            assert!(
+                !fires(&diags(&covered, "tcl8.6"), "W150"),
+                "2.1- covers 2.0"
+            );
+            // Another *module* with the same numerals says nothing here.
+            let sibling = format!("# tcl-lsp: supports struct::list 1.2-2.2\n{body}");
+            assert!(
+                !fires(&diags(&sibling, "tcl8.6"), "W150"),
+                "struct::list's axis must not gate struct::tree's items",
+            );
+            // Neither does the core axis.
+            let core = format!("# tcl-lsp: supports tcl 8.5-9.0\n{body}");
+            assert!(
+                !fires(&diags(&core, "tcl8.6"), "W150"),
+                "the core axis must not gate a tcllib module axis (I2)",
+            );
+            assert!(!fires(&diags(body, "tcl8.6"), "W150"), "undeclared");
+        }
+
+        /// The single-floor seed of the same family still works, and a
+        /// module is **hosted**: the floor comes from the document's own
+        /// `package require`, never from a placement pin.
+        #[test]
+        fn a_tcllib_module_floor_comes_from_the_package_require() {
+            let old = "package require struct::tree 1.2\n::struct::tree::prune\n";
+            let d = diags(old, "tcl8.6");
+            assert!(
+                d.iter().any(|(c, m)| c == "W135"
+                    && m.contains("struct::tree 2.0")
+                    && m.contains("guarantees only 1.2")),
+                "the 1.2 require floors below the 2.0 introduction: {d:?}"
+            );
+            let new = "package require struct::tree 2.1\n::struct::tree::prune\n";
+            assert!(!fires(&diags(new, "tcl8.6"), "W135"), "2.1 satisfies it");
+            // No require at all is permissive on the version axis — W120
+            // owns the missing-require nag for a hosted package.
+            let none = "::struct::tree::prune\n";
+            assert!(!fires(&diags(none, "tcl8.6"), "W135"));
+        }
+
+        // -- P6: the jim ladder -----------------------------------------
+        //
+        // Jim's releases are targets on the `jim` **core** axis, not nine
+        // catalogue profiles, so a jim range is declared exactly as a Tcl
+        // one is and the §5.4 machinery answers on the family's own
+        // ladder. Invariant I2 is the load-bearing half: a jim
+        // declaration must never reach the Tcl axis, and a Tcl one must
+        // never reach jim's.
+
+        /// The declared targets of a `jim` document land on the jim core
+        /// axis, spelled off the jim ladder — and nowhere else.
+        #[test]
+        fn a_declared_jim_range_lands_on_the_jim_core_axis() {
+            use tcl_dialect::model::{Family, Version, VersionAxisId};
+            let mut analyser = Analyser::new();
+            let _ = analyser.analyse("# tcl-lsp: supports jim 0.76-0.79\nset x 1\n", "jim");
+            let context = analyser
+                .range_context
+                .as_ref()
+                .expect("a jim declaration switches range mode on");
+            let declared = context
+                .declared_targets(&VersionAxisId::core(Family::Jim))
+                .expect("targets on the jim axis");
+            assert!(declared.contains(&Version::parse("0.78").expect("version")));
+            assert!(!declared.contains(&Version::parse("0.84").expect("version")));
+            // I2, both spellings of the leak: not the Tcl core axis, and
+            // not a fictitious `package:jim` axis either — which is what
+            // the pre-P6 ingress minted, because it recognised only the
+            // name `tcl` as a family.
+            assert!(
+                context
+                    .declared_targets(&VersionAxisId::core(Family::Tcl))
+                    .is_none(),
+                "a jim range is not a Tcl range"
+            );
+            assert!(
+                context
+                    .declared_targets(&VersionAxisId::package("jim"))
+                    .is_none(),
+                "jim is a family, not a package"
+            );
+        }
+
+        /// A family range declared against the wrong core is **dropped**,
+        /// not coerced — in both directions. A `supports jim` line in a
+        /// Tcl document and a `supports tcl` line in a jim document are
+        /// each a statement about a ladder the document is not on.
+        #[test]
+        fn a_family_range_off_its_own_core_is_dropped() {
+            use tcl_dialect::model::{Family, VersionAxisId};
+            let mut in_tcl = Analyser::new();
+            let _ = in_tcl.analyse("# tcl-lsp: supports jim 0.81-0.84\nset x 1\n", "tcl8.6");
+            assert!(
+                in_tcl.range_context.is_none(),
+                "a jim range says nothing about a Tcl document"
+            );
+
+            let mut in_jim = Analyser::new();
+            let _ = in_jim.analyse("# tcl-lsp: supports tcl 8.5-9.0\nset x 1\n", "jim");
+            assert!(
+                in_jim.range_context.is_none(),
+                "a Tcl range says nothing about a jim document"
+            );
+
+            // …while the *package* axes still cross freely, because a
+            // package is not a ladder: `supports Tk 8.5-8.6` is a real
+            // declaration under either core.
+            let mut package = Analyser::new();
+            let _ = package.analyse("# tcl-lsp: supports Tk 8.5-8.6\nset x 1\n", "jim");
+            assert!(
+                package
+                    .range_context
+                    .as_ref()
+                    .expect("range mode")
+                    .declared_targets(&VersionAxisId::package("Tk"))
+                    .is_some()
+            );
+            assert!(
+                package
+                    .range_context
+                    .as_ref()
+                    .expect("range mode")
+                    .declared_targets(&VersionAxisId::core(Family::Jim))
+                    .is_none()
+            );
+        }
+
+        /// The W151 cross-target numeral check is a **Tcl-ladder** fact,
+        /// so a jim range never switches it on — the octal case under
+        /// `supports jim 0.76-0.84` stays silent where the same span of
+        /// the Tcl ladder would warn.
+        #[test]
+        fn a_jim_range_does_not_drive_the_tcl_numeral_check() {
+            let jim = "# tcl-lsp: supports jim 0.76-0.84\nexpr {010}\n";
+            assert!(!fires(&diags(jim, "jim"), "W151"));
+            // The control: the same shape on the Tcl axis does warn.
+            let tcl = "# tcl-lsp: supports tcl 8.5-9.0\nexpr {010}\n";
+            assert!(fires(&diags(tcl, "tcl8.6"), "W151"));
+        }
+
+        /// Under `jim` the shared core surface resolves through the
+        /// ancestry edge: no W002 for `lassign`, `lmap` or `dict`, which
+        /// on the jim branch were three of 76 hand-re-authored specs.
+        #[test]
+        fn the_jim_environment_resolves_the_inherited_core_surface() {
+            let source = "set x 1\nlassign {a b} p q\nlmap i {1 2} {set i}\ndict get {a 1} a\n";
+            let d = diags(source, "jim");
+            assert!(
+                !d.iter().any(|(code, _)| code == "W002"),
+                "inherited core commands must resolve: {d:?}"
+            );
+        }
+
+        /// Under `wish` the same declaration works with **no** `package
+        /// require`: the `tk` environment ships Tk ambient, so the range
+        /// is declared against a package the environment already placed.
+        #[test]
+        fn a_tk_range_applies_under_the_ambient_wish_placement() {
+            let src = "# tcl-lsp: supports Tk 8.5-8.6\ntk busy hold .\n";
+            let d = diags(src, "tk");
+            assert!(
+                d.iter().any(|(c, m)| c == "W150" && m.contains("Tk 8.6")),
+                "wish + Tk 8.5-8.6: {d:?}"
+            );
+            assert!(
+                !d.iter().any(|(c, _)| c == "W120"),
+                "and no missing-require nag under an ambient placement: {d:?}"
+            );
         }
     }
 }

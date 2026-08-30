@@ -1011,6 +1011,7 @@ fn apply_binary(op: BinOp, a: TclValue, b: TclValue) -> Option<TclValue> {
         | BinOp::StartsWith
         | BinOp::EndsWith
         | BinOp::StrEquals
+        | BinOp::Matches
         | BinOp::MatchesGlob
         | BinOp::MatchesRegex
         | BinOp::In
@@ -1340,6 +1341,16 @@ fn apply_irules_string_op(op: BinOp, left: &str, right: &str) -> Option<TclValue
         // embedded options and greediness all differ — so folding here
         // could disagree with runtime.  Decline to evaluate and defer to
         // the runtime regex engine.
+        //
+        // The bare `matches` ([`BinOp::Matches`]) declines through the
+        // same arm, for a different reason: only its *presence* is
+        // measured (`docs/design/bigip-irule-parser-measurements.md` §4a
+        // `e_matches`), and the probe — `expr {"abc" matches "abc"}` — is
+        // an exact-equality case that discriminates none of the
+        // string-match readings.  The VM answers it as a string equality
+        // so the measured cell reproduces; folding it here would bake an
+        // unmeasured semantics into a rewrite, which §12's outstanding
+        // re-probe has not yet earned.
         _ => return None,
     };
     Some(TclValue::Int(i64::from(res)))
@@ -1421,7 +1432,7 @@ mod tests {
             eval_tcl_expr_in_dialect(
                 &parse_expr(expr, Some(dialect)),
                 &env,
-                tcl_dialect::DialectProfile::by_name(dialect),
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
             )
         };
         // `min`/`max` are 8.5+: fold from 8.5, decline under 8.4.
@@ -1551,7 +1562,7 @@ mod tests {
             eval_tcl_expr_in_dialect(
                 &parse_expr(expr, None),
                 &Env::new(),
-                tcl_dialect::DialectProfile::by_name(dialect),
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
             )
         };
         // tcl8.x octal: `08`/`09` are *invalid* octal → treated as strings, so
@@ -1578,7 +1589,7 @@ mod tests {
             eval_tcl_expr_in_dialect(
                 &parse_expr(expr, None),
                 &Env::new(),
-                tcl_dialect::DialectProfile::by_name(dialect),
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
             )
         };
         for d in ["tcl8.4", "tcl8.5", "tcl8.6", "f5-irules", "f5-iapps"] {
@@ -1620,7 +1631,7 @@ mod tests {
             eval_tcl_expr_in_dialect(
                 &parse_expr(expr, None),
                 &Env::new(),
-                tcl_dialect::DialectProfile::by_name(dialect),
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
             )
         };
         assert_eq!(eval_d("08 + 1", "tcl8.6"), None);
@@ -1634,7 +1645,7 @@ mod tests {
             eval_tcl_expr_in_dialect(
                 &parse_expr(expr, None),
                 &Env::new(),
-                tcl_dialect::DialectProfile::by_name(dialect),
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
             )
         };
         // bpf embeds Tcl 9.0 (dialect-profile-model.md D7): `010` is decimal
@@ -1655,7 +1666,7 @@ mod tests {
             eval_tcl_expr_in_dialect(
                 &parse_expr(expr, None),
                 &Env::new(),
-                tcl_dialect::DialectProfile::by_name(dialect),
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
             )
         };
         // f5-bigip has no Tcl runtime and an unknown dialect resolves to the
@@ -1681,7 +1692,9 @@ mod tests {
             "expect",
         ] {
             assert_eq!(
-                leading_zero_is_octal(tcl_dialect::DialectProfile::by_name(d)),
+                leading_zero_is_octal(
+                    tcl_registry::model::ingress::resolve_environment(d).analyser_profile()
+                ),
                 Some(true),
                 "{d}"
             );
@@ -1690,18 +1703,25 @@ mod tests {
         // (D7), so `010` is not octal there either.
         for d in ["tcl9.0", "tcl9.1", "bpf"] {
             assert_eq!(
-                leading_zero_is_octal(tcl_dialect::DialectProfile::by_name(d)),
+                leading_zero_is_octal(
+                    tcl_registry::model::ingress::resolve_environment(d).analyser_profile()
+                ),
                 Some(false),
                 "{d}"
             );
         }
         // No Tcl runtime / unknown dialect: abstain, never guess (§11.1).
         assert_eq!(
-            leading_zero_is_octal(tcl_dialect::DialectProfile::by_name("f5-bigip")),
+            leading_zero_is_octal(
+                tcl_registry::model::ingress::resolve_environment("f5-bigip").analyser_profile()
+            ),
             None
         );
         assert_eq!(
-            leading_zero_is_octal(tcl_dialect::DialectProfile::by_name("no-such-dialect")),
+            leading_zero_is_octal(
+                tcl_registry::model::ingress::resolve_environment("no-such-dialect")
+                    .analyser_profile()
+            ),
             None
         );
     }
@@ -2043,7 +2063,7 @@ mod tests {
             eval_tcl_expr_in_dialect(
                 &node_irules,
                 &env,
-                tcl_dialect::DialectProfile::by_name("tcl")
+                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile()
             ),
             None
         );

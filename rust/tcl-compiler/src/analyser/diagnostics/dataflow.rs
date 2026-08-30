@@ -31,6 +31,7 @@
 
 use std::collections::HashSet;
 use tcl_core_types::DiagCode;
+use tcl_dialect::model::SurfaceQuery;
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -73,7 +74,7 @@ pub(super) struct ReadBeforeSetCtx<'a> {
 pub(super) struct ReturnUndefCtx<'a> {
     pub initial_global: bool,
     pub global_aliases: &'a HashSet<String>,
-    pub dialect: tcl_registry::prelude::DialectSet,
+    pub dialect: Option<SurfaceQuery<'a>>,
     pub params: &'a HashSet<&'a str>,
     pub exists_guards: &'a [(String, crate::cfg::BlockId)],
     pub scope_aliases: &'a HashSet<String>,
@@ -97,7 +98,7 @@ fn startup_read_facts(
     killed: bool,
     initial_global: bool,
     global_aliases: &HashSet<String>,
-    dialect: tcl_registry::prelude::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) -> StartupReadFacts {
     let global_binding =
         super::helpers::has_global_startup_binding(name, initial_global, global_aliases);
@@ -367,7 +368,7 @@ file; this call falls through to the 'unknown' handler."
             // #831).
             if tcl_registry::special_vars::is_externally_read(
                 crate::naming::normalise_var_name(var),
-                self.profile.availability_mask,
+                Some(self.analysis_context().context().authoring_query()),
             ) {
                 continue;
             }
@@ -669,7 +670,7 @@ file; this call falls through to the 'unknown' handler."
             // Dialect-aware via the special-variable registry (issue #831).
             if tcl_registry::special_vars::is_externally_read(
                 crate::naming::normalise_var_name(var),
-                self.profile.availability_mask,
+                Some(self.analysis_context().context().authoring_query()),
             ) {
                 continue;
             }
@@ -1158,7 +1159,7 @@ file; this call falls through to the 'unknown' handler."
                 ctx.supp.killed.contains(&chain.key),
                 ctx.initial_global,
                 ctx.global_aliases,
-                self.profile.availability_mask,
+                Some(self.analysis_context().context().authoring_query()),
             );
             if startup.lazy_read && ctx.supp.killed.contains(&chain.key) {
                 continue;
@@ -1947,7 +1948,11 @@ file; this call falls through to the 'unknown' handler."
             // Scoped borrow: `self.registry.as_deref()` must release before the
             // `&mut self` diagnostic pushes below.
             let registry = self.registry.as_deref().map_or_else(
-                || tcl_registry::cache::registry_for_dialect("tcl8.6"),
+                || {
+                    tcl_registry::model::ingress::static_context_for("tcl8.6")
+                        .commands()
+                        .as_ref()
+                },
                 |r| r,
             );
             crate::sccp::existence_constant_branches(&fu.cfg, frame, registry, fu.dynamic_names)
@@ -2153,9 +2158,7 @@ file; this call falls through to the 'unknown' handler."
             // The document's own numeral grammar: a divisor literal means what
             // this dialect says it means (`0755` is 493 up to 8.6, 755 from
             // 9.0), and this process analyses documents of several dialects.
-            crate::intervals::numbers_for_dialect(Some(tcl_dialect::DialectProfile::by_name(
-                self.dialect(),
-            ))),
+            crate::intervals::numbers_for_dialect(Some(self.profile)),
         ) {
             let span = fu.abs_span(finding.span);
             if span.is_empty() {
@@ -2201,12 +2204,10 @@ file; this call falls through to the 'unknown' handler."
             &fu.ssa,
             &fu.sccp.values,
             &executable,
-            tcl_dialect::DialectProfile::by_name(self.dialect()).character_model(),
+            self.profile.character_model(),
             // The document's own numeral grammar, alongside the character model
             // — both dialect-derived facts, both threaded rather than ambient.
-            crate::intervals::numbers_for_dialect(Some(tcl_dialect::DialectProfile::by_name(
-                self.dialect(),
-            ))),
+            crate::intervals::numbers_for_dialect(Some(self.profile)),
         );
         for f in findings {
             if f.span.is_empty() {

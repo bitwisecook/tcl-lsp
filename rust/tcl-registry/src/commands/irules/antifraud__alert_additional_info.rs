@@ -18,10 +18,11 @@
 
 //! `ANTIFRAUD::alert_additional_info` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ANTIFRAUD::alert_additional_info",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Returns or sets a list of keys and values that describes integrity parameters check failure or parameter values too long error.",
@@ -37,9 +38,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &["ANTIFRAUD"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "ANTIFRAUD::alert_additional_info (VALUE)?",

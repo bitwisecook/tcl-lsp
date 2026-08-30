@@ -30,8 +30,6 @@
 //! `.tclspec` loadables under `specs/` (`docs/design/spec-packs.md`).
 
 use std::fmt::Write as _;
-
-use tcl_dialect::DialectSet;
 use tcl_registry::commands;
 use tcl_registry::events::EventRegistry;
 use tcl_registry::profiles::ProfileRegistry;
@@ -57,23 +55,9 @@ fn group_specs(group: &str) -> Vec<CommandSpec> {
     }
 }
 
-const DIALECT_TAGS: &[(DialectSet, &str)] = &[
-    (DialectSet::TCL84, "tcl8.4"),
-    (DialectSet::TCL85, "tcl8.5"),
-    (DialectSet::TCL86, "tcl8.6"),
-    (DialectSet::TCL90, "tcl9.0"),
-    (DialectSet::IRULES, "f5-irules"),
-    (DialectSet::IAPPS, "f5-iapps"),
-    (DialectSet::TK, "tk"),
-    (DialectSet::EXPECT, "expect"),
-];
-
-fn dialect_tags(d: DialectSet) -> Vec<&'static str> {
-    DIALECT_TAGS
-        .iter()
-        .filter(|(flag, _)| d.contains(*flag))
-        .map(|(_, tag)| *tag)
-        .collect()
+/// The catalogue dialect names a spec's surface covers.
+fn dialect_tags(surface: &[SpecSurface]) -> Vec<String> {
+    tcl_registry::model::surface::dialect_names_for_rows(surface)
 }
 
 fn esc(s: &str) -> String {
@@ -105,6 +89,7 @@ fn json_str_list(items: &[&str]) -> String {
     format!("[{}]", parts.join(","))
 }
 
+use tcl_dialect::model::SpecSurface;
 use tcl_registry::side_effects::SideEffect;
 use tcl_registry::spec::SubCommand;
 use tcl_registry::traits::Traits;
@@ -156,7 +141,6 @@ const BOOL_TRAITS: &[(&str, Traits)] = &[
     ("is_side_switch", Traits::IS_SIDE_SWITCH),
     ("defines_procedure", Traits::DEFINES_PROCEDURE),
     ("unsafe", Traits::UNSAFE),
-    ("password_option_command", Traits::PASSWORD_OPTION),
     ("taint_sink", Traits::TAINT_SINK),
 ];
 
@@ -537,7 +521,7 @@ fn main() {
     let specs = group_specs(&group);
     for spec in &specs {
         // dialects
-        let (dialects_all, dialects) = match spec.dialects {
+        let (dialects_all, dialects) = match spec.surface {
             None => (true, Vec::new()),
             Some(d) => (false, dialect_tags(d)),
         };
@@ -594,9 +578,7 @@ fn main() {
                     || er.transport.is_some()
                     || !er.profiles.is_empty()
                     || !er.also_in.is_empty()
-                    || er.init_only
-                    || er.flow
-                    || er.capability.is_some();
+                    || er.flow;
                 (profiles, also_in, any)
             }
         };
@@ -604,7 +586,8 @@ fn main() {
         let mut fields: Vec<String> = Vec::new();
         fields.push(format!("\"name\":{}", json_str(spec.name)));
         fields.push(format!("\"dialects_all\":{dialects_all}"));
-        fields.push(format!("\"dialects\":{}", json_str_list(&dialects)));
+        let dialect_refs: Vec<&str> = dialects.iter().map(String::as_str).collect();
+        fields.push(format!("\"dialects\":{}", json_str_list(&dialect_refs)));
         fields.push(format!("\"arity_min\":{arity_min}"));
         fields.push(format!("\"arity_max\":{arity_max}"));
         fields.push(format!("\"hover\":{hover}"));

@@ -28,17 +28,53 @@ use crate::expr::ExprEval;
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
-/// Drive one operator through the shared core over the VM's `ExprOps`.
-fn dispatch(vm: &mut Vm, op: &str, args: &[Value]) -> Completion<Value> {
+use tcl_syntax::expr::operators::{ALL_BIN_OPS, ALL_UNARY_OPS};
+
+/// Every operator spelling with a `::tcl::mathop` command form.
+///
+/// Derived from the operator grammar in `tcl_syntax::expr::operators` —
+/// layer 1 already knows which operators exist and which have a command
+/// form at all — rather than from a hand-typed macro invocation that could
+/// silently drift from it (ledger row B3). This is the same derivation
+/// `runtime/rust/src/cmd_mathop.rs::mathop_names` performs.
+///
+/// `BinOp`/`UnaryOp` share a spelling for `-`/`+` (`Sub`/`Neg`, `Add`/`Pos`) —
+/// one command handles both the fold and the single-argument reading, so the
+/// binary pass alone already covers them; the unary pass only contributes
+/// truly unary-only spellings (`~`, `!`).
+fn mathop_names() -> Vec<&'static str> {
+    let mut names: Vec<&'static str> = ALL_BIN_OPS
+        .iter()
+        .filter_map(|op| op.spec().mathop_shape.map(|_| op.spec().spelling))
+        .collect();
+    for op in ALL_UNARY_OPS {
+        if op.spec().mathop_shape.is_some() {
+            let spelling = op.spec().spelling;
+            if !names.contains(&spelling) {
+                names.push(spelling);
+            }
+        }
+    }
+    names
+}
+
+/// The one builtin behind every operator; the invoked word's tail selects the
+/// op, so a single fn pointer serves all of them and the registration loop
+/// can be driven straight off [`mathop_names`]. `runtime/rust`'s `mathop`
+/// reads the same tail off `argv[0]`.
+///
+/// The fold / chained-comparison / arity logic is shared
+/// (`tcl_cmd_core::mathop`), driven over this VM's `ExprOps` so the result
+/// matches `expr`.
+fn mathop(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     use tcl_cmd_core::mathop::MathopError;
     // The usage names the operator as it was invoked: via `namespace path` the
     // word is just `!`, so the message reads `should be "! boolean"` rather than
     // the resolved `::tcl::mathop::!` (mathop-3.9/4.9/…).
-    let invoked = vm
-        .invoked_name()
-        .map_or_else(|| format!("::tcl::mathop::{op}"), str::to_owned);
+    let invoked = vm.invoked_name().unwrap_or_default().to_owned();
+    let op = invoked.rsplit("::").next().unwrap_or(&invoked).to_owned();
     let mut ops = ExprEval { vm };
-    match tcl_cmd_core::mathop::eval(&mut ops, op, args.to_vec()) {
+    match tcl_cmd_core::mathop::eval(&mut ops, &op, args.to_vec()) {
         Ok(v) => ok(v),
         Err(MathopError::WrongArgs(usage)) => {
             err(format!("wrong # args: should be \"{invoked} {usage}\""))
@@ -47,36 +83,14 @@ fn dispatch(vm: &mut Vm, op: &str, args: &[Value]) -> Completion<Value> {
     }
 }
 
-/// Generate one fn-pointer builtin per operator (the VM's `BuiltinFn` is a bare
-/// fn pointer, so it can't capture the op name) and register each under
-/// `::tcl::mathop::<op>`.
-macro_rules! mathops {
-    ($($op:literal => $fn:ident),* $(,)?) => {
-        $(
-            fn $fn(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-                dispatch(vm, $op, args)
-            }
-        )*
-        pub(crate) fn register(vm: &mut Vm) {
-            $( vm.register(concat!("::tcl::mathop::", $op), $fn); )*
-            // C exports every operator from `::tcl::mathop`, so
-            // `namespace import ::tcl::mathop::*` works (mathop-25.*).
-            vm.declare_namespace_exports("tcl::mathop", &["*"]);
-        }
-    };
-}
-
-mathops! {
-    "~" => mathop_bitnot, "!" => mathop_not,
-    "+" => mathop_add, "-" => mathop_sub, "*" => mathop_mul, "/" => mathop_div,
-    "%" => mathop_mod, "**" => mathop_pow,
-    "&" => mathop_band, "|" => mathop_bor, "^" => mathop_bxor,
-    "<<" => mathop_shl, ">>" => mathop_shr,
-    "==" => mathop_eq, "!=" => mathop_ne,
-    "<" => mathop_lt, "<=" => mathop_le, ">" => mathop_gt, ">=" => mathop_ge,
-    "eq" => mathop_seq, "ne" => mathop_sne,
-    "lt" => mathop_slt, "le" => mathop_sle, "gt" => mathop_sgt, "ge" => mathop_sge,
-    "in" => mathop_in, "ni" => mathop_ni,
+/// Register `::tcl::mathop::*`.
+pub(crate) fn register(vm: &mut Vm) {
+    for op in mathop_names() {
+        vm.register(&format!("::tcl::mathop::{op}"), mathop);
+    }
+    // C exports every operator from `::tcl::mathop`, so
+    // `namespace import ::tcl::mathop::*` works (mathop-25.*).
+    vm.declare_namespace_exports("tcl::mathop", &["*"]);
 }
 
 #[cfg(test)]

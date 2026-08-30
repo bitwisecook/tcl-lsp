@@ -108,10 +108,14 @@ impl Analyser {
         let bracket_off = bracket_tok.span.start() + u32::try_from(bracket_char_idx).unwrap_or(0);
 
         let extra_known = self.user_command_tail_names();
-        let registry: &tcl_registry::CommandRegistry = match self.registry.as_deref() {
-            Some(r) => r,
-            None => tcl_registry::cache::registry_for_profile(self.profile),
-        };
+        let generation;
+        let registry: &tcl_registry::CommandRegistry =
+            if let Some(stashed) = self.registry.as_deref() {
+                stashed
+            } else {
+                generation = self.analysis_context();
+                generation.commands()
+            };
         let Some(insert_off) = super::syntax_checks::find_bracket_insertion_point(
             cmd,
             &cmd.all_tokens,
@@ -571,7 +575,8 @@ impl Analyser {
         if let Some(cached) = self.builtin_names.as_ref() {
             return cached.clone();
         }
-        tcl_registry::cache::registry_for_profile(self.profile)
+        self.analysis_context()
+            .commands()
             .command_names()
             .map(str::to_string)
             .collect()
@@ -714,7 +719,7 @@ mod tests {
     fn analyser_with_source(source: &str) -> Analyser {
         let mut a = Analyser::new();
         a.source = source.to_string();
-        a.profile = tcl_dialect::DialectProfile::by_name("tcl");
+        a.profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
         a
     }
 

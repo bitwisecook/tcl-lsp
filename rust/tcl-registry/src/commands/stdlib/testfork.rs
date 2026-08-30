@@ -18,10 +18,11 @@
 
 //! `testfork` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testfork",
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         arity: Arity::exact(0),
         hover: Some(HoverSnippet {
             summary: "fork(2) the process (Tcl 8.5+).",

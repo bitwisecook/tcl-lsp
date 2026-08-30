@@ -210,7 +210,9 @@ execution trace is absent.
 | `callback_taint_inputs` | `&'static [(u8, &'static [CallbackTaintInput])]` | `&[]` | User-controlled substitutions injected into deferred positional callbacks; generic taint replay never infers framework metadata |
 | `clause_shape_check` | `Option<ClauseShapeChecker>` | `None` | Validates a clause-chain shape a plain `min..=max` arity can't express (if's `elseif`/`else` chain -- see `tcl_registry::clause_shape`); the compiler dispatches on the hook's presence, not the command name |
 | `frame_effect` | `Option<FrameEffectSpec>` | `None` | How the command crosses stack frames: the level word, the frame-selected variable arguments, and caller-frame scripts |
-| `option_constraints` | `&'static [OptionConstraint]` | `&[]` | Relationships between otherwise valid leading options, including dialect gates. Drives generic W147 without naming the command. |
+| `option_relations` | `&'static [OptionRelation]` | `&[]` | Typed relations between the invocation's options and arguments (E-R14): mutual exclusion, directional requires, requires-one-of, forbids — over terms naming an option, an option *value*, a positional argument, or a positional value. Evaluated natively by `OptionRelation::evaluate`, driving generic W147 / W152 without naming the command. |
+| `option_placement` | `OptionPlacement` | `Leading` | Where the command's declared options may appear: a leading run stopping at the first non-option word (core Tcl), or anywhere between positionals up to `--` (`http::geturl`). |
+| `constraints` | `Option<ConstraintsHook>` | `None` | E-R14's escape hatch, consulted only when every declarative relation reported nothing. |
 | `literal_argument_validator` | `Option<LiteralArgumentValidator>` | `None` | Registry callback for literal argument relationships or collection members whose legal domain depends on surrounding words. It returns Valid, Invalid with an optional replacement Tcl value, or a typed Abstain. |
 | `arg_types` | `&'static [(u8, ArgTypeHint)]` | `&[]` | Per-argument type expectations (e.g. `Int`, `List`).  Drives shimmer detection |
 | `return_type` | `Option<TclType>` | `None` | Return type of the command — one fact, right for the shape the command is usually called in |
@@ -358,7 +360,6 @@ still types `left` from `return_type`.
 | `taint_sink_gate` | `Option<fn(&[&str]) -> bool>` | `None` | Predicate over the call's own flags deciding whether the sink applies |
 | `credential_options` | `&'static [&'static str]` | `&[]` | Option flags that carry secrets (e.g. `-password`) |
 | `sensitive_headers` | `&'static [&'static str]` | `&[]` | Header names whose values are secrets |
-| `Traits::PASSWORD_OPTION` | trait bit | unset | Command has a password option |
 | `setter_constraints` | `&'static [SetterConstraint]` | `&[]` | Required argument prefixes on setter forms (IRULE3101) |
 
 #### Side effects
@@ -404,7 +405,6 @@ only names which one applies. `rust/tcl-registry/src/hooks.rs` declares them.
 |-------|------|---------|---------|
 | `Traits::DIAGRAM_ACTION` | trait bit | unset | Include in diagram extraction |
 | `xc_translatable` | `Option<bool>` | `None` | XC translatability.  `None` = follow default rules |
-| `xc_operation` | `Option<&'static str>` | `None` | The XC operation the command maps to when translatable |
 | `format_string_type` | `Option<FormatType>` | `None` | Format string metadata (e.g. `format`, `scan`) |
 | `pattern_type` | `Option<PatternType>` | `None` | Pattern metadata (e.g. glob, regex) |
 | `byte_array_effect` | `ByteArrayEffect` | `None` | How the command transforms a byte-array operand (S110) |
@@ -440,7 +440,6 @@ purity through `Traits::PURE`.
 | `is_unescape` | `bool` | `false` | Performs unescaping or decoding — undoes sanitisation in taint terms |
 | `credential_arg` | `Option<u8>` | `None` | Arg index that carries a secret |
 | `taint_output_sink` | `Option<&'static str>` | `None` | Per-subcommand output sink diagnostic code |
-| `xc_operation` | `Option<&'static str>` | `None` | XC translation operation |
 | `subcommand_forms` | `&'static [SubCommandForm]` | `&[]` | Per-form arity, roles, options, and hooks matched after the subcommand word |
 | `sub_subcommands` | `&'static [SubSubCommand]` | `&[]` | Operations selected by the word after this subcommand (`info object <op>`) |
 | `defines_command_at` | `Option<u8>` | `None` | Subcommand-level twin of the command-level `defines_command_at` (index 0-based, *after* the subcommand word) — `interp create ?-safe? ?--? ?name?` binds `name` as the child interpreter's command |
@@ -507,7 +506,7 @@ written.
 | `name` | The form's identifier |
 | `arity`, `arg_roles` | Per-form argument count and roles |
 | `literal_argument_prefix` | Optional known-literal words at the start of the form's arguments. Exact spelling wins; when enabled, abbreviations must uniquely identify a sibling selector word. Prefix-overlapping selectors are legal and the longest statically matched, arity-admitting form wins. A dynamic/expanded word while a longer selector remains viable abstains so parent semantics remain effective |
-| `options`, `option_constraints` | Per-form switches and their relationships |
+| `options`, `option_relations` | Per-form switches and their relations |
 | `semantic_operation`, `lowering_hook`, `codegen_hook` | Per-form dispatch |
 | `traits`, `mutator`, `side_effects` | Replacement-capable behavioural/effect refinements; `None` inherits, `Some` replaces the coarser row |
 | `result_stability`, `world_effects`, `state_transitions`, `dispatch_dependencies`, `representation_effect` | Per-form optimiser facts |
@@ -1328,23 +1327,24 @@ This fact is set on `CommandSpec` (for top-level commands) or `SubCommand`
 | Value | Meaning |
 |-------|---------|
 | `None` | Not safe -- W210 fires if variable is read before set |
-| `Some(DialectSet::ALL_TCL)` | Safe in every Tcl dialect (`append`, `lappend`, `dict set`) |
-| `Some(DialectSet::TCL85_PLUS)` | Safe only from 8.5 onwards (`incr`, which errors in 8.4 and iRules) |
-| `Some(…)` any other set | Safe only in exactly those dialects |
+| `Some(SpecSurface::ALL_TCL)` | Safe on every Tcl release (`append`, `lappend`, `dict set`) |
+| `Some(SpecSurface::TCL85_PLUS)` | Safe only from 8.5 onwards (`incr`, which errors in 8.4 and iRules) |
+| `Some(…)` any other rows | Safe only where those rows admit the point |
 
-The version-gated sets are `DialectSet` constants
-(`rust/tcl-dialect/src/dialect_set.rs`), so a derived dialect inherits the
-right answer from the bits it contains rather than from a name comparison.
+The version-gated rows are `SpecSurface` shorthands
+(`rust/tcl-dialect/src/model/authored_surface.rs`), so a derived dialect
+inherits the right answer from the point it asks at rather than from a name
+comparison.
 
 **Current state (verified 2026-08-15):** the registry resolves the most
 specific declared value (matched subcommand, otherwise command) into
-`InvocationSemantics`. Lowering evaluates that `DialectSet` against the
-active profile and writes the result to `Statement::Call` (including
-structured `dict` writers) or the specialised `Statement::Incr`.
+`InvocationSemantics`. Lowering asks that surface at the active profile's
+point and writes the result to `Statement::Call` (including structured
+`dict` writers) or the specialised `Statement::Incr`.
 `use_site_safe_initialises` consumes the resulting IR flag when deciding
 whether W210 applies to the command's own read-before-write. A profile-less
-registry is deliberately conservative: its availability mask is a union,
-not a runtime guarantee, so lowering writes `false`. `ArgRole::VarWrite`
+registry is deliberately conservative: it holds every layer at once, which
+is not a runtime guarantee, so lowering writes `false`. `ArgRole::VarWrite`
 still records the eventual definition; it is distinct from this
 read-before-write safety fact.
 
@@ -1353,19 +1353,19 @@ read-before-write safety fact.
 `CommandRegistry::build_default` builds the always-present surface: the
 `tcl`, `stdlib`, `tcllib`, `argparse`, `ticklecharts`, and `itcl` packs, plus
 `tk` (folded in because a script may `package require Tk` at run time, so Tk
-commands must be recognised under every Tcl dialect; the `TK` bit is marked
-loaded so a later `load_dialect` call is a no-op rather than a double
+commands must be recognised under every Tcl dialect; the `Tk` layer is marked
+loaded so a later `load_surface` call is a no-op rather than a double
 insert).
 
 The remaining packs load on demand:
 
-1. **`load_dialect(DialectSet)`** matches the dialect bit to its pack
-   collector — `BPF`, `IRULES`, `IAPPS`, `TMSH` (the `tmsh::` subset of the
-   iApps pack), `TK`, and `EXPECT`. It is idempotent: `loaded_dialects`
-   records what is already in, and an unrecognised bit loads nothing.
+1. **`load_surface(SurfaceLayer)`** matches the layer to its pack
+   collector — `bpf`, `f5-irules`, `f5-iapps`, `f5-tmsh` (the `tmsh::` subset
+   of the iApps pack), `Tk`, and `Expect`. It is idempotent: `loaded_layers`
+   records what is already in, and an unrecognised layer loads nothing.
 2. **`tcl_spectcl::bundled::registry_for_dialect(name)`** handles the EDA
    shells, which are modelled as a base Tcl version plus
-   `required_package`-gated libraries rather than a dialect bit — and whose
+   `required_package`-gated libraries rather than a surface of their own — and whose
    libraries are **bundled `.tclspec` loadables**, not compiled-in Rust
    (`docs/design/spec-packs.md`). It installs the shared `sdc_base` library
    plus the vendor's own pack, filtered to the packages the profile ships
@@ -1476,16 +1476,18 @@ canonical name has already been substituted in.
 
 The source-text consumers are no longer part of this limitation. Each resolves
 its head's **effective command identity** once, before any registry query,
-through `rust/tcl-compiler/src/head_identity.rs`:
+through the document's realm command-binding state
+(`rust/tcl-compiler/src/realm.rs` — the P1a home of what
+`head_identity.rs` used to carry, ledger C4):
 
 ```rust
-enum HeadIdentity<'a> {
+enum RealmBinding<'a> {
     Command(&'a str),  // the registry name this spelling really invokes
     Rebound,           // the binding was provably taken over -- no grammar applies
 }
 ```
 
-`command_head_identities` scans the document's **top-level** statements once
+`document_realm_bindings` scans the document's **top-level** statements once
 and records an offset-keyed fact per head spelling. Which commands mutate the
 command table is registry data (`CommandTableEffect`), and the argument shapes
 come from the compiler's own `alias.rs` detectors -- the same ones the
@@ -1518,7 +1520,7 @@ origfmt {%08x} 42      ;# now the built-in
 format  {%08x} 42      ;# Rebound -- a plain string argument
 ```
 
-`HeadIdentity::spec_name()` answers `""` for `Rebound`, which
+`RealmBinding::spec_name()` answers `""` for `Rebound`, which
 `CommandRegistry::get` never resolves -- so every registry query the walker
 already makes (`arg_indices_for_role`, `format_string_args`,
 `handle_binding`, ...) answers "unknown command" without a variant check at

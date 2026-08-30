@@ -106,7 +106,6 @@ use tcl_core_types::{DiagCode, DiagFamily};
 use bitflags::bitflags;
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use tcl_dialect::DialectSet;
 use tcl_lexer::{Lexer, SourceMap, Span, TokenType, backslash_subst};
 use tcl_registry::{ArgRole, CommandRegistry, TaintColourAtom, Traits};
 
@@ -124,6 +123,7 @@ use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey, Version};
 use crate::value_shapes::{
     is_pure_var_ref, parse_command_substitution, parse_command_substitution_with_spans,
 };
+use tcl_dialect::model::SurfaceQuery;
 
 // Colour lattice
 
@@ -377,14 +377,14 @@ fn source_colour(
     instance_classes: Option<&LocalInstanceClasses>,
     source_position: Option<u32>,
 ) -> Option<TaintLattice> {
-    let dialect_set = dialect_to_set(dialect);
-    let direct = tcl_registry::taint::taint_source_colour(registry, command, args, dialect_set);
+    let dialect = dialect_to_point(dialect);
+    let direct = tcl_registry::taint::taint_source_colour(registry, command, args, dialect);
     let colour = direct.or_else(|| {
         instance_taint_source_colour(
             registry,
             command,
             args,
-            dialect_set,
+            dialect,
             instance_classes,
             source_position,
         )
@@ -411,7 +411,7 @@ fn instance_taint_source_colour(
     registry: &CommandRegistry,
     command: &str,
     args: &[&str],
-    dialect: tcl_dialect::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     instance_classes: Option<&LocalInstanceClasses>,
     source_position: Option<u32>,
 ) -> Option<tcl_registry::TaintColour> {
@@ -464,7 +464,7 @@ fn instance_taints_var_write(
     let Some(class) = unique_instance_class(command, instance_classes, source_position) else {
         return false;
     };
-    let dialect = dialect_to_set(dialect);
+    let dialect = dialect_to_point(dialect);
     let Some(invocation) = registry.resolve_instance_invocation(class, command, args, dialect)
     else {
         return false;
@@ -595,35 +595,52 @@ pub(crate) fn transfer_instance_lifecycle(
     args: &[String],
     registry: &CommandRegistry,
 ) {
-    if let Some(effect) = registry.command_table_effect(command, args.first().map(String::as_str)) {
-        match effect {
-            tcl_registry::CommandTableEffect::RenamesCommands => {
-                let (Some(old), Some(new)) = (args.first(), args.get(1)) else {
-                    state.clear();
-                    return;
-                };
-                let Some(old) = literal_receiver(old) else {
-                    state.clear();
-                    return;
-                };
-                if new.starts_with(['$', '[', '{']) {
+    let transitions = crate::alias::command_table_transitions(registry, command, args);
+    if transitions.touches_command_bindings() {
+        for transition in transitions.command_bindings() {
+            match transition {
+                tcl_registry::CommandBindingTransition::Move { from, to } => {
+                    let (Some(old), Some(new)) = (from.literal(), to.literal()) else {
+                        state.clear();
+                        return;
+                    };
+                    let Some(old) = literal_receiver(old) else {
+                        state.clear();
+                        return;
+                    };
+                    if new.starts_with(['$', '[', '{']) {
+                        state.clear();
+                        return;
+                    }
+                    let class = state.remove(old);
+                    if !new.is_empty()
+                        && let Some(class) = class
+                    {
+                        state.insert(new.to_owned(), class);
+                    }
+                }
+                tcl_registry::CommandBindingTransition::Delete { name, .. } => {
+                    // The moved-away half of `rename OLD {}`: the receiver
+                    // identity at that name is gone.
+                    let Some(old) = name.literal().and_then(literal_receiver) else {
+                        state.clear();
+                        return;
+                    };
+                    state.remove(old);
+                }
+                tcl_registry::CommandBindingTransition::Alias { .. }
+                | tcl_registry::CommandBindingTransition::Unknown { .. } => {
+                    // An alias may target or replace any command, including a
+                    // registry-modelled instance command.  Without a precise
+                    // target proof all receiver identities become unknown, and
+                    // an unknown mutation proves nothing at all.
                     state.clear();
                     return;
                 }
-                let class = state.remove(old);
-                if !new.is_empty()
-                    && let Some(class) = class
-                {
-                    state.insert(new.to_owned(), class);
-                }
+                // A definition binds a new name without disturbing an
+                // existing receiver identity.
+                tcl_registry::CommandBindingTransition::Define { .. } => {}
             }
-            tcl_registry::CommandTableEffect::CreatesAliases => {
-                // An alias may target or replace any command, including a
-                // registry-modelled instance command.  Without a precise
-                // target proof all receiver identities become unknown.
-                state.clear();
-            }
-            tcl_registry::CommandTableEffect::DefinesProcedure => {}
         }
         return;
     }
@@ -877,14 +894,14 @@ pub fn is_irules_dialect(dialect: Option<&tcl_dialect::DialectProfile>) -> bool 
     dialect.is_some_and(tcl_dialect::DialectProfile::is_irules)
 }
 
-fn dialect_to_set(dialect: Option<&tcl_dialect::DialectProfile>) -> DialectSet {
-    // The profile's availability mask: bare IRULES for iRules (aliases
-    // canonicalise), the composed (version|vendor) mask for the additive
-    // vendor shells — so version-gated taint/side-effect hints reach a
-    // vendor dialect's embedded Tcl core. An unknown / unset dialect stays
+fn dialect_to_point(dialect: Option<&tcl_dialect::DialectProfile>) -> Option<SurfaceQuery<'_>> {
+    // The profile's own point: the family alone for iRules (aliases
+    // canonicalise), a release plus its package for the additive vendor
+    // shells — so version-gated taint/side-effect hints reach a vendor
+    // dialect's embedded Tcl core. An unknown / unset dialect stays
     // EMPTY (not the permissive fallback): taint hints gated to a specific
     // dialect must not fire when the dialect is unknown.
-    dialect.map_or(DialectSet::empty(), |profile| profile.availability_mask)
+    dialect.map(tcl_dialect::DialectProfile::surface_query)
 }
 
 fn is_sanitiser(registry: &CommandRegistry, command: &str, args: &[&str]) -> bool {
@@ -1415,7 +1432,7 @@ fn evaluate_taint_def<S: std::hash::BuildHasher>(
                 ctx.registry,
                 command,
                 &arg_refs,
-                dialect_to_set(ctx.dialect),
+                dialect_to_point(ctx.dialect),
                 defined_name,
             ) || instance_taints_var_write(
                 ctx.registry,
@@ -1814,9 +1831,9 @@ fn seed_entry_taints(
     // local `set env …` writes a higher SSA version, so a read that resolves
     // to the local (version > 0) is unaffected; shadowing falls out of the SSA
     // versioning, not a check here.
-    for spec in tcl_registry::special_vars::special_vars_for_dialect(
-        tcl_registry::special_vars::dialect_set_for_profile(dialect),
-    ) {
+    for spec in tcl_registry::special_vars::special_vars_for_dialect(Some(
+        tcl_registry::special_vars::surface_query_for_profile(dialect),
+    )) {
         let Some(colour) = spec.read_taint else {
             continue;
         };
@@ -1959,8 +1976,8 @@ fn propagate_statement_taints(
 ///
 /// `classify_taint_sinks` is asked with an empty dialect (no
 /// `supports_dialect` filtering) so a sink the active profile *bans*
-/// (`exec` under f5-irules — excluded by the §9 disable list, not by any
-/// mask) keeps its
+/// (`exec` under f5-irules — excluded by the §9 disable list, not by its
+/// surface) keeps its
 /// T100 classification: a banned command that appears in source anyway is
 /// still a code-execution sink. The iRules-only sink codes (`IRULE…`, from
 /// `taint_output_sink` / `taint_log_sink` on iRules specs) are instead
@@ -1995,12 +2012,7 @@ fn classify_sink(
     }
 
     let subcommand = args.first().map(String::as_str);
-    let info = tcl_registry::taint::classify_taint_sinks(
-        registry,
-        command,
-        subcommand,
-        DialectSet::empty(),
-    );
+    let info = tcl_registry::taint::classify_taint_sinks(registry, command, subcommand, None);
 
     if let Some(code_str) = info.output_sink.or(info.log_sink) {
         let code: DiagCode = code_str.parse().unwrap_or_else(|_| {
@@ -2736,7 +2748,7 @@ fn find_taint_warnings_for_cu_base_with_external_variable_seeds(
         traced_variables: &cu.ir_module.traced_variables,
         has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
     };
-    let identities = crate::head_identity::command_head_identities_with_config(
+    let identities = crate::realm::document_realm_bindings_with_config(
         &cu.source,
         dialect.map_or_else(tcl_lexer::LexerConfig::default, |profile| {
             tcl_lexer::LexerConfig::from_grammar(profile.grammar)
@@ -2892,7 +2904,7 @@ fn callback_taint_inputs_at_call(
     command: &str,
     args: &[&str],
     index: usize,
-    dialect: DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     instance_classes: &LocalInstanceClasses,
     source_position: u32,
 ) -> &'static [tcl_registry::CallbackTaintInput] {
@@ -2958,7 +2970,7 @@ fn find_callback_substitution_warnings(
                         command,
                         &arg_refs,
                         index,
-                        dialect_to_set(dialect),
+                        dialect_to_point(dialect),
                         &instance_classes,
                         stmt.span().start(),
                     );
@@ -2996,7 +3008,7 @@ fn find_callback_substitution_warnings(
                         .unwrap_or_else(|| stmt.span());
                     let head_identities = source_is_command_substitution.then(|| {
                         callback_head_identities.get_or_init(|| {
-                            crate::head_identity::command_head_identities_with_config(
+                            crate::realm::document_realm_bindings_with_config(
                                 &cu.source,
                                 lexer_config,
                                 registry,
@@ -3176,7 +3188,7 @@ fn callback_replay_source(
     input_var: &str,
     proc_name: &str,
     dialect: Option<&tcl_dialect::DialectProfile>,
-    builder_context: Option<(&crate::head_identity::HeadIdentityMap, u32)>,
+    builder_context: Option<(&crate::realm::CommandBindingRealm, u32)>,
 ) -> Option<String> {
     let callback = callback.trim().strip_prefix('+').unwrap_or(callback.trim());
     // Current lowering normally preserves the brackets in `args`; older
@@ -3210,7 +3222,7 @@ fn callback_replay_list_prefix(
     inputs: &[tcl_registry::CallbackTaintInput],
     input_var: &str,
     dialect: Option<&tcl_dialect::DialectProfile>,
-    builder_context: Option<(&crate::head_identity::HeadIdentityMap, u32)>,
+    builder_context: Option<(&crate::realm::CommandBindingRealm, u32)>,
 ) -> Option<String> {
     let inner = callback.strip_prefix('[')?.strip_suffix(']')?;
     let config = dialect.map_or_else(tcl_lexer::LexerConfig::default, |profile| {
@@ -3626,7 +3638,7 @@ pub fn find_taint_warnings_for_function<
         dialect,
         shadowed_builtins,
         module_traces,
-        crate::head_identity::HeadIdentityMap::none(),
+        crate::realm::CommandBindingRealm::none(),
     )
 }
 
@@ -3643,7 +3655,7 @@ fn find_taint_warnings_for_function_with_identities<
     dialect: Option<&tcl_dialect::DialectProfile>,
     shadowed_builtins: &HashSet<String, H>,
     module_traces: crate::compilation_unit::ModuleTraceFacts<'_>,
-    identities: &crate::head_identity::HeadIdentityMap,
+    identities: &crate::realm::CommandBindingRealm,
 ) -> Vec<TaintWarning> {
     find_taint_warnings_impl(
         &fu.cfg,
@@ -3667,7 +3679,7 @@ fn find_taint_warnings_for_function_with_identities<
 struct CommandHeadContext<'a> {
     fu: &'a crate::compilation_unit::FunctionUnit,
     module_traces: crate::compilation_unit::ModuleTraceFacts<'a>,
-    identities: &'a crate::head_identity::HeadIdentityMap,
+    identities: &'a crate::realm::CommandBindingRealm,
 }
 
 #[derive(Clone, Copy)]
@@ -4111,12 +4123,17 @@ fn emit_isolated_script_warnings<S: std::hash::BuildHasher, H: std::hash::BuildH
         context.dialect.map_or_else(
             || crate::compilation_unit::CompilationUnit::build_for(source, context.registry, true),
             |profile| {
+                // Re-intern the borrowed profile through its canonical
+                // name (centralisation R-a): for every catalogue
+                // profile, the permissive fallback, and the additive
+                // `tk` ingress profile alike, this is the identity the
+                // old `resolve_known(name)`/`by_name(name)` round-trip
+                // computed.
                 crate::compilation_unit::CompilationUnit::build_for_profile(
                     source,
                     context.registry,
                     true,
-                    tcl_dialect::DialectProfile::resolve_known(profile.name)
-                        .unwrap_or_else(|| tcl_dialect::DialectProfile::by_name(profile.name)),
+                    crate::environment_ingress::resolve_environment(profile.name).unit_profile(),
                 )
             },
         )
@@ -4322,7 +4339,7 @@ fn ambient_constant_setup(
 /// identity to sources, sinks, argument roles, and nested bodies.
 fn ambient_command_setup<H: std::hash::BuildHasher>(
     cu: &crate::compilation_unit::CompilationUnit,
-    identities: &crate::head_identity::HeadIdentityMap,
+    identities: &crate::realm::CommandBindingRealm,
     at: u32,
     shadowed_builtins: &HashSet<String, H>,
 ) -> String {
@@ -4355,11 +4372,11 @@ fn ambient_command_setup<H: std::hash::BuildHasher>(
             continue;
         }
         match identities.binding_at(&head, at) {
-            crate::head_identity::HeadBinding::Unchanged => {}
-            crate::head_identity::HeadBinding::Rebound => {
+            crate::realm::RealmBindingFact::Unchanged => {}
+            crate::realm::RealmBindingFact::Rebound => {
                 rebindings.push((head, format!("::proc {quoted_head} args {{}}\n")));
             }
-            crate::head_identity::HeadBinding::Command(target) => {
+            crate::realm::RealmBindingFact::Command(target) => {
                 let quoted_target = tcl_syntax::list::list_element(target);
                 let _ = writeln!(
                     aliases,
@@ -4794,6 +4811,7 @@ const fn binop_coerces(op: crate::expr_ast::BinOp) -> bool {
             | BinOp::StartsWith
             | BinOp::EndsWith
             | BinOp::StrEquals
+            | BinOp::Matches
             | BinOp::MatchesGlob
             | BinOp::MatchesRegex
     )
@@ -5484,11 +5502,17 @@ fn emit_sink_warnings<S: std::hash::BuildHasher>(
 /// A quoted word is literal data for `exec`/`puts`, but deferred source for
 /// `eval`, `uplevel`, and `interp eval`; the role/trait projection owns that
 /// distinction and the concatenating eval family extends through the tail.
+///
+/// The `None` read is deliberate under invariant I4: this is
+/// a **widening** query, not hook selection — treating an
+/// environment-disabled eval-family command as evaluating widens the taint
+/// warning set (conservative), it never specialises semantics on an
+/// unproved binding.
 fn quoted_sink_use_is_evaluated(call: &SinkCall<'_>, name: &str) -> bool {
     let arg_refs: Vec<&str> = call.args.iter().map(String::as_str).collect();
     let traits = call
         .registry
-        .invocation_traits(call.command, &arg_refs, DialectSet::empty());
+        .invocation_traits(call.command, &arg_refs, None);
     let is_eval = traits.contains(Traits::EVALUATES_CODE)
         || classify_network_interp_sinks(call.registry, call.command, call.args)
             .iter()
@@ -5659,7 +5683,7 @@ fn emit_option_injection<S: std::hash::BuildHasher>(
     let (uses, taints, ssa) = (env.uses, env.taints, env.ssa);
     let args_str: Vec<&str> = args.iter().map(String::as_str).collect();
     let Some(profile) =
-        registry.resolve_option_terminator(command, &args_str, dialect_to_set(dialect))
+        registry.resolve_option_terminator(command, &args_str, dialect_to_point(dialect))
     else {
         // No `--` terminator declared → no option-injection sink.
         return;
@@ -5863,6 +5887,7 @@ pub fn find_setter_constraint_warnings<S: std::hash::BuildHasher, E: std::hash::
 mod tests {
     use super::*;
     use crate::sccp::SccpResult;
+    use tcl_dialect::model::{Family, SurfaceLayer};
 
     fn simple_sccp(blocks: &[BlockId]) -> SccpResult {
         SccpResult {
@@ -6360,7 +6385,7 @@ mod tests {
         use tcl_lexer::Span;
 
         let mut registry = CommandRegistry::build_default();
-        registry.load_dialect(tcl_dialect::DialectSet::IRULES);
+        registry.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
 
         // set x [gets stdin]      (taint source)
         // set y [URI::encode $x]  (x tainted → y URL_ENCODED)
@@ -7049,7 +7074,7 @@ mod tests {
         // taint_output_sink_subcommands) are present for the registry-driven,
         // prefix-aware sink classification.
         let mut registry = CommandRegistry::build_default();
-        registry.load_dialect(DialectSet::IRULES);
+        registry.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         let cu = CompilationUnit::build_for(source, &registry, false)
             .with_interprocedural(&registry, Some(tcl_dialect::DialectProfile::irules()));
         let mut out: Vec<TaintWarning> = Vec::new();
@@ -7151,7 +7176,7 @@ mod tests {
 
     #[test]
     fn classify_irules_sink_http_respond() {
-        let reg = tcl_registry::registry_for_dialect("f5-irules");
+        let reg = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let hit = classify_sink(
             reg,
             "HTTP::respond",
@@ -7163,7 +7188,7 @@ mod tests {
 
     #[test]
     fn classify_irules_sink_http_header_insert() {
-        let reg = tcl_registry::registry_for_dialect("f5-irules");
+        let reg = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let hit = classify_sink(
             reg,
             "HTTP::header",
@@ -7176,7 +7201,7 @@ mod tests {
 
     #[test]
     fn classify_irules_sink_http_cookie_replace() {
-        let reg = tcl_registry::registry_for_dialect("f5-irules");
+        let reg = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let hit = classify_sink(
             reg,
             "HTTP::cookie",
@@ -7191,7 +7216,7 @@ mod tests {
     fn classify_irules_sink_prefix_abbreviation() {
         // `HTTP::cookie ins` is a legal abbreviation of `insert`
         // and must still classify as the IRULE3002 output sink.
-        let reg = tcl_registry::registry_for_dialect("f5-irules");
+        let reg = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let hit = classify_sink(
             reg,
             "HTTP::cookie",
@@ -7205,7 +7230,7 @@ mod tests {
 
     #[test]
     fn classify_irules_sink_http_header_remove_is_none() {
-        let reg = tcl_registry::registry_for_dialect("f5-irules");
+        let reg = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let hit = classify_sink(
             reg,
             "HTTP::header",
@@ -7217,7 +7242,7 @@ mod tests {
 
     #[test]
     fn classify_irules_sink_log_and_redirect() {
-        let reg = tcl_registry::registry_for_dialect("f5-irules");
+        let reg = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         assert_eq!(
             classify_sink(
                 reg,
@@ -7270,9 +7295,9 @@ mod tests {
 
     #[test]
     fn classify_sink_exec_stays_t100_under_irules_dialect() {
-        // `exec` is universal spec data (`dialects: None` since the
-        // spec); under f5-irules it is *banned* by the
-        // profile's §9 disable list, not by any dialect mask. T100
+        // `exec` is universal spec data (`surface: None`); under f5-irules
+        // it is *banned* by the profile's §9 disable list, not by its own
+        // surface. T100
         // classification must not route through profile availability —
         // it's a plain trait fact, independent of the active document
         // dialect — or `exec` would lose its T100 sink status in exactly
@@ -7393,7 +7418,7 @@ mod tests {
             &fu.taints,
             &fu.sccp.executable_blocks,
             &registry,
-            Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
             &HashSet::new(),
         );
         let t102 = warnings.iter().find(|w| w.code == DiagCode::T102);
@@ -7436,7 +7461,7 @@ mod tests {
             &fu.taints,
             &fu.sccp.executable_blocks,
             &registry,
-            Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
             &HashSet::new(),
         );
         assert!(
@@ -7466,7 +7491,7 @@ mod tests {
             &fu.taints,
             &fu.sccp.executable_blocks,
             &registry,
-            Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
             &HashSet::new(),
         );
         assert!(
@@ -7494,7 +7519,7 @@ mod tests {
             &fu.taints,
             &fu.sccp.executable_blocks,
             &registry,
-            Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
             &HashSet::new(),
         );
         let t102 = warnings
@@ -7526,7 +7551,7 @@ mod tests {
             &fu.taints,
             &fu.sccp.executable_blocks,
             &registry,
-            Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
             &HashSet::new(),
         );
         let t102 = warnings
@@ -7556,7 +7581,7 @@ mod tests {
             &fu.taints,
             &fu.sccp.executable_blocks,
             &registry,
-            Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
             &HashSet::new(),
         );
         let t102 = warnings
@@ -7602,7 +7627,7 @@ mod tests {
             &fu.taints,
             &fu.sccp.executable_blocks,
             &registry,
-            Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
             &HashSet::new(),
         );
         let t102 = warnings
@@ -7647,7 +7672,7 @@ mod tests {
             &fu.taints,
             &fu.sccp.executable_blocks,
             &registry,
-            Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
             &HashSet::new(),
         );
         assert!(
@@ -7716,7 +7741,7 @@ mod tests {
 
     #[test]
     fn irule3002_header_token_safe_name_position_suppresses() {
-        let registry = tcl_registry::registry_for_dialect("f5-irules");
+        let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let args = vec!["insert".to_owned(), "$name".to_owned(), "$value".to_owned()];
         let lat = TaintLattice::tainted().with(TaintColour::HEADER_TOKEN_SAFE);
         // Var `name` occupies arg-index 1 (name position) → suppressed.
@@ -7873,7 +7898,7 @@ mod tests {
 
         let under_tcl = setter_warnings_for_dialect(
             "HTTP::uri foo",
-            Some(tcl_dialect::DialectProfile::by_name("tcl")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile()),
         );
         assert!(
             under_tcl.is_empty(),
@@ -7904,7 +7929,7 @@ mod tests {
             &registry,
             "gets",
             &["stdin"],
-            tcl_dialect::DialectSet::empty(),
+            None,
         ));
 
         // End-to-end: `gets` → `eval` raises T100. The fact reaches

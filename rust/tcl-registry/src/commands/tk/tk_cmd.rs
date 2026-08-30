@@ -18,6 +18,7 @@
 
 //! `tk` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
@@ -153,7 +154,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tk",
-        dialects: Some(DialectSet::TK_AND_TCL),
+        surface: Some(SpecSurface::TK_AND_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Manipulate Tk internal state.",
@@ -181,12 +182,12 @@ mod tests {
     use super::*;
 
     fn subcommands_for_profile(name: &str) -> Vec<&'static str> {
-        let profile = tcl_dialect::DialectProfile::by_name(name);
+        let profile = crate::model::ingress::resolve_environment(name).analyser_profile();
         let floor = profile
             .library_floor_default("Tk")
             .unwrap_or_else(|| panic!("{name} must pin Tk"));
         spec()
-            .subcommand_table(Some(profile.availability_mask), Some(floor), None)
+            .subcommand_table(Some(profile.surface_query()), Some(floor), None)
             .names()
             .collect()
     }

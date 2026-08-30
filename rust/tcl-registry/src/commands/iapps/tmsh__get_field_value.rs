@@ -18,6 +18,8 @@
 
 //! `tmsh::get_field_value` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
+use tcl_dialect::surface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "tmsh::get_field_value <object> <field_name>",
     ..FormSpec::DEFAULT
@@ -26,7 +28,10 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tmsh::get_field_value",
-        dialects: Some(DialectSet::IAPPS.union(DialectSet::TMSH)),
+        surface: Some(surface![
+            SpecSurface::package("iapps"),
+            SpecSurface::package("tmsh")
+        ]),
         arity: Arity::exact(2),
         hover: Some(HoverSnippet::brief(
             "Retrieves the value of the field name.",

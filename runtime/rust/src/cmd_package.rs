@@ -28,9 +28,10 @@
 
 use std::collections::BTreeMap;
 
+use tcl_dialect::TclVersion;
+
 use crate::interp::{obj_bytes, Code, Interp};
 use crate::obj::TclObj;
-use crate::version::TCL_PATCH_LEVEL;
 
 /// The interpreter's package database.
 #[derive(Default)]
@@ -44,24 +45,50 @@ pub struct PackageState {
 }
 
 impl PackageState {
-    /// A fresh database with the core `tcl`/`Tcl` packages pre-provided (what C
+    /// A fresh database with `version`'s core packages pre-provided (what C
     /// registers before `init.tcl` runs).
     #[must_use]
-    pub fn with_core() -> PackageState {
+    pub fn with_core(version: TclVersion) -> PackageState {
         let mut p = PackageState::default();
-        p.provided.insert(b"tcl".to_vec(), TCL_PATCH_LEVEL.to_vec());
-        p.provided.insert(b"Tcl".to_vec(), TCL_PATCH_LEVEL.to_vec());
-        // TclOO is built in (the `oo::*` commands are always present). C also
-        // registers `ifneeded` entries for both names at the patchlevel (its
-        // `initScript`) so they show up in `package versions` (oo-0.9).
-        p.provided.insert(b"tcl::oo".to_vec(), b"1.3.1".to_vec());
-        p.provided.insert(b"TclOO".to_vec(), b"1.3.1".to_vec());
-        let already = b"# Already present, OK?".to_vec();
-        p.ifneeded
-            .insert((b"tcl::oo".to_vec(), b"1.3.1".to_vec()), already.clone());
-        p.ifneeded
-            .insert((b"TclOO".to_vec(), b"1.3.1".to_vec()), already);
+        p.provide_core(version);
         p
+    }
+
+    /// Install the core packages a bare interpreter of `version` pre-provides,
+    /// withdrawing whatever a previous pin left behind.
+    ///
+    /// Which names exist and what version each carries is release data
+    /// ([`TclVersion::core_provided_packages`]), not a runtime constant:
+    /// `tclsh8.6` provides `Tcl` and `TclOO 1.1.0` and neither lowercase
+    /// spelling, while `tclsh9.0` provides all four at `9.0.4`/`1.3.1`, and
+    /// `tclsh8.4` provides only `Tcl` at the two-component `8.4`. Freezing
+    /// that at 9.0's answer made `package require Tcl 8.5` succeed under an
+    /// 8.x pin, where real `tclsh8.4` raises a version conflict (ledger
+    /// row B4).
+    ///
+    /// C also registers `ifneeded` entries for the `TclOO` names at their
+    /// provided version (its `initScript`), so they show up in
+    /// `package versions` (oo-0.9).
+    pub(crate) fn provide_core(&mut self, version: TclVersion) {
+        // Derived from the same table rather than hand-listed, so a name added
+        // to one release's row cannot be left behind by a re-pin.
+        for stale in TclVersion::ALL {
+            for core in stale.core_provided_packages() {
+                self.provided.remove(core.name.as_bytes());
+                self.ifneeded
+                    .retain(|(name, _), _| name != core.name.as_bytes());
+            }
+        }
+        for core in version.core_provided_packages() {
+            let (name, provided) = (core.name.as_bytes(), core.version.as_bytes());
+            self.provided.insert(name.to_vec(), provided.to_vec());
+            if core.ifneeded_stub {
+                self.ifneeded.insert(
+                    (name.to_vec(), provided.to_vec()),
+                    b"# Already present, OK?".to_vec(),
+                );
+            }
+        }
     }
 }
 

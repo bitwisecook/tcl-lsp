@@ -67,9 +67,9 @@
 use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::compiler_checks::DiagCode;
+use tcl_dialect::model::{Family, SurfaceLayer};
 use tcl_lexer::{LineIndex, Utf16Col};
 use tcl_registry::events::{DataCollectionAction, EventRegistry};
-use tcl_registry::registry_for_dialect;
 
 use crate::definition::{LspRange, utf16_col_to_char_col};
 
@@ -1613,7 +1613,7 @@ fn extract_inline_actions(
     // the code-action signature (the data-group transform self-gates on
     // the registry resolving a `class` form).
     let mut registry = tcl_registry::CommandRegistry::build_default();
-    registry.load_dialect(tcl_dialect::DialectSet::IRULES);
+    registry.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
     let mut out = Vec::new();
     out.extend(refactor_engine_actions(
         source,
@@ -1727,7 +1727,8 @@ fn compute_required_profiles(
     use std::collections::BTreeSet;
     let mut profiles: BTreeSet<String> = BTreeSet::new();
     let events = tcl_registry::events::EventRegistry::build();
-    for ev in crate::irules_context::scan_file_events(source, tcl_dialect::DialectProfile::irules())
+    for ev in
+        crate::irules_context::scan_file_events(source, crate::profile_for_dialect("f5-irules"))
     {
         if let Some(props) = events.get_props(&ev) {
             for p in props.implied_profiles {
@@ -1926,7 +1927,7 @@ fn payload_operation_at_diagnostic(
     range: &LspRange,
 ) -> Option<tcl_registry::DataCollectionOperation> {
     let text = diagnostic_text_on_line(source, range)?;
-    let registry = registry_for_dialect("f5-irules");
+    let registry = crate::registry_for_dialect("f5-irules");
     text.split(|ch: char| !(ch.is_ascii_alphanumeric() || ch == ':' || ch == '_'))
         .filter(|word| !word.is_empty())
         .filter_map(|word| registry.data_collection_operation(word))
@@ -1959,11 +1960,11 @@ fn collect_bootstrap_actions(source: &str, d: &ContextDiagnostic) -> Vec<CodeAct
     let event = crate::irules_context::find_enclosing_when_event(
         source,
         d.range.start_line,
-        tcl_dialect::DialectProfile::irules(),
+        crate::profile_for_dialect("f5-irules"),
     )
     .unwrap_or_default();
 
-    let registry = registry_for_dialect("f5-irules");
+    let registry = crate::registry_for_dialect("f5-irules");
     let events = EventRegistry::build();
     let Some(handler) = registry.event_handler_spec() else {
         return Vec::new();

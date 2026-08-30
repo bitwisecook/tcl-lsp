@@ -25,16 +25,17 @@ use crate::compilation_unit::CompilationUnit;
 use crate::compiler_checks::run_all_checks;
 use crate::optimiser::manager::optimise_with_dialect;
 use tcl_core_types::DiagCode;
-use tcl_registry::registry_for_dialect;
+use tcl_registry::model::ingress::static_context_for;
 
 /// Full diagnostic codes for `src`, INCLUDING the optimiser's suggestions.
 /// `O107` (unreachable dead code) is produced by the optimiser pass, not by the
 /// analyser or `run_all_checks`; the RCH catalogue includes optimiser
 /// reachability suggestions, so this helper unions all three sources.
 fn all_codes(src: &str, dialect: &str) -> Vec<String> {
-    let registry = registry_for_dialect(dialect);
+    let registry = static_context_for(dialect).commands();
     let cu = CompilationUnit::build_for(src, registry, false);
-    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     let mut v: Vec<String> = Analyser::new()
         .analyse(src, dialect)
         .diagnostics
@@ -55,16 +56,15 @@ fn all_codes(src: &str, dialect: &str) -> Vec<String> {
 }
 
 fn o107_fires(src: &str, dialect: &str) -> bool {
-    let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let registry = static_context_for(dialect).commands();
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     optimise_with_dialect(src, registry, d)
         .iter()
         .any(|o| o.code == DiagCode::O107)
 }
 
-// ---------------------------------------------------------------------------
 // FP-RCH-01 — `while 1 { ... break }`: the post-loop block is reachable.
-// ---------------------------------------------------------------------------
 
 const FP_RCH_01_REPRO: &str = "\
 proc f {c} {
@@ -108,9 +108,7 @@ fn fp_rch_01_nested_loop_break_reachable() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-RCH-02 — try handler body is reachable.
-// ---------------------------------------------------------------------------
 
 const FP_RCH_02_REPRO: &str = "\
 proc f {} {
@@ -147,9 +145,7 @@ fn fp_rch_02_handler_var_not_unset() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-RCH-03 — `on ok` inherits body-defined SSA versions.
-// ---------------------------------------------------------------------------
 
 const FP_RCH_03_REPRO: &str = "\
 proc f {} {
@@ -193,9 +189,7 @@ proc f {} {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-RCH-04 — genuine infinite loop (no break) → O107 IS reported.
-// ---------------------------------------------------------------------------
 
 const FP_RCH_04_REPRO: &str = "\
 proc f {} {
@@ -216,10 +210,8 @@ fn fp_rch_04_infinite_loop_dead_code_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-RCH-05 — a dynamic-name write / destroy weakens the existence fold
 // (issue #923 audit idx 1)
-// ---------------------------------------------------------------------------
 //
 // `set $switch {}` defines whatever variable `$switch` names, so
 // `[info exists mixed]` cannot be folded to a constant `false` and neither

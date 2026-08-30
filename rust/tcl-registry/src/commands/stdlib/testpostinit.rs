@@ -18,10 +18,11 @@
 
 //! `testpostinit` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "testpostinit",
-        dialects: Some(DialectSet::TCL91),
+        surface: Some(SpecSurface::TCL91),
         arity: Arity::exact(0),
         hover: Some(HoverSnippet {
             summary: "Run the post-initialisation test hook (Tcl 9.1).",

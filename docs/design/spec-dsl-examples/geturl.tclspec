@@ -7,9 +7,11 @@
 # is what makes an http-like spec worth writing.
 #
 # Exercises: tcllib_package vs required_package, multi-row side effects, a
-# tri-state index list (taint_network_sink_args), credential_options.
+# tri-state index list (taint_network_sink_args), credential_options, a full
+# option table with per-release `-available` gates, and all four E-R14 option
+# relation statements over an `Anywhere`-placement command.
 
-speclib tcl 1.1 {
+speclib tcl 2.0 {
 
 command uri::geturl {
     # No dialect gate: availability is decided by the package, not the Tcl
@@ -35,25 +37,78 @@ command uri::geturl {
 
 command http::geturl {
     # Bundled with every standard Tcl release; F5 iRules removes the whole
-    # http package from its TMM sandbox, which is modelled by a bare `all-tcl`
-    # that never intersects the bare iRules mask — not by a disable list.
-    dialects all-tcl
+    # http package from its TMM sandbox, which is modelled by an availability
+    # window over the Tcl provider that never intersects the bare iRules mask
+    # — not by a disable list.
+    available {tcl 8.4-}
     arity 1..
-
     required_package http
+
+    side_effect NetworkIo -reads -writes
 
     # url (arg 0) is a network-address argument — an SSRF sink (T104).
     taint_network_sink_args {0}
     # -headers can carry credentials (W310).
-    credential_options {-headers}
+    credential_options -headers
 
-    side_effect NetworkIo -reads -writes
+    option -binary -takes boolean -role Boolean \
+        -detail {Force the response body to be treated as binary rather than text.}
+    option -blocksize -takes bytes \
+        -detail {Block size used when reading the response (default 8192).}
+    option -channel -takes chan -role Channel \
+        -detail {Write the response body to this channel instead of buffering it in the token.}
+    option -command -takes prefix -role CommandPrefix -script-timing Deferred -appends {Exactly 1} \
+        -detail {Completion callback, invoked from the event loop with the token appended; supplying it makes geturl return immediately.}
+    option -guesstype -takes boolean -role Boolean -available {tcl 9.0-} \
+        -detail {Guess the response content type when the server does not supply a usable one.}
+    option -handler -takes prefix -role CommandPrefix -script-timing Deferred -appends {Exactly 2} \
+        -detail {Body-reading callback, invoked with (socket token) appended; its return value is the byte count consumed.}
+    option -headers -takes dict \
+        -detail {Extra request headers as a key/value list; the credential-bearing option (Authorization, Cookie, …).}
+    option -keepalive -takes boolean -role Boolean -available {tcl 8.5-} \
+        -detail {Reuse a persistent connection for this request.}
+    option -method -takes verb -available {tcl 8.5-} \
+        -detail {HTTP method to use instead of the GET/POST default.}
+    option -myaddr -takes address -available {tcl 8.5-} \
+        -detail {Local address to bind the outgoing socket to.}
+    option -progress -takes prefix -role CommandPrefix -script-timing Deferred -appends {Exactly 3} \
+        -detail {Download-progress callback, invoked with (token totalsize currentsize) appended.}
+    option -protocol -takes version -available {tcl 8.5-} \
+        -detail {HTTP protocol version to advertise (default 1.1).}
+    option -query -takes query \
+        -detail {Request body to POST; mutually exclusive with -querychannel.}
+    option -queryblocksize -takes bytes \
+        -detail {Block size used when writing the request body (default 8192).}
+    option -querychannel -takes chan -role Channel \
+        -detail {Read the request body from this channel; mutually exclusive with -query.}
+    option -queryprogress -takes prefix -role CommandPrefix -script-timing Deferred -appends {Exactly 3} \
+        -detail {Upload-progress callback, invoked with (token querylength queryoffset) appended.}
+    option -strict -takes boolean -role Boolean -available {tcl 8.5-} \
+        -detail {Reject URLs that are not strictly RFC 3986 conformant.}
+    option -timeout -takes milliseconds \
+        -detail {Abort the transaction after this many milliseconds (0 = no timeout).}
+    option -type -takes mimetype \
+        -detail {Content-Type of the request body (default application/x-www-form-urlencoded).}
+    option -validate -takes boolean -role Boolean \
+        -detail {Send a HEAD-style validation request rather than fetching the body.}
+
+    # `geturl` takes the URL positionally and only then loops
+    # `foreach {flag value} $args`, so its options are not a leading run.
+    option_placement Anywhere
+
+    # E-R14. The exclusion is geturl's own hard error ("Can't combine -query
+    # and -querychannel options!"); the two requires-one-of rows are the
+    # conditional pairs http.n documents — a progress or block-size option for
+    # the query body is inert without a query body to post.
+    option_conflict {-query -querychannel}
+    option_requires_one_of -queryprogress {-query -querychannel}
+    option_requires_one_of -queryblocksize {-query -querychannel}
 
     hover {
-        summary  {Retrieve a URL — the primary command for the http package.}
+        summary {Retrieve a URL — the primary command for the http package.}
         synopsis {http::geturl url ?options?}
         description {Retrieves the resource at *url* and returns a token that can be passed to the other ``http::`` commands.  Options include ``-query``, ``-headers``, ``-handler``, ``-command``, ``-timeout``, ``-type``, ``-method``, ``-keepalive`` and more.}
-        source   {Tcl stdlib http package}
+        source {Tcl stdlib http package}
     }
 }
 

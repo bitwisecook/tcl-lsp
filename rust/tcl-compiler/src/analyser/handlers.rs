@@ -32,10 +32,11 @@
 //! alias resolution.
 
 use tcl_core_types::DiagCode;
+use tcl_dialect::model::surface_admits;
 use tcl_lexer::{Span, Token, TokenType};
 use tcl_syntax::list::find_element;
 
-use crate::alias::{detect_interp_alias, resolve_alias};
+use crate::alias::{command_table_transitions, is_current_interpreter, resolve_alias};
 use crate::parsing::syntax::descend::descend_token;
 use crate::parsing::syntax::segment::segments_from_tree;
 use crate::segmenter::SegmentedCommand;
@@ -48,6 +49,7 @@ use super::types::{
     ClassDef, ClassFactory, DefinedSymbol, FactoryMember, FactoryWord, MetaclassProvenance, ProcDef,
 };
 use super::utils::{param_name_spans_for_token, parse_param_list};
+use tcl_dialect::model::SpecSurface;
 
 /// The three per-proc facts [`Analyser::infer_proc_param_traits`] derives from
 /// one view of a proc body: the per-parameter trait map, the caller-frame
@@ -1091,9 +1093,7 @@ impl Analyser {
             return None;
         }
         let version = (!self.result.dialect.is_empty())
-            .then(|| {
-                tcl_dialect::DialectProfile::by_name(&self.result.dialect).const_fold_version()
-            })
+            .then(|| self.profile.const_fold_version())
             .flatten();
         let trusts = |name: &str| trust.trusts(name);
         let lookup = |name: &str| {
@@ -1366,7 +1366,8 @@ impl Analyser {
         cmd_name: &str,
         scope_path: &[usize],
     ) -> Option<tcl_registry::SymbolDef> {
-        let dialect = self.profile.availability_mask;
+        let context = self.analysis_context();
+        let dialect = Some(context.context().authoring_query());
         // Which namespace's imports are in effect is the *command-resolution*
         // namespace: a proc body resolves unqualified commands (and so the
         // imports covering them) in the proc's defining namespace, which the
@@ -1505,8 +1506,10 @@ impl Analyser {
         // different views of the proc *or* of the document's command bindings
         // (issue #1275).
         let env = super::param_traits::TraitScanEnv {
-            registry,
-            stub_overlay: self.stub_overlay.as_ref(),
+            surface: tcl_registry::model::DocumentCommandSurface::new(
+                registry,
+                self.declared_commands.as_ref(),
+            ),
             config: self.lexer_config(),
             identities: &self.head_identities,
         };
@@ -1613,13 +1616,15 @@ impl Analyser {
     /// no per-package entry to remember to add here. The registry is asked
     /// rather than the profile so a pack's `ambient_package` row counts too.
     fn is_package_gated_non_ambient(&self, name: &str) -> bool {
-        use tcl_registry::ProfileQueries;
-        let registry = tcl_registry::cache::registry_for_profile(self.profile);
-        let overlaid = self.profile_registry();
-        self.profile
-            .resolve_command(registry, name)
+        // Resolution reads the un-overlaid generation's store (as the old
+        // `registry_for_profile` call did); the ambient answer reads this
+        // walk's own — possibly pack-overlaid — context, the same split
+        // W120 uses.
+        let base = crate::environment_ingress::context_for_profile(self.profile);
+        base.context()
+            .resolve_spec(base.commands(), name)
             .and_then(tcl_registry::CommandSpec::owning_package)
-            .is_some_and(|pkg| !overlaid.is_ambient_package(pkg))
+            .is_some_and(|pkg| !self.analysis_context().context().ambient_package(pkg))
     }
 
     /// **W314.** The definition's name has no absolute (fully-qualified)
@@ -1959,10 +1964,13 @@ impl Analyser {
             return false;
         }
         let words: Vec<&str> = args.iter().map(String::as_str).collect();
-        let registry = self
-            .registry
-            .as_deref()
-            .unwrap_or_else(|| tcl_registry::registry_for_profile(self.profile));
+        let generation;
+        let registry = if let Some(stashed) = self.registry.as_deref() {
+            stashed
+        } else {
+            generation = self.analysis_context();
+            generation.commands()
+        };
         let closed = tcl_registry::events::closed_braced_argument_words(
             &self.source,
             arg_tokens,
@@ -3464,11 +3472,10 @@ impl Analyser {
         // falsely settle a call onto a path entry the runtime never consults —
         // so skip it, matching the `namespace path` subcommand's own dialect
         // gate (which already flags the command W002 there).
-        if !self
-            .profile
-            .availability_mask
-            .intersects(tcl_dialect::DialectSet::TCL85_PLUS)
-        {
+        if !surface_admits(
+            SpecSurface::TCL85_PLUS,
+            Some(&self.analysis_context().context().authoring_query()),
+        ) {
             return;
         }
         let ns = self.command_resolution_namespace(scope_path);
@@ -3727,8 +3734,9 @@ impl Analyser {
             .and_then(|r| r.get("namespace"))
             .and_then(|spec| spec.subcommand("ensemble").map(|sub| (spec, sub)))
             .map(|(spec, sub)| {
-                use tcl_registry::ProfileQueries;
-                self.profile.available_sub_option_specs(spec, sub)
+                self.analysis_context()
+                    .context()
+                    .available_sub_option_specs(spec, sub)
             })
             .unwrap_or_default();
 
@@ -4438,9 +4446,11 @@ impl Analyser {
             return true;
         };
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let Some((case, invocation)) =
-            registry.case_invocation(cmd_name, &arg_refs, self.profile.availability_mask)
-        else {
+        let Some((case, invocation)) = registry.case_invocation(
+            cmd_name,
+            &arg_refs,
+            Some(self.analysis_context().context().authoring_query()),
+        ) else {
             // Preserve malformed-switch handling while allowing valid
             // subjectless Expect clause lists through the registry resolver.
             return args.len() >= 2;
@@ -5049,31 +5059,62 @@ impl Analyser {
     /// Handle `interp alias {} ALIAS {} TARGET ?ARG ...?` —
     /// records the alias for later argument-role resolution.
     ///
-    /// Delegates the actual detection logic to
-    /// `crate::alias::detect_interp_alias` (which already handles
-    /// the canonical `interp alias {}` shape and the `args[5..]`
-    /// prepended-args slice). `offset` is the command token's start,
-    /// recorded in [`Analyser::alias_offsets`] for the same-file arity
-    /// resolver's top-level order gate.
+    /// Reads the registry's one command-table transition vocabulary
+    /// (`CommandBindingTransition`, ledger C8) rather than destructuring
+    /// `interp alias`'s word layout here. `offset` is the command token's
+    /// start, recorded in [`Analyser::alias_offsets`] for the same-file
+    /// arity resolver's top-level order gate.
     ///
     /// Dispatched via
     /// [`tcl_registry::hooks::AnalyserHookId::InterpAlias`] (stamped on
-    /// `interp`'s `alias` subcommand); `args[0]` is still the
-    /// subcommand word the detectors expect.
+    /// `interp`'s `alias` subcommand); `args[0]` is still the subcommand
+    /// word, which is what selects the alias descriptor.
     pub fn handle_interp_alias(&mut self, args: &[String], scope_path: &[usize], offset: u32) {
-        if let Some(deleted) = crate::alias::detect_interp_alias_delete(args) {
+        // What this call did to the command table is registry data, read
+        // through the one transition vocabulary (ledger C8). The
+        // interpreter *paths* are not — a path may be a tracked
+        // `set VAR [interp create …]` binding this analyser resolves
+        // itself — so the cross-domain arm below still reads the path
+        // words; the alias and target *command* names come from the facts.
+        let registry = self.registry.as_deref();
+        let facts: Vec<tcl_registry::CommandBindingTransition> =
+            registry.map_or_else(Vec::new, |registry| {
+                command_table_transitions(registry, "interp", args)
+                    .command_bindings()
+                    .cloned()
+                    .collect()
+            });
+        if let Some(tcl_registry::CommandBindingTransition::Delete { interpreter, name }) =
+            facts.first()
+            && interpreter.as_ref().is_none_or(is_current_interpreter)
+            && let Some(deleted) = name.literal()
+        {
             // Deleting an alias destroys the command object, so every
             // `namespace import` edge pointing at it dies too (issue #1103).
             // An empty srcPath means the interpreter this command *runs in*,
             // so inside a child's eval body the deletion homes under that
             // child's domain rather than the parent's command table.
-            let deleted = format!("{}{deleted}", self.current_interp_domain_prefix());
+            let deleted = format!(
+                "{}{}",
+                self.current_interp_domain_prefix(),
+                crate::naming::normalise_qualified_name(deleted)
+            );
             self.result
                 .destroyed_commands
                 .insert(deleted.clone(), offset);
             self.deleted_commands.insert(deleted, offset);
             return;
         }
+        let Some(tcl_registry::CommandBindingTransition::Alias {
+            source_interpreter,
+            alias,
+            target_interpreter,
+            target,
+            arguments,
+        }) = facts.first()
+        else {
+            return;
+        };
         // The `interp alias {} A {} B` fast path homes both names at the
         // global root, which is only right in the main interpreter: inside a
         // child's eval body `{}` names *that child*. There, fall through to
@@ -5081,9 +5122,21 @@ impl Analyser {
         // `resolve_alias_domain_prefix` exactly as the explicit-path form
         // already does (issue #1141's flaw class).
         if self.interp_path_stack.is_empty()
-            && let Some((qualified, target_cmd, prepended)) = detect_interp_alias(args)
+            && is_current_interpreter(source_interpreter)
+            && is_current_interpreter(target_interpreter)
+            && let (Some(alias_name), Some(target_cmd)) = (alias.literal(), target.literal())
         {
-            self.record_interp_alias(qualified, target_cmd, prepended, offset);
+            let qualified = if alias_name.is_empty() {
+                String::new()
+            } else {
+                crate::naming::normalise_qualified_name(alias_name)
+            };
+            let prepended = arguments
+                .iter()
+                .filter_map(tcl_registry::TransitionSubject::literal)
+                .map(str::to_owned)
+                .collect();
+            self.record_interp_alias(qualified, target_cmd.to_owned(), prepended, offset);
             return;
         }
         // Cross-domain alias (issue #945 fault 8): `interp alias PATH name
@@ -5093,28 +5146,25 @@ impl Analyser {
         // literal paths both sides home under their `@interp@` domains, so
         // calls of the alias inside the child's eval bodies resolve to the
         // target through the ordinary alias link machinery. A path need
-        // not itself be a source literal any more (issue #923 idx 9): it
-        // also resolves through a tracked `set VAR [interp create ...]`
+        // not itself be a source literal (issue #923 idx 9): it also
+        // resolves through a tracked `set VAR [interp create ...]`
         // binding — only the alias/target *command* names stay hard
-        // literal requirements (a dynamic one genuinely names nothing
-        // statically, same reasoning `crate::alias::detect_interp_alias`
-        // already documents for the same-interpreter form).
-        if args.len() >= 5 {
-            let (src_path, alias_name, target_path, target_cmd) =
-                (&args[1], &args[2], &args[3], &args[4]);
-            let literal = |w: &String| !crate::naming::is_dynamic_word(w);
-            if literal(alias_name)
-                && literal(target_cmd)
-                && let Some(src_prefix) = self.resolve_alias_domain_prefix(src_path, scope_path)
-                && let Some(target_prefix) =
-                    self.resolve_alias_domain_prefix(target_path, scope_path)
-                && !(src_prefix.is_empty() && target_prefix.is_empty())
-            {
-                let qualified = format!("{src_prefix}::{}", alias_name.trim_start_matches(':'));
-                let target = format!("{target_prefix}::{}", target_cmd.trim_start_matches(':'));
-                let prepended: Vec<String> = args[5..].to_vec();
-                self.record_interp_alias(qualified, target, prepended, offset);
-            }
+        // literal requirements, which is exactly what the registry's typed
+        // subjects already say.
+        let (Some(alias_name), Some(target_cmd)) = (alias.literal(), target.literal()) else {
+            return;
+        };
+        let (Some(src_path), Some(target_path)) = (args.get(1), args.get(3)) else {
+            return;
+        };
+        if let Some(src_prefix) = self.resolve_alias_domain_prefix(src_path, scope_path)
+            && let Some(target_prefix) = self.resolve_alias_domain_prefix(target_path, scope_path)
+            && !(src_prefix.is_empty() && target_prefix.is_empty())
+        {
+            let qualified = format!("{src_prefix}::{}", alias_name.trim_start_matches(':'));
+            let target = format!("{target_prefix}::{}", target_cmd.trim_start_matches(':'));
+            let prepended: Vec<String> = args[5..].to_vec();
+            self.record_interp_alias(qualified, target, prepended, offset);
         }
     }
 
@@ -5608,7 +5658,7 @@ impl Analyser {
                     &inline_args,
                     &inline_tokens,
                     object_class,
-                    self.profile.availability_mask,
+                    Some(self.analysis_context().context().authoring_query()),
                 );
                 self.record_member_command_references(
                     grammar,
@@ -6242,10 +6292,16 @@ impl Analyser {
     ) -> Option<(Vec<Span>, bool)> {
         let registry = self.registry.as_deref()?;
         let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
-        if registry.invocation_completion(seg.name(), &args, self.profile.availability_mask)
-            != tcl_registry::registry::InvocationCompletion::FallsThrough
-            || registry.control_invocation_valid(seg.name(), &args, self.profile.availability_mask)
-                != Some(true)
+        if registry.invocation_completion(
+            seg.name(),
+            &args,
+            Some(self.analysis_context().context().authoring_query()),
+        ) != tcl_registry::registry::InvocationCompletion::FallsThrough
+            || registry.control_invocation_valid(
+                seg.name(),
+                &args,
+                Some(self.analysis_context().context().authoring_query()),
+            ) != Some(true)
         {
             return None;
         }
@@ -6377,8 +6433,11 @@ impl Analyser {
         let registry = self.registry.as_deref()?;
         for seg in self.direct_statements_in_span(method.body_span)? {
             let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
-            match registry.invocation_completion(seg.name(), &args, self.profile.availability_mask)
-            {
+            match registry.invocation_completion(
+                seg.name(),
+                &args,
+                Some(self.analysis_context().context().authoring_query()),
+            ) {
                 tcl_registry::registry::InvocationCompletion::FallsThrough => {
                     let controls = self.control_arms_for_segment(&seg);
                     if !controls.complete || !controls.arms.is_empty() {
@@ -6434,8 +6493,11 @@ impl Analyser {
                 UnknownBodyEvidence::Nothing
             };
         }
-        let completion =
-            registry.invocation_completion(seg.name(), &args, self.profile.availability_mask);
+        let completion = registry.invocation_completion(
+            seg.name(),
+            &args,
+            Some(self.analysis_context().context().authoring_query()),
+        );
         if registry.method_dispatch_keyword(seg.name())
             == Some(tcl_registry::registry::MethodDispatchKind::NextChain)
         {
@@ -6882,8 +6944,11 @@ impl Analyser {
         let registry = self.registry.clone()?;
         for seg in self.direct_statements_in_span(body_span)? {
             let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
-            match registry.invocation_completion(seg.name(), &args, self.profile.availability_mask)
-            {
+            match registry.invocation_completion(
+                seg.name(),
+                &args,
+                Some(self.analysis_context().context().authoring_query()),
+            ) {
                 tcl_registry::registry::InvocationCompletion::ReturnsResult(_) => {
                     return Some(true);
                 }
@@ -6945,7 +7010,11 @@ impl Analyser {
             return false;
         };
         let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
-        match registry.invocation_completion(seg.name(), &args, self.profile.availability_mask) {
+        match registry.invocation_completion(
+            seg.name(),
+            &args,
+            Some(self.analysis_context().context().authoring_query()),
+        ) {
             tcl_registry::registry::InvocationCompletion::FallsThrough => {}
             tcl_registry::registry::InvocationCompletion::Unknown
                 if registry.get(seg.name()).is_none() =>
@@ -6960,11 +7029,18 @@ impl Analyser {
             _ => return false,
         }
         let is_control = registry
-            .invocation_traits(seg.name(), &args, self.profile.availability_mask)
+            .invocation_traits(
+                seg.name(),
+                &args,
+                Some(self.analysis_context().context().authoring_query()),
+            )
             .contains(tcl_registry::Traits::CONTROL_FLOW);
         if is_control
-            && registry.control_invocation_valid(seg.name(), &args, self.profile.availability_mask)
-                != Some(true)
+            && registry.control_invocation_valid(
+                seg.name(),
+                &args,
+                Some(self.analysis_context().context().authoring_query()),
+            ) != Some(true)
         {
             return false;
         }
@@ -7281,7 +7357,7 @@ impl Analyser {
                 let (_, invocation) = registry.case_invocation(
                     arm.controller.name(),
                     &args,
-                    self.profile.availability_mask,
+                    Some(self.analysis_context().context().authoring_query()),
                 )?;
                 let index = invocation.clause_list_index?;
                 let container = arm.controller.arg_tokens().get(index)?.span;
@@ -7398,7 +7474,7 @@ impl Analyser {
                 seg.name(),
                 &args,
                 body_index,
-                self.profile.availability_mask,
+                Some(self.analysis_context().context().authoring_query()),
             )
             .is_none_or(|timing| timing == tcl_registry::ScriptTiming::SameInvocation)
     }
@@ -7455,7 +7531,11 @@ impl Analyser {
             };
             let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
             return matches!(
-                registry.invocation_completion(seg.name(), &args, self.profile.availability_mask),
+                registry.invocation_completion(
+                    seg.name(),
+                    &args,
+                    Some(self.analysis_context().context().authoring_query())
+                ),
                 tcl_registry::registry::InvocationCompletion::Terminates
                     | tcl_registry::registry::InvocationCompletion::ReturnsResult(_)
             );
@@ -7473,7 +7553,11 @@ impl Analyser {
         indices.sort_unstable();
         indices.dedup();
         let case_call = registry
-            .case_invocation(seg.name(), &args, self.profile.availability_mask)
+            .case_invocation(
+                seg.name(),
+                &args,
+                Some(self.analysis_context().context().authoring_query()),
+            )
             .and_then(|(_, invocation)| invocation.clause_list_index);
         let mut arms = Vec::new();
         let mut complete = true;
@@ -7485,9 +7569,11 @@ impl Analyser {
                 continue;
             };
             if case_call == Some(idx) {
-                let Some((case, _)) =
-                    registry.case_invocation(seg.name(), &args, self.profile.availability_mask)
-                else {
+                let Some((case, _)) = registry.case_invocation(
+                    seg.name(),
+                    &args,
+                    Some(self.analysis_context().context().authoring_query()),
+                ) else {
                     complete = false;
                     continue;
                 };
@@ -7632,7 +7718,7 @@ impl Analyser {
         let (case, invocation) = registry.case_invocation(
             arm.controller.name(),
             &args,
-            self.profile.availability_mask,
+            Some(self.analysis_context().context().authoring_query()),
         )?;
         if usize::from(case.subject_args) != 1 {
             return None;
@@ -7980,9 +8066,7 @@ impl Analyser {
                 .map(|value| value.as_deref())
                 .collect::<Option<_>>()?;
             let version = (!self.result.dialect.is_empty())
-                .then(|| {
-                    tcl_dialect::DialectProfile::by_name(&self.result.dialect).const_fold_version()
-                })
+                .then(|| self.profile.const_fold_version())
                 .flatten();
             if spec.subcommands.is_empty() {
                 return spec.run_const_fold(&values, version);
@@ -8044,47 +8128,53 @@ impl Analyser {
                 continue;
             }
             let args = seg.args();
-            match registry.command_table_effect(seg.name(), args.first().map(String::as_str)) {
-                Some(tcl_registry::CommandTableEffect::DefinesProcedure) => {
-                    let Some(name) = args.first() else {
-                        return false;
-                    };
-                    if dynamic_command_name_may_equal(name, &query) {
-                        if tcl_syntax::naming::is_dynamic_word(name) {
+            for transition in
+                command_table_transitions(registry, seg.name(), args).command_bindings()
+            {
+                match transition {
+                    tcl_registry::CommandBindingTransition::Define { name, .. } => {
+                        let Some(name) = crate::alias::subject_word(name, args) else {
+                            return false;
+                        };
+                        if dynamic_command_name_may_equal(name, &query) {
+                            if tcl_syntax::naming::is_dynamic_word(name) {
+                                return false;
+                            }
+                            matching_declarations += 1;
+                            if matching_declarations > expected_declarations {
+                                return false;
+                            }
+                        }
+                    }
+                    tcl_registry::CommandBindingTransition::Move { from, to } => {
+                        let (Some(old), Some(new)) = (
+                            crate::alias::subject_word(from, args),
+                            crate::alias::subject_word(to, args),
+                        ) else {
+                            return false;
+                        };
+                        if dynamic_command_name_may_equal(old, &query)
+                            || (!new.is_empty() && dynamic_command_name_may_equal(new, &query))
+                        {
                             return false;
                         }
-                        matching_declarations += 1;
-                        if matching_declarations > expected_declarations {
+                    }
+                    tcl_registry::CommandBindingTransition::Delete { name, .. }
+                    | tcl_registry::CommandBindingTransition::Alias { alias: name, .. } => {
+                        // Only the alias/deleted NAME changes a command
+                        // identity. A dynamic target command changes what
+                        // that known alias does, not what name it binds.
+                        let Some(name) = crate::alias::subject_word(name, args) else {
+                            return false;
+                        };
+                        if dynamic_command_name_may_equal(name, &query) {
                             return false;
                         }
                     }
+                    // A mutation whose very shape is unknown could name
+                    // anything.
+                    tcl_registry::CommandBindingTransition::Unknown { .. } => return false,
                 }
-                Some(tcl_registry::CommandTableEffect::RenamesCommands) => {
-                    let [old, new] = args else {
-                        return false;
-                    };
-                    if dynamic_command_name_may_equal(old, &query)
-                        || (!new.is_empty() && dynamic_command_name_may_equal(new, &query))
-                    {
-                        return false;
-                    }
-                }
-                Some(tcl_registry::CommandTableEffect::CreatesAliases) => {
-                    // `interp alias SRC NAME TARGET TARGETCMD ...`: only the
-                    // alias NAME changes a command identity. A dynamic target
-                    // command changes what that known alias does, not what
-                    // name it binds.
-                    if args.len() == 3 {
-                        continue; // query form; the command table is unchanged
-                    }
-                    let Some(alias_name) = args.get(2) else {
-                        return false;
-                    };
-                    if dynamic_command_name_may_equal(alias_name, &query) {
-                        return false;
-                    }
-                }
-                None => {}
             }
         }
         matching_declarations == expected_declarations
@@ -8152,7 +8242,7 @@ impl Analyser {
             match registry.invocation_completion(
                 seg.name(),
                 &raw_args,
-                self.profile.availability_mask,
+                Some(self.analysis_context().context().authoring_query()),
             ) {
                 tcl_registry::registry::InvocationCompletion::ReturnsResult(Some(idx)) => {
                     let value =
@@ -8174,7 +8264,7 @@ impl Analyser {
                 if registry.control_invocation_valid(
                     seg.name(),
                     &raw_args,
-                    self.profile.availability_mask,
+                    Some(self.analysis_context().context().authoring_query()),
                 ) != Some(true)
                 {
                     return None;
@@ -8401,7 +8491,11 @@ impl Analyser {
             }
 
             let case_call = registry
-                .case_invocation(seg.name(), &args, self.profile.availability_mask)
+                .case_invocation(
+                    seg.name(),
+                    &args,
+                    Some(self.analysis_context().context().authoring_query()),
+                )
                 .and_then(|(_, invocation)| invocation.clause_list_index);
             let mut body_indices =
                 registry.arg_indices_for_role(seg.name(), &args, tcl_registry::ArgRole::Body);
@@ -8415,9 +8509,11 @@ impl Analyser {
                     continue;
                 };
                 if case_call == Some(body_idx) {
-                    let Some((case, _)) =
-                        registry.case_invocation(seg.name(), &args, self.profile.availability_mask)
-                    else {
+                    let Some((case, _)) = registry.case_invocation(
+                        seg.name(),
+                        &args,
+                        Some(self.analysis_context().context().authoring_query()),
+                    ) else {
                         continue;
                     };
                     for (_, (_, body_token)) in crate::segmenter::flatten_case_list_clauses(
@@ -8526,7 +8622,11 @@ impl Analyser {
             body_indices.sort_unstable();
             body_indices.dedup();
             let case_call = registry
-                .case_invocation(seg.name(), &args, self.profile.availability_mask)
+                .case_invocation(
+                    seg.name(),
+                    &args,
+                    Some(self.analysis_context().context().authoring_query()),
+                )
                 .and_then(|(_, invocation)| invocation.clause_list_index);
             for body_idx in body_indices {
                 let (Some(word), Some(token)) = (
@@ -8536,9 +8636,11 @@ impl Analyser {
                     continue;
                 };
                 if case_call == Some(body_idx) {
-                    let Some((case, _)) =
-                        registry.case_invocation(seg.name(), &args, self.profile.availability_mask)
-                    else {
+                    let Some((case, _)) = registry.case_invocation(
+                        seg.name(),
+                        &args,
+                        Some(self.analysis_context().context().authoring_query()),
+                    ) else {
                         continue;
                     };
                     for (_, (_, body_token)) in crate::segmenter::flatten_case_list_clauses(
@@ -9168,7 +9270,7 @@ impl Analyser {
                     &injected.texts,
                     &injected.argv,
                     &mut class,
-                    self.profile.availability_mask,
+                    Some(self.analysis_context().context().authoring_query()),
                 );
             }
         }
@@ -9387,11 +9489,13 @@ impl Analyser {
     /// read then treats every word as positional, which is the pre-registry
     /// behaviour.
     fn leading_option_words(&self, cmd_name: &str, args: &[String]) -> usize {
-        use tcl_registry::ProfileQueries;
         let Some(spec) = self.registry.as_deref().and_then(|r| r.get(cmd_name)) else {
             return 0;
         };
-        let options = self.profile.available_option_specs(spec);
+        let options = self
+            .analysis_context()
+            .context()
+            .available_option_specs(spec);
         if options.is_empty() {
             return 0;
         }
@@ -9499,7 +9603,7 @@ impl Analyser {
                     &inline_args,
                     &inline_tokens,
                     class_def,
-                    self.profile.availability_mask,
+                    Some(self.analysis_context().context().authoring_query()),
                 );
                 self.record_member_command_references(
                     grammar,
@@ -9528,7 +9632,7 @@ impl Analyser {
     /// script path — comes from `source`'s own [`OptionSpec`
     /// list](tcl_registry::CommandSpec::options) via
     /// [`Self::leading_option_words`], not a `-encoding` literal here.  The
-    /// option carries `DialectSet::TCL85_PLUS` in the registry, so the
+    /// option carries `SpecSurface::TCL85_PLUS` in the registry, so the
     /// dialect gating comes along for free: under an 8.4 profile — which has
     /// no `-encoding` — the word is not recognised as an option and the path
     /// word is read at index 0, matching that spec's own declaration rather
@@ -9873,7 +9977,6 @@ impl Analyser {
     /// some unit tests): a flagless read then treats `-clear` as an ordinary
     /// pattern, which is inert — nothing else records a command by that name.
     fn namespace_leading_flag_words(&self, sub: &str, args: &[String]) -> usize {
-        use tcl_registry::ProfileQueries;
         let Some((spec, sub_spec)) = self
             .registry
             .as_deref()
@@ -9882,7 +9985,10 @@ impl Analyser {
         else {
             return 0;
         };
-        let options = self.profile.available_sub_option_specs(spec, sub_spec);
+        let options = self
+            .analysis_context()
+            .context()
+            .available_sub_option_specs(spec, sub_spec);
         let cap = sub_spec
             .max_leading_option_words
             .map_or(usize::MAX, usize::from);
@@ -10973,7 +11079,7 @@ mod tests {
         // dialect-profile-model.md §8, one sink) carries no label, covered
         // by the sibling no-label test below.
         let mut a = Analyser::new();
-        a.profile = tcl_dialect::DialectProfile::by_name("tcl8.6");
+        a.profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
         a.handle_proc_command(
             &["set".to_string(), String::new(), String::new()],
             &[
@@ -11055,7 +11161,7 @@ mod tests {
     fn handle_proc_no_w113_for_non_builtin_name() {
         // ``foo`` is not a built-in — no W113.
         let mut a = Analyser::new();
-        a.profile = tcl_dialect::DialectProfile::by_name("tcl");
+        a.profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
         a.handle_proc_command(
             &["foo".to_string(), String::new(), String::new()],
             &[
@@ -11081,7 +11187,7 @@ mod tests {
         // ``set`` because the registry indexes by bare command
         // name (``::`` is trimmed at lookup).
         let mut a = Analyser::new();
-        a.profile = tcl_dialect::DialectProfile::by_name("tcl");
+        a.profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
         a.handle_proc_command(
             &["::set".to_string(), String::new(), String::new()],
             &[
@@ -11156,7 +11262,7 @@ mod tests {
 
         // Same proc, plain tcl dialect → no W113.
         let mut b = Analyser::new();
-        b.profile = tcl_dialect::DialectProfile::by_name("tcl");
+        b.profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
         b.handle_proc_command(
             &["pool".to_string(), String::new(), String::new()],
             &[
@@ -11499,7 +11605,9 @@ mod tests {
         // pattern cannot undo it. Oracle: a namespace exporting `keep`, then
         // `namespace export -clear ::bad`, exports nothing afterwards.
         let mut a = Analyser::new();
-        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         a.handle_namespace_export_command(
             &[
                 "export".to_string(),
@@ -11525,7 +11633,9 @@ mod tests {
     #[test]
     fn handle_namespace_export_clear_records_an_ordered_tombstone() {
         let mut a = Analyser::new();
-        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         a.handle_namespace_export_command(
             &["export".to_string(), "bar".to_string()],
             &[esc_tok(span(0, 6)), esc_tok(span(7, 10))],
@@ -11569,7 +11679,9 @@ mod tests {
         // ::src::*`. Consuming every matching word instead recorded two
         // tombstones and silently dropped the `-clear` export.
         let mut a = Analyser::new();
-        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         a.handle_namespace_export_command(
             &[
                 "export".to_string(),
@@ -11599,7 +11711,9 @@ mod tests {
         // The flag is only ever the *first* word: oracle `namespace export a
         // -clear` → `namespace export` returns `a -clear`.
         let mut a = Analyser::new();
-        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         a.handle_namespace_export_command(
             &["export".to_string(), "a".to_string(), "-clear".to_string()],
             &[
@@ -11627,7 +11741,9 @@ mod tests {
         // second is recorded as the pattern word it is — one whose empty
         // source namespace both wildcard resolvers already decline.
         let mut a = Analyser::new();
-        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         a.handle_namespace_import_command(
             &[
                 "import".to_string(),
@@ -11655,7 +11771,9 @@ mod tests {
     #[test]
     fn handle_namespace_export_bare_clear_records_a_tombstone() {
         let mut a = Analyser::new();
-        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         a.handle_namespace_export_command(
             &["export".to_string(), "-clear".to_string()],
             &[esc_tok(span(0, 6)), esc_tok(span(7, 13))],
@@ -12941,7 +13059,9 @@ mod tests {
         use crate::analyser::types::{Scope, ScopeKind};
         let mut a = Analyser::new();
         // `-command` recognition is registry-driven (`ENSEMBLE_CREATE_OPTIONS`).
-        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         a.result
             .global_scope
             .children
@@ -12965,7 +13085,9 @@ mod tests {
         use crate::analyser::types::{Scope, ScopeKind};
         let mut a = Analyser::new();
         // `-command` recognition is registry-driven (`ENSEMBLE_CREATE_OPTIONS`).
-        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         a.result
             .global_scope
             .children
@@ -13599,7 +13721,9 @@ mod tests {
         // so only the genuine `-command ::real::target` is recorded.
         use crate::analyser::types::{Scope, ScopeKind};
         let mut a = Analyser::new();
-        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         a.result
             .global_scope
             .children
@@ -13992,7 +14116,9 @@ mod tests {
 
     fn switch_analyser() -> Analyser {
         let mut analyser = Analyser::new();
-        analyser.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+        analyser.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         analyser
     }
 
@@ -14146,7 +14272,9 @@ mod tests {
     fn handle_catch_with_result_var_defines_it() {
         let mut a = Analyser::new();
         // The binding positions come from the registry's VarWrite roles.
-        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         a.handle_catch_command(
             &["body".to_string(), "res".to_string()],
             &[esc_tok(span(0, 4)), esc_tok(span(5, 8))],
@@ -14158,7 +14286,9 @@ mod tests {
     #[test]
     fn handle_catch_with_options_var_defines_both() {
         let mut a = Analyser::new();
-        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         a.handle_catch_command(
             &["body".to_string(), "res".to_string(), "opts".to_string()],
             &[
@@ -14591,6 +14721,9 @@ mod tests {
     #[test]
     fn handle_interp_alias_records_canonical_form() {
         let mut a = Analyser::new();
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         a.handle_interp_alias(
             &[
                 "alias".to_string(),
@@ -14618,6 +14751,9 @@ mod tests {
     #[test]
     fn handle_interp_alias_with_prepended_args() {
         let mut a = Analyser::new();
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         a.handle_interp_alias(
             &[
                 "alias".to_string(),
@@ -14638,6 +14774,9 @@ mod tests {
     #[test]
     fn handle_interp_alias_wrong_shape_no_op() {
         let mut a = Analyser::new();
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         a.handle_interp_alias(&["alias".to_string()], &[], 0);
         assert!(a.command_aliases.is_empty());
         assert!(a.alias_offsets.is_empty());
@@ -15030,7 +15169,9 @@ mod tests {
     fn handle_oo_class_create_records_class() {
         let mut a = Analyser::new();
         // Metaclass recognition is now registry-trait-driven (`IS_OO_METACLASS`).
-        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         let handled = a.handle_oo_class_command(
             "oo::class",
             &["create".to_string(), "MyClass".to_string()],
@@ -15053,7 +15194,9 @@ mod tests {
         // arg_tokens stripped of cmd_name (matching the
         // ``process_command`` dispatch convention).
         let mut a = Analyser::new();
-        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         let handled = a.handle_oo_class_command(
             "oo::class",
             &[
@@ -16005,7 +16148,7 @@ mod tests {
     // propagates into the per-proc `param_traits` map.
 
     #[test]
-    fn analyse_with_stub_overlay_propagates_role_to_param_traits() {
+    fn analyse_with_declared_stub_propagates_role_to_param_traits() {
         // The source declares a `# tcl-lsp: stub my_eval
         // {script:body}` directive, then defines a proc that
         // invokes `my_eval $body`.  The body arg's role flows

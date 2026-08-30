@@ -104,7 +104,7 @@ fn eval_dialect(expr: &str, dialect: &str) -> Option<TclValue> {
     eval_tcl_expr_in_dialect(
         &parse_expr(expr, None),
         &Env::new(),
-        tcl_dialect::DialectProfile::by_name(dialect),
+        tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
     )
 }
 
@@ -124,9 +124,7 @@ fn env_str(name: &str, value: &str) -> Env {
     env
 }
 
-// =========================================================================
 // Literals
-// =========================================================================
 
 #[test]
 fn literal_integers_in_all_radixes() {
@@ -161,9 +159,7 @@ fn literal_boolean_words_fold_to_0_or_1() {
     assert_eq!(eval_str("off"), Some(int(0)));
 }
 
-// =========================================================================
 // Arithmetic
-// =========================================================================
 
 #[test]
 fn arithmetic_integer_basic() {
@@ -237,9 +233,7 @@ fn division_and_modulo_by_zero_decline() {
     assert_eq!(eval_str("0.0 / 0"), None);
 }
 
-// =========================================================================
 // Exponentiation
-// =========================================================================
 
 #[test]
 fn exponentiation_integer_and_float() {
@@ -307,9 +301,7 @@ fn exponentiation_huge_exponent_guard() {
     assert_eq!(eval_str("2 ** 268435456"), None); // at the limit → guarded
 }
 
-// =========================================================================
 // Comparisons
-// =========================================================================
 
 #[test]
 fn comparisons_return_int_0_or_1() {
@@ -368,9 +360,7 @@ fn comparisons_word_eq_ne_on_numbers() {
     assert_eq!(eval_str("5 ne 6"), Some(int(1)));
 }
 
-// =========================================================================
 // Logical
-// =========================================================================
 
 #[test]
 fn logical_and_or_not() {
@@ -407,9 +397,7 @@ fn logical_on_floats_and_chains() {
     assert_eq!(eval_str("!2.1"), Some(int(0)));
 }
 
-// =========================================================================
 // Bitwise & shifts
-// =========================================================================
 
 #[test]
 fn bitwise_and_or_xor_not() {
@@ -455,9 +443,7 @@ fn bitwise_and_shift_require_integers() {
     assert_eq!(eval_str("1.0 << 2"), None);
 }
 
-// =========================================================================
 // Ternary
-// =========================================================================
 
 #[test]
 fn ternary_selects_branch_and_short_circuits() {
@@ -479,9 +465,7 @@ fn ternary_nested_and_with_operators() {
     assert_eq!(eval_str("1 || 0 ? 3 : 4"), Some(int(3)));
 }
 
-// =========================================================================
 // Unary
-// =========================================================================
 
 #[test]
 fn unary_sign_chains_and_octal() {
@@ -504,9 +488,7 @@ fn unary_logical_and_bitwise_not() {
     assert_eq!(eval_str("~3"), Some(int(-4)));
 }
 
-// =========================================================================
 // Operator precedence
-// =========================================================================
 
 #[test]
 fn precedence_unary_vs_binary() {
@@ -566,9 +548,7 @@ fn parenthesised_and_complex_expressions() {
     assert_eq!(eval_str("2 + 3 * 4 - 1"), Some(int(13)));
 }
 
-// =========================================================================
 // Math functions
-// =========================================================================
 
 #[test]
 fn math_abs_int_and_float() {
@@ -699,9 +679,7 @@ fn math_function_folding_combined_expressions() {
     assert_eq!(eval_str("round(2.5) + 1"), Some(int(4)));
 }
 
-// =========================================================================
 // Variables
-// =========================================================================
 
 #[test]
 fn variable_resolution_and_coercion() {
@@ -724,9 +702,7 @@ fn variable_resolution_and_coercion() {
     assert_eq!(eval_str("$a + 1"), None);
 }
 
-// =========================================================================
 // Unevaluable
-// =========================================================================
 
 #[test]
 fn unevaluable_command_substitution_and_empty() {
@@ -737,9 +713,7 @@ fn unevaluable_command_substitution_and_empty() {
     assert_eq!(eval_str("1 + [foo]"), None);
 }
 
-// =========================================================================
 // format_tcl_value
-// =========================================================================
 
 #[test]
 fn format_tcl_value_integers() {
@@ -782,10 +756,8 @@ fn format_tcl_value_specials_and_large() {
     assert_eq!(format_tcl_value(&TclValue::Float(-1e308)), "-1e+308");
 }
 
-// =========================================================================
 // String comparison folding
 //   `eq`/`ne`/`lt`/`gt`/`le`/`ge` compare operands AS STRINGS.
-// =========================================================================
 
 #[test]
 fn word_string_compare_eq_ne() {
@@ -816,10 +788,8 @@ fn word_eq_is_string_compare_not_numeric() {
     assert_eq!(eval_str(r#"5 eq "5""#), Some(int(1)));
 }
 
-// =========================================================================
 // Polymorphic equality folding
 //   `==`/`!=` are numeric when *both* operands are numbers, else string.
-// =========================================================================
 
 #[test]
 fn polymorphic_equality_string_operands_fold() {
@@ -891,9 +861,7 @@ fn polymorphic_equality_leading_zero_is_dialect_aware() {
     assert_eq!(eval_str(r#""08" == "8""#), None);
 }
 
-// =========================================================================
 // iRules `contains`
-// =========================================================================
 
 #[test]
 fn irules_contains() {
@@ -923,9 +891,7 @@ fn irules_contains_with_variable() {
     );
 }
 
-// =========================================================================
 // iRules `starts_with` / `ends_with`
-// =========================================================================
 
 #[test]
 fn irules_starts_with() {
@@ -965,9 +931,7 @@ fn irules_ends_with() {
     );
 }
 
-// =========================================================================
 // iRules `equals`
-// =========================================================================
 
 #[test]
 fn irules_equals() {
@@ -985,9 +949,7 @@ fn irules_equals() {
     );
 }
 
-// =========================================================================
 // iRules `matches_glob`
-// =========================================================================
 
 #[test]
 fn irules_matches_glob() {
@@ -1018,10 +980,8 @@ fn irules_matches_glob() {
     );
 }
 
-// =========================================================================
 // iRules `matches_regex`
 //   Deliberately NEVER constant-folded (Rust `regex` != Tcl ARE) → always None.
-// =========================================================================
 
 #[test]
 fn irules_matches_regex_is_never_folded() {
@@ -1051,9 +1011,7 @@ fn irules_matches_regex_is_never_folded() {
     );
 }
 
-// =========================================================================
 // iRules `in` / `ni`
-// =========================================================================
 
 #[test]
 fn irules_in_list_membership() {
@@ -1111,9 +1069,7 @@ fn irules_ni_negated_membership() {
     );
 }
 
-// =========================================================================
 // iRules word logical (`and`/`or`/`not`)
-// =========================================================================
 
 #[test]
 fn irules_word_logical_and_or_not() {
@@ -1134,9 +1090,7 @@ fn irules_word_logical_short_circuits() {
     assert_eq!(eval_irules("1 or [some_cmd]"), Some(int(1)));
 }
 
-// =========================================================================
 // iRules combined expressions
-// =========================================================================
 
 #[test]
 fn irules_combined_string_ops_with_logical() {

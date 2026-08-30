@@ -18,6 +18,7 @@
 
 //! `bind` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
     writes: true,
@@ -62,7 +63,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "bind",
-        dialects: Some(DialectSet::TK_AND_TCL),
+        surface: Some(SpecSurface::TK_AND_TCL),
         arity: Arity::new(1, 3),
         // The `bind tag sequence script` form's trailing script is a
         // deferred event-handler body (runs from the Tk event loop, not

@@ -29,6 +29,7 @@
 //! Path handling is `/`-separated (Tcl's portable convention); fine on Unix /
 //! WASI.
 
+use tcl_dialect::model::{surface_admits, SurfaceQuery};
 use tcl_platform::{Filesystem, HostError};
 
 use crate::interp::{new_string, obj_bytes, Code, Interp};
@@ -135,24 +136,23 @@ fn file_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let raw = obj_bytes(argv[1]);
     // The registry owns both the ensemble names and their release gates.
-    // Resolve against the one profile selected for this interpreter so, for
-    // example, Tcl 8.6 neither exposes Tcl 9's `tempdir` nor lets it affect
-    // abbreviation uniqueness.
+    // Resolve against the one environment selected for this interpreter so,
+    // for example, Tcl 8.6 neither exposes Tcl 9's `tempdir` nor lets it
+    // affect abbreviation uniqueness. The release name is a dialect *name*,
+    // so it goes through the one ingress seam (`crate::environment`); the
+    // ensemble is read off that environment's registry generation and gated
+    // on its document authoring mask (ledger row B1).
     let profile =
-        tcl_dialect::DialectProfile::by_name(interp.runtime_version().dialect_profile_name());
-    let file_spec = tcl_registry::cache::registry_for_profile(profile)
+        crate::environment::profile_for_dialect(interp.runtime_version().dialect_profile_name());
+    let dialect = Some(crate::environment::surface_point(profile));
+    let file_spec = crate::environment::store_for_profile(profile)
         .get("file")
         .expect("the Tcl registry contains file");
-    let sub = match file_spec.resolve_subcommand_word(
-        as_str(&raw),
-        Some(profile.availability_mask),
-        None,
-        None,
-    ) {
+    let sub = match file_spec.resolve_subcommand_word(as_str(&raw), dialect, None, None) {
         tcl_registry::abbrev::KeywordMatch::Unique(name) => name.as_bytes().to_vec(),
         tcl_registry::abbrev::KeywordMatch::Ambiguous(_)
         | tcl_registry::abbrev::KeywordMatch::Unknown => {
-            return file_unknown_subcommand(interp, &raw, file_spec, profile.availability_mask);
+            return file_unknown_subcommand(interp, &raw, file_spec, dialect);
         }
     };
     if let Some((_, min, max)) = FILE_RUNTIME_ARITIES
@@ -336,15 +336,15 @@ fn file_unknown_subcommand(
     interp: &mut Interp,
     raw: &[u8],
     spec: &tcl_registry::CommandSpec,
-    dialect: tcl_dialect::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) -> Code {
     let visible: Vec<&str> = spec
         .subcommands
         .iter()
         .filter(|sub| {
-            sub.dialects
-                .or(spec.dialects)
-                .is_none_or(|gate| gate.intersects(dialect))
+            sub.surface
+                .or(spec.surface)
+                .is_none_or(|gate| surface_admits(gate, dialect.as_ref()))
         })
         .map(|sub| sub.name)
         .collect();

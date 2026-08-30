@@ -212,6 +212,8 @@ fn tk_command_specs_raw() -> Vec<CommandSpec> {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{Family, SurfaceQuery};
+
     use super::tk_command_specs;
 
     fn assert_complete_prose(owner: &str, prose: &str) {
@@ -764,7 +766,7 @@ mod tests {
     #[test]
     #[allow(clippy::too_many_lines)]
     fn zero_argument_treeview_and_notebook_queries_are_sources_only_in_query_form() {
-        use crate::{CommandRegistry, Traits, dialects::DialectSet};
+        use crate::{CommandRegistry, Traits};
 
         let registry = CommandRegistry::build_default();
         let cases = [
@@ -818,10 +820,10 @@ mod tests {
                 "neutral parent row: {command} {method}"
             );
             let query = registry
-                .resolve_instance_invocation(command, ".w", query, DialectSet::empty())
+                .resolve_instance_invocation(command, ".w", query, None)
                 .expect("query form resolves");
             let setter = registry
-                .resolve_instance_invocation(command, ".w", setter, DialectSet::empty())
+                .resolve_instance_invocation(command, ".w", setter, None)
                 .expect("setter form resolves");
             assert!(
                 query
@@ -868,14 +870,14 @@ mod tests {
                 &registry,
                 "winfo",
                 args,
-                DialectSet::TCL90
+                Some(SurfaceQuery::core(Family::Tcl, "9.0"))
             ));
         }
     }
 
     #[test]
     fn instance_method_forms_resolve_query_and_mutation_effects_exactly() {
-        use crate::{CommandRegistry, Traits, dialects::DialectSet, prelude::SideEffectTarget};
+        use crate::{CommandRegistry, Traits, prelude::SideEffectTarget};
 
         let registry = CommandRegistry::build_default();
         let cases: &[(&str, &[&str], &[&str])] = &[
@@ -908,7 +910,7 @@ mod tests {
         ];
         for (class, query_args, mutation_args) in cases {
             let query = registry
-                .resolve_instance_invocation(class, ".w", query_args, DialectSet::empty())
+                .resolve_instance_invocation(class, ".w", query_args, None)
                 .unwrap_or_else(|| panic!("query form resolves: {class} {query_args:?}"));
             assert_eq!(query.form.map(|form| form.name), Some("query"));
             assert!(query.semantics.traits.contains(Traits::PURE));
@@ -922,7 +924,7 @@ mod tests {
             );
 
             let mutation = registry
-                .resolve_instance_invocation(class, ".w", mutation_args, DialectSet::empty())
+                .resolve_instance_invocation(class, ".w", mutation_args, None)
                 .unwrap_or_else(|| panic!("mutation form resolves: {class} {mutation_args:?}"));
             assert!(matches!(
                 mutation.form.map(|form| form.name),
@@ -940,12 +942,7 @@ mod tests {
         }
 
         let configure = registry
-            .resolve_instance_invocation(
-                "button",
-                ".w",
-                &["configure", "-text", "Save"],
-                DialectSet::empty(),
-            )
+            .resolve_instance_invocation("button", ".w", &["configure", "-text", "Save"], None)
             .unwrap();
         assert!(
             configure
@@ -955,12 +952,7 @@ mod tests {
         );
 
         let switchstate = registry
-            .resolve_instance_invocation(
-                "ttk::toggleswitch",
-                ".w",
-                &["switchstate", "1"],
-                DialectSet::empty(),
-            )
+            .resolve_instance_invocation("ttk::toggleswitch", ".w", &["switchstate", "1"], None)
             .unwrap();
         assert!(
             switchstate
@@ -979,7 +971,7 @@ mod tests {
 
     #[test]
     fn literal_operation_forms_cover_tk_nested_method_tables() {
-        use crate::{CommandRegistry, dialects::DialectSet};
+        use crate::CommandRegistry;
 
         let registry = CommandRegistry::build_default();
         let cases: &[(&str, &[&str], &[&str])] = &[
@@ -1045,7 +1037,7 @@ mod tests {
 
         for (class, query_args, mutation_args) in cases {
             let query = registry
-                .resolve_instance_invocation(class, ".w", query_args, DialectSet::empty())
+                .resolve_instance_invocation(class, ".w", query_args, None)
                 .unwrap_or_else(|| panic!("query resolves: {class} {query_args:?}"));
             assert!(query.form.is_some(), "query form: {class} {query_args:?}");
             assert!(!query.semantics.mutator, "query: {class} {query_args:?}");
@@ -1059,7 +1051,7 @@ mod tests {
             );
 
             let mutation = registry
-                .resolve_instance_invocation(class, ".w", mutation_args, DialectSet::empty())
+                .resolve_instance_invocation(class, ".w", mutation_args, None)
                 .unwrap_or_else(|| panic!("mutation resolves: {class} {mutation_args:?}"));
             assert!(
                 mutation.semantics.mutator
@@ -1075,7 +1067,7 @@ mod tests {
 
     #[test]
     fn literal_operation_selection_abstains_for_dynamic_unknown_and_ambiguous_words() {
-        use crate::{CommandRegistry, InvocationWord, InvocationWords, dialects::DialectSet};
+        use crate::{CommandRegistry, InvocationWord, InvocationWords};
 
         let registry = CommandRegistry::build_default();
         let dynamic = [
@@ -1086,7 +1078,7 @@ mod tests {
             .resolve_structured_instance_invocation(
                 "entry",
                 InvocationWords::structured(InvocationWord::Literal(".e"), &dynamic),
-                DialectSet::empty(),
+                None,
             )
             .expect("the method row still resolves");
         assert!(invocation.form.is_none());
@@ -1105,14 +1097,14 @@ mod tests {
             ("ttk::treeview", &["tag", "c", "hot"] as &[&str]),
         ] {
             let invocation = registry
-                .resolve_instance_invocation(class, ".w", args, DialectSet::empty())
+                .resolve_instance_invocation(class, ".w", args, None)
                 .unwrap_or_else(|| panic!("parent method resolves: {class} {args:?}"));
             assert!(invocation.form.is_none(), "must abstain: {class} {args:?}");
             assert!(invocation.semantics.mutator, "parent fallback: {class}");
         }
 
         let abbreviated = registry
-            .resolve_instance_invocation("entry", ".e", &["selection", "pres"], DialectSet::empty())
+            .resolve_instance_invocation("entry", ".e", &["selection", "pres"], None)
             .expect("unique literal prefix resolves");
         assert_eq!(abbreviated.form.map(|form| form.name), Some("present"));
         assert!(!abbreviated.semantics.mutator);
@@ -1121,7 +1113,7 @@ mod tests {
     #[test]
     #[allow(clippy::too_many_lines)]
     fn classic_widget_instance_apis_model_configuration_and_callbacks() {
-        use crate::{CommandRegistry, Traits, dialects::DialectSet, prelude::SideEffectTarget};
+        use crate::{CommandRegistry, Traits, prelude::SideEffectTarget};
 
         let specs = tk_command_specs();
         let registry = CommandRegistry::build_default();
@@ -1193,7 +1185,7 @@ mod tests {
                 "neutral {command} configure"
             );
             let query = registry
-                .resolve_instance_invocation(command, ".w", &["configure"], DialectSet::empty())
+                .resolve_instance_invocation(command, ".w", &["configure"], None)
                 .unwrap();
             assert!(query.semantics.traits.contains(Traits::PURE));
             assert!(!query.semantics.mutator);
@@ -1205,12 +1197,7 @@ mod tests {
                     .all(|effect| !effect.writes)
             );
             let setter = registry
-                .resolve_instance_invocation(
-                    command,
-                    ".w",
-                    &["configure", "-text", "value"],
-                    DialectSet::empty(),
-                )
+                .resolve_instance_invocation(command, ".w", &["configure", "-text", "value"], None)
                 .unwrap();
             assert!(setter.semantics.mutator);
             assert!(

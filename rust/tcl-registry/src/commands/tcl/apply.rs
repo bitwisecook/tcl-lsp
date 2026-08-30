@@ -18,6 +18,7 @@
 
 //! `apply` — apply an anonymous procedure.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 /// `apply` never binds a name in the interpreter's command table — the
 /// temporary `Proc` structure TIP 194 builds for the lambda is discarded
@@ -53,7 +54,7 @@ pub fn spec() -> CommandSpec {
             // script text, so that pairing would misclassify it.
             | Traits::TAINT_SINK,
         // Added in Tcl 8.5 (TIP 194).
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         arity: Arity::at_least(1),
         // The lambda literal is a `{argList body ?ns?}` list, not a plain
         // script — `ArgRole::LambdaLiteral` (not `Body`) says so, so generic

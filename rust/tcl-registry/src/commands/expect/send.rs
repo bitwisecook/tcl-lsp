@@ -18,12 +18,13 @@
 
 //! `send` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-i",
         value: OptionValue::value("spawn_id"),
         detail: "Send to the specified spawn id.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -32,7 +33,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-raw",
         value: OptionValue::flag(),
         detail: "Send without any translation.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -41,7 +42,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-null",
         value: OptionValue::flag(),
         detail: "Send null characters.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -50,7 +51,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-break",
         value: OptionValue::flag(),
         detail: "Send a break condition.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -59,7 +60,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-s",
         value: OptionValue::flag(),
         detail: "Send slowly (obey send_slow parameters).",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -68,7 +69,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-h",
         value: OptionValue::flag(),
         detail: "Send as if a human were typing (obey send_human parameters).",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -77,7 +78,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "--",
         value: OptionValue::flag(),
         detail: "End of options.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -92,7 +93,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "send",
-        dialects: Some(DialectSet::EXPECT),
+        surface: Some(SpecSurface::EXPECT),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Send a string to the current spawned process.",

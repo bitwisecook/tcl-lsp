@@ -231,28 +231,17 @@ fn is_single_op(ch: u8) -> bool {
     )
 }
 
-fn irules_ops() -> HashSet<&'static str> {
-    [
-        "and",
-        "or",
-        "not",
-        "contains",
-        "starts_with",
-        "ends_with",
-        "equals",
-        "matches_glob",
-        "matches_regex",
-    ]
-    .into_iter()
-    .collect()
-}
-
 /// Tokenise a Tcl expression string from a compatibility name boundary.
 ///
 /// Internal typed callers should use [`tokenise_expr_for_profile`].
 #[must_use]
 pub fn tokenise_expr(source: &str, dialect: Option<&str>) -> Vec<ExprToken> {
-    let mut lex = Inner::new(source, tcl_dialect::DialectProfile::by_opt_name(dialect));
+    let mut lex = Inner::new(
+        source,
+        dialect
+            .and_then(tcl_dialect::DialectProfile::find)
+            .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),
+    );
     lex.run()
 }
 
@@ -271,7 +260,12 @@ pub fn tokenise_expr_for_profile(
 /// Internal typed callers should use [`tokenise_expr_checked_for_profile`].
 #[must_use]
 pub fn tokenise_expr_checked(source: &str, dialect: Option<&str>) -> (Vec<ExprToken>, bool) {
-    tokenise_expr_checked_for_profile(source, tcl_dialect::DialectProfile::by_opt_name(dialect))
+    tokenise_expr_checked_for_profile(
+        source,
+        dialect
+            .and_then(tcl_dialect::DialectProfile::find)
+            .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),
+    )
 }
 
 /// Tokenise under an already-resolved profile and report skipped characters.
@@ -291,10 +285,16 @@ struct Inner<'s> {
     b: &'s [u8],
     s: &'s str,
     i: usize,
-    /// Whether the dialect is iRules — resolved once through the profile
+    /// The F5-family core `expr` grammar when the dialect's runtime core is
+    /// on the F5 tree, else `None` — resolved once through the profile
     /// catalog (so the `irules` / `tcl-irule` alias spellings behave like
-    /// the canonical name), gating the iRules-only word operators.
-    irules_operators: bool,
+    /// the canonical name). Gates the word-form operators
+    /// (`starts_with`, `and`, …), which are an `f5-tcl` **trunk** fact —
+    /// measured valid in tmsh and iApp `expr` too, not iRules-only
+    /// (`docs/design/bigip-irule-parser-measurements.md` §4a) — so the
+    /// acceptance reads `tcl_dialect`'s `ExprGrammar` word table directly
+    /// instead of a lexer-local iRules list.
+    f5_word_grammar: Option<&'static tcl_dialect::model::ExprGrammar>,
     /// Whether `#` starts a comment in this dialect — TIP 582, resolved
     /// through the profile's `LexerGrammar` (9.0+ only; see
     /// `tcl_dialect::LexerGrammar::expr_comments`). When false, `#` stays an
@@ -315,8 +315,11 @@ struct Inner<'s> {
     /// `expr_grammar_base`, resolved through
     /// [`tcl_dialect::is_expr_word_operator`] rather than a list held here,
     /// because *which* of them exist moves the lexeme boundary and so cannot
-    /// be settled above the lexer. `None` (plain `tcl`, iRules) takes the
-    /// newest grammar, like every other knob on `LexerGrammar`.
+    /// be settled above the lexer. `None` — the lenient `tcl` sink, the `tk`
+    /// ingress profile, and `f5-bigip` — takes the newest grammar, like every
+    /// other knob on `LexerGrammar`. Every catalogue dialect names a base:
+    /// `f5-irules`, `f5-tmsh` and `f5-iapps` are all `Some(V8_4)`, the
+    /// measured F5 fork point.
     expr_grammar_base: Option<tcl_dialect::TclVersion>,
     /// The previous emitted lexeme was a number with no intervening byte.
     /// C's successful explicit-radix path recursively starts a fresh lexeme at
@@ -331,7 +334,7 @@ impl<'s> Inner<'s> {
             b: s.as_bytes(),
             s,
             i: 0,
-            irules_operators: profile.is_irules(),
+            f5_word_grammar: profile.f5_core_expr_grammar(),
             expr_comments: profile.grammar.expr_comments.comments(),
             numbers: profile.grammar.numbers,
             braced_var: profile.grammar.braced_var,
@@ -378,7 +381,6 @@ impl<'s> Inner<'s> {
     }
 
     fn run(&mut self) -> Vec<ExprToken> {
-        let irops = irules_ops();
         let mut out = Vec::new();
         while self.i < self.b.len() {
             let follows_numeric_lexeme = self.numeric_suffix_probe;
@@ -441,7 +443,7 @@ impl<'s> Inner<'s> {
                 // is `invalid character "_"`, not `invalid bareword "_x"`,
                 // and the invalid lexeme is one character wide — the `x`
                 // after it is never joined on.
-                out.push(self.ident(&irops));
+                out.push(self.ident());
             } else if ch == b'{' {
                 out.push(self.braced());
             } else {
@@ -630,7 +632,7 @@ impl<'s> Inner<'s> {
         self.tok(ExprTokenType::String, start)
     }
 
-    fn ident(&mut self, irops: &HashSet<&str>) -> ExprToken {
+    fn ident(&mut self) -> ExprToken {
         let start = self.i;
         while self.i < self.b.len()
             && (self.b[self.i].is_ascii_alphanumeric() || self.b[self.i] == b'_')
@@ -645,7 +647,14 @@ impl<'s> Inner<'s> {
             .any(|w| text.eq_ignore_ascii_case(w));
         let kind = if is_bool {
             ExprTokenType::Bool
-        } else if self.irules_operators && irops.contains(text) {
+        } else if self
+            .f5_word_grammar
+            .is_some_and(|grammar| grammar.has_word_operator(text))
+        {
+            // The F5 word-form operators, read straight off the family's
+            // `ExprGrammar` word table (measurements §4a: a trunk fact,
+            // valid in tmsh/iApp expr too). `eq`/`ne` are also rows there
+            // but never reach this scan — the MULTI_OPS path consumed them.
             ExprTokenType::Operator
         } else {
             ExprTokenType::Function
@@ -890,6 +899,51 @@ mod tests {
     #[test]
     fn word_operator_boundary() {
         assert_eq!(texts("equal"), vec!["equal"]);
+    }
+
+    /// The F5 word-form operators are an `f5-tcl` **trunk** fact — measured
+    /// valid in tmsh and iApp `expr` too, not iRules-only
+    /// (`docs/design/bigip-irule-parser-measurements.md` §4a) — so every
+    /// F5Tcl-cored profile lexes them as one `Operator` token, derived from
+    /// the family's `ExprGrammar` word table.
+    #[test]
+    fn f5_word_operators_are_a_trunk_fact() {
+        let f5_words = [
+            "and",
+            "or",
+            "not",
+            "contains",
+            "starts_with",
+            "ends_with",
+            "equals",
+            "matches",
+            "matches_glob",
+            "matches_regex",
+        ];
+        for dialect in ["f5-irules", "f5-tmsh", "f5-iapps"] {
+            for op in f5_words {
+                let tokens = tokenise_expr(op, Some(dialect));
+                assert_eq!(tokens.len(), 1, "{dialect}: {op}");
+                assert_eq!(
+                    tokens[0].kind,
+                    ExprTokenType::Operator,
+                    "{dialect}: {op} must lex as an operator"
+                );
+            }
+        }
+        // Plain-Tcl parity: outside the F5 tree the same spellings stay
+        // barewords (function-shaped lexemes), byte-identical to before.
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
+            for op in f5_words {
+                let tokens = tokenise_expr(op, Some(dialect));
+                assert_eq!(tokens.len(), 1, "{dialect}: {op}");
+                assert_eq!(
+                    tokens[0].kind,
+                    ExprTokenType::Function,
+                    "{dialect}: {op} must stay a bareword"
+                );
+            }
+        }
     }
 
     #[test]
@@ -1143,9 +1197,7 @@ mod tests {
         );
     }
 
-    // =================================================================
     // TIP 582 `#` comments (`tclCompExpr.c:1931-1942`)
-    // =================================================================
 
     /// The comment token's text, for each comment in `source`.
     fn comments(source: &str) -> Vec<String> {

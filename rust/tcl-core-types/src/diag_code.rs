@@ -408,6 +408,7 @@ diagnostic_codes! {
     E206 => "E206", diag_internal(Error, true, "Missing close brace for a `${name}` variable reference.");
     E207 => "E207", diag_internal(Error, true, "Nesting depth exceeds the analysis limit — diagnostics past this point are not collected (matches Tcl's own `interp recursionlimit` error, but reported as a diagnostic rather than a runtime error).");
     H300 => "H300", diag(Hint, true, "Possible paste error — repeated assignment to same variable with same value.");
+    H301 => "H301", diag(Hint, true, "Command used above the `package require` that provides it — the file reads top-down as if the package were not yet loaded, though Tcl only resolves the name when the call runs.");
     I230 => "I230", diag(Hint, true, "Constant branch condition — the alternate branch is provably unreachable.");
     I231 => "I231", diag(Hint, true, "Constant switch arm condition — the arm is provably unreachable.");
     Irule1001 => "IRULE1001", diag(Irules, true, "Command invalid or ineffective in this iRules event.");
@@ -423,6 +424,7 @@ diagnostic_codes! {
     Irule2001 => "IRULE2001", diag(Irules, true, "Deprecated `matchclass` — use `class match` instead.", tag: Deprecated);
     Irule2002 => "IRULE2002", diag(Irules, true, "Deprecated iRules command.", tag: Deprecated);
     Irule2003 => "IRULE2003", diag(Irules, true, "Unsafe iRules command.");
+    Irule2004 => "IRULE2004", diag(Irules, true, "Command refused by the iRules rule compiler at load — present in TMM's interpreter and reachable via `eval` at runtime.");
     Irule2101 => "IRULE2101", diag(Irules, true, "Heavy `regexp` in a high-frequency event — consider `string match` or data-group.");
     Irule3001 => "IRULE3001", diag(IrulesSecurity, true, "Tainted data in HTTP response body.");
     Irule3002 => "IRULE3002", diag(IrulesSecurity, true, "Tainted data in HTTP header or cookie value.");
@@ -581,6 +583,9 @@ diagnostic_codes! {
     W147 => "W147", diag(Warning, true, "Mutually exclusive command options were supplied together.");
     W148 => "W148", diag(Warning, true, "Numeral spelling is not accepted by the document's resolved Tcl release.");
     W149 => "W149", diag(Warning, true, "Argument count matches a different release of the command's signature — the call fits a version window other than the one the resolved package floor selects.");
+    W150 => "W150", diag(Warning, true, "Not available across the project's declared version-target range — the item resolves at the primary target but is missing from one or more declared targets (range targeting).");
+    W151 => "W151", diag(Warning, true, "Numeral changes meaning or validity across the project's declared version-target range — e.g. a leading-zero literal is octal under Tcl 8.x targets and decimal under 9.0.");
+    W152 => "W152", diag(Warning, true, "A registry-declared option relation is unmet — an option or argument the call supplied requires a companion option or argument it did not (`-command` without `-channel`), or the invocation supplies none of a required set.");
     W200 => "W200", diag(Warning, true, "`exec` result not captured or binary format modifier requires newer Tcl.");
     W201 => "W201", diag(Warning, true, "Manual path concatenation — use `file join` instead.");
     W210 => "W210", diag(Variable, true, "Variable read before set.");

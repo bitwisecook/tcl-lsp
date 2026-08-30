@@ -73,12 +73,13 @@ use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::ssa::{
     COMPLEXITY_GUARD_BLOCKS, DEEP_ANALYSIS_BODY_BYTES, build_ssa, is_complexity_guarded,
 };
-use tcl_registry::{CommandRegistry, registry_for_dialect};
+use tcl_registry::CommandRegistry;
+use tcl_registry::model::ingress::static_context_for;
 
 const TCL: &str = "tcl8.6";
 
 fn registry() -> &'static CommandRegistry {
-    registry_for_dialect(TCL)
+    static_context_for(TCL).commands()
 }
 
 /// A straight-line chain of `n` blocks (`b0 → b1 → … → return`). Built directly
@@ -114,9 +115,7 @@ fn chain_cfg(n: usize) -> Function {
     f
 }
 
-// ===========================================================================
 // The block-count half of the guard.
-// ===========================================================================
 
 /// A body well below the ceiling is
 /// not guarded and gets a real SSA (one SSA block per CFG block).
@@ -172,13 +171,11 @@ fn tiny_function_is_not_block_guarded() {
     assert!(!is_complexity_guarded(&one));
 }
 
-// ===========================================================================
 // The body-byte half of the guard.
 //
 // The byte half is applied by `DEEP_ANALYSIS_BODY_BYTES` in
 // `CompilationUnit::build_for_with_config` over the proc's body span. These
 // tests exercise it end-to-end through `build_for`.
-// ===========================================================================
 
 /// One statement carrying a ~270 KB string literal: block-light (the block half
 /// would NOT fire) but byte-huge. Returns the source text.
@@ -304,9 +301,7 @@ fn sub_ceiling_body_is_not_byte_guarded() {
     assert!(!modest.ssa.blocks.is_empty(), "real SSA for a modest proc");
 }
 
-// ===========================================================================
 // Force-guard short-circuit — API surface with no analogue here.
-// ===========================================================================
 //
 // GAP: there is no `force_guard=True` keyword on `build_ssa(func, registry)` /
 // the analysis primitives. The byte-half

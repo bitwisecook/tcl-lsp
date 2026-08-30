@@ -31,13 +31,13 @@
 use tcl_registry::command_snapshot::{
     command_entry_json, command_registry_snapshot, command_registry_snapshots,
 };
-use tcl_registry::registry_for_dialect;
+use tcl_registry::model::ingress::static_context_for;
 use tcl_registry::snapshot::{event_graph_snapshot, object_graph_snapshot, profile_graph_snapshot};
 
 #[test]
 fn command_registry_snapshot_is_wellformed_and_deterministic() {
     for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "f5-irules"] {
-        let reg = registry_for_dialect(dialect);
+        let reg = static_context_for(dialect).commands();
         let out = command_registry_snapshot(reg, dialect).dumps_indent2();
         assert!(
             out.starts_with('{'),
@@ -69,7 +69,7 @@ fn command_registry_snapshot_is_wellformed_and_deterministic() {
 fn tcl_snapshot_contains_core_commands() {
     // tclsh `info commands` reports these on both 8.6 and 9.0, so the 8.6
     // command snapshot must list them.
-    let reg = registry_for_dialect("tcl8.6");
+    let reg = static_context_for("tcl8.6").commands();
     let out = command_registry_snapshot(reg, "tcl8.6").dumps_indent2();
     for cmd in [
         "puts", "set", "expr", "string", "lindex", "proc", "if", "foreach", "lsort",
@@ -83,7 +83,7 @@ fn tcl_snapshot_contains_core_commands() {
 
 #[test]
 fn multi_dialect_snapshot_has_schema_and_all_dialects() {
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     let dialects = ["tcl8.6", "tcl9.0"];
     let out = command_registry_snapshots(reg, &dialects).dumps_indent2();
     assert!(
@@ -101,7 +101,7 @@ fn multi_dialect_snapshot_has_schema_and_all_dialects() {
 
 #[test]
 fn command_entry_json_known_and_unknown() {
-    let reg = registry_for_dialect("tcl8.6");
+    let reg = static_context_for("tcl8.6").commands();
     // A known core command yields an entry; a bogus name yields None.
     assert!(command_entry_json(reg, "tcl8.6", "string").is_some());
     assert!(command_entry_json(reg, "tcl8.6", "no_such_command_xyz").is_none());
@@ -114,7 +114,7 @@ fn command_entry_json_known_and_unknown() {
 fn irules_snapshot_serialises_event_validity() {
     // The f5-irules path emits the per-command validEvents cross-product
     // (distinct from the constant empty-list digest the Tcl path uses).
-    let reg = registry_for_dialect("f5-irules");
+    let reg = static_context_for("f5-irules").commands();
     let out = command_registry_snapshot(reg, "f5-irules").dumps_indent2();
     // A representative iRules command is present in the dump.
     assert!(
@@ -157,9 +157,9 @@ fn snapshot_dialect_serialisation_covers_every_primitive_bit() {
     // missed the TMSH/BIGIP bits, so `registry-dump` reported
     // the shared tmsh:: specs (tagged IAPPS|TMSH) as f5-iapps-only — the
     // shape again. The serialisation now derives from
-    // `DialectSet::member_names`, so a spec's entry must name every
+    // `dialect_names_for_rows`, so a spec's entry must name every
     // canonical dialect its gate carries.
-    let reg = registry_for_dialect("f5-tmsh");
+    let reg = static_context_for("f5-tmsh").commands();
     let entry = command_entry_json(reg, "f5-tmsh", "tmsh::create")
         .expect("tmsh::create resolves under f5-tmsh")
         .dumps_indent2();

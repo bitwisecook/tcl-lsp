@@ -24,7 +24,7 @@
 //! `update.n` 8.4, 8.5, 8.6, 9.0, and 9.1 — right down to shared, unchanged
 //! wording for both the bare form and `idletasks`. A genuinely
 //! version-invariant command: nothing about its documented behaviour
-//! warrants a `dialects:`/`min_tcl` gate anywhere in this spec. The two
+//! warrants a `surface:`/`min_tcl` gate anywhere in this spec. The two
 //! cross-reference sections that *do* drift across versions are immaterial
 //! to every field below — SEE ALSO reads "after, bgerror" on 8.4 and
 //! "after, interp" from 8.5 on; KEYWORDS gains "asynchronous I/O" starting
@@ -32,6 +32,7 @@
 //! documented command behaviour.
 
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
@@ -71,22 +72,21 @@ const IDLETASKS_VALUES: &[ArgValue] = &[ArgValue {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "update",
-        // `ALL_TCL` (no `IRULES` bit) is deliberate, not an oversight:
-        // F5's TMM interpreter does ban `update` — it is one of the
-        // K36322151 event-loop bans — and that ban is now encoded directly
-        // here, as an explicit `dialects` group that omits the `IRULES`
-        // bit. `ALL_TCL` never intersects the bare `IRULES` mask, so
-        // `update` falls out of iRules by plain intersection, with no
-        // subtractive disable list; the
+        // `ALL_TCL` (no iRules row) is deliberate, not an oversight: F5's TMM
+        // interpreter does ban `update` — it is one of the K36322151
+        // event-loop bans — and that ban is now encoded directly here, as an
+        // explicit surface that omits an iRules row. `ALL_TCL` never
+        // intersects the bare `IRULES` mask, so `update` falls out of iRules
+        // by plain intersection, with no subtractive disable list; the
         // `irules_banned_commands_lack_the_irules_bit` contract test
         // (`tcl-registry/tests/dialect_profile.rs`) pins that every banned
-        // name's spec lacks the `IRULES` bit. No other dialect profile
-        // (iApps, tmsh, the EDA vendor shells, Expect, Tk, itcl) bans it or
-        // registers a competing spec of its own (none of their command
-        // directories define an `update`), and `ALL_TCL` intersects each of
-        // their version|vendor masks, so it stays reachable — and, for Tk
-        // in particular, essential — in every one of them.
-        dialects: Some(DialectSet::ALL_TCL),
+        // name's spec lacks an iRules row. No other dialect profile (iApps,
+        // tmsh, the EDA vendor shells, Expect, Tk, itcl) bans it or registers
+        // a competing spec of its own (none of their command directories
+        // define an `update`), and `ALL_TCL` intersects each of their
+        // version|vendor masks, so it stays reachable — and, for Tk in
+        // particular, essential — in every one of them.
+        surface: Some(SpecSurface::ALL_TCL),
         // BYTE_COMPILED only — this codebase's "recognised core builtin"
         // convention, not literal bytecode emission (see traits.rs). Not
         // SAFE_INTERP_HIDDEN: Tcl's safe-interpreter hidden-command table

@@ -36,7 +36,7 @@ const MATCH_OPTIONS: &[OptionSpec] = &[OptionSpec {
     name: "-nocase",
     value: OptionValue::flag(),
     detail: "Match without regard to case; the endpoints of a [x-y] range are lower-cased first, so [A-z] behaves like [A-Za-z].",
-    dialects: None,
+    surface: None,
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
@@ -205,6 +205,7 @@ fn fold_totitle(args: &[&str]) -> Option<String> {
 }
 
 use crate::const_fold::{clamp_range, parse_index};
+use tcl_dialect::model::SpecSurface;
 
 /// Fold `string match` for literal arguments.  The glob implementation is
 /// shared with the runtime-facing command core, so this callback is command
@@ -936,7 +937,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // 8.6 manpages; absent entirely from the 9.0 and 9.1 subcommand
         // lists. `TCL8X` is the exact 8.4|8.5|8.6 set — not a
         // closest-sounding stand-in.
-        dialects: Some(DialectSet::TCL8X),
+        surface: Some(SpecSurface::TCL8X),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -955,7 +956,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         return_type: Some(TclType::String),
         const_fold: Some(fold_cat),
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -973,7 +974,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     name: "-nocase",
                     value: OptionValue::flag(),
                     detail: "Compare without regard to case.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -986,7 +987,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                         ..OptionArg::DEFAULT
                     }),
                     detail: "Compare only the first length characters; a negative value is ignored (the whole string is compared).",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -1010,7 +1011,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     name: "-nocase",
                     value: OptionValue::flag(),
                     detail: "Compare without regard to case.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -1023,7 +1024,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                         ..OptionArg::DEFAULT
                     }),
                     detail: "Compare only the first length characters; a negative value is ignored (the whole string is compared).",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -1133,7 +1134,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "string insert string index insertString",
         pure: true,
         return_type: Some(TclType::String),
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         arg_types: &[(
             1,
             ArgTypeHint {
@@ -1173,7 +1174,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                     name: "-strict",
                     value: OptionValue::flag(),
                     detail: "Treat the empty string as not matching the class (by default the empty string matches every class).",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -1186,7 +1187,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                         ..OptionArg::DEFAULT
                     }),
                     detail: "Variable to receive the index where the class test failed. Left unset when string matches the class; on failure its exact contents are class-specific (e.g. -1 for a numeric overflow, the parse-failure index for list/dict, always 0 for boolean/true/false).",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -1297,7 +1298,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
                 name: "-nocase",
                 value: OptionValue::flag(),
                 detail: "Match keys without regard to case.",
-                dialects: None,
+                surface: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,
@@ -1487,7 +1488,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         return_type: Some(TclType::String),
         const_fold: Some(fold_reverse),
         // Added in Tcl 8.5.
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         arg_types: &[(
             0,
             // Subject: `TclStringReverse` calls `SetStringFromAny` in 8.6
@@ -1691,7 +1692,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
 /// `totitle`/`toupper`/`trim`/`trimleft`/`trimright`/`wordend`/`wordstart`,
 /// each with their documented options) are unchanged Tcl 8.4 → 9.1. The
 /// subcommand *set* is not, though — each gate is on the matching
-/// `SubCommand.dialects` below, not here:
+/// `SubCommand.surface` below, not here:
 ///
 /// * `reverse` — added Tcl 8.5 (absent from the 8.4 manpage's subcommand
 ///   list; present from 8.5's).
@@ -1724,18 +1725,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "string",
-        // Present and unrestricted: its `dialects` group carries the
-        // `IRULES` bit explicitly (`ALL_TCL.union(IRULES)`), so it resolves
-        // under the bare `IRULES` availability mask — a
-        // pure value-transform ensemble with no filesystem/process/network
-        // access, so every dialect that hosts a real Tcl core (irules,
-        // iapps, tmsh, the EDA shells, expect, tk, itcl) carries it
-        // unmodified. Individual subcommands and `string is` classes still
-        // narrow per Tcl version through their own `dialects`/`min_tcl`
-        // gates (enforced generically by the profile's `version_ceiling`,
-        // the same mechanism that keeps `return`'s `-level` out of
-        // iRules) — not a whole-command dialect gate.
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        // Present and unrestricted: its surface carries an iRules row
+        // explicitly (`ALL_TCL.union(IRULES)`), so it resolves under the
+        // iRules point — a pure value-transform ensemble with no
+        // filesystem/process/network access, so every dialect that hosts a
+        // real Tcl core (irules, iapps, tmsh, the EDA shells, expect, tk,
+        // itcl) carries it unmodified. Individual subcommands and `string is`
+        // classes still narrow per Tcl version through their own
+        // `dialects`/`min_tcl` gates (enforced generically by the profile's
+        // `version_ceiling`, the same mechanism that keeps `return`'s `-level`
+        // out of iRules) — not a whole-command dialect gate.
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
@@ -1758,8 +1758,9 @@ pub fn spec() -> CommandSpec {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{Family, SurfaceQuery};
+
     use super::fold_is;
-    use crate::dialects::DialectSet;
     use crate::hooks::TclVersion;
     use crate::{CommandRegistry, DispatchDependencies, DispatchDependencyDomain};
 
@@ -2095,7 +2096,10 @@ mod tests {
     #[test]
     fn string_length_dispatch_uses_only_irreducible_live_domains() {
         let registry = CommandRegistry::build_default();
-        for dialect in [DialectSet::TCL86, DialectSet::TCL90] {
+        for dialect in [
+            Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+        ] {
             let facts = registry
                 .resolve_invocation("string", &["length", "value"], dialect)
                 .expect("string length resolves")

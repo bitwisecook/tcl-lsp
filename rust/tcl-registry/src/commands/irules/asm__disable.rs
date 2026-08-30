@@ -18,10 +18,11 @@
 
 //! `ASM::disable` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ASM::disable",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Disables plugin processing on the connection.",
@@ -41,9 +42,7 @@ pub const fn spec() -> CommandSpec {
             // exceptional event explicitly while retaining the profile for an
             // informational "assumes profile" hint in other legal contexts.
             also_in: &["HTTP_CLASS_SELECTED"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "ASM::disable",

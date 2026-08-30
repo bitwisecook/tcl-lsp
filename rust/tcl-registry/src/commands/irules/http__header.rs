@@ -18,6 +18,7 @@
 
 //! `HTTP::header` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
@@ -148,14 +149,14 @@ pub const fn spec() -> CommandSpec {
         traits: Traits::PURE
             .union(Traits::CSE_CANDIDATE)
             .union(Traits::DIAGRAM_ACTION),
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(1),
         options: const {
             &[OptionSpec {
                 name: "-noupdate",
                 value: OptionValue::flag(),
                 detail: "Do not propagate the header mutation to subsequent BIG-IP filters.",
-                dialects: None,
+                surface: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,
@@ -181,9 +182,7 @@ pub const fn spec() -> CommandSpec {
             transport: Some("tcp"),
             profiles: &["FASTHTTP", "HTTP"],
             also_in: &["MR_EGRESS", "MR_INGRESS", "SERVER_CONNECTED"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "HTTP::header <subcommand> ?arg ...?",

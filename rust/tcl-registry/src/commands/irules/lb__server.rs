@@ -18,6 +18,7 @@
 
 //! `LB::server` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
@@ -152,7 +153,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "LB::server",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Returns information about the currently selected server.",
@@ -163,6 +164,22 @@ pub const fn spec() -> CommandSpec {
             source: "https://clouddocs.f5.com/api/irules/LB__server.html",
             examples: "when CLIENT_ACCEPTED {\n    # Save the name of the VIP's default pool\n    set default_pool [LB::server pool]\n}",
             return_value: "LB::server returns a Tcl list with pool, pool member address and port. If no server was selected yet or all servers are down, returns default pool name only.",
+        }),
+        // Measured on the appliance: accepted in all seven traffic
+        // events probed and refused only in `RULE_INIT`
+        // (`docs/design/bigip-irule-parser-measurements.md` §8) — the
+        // same row shape as `table`, and modelled the same way, as a
+        // plain flow requirement rather than a side or profile one. The
+        // hover example reads `LB::server pool` in `CLIENT_ACCEPTED`,
+        // before any load-balancing decision, which is why no side
+        // requirement is honest here.
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &[],
+            also_in: &[],
+            flow: true,
         }),
         forms: &[FormSpec {
             synopsis: "LB::server ?field?",

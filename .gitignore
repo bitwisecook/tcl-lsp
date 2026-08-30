@@ -85,6 +85,9 @@ perf_history.sqlite3
 
 # Ephemeral debug/test output files
 var*.txt
+# ... but the committed variable-resolution conformance vectors are project
+# source, not debug output.
+!rust/tcl-syntax/tests/data/variable_resolution_vectors.txt
 # Tcl encoding.test artefacts — encoding.test writes per-charset
 # byte/output files into the cwd when sourced through the VM tcltest
 # runner.  These are transient test fixtures, not project sources.

@@ -18,10 +18,11 @@
 
 //! `DHCPv6::peer_address` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DHCPv6::peer_address",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "This command returns peer address field from DHCPv6 RELAY message.",

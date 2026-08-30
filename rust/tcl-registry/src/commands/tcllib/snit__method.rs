@@ -26,7 +26,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "snit::method",
-        dialects: None,
+        surface: None,
         arity: Arity::exact(4),
         // Snit method bodies run in a snit dispatch context,
         // not the caller's frame.  Body at index 3.

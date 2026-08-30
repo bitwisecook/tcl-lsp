@@ -1148,13 +1148,14 @@ impl<Plan> BackendRegistry<Plan> {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::{Family, SurfaceQuery};
+
     use super::*;
     use crate::target_contract::{
         LegalisationRequirements, TargetCapabilities, TargetContract, TargetFamily, ValueFeature,
     };
     use tcl_registry::{
-        CommandRegistry, StateTransitionKnowledge, StateTransitions, dialects::DialectSet,
-        hooks::LoweringHookId,
+        CommandRegistry, StateTransitionKnowledge, StateTransitions, hooks::LoweringHookId,
     };
 
     #[derive(Debug, Clone)]
@@ -1269,7 +1270,11 @@ mod tests {
     fn closed_invocation_facts() -> InvocationFacts {
         let registry = CommandRegistry::build_default();
         let mut facts = registry
-            .resolve_invocation("incr", &["counter"], DialectSet::TCL86)
+            .resolve_invocation(
+                "incr",
+                &["counter"],
+                Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            )
             .expect("core invocation resolves")
             .facts();
         facts.effects = EffectFootprint::default();

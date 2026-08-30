@@ -493,7 +493,10 @@ fn run_store_to_load_forwarding(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     // Aliasing facts depend on the selected registry profile. Without an
     // explicit profile this optimisation cannot prove its alias safety gate,
     // so it abstains rather than interpreting every dialect at once.
-    let Some(dialect) = ctx.dialect.map(|profile| profile.availability_mask) else {
+    let Some(context) = ctx
+        .dialect
+        .map(tcl_registry::model::semantic::SemanticContext::for_profile)
+    else {
         return;
     };
 
@@ -502,7 +505,7 @@ fn run_store_to_load_forwarding(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     // fall back to a direct alias computation.
     let aliased: BTreeSet<String> = match &fu.memory_ssa {
         Some(m) => m.aliased_names(),
-        None => compute_aliases(&fu.ssa, registry, dialect)
+        None => compute_aliases(&fu.ssa, registry, Some(context))
             .iter()
             .flat_map(crate::memory_ssa::AliasSet::names)
             .collect(),
@@ -529,7 +532,7 @@ fn run_store_to_load_forwarding(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         ctx,
         fu,
         registry,
-        dialect,
+        context: Some(context),
         aliased: &aliased,
         traced: &traced,
         has_dynamic_trace,
@@ -573,7 +576,7 @@ struct ForwardEnv<'a> {
     ctx: &'a PassContext<'a>,
     fu: &'a FunctionUnit,
     registry: &'a tcl_registry::CommandRegistry,
-    dialect: tcl_registry::dialects::DialectSet,
+    context: Option<tcl_registry::model::semantic::SemanticContext>,
     aliased: &'a std::collections::BTreeSet<String>,
     traced: &'a std::collections::BTreeSet<String>,
     has_dynamic_trace: bool,
@@ -736,7 +739,7 @@ fn has_non_endpoint_wildcard_aliasing(
                 && crate::memory_ssa::statement_has_wildcard_aliasing(
                     &statement.statement,
                     env.registry,
-                    env.dialect,
+                    env.context,
                 )
         })
     })
@@ -1567,7 +1570,7 @@ fn evaluate_proc_with_constants(
     let seed = seed_params_from_args(params, args)?;
     let registry: &CommandRegistry = ctx
         .registry
-        .unwrap_or_else(|| tcl_registry::cache::default_registry());
+        .unwrap_or_else(|| tcl_registry::default_registry());
     let empty_traced = std::collections::BTreeSet::new();
     let (traced_variables, has_dynamic_variable_trace) = match ctx.ir_module {
         Some(m) => (&m.traced_variables, m.has_dynamic_variable_trace),
@@ -3059,7 +3062,7 @@ mod tests {
             &registry(),
             None,
             crate::interprocedural::ObjectTypeMap::none(),
-            crate::head_identity::HeadIdentityMap::none(),
+            crate::realm::CommandBindingRealm::none(),
         );
         assert!(
             ia.procedures.contains_key("::ns::inner"),
@@ -3099,7 +3102,7 @@ mod tests {
             &registry(),
             None,
             crate::interprocedural::ObjectTypeMap::none(),
-            crate::head_identity::HeadIdentityMap::none(),
+            crate::realm::CommandBindingRealm::none(),
         );
         assert!(
             ia.procedures.contains_key("::a::foo"),
@@ -3121,7 +3124,7 @@ mod tests {
             &registry(),
             None,
             crate::interprocedural::ObjectTypeMap::none(),
-            crate::head_identity::HeadIdentityMap::none(),
+            crate::realm::CommandBindingRealm::none(),
         );
         assert_eq!(
             resolve_proc_qname("foo", "::a::b::c", &ia2).as_deref(),
@@ -3148,7 +3151,7 @@ mod tests {
             &registry(),
             None,
             crate::interprocedural::ObjectTypeMap::none(),
-            crate::head_identity::HeadIdentityMap::none(),
+            crate::realm::CommandBindingRealm::none(),
         );
         assert!(ia.procedures.contains_key("::ns2::inner"));
         assert!(ia.procedures.contains_key("::ns::ns2::inner"));
@@ -3173,7 +3176,7 @@ mod tests {
         crate::optimiser::optimise_raw_for_profile(
             source,
             &registry(),
-            Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
         )
         .into_iter()
         .filter(|o| o.code == DiagCode::O127)

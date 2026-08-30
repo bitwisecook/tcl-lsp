@@ -18,10 +18,11 @@
 
 //! `CATEGORY::result` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "CATEGORY::result",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Returns the category or safesearch results retrieved during normal traffic flow.",
@@ -39,9 +40,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &["CATEGORY"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "CATEGORY::result (('category' ('-display' | '-id')? ('custom' | 'request_default' | 'request_default_and_custom')?) | 'safesearch')",
@@ -53,7 +52,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-display",
                     value: OptionValue::flag(),
                     detail: "Return categories in display name format.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -62,7 +61,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-id",
                     value: OptionValue::flag(),
                     detail: "Return categories in ID format.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,

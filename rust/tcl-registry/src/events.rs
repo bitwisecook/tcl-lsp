@@ -175,14 +175,38 @@ pub struct EventHandlerPriority {
     pub keyword: &'static str,
     /// Priority used by the runtime when the keyword is omitted.
     pub default_priority: u16,
+    /// The smallest valid priority value (inclusive).
+    pub min_priority: u16,
+    /// The largest valid priority value (inclusive).
+    pub max_priority: u16,
+    /// Whether a lower number runs first (ascending execution order).
+    pub lower_runs_first: bool,
     /// Whether an omitted priority is reportable in this dialect.
     pub warn_when_implicit: bool,
 }
 
-/// BIG-IP's `when` priority policy: priority defaults to 500.
+impl EventHandlerPriority {
+    /// Whether `value` is a valid priority under this policy.
+    #[must_use]
+    pub fn accepts(&self, value: u16) -> bool {
+        (self.min_priority..=self.max_priority).contains(&value)
+    }
+}
+
+/// BIG-IP's `when` priority policy, live-measured
+/// (`docs/design/bigip-irule-parser-measurements.md` §6/§8): priority is
+/// **0–1000 inclusive** (`1001` and `-1` are rejected at rule load, albeit
+/// with the misleading `unexpected extra argument` wording), the default
+/// is **500** — the midpoint — and **lower numbers run first** (attached
+/// as `{low default high}`, execution order was priority 100, then the
+/// implicit 500, then 900; an `HTTP::respond` in an earlier rule did not
+/// stop later ones).
 pub const BIGIP_EVENT_HANDLER_PRIORITY: EventHandlerPriority = EventHandlerPriority {
     keyword: "priority",
     default_priority: 500,
+    min_priority: 0,
+    max_priority: 1000,
+    lower_runs_first: true,
     warn_when_implicit: false,
 };
 
@@ -762,8 +786,8 @@ impl EventProps {
 ///
 /// Embedded on command specs via `excluded_events` and `EventRequires`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-// `client_side` / `server_side` / `init_only` / `flow` are
-// orthogonal protocol-stack requirements. Same deferral as
+// `client_side` / `server_side` / `flow` are orthogonal
+// protocol-stack requirements. Same deferral as
 // [`EventProps`]: registry public surface, static-data literals.
 #[allow(clippy::struct_excessive_bools)]
 pub struct EventRequires {
@@ -777,12 +801,8 @@ pub struct EventRequires {
     pub profiles: &'static [&'static str],
     /// Events where the command is unconditionally valid.
     pub also_in: &'static [&'static str],
-    /// Only valid in `RULE_INIT`.
-    pub init_only: bool,
     /// Requires active traffic flow.
     pub flow: bool,
-    /// Required profile capability (e.g. `"sni"`).
-    pub capability: Option<&'static str>,
 }
 
 /// Event-validity override for one literal command-argument prefix.
@@ -1134,7 +1154,7 @@ pub fn top_level_when_handlers(source: &str) -> Vec<tcl_syntax::event_handler::E
     let resolver = WrittenHeadResolver;
     top_level_when_handlers_with_registry_and_head_resolver(
         source,
-        crate::registry_for_dialect("f5-irules"),
+        crate::model::ingress::static_context_for("f5-irules").commands(),
         &resolver,
     )
 }
@@ -1329,9 +1349,6 @@ pub fn event_satisfies(
     event_name: &str,
     profiles: &crate::profiles::ProfileRegistry,
 ) -> bool {
-    if requires.init_only {
-        return event_name == "RULE_INIT";
-    }
     if requires.also_in.contains(&event_name) {
         return true;
     }
@@ -4466,7 +4483,7 @@ mod tests {
 
     #[test]
     fn event_scan_ignores_case_and_unavailable_apply_when_words() {
-        let registry = crate::registry_for_dialect("f5-irules");
+        let registry = crate::model::ingress::static_context_for("f5-irules").commands();
         let source = r"
             switch -- $x { a { when CLIENT_DATA {} } default { when SERVER_DATA {} } }
             apply {{} { when HTTP_REQUEST {} }}
@@ -4485,7 +4502,7 @@ mod tests {
 
     #[test]
     fn non_irules_definition_bodies_are_not_event_handlers() {
-        let tcl = crate::registry_for_dialect("tcl9.0");
+        let tcl = crate::model::ingress::static_context_for("tcl9.0").commands();
         let source = r"
             oo::class create C {
                 method m {} { when HTTP_REQUEST {} }
@@ -4512,7 +4529,7 @@ mod tests {
         ";
         let events: Vec<_> = top_level_when_handlers_with_registry_and_head_resolver(
             source,
-            crate::registry_for_dialect("tcl8.6"),
+            crate::model::ingress::static_context_for("tcl8.6").commands(),
             &WrittenHeadResolver,
         )
         .into_iter()
@@ -4532,7 +4549,7 @@ mod tests {
         ";
         let events: Vec<_> = top_level_when_handlers_with_registry_and_head_resolver(
             source,
-            crate::registry_for_dialect("tcl9.0"),
+            crate::model::ingress::static_context_for("tcl9.0").commands(),
             &WrittenHeadResolver,
         )
         .into_iter()

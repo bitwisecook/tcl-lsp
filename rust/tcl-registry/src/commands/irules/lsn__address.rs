@@ -18,10 +18,11 @@
 
 //! `LSN::address` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "LSN::address",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Explicitly set the translation address regardless of the configured LSN pool.",
@@ -56,9 +57,7 @@ pub const fn spec() -> CommandSpec {
                 "SIP_REQUEST",
                 "STREAM_MATCHED",
             ],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "LSN::address TRANSLATION_ADDR",

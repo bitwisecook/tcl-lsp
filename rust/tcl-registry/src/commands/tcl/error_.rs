@@ -20,6 +20,7 @@
 
 use crate::hooks::InlineCodegenHookId;
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "error message ?info? ?code?",
@@ -39,19 +40,18 @@ const COMPLETION_CODES: &[CompletionCode] = &[CompletionCode::Error];
 /// `-errorinfo`/`-errorcode` *return options* instead. The underlying
 /// behaviour (and the `errorCode` default of `"NONE"` when `code` is
 /// omitted) is unchanged — this is a documentation vocabulary change, not
-/// a dialects: gate, so it is captured in the hover snippet's prose rather
+/// a surface: gate, so it is captured in the hover snippet's prose rather
 /// than a version split.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "error",
-        // Present and unrestricted: its `dialects` group explicitly carries
-        // the `IRULES` bit (unlike the TMM-sandbox-banned commands, whose
-        // bare `ALL_TCL` group never intersects the `IRULES` mask) — `error`
-        // is a pure exception-raising primitive with no
-        // filesystem/process/network access, so every dialect that hosts a
-        // real Tcl core (irules, iapps, tmsh, the EDA shells, expect, tk)
-        // carries it unmodified.
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        // Present and unrestricted: its surface explicitly carries an iRules
+        // row (unlike the TMM-sandbox-banned commands, whose bare `ALL_TCL`
+        // surface never intersects the `IRULES` mask) — `error` is a pure
+        // exception-raising primitive with no filesystem/process/network
+        // access, so every dialect that hosts a real Tcl core (irules, iapps,
+        // tmsh, the EDA shells, expect, tk) carries it unmodified.
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         // `LANGUAGE_KEYWORD`, like its sibling `throw`: both raise an exception
         // and both are `TERMINATES_BLOCK`. `error` carried neither the trait nor
         // any keyword colouring, so `catch { error boom }` painted `catch` as a

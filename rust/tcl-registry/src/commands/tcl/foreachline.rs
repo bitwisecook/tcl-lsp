@@ -37,6 +37,7 @@
 
 use crate::hooks::LoweringHookId;
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "foreachLine varName filename body",
@@ -71,7 +72,7 @@ pub fn spec() -> CommandSpec {
             // alongside `parray`/`auto_load`), autoloaded and available for
             // a script to redefine — redefining it must not fire W113.
             | Traits::OVERRIDABLE_LIBRARY_PROC,
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         arity: Arity::new(3, 3),
         arg_roles: &[(0, ArgRole::VarWrite), (2, ArgRole::Body)],
         return_type: Some(TclType::String),

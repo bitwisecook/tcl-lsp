@@ -32,7 +32,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fileutil::install",
-        dialects: None,
+        surface: None,
         arity: Arity::at_least(2),
         hover: Some(HoverSnippet {
             summary: "Copy a file and optionally set permissions.",

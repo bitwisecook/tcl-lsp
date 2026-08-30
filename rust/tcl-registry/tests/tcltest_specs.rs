@@ -22,8 +22,9 @@
 //! command surface, per-version dialect gating, and the option surface of
 //! `test` / `configure`.
 
-use tcl_dialect::DialectSet;
+use tcl_dialect::model::{Family, SurfaceQuery};
 use tcl_registry::CommandRegistry;
+use tcl_registry::model::ingress::static_document_context_for;
 
 fn reg() -> CommandRegistry {
     CommandRegistry::build_default()
@@ -63,9 +64,14 @@ fn public_tcltest_commands_are_registered() {
 
 #[test]
 fn tcltest_and_harness_commands_are_never_in_irules_or_iapps() {
-    // tcltest and the C test-harness commands are Tcl-only; they must not leak
-    // into the restricted F5 iRules / iApps dialects.
+    // These are test-harness commands; they must not leak into the restricted
+    // F5 environments.  The exclusion is an *environment* fact — iApps rides a
+    // real Tcl 8.4 core, so the Tcl surface rows admit it — so the question is
+    // asked of the context, not the point.
     let r = reg();
+    // The `tcltest` package's own commands are gated by their require, which
+    // an ambient-plus-require world (iApps) answers "not loaded" (Q7) and a
+    // closed world (iRules) answers "unloadable".
     for name in [
         "tcltest::test",
         "tcltest::configure",
@@ -73,6 +79,23 @@ fn tcltest_and_harness_commands_are_never_in_irules_or_iapps() {
         "tcltest::testConstraint",
         "tcltest::makeFile",
         "tcltest::bytestring",
+    ] {
+        let spec = r.get(name).unwrap_or_else(|| panic!("{name} registered"));
+        for environment in ["f5-irules", "f5-iapps"] {
+            assert!(
+                !static_document_context_for(environment).spec_available(spec),
+                "{name} must not be available in {environment}"
+            );
+        }
+        assert!(
+            spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.6"))),
+            "{name} must stay available under a real Tcl version"
+        );
+    }
+    // The C harness commands carry no package gate — they are compiled into
+    // the `tcltest` binary rather than loaded — so only a closed world, whose
+    // surface is explicit per spec, excludes them.
+    for name in [
         "testchannel",
         "testobj",
         "teststringobj",
@@ -81,18 +104,13 @@ fn tcltest_and_harness_commands_are_never_in_irules_or_iapps() {
     ] {
         let spec = r.get(name).unwrap_or_else(|| panic!("{name} registered"));
         assert!(
-            !spec.supports_dialect(DialectSet::IRULES),
+            !static_document_context_for("f5-irules").spec_available(spec),
             "{name} must not be available in f5-irules"
         );
         assert!(
-            !spec.supports_dialect(DialectSet::IAPPS),
-            "{name} must not be available in f5-iapps"
-        );
-        // …but must remain available under a real Tcl core version.
-        assert!(
-            spec.supports_dialect(DialectSet::TCL84)
-                || spec.supports_dialect(DialectSet::TCL86)
-                || spec.supports_dialect(DialectSet::TCL90),
+            spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.4")))
+                || spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.6")))
+                || spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.0"))),
             "{name} must stay available under some Tcl version"
         );
     }
@@ -107,7 +125,10 @@ fn test_command_declares_a_symbol_definer() {
     use tcl_registry::symbol_def::DefinedSymbolKind;
     let r = reg();
     let sym = r
-        .defines_symbol("tcltest::test", DialectSet::ALL_TCL)
+        .defines_symbol(
+            "tcltest::test",
+            Some(SurfaceQuery::any_release(Family::Tcl)),
+        )
         .expect("tcltest::test should declare a symbol definer");
     assert_eq!(sym.name_arg, 0, "test name is the first argument");
     assert_eq!(
@@ -126,12 +147,16 @@ fn test_command_declares_a_symbol_definer() {
     // A plain command that defines no outline symbol returns `None` — the
     // mechanism is opt-in, not blanket.
     assert!(
-        r.defines_symbol("puts", DialectSet::ALL_TCL).is_none(),
+        r.defines_symbol("puts", Some(SurfaceQuery::any_release(Family::Tcl)))
+            .is_none(),
         "puts defines no outline symbol"
     );
     assert!(
-        r.defines_symbol("tcltest::cleanupTests", DialectSet::ALL_TCL)
-            .is_none(),
+        r.defines_symbol(
+            "tcltest::cleanupTests",
+            Some(SurfaceQuery::any_release(Family::Tcl))
+        )
+        .is_none(),
         "cleanupTests defines no outline symbol"
     );
 }
@@ -154,11 +179,17 @@ fn c_harness_commands_are_registered_and_version_gated() {
         "testgotsig",
     ] {
         let spec = r.get(name).unwrap_or_else(|| panic!("{name} registered"));
-        assert!(spec.supports_dialect(DialectSet::TCL84), "{name} in 8.4");
-        assert!(spec.supports_dialect(DialectSet::TCL91), "{name} in 9.1");
+        assert!(
+            spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.4"))),
+            "{name} in 8.4"
+        );
+        assert!(
+            spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.1"))),
+            "{name} in 9.1"
+        );
         // Harness commands never leak into the restricted F5 dialects.
         assert!(
-            !spec.supports_dialect(DialectSet::IRULES),
+            !spec.supports_dialect(Some(SurfaceQuery::any_release(Family::F5Irules))),
             "{name} must not be in f5-irules"
         );
     }
@@ -173,23 +204,32 @@ fn c_harness_commands_are_registered_and_version_gated() {
         "testutftonormalizeddstring",
     ] {
         let spec = r.get(name).unwrap_or_else(|| panic!("{name} registered"));
-        assert!(spec.supports_dialect(DialectSet::TCL91), "{name} in 9.1");
         assert!(
-            !spec.supports_dialect(DialectSet::TCL90),
+            spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.1"))),
+            "{name} in 9.1"
+        );
+        assert!(
+            !spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.0"))),
             "{name} must be 9.1-only"
         );
         assert!(
-            !spec.supports_dialect(DialectSet::TCL84),
+            !spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.4"))),
             "{name} absent in 8.4"
         );
     }
 
     // `testfork` was added in 8.5.
     let fork = r.get("testfork").expect("testfork registered");
-    assert!(fork.supports_dialect(DialectSet::TCL85), "testfork in 8.5");
-    assert!(fork.supports_dialect(DialectSet::TCL91), "testfork in 9.1");
     assert!(
-        !fork.supports_dialect(DialectSet::TCL84),
+        fork.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.5"))),
+        "testfork in 8.5"
+    );
+    assert!(
+        fork.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.1"))),
+        "testfork in 9.1"
+    );
+    assert!(
+        !fork.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.4"))),
         "testfork not 8.4"
     );
 
@@ -197,10 +237,16 @@ fn c_harness_commands_are_registered_and_version_gated() {
     // removed in 9.0.
     for name in ["testgetdefenc", "testgetopenfile", "testsetdefenc"] {
         let spec = r.get(name).unwrap_or_else(|| panic!("{name} registered"));
-        assert!(spec.supports_dialect(DialectSet::TCL84), "{name} in 8.4");
-        assert!(spec.supports_dialect(DialectSet::TCL86), "{name} in 8.6");
         assert!(
-            !spec.supports_dialect(DialectSet::TCL90),
+            spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.4"))),
+            "{name} in 8.4"
+        );
+        assert!(
+            spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.6"))),
+            "{name} in 8.6"
+        );
+        assert!(
+            !spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.0"))),
             "{name} removed in 9.0"
         );
     }
@@ -215,7 +261,10 @@ fn testconstraint_and_custommatch_declare_their_own_symbol_kinds() {
     let r = reg();
 
     let constraint = r
-        .defines_symbol("tcltest::testConstraint", DialectSet::ALL_TCL)
+        .defines_symbol(
+            "tcltest::testConstraint",
+            Some(SurfaceQuery::any_release(Family::Tcl)),
+        )
         .expect("testConstraint should declare a symbol definer");
     assert_eq!(constraint.name_arg, 0);
     assert_eq!(constraint.kind, DefinedSymbolKind::Constraint);
@@ -224,7 +273,10 @@ fn testconstraint_and_custommatch_declare_their_own_symbol_kinds() {
     assert_eq!(constraint.detail_arg, Some(1));
 
     let matcher = r
-        .defines_symbol("tcltest::customMatch", DialectSet::ALL_TCL)
+        .defines_symbol(
+            "tcltest::customMatch",
+            Some(SurfaceQuery::any_release(Family::Tcl)),
+        )
         .expect("customMatch should declare a symbol definer");
     assert_eq!(matcher.name_arg, 0);
     assert_eq!(matcher.kind, DefinedSymbolKind::Matcher);
@@ -246,10 +298,10 @@ fn bytestring_is_tcl8_only() {
     // `tcltest::bytestring` is guarded out under Tcl 9.0+ (tcltest 2.5.10).
     let r = reg();
     let spec = r.get("tcltest::bytestring").expect("bytestring registered");
-    assert!(spec.supports_dialect(DialectSet::TCL84));
-    assert!(spec.supports_dialect(DialectSet::TCL86));
-    assert!(!spec.supports_dialect(DialectSet::TCL90));
-    assert!(!spec.supports_dialect(DialectSet::TCL91));
+    assert!(spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.4"))));
+    assert!(spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.6"))));
+    assert!(!spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.0"))));
+    assert!(!spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.1"))));
 }
 
 #[test]
@@ -260,42 +312,51 @@ fn c_harness_commands_are_version_gated() {
     // USE_OBSOLETE_FS_HOOKS`) from Tcl 8.5 onwards.
     for name in ["testaccessproc", "teststatproc", "testopenfilechannelproc"] {
         let spec = r.get(name).unwrap_or_else(|| panic!("{name} registered"));
-        assert!(spec.supports_dialect(DialectSet::TCL84), "{name} in 8.4");
-        assert!(!spec.supports_dialect(DialectSet::TCL85), "{name} not 8.5");
-        assert!(!spec.supports_dialect(DialectSet::TCL86), "{name} not 8.6");
+        assert!(
+            spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.4"))),
+            "{name} in 8.4"
+        );
+        assert!(
+            !spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.5"))),
+            "{name} not 8.5"
+        );
+        assert!(
+            !spec.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.6"))),
+            "{name} not 8.6"
+        );
     }
 
     // `testevent` is registered as far back as 8.4 (via `Tcl_CreateObjCommand(
     // interp, "testevent", …)` — a whitespace variant), so it is all-Tcl.
     let event = r.get("testevent").expect("testevent registered");
-    assert!(event.supports_dialect(DialectSet::TCL84));
-    assert!(event.supports_dialect(DialectSet::TCL90));
+    assert!(event.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.4"))));
+    assert!(event.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.0"))));
 
     // 8.4 only.
     let convertobj = r.get("testconvertobj").expect("testconvertobj registered");
-    assert!(convertobj.supports_dialect(DialectSet::TCL84));
-    assert!(!convertobj.supports_dialect(DialectSet::TCL85));
+    assert!(convertobj.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.4"))));
+    assert!(!convertobj.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.5"))));
 
     // `teststaticpkg` (8.x) was renamed to `teststaticlibrary` (9.0+).
     let pkg = r.get("teststaticpkg").expect("teststaticpkg registered");
-    assert!(pkg.supports_dialect(DialectSet::TCL86));
-    assert!(!pkg.supports_dialect(DialectSet::TCL90));
+    assert!(pkg.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.6"))));
+    assert!(!pkg.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.0"))));
     let lib = r
         .get("teststaticlibrary")
         .expect("teststaticlibrary registered");
-    assert!(lib.supports_dialect(DialectSet::TCL90));
-    assert!(!lib.supports_dialect(DialectSet::TCL86));
+    assert!(lib.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.0"))));
+    assert!(!lib.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.6"))));
 
     // `testsaveresult` was removed in 9.0.
     let saveresult = r.get("testsaveresult").expect("testsaveresult registered");
-    assert!(saveresult.supports_dialect(DialectSet::TCL86));
-    assert!(!saveresult.supports_dialect(DialectSet::TCL90));
+    assert!(saveresult.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.6"))));
+    assert!(!saveresult.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.0"))));
 
     // `testcmdobj2` is 9.0+ only.
     let cmdobj2 = r.get("testcmdobj2").expect("testcmdobj2 registered");
-    assert!(cmdobj2.supports_dialect(DialectSet::TCL90));
-    assert!(cmdobj2.supports_dialect(DialectSet::TCL91));
-    assert!(!cmdobj2.supports_dialect(DialectSet::TCL86));
+    assert!(cmdobj2.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.0"))));
+    assert!(cmdobj2.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "9.1"))));
+    assert!(!cmdobj2.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.6"))));
 }
 
 #[test]
@@ -347,13 +408,21 @@ fn test_error_code_option_needs_tcltest_2_5() {
     // the option is gated by Tcl core dialect instead: hidden under 8.5,
     // offered under 8.6+ (which bundles tcltest 2.5).
     assert!(
-        spec.find_option("-errorCode", Some(DialectSet::TCL85), None)
-            .is_none(),
+        spec.find_option(
+            "-errorCode",
+            Some(SurfaceQuery::core(Family::Tcl, "8.5")),
+            None
+        )
+        .is_none(),
         "-errorCode hidden under Tcl 8.5 with no package floor"
     );
     assert!(
-        spec.find_option("-errorCode", Some(DialectSet::TCL86), None)
-            .is_some(),
+        spec.find_option(
+            "-errorCode",
+            Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            None
+        )
+        .is_some(),
         "-errorCode offered under Tcl 8.6"
     );
     // Options present since 2.2 remain available at every floor.
@@ -378,19 +447,27 @@ fn configure_iterations_option_needs_tcltest_2_6() {
     );
     // No package floor: gated by core dialect — offered only under 9.1.
     assert!(
-        spec.find_option("-iterations", Some(DialectSet::TCL91), None)
-            .is_some(),
+        spec.find_option(
+            "-iterations",
+            Some(SurfaceQuery::core(Family::Tcl, "9.1")),
+            None
+        )
+        .is_some(),
         "-iterations offered under Tcl 9.1"
     );
     assert!(
-        spec.find_option("-iterations", Some(DialectSet::TCL90), None)
-            .is_none(),
+        spec.find_option(
+            "-iterations",
+            Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+            None
+        )
+        .is_none(),
         "-iterations hidden under Tcl 9.0 (bundles tcltest 2.5.10)"
     );
     // The 18 pre-2.6 options stay available everywhere.
     for opt in ["-verbose", "-match", "-debug", "-singleproc", "-loadfile"] {
         assert!(
-            spec.find_option(opt, Some(DialectSet::TCL84), None)
+            spec.find_option(opt, Some(SurfaceQuery::core(Family::Tcl, "8.4")), None)
                 .is_some(),
             "{opt} should be available under Tcl 8.4"
         );

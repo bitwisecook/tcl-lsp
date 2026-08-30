@@ -32,7 +32,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fileutil::appendToFile",
-        dialects: None,
+        surface: None,
         arity: Arity::at_least(2),
         hover: Some(HoverSnippet {
             summary: "Append data to a file.",

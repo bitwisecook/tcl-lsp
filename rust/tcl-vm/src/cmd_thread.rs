@@ -236,9 +236,7 @@ fn shared(vm: &Vm) -> Result<Arc<Shared>, Completion<Value>> {
         .ok_or_else(|| err("thread package not available in this interpreter"))
 }
 
-// ===========================================================================
 // thread::*
-// ===========================================================================
 
 /// `thread::id` — this interpreter's thread id.
 fn cmd_thread_id(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
@@ -514,9 +512,7 @@ fn job_result(comp: Result<Completion<Value>, TclError>) -> JobResult {
     }
 }
 
-// ===========================================================================
 // thread::mutex / cond / rwmutex — synchronisation primitives
-// ===========================================================================
 
 /// A named exclusive lock whose `lock`/`unlock` span *separate* command calls,
 /// so it can't use a native `MutexGuard` (that is bound to one stack frame). It
@@ -798,9 +794,7 @@ fn cmd_thread_rwmutex(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
-// ===========================================================================
 // tpool::* — worker pools
-// ===========================================================================
 
 /// A worker pool: a shared job queue drained by a fixed set of persistent worker
 /// `Vm`s (each keeps its state across jobs, as Tcl's do), plus a results table.
@@ -1123,9 +1117,7 @@ fn no_such(kind: &str, handle: &str) -> String {
     format!("{kind} \"{handle}\" does not exist")
 }
 
-// ===========================================================================
 // tsv::* — thread shared variables
-// ===========================================================================
 
 /// Run `f` against the shared `tsv` store, returning its result.
 fn with_tsv<T>(

@@ -20,6 +20,7 @@
 
 use crate::hooks::CodegenHookId;
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 // `tailcall` is a Tcl 8.6 addition (TIP 285, alongside the NRE engine):
 // tailcall.html 404s with a genuine "URL Not Found" page — not a redirect
@@ -53,23 +54,22 @@ pub fn spec() -> CommandSpec {
         name: "tailcall",
         // `TCL86_PLUS` also, via the mask-intersection rule
         // `CommandSpec::supports_dialect` / `ProfileQueries::is_available`
-        // apply, already resolves availability correctly for every
-        // non-core dialect with no extra gate needed: `f5-irules`'s
-        // profile mask is the bare `IRULES` bit (an embedded Tcl 8.4.6
-        // core — `tcl-dialect/src/profile.rs`), and `f5-iapps`/`f5-tmsh`/
-        // the Quartus/Mentor/Xilinx EDA shells all mask in `TCL85` (their
-        // documented Tcl base) — none of those five intersect
-        // `TCL86_PLUS`, so `tailcall` is correctly unavailable in all six.
-        // Expect and the Cadence/Synopsys EDA shells mask in `TCL86`, and
-        // BPF masks in `TCL90` — all four intersect `TCL86_PLUS`, so
-        // `tailcall` correctly resolves there too (each embeds a real
-        // 8.6+ core with no disable list of its own touching it —
-        // confirmed by grepping `irules/`, `iapps/`, `expect/`, `eda_*/`,
-        // `tk/`, and `itcl/` for `"tailcall"`: no dialect overrides or
-        // bans it). `f5-bigip`'s mask carries no Tcl-version bit at all
-        // (a config-file surface, not a Tcl command surface), so it is
-        // unaffected either way.
-        dialects: Some(DialectSet::TCL86_PLUS),
+        // apply, already resolves availability correctly for every non-core
+        // dialect with no extra gate needed: `f5-irules`'s profile point is
+        // the iRules family alone (an embedded Tcl 8.4.6 core —
+        // `tcl-dialect/src/profile.rs`), and `f5-iapps`/`f5-tmsh`/ the
+        // Quartus/Mentor/Xilinx EDA shells all mask in `TCL85` (their
+        // documented Tcl base) — none of those five intersect `TCL86_PLUS`, so
+        // `tailcall` is correctly unavailable in all six. Expect and the
+        // Cadence/Synopsys EDA shells mask in `TCL86`, and BPF masks in
+        // `TCL90` — all four intersect `TCL86_PLUS`, so `tailcall` correctly
+        // resolves there too (each embeds a real 8.6+ core with no disable
+        // list of its own touching it — confirmed by grepping `irules/`,
+        // `iapps/`, `expect/`, `eda_*/`, `tk/`, and `itcl/` for `"tailcall"`:
+        // no dialect overrides or bans it). `f5-bigip`'s mask carries no Tcl
+        // release at all (a config-file surface, not a Tcl command surface),
+        // so it is unaffected either way.
+        surface: Some(SpecSurface::TCL86_PLUS),
         // `tailcall command ?arg ...?` is variadic, so an ordinary call
         // like `tailcall dispatch key {status ok}` (exactly four words,
         // the last brace-quoted) matches the `HEAD NAME ARGS BODY`

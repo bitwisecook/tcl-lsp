@@ -153,10 +153,8 @@ impl EbpfSemanticBridge {
     ) -> EbpfRegionEligibility {
         let executable = match bundle.executable() {
             ExecutableAnalysisAvailability::Available(facts) => &facts.function,
-            ExecutableAnalysisAvailability::DialectUnavailable { dialect } => {
-                return EbpfRegionEligibility::Declined(EbpfRegionDecline::DialectUnavailable {
-                    dialect: *dialect,
-                });
+            ExecutableAnalysisAvailability::ContextUnavailable => {
+                return EbpfRegionEligibility::Declined(EbpfRegionDecline::ContextUnavailable);
             }
             ExecutableAnalysisAvailability::WorldStateDeclined { decline, .. } => {
                 return EbpfRegionEligibility::Declined(EbpfRegionDecline::WorldStateDeclined(
@@ -359,7 +357,7 @@ fn semantic_failures(facts: &InvocationFacts) -> Vec<EbpfSemanticFailure> {
     }
     let legacy = facts.effects.legacy();
     if !facts.effects.accesses().is_empty()
-        || !legacy.command_table_effects.is_empty()
+        || legacy.command_table_mutation
         || !legacy.frame_effects.is_empty()
         || !legacy.side_effects.is_empty()
     {
@@ -403,11 +401,10 @@ pub enum EbpfRegionEligibility {
 /// Why the bridge could not seal a candidate region.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EbpfRegionDecline {
-    /// The semantic bundle did not select one registry dialect profile.
-    DialectUnavailable {
-        /// The supplied dialect mask.
-        dialect: tcl_registry::dialects::DialectSet,
-    },
+    /// The semantic bundle carried no resolved environment (ledger C1 /
+    /// redesign §11.2 D1: the retired form carried the mask that named no one
+    /// profile; an absent context is the whole of that state now).
+    ContextUnavailable,
     /// The source was outside the current executable semantic subset.
     SourceDeclined(tcl_compiler::executable_ir::SourceCompatibilityDecline),
     /// Common world-state SSA could not be built for the executable function.
@@ -501,11 +498,15 @@ pub enum EbpfSemanticFailure {
 mod tests {
     use super::*;
     use tcl_compiler::lowering::lower_to_ir;
-    use tcl_registry::dialects::DialectSet;
-    use tcl_registry::registry_for_dialect;
+    use tcl_registry::model::ingress::static_context_for;
+    use tcl_registry::model::semantic::SemanticContext;
 
     fn bpf_registry() -> &'static CommandRegistry {
-        registry_for_dialect("bpf")
+        static_context_for("bpf").commands()
+    }
+
+    fn bpf_context() -> SemanticContext {
+        SemanticContext::for_environment("bpf")
     }
 
     #[test]
@@ -514,7 +515,7 @@ mod tests {
         let module = lower_to_ir("setint result {1}", registry);
         let bundle = SemanticAnalysisBundle::build(
             registry,
-            DialectSet::BPF,
+            Some(bpf_context()),
             &module.top_level,
             tcl_compiler::dispatch_proof::DispatchEntryAssumption::PristineRegistryWorld,
         );
@@ -538,7 +539,7 @@ mod tests {
         let module = lower_to_ir("set result 1", registry);
         let bundle = SemanticAnalysisBundle::build(
             registry,
-            DialectSet::BPF,
+            Some(bpf_context()),
             &module.top_level,
             tcl_compiler::dispatch_proof::DispatchEntryAssumption::PristineRegistryWorld,
         );
@@ -611,7 +612,7 @@ mod tests {
         let module = lower_to_ir("setint result {1}", registry);
         let bundle = SemanticAnalysisBundle::build(
             registry,
-            DialectSet::BPF,
+            Some(bpf_context()),
             &module.top_level,
             tcl_compiler::dispatch_proof::DispatchEntryAssumption::PristineRegistryWorld,
         );

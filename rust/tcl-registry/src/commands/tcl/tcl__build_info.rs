@@ -41,35 +41,34 @@
 //
 // No dialect directory (irules/, expect/, eda_*/, iapps/, tk/, itcl/)
 // references `build-info`/`build_info`, and none of those dialects model a
-// base Tcl core version of 9.0 or later
-// (`DialectSet::expr_grammar_base_version` tops out at 8.6 for every one
-// of them; f5-tmsh in particular runs an 8.5 base per
-// `tcl-dialect/src/profile.rs`), so a `TCL90_PLUS` gate below already
-// excludes every one of them on the version axis alone — the same
-// reasoning `lremove.rs` documents for its own plain `TCL90_PLUS` gate.
-// That version gate is the whole mechanism for both spellings
-// ("::tcl::build-info" and "tcl::build-info"): `TCL90_PLUS` carries no
-// `IRULES` bit, so neither ever intersects iRules' bare `IRULES` mask, and
-// iRules' genuine embedded Tcl 8.4.6 core (`return_.rs`'s/`pwd.rs`'s notes
-// on `f5-irules`'s signature_base/runtime_base/version_ceiling) could never
-// reach a Tcl-9.0-only command regardless. No separate per-dialect
-// exclusion is needed, and there is no disable list. Separately, a stray,
+// base Tcl core version of 9.0 or later (`DialectProfile::expr_grammar_base`
+// tops out at 8.6 for every one of them; f5-tmsh in particular runs an 8.5
+// base per `tcl-dialect/src/profile.rs`), so a `TCL90_PLUS` gate below already
+// excludes every one of them on the version axis alone — the same reasoning
+// `lremove.rs` documents for its own plain `TCL90_PLUS` gate. That version
+// gate is the whole mechanism for both spellings ("::tcl::build-info" and
+// "tcl::build-info"): `TCL90_PLUS` carries no iRules row, so neither ever
+// intersects iRules' bare `IRULES` mask, and iRules' genuine embedded Tcl
+// 8.4.6 core (`return_.rs`'s/`pwd.rs`'s notes on `f5-irules`'s
+// signature_base/runtime_base/version_ceiling) could never reach a
+// Tcl-9.0-only command regardless. No separate per-dialect exclusion is
+// needed, and there is no disable list. Separately, a stray,
 // generator-artifact `CommandSpec` literally named "::tcl::build-info" that
-// used to sit inside
-// `commands/tcl/mathop_generated.rs`'s hand-expanded `tcl::mathop` operator
-// table (between the `-` and `/` entries) is also gone now that file is
-// derived directly from `tcl_syntax::expr::operators`.
+// used to sit inside `commands/tcl/mathop_generated.rs`'s hand-expanded
+// `tcl::mathop` operator table (between the `-` and `/` entries) is also gone
+// now that file is derived directly from `tcl_syntax::expr::operators`.
 
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
-// `?field?` is Tcl 9.0+ only (see the module doc comment above for the
-// full version evidence) — the form's own `dialects` says so directly, and
-// it matches the command-level `TCL90_PLUS` gate below: `TCL90_PLUS`
-// carries no `IRULES` bit, so `tcl::build-info` is excluded from iRules by
-// its version gate alone, not by any disable list.
+// `?field?` is Tcl 9.0+ only (see the module doc comment above for the full
+// version evidence) — the form's own `dialects` says so directly, and it
+// matches the command-level `TCL90_PLUS` gate below: `TCL90_PLUS` carries no
+// iRules row, so `tcl::build-info` is excluded from iRules by its version gate
+// alone, not by any disable list.
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "tcl::build-info ?field?",
-    dialects: Some(DialectSet::TCL90_PLUS),
+    surface: Some(SpecSurface::TCL90_PLUS),
     ..FormSpec::DEFAULT
 }];
 
@@ -214,31 +213,29 @@ const FIELD_VALUES: &[ArgValue] = &[
 
 /// Command spec for `tcl::build-info`.
 ///
-/// Tcl 9.0+ only — see the module doc comment above for the full
-/// per-version evidence. The `TCL90_PLUS` gate below carries no `IRULES`
-/// bit, so `tcl::build-info` is excluded from iRules by that version gate
-/// alone, not by any disable list. A genuine
-/// `Tcl_CreateObjCommand`-registered core builtin — not a Tcl-coded
-/// library proc like `bgerror`/`tcl_findLibrary` — so it carries
-/// `BYTE_COMPILED` the same way its 9.0-native siblings `lremove`/`lpop`/
-/// `tcl::process`/`zipfs` do. Not part of C Tcl's documented
-/// safe-interpreter hidden-command set (`Traits::SAFE_INTERP_HIDDEN`'s own
-/// doc comment lists that exact set — `cd`, `encoding`, `exec`, `exit`,
+/// Tcl 9.0+ only — see the module doc comment above for the full per-version
+/// evidence. The `TCL90_PLUS` gate below carries no iRules row, so
+/// `tcl::build-info` is excluded from iRules by that version gate alone, not
+/// by any disable list. A genuine `Tcl_CreateObjCommand`-registered core
+/// builtin — not a Tcl-coded library proc like `bgerror`/`tcl_findLibrary` —
+/// so it carries `BYTE_COMPILED` the same way its 9.0-native siblings
+/// `lremove`/`lpop`/ `tcl::process`/`zipfs` do. Not part of C Tcl's documented
+/// safe-interpreter hidden-command set (`Traits::SAFE_INTERP_HIDDEN`'s own doc
+/// comment lists that exact set — `cd`, `encoding`, `exec`, `exit`,
 /// `fconfigure`, `file`, `glob`, `load`, `open`, `pwd`, `socket`, `source`,
 /// `unload` — and this command is not on it); it exposes only static,
 /// read-only compile-time metadata (no filesystem, network, or process
-/// access), the same low-risk shape as `info tclversion`/`info
-/// patchlevel`, so it is not stamped hidden here either. Left off
-/// `Traits::PURE`: unlike a value-transforming command such as `lremove`
-/// (deterministic given only its own arguments), this command's result
-/// depends on which Tcl binary happens to be running it — state that
-/// lives outside the argument list, the same reason `Traits::PURE` stays
-/// off `pid`/`pwd` in this registry (see `pid.rs`'s note) even though
-/// none of the three ever mutates anything.
+/// access), the same low-risk shape as `info tclversion`/`info patchlevel`, so
+/// it is not stamped hidden here either. Left off `Traits::PURE`: unlike a
+/// value-transforming command such as `lremove` (deterministic given only its
+/// own arguments), this command's result depends on which Tcl binary happens
+/// to be running it — state that lives outside the argument list, the same
+/// reason `Traits::PURE` stays off `pid`/`pwd` in this registry (see
+/// `pid.rs`'s note) even though none of the three ever mutates anything.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::build-info",
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         traits: Traits::BYTE_COMPILED,
         arity: Arity::new(0, 1),
         return_type: Some(TclType::String),

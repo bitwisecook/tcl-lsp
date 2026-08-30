@@ -38,6 +38,7 @@
 use crate::prelude::*;
 
 use super::SOURCE;
+use tcl_dialect::model::SpecSurface;
 
 /// A hook property statement.  `silence` is what the field's abstention
 /// means — the one thing an author most needs and most often assumes wrongly,
@@ -51,7 +52,7 @@ fn hook_statement(
     CommandSpec {
         name,
         traits: Traits::CREATES_BARRIER | Traits::NEVER_INLINE_BODY | Traits::LANGUAGE_KEYWORD,
-        dialects: Some(DialectSet::SPECTCL),
+        surface: Some(SpecSurface::SPECTCL),
         arity: Arity::new(1, 2),
         hover: Some(HoverSnippet {
             summary,
@@ -119,6 +120,12 @@ pub(super) fn specs() -> Vec<CommandSpec> {
             CALLING_CONVENTION,
             "emitter verbs: `invalid -index N -subject S -reason … -allowed {…} ?-replacement V?` and `abstain REASON`. Silence means valid. `kinds` is load-bearing here: a substituted or `{*}`-expanded word must never be mistaken for a value.",
             "Validate literal argument words and offer a fix.",
+        ),
+        hook_statement(
+            "constraints",
+            CALLING_CONVENTION,
+            "reading verbs: `option-present OPTION`, `option-value OPTION`, `literal N`, `arg-count`; emitter verbs: `invalid SLOT MESSAGE ?-conflict?` and `abstain`. `SLOT` is an option spelling, `arg N`, or `command`. Silence means no report. **The rare escape hatch** (E-R14): reached only when a spec declares one AND no declarative `option_conflict` / `option_requires` / `option_requires_one_of` / `option_forbids` relation already reported — declare `-inputs {invocation}` so the verdict is content-cached and an edit elsewhere never re-runs it, and `abstain` when `ctx`'s `complete` is false.",
+            "Judge an option relation no declarative row can express.",
         ),
         hook_statement(
             "clause_shape_check",

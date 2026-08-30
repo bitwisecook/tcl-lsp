@@ -24,9 +24,7 @@
 //! Tcl semantics, with the Tcl-semantic facts pinned to real C-Tcl
 //! (tclsh8.6 / tclsh9.0 via `scripts/dev/tclsh_check.sh`).
 //!
-//! ----------------------------------------------------------------------------
 //! The presentation/structure split (read this first)
-//! ----------------------------------------------------------------------------
 //! A document SYMBOL, a code LENS, a document LINK, and a code ACTION are
 //! editor-presentation artefacts: their *shape* (which `SymbolKind`, the lens
 //! title text, the link's `file://` URI, the action's edit range) is an LSP
@@ -58,10 +56,8 @@ use tcl_lsp_core::definition::LspRange;
 use tcl_lsp_core::document_links::{DocumentLink, document_links, document_links_with_home};
 use tcl_lsp_core::document_symbols::{DocumentSymbol, LineRange, SymbolKind, document_symbols};
 
-// ---------------------------------------------------------------------------
 // Shared harness — mirrors the existing port files
 // (`call_hierarchy.rs`, `references_rename.rs`).
-// ---------------------------------------------------------------------------
 
 /// Build an analysis exactly the way the other port files do.
 fn analyse(source: &str) -> AnalysisResult {
@@ -112,14 +108,18 @@ fn selection(line: u32, start: u32, end: u32) -> LspRange {
     }
 }
 
-// ===========================================================================
 // document_symbols
-// ===========================================================================
 
 #[test]
 fn symbols_empty_file_yields_nothing() {
     // An empty document has no outline.
-    assert!(document_symbols("", tcl_dialect::DialectProfile::by_name("tcl8.6")).is_empty());
+    assert!(
+        document_symbols(
+            "",
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
+        )
+        .is_empty()
+    );
 }
 
 #[test]
@@ -131,7 +131,10 @@ fn symbols_single_proc_is_a_function_with_param_detail() {
     // (verified tclsh8.6 + tclsh9.0). The outline must mirror that fact: one
     // Function symbol named `greet` whose detail lists both params.
     let src = "proc greet {name greeting} {\n    return \"$greeting $name\"\n}\n";
-    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+    let symbols = document_symbols(
+        src,
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     assert_eq!(symbols.len(), 1, "{symbols:?}");
     assert_eq!(symbols[0].name, "greet");
     assert_eq!(symbols[0].kind, SymbolKind::Function);
@@ -152,7 +155,10 @@ fn symbols_multiple_procs_one_function_each() {
     // tclsh: `info procs` over `proc foo .. ; proc bar ..` -> {bar foo}; the
     // two are independent procs, so the outline has exactly two Function nodes.
     let src = "proc foo {} { return 1 }\nproc bar {} { return 2 }\n";
-    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+    let symbols = document_symbols(
+        src,
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     let mut names: Vec<&str> = symbols.iter().map(|s| s.name.as_str()).collect();
     names.sort_unstable();
     assert_eq!(names, vec!["bar", "foo"]);
@@ -164,7 +170,10 @@ fn symbols_proc_range_contains_its_selection_range() {
     // The outer `range` (name + body) must contain the `selection_range` (the
     // name token) — an LSP contract the editor relies on for click-to-fold.
     let src = "proc greet {name} {\n    return $name\n}\n";
-    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+    let symbols = document_symbols(
+        src,
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     assert_eq!(symbols.len(), 1);
     let p = &symbols[0];
     assert!(
@@ -181,7 +190,10 @@ fn symbols_proc_range_covers_the_definition_text() {
     // line 0 (the `proc` keyword's line) and its end reaches past the body's
     // last line (line 2 holds the closing brace).
     let src = "proc greet {name} {\n    return $name\n}\n";
-    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+    let symbols = document_symbols(
+        src,
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     let p = &symbols[0];
     assert_eq!(p.range.start_line, 0, "range should start at the proc line");
     assert!(
@@ -205,7 +217,10 @@ fn symbols_namespace_eval_nests_inner_proc_as_hierarchy() {
     // The outline mirrors the lexical nesting: a Namespace node `myns` with the
     // Function `helper` as its child.
     let src = "namespace eval myns {\n    proc helper {} {\n        return 1\n    }\n}\n";
-    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+    let symbols = document_symbols(
+        src,
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     assert_eq!(symbols.len(), 1, "{symbols:?}");
     let ns = &symbols[0];
     assert_eq!(ns.name, "myns");
@@ -235,7 +250,10 @@ fn symbols_nested_namespaces_recurse_two_levels() {
         "    }\n",
         "}\n",
     );
-    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+    let symbols = document_symbols(
+        src,
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     assert_eq!(symbols.len(), 1);
     let outer = &symbols[0];
     assert_eq!(outer.name, "outer");
@@ -260,7 +278,7 @@ fn symbols_global_set_emits_variable() {
     // A top-level `set` therefore surfaces as a Variable symbol.
     let symbols = document_symbols(
         "set myvar 42\n",
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let vars: Vec<&DocumentSymbol> = symbols
         .iter()
@@ -286,7 +304,10 @@ fn symbols_oo_class_with_method_children() {
         "    method fetch {item} { return $item }\n",
         "}\n",
     );
-    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+    let symbols = document_symbols(
+        src,
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     assert_eq!(symbols.len(), 1, "{symbols:?}");
     let cls = &symbols[0];
     assert_eq!(cls.name, "Dog");
@@ -312,7 +333,10 @@ fn symbols_oo_class_constructor_lists_its_param() {
         "    constructor {name} { variable n; set n $name }\n",
         "}\n",
     );
-    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+    let symbols = document_symbols(
+        src,
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     let cls = &symbols[0];
     let ctor = cls
         .children
@@ -337,7 +361,10 @@ fn symbols_oo_configurable_emits_property() {
         "    property x y\n",
         "}\n",
     );
-    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+    let symbols = document_symbols(
+        src,
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     let cls = &symbols[0];
     let props: Vec<&str> = cls
         .children
@@ -375,7 +402,10 @@ fn symbols_mixed_document_collects_all_top_level_definitions() {
         "namespace eval ns { proc g {} { return } }\n",
         "oo::class create K { method m {} {} }\n",
     );
-    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+    let symbols = document_symbols(
+        src,
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     let pairs = all_pairs(&symbols);
     assert!(
         pairs.contains(&("f".to_string(), SymbolKind::Function)),
@@ -399,9 +429,7 @@ fn symbols_mixed_document_collects_all_top_level_definitions() {
     );
 }
 
-// ===========================================================================
 // code_lens — reference-count lenses on procs / classes / methods
-// ===========================================================================
 
 /// Parse a `"N reference(s)"` lens title back into its integer count.
 fn lens_count(lens: &CodeLens) -> usize {
@@ -425,7 +453,7 @@ fn lens_none_without_analysis() {
     assert!(
         code_lenses(
             "proc foo {} {}\n",
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             None,
             None,
             ""
@@ -441,7 +469,7 @@ fn lens_none_for_file_with_no_eligible_symbols() {
     let analysis = analyse(src);
     let lenses = code_lenses(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         Some(&analysis),
         None,
         "",
@@ -457,7 +485,7 @@ fn lens_one_per_user_proc() {
     let analysis = analyse(src);
     let lenses = code_lenses(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         Some(&analysis),
         None,
         "",
@@ -480,7 +508,7 @@ fn lens_reports_zero_for_unused_proc() {
     let analysis = analyse(src);
     let lenses = code_lenses(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         Some(&analysis),
         None,
         "",
@@ -498,7 +526,7 @@ fn lens_counts_call_sites() {
     let analysis = analyse(src);
     let lenses = code_lenses(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         Some(&analysis),
         None,
         "",
@@ -516,7 +544,7 @@ fn lens_singular_grammar_for_one_reference() {
     let analysis = analyse(src);
     let lenses = code_lenses(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         Some(&analysis),
         None,
         "",
@@ -532,7 +560,7 @@ fn lens_carries_qualified_name_in_data() {
     let analysis = analyse(src);
     let lenses = code_lenses(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         Some(&analysis),
         None,
         "",
@@ -560,7 +588,7 @@ fn lens_counts_method_calls_inside_class_body() {
     }
     let lenses = code_lenses(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         Some(&analysis),
         None,
         "",
@@ -573,9 +601,7 @@ fn lens_counts_method_calls_inside_class_body() {
     );
 }
 
-// ===========================================================================
 // document_links — `source <path>` and `package require <pkg>`
-// ===========================================================================
 
 /// Source-range start `(line, character)` of a link.
 fn link_start(link: &DocumentLink) -> (u32, u32) {
@@ -589,7 +615,7 @@ fn links_none_for_non_source_commands() {
     assert!(
         document_links(
             "set x 1\n",
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             None
         )
         .is_empty()
@@ -597,7 +623,7 @@ fn links_none_for_non_source_commands() {
     assert!(
         document_links(
             "puts hello\n",
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             None
         )
         .is_empty()
@@ -612,7 +638,11 @@ fn links_absolute_source_path_surfaces_file_uri() {
     // shape is editor presentation; that `source <path>` is the Tcl construct
     // being linked is the semantic anchor.)
     let src = "source /usr/lib/tcl/init.tcl\n";
-    let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), None);
+    let links = document_links(
+        src,
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        None,
+    );
     assert_eq!(links.len(), 1, "{links:?}");
     assert_eq!(links[0].target, "file:///usr/lib/tcl/init.tcl");
     // Anchored on the path argument (`source ` is 7 chars).
@@ -625,7 +655,7 @@ fn links_relative_source_resolves_against_workspace_root() {
     let src = "source helper.tcl\n";
     let links = document_links(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         Some("/home/user/project"),
     );
     assert_eq!(links.len(), 1, "{links:?}");
@@ -637,7 +667,14 @@ fn links_relative_source_without_root_yields_none() {
     // No workspace root -> a relative path has nothing to anchor against, so no
     // link is produced (the path with no resolvable target is dropped).
     let src = "source helper.tcl\n";
-    assert!(document_links(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), None).is_empty());
+    assert!(
+        document_links(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            None
+        )
+        .is_empty()
+    );
 }
 
 #[test]
@@ -646,7 +683,14 @@ fn links_dynamic_source_path_yields_none() {
     // path is variable-substituted, not a literal — the provider can't resolve
     // it statically, so no link.
     let src = "source $somevar\n";
-    assert!(document_links(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), None).is_empty());
+    assert!(
+        document_links(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            None
+        )
+        .is_empty()
+    );
 }
 
 #[test]
@@ -654,7 +698,11 @@ fn links_encoding_flag_skipped_before_path() {
     // `source -encoding utf-8 <path>` — the provider skips the `-encoding`
     // flag and its value, linking the real path argument.
     let src = "source -encoding utf-8 /tmp/foo.tcl\n";
-    let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), None);
+    let links = document_links(
+        src,
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        None,
+    );
     assert_eq!(links.len(), 1, "{links:?}");
     assert_eq!(links[0].target, "file:///tmp/foo.tcl");
 }
@@ -665,7 +713,7 @@ fn links_tilde_expands_against_supplied_home() {
     let src = "source ~/lib/init.tcl\n";
     let links = document_links_with_home(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         None,
         Some("/test-home"),
     );
@@ -682,7 +730,7 @@ fn links_literal_file_join_source_resolves() {
     let src = "source [file join lib helper.tcl]\n";
     let links = document_links(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         Some("/home/user/project"),
     );
     assert_eq!(links.len(), 1, "{links:?}");
@@ -697,7 +745,11 @@ fn links_package_require_surfaces_targetless_link_with_tooltip() {
     // (package resolution needs a pkgIndex scan, which isn't done) but a
     // tooltip carrying the package name.
     let src = "package require http 2.9\n";
-    let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), None);
+    let links = document_links(
+        src,
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        None,
+    );
     let pkg = links
         .iter()
         .find(|l| l.tooltip.as_deref().is_some_and(|t| t.contains("http")))
@@ -714,7 +766,11 @@ fn links_source_uri_is_percent_encoded() {
     // A literal `source` path with spaces must surface as a percent-encoded
     // `file://` URI (never a raw concatenation with a literal space).
     let src = "source /path/with spaces.tcl\n";
-    let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), None);
+    let links = document_links(
+        src,
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        None,
+    );
     if let Some(link) = links.first() {
         assert!(
             !link.target.contains(' '),
@@ -734,7 +790,7 @@ fn links_in(src: &str, script_path: &str) -> Vec<DocumentLink> {
     let root = script_path.rsplit_once('/').map_or("/", |(dir, _)| dir);
     tcl_lsp_core::document_links::document_links_in_context(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         &tcl_lsp_core::document_links::LinkContext {
             imported_constants: None,
             workspace_root: Some(root),
@@ -809,9 +865,7 @@ fn tn_a_plain_literal_path_still_links() {
 // extraction (e.g. `include`/`source` of a tmsh config fragment) — those would
 // be a separate concern and are not surfaced here. // bigip
 
-// ===========================================================================
 // code_actions — quick-fixes / refactors at a position
-// ===========================================================================
 
 /// Every action's edits must be well-formed: each replacement range has its
 /// start at or before its end (a valid LSP edit range).

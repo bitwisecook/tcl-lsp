@@ -32,7 +32,6 @@
 //! pulling in a regex dependency.
 
 use serde_json::{Map, Value, json};
-use tcl_registry::registry_for_dialect;
 
 const IRULES_DIALECT: &str = "f5-irules";
 
@@ -282,7 +281,7 @@ pub fn irule_cfg_paths(args: &Value) -> Value {
 /// Walk the flow tree and collect every terminal-action path, sorted by
 /// priority (high → normal → low).
 fn extract_test_paths(source: &str) -> Vec<PathInfo> {
-    let registry = registry_for_dialect(IRULES_DIALECT);
+    let registry = crate::environment::store_for_dialect(IRULES_DIALECT);
     let data = tcl_diagram::diagram_data_for_dialect(
         source,
         registry,
@@ -616,7 +615,7 @@ fn build_condition_summary(conditions: &[Condition]) -> String {
 /// logic reads (`_get_taint_warnings`), which reads the `taint_warnings` list
 /// from the dataflow graph.
 fn collect_taints(source: &str) -> Vec<Taint> {
-    let registry = registry_for_dialect(IRULES_DIALECT);
+    let registry = crate::environment::store_for_dialect(IRULES_DIALECT);
     let graph = tcl_lsp_core::graphs::dataflow_graph(
         source,
         registry,

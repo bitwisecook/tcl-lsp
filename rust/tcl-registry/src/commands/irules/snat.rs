@@ -18,11 +18,12 @@
 
 //! `snat` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "snat",
         traits: Traits::DIAGRAM_ACTION,
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Assigns the specified SNAT translation address to the current connection.",
@@ -43,9 +44,7 @@ pub const fn spec() -> CommandSpec {
             // recorded here as prerequisites.
             profiles: &[],
             also_in: &["CLIENT_ACCEPTED", "SERVER_CONNECTED"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "snat (automap | none | IP_TUPLE | (IP_ADDR (PORT)?))",

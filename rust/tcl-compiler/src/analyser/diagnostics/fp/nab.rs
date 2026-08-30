@@ -30,16 +30,17 @@ use crate::analyser::Analyser;
 use crate::compilation_unit::CompilationUnit;
 use crate::compiler_checks::run_all_checks;
 use crate::optimiser::manager::optimise_with_dialect;
-use tcl_registry::registry_for_dialect;
+use tcl_registry::model::ingress::static_context_for;
 
 const D: &str = "tcl8.6";
 
 /// Full `(code, message)` pipeline output INCLUDING optimiser suggestions
 /// (NAB-04 accepts W110 *or* its O120 optimiser near-duplicate).
 fn diags(src: &str, dialect: &str) -> Vec<(String, String)> {
-    let registry = registry_for_dialect(dialect);
+    let registry = static_context_for(dialect).commands();
     let cu = CompilationUnit::build_for(src, registry, false);
-    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     let mut v: Vec<(String, String)> = Analyser::new()
         .analyse(src, dialect)
         .diagnostics

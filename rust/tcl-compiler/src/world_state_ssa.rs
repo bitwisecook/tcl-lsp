@@ -336,6 +336,9 @@ fn append_command_binding(
             alias,
             target_interpreter,
             target,
+            // Baked leading arguments change what the alias *runs*, never
+            // which command regions it reads or writes.
+            arguments: _,
         } => {
             let source = subject_interpreter(source_interpreter);
             let target_interpreter = subject_interpreter(target_interpreter);
@@ -1702,7 +1705,12 @@ fn next_ordinal(
 #[cfg(test)]
 mod tests {
     use tcl_lexer::Span;
-    use tcl_registry::{CommandRegistry, dialects::DialectSet};
+    use tcl_registry::CommandRegistry;
+    use tcl_registry::model::semantic::SemanticContext;
+
+    fn test_context() -> SemanticContext {
+        SemanticContext::for_environment("tcl8.6")
+    }
 
     use super::*;
     use crate::executable_ir::{
@@ -1731,9 +1739,12 @@ mod tests {
         words: &[&str],
     ) -> ExecutableInstruction {
         let words: Vec<_> = words.iter().map(|word| literal(word)).collect();
-        let resolution =
-            resolve_word_exprs(&CommandRegistry::build_default(), DialectSet::TCL86, &words)
-                .expect("test command resolves through registry");
+        let resolution = resolve_word_exprs(
+            &CommandRegistry::build_default(),
+            Some(test_context()),
+            &words,
+        )
+        .expect("test command resolves through registry");
         ExecutableInstruction::Invoke(GenericInvoke {
             completion,
             argv: ExecutableArgvId::new(id, completion.index()),
@@ -1787,7 +1798,7 @@ mod tests {
         let module = lower_to_ir(source, &registry);
         build_linear_executable_ir(
             &registry,
-            DialectSet::TCL86,
+            Some(test_context()),
             ExecutableFunctionId::new(id),
             &module.top_level,
         )

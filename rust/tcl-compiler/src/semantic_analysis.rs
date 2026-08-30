@@ -14,8 +14,7 @@
 //! executable world-state SSA.  Source shapes outside that compatibility layer
 //! retain a typed decline instead of receiving guessed facts.
 
-use tcl_dialect::DialectProfile;
-use tcl_registry::dialects::DialectSet;
+use tcl_registry::model::semantic::SemanticContext;
 use tcl_registry::{CommandRegistry, EffectFootprint};
 
 use crate::completion::CompletionObligations;
@@ -51,37 +50,39 @@ pub(crate) const fn test_common_analysis_provenance() -> CommonAnalysisProvenanc
 /// Target-neutral semantic facts attached to one
 /// [`crate::compilation_unit::FunctionUnit`].
 ///
-/// The dialect is an explicit registry dialect bit rather than an inferred
-/// target choice.  A function with no retained source IR records a typed
-/// unavailable state; a source script the linear compatibility builder cannot
-/// represent records its exact decline.
+/// The context is an explicitly resolved environment handle
+/// ([`SemanticContext`]) rather than an inferred target choice — the
+/// executable-IR re-key of ledger row C1 / redesign §11.2 D1.  A function
+/// with no
+/// retained source IR records a typed unavailable state; a source script the
+/// linear compatibility builder cannot represent records its exact decline.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SemanticAnalysisBundle {
-    dialect: DialectSet,
+    context: Option<SemanticContext>,
     executable: ExecutableAnalysisAvailability,
     entry_assumption: DispatchEntryAssumption,
 }
 
 impl SemanticAnalysisBundle {
-    /// Build facts from source-faithful IR under the explicitly selected
-    /// registry dialect and dispatch entry contract.
+    /// Build facts from source-faithful IR under the explicitly resolved
+    /// semantic context and dispatch entry contract.
     #[must_use]
     pub fn build(
         registry: &CommandRegistry,
-        dialect: DialectSet,
+        context: Option<SemanticContext>,
         script: &Script,
         entry_assumption: DispatchEntryAssumption,
     ) -> Self {
-        if dialect.canonical_name().is_none() {
+        if context.is_none() {
             return Self::from_executable(
-                dialect,
-                ExecutableAnalysisAvailability::DialectUnavailable { dialect },
+                context,
+                ExecutableAnalysisAvailability::ContextUnavailable,
                 entry_assumption,
             );
         }
         let executable = match build_linear_executable_ir(
             registry,
-            dialect,
+            context,
             ExecutableFunctionId::new(0),
             script,
         ) {
@@ -98,7 +99,7 @@ impl SemanticAnalysisBundle {
             },
             Err(decline) => ExecutableAnalysisAvailability::SourceDeclined(decline),
         };
-        Self::from_executable(dialect, executable, entry_assumption)
+        Self::from_executable(context, executable, entry_assumption)
     }
 
     /// Build the executable invocation facts used by interactive GVN, and
@@ -112,14 +113,14 @@ impl SemanticAnalysisBundle {
     #[must_use]
     pub(crate) fn build_for_interactive_analysis(
         registry: &CommandRegistry,
-        dialect: DialectSet,
+        context: Option<SemanticContext>,
         script: &Script,
         entry_assumption: DispatchEntryAssumption,
     ) -> Self {
-        if dialect.canonical_name().is_none() {
+        if context.is_none() {
             return Self::from_executable(
-                dialect,
-                ExecutableAnalysisAvailability::DialectUnavailable { dialect },
+                context,
+                ExecutableAnalysisAvailability::ContextUnavailable,
                 entry_assumption,
             );
         }
@@ -132,7 +133,7 @@ impl SemanticAnalysisBundle {
         let proof_can_succeed = entry_assumption != DispatchEntryAssumption::UnknownWorld;
         let executable = match build_linear_executable_ir(
             registry,
-            dialect,
+            context,
             ExecutableFunctionId::new(0),
             script,
         ) {
@@ -152,29 +153,29 @@ impl SemanticAnalysisBundle {
             Ok(function) => ExecutableAnalysisAvailability::WorldStateNotRequired { function },
             Err(decline) => ExecutableAnalysisAvailability::SourceDeclined(decline),
         };
-        Self::from_executable(dialect, executable, entry_assumption)
+        Self::from_executable(context, executable, entry_assumption)
     }
 
     /// Build an explicit unavailable bundle for a function build that did not
     /// retain a source script.
     #[must_use]
-    pub fn unavailable(dialect: DialectSet) -> Self {
+    pub fn unavailable(context: Option<SemanticContext>) -> Self {
         Self::from_executable(
-            dialect,
-            if dialect.canonical_name().is_some() {
+            context,
+            if context.is_some() {
                 ExecutableAnalysisAvailability::SourceUnavailable
             } else {
-                ExecutableAnalysisAvailability::DialectUnavailable { dialect }
+                ExecutableAnalysisAvailability::ContextUnavailable
             },
             DispatchEntryAssumption::UnknownWorld,
         )
     }
 
-    /// The registry dialect used for every invocation resolution in this
-    /// bundle.
+    /// The resolved semantic context every invocation resolution in this
+    /// bundle was made under.
     #[must_use]
-    pub const fn dialect(&self) -> DialectSet {
-        self.dialect
+    pub const fn context(&self) -> Option<SemanticContext> {
+        self.context
     }
 
     /// The executable-IR availability, including every typed decline.
@@ -222,11 +223,7 @@ impl SemanticAnalysisBundle {
             (_, baseline) => return baseline,
         };
         let provenance = CommonAnalysisProvenance { _private: () };
-        let runtime_version = self
-            .dialect
-            .canonical_name()
-            .and_then(DialectProfile::find)
-            .and_then(DialectProfile::runtime_version);
+        let runtime_version = self.context.and_then(SemanticContext::runtime_version);
         match plan.select_guarded_boxed_intrinsics(function, runtime_version, &provenance) {
             Ok(plan) => MixedRegionPlanAvailability::Available(plan),
             Err(error) => {
@@ -242,12 +239,12 @@ impl SemanticAnalysisBundle {
     }
 
     const fn from_executable(
-        dialect: DialectSet,
+        context: Option<SemanticContext>,
         executable: ExecutableAnalysisAvailability,
         entry_assumption: DispatchEntryAssumption,
     ) -> Self {
         Self {
-            dialect,
+            context,
             executable,
             entry_assumption,
         }
@@ -280,13 +277,10 @@ impl MixedRegionPlanAvailability {
 /// Availability of the target-neutral executable semantic facts.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExecutableAnalysisAvailability {
-    /// The attachment had no one explicit dialect profile. Empty and
-    /// combinator masks are deliberately not treated as a union-resolution
-    /// policy for a per-document sidecar.
-    DialectUnavailable {
-        /// The caller-supplied dialect mask that could not select one profile.
-        dialect: DialectSet,
-    },
+    /// The attachment carried no resolved environment. A per-document sidecar
+    /// deliberately never invents one; the state is an absent
+    /// [`SemanticContext`].
+    ContextUnavailable,
     /// Executable IR and world-state SSA were both constructed and validated.
     Available(ExecutableSemanticFacts),
     /// Executable IR was constructed, but the world-state renamer declined it.
@@ -321,9 +315,7 @@ impl ExecutableAnalysisAvailability {
             Self::Available(facts) => Some(&facts.function),
             Self::WorldStateDeclined { function, .. }
             | Self::WorldStateNotRequired { function } => Some(function),
-            Self::DialectUnavailable { .. } | Self::SourceDeclined(_) | Self::SourceUnavailable => {
-                None
-            }
+            Self::ContextUnavailable | Self::SourceDeclined(_) | Self::SourceUnavailable => None,
         }
     }
 
@@ -334,7 +326,7 @@ impl ExecutableAnalysisAvailability {
             Self::Available(facts) => Some(&facts.world_state_ssa),
             Self::WorldStateDeclined { .. }
             | Self::WorldStateNotRequired { .. }
-            | Self::DialectUnavailable { .. }
+            | Self::ContextUnavailable
             | Self::SourceDeclined(_)
             | Self::SourceUnavailable => None,
         }
@@ -492,7 +484,7 @@ mod tests {
         let module = lower_to_ir("string length value", &registry);
         let bundle = SemanticAnalysisBundle::build(
             &registry,
-            DialectSet::TCL90,
+            Some(SemanticContext::for_environment("tcl9.0")),
             &module.top_level,
             DispatchEntryAssumption::PristineRegistryWorld,
         );
@@ -522,7 +514,7 @@ mod tests {
 
         let tcl8_bundle = SemanticAnalysisBundle::build(
             &registry,
-            DialectSet::TCL86,
+            Some(SemanticContext::for_environment("tcl8.6")),
             &module.top_level,
             DispatchEntryAssumption::PristineRegistryWorld,
         );

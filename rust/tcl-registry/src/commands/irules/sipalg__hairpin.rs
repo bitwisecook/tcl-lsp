@@ -18,10 +18,11 @@
 
 //! `SIPALG::hairpin` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SIPALG::hairpin",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Gets or sets the value of hairpin flag for the current message.",
@@ -40,9 +41,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &["MR", "SIP"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "SIPALG::hairpin",

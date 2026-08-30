@@ -78,23 +78,23 @@
 // unlike those siblings, this spec does not carry `Traits::BYTE_COMPILED`.
 //
 // Not disabled or overridden in any modelled dialect: no irules/iapps/
-// tmsh/expect/eda*/tk/itcl spec file references `lreverse`, and there is
-// no disable list for it to appear in (a sandbox-banned command would
-// instead carry a bare `ALL_TCL` group lacking the `IRULES` bit —
-// `lreverse` is version-gated, not banned). `f5-irules`'s
-// `availability_mask` is the bare `IRULES` bit, and under the
-// fully-explicit model a spec resolves under iRules only if its own
-// `dialects` group carries that bit — iRules embeds a real Tcl 8.4.6, so
-// this plain version-gated spec (whose `TCL85_PLUS` group lacks the
-// `IRULES` bit) simply does not intersect the mask, so the existing
-// `TCL85_PLUS` gate already and correctly excludes iRules by that same
-// bare-bit intersection rule — matching the real product, whose embedded
-// 8.4.6 predates TIP 272 — with no explicit exclusion needed. `f5-iapps` / `f5-tmsh` / xilinx / quartus / mentor
-// (`TCL85 | vendor` masks) and cadence / synopsys / expect (`TCL86 |
-// vendor`) and bpf (`TCL90 | vendor`) all correctly retain `lreverse`,
-// since every one of those masks intersects `TCL85_PLUS` through its
-// shared Tcl-version bit.
+// tmsh/expect/eda*/tk/itcl spec file references `lreverse`, and there is no
+// disable list for it to appear in (a sandbox-banned command would instead
+// carry a bare `ALL_TCL` surface lacking an iRules row — `lreverse` is
+// version-gated, not banned). `f5-irules`'s `surface_query` is the iRules
+// family alone, and under the fully-explicit model a spec resolves under
+// iRules only if its own surface carries that bit — iRules embeds a real Tcl
+// 8.4.6, so this plain version-gated spec (whose `TCL85_PLUS` group lacks an
+// iRules row) simply does not intersect the mask, so the existing `TCL85_PLUS`
+// gate already and correctly excludes iRules by that same bare-bit
+// intersection rule — matching the real product, whose embedded 8.4.6 predates
+// TIP 272 — with no explicit exclusion needed. `f5-iapps` / `f5-tmsh` / xilinx
+// / quartus / mentor (`TCL85 | vendor` masks) and cadence / synopsys / expect
+// (`TCL86 | vendor`) and bpf (`TCL90 | vendor`) all correctly retain
+// `lreverse`, since every one of those masks intersects `TCL85_PLUS` through
+// its shared Tcl release.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "lreverse list",
     ..FormSpec::DEFAULT
@@ -108,7 +108,7 @@ pub fn spec() -> CommandSpec {
         // Added in Tcl 8.5 (TIP 272) — absent from the 8.4 manpage tree and
         // from `generic/tclCmdIL.c` in the 8.4.20 source; see the module
         // doc comment above for the full cross-version/cross-dialect audit.
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         arity: Arity::exact(1),
         return_type: Some(TclType::List),
         return_elements: Some(ReturnElements::SubListOf { container_arg: 0 }),

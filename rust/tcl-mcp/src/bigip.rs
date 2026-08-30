@@ -75,7 +75,7 @@ pub fn irule_with_context(args: &Value) -> Value {
         .map(|(origin, _text, cfg)| (origin.clone(), cfg))
         .collect();
     let merged = tcl_bigip::lint::merge_configs(&config_refs);
-    let registry = tcl_registry::registry_for_dialect("f5-irules");
+    let registry = crate::environment::store_for_dialect("f5-irules");
 
     // One bundle per `ltm rule`, optionally filtered by full path.
     let mut bundles: Vec<(String, Value)> = Vec::new();

@@ -18,12 +18,13 @@
 
 //! `peer` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "peer",
         traits: Traits::IS_SIDE_SWITCH,
         side_switch_target: Some(SideSwitchTarget::Peer),
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         // `peer NESTING_SCRIPT` — unlike clientside/serverside, peer has
         // no bare query form, so the script body is required: exactly
         // one argument at index 0 (#501).

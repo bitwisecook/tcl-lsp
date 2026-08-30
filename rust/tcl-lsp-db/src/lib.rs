@@ -298,22 +298,33 @@ impl TclDatabase {
 #[salsa::db]
 impl TclDb for TclDatabase {
     fn registry(&self, dialect: &str) -> &'static CommandRegistry {
-        // The shared per-profile cache, not a locally-assembled registry: it
-        // resolves the name through the dialect catalogue (so an alias or a
-        // typo lands on the right entry), loads the profile's base layers and
-        // EDA packs, and — the part a hand-rolled `build_default +
-        // load_dialect` silently dropped — *stamps the profile* on the
+        // The environment's **registry generation**, not a locally-assembled
+        // registry: the name resolves through the one ingress seam (so an
+        // alias, an editor language id, or a typo lands on the right
+        // environment), and the generation's command store is the shared
+        // per-`(environment, overlay)` `Arc` — the profile's base layers and
+        // EDA packs loaded, and — the part a hand-rolled `build_default +
+        // load_dialect` silently dropped — the *profile stamped* on the
         // registry. Every registry-derived behaviour query keys off that
         // stamp, so without it `FoldPolicy::from_registry` read the LSP's
         // iRules documents as plain Tcl and declined every word-operator fold
         // (issue #1048).
-        tcl_registry::registry_for_dialect(dialect)
+        tcl_lsp_core::registry_for_dialect(dialect)
     }
 
     fn registry_with_overlay(&self, dialect: &str, overlay: u64) -> Arc<CommandRegistry> {
-        let profile = tcl_dialect::DialectProfile::by_name(dialect);
-        tcl_registry::cache::registry_for_profile_if_built(profile, overlay)
-            .unwrap_or_else(|| tcl_registry::cache::registry_handle_for_profile(profile))
+        // Ledger F7 (P2) holds here unchanged: an overlay generation that has
+        // not been installed yet falls back to the un-overlaid one rather
+        // than failing closed. `DocumentEnvironment::context_registry`
+        // threads exactly the old `registry_for_profile_if_built(profile,
+        // overlay)` door, so this keeps the shipped behaviour while the
+        // ingress moves to the environment model.
+        let environment = tcl_lsp_core::environment_for_dialect(dialect);
+        Arc::clone(
+            environment
+                .context_registry(&tcl_registry::model::KeyedVersions::default(), overlay)
+                .commands(),
+        )
     }
 }
 
@@ -463,6 +474,14 @@ pub struct AnalyserConfig {
     /// `synth_design` is a known command.
     #[returns(copy)]
     pub spec_pack_key: u64,
+    /// Declared version-target ranges (`tclLsp.targets`, redesign §5.4
+    /// range targeting) as `(provider, range)` pairs — `("tcl",
+    /// "8.5-9.0")`, `("Tk", "8.5-8.6")` — feeding
+    /// `Analyser::with_declared_targets`. Empty — the default — leaves
+    /// range mode off; a source-level `# tcl-lsp: supports` directive
+    /// overrides the configured pair for the same provider.
+    #[returns(ref)]
+    pub targets: Vec<(String, String)>,
 }
 
 /// Whole-file analysis, behind an `Arc` so reads bump a refcount rather than
@@ -497,6 +516,7 @@ pub fn file_analysis(
         .with_pack_overlay(config.spec_pack_key(db))
         .with_extra_commands(extra)
         .with_bigip_version(config.bigip_version(db).clone())
+        .with_declared_targets(config.targets(db).clone())
         .with_file_path(file.path(db).clone())
         .with_workspace_class_factories(file.workspace_class_factories(db).clone())
         .with_workspace_subclass_methods(file.workspace_subclass_methods(db).clone());
@@ -1547,13 +1567,13 @@ pub fn item_body_analysis<'db>(db: &'db dyn TclDb, key: ItemBodyKey<'db>) -> Arc
         safe_interp_ctx: key.body_env(db).1.clone(),
     };
     let disabled: HashSet<String> = key.disabled(db).iter().cloned().collect();
-    let overlay = tcl_compiler::analyser::types::build_stub_overlay(&[]);
+    let no_declarations = tcl_registry::model::DeclaredSurface::new();
     Arc::new(analyse_proc_body_isolated(
         &body,
         key.dialect(db),
         &disabled,
         key.non_ascii(db),
-        Some(overlay),
+        Some(no_declarations),
         key.body_env(db).2.clone(),
     ))
 }
@@ -1687,8 +1707,9 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
         )
         .with_semantic_analysis(
             registry,
-            tcl_registry::dialects::DialectSet::parse(key.dialect(db))
-                .unwrap_or_else(tcl_registry::dialects::DialectSet::empty),
+            tcl_compiler::compilation_unit::semantic_context(
+                tcl_lsp_core::optional_profile_for_dialect(key.dialect(db)),
+            ),
             Some(key.body(db)),
             // A procedure body runs only after arbitrary interposed history,
             // so its dispatch proofs start from an unknown world.
@@ -1725,12 +1746,6 @@ pub struct ProcBodyKey<'db> {
     pub namespace: String,
     #[returns(ref)]
     pub dialect: String,
-    /// The two dialect-varying [`tcl_lexer::LexerConfig`] fields (see
-    /// [`LexerCfgKey`]); the rest are the invariant defaults both consumers use.
-    #[returns(copy)]
-    pub expand_syntax: bool,
-    #[returns(copy)]
-    pub irules_brace_separator: bool,
 }
 
 /// Memoised offset-0 isolated lowering of one top-level `proc` body
@@ -1743,11 +1758,10 @@ pub struct ProcBodyKey<'db> {
 #[salsa::tracked(lru = 512, returns(clone))]
 pub fn lower_proc_body<'db>(db: &'db dyn TclDb, key: ProcBodyKey<'db>) -> Arc<Script> {
     let registry = db.registry(key.dialect(db));
-    let config = tcl_lexer::LexerConfig {
-        expand_syntax: key.expand_syntax(db),
-        irules_brace_separator: key.irules_brace_separator(db),
-        ..tcl_lexer::LexerConfig::default()
-    };
+    // The body's own environment grammar — the key already carries the
+    // dialect, so the three truncated `LexerConfig` fields the key used to
+    // duplicate are derived rather than interned (redesign §11.4 E1).
+    let config = tcl_lexer::LexerConfig::for_dialect(key.dialect(db));
     Arc::new(tcl_compiler::lowering::lower_proc_body_isolated(
         key.body_text(db),
         key.namespace(db),
@@ -1815,9 +1829,7 @@ fn build_unit_with_keys<'db>(
     source: &str,
     options: UnitBuildOptions<'_>,
 ) -> (CompilationUnit, HashMap<String, FnLatticeKey<'db>>) {
-    let UnitBuildOptions {
-        registry, config, ..
-    } = options;
+    let UnitBuildOptions { registry, .. } = options;
     let dialect = options.dialect;
     // Salsa keys own their fields, so the memo identity is the profile's
     // canonical *name*. Unknown ingress names all resolve to the plain-Tcl
@@ -1825,7 +1837,7 @@ fn build_unit_with_keys<'db>(
     // the analysis they produce was already identical.
     let dialect_key = dialect.map_or("", |profile| profile.name);
     let dialect_opt =
-        dialect.and_then(|profile| tcl_dialect::DialectProfile::resolve_known(profile.name));
+        dialect.and_then(|profile| tcl_lsp_core::stated_profile_for_dialect(profile.name));
     // The module CFG context is the same for every procedure in this build;
     // intern it once on the first request and reuse the id (O(procs), not
     // O(procs²)).
@@ -1909,8 +1921,6 @@ fn build_unit_with_keys<'db>(
                 body_text.to_owned(),
                 namespace.to_owned(),
                 dialect_key.to_owned(),
-                config.expand_syntax,
-                config.irules_brace_separator,
             );
             (*lower_proc_body(db, key)).clone()
         };
@@ -2049,7 +2059,7 @@ pub fn taint_cascade<'db>(
 ) -> Arc<HashMap<ValueKey, TaintLattice>> {
     let baseline = function_lattice(db, lattice_key);
     let dialect = summary_key.dialect(db);
-    let dialect_opt = tcl_dialect::DialectProfile::resolve_known(dialect);
+    let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(dialect);
     let registry = db.registry(dialect);
 
     // Reconstruct the minimal summary: a stub per known name (resolution
@@ -2226,7 +2236,7 @@ pub fn proc_summary_cascade<'db>(
     let qname = lattice_key.qname(db);
     let params = lattice_key.params(db);
     let dialect = deps_key.dialect(db);
-    let dialect_opt = tcl_dialect::DialectProfile::resolve_known(dialect);
+    let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(dialect);
     let registry = db.registry(dialect);
 
     // Reconstruct the minimal interproc summary (stub per known name + real
@@ -2286,7 +2296,7 @@ pub fn proc_summary_cascade<'db>(
 pub fn function_checks<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<Vec<CompilerCheck>> {
     let fu = function_lattice(db, key);
     let dialect = key.dialect(db);
-    let dialect_opt = tcl_dialect::DialectProfile::resolve_known(dialect);
+    let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(dialect);
     let registry = db.registry(dialect);
     // Per-procedure memo — procs have no implicit instance variables.
     Arc::new(tcl_compiler::compiler_checks::function_nontaint_checks(
@@ -2369,7 +2379,7 @@ pub fn proc_taint_solve<'db>(
     cfg: LexerCfgKey<'db>,
 ) -> Arc<CheckSolve> {
     let dialect = file.dialect(db).clone();
-    let dialect_opt = tcl_dialect::DialectProfile::resolve_known(&dialect);
+    let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(&dialect);
     let registry = db.registry(&dialect);
     let external = file.external_call_sites(db).clone();
     let (cu, lattice_keys) = build_unit_with_keys(
@@ -2501,7 +2511,7 @@ pub fn proc_taint_solve<'db>(
         &cu,
         &lattice_keys,
         registry,
-        tcl_dialect::DialectProfile::resolve_known(&dialect),
+        tcl_lsp_core::stated_profile_for_dialect(&dialect),
     );
     Arc::new(CheckSolve {
         taints,
@@ -2712,7 +2722,7 @@ pub fn function_optimisations<'db>(
     let params = key.params(db).clone();
     let body = key.body(db).clone();
     let dialect = key.dialect(db).clone();
-    let dialect_opt = tcl_dialect::DialectProfile::resolve_known(&dialect);
+    let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(&dialect);
     let registry = db.registry(&dialect);
     let body_source = deps.body_source(db).clone();
 
@@ -3005,38 +3015,58 @@ fn top_level_only_unit(
     }
 }
 
-/// Interned identity of the dialect-varying [`tcl_lexer::LexerConfig`] fields,
-/// the salsa key that lets the two diagnostics consumers *share* one built
-/// [`CompilationUnit`].  Only `expand_syntax` / `irules_brace_separator` vary
-/// between [`LexerConfig::default`] (the analyser tail) and
-/// [`LexerConfig::for_dialect`] (the optimiser); the rest are always the default
-/// (`strict_quoting = false`, zero base offsets) on both paths.  The two configs
-/// **coincide for every dialect except `tcl8.4` / `f5-irules`**, so for the
-/// common case both consumers intern the same key and demand the same
-/// [`compilation_unit`] — built once per edit instead of twice.
+/// Interned identity of the lexer grammar a [`compilation_unit`] build lexes
+/// under: **the resolved environment id**, not an expanded
+/// [`tcl_lexer::LexerConfig`].  The call-site knobs (`strict_quoting = false`,
+/// zero base offsets) are genuinely the default on every path.
+///
+/// **This closes redesign §11.4 row E1.** The key used to intern three of the
+/// six dialect-derived `LexerConfig` fields (`expand_syntax`,
+/// `irules_brace_separator`, `brace_line_continuation`) and let `to_config`
+/// restore the rest from [`tcl_lexer::LexerConfig::default`] — so on the
+/// memoised path `braced_var` was always `Tcl9Nesting` and `escapes` always
+/// `Tcl90`, whatever the document's dialect said, and a `tcl8.6` document
+/// lexed `${a{b}c}` under the 9.0 close rule.  Keying on the environment id
+/// instead of the expanded fields makes `to_config` name
+/// [`tcl_lexer::LexerConfig::for_dialect`] itself, so every field is the
+/// document's.
+///
+/// **And it keeps the sharing**, which widening the tuple would have cost:
+/// with all four hosts of the CFG/SSA tail's unit (this crate's
+/// [`analyse_per_item_with`], `Analyser::emit_cfg_ssa_diagnostics`'s own
+/// build, `tcl diag`'s `collect_rows`, and `xtask fp_sweep`) lexing under the
+/// document's environment, both diagnostics consumers intern the **same** id
+/// for a document and demand one [`compilation_unit`] build per edit — for
+/// every environment, where the truncated tuple shared for 15 of the 20 and
+/// built twice for the other five.
 #[salsa::interned]
 pub struct LexerCfgKey<'db> {
-    #[returns(copy)]
-    pub expand_syntax: bool,
-    #[returns(copy)]
-    pub irules_brace_separator: bool,
+    /// The resolved environment id (`tcl8.6`, `f5-irules`, …) whose grammar
+    /// this build lexes under.
+    #[returns(ref)]
+    pub environment: String,
 }
 
 impl LexerCfgKey<'_> {
-    /// The full [`tcl_lexer::LexerConfig`] this key represents (the two
-    /// interned fields + the invariant defaults both diagnostics paths use).
+    /// The full [`tcl_lexer::LexerConfig`] this key represents: the
+    /// environment's own grammar plus the invariant call-site knobs.
     fn to_config(self, db: &dyn TclDb) -> tcl_lexer::LexerConfig {
-        tcl_lexer::LexerConfig {
-            expand_syntax: self.expand_syntax(db),
-            irules_brace_separator: self.irules_brace_separator(db),
-            ..tcl_lexer::LexerConfig::default()
-        }
+        tcl_lexer::LexerConfig::for_dialect(self.environment(db))
     }
 }
 
-/// Intern a [`LexerCfgKey`] from a concrete [`tcl_lexer::LexerConfig`].
-fn lexer_cfg_key(db: &dyn TclDb, config: tcl_lexer::LexerConfig) -> LexerCfgKey<'_> {
-    LexerCfgKey::new(db, config.expand_syntax, config.irules_brace_separator)
+/// Intern a [`LexerCfgKey`] for the environment `dialect` names.
+///
+/// The name is resolved through the one dialect-name ingress seam first, so
+/// an alias (`irules`) and its canonical id (`f5-irules`) share one key and
+/// one build rather than interning two.
+fn lexer_cfg_key<'db>(db: &'db dyn TclDb, dialect: &str) -> LexerCfgKey<'db> {
+    LexerCfgKey::new(
+        db,
+        tcl_registry::model::ingress::resolve_environment(dialect)
+            .id()
+            .to_owned(),
+    )
 }
 
 /// The shared, memoised [`CompilationUnit`] for a document under a given lexer
@@ -3044,9 +3074,10 @@ fn lexer_cfg_key(db: &dyn TclDb, config: tcl_lexer::LexerConfig) -> LexerCfgKey<
 /// the salsa-native [`function_lattice`] graph).  Tracked + keyed on
 /// `(file, cfg)` so the analyser tail ([`file_analysis_incremental`]) and the
 /// optimiser/compiler-checks pass ([`compiler_check_diagnostics`]) **share one
-/// build per edit** whenever their configs coincide (every dialect bar `tcl8.4`
-/// / `f5-irules`); for those two dialects the configs differ, so each consumer
-/// builds its own (status quo).  Byte-identical to a direct
+/// build per edit** whenever their configs coincide — every dialect bar
+/// `tcl8.4` and the three `f5-tcl`-grammar dialects (`f5-irules`, `f5-tmsh`,
+/// `f5-iapps`, all of which select `GRAMMAR_F5_TCL` since #1631's P1-G);
+/// for those four the configs differ, so each consumer builds its own.  Byte-identical to a direct
 /// `memoised_compilation_unit` call.
 // LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
 #[salsa::tracked(lru = 512, returns(clone))]
@@ -3099,19 +3130,21 @@ pub fn file_analysis_incremental(
         .with_pack_overlay(config.spec_pack_key(db))
         .with_extra_commands(extra_commands)
         .with_bigip_version(config.bigip_version(db).clone())
+        .with_declared_targets(config.targets(db).clone())
         .with_file_path(file.path(db).clone())
         .with_workspace_class_factories(workspace_class_factories.clone())
         .with_workspace_subclass_methods(file.workspace_subclass_methods(db).clone());
 
     // Build the CFG/SSA tail's compilation unit with per-procedure lattices
     // memoised by `function_lattice`, and feed it through the analyser's
-    // `cu_override` seam, via the shared [`compilation_unit`] query.  The default
-    // lexer config mirrors what `emit_cfg_ssa_diagnostics` builds for itself, so
-    // the supplied unit is the one it would otherwise build; routing through the
-    // tracked query lets `compiler_check_diagnostics` reuse this exact build in
-    // the same edit whenever the dialect's config matches the default (every
-    // dialect but `tcl8.4` / `f5-irules`).
-    let cfg_key = lexer_cfg_key(db, tcl_lexer::LexerConfig::default());
+    // `cu_override` seam, via the shared [`compilation_unit`] query.  The
+    // document's own environment grammar mirrors what
+    // `emit_cfg_ssa_diagnostics` builds for itself, so the supplied unit is
+    // the one it would otherwise build; routing through the tracked query lets
+    // `compiler_check_diagnostics` reuse this exact build in the same edit —
+    // now for *every* environment, because both consumers intern the same
+    // environment id (redesign §11.4 E1).
+    let cfg_key = lexer_cfg_key(db, &dialect);
     analyser.set_cu_override(compilation_unit(db, file, cfg_key));
 
     let mut body_fn = |body: &DeferredBody| -> BodyFragment {
@@ -3198,13 +3231,13 @@ pub fn compiler_check_diagnostics(
     config: AnalyserConfig,
 ) -> Arc<CompilerDiagnostics> {
     let dialect = file.dialect(db).clone();
-    let dialect_opt = tcl_dialect::DialectProfile::resolve_known(&dialect);
+    let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(&dialect);
     let registry = db.registry(&dialect);
     // Share the analyser tail's build via the [`compilation_unit`] query when the
     // dialect's lexer config matches the default (every dialect but `tcl8.4` /
     // `f5-irules`): the optimiser lowers with the dialect config, so a matching
     // config interns the same `LexerCfgKey` and reuses the same per-edit build.
-    let cfg_key = lexer_cfg_key(db, tcl_lexer::LexerConfig::for_dialect(&dialect));
+    let cfg_key = lexer_cfg_key(db, &dialect);
     let cu = compilation_unit(db, file, cfg_key);
     // Both halves of `run_all_checks` come from the memoised [`proc_taint_solve`]:
     // the interprocedural taint solve (`solve.taints`)
@@ -3244,7 +3277,7 @@ pub fn compiler_check_diagnostics_uncached(
     generic_patterns: Option<&[String]>,
     external_call_sites: Option<&CallSiteEvidence>,
 ) -> CompilerDiagnostics {
-    let dialect_opt = tcl_dialect::DialectProfile::resolve_known(dialect);
+    let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(dialect);
     let cu = CompilationUnit::build_with_options(
         text,
         UnitBuildOptions {
@@ -3259,7 +3292,7 @@ pub fn compiler_check_diagnostics_uncached(
     compiler_diagnostics_from_unit(
         &cu,
         registry,
-        tcl_dialect::DialectProfile::resolve_known(dialect),
+        tcl_lsp_core::stated_profile_for_dialect(dialect),
         generic_patterns,
     )
 }
@@ -3290,7 +3323,7 @@ pub fn document_symbols(
 // LRU-capped: per-file key, see the crate docs' "Deep-memo eviction".
 #[salsa::tracked(lru = 64, returns(clone))]
 pub fn document_compilation_unit(db: &dyn TclDb, file: SourceFile) -> Arc<CompilationUnit> {
-    let cfg_key = lexer_cfg_key(db, tcl_lexer::LexerConfig::for_dialect(file.dialect(db)));
+    let cfg_key = lexer_cfg_key(db, file.dialect(db));
     compilation_unit(db, file, cfg_key)
 }
 
@@ -3572,6 +3605,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         )
     }
 
@@ -3653,7 +3687,7 @@ mod tests {
         const SRC: &str = "proc alpha {a b} {\n    set s [expr {$a + $b}]\n    return $s\n}\n\
                            proc beta {x} {\n    return [alpha $x 1]\n}\n";
         let db = TclDatabase::default();
-        let cfg_key = lexer_cfg_key(&db, tcl_lexer::LexerConfig::default());
+        let cfg_key = lexer_cfg_key(&db, "tcl8.6");
         let file_a = SourceFile::new(&db, SRC.to_owned(), "tcl8.6".to_owned(), None);
         let file_b = SourceFile::new(&db, SRC.to_owned(), "tcl8.6".to_owned(), None);
         let first = compilation_unit(&db, file_a, cfg_key);
@@ -3745,7 +3779,7 @@ mod tests {
         let got = document_symbols(&db, file, cfg(&db));
         let expected = tcl_lsp_core::document_symbols::document_symbols(
             SRC,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         );
         assert_eq!(got, expected);
     }
@@ -3758,7 +3792,7 @@ mod tests {
         let reg = db.registry("tcl");
         let expected = tcl_lsp_core::semantic_tokens::full(
             SRC,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             reg,
         );
         assert_eq!(got, expected);
@@ -3785,7 +3819,7 @@ mod tests {
         let reg = db.registry("tcl9.0");
         let coarse = tcl_lsp_core::semantic_tokens::full(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             reg,
         );
         assert_ne!(
@@ -3809,7 +3843,7 @@ mod tests {
         let reg = db.registry("tcl9.0");
         let coarse = tcl_lsp_core::semantic_tokens::full(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             reg,
         );
         assert_eq!(
@@ -3848,6 +3882,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let file = SourceFile::new(&db, SRC.to_owned(), "tcl8.6".to_owned(), None);
 
@@ -4462,7 +4497,7 @@ mod tests {
         let reg = db.registry("tcl");
         let expected = tcl_lsp_core::folding::folding_ranges(
             SRC,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             reg,
         );
         assert_eq!(got, expected);
@@ -4638,6 +4673,7 @@ mod tests {
             None,
             Some("21.1.0".to_owned()),
             0,
+            Vec::new(),
         );
         let file = SourceFile::new(
             &db,
@@ -4653,6 +4689,61 @@ mod tests {
         assert_eq!(
             incremental.library_versions.bigip_version.as_deref(),
             Some("21.1.0")
+        );
+    }
+
+    /// `tclLsp.targets` (§5.4 range targeting) flows through the config
+    /// into both analysis queries: a declared `tcl 8.5-9.0` range flags
+    /// the 8.6-introduced `lmap` at the declared 8.5 target, and the
+    /// undeclared default stays byte-identically silent.
+    #[test]
+    fn file_analysis_carries_declared_targets() {
+        let db = TclDatabase::default();
+        let ranged = AnalyserConfig::new(
+            &db,
+            Vec::new(),
+            NonAsciiMode::Default,
+            Vec::new(),
+            None,
+            None,
+            0,
+            vec![("tcl".to_owned(), "8.5-9.0".to_owned())],
+        );
+        let bare = AnalyserConfig::new(
+            &db,
+            Vec::new(),
+            NonAsciiMode::Default,
+            Vec::new(),
+            None,
+            None,
+            0,
+            Vec::new(),
+        );
+        let file = SourceFile::new(
+            &db,
+            "lmap x {1 2} {set x}\n".to_owned(),
+            "tcl8.6".to_owned(),
+            None,
+        );
+
+        let incremental = file_analysis_incremental(&db, file, ranged);
+        let full = file_analysis(&db, file, ranged);
+        assert_eq!(*incremental, *full);
+        assert!(
+            incremental
+                .diagnostics
+                .iter()
+                .any(|d| d.code.as_str() == "W150" && d.message.contains("8.5")),
+            "the declared range flags lmap at the 8.5 target: {:?}",
+            incremental.diagnostics
+        );
+        let undeclared = file_analysis_incremental(&db, file, bare);
+        assert!(
+            !undeclared
+                .diagnostics
+                .iter()
+                .any(|d| matches!(d.code.as_str(), "W150" | "W151")),
+            "no declaration, no range diagnostics"
         );
     }
 
@@ -4681,6 +4772,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let file = SourceFile::new(
             &db,
@@ -4741,6 +4833,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let file = SourceFile::new(
             &db,
@@ -4803,6 +4896,7 @@ mod tests {
                     None,
                     None,
                     0,
+                    Vec::new(),
                 ),
             );
             let registry = db.registry(dialect);
@@ -5061,6 +5155,7 @@ mod tests {
                     None,
                     None,
                     0,
+                    Vec::new(),
                 ),
             );
             let want = compiler_check_diagnostics_uncached(src, registry, dialect, None, None);
@@ -5216,6 +5311,7 @@ mod tests {
                 None,
                 None,
                 0,
+                Vec::new(),
             ),
         );
         assert_eq!(
@@ -5241,6 +5337,7 @@ mod tests {
                 None,
                 None,
                 0,
+                Vec::new(),
             ),
         );
         assert_eq!(
@@ -5427,6 +5524,7 @@ mod tests {
                 None,
                 None,
                 0,
+                Vec::new(),
             ),
         );
         assert_eq!(
@@ -5452,6 +5550,7 @@ mod tests {
                 None,
                 None,
                 0,
+                Vec::new(),
             ),
         );
         assert_eq!(
@@ -5652,6 +5751,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         // `a` defines `foo` (1 param) and an unrelated `bar`.
         let a = SourceFile::new(
@@ -5736,6 +5836,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let a = SourceFile::new(
             &db,
@@ -5805,6 +5906,7 @@ mod tests {
                 None,
                 None,
                 0,
+                Vec::new(),
             );
             let a = SourceFile::new(&db, a_text.to_owned(), "tcl8.6".to_owned(), None);
             let b = SourceFile::new(&db, b_text.to_owned(), "tcl8.6".to_owned(), None);
@@ -5821,6 +5923,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let a = SourceFile::new(&db, a_text.to_owned(), "tcl8.6".to_owned(), None);
         let b = SourceFile::new(&db, b_variants[0].to_owned(), "tcl8.6".to_owned(), None);
@@ -5879,6 +5982,7 @@ mod tests {
                 None,
                 None,
                 0,
+                Vec::new(),
             );
             let a = SourceFile::new(&db, a_text.to_owned(), "tcl8.6".to_owned(), None);
             let b = SourceFile::new(&db, b_text.to_owned(), "tcl8.6".to_owned(), None);
@@ -5895,6 +5999,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let a = SourceFile::new(&db, a_variants[0].to_owned(), "tcl8.6".to_owned(), None);
         let b = SourceFile::new(&db, b_variants[0].to_owned(), "tcl8.6".to_owned(), None);
@@ -5942,6 +6047,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         // B defines `proc helper {x y}` — arity exactly 2.
         let b = SourceFile::new(
@@ -5999,6 +6105,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         // B: a class `Widget` AND a proc whose tail is also `Widget` (arity 1).
         let b = SourceFile::new(
@@ -6059,6 +6166,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         // B defines onNode with 2 params; `graph walk -command` appends 3.
         let b = SourceFile::new(
@@ -6139,6 +6247,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let d_on = project_diagnostics(&db, a, cfg_on, proj);
         assert!(has(&d_on, "E003"), "baseline: E003 present when enabled");
@@ -6154,6 +6263,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let d_off = project_diagnostics(&db, a, cfg_off, proj);
         assert!(
@@ -6193,6 +6303,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
 
         // Wrong arity (3 args to a 2-param proc) → E003 still fires; no W123.
@@ -6245,6 +6356,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         assert!(has_w123(base), "baseline W123 expected");
         // With the command declared extra → suppressed.
@@ -6256,6 +6368,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         assert!(!has_w123(cfg), "extraCommands should suppress W123");
     }
@@ -6274,6 +6387,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         // B defines a TclOO class `Widget`.
         let b = SourceFile::new(
@@ -6314,6 +6428,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let b = SourceFile::new(
             &db,
@@ -6391,6 +6506,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let b = SourceFile::new(
             &db,
@@ -6453,6 +6569,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let b = SourceFile::new(
             &db,
@@ -6501,6 +6618,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let b = SourceFile::new(
             &db,
@@ -6544,6 +6662,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let b = SourceFile::new(
             &db,
@@ -6584,6 +6703,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let f = SourceFile::new(&db, src.to_owned(), "tcl9.0".to_owned(), None);
         let proj = Project::new(&db, vec![f]);
@@ -6956,6 +7076,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let file = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned(), None);
         let _ = file_analysis_incremental(&db, file, cfg);
@@ -7001,6 +7122,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let file = SourceFile::new(
             &db,
@@ -7063,6 +7185,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         // Four independent procedures; we edit `b`'s body and leave a, c, d alone.
         let file = SourceFile::new(
@@ -7149,6 +7272,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         // `other` first so editing it shifts the two below; `target` takes a
         // param `caller` always passes the literal `42` for -> param_constants.
@@ -7226,6 +7350,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let src = "proc a {x} { return $x }\nproc b {} { a 1 }\n";
         let count_cu = |log: &Arc<Mutex<Vec<String>>>| {
@@ -7235,7 +7360,8 @@ mod tests {
                 .count()
         };
 
-        // tcl8.6: default == for_dialect, so the two consumers share one build.
+        // tcl8.6: both consumers intern the document's environment id, so
+        // they share one build.
         let file86 = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned(), None);
         let _ = file_analysis_incremental(&db, file86, cfg);
         let _ = compiler_check_diagnostics(&db, file86, cfg);
@@ -7245,15 +7371,21 @@ mod tests {
             "tcl8.6: both consumers share exactly one compilation_unit build"
         );
 
-        // tcl8.4: for_dialect disables `{*}` expansion, so the configs differ
-        // and each consumer builds its own unit (two executions).
+        // **Enumerated delta of redesign §11.4 row E1.** This case used to
+        // assert *two* builds: the analyser tail asked for
+        // `LexerConfig::default()` and the checks pass for
+        // `for_dialect("tcl8.4")`, whose `expand_syntax` differs, so the
+        // truncated three-field key interned two entries. Both consumers now
+        // lex under the document's own environment, so `tcl8.4` shares one
+        // build like every other environment — the sharing measurement in
+        // `docs/design/lanes/c1-executable-ir-rekey.md` §4 (15/20 → 20/20).
         let file84 = SourceFile::new(&db, src.to_owned(), "tcl8.4".to_owned(), None);
         let _ = file_analysis_incremental(&db, file84, cfg);
         let _ = compiler_check_diagnostics(&db, file84, cfg);
         assert_eq!(
             count_cu(&log),
-            2,
-            "tcl8.4: differing lexer configs -> a separate build per consumer"
+            1,
+            "tcl8.4: one environment id -> one shared build, as for every dialect"
         );
 
         // A fresh edit re-shares for tcl8.6 (one build for the new revision).

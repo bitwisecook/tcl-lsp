@@ -37,6 +37,7 @@ use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode};
+use tcl_dialect::model::SpecProvider;
 
 impl Analyser {
     /// **W105.** Emit "unbraced code block" warnings for body
@@ -481,7 +482,7 @@ Use braces: {{ \u{2026} }}"
         let mode = match self.non_ascii_mode {
             NonAsciiMode::Default => {
                 if self.profile.is_irules()
-                    || self.profile.vendor_bit == Some(tcl_dialect::DialectSet::IAPPS)
+                    || self.profile.vendor_surface == Some(SpecProvider::Package("iapps"))
                 {
                     NonAsciiMode::Strict
                 } else {
@@ -726,9 +727,11 @@ Use braces: {{ \u{2026} }}"
             return;
         };
         let refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let Some((case, invocation)) =
-            registry.case_invocation(cmd_name, &refs, self.profile.availability_mask)
-        else {
+        let Some((case, invocation)) = registry.case_invocation(
+            cmd_name,
+            &refs,
+            Some(self.analysis_context().context().authoring_query()),
+        ) else {
             return;
         };
         if !case.warn_unbraced_bodies {

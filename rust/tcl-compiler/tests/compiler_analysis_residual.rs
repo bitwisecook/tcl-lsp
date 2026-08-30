@@ -77,11 +77,10 @@ use tcl_compiler::place_bridge::{
 };
 use tcl_compiler::scan_predicate::scan_provably_no_match;
 use tcl_compiler::var_escape::{ProcEscapeSummary, analyse_var_escape};
-use tcl_registry::{CommandRegistry, registry_for_dialect};
+use tcl_registry::CommandRegistry;
+use tcl_registry::model::ingress::static_context_for;
 
-// ===========================================================================
 // Shared harness
-// ===========================================================================
 
 /// Default dialect for the diagnostic-surface reproducers.
 const D: &str = "tcl8.6";
@@ -101,9 +100,10 @@ fn codes(src: &str, dialect: &str) -> Vec<String> {
         .iter()
         .map(|d| d.code.to_string())
         .collect();
-    let registry = registry_for_dialect(dialect);
+    let registry = static_context_for(dialect).commands();
     let cu = CompilationUnit::build_for(src, registry, false);
-    let dialect_opt = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let dialect_opt = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     for d in run_all_checks(&cu, registry, dialect_opt) {
         if d.code.is_optimisation() {
             continue;
@@ -123,8 +123,9 @@ fn fires(src: &str, dialect: &str, code: &str) -> bool {
 fn o107_fires(src: &str, dialect: &str) -> bool {
     use tcl_compiler::optimiser::manager::optimise_with_dialect;
     use tcl_core_types::DiagCode;
-    let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let registry = static_context_for(dialect).commands();
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     optimise_with_dialect(src, registry, d)
         .iter()
         .any(|o| o.code == DiagCode::O107)
@@ -171,9 +172,7 @@ fn places_of(src: &str, qname: &str) -> (Vec<Place>, Vec<Place>) {
     (defs, reads)
 }
 
-// ===========================================================================
 // scan_predicate.rs — every conversion specifier + the decline paths
-// ===========================================================================
 //
 // `scan_provably_no_match(FMT, INPUT)` returns `true` iff the first conversion
 // is statically guaranteed not to consume input (so the first output var stays
@@ -397,9 +396,7 @@ fn scan_predicate_w210_hex_and_binary() {
     assert!(fires("proc f {} { scan 2 %b n\n puts $n }", D, "W210"));
 }
 
-// ===========================================================================
 // auto_path_eval.rs — the lappend auto_path mini-evaluator
-// ===========================================================================
 //
 // Structural note: the evaluator is a side-effect-free POSIX-path mini-eval; its
 // path helpers (`posix_join`, `normpath`, `expanduser`) follow standard POSIX
@@ -634,9 +631,7 @@ fn auto_path_bare_tilde_no_home_unchanged() {
     });
 }
 
-// ===========================================================================
 // place_bridge.rs — place/SSA-bridge def/read resolution
-// ===========================================================================
 
 #[test]
 fn place_dict_set_defs_variable_and_dollar_read_observes_it() {
@@ -886,9 +881,7 @@ fn place_block_body_reads_recovered() {
     );
 }
 
-// ===========================================================================
 // lattice_rebase.rs — memoised-unit offset rebase across a shift
-// ===========================================================================
 //
 // Structural note: `lattice_rebase` shifts every absolute span in a memoised
 // `FunctionUnit` when a cached offset-0 body is reused at a new file offset.
@@ -937,7 +930,9 @@ fn rebased_units(base: &str, shifted: &str) -> (CompilationUnit, CompilationUnit
                 registry: &registry,
                 defer_top_level: false,
                 config: tcl_lexer::LexerConfig::default(),
-                dialect: Some(tcl_dialect::DialectProfile::by_name(D)),
+                dialect: Some(
+                    tcl_registry::model::ingress::resolve_environment(D).analyser_profile(),
+                ),
                 external_call_sites: None,
             },
             &mut |req: &tcl_compiler::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
@@ -1052,9 +1047,7 @@ fn rebase_zero_delta_is_noop() {
     );
 }
 
-// ===========================================================================
 // inlining/mod.rs — classify_proc / inline_module decline reasons
-// ===========================================================================
 
 #[test]
 fn inline_classify_no_summary_is_never() {
@@ -1265,9 +1258,7 @@ fn inline_v3_semantics_preserved_value() {
     );
 }
 
-// ===========================================================================
 // analyser/diagnostics/fp/rch.rs — reachability (O107) FP suppressor carve-outs
-// ===========================================================================
 //
 // The reachability suppressor decides whether code after an unconditional exit
 // (return / break / continue / error), or guarded by a constant-false

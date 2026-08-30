@@ -73,34 +73,33 @@ TclOO/snit definers, `upvar`, `return`) and by drafting specs for
 external libraries (ticklecharts, apave, SpiceGenTcl, uncovered tcllib
 modules) rather than by inventing syntax in the abstract.
 
-**Where the migration half of that ambition stops, exactly.** The DSL
-excludes `command_forms` and `subcommand_forms`. These are not just another
-declarative row: one value bundles arity, roles and options with native
-literal validators, lowering/codegen hooks, and compiler proof descriptors.
-The Studio can preserve a hand-written value as an opaque Rust expression,
-but the runtime loader cannot construct every member and a loaded spec cannot
-recover the identity of every function pointer. Consequently the exclusion is
-**whole-descriptor and all-or-nothing**. Adding syntax for only a literal
-selector and effect overrides would make a partially authorable form look
-round-trippable when it is not.
+**Where the migration half of that ambition stops, exactly.** It used to
+stop at `command_forms` and `subcommand_forms`, which bundle arity, roles
+and options together with native literal validators, compiler hooks and
+proof descriptors: no partial syntax could be added without making a
+half-authorable form look round-trippable.
 
-The old rationale that plain `forms` covers every getter/setter split is no
-longer true. `FormSpec` documents synopsis and lifecycle only; it carries no
-semantic traits or effects. In addition to the original Tcl/iRules compiler
-routing users (`lset`, `incr`, `package vsatisfies`, `namespace upvar`,
-`HTTP::cookie`, and `HTTP2::stream`), compiled-in Tk widget methods now use
-structured subcommand forms to distinguish queries from mutations and to
-select nested literal operations. Those compiled-in specs therefore cannot
-round-trip through SpecTcl either.
+Q12 resolved that by splitting the descriptor rather than subsetting it.
+`refine NAME { … }` is the **invocation refinement** — arity, a literal
+`selector`, argument roles, options and relations, availability, and the
+replacement `traits` / `mutator` / effects one call shape states — written
+in the owning scope's own words and read by the owning scope's own readers.
+The native halves (`completion`, `dispatch_dependencies`,
+`literal_argument_validator`, and the compiler hook ids) stay Rust-only,
+and a form carrying one is *reported*, not thinned, so the round trip never
+claims more than it preserves.
 
-The tractable way to close this gap is not a four-field subset of
-`CommandForm`. Split out a fully declarative invocation-refinement descriptor
-(literal selector, arity, replacement traits/mutator/effects) with complete
-Studio, loader, emitter, help, and equivalence coverage, then let the native
-`CommandForm` layer add compiler-only routing. Alternatively, make every
-member of `CommandForm` authorable by first giving each native/proof member a
-stable closed identity. Either is a deliberate format change whose migration
-test is **all** current structured-form users, not only the historical six.
+The migration test is Tk, whose widget methods are the largest structured-form
+user: `tk_form_refinements_round_trip_through_the_pack_dsl` renders every Tk
+command that refines its subcommand forms to a pack and asserts the reloaded
+form tables equal the compiled ones. The original Tcl/iRules routing users
+(`lset`, `incr`, `package vsatisfies`, `namespace upvar`, `HTTP::cookie`,
+`HTTP2::stream`) keep their compiler hooks, which is exactly the layer that
+stays native.
+
+Plain `forms` remains documentation-only: `FormSpec` carries synopsis and
+lifecycle, never traits or effects, and is not a semantic substitute for a
+refinement.
 
 ## Performance: the format does not decide it
 
@@ -118,6 +117,57 @@ The one design rule that matters for performance: packs layer into the
 cached registry at workspace scope, **not** the per-document overlay path
 stubs use — a pack is parsed per edit of the pack, never per edit of the
 code that uses it.
+
+### Measured: what the 2.0 vocabulary costs
+
+`cargo run --release -p tcl-spectcl --example speclib_version_costs`
+loads every bundled pack three ways over the same source — as it ships,
+as `tcl spec upgrade` rewrites it (2.0), and as 2.0 with the static fast
+path off, so the pack really is executed as a Tcl program by `tcl-vm`
+rather than captured from its CST. All three register the same commands;
+the example asserts that before it times anything.
+
+The "1.x" column is **1.1**: that is what all eight bundled packs declare,
+and it is the newest vocabulary any of them uses. The ladder is 1.0 → 1.1
+→ 1.2 → 2.0, so there is no 1.3 to compare against; 1.2's additions
+(versioned `arity`/`arg` rows, `ambient_package`, second-level option
+blocks) are words no shipped pack needed. Median of 15 loads, release
+build:
+
+| pack | lines | commands | 1.x ms | 2.0 ms | Δ | 2.0 VM ms | 1.x KiB | 2.0 KiB | 2.0 VM KiB |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| `eda_cadence` | 1076 | 77 | 3 | 4 | +13% | 21 | 129 | 144 | 129 |
+| `eda_mentor` | 1262 | 69 | 5 | 6 | +9% | 39 | 126 | 201 | 197 |
+| `eda_microchip` | 6366 | 257 | 36 | 37 | +3% | 398 | 809 | 852 | 1008 |
+| `eda_quartus` | 1110 | 77 | 5 | 5 | +7% | 32 | 0 | 0 | 0 |
+| `eda_synopsys` | 923 | 68 | 3 | 4 | +9% | 22 | 0 | 0 | 0 |
+| `eda_xilinx` | 20887 | 788 | 145 | 174 | +20% | 2725 | 3164 | 2840 | 3162 |
+| `sdc_base` | 1186 | 86 | 7 | 6 | -6% | 41 | 0 | 0 | 0 |
+| `upf` | 2191 | 67 | 22 | 19 | -14% | 123 | 0 | 0 | 0 |
+| **corpus** | | | **227** | **255** | **+12%** | **3401** | **4230** | **4038** | **4498** |
+
+Three things the numbers say:
+
+- **2.0 costs about a tenth of the load, and nothing else.** The
+  `available {tcl 8.4-}` algebra is more words to segment than
+  `dialects all-tcl`, which is the whole difference: repeated runs put
+  the corpus figure between +8% and +12%, and individual packs swing
+  either side of it. On the 35k-line corpus that is ~30 ms once, at
+  workspace scope.
+- **Memory is unchanged**, because the two spellings lower to the same
+  rows: 4.2 MiB against 4.0 MiB across the corpus is noise at this
+  resolution. The column measures resident bytes a load *retains* — the
+  loader interns what it registers, so that, not a transient peak, is what
+  a pack costs the process. It is measured at page granularity, so the
+  small packs read `0`, and the interpreted column runs a little higher
+  because the VM's own pages are still resident when it is sampled.
+- **The static fast path is what makes design E affordable.** Executing
+  the corpus as Tcl costs 3.4 s against 0.26 s: a wholly declarative pack
+  is captured from its CST instead, and `tests/eval_loader.rs` loads
+  every shipped pack both ways and asserts the snapshots are identical,
+  which is what makes the shortcut an optimisation rather than a second
+  reading of the file. A pack that templates its registrations pays the
+  interpreter for the part that needs one.
 
 ## The format: a Tcl DSL, parsed by our own toolchain
 
@@ -420,9 +470,22 @@ let packs survive releases without rebuilds:
 - Unknown property words, trait names, role names, or hook names are
   dropped with a logged notice; the rest of the spec loads. New server +
   old pack always works; old server + new pack degrades gracefully.
+- **Except where dropping the word would strengthen the answer.** Since
+  `SpecTcl` 2.0 (redesign §6.1, review B13) an unknown word in a pack
+  declaring a vocabulary this build postdates is classified by its
+  compatibility effect: *presentation* words warn and drop as above;
+  *assistance* words (shapes, roles, value sets) leave the command known
+  but degraded, so the affected capability answers `Unknown`; *semantic*
+  words (security, control flow, binding, lowering, codegen — and every
+  unknown word inside a `dialect` or `environment` block) exclude the
+  command or block from strong analysis. An old server that ignored a
+  "this method is a sink" word would otherwise report a *cleaner* result
+  than a new one, purely by not understanding the field.
 - A `speclib` version pragma gates hard breaks only — a word whose
   *meaning* changed, not one that was added. The server refuses a major
-  it does not know and names the fix.
+  it does not know and names the fix: the pack loads nothing at all, and
+  one notice says why. An unknown *minor* within a known major keeps
+  loading maximally.
 - The studio schema-coverage gates already force every new `CommandSpec`
   field to a named key; that key is the DSL property name, so the format
   cannot silently fall behind the registry.
@@ -741,6 +804,121 @@ quarantine-on-first-crash around it. A workspace pack can therefore make the
 editor say something wrong about the workspace's own code; it cannot reach
 the machine. If that ever stops being true — a hook family gaining ambient
 authority — the workspace tier has to become trust-gated in the same breath.
+## Authoring rules for SpecTcl 2.0 (design E)
+
+Under design E a pack is **evaluated**, not walked: the file runs as a Tcl
+program in a deterministic sandbox, and what loads is the snapshot of
+registrations it made
+([`spectcl-design-e-deep-dive.md`](spectcl-design-e-deep-dive.md) §1). Two
+consequences shape everything an author does — a pack can now *template* its
+declarations, and a reader of the file no longer necessarily sees the surface
+it produces. The rules below keep the first without paying for the second.
+
+- **Write canonical form unless repetition is the problem being solved.**
+  The **canonical subset** (E-R11) is straight-line registration calls only —
+  today's declarative vocabulary, no `proc`, `set`, `foreach`, or computed
+  argument. Every pack shipped so far is canonical, canonical source and
+  snapshot are a bijection modulo formatting, and everything that *generates*
+  a pack emits it: the studio's renderer, `tcl spec import` and its MCP twin,
+  `spec upgrade --restyle`, stub-tier conversions. Programs are for humans
+  with a repetition problem — forty commands differing in two fields — not
+  for saving four lines.
+- **Run `spec export` and read the expansion before shipping.**
+  `tcl spec export` (MCP: `spectcl_expand`) renders any snapshot back as
+  canonical source. Generate the template, expand it, read the expansion as a
+  diff against intent, iterate. Expansion is **total**; contraction —
+  recovering a program from its snapshot — is never attempted, so the
+  expansion is the whole truth about what a pack registered. A templated pack
+  whose author has never read its expansion is exactly the opacity the
+  frozen-snapshot model exists to prevent.
+- **Prefer an `-available` row to a branch on `available?`.** Branching on
+  `available?` while registering makes the snapshot **one analysis target's**
+  answer rather than the pack's: the pack is marked target-dependent (E-R1),
+  carries a notice saying so, and is excluded from snapshot caching. An
+  `-available` row states the same fact as *data*, and one snapshot then
+  serves every target correctly. Keep `available?` for the rare case where the
+  *shape* of a declaration differs between targets, not its availability.
+- **Keep the data table adjacent to the loop that consumes it.** A templated
+  declaration is readable exactly when its rows are on the screen above it.
+  A table assembled across three `proc`s in another part of the file is a
+  program, not a spec, and the next reader will run `spec export` instead of
+  reading it — which is a smell, not a workflow.
+- **Patch packs, not edited programs.** The studio edits a canonical pack in
+  place and byte-stably, and **never rewrites a programmed pack** (E-R12).
+  A form edit against one becomes a canonical patch pack in the
+  `StudioOverride` tier, layered over the base by the ordinary collision
+  policy (`-override` on each patched declaration, patch installed after the
+  base), with the source opening read-only beside its expansion. Standing
+  overrides are reported — by the store, and by `spec check` — so a patch
+  cannot rot silently: fold it back into the program by hand when the program
+  is the thing that should change, or keep it layered deliberately.
+- **What the sandbox guarantees, so authoring can lean on it.** No clock, no
+  IO, no network, no processes, no environment, no threads; registration is
+  transactional (any hard error loads nothing at all); budgets bound command
+  steps and value size, and wall clock on targets that have a real one — the
+  browser evaluates under the step budget alone, because a page's throttled
+  `Date.now()` would make the same pack load in one tab and fail in another.
+  A runaway `foreach` is therefore a budget notice naming its axis, not a hung
+  tool, which is what makes it safe to run a *generated* pack through
+  `spectcl_check` before reading a line of it.
+
+### Composing a surface: `include from … into …`
+
+`include NAME` splices another `.tclspec`'s declarations in — file
+composition. `include from SOURCE into TARGET ?-available {WINDOW}?
+{names…}` composes **surfaces**: it enumerates which of one family's
+command names another family, which reimplements it, actually has. The
+two share a word because they are the same idea at two scales, and they
+are told apart by the second word — `from` is never a file name.
+
+```tcl
+include from tcl into jim {
+    append apply array break catch cd clock close concat …
+}
+include from tcl into jim -available {0.77-} { interp }
+```
+
+It exists because an ancestry edge alone is too generous. A
+`Lineage::Fork` inherits its ancestor's surface wholesale and should:
+a fork *is* the ancestor's source plus changes. A
+`Lineage::Reimplementation` implements a *subset* — Jim implements "a
+significant subset of the Tcl 8.6 command set" — and a subset inherited
+wholesale over-admits everything outside it. The roster is that subset,
+written down.
+
+Rules a roster author needs:
+
+- **The row names both ends.** A roster is a two-ended fact, and the
+  target is a compiled family a pack cannot otherwise claim (`dialect
+  jim { … }` is refused — compiled family names are reserved). Saying
+  `into TARGET` out loud beats deriving it from which file the row sits
+  in.
+- **`-available` is a window on the *target's* own axis.** `{0.77-}`
+  reads on Jim's ladder, not Tcl's: it is when *Jim* grew the name.
+  A row with no `-available` covers the whole ladder.
+- **Several rows for one pair are one roster.** That is how per-release
+  windows are written without repeating the pair on every line; they
+  merge at conversion.
+- **A malformed row is dropped whole, with a notice.** A roster that
+  loaded *partly* would narrow a family's surface by an amount nobody
+  wrote.
+- **Rosters fail open.** A pair with no registered roster inherits
+  wholesale — today's behaviour. A build that did not load the surface
+  pack offers a few heads too many; it never offers nothing.
+- **Only a trusted tier may narrow a compiled family.** Rosters sit with
+  the grammar declarations at the top of the trust lattice: a workspace
+  pack that could enumerate `jim`'s inherited surface could delete `proc`
+  from it.
+
+Jim's own roster ships compiled into the binary
+(`rust/tcl-spectcl/core-surfaces/jim.tclspec`) rather than in `specs/`,
+for the reason the last rule gives: `specs/` is *replaceable* — a
+distribution, `TCL_LSP_SPEC_PACK_DIR`, or a dev checkout can put a
+different directory in front of it — and that contract is right for a
+vendor library and wrong for a core surface. It is `SpecTcl` in every
+sense that matters, read by the one loader through the same words a
+third-party pack would use; it is simply not a file anyone can take
+away.
 
 ## The acceptance rubric
 

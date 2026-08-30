@@ -18,11 +18,12 @@
 
 //! `timing` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "timing",
         traits: Traits::IRULES_TOP_LEVEL_ONLY,
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::exact(1),
         irules_top_level_effect: Some(IrulesTopLevelEffect::Timing),
         hover: Some(HoverSnippet {

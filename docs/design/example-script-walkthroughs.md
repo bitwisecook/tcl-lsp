@@ -701,7 +701,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "string",
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
@@ -740,7 +740,7 @@ pub enum FormKind {
 pub struct FormSpec {
     pub kind: FormKind,
     pub synopsis: &'static str,          // human-readable signature
-    pub dialects: Option<DialectSet>,    // None = inherit the command's own
+    pub surface: Option<&'static [SpecSurface]>,   // None = inherit the command's own
 }
 ```
 
@@ -826,7 +826,7 @@ pub struct SubCommand {
     pub arg_types: &'static [(u8, ArgTypeHint)],
     pub arg_values: &'static [(u8, &'static [ArgValue])],   // completions
     pub options: &'static [OptionSpec],       // per-subcommand options
-    pub dialects: Option<DialectSet>,         // None = inherit from parent
+    pub surface: Option<&'static [SpecSurface]>,   // None = inherit from parent
     pub lifecycle: Lifecycle,                 // introduced / deprecated / retired
     pub subcommand_forms: &'static [SubCommandForm],
     pub sub_subcommands: &'static [SubSubCommand],   // a third dispatch level
@@ -864,7 +864,7 @@ pub struct OptionSpec {
     pub name: &'static str,             // e.g. "-nocase", "-length"
     pub value: OptionValue,             // a boolean flag, or a described value
     pub detail: &'static str,           // completion description
-    pub dialects: Option<DialectSet>,   // None = inherit from the parent spec
+    pub surface: Option<&'static [SpecSurface]>,   // None = inherit from the parent spec
     pub aliases: &'static [&'static str],   // documented alternate spellings
     pub lifecycle: Lifecycle,
     pub min_abbrev: Option<u8>,         // None = any unique prefix resolves
@@ -1312,78 +1312,66 @@ the SSA graph, and emits diagnostics (e.g. `IRULE3001` for XSS, `IRULE3002`
 for header injection) when tainted data reaches a sink — classified by
 `classify_sink` — without sufficient safety colours.
 
-### Dialects
+### Availability
 
-Dialects partition command availability across Tcl versions and tool
-contexts.  The canonical profile names (`rust/tcl-dialect/src/dialect_set.rs`,
-re-exported from `rust/tcl-registry/src/dialects.rs`) are a sorted
-`&'static [&'static str]`:
+Availability partitions command surfaces across Tcl releases and tool
+contexts. The canonical environment names (`rust/tcl-dialect/src/profile.rs`,
+resolved through the one ingress `Environment::resolve`) are:
 
-```rust
-// rust/tcl-dialect/src/dialect_set.rs
-pub const KNOWN_DIALECTS: &[&str] = &[
-    "bpf",
-    "cadence-eda-tcl",
-    "expect",
-    "f5-bigip",                  // F5 BIG-IP config surface
-    "f5-iapps",                  // F5 iApps
-    "f5-irules",                 // F5 iRules
-    "f5-tmsh",                   // F5 tmsh scripting
-    "intel-quartus-eda-tcl",
-    "mentor-eda-tcl",
-    "synopsys-eda-tcl",
-    "tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1",   // Tcl version dialects
-    "xilinx-eda-tcl",
-];
+```text
+bpf                    f5-bigip     spectcl
+cadence-eda-tcl        f5-iapps     synopsys-eda-tcl
+expect                 f5-irules    tcl8.4 tcl8.5 tcl8.6 tcl9.0 tcl9.1
+intel-quartus-eda-tcl  f5-tmsh      tk
+mentor-eda-tcl         jim          xilinx-eda-tcl
+microchip-libero-eda-tcl
 ```
 
-A spec's own gating is not a set of those strings but a `DialectSet` — a
-`bitflags` set over `u64`, with composite constants combined by `union` /
-`|`:
+A spec does not gate on those names. It states a **surface**: a list of rows
+saying who provides the shape and over which windows on *that provider's*
+version axis (`rust/tcl-dialect/src/model/authored_surface.rs`):
 
 ```rust
-// rust/tcl-dialect/src/dialect_set.rs
-bitflags! {
-    pub struct DialectSet: u64 {
-        const TCL84  = 1 << 0;
-        const TCL85  = 1 << 1;
-        const TCL86  = 1 << 2;
-        const TCL90  = 1 << 3;
-        const IRULES = 1 << 4;
-        const IAPPS  = 1 << 5;
-        const TK     = 1 << 6;
-        const EXPECT = 1 << 7;
-        const BPF    = 1 << 13;
-        const TCL91  = 1 << 14;
-        const TMSH   = 1 << 15;
-        const BIGIP  = 1 << 16;
+pub enum SpecProvider {
+    Core(Family),               // a core family's own surface
+    Package(&'static str),      // "Tk", "iapps", "struct::graph"
+}
 
-        const ALL_TCL     = /* TCL84 | TCL85 | TCL86 | TCL90 | TCL91 */;
-        const TCL85_PLUS  = /* TCL85 | TCL86 | TCL90 | TCL91 */;
-        const TCL86_PLUS  = /* TCL86 | TCL90 | TCL91 */;
-        const TCL8X       = /* TCL84 | TCL85 | TCL86 */;
-        const TCL90_PLUS  = /* TCL90 | TCL91 */;
-        const TK_AND_TCL  = /* ALL_TCL | TK */;
-    }
+/// One half-open [start, end) window; `end: None` means "and after".
+pub type SpecWindow = (&'static str, Option<&'static str>);
+
+pub struct SpecSurface {
+    pub provider: SpecProvider,
+    /// Empty means every release the provider has.
+    pub windows: &'static [SpecWindow],
 }
 ```
 
-The EDA shells have no dialect bits of their own: they are modelled as a base
-Tcl version plus `required_package`-gated command libraries.
+Ladder shorthands name the dozen windows the ~1,800 compiled specs actually
+spell — `SpecSurface::ALL_TCL`, `TCL85_PLUS`, `TCL8X`, `TCL90_PLUS` — so the
+data stays readable. The EDA shells have no surface of their own: they are a
+base Tcl release plus `required_package`-gated command libraries.
 
-Every `CommandSpec` has an optional `dialects: Option<DialectSet>` field:
+Every `CommandSpec` has an optional `surface: Option<&'static [SpecSurface]>`:
 
-- `dialects: None` → available in **all** dialects.
-- `dialects: Some(DialectSet::IRULES)` → iRules-only command (e.g.
-  `HTTP::host`, `pool`, `table`).
-- `dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES))` → core Tcl
-  plus iRules, the `string` case.
+- `surface: None` → available everywhere.
+- `surface: Some(SpecSurface::IRULES)` → iRules-only (`HTTP::host`, `pool`,
+  `table`).
+- `surface: Some(SpecSurface::ALL_TCL_AND_IRULES)` → core Tcl plus iRules, the
+  `string` case.
+- `surface: Some(&[SpecSurface::core_in(Family::Jim, &[("0.81", None)])])` →
+  a Jim addition from 0.81 on, which no bitmask could have spelled.
 
 Subcommands, options, forms, and individual side effects each carry the same
-`Option<DialectSet>`, overriding the parent's when `Some` and inheriting it
-when `None`.  `DialectSet::is_valid_nested_dialects(child, parent)` is a
-`const fn`, so an unreachable nesting can be rejected at build time rather
-than by a test sweep.
+`Option<&[SpecSurface]>`, overriding the parent's when `Some` and inheriting
+it when `None`.
+
+A *query* is the other half and a different shape: a profile asks at one
+point — one family at one release, plus the packages it has — and
+`surface_admits(rows, point)` answers whether any row covers it. Rows and
+points are deliberately not the same type; conflating them (the retired
+`DialectSet`, where both were a bitmask) is what made `available {tcl 8.5}`
+silently mean "8.5 and later".
 
 ### Events (iRules only)
 
@@ -2530,7 +2518,7 @@ pub const fn spec() -> CommandSpec {
         traits: Traits::PURE
             .union(Traits::CSE_CANDIDATE)
             .union(Traits::DIAGRAM_ACTION),
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(1),
         subcommands: SUBCOMMANDS,
         taint_source: Some(TaintColour::TAINTED),   // return value is tainted
@@ -2639,7 +2627,7 @@ walks the SSA graph and computes a `TaintLattice` for each SSA value key:
    - `classify_sink(registry, "HTTP::respond", args, dialect)`
      (`rust/tcl-compiler/src/taint.rs`) queries the registry:
      `tcl_registry::taint::classify_taint_sinks(registry, "HTTP::respond",
-     subcommand, DialectSet::empty())`
+     subcommand, point)`
      (`rust/tcl-registry/src/taint.rs`).
    - Returns `(DiagCode::Irule3001, "HTTP::respond")` — the content body is
      an XSS-sensitive output sink.

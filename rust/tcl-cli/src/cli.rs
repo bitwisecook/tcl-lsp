@@ -41,7 +41,11 @@ use tcl_dialect::DialectProfile;
 /// enumerating it in `--help` narrows nothing: an unrecognised spelling was
 /// already an input error, it is now reported with the list of names.
 fn dialect_possible_values() -> Vec<PossibleValue> {
-    let tk = DialectProfile::tk();
+    // T1: the `+ tk` special case is the *payload* ledger row T1 retires
+    // (P1) — an environment enumeration has different contents, so
+    // re-keying it changes `--help` rather than refactoring it. The `tk`
+    // name itself now resolves through the one ingress seam.
+    let tk = tcl_cli_support::environment::profile_for_dialect("tk");
     DialectProfile::all()
         .iter()
         .map(|profile| {
@@ -522,16 +526,50 @@ pub enum SpecCommand {
     /// instead of repeating whatever version the newest sources declare.
     Import(SpecImportArgs),
 
-    /// Rewrite a pack's `speclib` version word to the newest `SpecTcl`
-    /// vocabulary.
+    /// Rewrite a 1.x pack's source to the newest `SpecTcl` vocabulary.
     ///
-    /// The vocabulary is additive and every loader reads all known versions
-    /// in full, so the upgrade is the declaration alone — no statement in the
-    /// pack changes. Declaring the newest vocabulary is what entitles a pack
-    /// to the 1.1-only words (row-level lifecycle flags, command-scope
-    /// `versioned_arg_value`, an option's `-deprecation-fix`) without the
-    /// loader's declares-1.0 notice.
+    /// Every loader reads all known vocabulary versions in full, so nothing
+    /// is *forced* to upgrade — but 2.0 changes meaning by adding words and
+    /// translating the legacy ones, so this rewrites statements as well as
+    /// the `speclib` version word: `dialects` / `-dialects` rows become
+    /// `available` rows at every scope (U2), `ambient_package` and
+    /// `file_extension … -dialect` rows rehome into `environment … -extend`
+    /// blocks under a cannot-infer rule that leaves ambiguous packs partial
+    /// (U4/U5), and the version word moves to 2.0 only when the body rewrite
+    /// completed on that file (U1). Edits are content-range replacements
+    /// located by the loader's own lexer and applied back-to-front, so
+    /// layout, comments and delimiters survive; `--verify` proves the
+    /// original and the rewrite load to byte-identical registry snapshots.
     Upgrade(SpecUpgradeArgs),
+
+    /// Render a pack as canonical `SpecTcl` — its expansion, if it is a
+    /// program.
+    ///
+    /// The pack is evaluated (design E) and the registrations it made are
+    /// written back as straight-line source: literal `command` / `option` /
+    /// `subcommand` declarations, no `proc`, no `foreach`. A pack that is
+    /// already canonical round-trips; a templated one is expanded, which is
+    /// how its author reads what the loop actually registered. Expansion is
+    /// total and contraction is never attempted — a program is not recovered
+    /// from its expansion.
+    Export(SpecExportArgs),
+}
+
+/// Flags of `tcl spec export`.
+#[derive(Debug, Args)]
+pub struct SpecExportArgs {
+    /// The `.tclspec` file to expand.
+    #[arg(value_name = "FILE")]
+    pub file: PathBuf,
+
+    /// Write the canonical pack here instead of stdout.
+    #[arg(long = "out", short = 'o', value_name = "FILE")]
+    pub out: Option<PathBuf>,
+
+    /// Report the expansion as JSON — the canonical source, whether the pack
+    /// is target-dependent, and every load notice.
+    #[arg(long)]
+    pub json: bool,
 }
 
 /// Flags of `tcl spec upgrade`.
@@ -545,6 +583,27 @@ pub struct SpecUpgradeArgs {
     /// any file is behind the newest vocabulary.
     #[arg(long)]
     pub check: bool,
+
+    /// The vocabulary the files are expected to declare.
+    #[arg(long, value_name = "VERSION", default_value = "1.0")]
+    pub from: String,
+
+    /// The vocabulary to rewrite to. Downgrades are refused.
+    #[arg(long, value_name = "VERSION", default_value = "2.0")]
+    pub to: String,
+
+    /// Prove the upgrade is behaviour-preserving instead of writing it: the
+    /// original and the rewritten pack must produce byte-identical registry
+    /// snapshots (upgrade spec U9). Implies --check.
+    #[arg(long)]
+    pub verify: bool,
+
+    /// Hoist a uniform `required_package` (the pack-level default, or one
+    /// identical row in every command) to a pack-level `provides`
+    /// declaration (upgrade spec U6). Off by default: it changes the
+    /// pack's shape, not just its spelling.
+    #[arg(long = "infer-provides")]
+    pub infer_provides: bool,
 }
 
 /// Flags of `tcl spec import`.

@@ -11,9 +11,10 @@
 //! normal body arguments, clause-list arm bodies, lambda bodies, definition
 //! members, and live command substitutions.
 
-use tcl_compiler::head_identity::HeadIdentityMap;
 use tcl_compiler::lambda_literal::split_lambda_literal;
+use tcl_compiler::realm::CommandBindingRealm;
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
+use tcl_dialect::model::SurfaceQuery;
 use tcl_lexer::{Lexer, LexerConfig, SourceMap, Token, TokenType};
 use tcl_registry::definer::DefinitionBodyGrammar;
 use tcl_registry::{ArgRole, CommandRegistry, ScriptTiming};
@@ -46,8 +47,8 @@ pub(crate) fn visit_executable_commands(
     source: &str,
     config: LexerConfig,
     registry: &CommandRegistry,
-    availability: tcl_dialect::DialectSet,
-    identities: &HeadIdentityMap,
+    availability: Option<SurfaceQuery<'_>>,
+    identities: &CommandBindingRealm,
     visitor: &mut impl FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool,
 ) {
     let mut walk = ExecutableWalker {
@@ -65,8 +66,8 @@ struct ExecutableWalker<'a, F> {
     source: &'a str,
     config: LexerConfig,
     registry: &'a CommandRegistry,
-    availability: tcl_dialect::DialectSet,
-    identities: &'a HeadIdentityMap,
+    availability: Option<SurfaceQuery<'a>>,
+    identities: &'a CommandBindingRealm,
     visitor: &'a mut F,
 }
 
@@ -354,15 +355,14 @@ mod tests {
         let profile = dialect;
         let registry = crate::registry_for_dialect_profile(profile);
         let config = LexerConfig::for_file_dialect(profile.name);
-        let identities = tcl_compiler::head_identity::command_head_identities_with_config(
-            source, config, registry,
-        );
+        let identities =
+            tcl_compiler::realm::document_realm_bindings_with_config(source, config, registry);
         let mut heads = Vec::new();
         visit_executable_commands(
             source,
             config,
             registry,
-            profile.availability_mask,
+            Some(profile.surface_query()),
             &identities,
             &mut |command, identity, _context| {
                 if command.name() == "format" || command.name() == "fmt" {
@@ -384,7 +384,10 @@ mod tests {
             ("switch $x {a \"format {%d} 1\"}", "tcl8.6", "format"),
             ("expect {-re {ready} \"format {%d} 1\"}", "expect", "format"),
         ] {
-            let heads = visited_format_heads(source, tcl_dialect::DialectProfile::by_name(dialect));
+            let heads = visited_format_heads(
+                source,
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+            );
             assert_eq!(
                 heads,
                 vec![(
@@ -401,7 +404,10 @@ mod tests {
     fn quoted_case_actions_preserve_identity_and_abstain_for_dynamic_or_malformed_lists() {
         let aliased = "interp alias {} fmt {} format\nswitch $x {a \"fmt {%d} 1\"}";
         assert_eq!(
-            visited_format_heads(aliased, tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            visited_format_heads(
+                aliased,
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
+            ),
             vec![(
                 "fmt".to_owned(),
                 "format".to_owned(),
@@ -411,7 +417,10 @@ mod tests {
 
         let renamed = "rename format saved\nswitch $x {a \"format {%d} 1\"}";
         assert_eq!(
-            visited_format_heads(renamed, tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            visited_format_heads(
+                renamed,
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
+            ),
             vec![(
                 "format".to_owned(),
                 String::new(),
@@ -425,8 +434,11 @@ mod tests {
             "switch $x {a \"format {%d} 1\" orphan}",
         ] {
             assert!(
-                visited_format_heads(source, tcl_dialect::DialectProfile::by_name("tcl8.6"))
-                    .is_empty(),
+                visited_format_heads(
+                    source,
+                    tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
+                )
+                .is_empty(),
                 "dynamic and malformed lists must not expose nested actions: {source}"
             );
         }
@@ -448,15 +460,14 @@ mod tests {
             ..tcl_registry::CommandSpec::DEFAULT
         });
         let config = LexerConfig::for_file_dialect("tcl8.6");
-        let identities = tcl_compiler::head_identity::command_head_identities_with_config(
-            source, config, &registry,
-        );
+        let identities =
+            tcl_compiler::realm::document_realm_bindings_with_config(source, config, &registry);
         let mut frame_spans = Vec::new();
         visit_executable_commands(
             source,
             config,
             &registry,
-            tcl_dialect::DialectSet::empty(),
+            None,
             &identities,
             &mut |command, _identity, _context| {
                 if command.name() == "frame" {

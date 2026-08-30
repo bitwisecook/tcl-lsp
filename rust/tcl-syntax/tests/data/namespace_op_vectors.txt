@@ -1,0 +1,179 @@
+# Namespace-operation conformance vectors — the shared ground truth for the
+# operations that *build* the namespace tree, as opposed to resolving against
+# it (that is command_resolution_vectors.txt and variable_resolution_vectors.txt).
+#
+# Format (pipe-separated; `-` = empty column; `#` starts a comment line):
+#   current-namespace | setup ops | probe | expected per release
+#
+# current-namespace  ::-rooted; the probe runs inside `namespace eval <ns>`
+#                    (or at script level when it is `::`).
+# setup ops          comma-separated mini-ops, run at script level in order:
+#                      ns(NS)               namespace eval NS {}
+#                      delns(NS)            namespace delete NS
+#                      proc(NAME=RESULT)    proc NAME {args} {return {RESULT}}
+#                      rename(OLD NEW)      rename OLD NEW
+#                      export(NS ARGS)      namespace eval NS {namespace export ARGS}
+#                      import(NS ARGS)      namespace eval NS {namespace import ARGS}
+#                      forget(NS ARGS)      namespace eval NS {namespace forget ARGS}
+#                      path(NS ENTRIES)     namespace eval NS {namespace path [list ENTRIES]}
+#                      unknown(NS HANDLER)  namespace eval NS {namespace unknown HANDLER}
+#                      var(NAME=VALUE)      set NAME {VALUE}
+#                      eval(SCRIPT)         SCRIPT verbatim (escape hatch; commented)
+#                    Commas inside parentheses do not split; parentheses nest.
+# probe              which NAME | whichvar NAME | origin NAME | current |
+#                    parent ?NS? | nsexists NS | children ?NS? ?PATTERN? |
+#                    commands PATTERN | vars PATTERN | globals PATTERN |
+#                    exports | path | qualifiers TEXT | tail TEXT |
+#                    autoqualify CMD NS | read NAME | call TEXT
+#                    `children`, `commands`, and `vars` are wrapped in `lsort`
+#                    so the row is order-independent; `call` is evaluated as
+#                    written.
+# expected           the two-element Tcl list `<catch code> <result-or-message>`.
+#                    A single value means every modelled release agrees; a
+#                    `RANGE=VALUE;RANGE=VALUE` list gives the columns per
+#                    release over the ladder 8.4, 8.5, 8.6, 9.0, 9.1 (`9.0+` =
+#                    9.0 and later).  The entries must cover the whole ladder.
+#
+# The whole row — setup included — runs inside one `catch`, so a row that uses
+# an 8.5+ subcommand (`namespace path`, `namespace unknown`) states 8.4's real
+# `bad option` text as its 8.4 column rather than being excluded.  That text is
+# 8.4's own subcommand table (generic/tclNamesp.c, Tcl 8.4.20), pinned by
+# tmp/tcl8.4.20/tests/namespace.test lines 857 and 964.
+#
+# `tcl_syntax::ns_op_conformance::vector_script` renders each row as that
+# script; `tests/namespace_op_conformance.rs` runs every row against every real
+# tclsh the machine has (TCL_LSP_TCLSH84/85/86/90/91, else PATH probes) and
+# asserts that release's own column, skipping loudly for a release with no
+# binary.
+#
+# Pinned live on 8.4.20, 8.5.19, 8.6.14, 9.0.4, and 9.1b0 (2026-08-26): every
+# row below was run against all five interpreters and states each release's own
+# answer.
+#
+# C references: generic/tclNamesp.c (Tcl 9.0.4, 8.6.16, 8.4.20).  Rows are
+# transcribed from the C suites under tmp/; each group names its source tests.
+#
+# documented-non-conformance
+#   Behaviours deliberately excluded because the C suite itself marks them
+#   broken — do not "fix" our model to match them:
+#   * namespace-56.4 (knownBug, Tcl bug 16fe1b5807): a namespace literally
+#     named `:` with `namespace ensemble create` cannot be dispatched as `: p1`.
+#     The colon-run rules that *do* hold are the rows below plus the lone-colon
+#     rows of command_resolution_vectors.txt.
+#   * info-15.8 (knownBug): `info procs` does not consistently report a global
+#     proc shadowed by a namespace proc.  Our `commands` probes only ever ask
+#     about fully-qualified patterns, which is the part that does hold.
+#   * interp-27.5 .. 27.8 (knownBug): `interp alias` targets carrying `::`.
+#     Alias binding belongs to the command_binding domain (P1a) in any case.
+#   * namespace-51.13: the 9.0 delta where a namespace being deleted is still
+#     visible to its own command-delete trace.  It observes a mid-teardown
+#     interpreter state, which is not a resolution rule we intend to model.
+
+# Colon normalisation — namespaces collapse a run of two or more colons and
+# ignore a trailing run, while variables and commands treat the *same bytes*
+# as naming the empty-string entity (namespace-6.2 .. 6.4, 14.7 .. 14.12).
+:: | - | call namespace eval :::test_ns_1::::foo {namespace current} | 0 ::test_ns_1::foo
+:: | - | call namespace eval test_ns_2:::::foo {namespace current} | 0 ::test_ns_2::foo
+:: | - | call namespace eval test_ns_7::: {namespace current} | 0 ::test_ns_7
+:: | eval(namespace eval test_ns_1:: {namespace eval test_ns_2:: {}; namespace eval test_ns_3:: {}}) | children ::test_ns_1 | 0 {::test_ns_1::test_ns_2 ::test_ns_1::test_ns_3}
+:: | ns(::test_ns_1::test_ns_2::foo) | children test_ns_1::: | 0 ::test_ns_1::test_ns_2
+:: | ns(::test_ns_1::test_ns_2::foo) | children :::test_ns_1:::::test_ns_2::: | 0 ::test_ns_1::test_ns_2::foo
+:: | ns(::test_ns_1::test_ns_2) | read test_ns_1::test_ns_2:: | 1 {can't read "test_ns_1::test_ns_2::": no such variable}
+:: | eval(namespace eval test_ns_1::test_ns_2 {variable {} 2525}) | read test_ns_1::test_ns_2:: | 0 2525
+:: | ns(::test_ns_1::test_ns_2::foo) | call test_ns_1::test_ns_2:: hello | 1 {invalid command name "test_ns_1::test_ns_2::"}
+:: | ns(::test_ns_1::test_ns_2::foo), eval(proc test_ns_1::test_ns_2:: {args} {return "\{\}: $args"}) | call test_ns_1::test_ns_2:: hello | 0 {{}: hello}
+# namespace-14.12: the identical relative-with-trailing-colons name is a
+# reachable variable on 8.x (secondary global lookup) and a parent-namespace
+# error on 9.x — the sharpest colon/TIP-278 interaction in the suite
+::test_ns_1 | eval(namespace eval ::test_ns_1 {variable {}}) | call set test_ns_1::(x) y | 8.4-8.6=0 y;9.0+=1 {can't set "test_ns_1::(x)": parent namespace doesn't exist}
+::test_ns_1 | eval(namespace eval ::test_ns_1 {variable {}}) | read test_ns_1::(x) | 1 {can't read "test_ns_1::(x)": no such variable}
+:: | - | qualifiers ::::: | 0 {}
+:: | - | qualifiers foo::: | 0 foo
+:: | - | tail ::::: | 0 {}
+:: | - | tail foo::: | 0 {}
+:: | - | tail ::x::y::z | 0 z
+:: | - | tail :: | 0 {}
+# info-8.4: `info globals` takes leading qualifiers, and a *lone* leading colon
+# is an ordinary name character, so only `:x` misses
+:: | var(::x=0) | globals x | 0 x
+:: | var(::x=0) | globals :x | 0 {}
+:: | var(::x=0) | globals ::x | 0 x
+:: | var(::x=0) | globals :::x | 0 x
+:: | var(::x=0) | globals ::::x | 0 x
+# proc-1.6: a single `:` inside or at the end of a command name is ordinary
+::test_ns_1 | eval(namespace eval test_ns_1 {proc q: {} {return "q:"}}) | which q: | 0 ::test_ns_1::q:
+::test_ns_1 | eval(namespace eval test_ns_1 {proc value:at: {} {return "value:at:"}}) | which value:at: | 0 ::test_ns_1::value:at:
+:: | eval(namespace eval test_ns_1 {proc q: {} {return "q:"}; proc value:at: {} {return x}}) | commands ::test_ns_1::* | 0 {::test_ns_1::q: ::test_ns_1::value:at:}
+# init-1.6 .. 1.8: auto_qualify is the library-level colon normaliser, and is
+# byte-identical across all five releases
+:: | - | autoqualify foo::bar ::sub | 0 {::sub::foo::bar ::foo::bar}
+:: | - | autoqualify :::foo::::bar ::blue | 0 ::foo::bar
+:: | - | autoqualify :::foo ::bar | 0 foo
+
+# Import: pattern errors, idempotency, -force, and origin chains
+# (namespace-9.1 .. 9.7, 11.1 .. 11.3).
+:: | ns(::test_ns_import) | call namespace eval test_ns_import {namespace import {}} | 1 {empty import pattern}
+:: | ns(::test_ns_import) | call namespace eval test_ns_import {namespace import fred::x} | 1 {unknown namespace in import pattern "fred::x"}
+:: | ns(::test_ns_import) | call namespace eval test_ns_import {namespace import ::test_ns_import::puts} | 1 {import pattern "::test_ns_import::puts" tries to import from namespace "test_ns_import" into itself}
+:: | ns(::test_ns_import), ns(::test_ns_export) | call namespace eval test_ns_import {namespace import ::test_ns_export::*} | 0 {}
+# re-importing the *same* origin is a no-op; importing over a locally defined
+# command of the same name is not
+:: | eval(namespace eval ::test_ns_export {namespace export cmd1; proc cmd1 {args} {return "cmd1: $args"}}), import(::test_ns_import ::test_ns_export::*) | call namespace eval test_ns_import {namespace import ::test_ns_export::*} | 0 {}
+:: | eval(namespace eval ::test_ns_export {namespace export cmd1; proc cmd1 {args} {return "cmd1: $args"}}), eval(namespace eval ::test_ns_import {proc cmd1 {args} {return local}}) | call namespace eval test_ns_import {namespace import ::test_ns_export::*} | 1 {can't import command "cmd1": already exists}
+:: | eval(namespace eval ::test_ns_export {namespace export cmd1; proc cmd1 {args} {return "cmd1: $args"}}), eval(namespace eval ::test_ns_import {proc cmd1 {args} {return local}}) | call namespace eval test_ns_import {namespace import -force ::test_ns_export::*; cmd1 555} | 0 {cmd1: 555}
+:: | eval(namespace eval ::test_ns_export {namespace export cmd1; proc cmd1 {args} {return "cmd1: $args"}}), import(::test_ns_import ::test_ns_export::*), eval(proc test_ns_export::cmd1 {args} {return "new1: $args"}) | origin test_ns_import::cmd1 | 0 ::test_ns_export::cmd1
+:: | eval(namespace eval ::test_ns_export {namespace export cmd1; proc cmd1 {args} {return "cmd1: $args"}}), import(::test_ns_import ::test_ns_export::*), eval(proc test_ns_export::cmd1 {args} {return "new1: $args"}) | call test_ns_import::cmd1 g h i | 0 {new1: g h i}
+:: | - | origin set | 0 ::set
+:: | eval(namespace eval ::test_ns_export {namespace export cmd1; proc cmd1 {args} {return "cmd1: $args"}}), import(::test_ns_import1 ::test_ns_export::*), export(::test_ns_import1 *), import(::test_ns_import2 ::test_ns_import1::*) | origin ::test_ns_import2::cmd1 | 0 ::test_ns_export::cmd1
+:: | eval(namespace eval ::test_ns_export {namespace export cmd1; proc cmd1 {args} {return "cmd1: $args"}}), import(::test_ns_import1 ::test_ns_export::*), export(::test_ns_import1 *), import(::test_ns_import2 ::test_ns_import1::*) | call ::test_ns_import2::cmd1 123 | 0 {cmd1: 123}
+:: | eval(namespace eval ::test_ns_export {namespace export cmd1; proc cmd1 {args} {return "cmd1: $args"}}), import(::test_ns_import ::test_ns_export::*), forget(::test_ns_import ::test_ns_export::cmd1) | commands ::test_ns_import::* | 0 {}
+:: | - | call namespace forget ::test_ns_1::xxx | 1 {unknown namespace in namespace forget pattern "::test_ns_1::xxx"}
+
+# Export accumulates, `-clear` resets, and the list is uniqued
+# (namespace-26.3 .. 26.8).
+::test_ns_1 | ns(::test_ns_1) | call namespace export ::zzz | 1 {invalid export pattern "::zzz": pattern can't specify a namespace}
+::test_ns_1 | ns(::test_ns_1), export(::test_ns_1 cmd1 cmd3), export(::test_ns_1 cmd1) | exports | 0 {cmd1 cmd3}
+:: | eval(namespace eval test_ns_1 {proc cmd1 {args} {return 1}; proc cmd2 {args} {return 2}; proc cmd3 {args} {return 3}; proc cmd4 {args} {return 4}}), export(::test_ns_1 cmd1), export(::test_ns_1 cmd3), import(::test_ns_2 -force ::test_ns_1::*) | commands ::test_ns_2::* | 0 {::test_ns_2::cmd1 ::test_ns_2::cmd3}
+:: | eval(namespace eval test_ns_1 {proc cmd1 {args} {return 1}; proc cmd3 {args} {return 3}; proc cmd4 {args} {return 4}}), export(::test_ns_1 cmd1 cmd3), import(::test_ns_2 ::test_ns_1::*), export(::test_ns_1 -clear cmd4), import(::test_ns_2 ::test_ns_1::*) | commands ::test_ns_2::* | 0 {::test_ns_2::cmd1 ::test_ns_2::cmd3 ::test_ns_2::cmd4}
+::foo | ns(::foo), export(::foo x), export(::foo -clear) | exports | 0 {}
+
+# Deletion cascade: a namespace's own commands go, and so do the imports that
+# pointed into it (namespace-8.2 .. 8.4).
+:: | eval(namespace eval ::test_ns_export {namespace export cmd1 cmd2; proc cmd1 {args} {return a}; proc cmd2 {args} {return b}}), import(::test_ns_import ::test_ns_export::*), eval(namespace eval ::test_ns_import {proc p {} {return foo}}) | commands ::test_ns_import::* | 0 {::test_ns_import::cmd1 ::test_ns_import::cmd2 ::test_ns_import::p}
+:: | eval(namespace eval ::test_ns_export {namespace export cmd1 cmd2; proc cmd1 {args} {return a}; proc cmd2 {args} {return b}}), import(::test_ns_import ::test_ns_export::*), eval(namespace eval ::test_ns_import {proc p {} {return foo}}), delns(::test_ns_export) | commands ::test_ns_import::* | 0 ::test_ns_import::p
+:: | ns(::test_ns_1::test_ns_2::test_ns_3a), ns(::test_ns_1::test_ns_2::test_ns_3b), delns(::test_ns_1::test_ns_2) | children ::test_ns_1 | 0 {}
+# 8.4 phrases a missing namespace with the subcommand's own name; 8.5 replaced
+# that with the "not found in" form (tmp/tcl8.4.20/tests/namespace.test:210)
+:: | ns(::test_ns_1::test_ns_2), delns(::test_ns_1::test_ns_2) | children test_ns_1::test_ns_2 | 8.4=1 {unknown namespace "test_ns_1::test_ns_2" in namespace children command};8.5+=1 {namespace "test_ns_1::test_ns_2" not found in "::"}
+:: | ns(::test_ns_1), eval(namespace eval ::test_ns_1 {proc q {} {return [namespace current]}}), delns(::test_ns_1) | call test_ns_1::q | 1 {invalid command name "test_ns_1::q"}
+:: | ns(::test_ns_1::test_ns_2) | nsexists ::test_ns_1::test_ns_2 | 0 1
+:: | ns(::test_ns_1::test_ns_2), delns(::test_ns_1::test_ns_2) | nsexists ::test_ns_1::test_ns_2 | 0 0
+
+# `namespace which` and `namespace origin` over an import chain
+# (namespace-34.5 .. 34.7).  The `-variable env` row is the 9.x TIP 278 delta.
+::test_ns_3 | eval(namespace eval ::test_ns_1 {namespace export cmd*; proc cmd1 {args} {return 1}; proc cmd2 {args} {return 2}}), export(::test_ns_2 *), import(::test_ns_2 ::test_ns_1::*), eval(namespace eval ::test_ns_2 {proc p {} {}}), import(::test_ns_3 ::test_ns_2::*) | which foreach | 0 ::foreach
+::test_ns_3 | eval(namespace eval ::test_ns_1 {namespace export cmd*; proc cmd1 {args} {return 1}; proc cmd2 {args} {return 2}}), export(::test_ns_2 *), import(::test_ns_2 ::test_ns_1::*), eval(namespace eval ::test_ns_2 {proc p {} {}}), import(::test_ns_3 ::test_ns_2::*) | which cmd1 | 0 ::test_ns_3::cmd1
+::test_ns_3 | eval(namespace eval ::test_ns_1 {namespace export cmd*; proc cmd1 {args} {return 1}; proc cmd2 {args} {return 2}}), export(::test_ns_2 *), import(::test_ns_2 ::test_ns_1::*), eval(namespace eval ::test_ns_2 {proc p {} {}}), import(::test_ns_3 ::test_ns_2::*) | which ::test_ns_2::cmd2 | 0 ::test_ns_2::cmd2
+::test_ns_3 | ns(::test_ns_2) | which ::test_ns_2::noSuchCmd | 0 {}
+::test_ns_3 | ns(::test_ns_3) | whichvar env | 8.4-8.6=0 ::env;9.0+=0 {}
+::test_ns_3 | ns(::test_ns_3), eval(namespace eval ::test_ns_3 {variable v3 333}) | whichvar v3 | 0 ::test_ns_3::v3
+
+# `namespace path` is 8.5+ (TIP 181).  Entries are not transitive, a deleted
+# entry drops out, and re-creating the namespace does not put it back
+# (namespace-51.7 .. 51.11).
+::test_ns_2 | ns(::test_ns_1), ns(::test_ns_2), path(::test_ns_2 ::test_ns_1) | path | 8.4=1 {bad option "path": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which};8.5+=0 ::test_ns_1
+::test_ns_2 | ns(::test_ns_1), ns(::test_ns_2), path(::test_ns_2 ::test_ns_1), delns(::test_ns_1) | path | 8.4=1 {bad option "path": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which};8.5+=0 {}
+::test_ns_4 | ns(::test_ns_1), ns(::test_ns_2), ns(::test_ns_3), ns(::test_ns_4), path(::test_ns_4 ::test_ns_1 ::test_ns_2 ::test_ns_3), delns(::test_ns_2) | path | 8.4=1 {bad option "path": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which};8.5+=0 {::test_ns_1 ::test_ns_3}
+::test_ns_4 | ns(::test_ns_1), ns(::test_ns_2), ns(::test_ns_3), ns(::test_ns_4), path(::test_ns_4 ::test_ns_1 ::test_ns_2 ::test_ns_3), delns(::test_ns_2), ns(::test_ns_2) | path | 8.4=1 {bad option "path": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which};8.5+=0 {::test_ns_1 ::test_ns_3}
+::test_ns_1 | ns(::test_ns_1) | call namespace path does::not::exist | 8.4=1 {bad option "path": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which};8.5+=1 {namespace "does::not::exist" not found in "::test_ns_1"}
+::test_ns_4 | eval(namespace eval ::test_ns_1 {proc foo {} {return 1}}), eval(namespace eval ::test_ns_2 {proc foo {} {return 2}}), ns(::test_ns_3), path(::test_ns_3 ::test_ns_1), ns(::test_ns_4), path(::test_ns_4 ::test_ns_3 ::test_ns_2) | call foo | 8.4=1 {bad option "path": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which};8.5+=0 2
+::test_ns_4 | eval(namespace eval ::test_ns_1 {proc foo {} {return 1}}), eval(namespace eval ::test_ns_2 {proc foo {} {return 2}}), ns(::test_ns_3), path(::test_ns_3 ::test_ns_1), ns(::test_ns_4), path(::test_ns_4 ::test_ns_3 ::test_ns_2), delns(::test_ns_3) | call foo | 8.4=1 {bad option "path": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which};8.5+=0 2
+
+# `namespace unknown` is 8.5+ (TIP 181).  The default is empty in a child
+# namespace and `::unknown` at the root; a handler only ever sees names that
+# genuinely resolve nowhere (namespace-52.1 .. 52.6).
+::foobar | ns(::foobar) | call namespace unknown | 8.4=1 {bad option "unknown": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which};8.5+=0 {}
+:: | - | call namespace unknown | 8.4=1 {bad option "unknown": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which};8.5+=0 ::unknown
+::foo | ns(::foo), eval(namespace eval ::foo {proc dispatch {args} {return $args}}), unknown(::foo dispatch) | call UnknownCmd a b c | 8.4=1 {bad option "unknown": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which};8.5+=0 {UnknownCmd a b c}
+::foo | eval(proc ::test2 {args} {return "TEST2: $args"}), ns(::foo), eval(namespace eval ::foo {proc dispatch {args} {return "UNKNOWN: $args"}; proc test1 {args} {return "TEST1: $args"}}), unknown(::foo dispatch) | call list [test1 a b c] [test2 a b c] [test3 a b c] | 8.4=1 {bad option "unknown": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which};8.5+=0 {{TEST1: a b c} {TEST2: a b c} {UNKNOWN: test3 a b c}}
+::foo | ns(::foo), unknown(::foo dummy), unknown(::foo {}) | call namespace unknown | 8.4=1 {bad option "unknown": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which};8.5+=0 {}

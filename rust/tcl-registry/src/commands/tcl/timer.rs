@@ -32,6 +32,7 @@
 //! removes.
 
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "timer subcommand ?arg ...?",
@@ -266,7 +267,7 @@ pub fn spec() -> CommandSpec {
         // script cannot stop control reaching the caller's next statement
         // (issue #1672 audit).
         traits: Traits::BYTE_COMPILED.union(Traits::DEFERS_BODY),
-        dialects: Some(DialectSet::TCL91),
+        surface: Some(SpecSurface::TCL91),
         arity: Arity::at_least(1),
         subcommands: &SUBCOMMANDS,
         return_type: Some(TclType::String),

@@ -1152,9 +1152,9 @@ pub fn existence_constant_branches(
     // already covered by the scope-alias skip above.
     if frame.initial_global {
         aliased.extend(
-            tcl_registry::special_vars::special_vars_for_dialect(
-                tcl_registry::special_vars::dialect_set_for_profile(registry.profile()),
-            )
+            tcl_registry::special_vars::special_vars_for_dialect(Some(
+                tcl_registry::special_vars::surface_query_for_profile(registry.profile()),
+            ))
             .map(|spec| spec.name.to_owned()),
         );
     }
@@ -3235,11 +3235,15 @@ mod tests {
             )
         };
         assert_eq!(
-            fold(Some(tcl_dialect::DialectProfile::by_name("tcl9.0"))),
+            fold(Some(
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
+            )),
             LatticeValue::Const(ConstValue::Int(1))
         );
         assert_eq!(
-            fold(Some(tcl_dialect::DialectProfile::by_name("tcl8.6"))),
+            fold(Some(
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
+            )),
             LatticeValue::Const(ConstValue::Int(2))
         );
         assert_eq!(

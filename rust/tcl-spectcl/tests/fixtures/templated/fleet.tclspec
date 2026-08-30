@@ -1,0 +1,26 @@
+# A programmed pack: one registration procedure driven by a data table.
+#
+# The canonical-export gate (tests/export.rs, gate B) expands this and reloads
+# the expansion through the CST loader, which cannot evaluate anything — so the
+# expansion has to say everything the loop said.
+
+speclib fleet 2.0 {
+
+    proc fleet-command {name arity} {
+        command math::fleet::$name {
+            arity $arity
+            traits {PURE}
+            return_type Numeric
+            option -verbose -detail {Report each step as it runs.}
+
+            subcommand probe {
+                arity 0
+                detail {Probe one input and report what it holds.}
+            }
+        }
+    }
+
+    foreach {name arity} {alpha 2 beta 1 gamma 3 delta 1} {
+        fleet-command $name $arity
+    }
+}

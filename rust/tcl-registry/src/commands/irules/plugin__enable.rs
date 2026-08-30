@@ -18,10 +18,11 @@
 
 //! `PLUGIN::enable` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "PLUGIN::enable",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::any(),
         hover: Some(HoverSnippet {
             summary: "Deprecated: removed",

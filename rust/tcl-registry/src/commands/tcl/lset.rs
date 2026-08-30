@@ -46,6 +46,7 @@
 use crate::forms::CommandForm;
 use crate::hooks::CodegenHookId;
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::Variable,
@@ -122,7 +123,7 @@ pub fn spec() -> CommandSpec {
             .union(Traits::FIRST_ARG_VARNAME)
             .union(Traits::BYTE_COMPILED)
             .union(Traits::NOT_PROC_FACTORY),
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         arity: Arity::at_least(2),
         arg_roles: &[(0, ArgRole::VarWrite)],
         assigns_variable_at: Some(0),

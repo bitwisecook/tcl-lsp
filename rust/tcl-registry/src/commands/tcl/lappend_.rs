@@ -20,6 +20,7 @@
 
 use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "lappend varName ?value value value ...?",
@@ -30,7 +31,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "lappend",
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
@@ -40,9 +41,9 @@ pub fn spec() -> CommandSpec {
         arg_roles: &[(0, ArgRole::VarWrite)],
         assigns_variable_at: Some(0),
         // iRules embeds Tcl 8.4.6 and retains lappend's documented
-        // auto-creation behaviour; its bare profile mask needs explicit
+        // auto-creation behaviour; its bare profile point needs explicit
         // membership alongside the ordinary Tcl cores.
-        safe_on_uninit: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        safe_on_uninit: Some(SpecSurface::ALL_TCL_AND_IRULES),
         return_type: Some(TclType::List),
         var_elements_effect: Some(VarElementsEffect::AppendsListElements { values_from: 1 }),
         representation_effect: Some(RepresentationEffect::copy_on_write_container(0, 2)),

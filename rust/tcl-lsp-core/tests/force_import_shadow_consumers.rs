@@ -72,7 +72,7 @@ fn analyse(source: &str) -> AnalysisResult {
 }
 
 fn reg() -> &'static CommandRegistry {
-    tcl_registry::registry_for_dialect("tcl8.6")
+    tcl_registry::model::ingress::static_context_for("tcl8.6").commands()
 }
 
 /// Byte offset of the `helper` call head.
@@ -129,11 +129,9 @@ fn both_directions<T>(probe: impl Fn(&AnalysisResult, &NamespaceExportSnapshot) 
     (shadowed, unshadowed)
 }
 
-// ---------------------------------------------------------------------------
 // Go-to-definition — the surface the fix started from, asserted here against
 // the same fixture so a regression shows up beside the providers threaded to
 // match it.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn definition_follows_the_shadow() {
@@ -171,16 +169,14 @@ fn definition_follows_the_shadow() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Inlay hints — the parameter labels name the reached proc's parameters.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn inlay_hints_label_the_reached_proc_not_the_shadowed_local() {
     let (shadowed, unshadowed) = both_directions(|analysis, exports| {
         tcl_lsp_core::inlay_hints::inlay_hints_in_program(
             MAIN,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             WHOLE_FILE,
             Some(analysis),
             resolution(exports),
@@ -208,9 +204,7 @@ fn inlay_hints_label_the_reached_proc_not_the_shadowed_local() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Signature help — the rendered parameter list is the reached proc's.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn signature_help_describes_the_reached_proc_not_the_shadowed_local() {
@@ -236,9 +230,7 @@ fn signature_help_describes_the_reached_proc_not_the_shadowed_local() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Call hierarchy — `prepare` roots the graph at a call resolution.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn call_hierarchy_prepare_roots_at_the_reached_proc() {
@@ -270,9 +262,7 @@ fn call_hierarchy_prepare_roots_at_the_reached_proc() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Inline-proc refactor — substituting the wrong body is a behaviour change.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn inline_proc_inlines_the_reached_body_not_the_shadowed_local() {
@@ -306,10 +296,8 @@ fn inline_proc_inlines_the_reached_body_not_the_shadowed_local() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Code actions — the same refactor reached through the provider entry point,
 // which is the path the server actually takes.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn code_actions_offer_the_reached_body_for_inlining() {
@@ -345,10 +333,8 @@ fn code_actions_offer_the_reached_body_for_inlining() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // The document-only tier must be untouched: a host with no workspace index
 // (the `tcl` CLI, a single-document test) keeps exactly its old behaviour.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn without_a_workspace_view_every_provider_keeps_the_document_only_answer() {
@@ -374,7 +360,7 @@ fn without_a_workspace_view_every_provider_keeps_the_document_only_answer() {
 
     let hints: Vec<String> = tcl_lsp_core::inlay_hints::inlay_hints_in_program(
         MAIN,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         WHOLE_FILE,
         Some(&analysis),
         doc_only,
@@ -399,11 +385,9 @@ fn without_a_workspace_view_every_provider_keeps_the_document_only_answer() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // The legacy entry points must be exactly their `_in_program` counterparts
 // with no view attached — otherwise the delegation quietly changed behaviour
 // for every existing caller (the `tcl` CLI and the single-document tests).
-// ---------------------------------------------------------------------------
 
 #[test]
 fn the_legacy_entry_points_still_equal_the_document_only_program_view() {
@@ -425,7 +409,7 @@ fn the_legacy_entry_points_still_equal_the_document_only_program_view() {
     assert_eq!(
         tcl_lsp_core::inlay_hints::inlay_hints(
             MAIN,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             WHOLE_FILE,
             Some(&analysis),
             Some(reg()),
@@ -434,7 +418,7 @@ fn the_legacy_entry_points_still_equal_the_document_only_program_view() {
         ),
         tcl_lsp_core::inlay_hints::inlay_hints_in_program(
             MAIN,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             WHOLE_FILE,
             Some(&analysis),
             doc_only,
@@ -487,9 +471,7 @@ fn the_legacy_entry_points_still_equal_the_document_only_program_view() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Rename — retargeting matters most here, because the edit is destructive.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn rename_retargets_with_the_shadow() {
@@ -499,7 +481,7 @@ fn rename_retargets_with_the_shadow() {
     let (shadowed, unshadowed) = both_directions(|analysis, exports| {
         tcl_lsp_core::rename::rename_in_program(
             MAIN,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             call_line(),
             0,
             "renamed",

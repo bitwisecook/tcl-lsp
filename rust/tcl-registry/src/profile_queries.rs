@@ -23,111 +23,72 @@
 //! This extension trait gives the profile its availability API (design doc
 //! §5.1) at the registry layer: **every** availability consumer resolves
 //! commands through these methods, so the mask query and the profile-level
-//! operator-head exclusion (§9) are applied uniformly. iRules availability
-//! is fully explicit in each spec's `dialects` group, so a sandbox-banned
-//! command such as `exec` simply never carries the `IRULES` bit; there is
-//! no subtractive disable list left to bypass.
+//! operator-head exclusion (§9) are applied uniformly. iRules availability is
+//! fully explicit in each spec's surface, so a sandbox-banned command such as
+//! `exec` simply never carries an iRules row; there is no subtractive disable
+//! list left to bypass.
 
-use tcl_dialect::{DialectProfile, DialectSet};
+use tcl_dialect::DialectProfile;
 
 use crate::hover::OptionSpec;
+use crate::model::context::core_tcl_floor;
 use crate::registry::CommandRegistry;
-use crate::spec::{CommandSpec, SubCommand, SubSubCommand};
+#[cfg(test)]
+use crate::spec::SubSubCommand;
+use crate::spec::{CommandSpec, SubCommand};
 use crate::traits::Traits;
+#[cfg(test)]
+use tcl_dialect::model::{Family, SpecProvider};
+use tcl_dialect::model::{SpecSurface, surface_admits};
 
 /// Availability queries a resolved [`DialectProfile`] answers against
 /// registry data (design doc §5.1/§5.2). Implemented for `DialectProfile`
 /// here because the spec types live above the foundational crate.
 pub trait ProfileQueries {
-    /// Whether `spec` is available under this profile: the membership test
-    /// against [`DialectProfile::availability_mask`], and — for a profile
+    /// Whether `spec` is available under this profile: does the spec's
+    /// surface admit [`DialectProfile::surface_query`], and — for a profile
     /// whose math operators are not command heads (`f5-irules`) — the
     /// [`Traits::OPERATOR_COMMAND`] exclusion. iRules availability is fully
-    /// explicit in each spec's `dialects` now (the `IRULES` bit is present
-    /// iff iRules enables it), so there is no longer a subtractive ban list.
+    /// explicit in each spec's surface (an iRules row is present iff iRules
+    /// enables it), so there is no longer a subtractive ban list.
     ///
     /// This is the same trio [`CommandRegistry::spec_visible`] enforces
     /// inside profile-stamped registries; it lives here too so profile-side
-    /// queries agree with mask queries on any registry.
+    /// queries agree with point queries on any registry.
     fn is_available(&self, spec: &CommandSpec) -> bool;
-
-    /// Whether a [`CommandSpec::required_package`](crate::CommandSpec::required_package)
-    /// gate is satisfied under this profile — the package third of
-    /// [`Self::is_available`], on its own.
-    ///
-    /// Separated out because the *sourcing* of a command can depend on it
-    /// before any availability question is asked: the EDA vendor libraries
-    /// ship as bundled `SpecTcl` loadables (`docs/design/spec-packs.md`), and
-    /// every vendor's pack is discovered for every profile, so the installer
-    /// needs this answer to keep a Cadence `report_timing` out of the Vivado
-    /// profile's registry rather than letting it shadow the Vivado one.
-    fn package_available(&self, required: Option<&'static str>) -> bool;
 
     /// Resolve `name` to its command spec under this profile — the single
     /// availability primitive the diagnostics (W123/W002), completion,
-    /// and the CLI snapshot share. Mask query + disable filter.
+    /// and the CLI snapshot share. Point query + disable filter.
     fn resolve_command<'r>(
         &self,
         registry: &'r CommandRegistry,
         name: &str,
     ) -> Option<&'r CommandSpec>;
 
-    /// Whether `sub` (of `spec`) is available under this profile: the
-    /// subcommand's own dialect gate — falling back to the parent
-    /// command's — intersected with the availability mask (§5.1).
-    fn is_subcommand_available(&self, spec: &CommandSpec, sub: &SubCommand) -> bool;
-
-    /// The subcommands of `spec` available under this profile, in
-    /// declaration order — the filtered iterator completion was missing
-    /// (§5.1's `available_subcommands`).
-    fn available_subcommands<'r>(&self, spec: &'r CommandSpec) -> Vec<&'r SubCommand>;
-
-    /// Whether `sub_sub` (a second-level operation of `sub`, itself a
-    /// subcommand of `spec`) is available under this profile at the resolved
-    /// `package_version`.
-    ///
-    /// Both axes apply, exactly as they do one level up: the dialect gate
-    /// `sub_sub.dialects` inherits from `sub.dialects.or(spec.dialects)` and
-    /// is intersected with the availability mask, and the owning package's
-    /// [`crate::lifecycle::Lifecycle`] must admit `package_version`
-    /// (`None` = permissive).
-    fn is_sub_subcommand_available(
-        &self,
-        spec: &CommandSpec,
-        sub: &SubCommand,
-        sub_sub: &SubSubCommand,
-        package_version: Option<&str>,
-    ) -> bool;
-
-    /// The second-level operations of `sub` available under this profile at
-    /// `package_version`, in declaration order — the sub-subcommand twin of
-    /// [`Self::available_subcommands`].
-    fn available_sub_subcommands(
-        &self,
-        spec: &CommandSpec,
-        sub: &SubCommand,
-        package_version: Option<&str>,
-    ) -> Vec<&'static SubSubCommand>;
-
     /// Whether `opt` is available under this profile, given the gate it
-    /// inherits from its parent (`spec.dialects`, or
-    /// `sub.dialects.or(spec.dialects)` for a subcommand option).
+    /// inherits from its parent (`spec.surface`, or
+    /// `sub.surface.or(spec.surface)` for a subcommand option).
     ///
     /// This is the §5.2 option-gating semantics — a genuine change from
     /// the old `contains` rule:
     ///
-    /// - **membership** — `gate.intersects(availability_mask)`, so an
+    /// - **membership** — the gate must admit the profile's point, so an
     ///   option inherited from a vendor command resolves under that
     ///   vendor's composed profile (the old `contains` silently dropped
     ///   every inherited option on every vendor command), and
-    /// - **upper bound** — the gate's [`DialectSet::min_version`] must not
+    /// - **upper bound** — the gate's [`core_tcl_floor`] must not
     ///   exceed [`DialectProfile::version_ceiling`], so a tcl9.0-only
-    ///   option cannot leak into an 8.5-superset profile whose mask
-    ///   happens to intersect its gate.
+    ///   option cannot leak into an 8.5-superset profile whose point its
+    ///   gate happens to admit.
     ///
     /// A gate of `None` on both the option and its parent means "no
     /// restriction".
-    fn is_option_available(&self, opt: &OptionSpec, parent_gate: Option<DialectSet>) -> bool;
+    fn is_option_available(
+        &self,
+        opt: &OptionSpec,
+        parent_gate: Option<&'static [SpecSurface]>,
+    ) -> bool;
 
     /// Declared option / switch names of `spec` available under this
     /// profile, in declaration order with duplicates removed — the
@@ -138,11 +99,6 @@ pub trait ProfileQueries {
     /// declaration order. (`'static`: spec option tables are interned.)
     fn available_option_specs(&self, spec: &CommandSpec) -> Vec<&'static OptionSpec>;
 
-    /// Option / switch names of subcommand `sub`, whose options inherit
-    /// `sub.dialects.or(spec.dialects)` as their parent gate.
-    fn available_sub_option_names(&self, spec: &CommandSpec, sub: &SubCommand)
-    -> Vec<&'static str>;
-
     /// The [`OptionSpec`]s of subcommand `sub` available under this
     /// profile (same inheritance as
     /// [`Self::available_sub_option_names`]).
@@ -151,15 +107,169 @@ pub trait ProfileQueries {
         spec: &CommandSpec,
         sub: &SubCommand,
     ) -> Vec<&'static OptionSpec>;
+}
 
-    /// Look up an option of `spec` by canonical name or alias, honouring
-    /// this profile's gate (§5.2) and the resolved `package_version`.
-    fn find_option<'r>(
+/// A profile's vendor command surface summary (see
+/// [`ProfileQueries::vendor_surface`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VendorSurface {
+    /// Total vendor-tagged commands available under the profile.
+    pub command_count: usize,
+    /// `(namespace_prefix, command_count)` per `NS::` prefix, sorted by
+    /// descending count then name; bare (un-namespaced) commands group
+    /// under an empty prefix.
+    pub namespaces: Vec<(String, usize)>,
+}
+
+/// Whether `required` is satisfied under `profile` — the profile-side face
+/// of the one closed-world rule, `ResolvedContext::required_package_available`.
+///
+/// - `None` — no package gate, always satisfied.
+/// - a **hosted** library (Tk, tcllib, the stdlib packages): satisfied. The
+///   command stays known; a missing `package require` is reported by W120,
+///   not by hiding the command.
+/// - a **closed-world** package — one some environment ships as part of its
+///   own runtime and no environment hosts for installation: satisfied only
+///   when *this* profile ships it ambient, so a `vivado` command never
+///   resolves under a plain-Tcl or rival-vendor profile.
+///
+/// The classification comes from
+/// [`is_closed_world_package`](crate::model::surface::is_closed_world_package),
+/// the same predicate `ResolvedContext` reads, so a profile and a resolved
+/// context cannot disagree about which packages are closed-world. What a
+/// profile *cannot* answer is the `AmbientPlusRequire` policy: that needs a
+/// document's `package require`s, which is a context fact, not a profile one.
+fn package_available(profile: &DialectProfile, required: Option<&'static str>) -> bool {
+    match required {
+        None => true,
+        Some(pkg) => {
+            !crate::model::surface::is_closed_world_package(pkg) || profile.is_ambient_package(pkg)
+        }
+    }
+}
+
+impl ProfileQueries for DialectProfile {
+    fn is_available(&self, spec: &CommandSpec) -> bool {
+        spec.supports_dialect(Some(self.surface_query()))
+            && (self.operators_as_commands || !spec.traits.contains(Traits::OPERATOR_COMMAND))
+            && package_available(self, spec.required_package)
+    }
+
+    fn resolve_command<'r>(
         &self,
-        spec: &'r CommandSpec,
-        option_name: &str,
+        registry: &'r CommandRegistry,
+        name: &str,
+    ) -> Option<&'r CommandSpec> {
+        registry
+            .get_for_surface(name, Some(self.surface_query()))
+            .filter(|spec| self.is_available(spec))
+    }
+
+    fn is_option_available(
+        &self,
+        opt: &OptionSpec,
+        parent_gate: Option<&'static [SpecSurface]>,
+    ) -> bool {
+        let Some(gate) = opt.surface.or(parent_gate) else {
+            // No restriction on the option or its parent.
+            return true;
+        };
+        if !surface_admits(gate, Some(&self.surface_query())) {
+            return false;
+        }
+        match (core_tcl_floor(gate), self.version_ceiling) {
+            (Some(min), Some(ceiling)) => min <= ceiling,
+            // A pure vendor gate has no version floor; a profile without a
+            // ceiling accepts every version.
+            _ => true,
+        }
+    }
+
+    fn available_option_names(&self, spec: &CommandSpec) -> Vec<&'static str> {
+        let mut names: Vec<&'static str> = Vec::new();
+        let mut consider = |opt: &OptionSpec| {
+            if self.is_option_available(opt, spec.surface) && !names.contains(&opt.name) {
+                names.push(opt.name);
+            }
+        };
+        for opt in spec.options {
+            consider(opt);
+        }
+        for form in spec.command_forms {
+            for opt in form.options {
+                consider(opt);
+            }
+        }
+        names
+    }
+
+    fn available_option_specs(&self, spec: &CommandSpec) -> Vec<&'static OptionSpec> {
+        let mut out: Vec<&'static OptionSpec> = Vec::new();
+        let mut consider = |opt: &'static OptionSpec| {
+            if self.is_option_available(opt, spec.surface)
+                && !out.iter().any(|o| o.name == opt.name)
+            {
+                out.push(opt);
+            }
+        };
+        for opt in spec.options {
+            consider(opt);
+        }
+        for form in spec.command_forms {
+            for opt in form.options {
+                consider(opt);
+            }
+        }
+        out
+    }
+
+    fn available_sub_option_specs(
+        &self,
+        spec: &CommandSpec,
+        sub: &SubCommand,
+    ) -> Vec<&'static OptionSpec> {
+        let parent = sub.surface.or(spec.surface);
+        sub.options
+            .iter()
+            .filter(|opt| self.is_option_available(opt, parent))
+            .collect()
+    }
+}
+
+/// The retired per-profile query rules the equivalence sweeps still need
+/// as their **oracle** (`model::context`'s P1-F parity sweeps): the
+/// production surface for each of these questions is
+/// [`crate::model::ResolvedContext`], and the trait methods here exist
+/// only so the sweeps can keep pinning the context answers against the
+/// exact old rules after the old API's deletion (P1-G).
+#[cfg(test)]
+pub(crate) trait LegacyProfileOracle {
+    /// Whether `sub` (of `spec`) is available under this profile: the
+    /// subcommand's own dialect gate — falling back to the parent command's —
+    /// intersected with the availability point (§5.1).
+    fn is_subcommand_available(&self, spec: &CommandSpec, sub: &SubCommand) -> bool;
+
+    /// Whether `sub_sub` (a second-level operation of `sub`, itself a
+    /// subcommand of `spec`) is available under this profile at the resolved
+    /// `package_version`.
+    ///
+    /// Both axes apply, exactly as they do one level up: the dialect gate
+    /// `sub_sub.surface` inherits from `sub.surface.or(spec.surface)` and is
+    /// intersected with the availability point, and the owning package's
+    /// [`crate::lifecycle::Lifecycle`] must admit `package_version` (`None` =
+    /// permissive).
+    fn is_sub_subcommand_available(
+        &self,
+        spec: &CommandSpec,
+        sub: &SubCommand,
+        sub_sub: &SubSubCommand,
         package_version: Option<&str>,
-    ) -> Option<&'r OptionSpec>;
+    ) -> bool;
+
+    /// Option / switch names of subcommand `sub`, whose options inherit
+    /// `sub.surface.or(spec.surface)` as their parent gate.
+    fn available_sub_option_names(&self, spec: &CommandSpec, sub: &SubCommand)
+    -> Vec<&'static str>;
 
     /// The profile's **own vendor command surface**, summarised from
     /// registry data (§5.4 "out-of-registry vendor knowledge"): the
@@ -192,90 +302,12 @@ pub trait ProfileQueries {
     fn keyed_pin_for(&self, spec: &CommandSpec) -> Option<&'static tcl_dialect::LibraryPin>;
 }
 
-/// A profile's vendor command surface summary (see
-/// [`ProfileQueries::vendor_surface`]).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct VendorSurface {
-    /// Total vendor-tagged commands available under the profile.
-    pub command_count: usize,
-    /// `(namespace_prefix, command_count)` per `NS::` prefix, sorted by
-    /// descending count then name; bare (un-namespaced) commands group
-    /// under an empty prefix.
-    pub namespaces: Vec<(String, usize)>,
-}
-
-/// The set of package names some dialect profile ships **ambient** — an EDA
-/// vendor tool surface (`vivado`, `synopsys-dc`, …), an F5 command pack —
-/// computed once from the catalog. A command gated on such a package is a
-/// closed-world vendor command: available only under a profile that ships it.
-/// Hosted libraries that need `package require` (Tk, tcllib, the stdlib
-/// packages) are never in this set (design doc `eda-library-packages.md`).
-fn vendor_ambient_packages() -> &'static std::collections::HashSet<&'static str> {
-    static SET: std::sync::OnceLock<std::collections::HashSet<&'static str>> =
-        std::sync::OnceLock::new();
-    SET.get_or_init(|| {
-        DialectProfile::all()
-            .iter()
-            .flat_map(|p| p.libraries.iter())
-            .filter(|pin| pin.ambient)
-            .map(|pin| pin.package)
-            .collect()
-    })
-}
-
-/// Whether `required` is satisfied under `profile` (design doc
-/// `eda-library-packages.md`, the `is_available` package-loaded gate):
-///
-/// - `None` — no package gate, always satisfied.
-/// - a **hosted** library (never ambient in any profile — Tk, tcllib, stdlib):
-///   satisfied. The command stays known/available; a missing `package require`
-///   is reported separately by W120, not by hiding the command.
-/// - a **closed-world vendor** package (ambient in some profile): satisfied
-///   only when *this* profile ships it ambient — so a `vivado` command never
-///   resolves under a plain-Tcl or rival-vendor profile.
-///
-/// Behaviour-preserving today (vendor packs are profile-scoped and each EDA
-/// profile ships its own tool packages ambient); the gate makes the model
-/// honest and future-proofs finer per-tool detection.
-fn package_available(profile: &DialectProfile, required: Option<&'static str>) -> bool {
-    match required {
-        None => true,
-        Some(pkg) => profile.is_ambient_package(pkg) || !vendor_ambient_packages().contains(pkg),
-    }
-}
-
-impl ProfileQueries for DialectProfile {
-    fn is_available(&self, spec: &CommandSpec) -> bool {
-        spec.supports_dialect(self.availability_mask)
-            && (self.operators_as_commands || !spec.traits.contains(Traits::OPERATOR_COMMAND))
-            && package_available(self, spec.required_package)
-    }
-
-    fn package_available(&self, required: Option<&'static str>) -> bool {
-        package_available(self, required)
-    }
-
-    fn resolve_command<'r>(
-        &self,
-        registry: &'r CommandRegistry,
-        name: &str,
-    ) -> Option<&'r CommandSpec> {
-        registry
-            .get_for_dialect(name, self.availability_mask)
-            .filter(|spec| self.is_available(spec))
-    }
-
+#[cfg(test)]
+impl LegacyProfileOracle for DialectProfile {
     fn is_subcommand_available(&self, spec: &CommandSpec, sub: &SubCommand) -> bool {
-        sub.dialects
-            .or(spec.dialects)
-            .is_none_or(|gate| gate.intersects(self.availability_mask))
-    }
-
-    fn available_subcommands<'r>(&self, spec: &'r CommandSpec) -> Vec<&'r SubCommand> {
-        spec.subcommands
-            .iter()
-            .filter(|sub| self.is_subcommand_available(spec, sub))
-            .collect()
+        sub.surface
+            .or(spec.surface)
+            .is_none_or(|gate| surface_admits(gate, Some(&self.surface_query())))
     }
 
     fn is_sub_subcommand_available(
@@ -286,77 +318,11 @@ impl ProfileQueries for DialectProfile {
         package_version: Option<&str>,
     ) -> bool {
         sub_sub
-            .dialects
-            .or(sub.dialects)
-            .or(spec.dialects)
-            .is_none_or(|gate| gate.intersects(self.availability_mask))
+            .surface
+            .or(sub.surface)
+            .or(spec.surface)
+            .is_none_or(|gate| surface_admits(gate, Some(&self.surface_query())))
             && sub_sub.available_for_version(package_version)
-    }
-
-    fn available_sub_subcommands(
-        &self,
-        spec: &CommandSpec,
-        sub: &SubCommand,
-        package_version: Option<&str>,
-    ) -> Vec<&'static SubSubCommand> {
-        sub.sub_subcommands
-            .iter()
-            .filter(|sub_sub| self.is_sub_subcommand_available(spec, sub, sub_sub, package_version))
-            .collect()
-    }
-
-    fn is_option_available(&self, opt: &OptionSpec, parent_gate: Option<DialectSet>) -> bool {
-        let Some(gate) = opt.dialects.or(parent_gate) else {
-            // No restriction on the option or its parent.
-            return true;
-        };
-        if !gate.intersects(self.availability_mask) {
-            return false;
-        }
-        match (gate.min_version(), self.version_ceiling) {
-            (Some(min), Some(ceiling)) => min <= ceiling,
-            // A pure vendor gate has no version floor; a profile without a
-            // ceiling accepts every version.
-            _ => true,
-        }
-    }
-
-    fn available_option_names(&self, spec: &CommandSpec) -> Vec<&'static str> {
-        let mut names: Vec<&'static str> = Vec::new();
-        let mut consider = |opt: &OptionSpec| {
-            if self.is_option_available(opt, spec.dialects) && !names.contains(&opt.name) {
-                names.push(opt.name);
-            }
-        };
-        for opt in spec.options {
-            consider(opt);
-        }
-        for form in spec.command_forms {
-            for opt in form.options {
-                consider(opt);
-            }
-        }
-        names
-    }
-
-    fn available_option_specs(&self, spec: &CommandSpec) -> Vec<&'static OptionSpec> {
-        let mut out: Vec<&'static OptionSpec> = Vec::new();
-        let mut consider = |opt: &'static OptionSpec| {
-            if self.is_option_available(opt, spec.dialects)
-                && !out.iter().any(|o| o.name == opt.name)
-            {
-                out.push(opt);
-            }
-        };
-        for opt in spec.options {
-            consider(opt);
-        }
-        for form in spec.command_forms {
-            for opt in form.options {
-                consider(opt);
-            }
-        }
-        out
     }
 
     fn available_sub_option_names(
@@ -364,7 +330,7 @@ impl ProfileQueries for DialectProfile {
         spec: &CommandSpec,
         sub: &SubCommand,
     ) -> Vec<&'static str> {
-        let parent = sub.dialects.or(spec.dialects);
+        let parent = sub.surface.or(spec.surface);
         let mut names: Vec<&'static str> = Vec::new();
         for opt in sub.options {
             if self.is_option_available(opt, parent) && !names.contains(&opt.name) {
@@ -374,37 +340,41 @@ impl ProfileQueries for DialectProfile {
         names
     }
 
-    fn available_sub_option_specs(
-        &self,
-        spec: &CommandSpec,
-        sub: &SubCommand,
-    ) -> Vec<&'static OptionSpec> {
-        let parent = sub.dialects.or(spec.dialects);
-        sub.options
-            .iter()
-            .filter(|opt| self.is_option_available(opt, parent))
-            .collect()
-    }
-
-    fn find_option<'r>(
-        &self,
-        spec: &'r CommandSpec,
-        option_name: &str,
-        package_version: Option<&str>,
-    ) -> Option<&'r OptionSpec> {
-        let matches = |opt: &&'r OptionSpec| {
-            opt.matches(option_name)
-                && self.is_option_available(opt, spec.dialects)
-                && opt.available_for_version(package_version)
-        };
-        spec.options.iter().find(matches).or_else(|| {
-            spec.command_forms
-                .iter()
-                .flat_map(|f| f.options.iter())
-                .find(matches)
+    fn vendor_surface(&self, registry: &CommandRegistry) -> Option<VendorSurface> {
+        let vendor = self.vendor_surface?;
+        let mut by_ns: std::collections::BTreeMap<String, usize> =
+            std::collections::BTreeMap::new();
+        let mut command_count = 0usize;
+        for name in registry.command_names() {
+            let Some(spec) = self.resolve_command(registry, name) else {
+                continue;
+            };
+            // Vendor-OWN means the vendor provider identifies it: a surface
+            // that also names the plain Tcl versions is shared library data
+            // (tcllib's "everywhere but the closed sandboxes" rows), not the
+            // vendor's own.
+            if !spec.surface.is_some_and(|rows| {
+                rows.iter().any(|row| row.provider == vendor)
+                    && !rows
+                        .iter()
+                        .any(|row| row.provider == SpecProvider::Core(Family::Tcl))
+            }) {
+                continue;
+            }
+            command_count += 1;
+            let ns = name.split_once("::").map_or("", |(ns, _)| ns);
+            *by_ns.entry(ns.to_owned()).or_insert(0) += 1;
+        }
+        if command_count == 0 {
+            return None;
+        }
+        let mut namespaces: Vec<(String, usize)> = by_ns.into_iter().collect();
+        namespaces.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+        Some(VendorSurface {
+            command_count,
+            namespaces,
         })
     }
-
     fn keyed_version_range(
         &self,
         spec: &CommandSpec,
@@ -426,47 +396,16 @@ impl ProfileQueries for DialectProfile {
         {
             return keyed_ambient(&pin).then_some(pin);
         }
-        let vendor = self.vendor_bit?;
-        let vendor_own = spec
-            .dialects
-            .is_some_and(|d| d.intersects(vendor) && !d.intersects(DialectSet::ALL_TCL));
+        let vendor = self.vendor_surface?;
+        let vendor_own = spec.surface.is_some_and(|rows| {
+            rows.iter().any(|row| row.provider == vendor)
+                && !rows
+                    .iter()
+                    .any(|row| row.provider == SpecProvider::Core(Family::Tcl))
+        });
         if !vendor_own {
             return None;
         }
         self.libraries.iter().find(keyed_ambient)
-    }
-
-    fn vendor_surface(&self, registry: &CommandRegistry) -> Option<VendorSurface> {
-        let vendor = self.vendor_bit?;
-        let mut by_ns: std::collections::BTreeMap<String, usize> =
-            std::collections::BTreeMap::new();
-        let mut command_count = 0usize;
-        for name in registry.command_names() {
-            let Some(spec) = self.resolve_command(registry, name) else {
-                continue;
-            };
-            // Vendor-OWN means the vendor bit is the discriminating tag: a
-            // gate that also spans the plain Tcl versions is shared library
-            // data (tcllib's complement-shaped "everywhere but the closed
-            // sandboxes" gates), not the vendor's own surface.
-            if !spec
-                .dialects
-                .is_some_and(|d| d.intersects(vendor) && !d.intersects(DialectSet::ALL_TCL))
-            {
-                continue;
-            }
-            command_count += 1;
-            let ns = name.split_once("::").map_or("", |(ns, _)| ns);
-            *by_ns.entry(ns.to_owned()).or_insert(0) += 1;
-        }
-        if command_count == 0 {
-            return None;
-        }
-        let mut namespaces: Vec<(String, usize)> = by_ns.into_iter().collect();
-        namespaces.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
-        Some(VendorSurface {
-            command_count,
-            namespaces,
-        })
     }
 }

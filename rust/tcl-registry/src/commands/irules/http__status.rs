@@ -18,11 +18,12 @@
 
 //! `HTTP::status` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::status",
         traits: Traits::PURE.union(Traits::CSE_CANDIDATE),
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Returns the response status code.",
@@ -32,15 +33,23 @@ pub const fn spec() -> CommandSpec {
             examples: "when HTTP_RESPONSE {\n  if { [HTTP::status] == 404 } {\n    HTTP::redirect \"http://www.example.com/not_found.html\"\n }\n}",
             return_value: "Returns the response status code.",
         }),
+        // Measured on the appliance: the rule compiler refuses
+        // `HTTP::status` in `HTTP_REQUEST` with `command is not valid in
+        // current event context (HTTP_REQUEST)` — there is no response
+        // status while the request is still being processed
+        // (`docs/design/bigip-irule-parser-measurements.md` §8, which
+        // names this cell as *"exactly the mistakes an editor should
+        // catch"*).
+        excluded_events: &["HTTP_REQUEST"],
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,
             transport: Some("tcp"),
             profiles: &["FASTHTTP", "HTTP"],
-            also_in: &["MR_INGRESS"],
-            init_only: false,
+            // `LB_SELECTED` implies no HTTP profile, yet the rule
+            // compiler accepts `HTTP::status` there (§8).
+            also_in: &["LB_SELECTED", "MR_INGRESS"],
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "HTTP::status",

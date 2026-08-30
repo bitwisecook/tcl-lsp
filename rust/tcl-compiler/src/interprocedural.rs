@@ -594,7 +594,7 @@ pub fn build_interprocedural_analysis(
     registry: &tcl_registry::CommandRegistry,
     dialect: Option<&tcl_dialect::DialectProfile>,
     object_types: ObjectTypeMap<'_>,
-    identities: &crate::head_identity::HeadIdentityMap,
+    identities: &crate::realm::CommandBindingRealm,
 ) -> InterproceduralAnalysis {
     let object_types = object_types.0;
     let known: HashSet<String> = ir_module.procedures.keys().cloned().collect();
@@ -792,9 +792,8 @@ pub(crate) fn global_instance_classes(
                     if let Some((_, receiver, _)) = constructor(statement) {
                         classes.remove(&receiver);
                     }
-                } else if registry
-                    .command_table_effect(command, args.first().map(String::as_str))
-                    .is_some()
+                } else if crate::alias::command_table_transitions(registry, command, args)
+                    .touches_command_bindings()
                     || registry.get(command).is_some_and(|spec| {
                         spec.traits
                             .contains(tcl_registry::Traits::FIRE_AND_FORGET_TEARDOWN)
@@ -854,7 +853,7 @@ fn direct_instance_option_writes(
                             registry,
                             lookup,
                             &arg_refs,
-                            registry.own_availability_mask(),
+                            registry.own_surface_query(),
                             variable,
                         ) {
                             defs.insert(variable.clone());
@@ -974,7 +973,7 @@ fn build_method_summaries(
     known: &HashSet<String>,
     registry: &tcl_registry::CommandRegistry,
     dialect: Option<&tcl_dialect::DialectProfile>,
-    identities: &crate::head_identity::HeadIdentityMap,
+    identities: &crate::realm::CommandBindingRealm,
     procs: ProcFixpoints<'_>,
 ) -> HashMap<String, MethodSummary> {
     let ProcFixpoints {
@@ -1115,7 +1114,7 @@ struct MethodScan<'a> {
     method_known: &'a HashSet<String>,
     registry: &'a tcl_registry::CommandRegistry,
     dialect: Option<&'a tcl_dialect::DialectProfile>,
-    identities: &'a crate::head_identity::HeadIdentityMap,
+    identities: &'a crate::realm::CommandBindingRealm,
 }
 
 fn scan_method_body_facts(
@@ -1306,7 +1305,7 @@ fn scan_all_procs(
     registry: &tcl_registry::CommandRegistry,
     dialect: Option<&tcl_dialect::DialectProfile>,
     object_types: &HashMap<String, HashSet<String>>,
-    identities: &crate::head_identity::HeadIdentityMap,
+    identities: &crate::realm::CommandBindingRealm,
 ) -> HashMap<String, LocalFacts> {
     let mut local: HashMap<String, LocalFacts> = HashMap::with_capacity(known.len());
     for (qname, proc) in &ir_module.procedures {
@@ -1336,7 +1335,7 @@ struct ProcScan<'a> {
     registry: &'a tcl_registry::CommandRegistry,
     dialect: Option<&'a tcl_dialect::DialectProfile>,
     object_types: &'a HashMap<String, HashSet<String>>,
-    identities: &'a crate::head_identity::HeadIdentityMap,
+    identities: &'a crate::realm::CommandBindingRealm,
 }
 
 fn compute_all_transitive_calls(
@@ -1615,7 +1614,7 @@ struct ScanCtx<'a> {
     /// call-graph edge.  Empty when built without a `CompilationUnit`.
     object_types: &'a HashMap<String, HashSet<String>>,
     /// The document's statically proven command-identity facts
-    /// ([`crate::head_identity`]), so a call's side-effect classification,
+    /// ([`crate::realm`]), so a call's side-effect classification,
     /// callback-prefix layout, and body / lambda / expression recursion are
     /// chosen by the command a head *is* rather than the one it is spelled as
     /// (issue #1275).
@@ -1623,7 +1622,7 @@ struct ScanCtx<'a> {
     /// Read *unpositioned*: this scan walks lowered `Statement::Call`s and
     /// re-segments body text at offset 0, so no document-absolute offset
     /// exists at the point of the query.  Empty for an IR-only caller.
-    identities: &'a crate::head_identity::HeadIdentityMap,
+    identities: &'a crate::realm::CommandBindingRealm,
 }
 
 /// `depth` is the nesting level of `script` — see
@@ -2822,6 +2821,7 @@ use crate::side_effects::classify_side_effects;
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     fn known_set(names: &[&str]) -> HashSet<String> {
@@ -2834,14 +2834,14 @@ mod tests {
         caller: &str,
         dialect: &'static tcl_dialect::DialectProfile,
     ) -> Vec<String> {
-        let registry = tcl_registry::cache::registry_for_profile(dialect);
+        let registry = tcl_registry::model::ingress::static_context_for_profile(dialect).commands();
         let ir = crate::lowering::lower_to_ir(src, registry);
         let ia = build_interprocedural_analysis(
             &ir,
             registry,
             Some(dialect),
             ObjectTypeMap::none(),
-            crate::head_identity::HeadIdentityMap::none(),
+            crate::realm::CommandBindingRealm::none(),
         );
         let mut calls: Vec<String> = ia
             .procedures
@@ -2866,7 +2866,11 @@ mod tests {
                 "proc cb {{a b}} {{ return 0 }}\nproc go {{}} {{ lsort -command {prefix} {{x y}} }}\n"
             );
             assert_eq!(
-                calls_of(&src, "::go", tcl_dialect::DialectProfile::by_name("tcl8.6")),
+                calls_of(
+                    &src,
+                    "::go",
+                    tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
+                ),
                 vec!["::cb".to_owned()],
                 "`-command {prefix}` must record a call edge to cb",
             );
@@ -2879,7 +2883,11 @@ mod tests {
         let src = "proc cb {args} { return 0 }\n\
                    proc go {} { trace add variable v write [list cb] }\n";
         assert_eq!(
-            calls_of(src, "::go", tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            calls_of(
+                src,
+                "::go",
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
+            ),
             vec!["::cb".to_owned()]
         );
     }
@@ -2895,8 +2903,12 @@ mod tests {
                    proc pick {} { return cb }\n\
                    proc go {} { lsort -command [pick] {x y} }\n";
         assert!(
-            !calls_of(src, "::go", tcl_dialect::DialectProfile::by_name("tcl8.6"))
-                .contains(&"::cb".to_owned()),
+            !calls_of(
+                src,
+                "::go",
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
+            )
+            .contains(&"::cb".to_owned()),
             "the computed prefix's result is unknown, so cb is not a proven callee",
         );
     }
@@ -2919,7 +2931,7 @@ mod tests {
             calls_of(
                 "proc call {mode} { return $mode }\nproc go {} { call helper }\n",
                 "::go",
-                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             ),
             vec!["::call".to_owned()],
             "plain Tcl has no user-proc invoker, so `call` is just a procedure",
@@ -2965,7 +2977,7 @@ mod tests {
             dialect: None,
             params: &params,
             object_types: ObjectTypeMap::none().0,
-            identities: crate::head_identity::HeadIdentityMap::none(),
+            identities: crate::realm::CommandBindingRealm::none(),
         };
 
         // A 3000-deep `ExprNode` tree (nested unary `!` over `$x`).
@@ -3149,9 +3161,9 @@ mod tests {
         let cu = CompilationUnit::build_for(source, &registry, false);
         // The document's own binding facts, exactly as
         // `CompilationUnit::with_interprocedural` supplies them.
-        let identities = crate::head_identity::command_head_identities(
+        let identities = crate::realm::document_realm_bindings(
             source,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &registry,
         );
         build_interprocedural_analysis(
@@ -3262,7 +3274,7 @@ mod tests {
             &registry,
             false,
         )
-        .with_interprocedural(&registry, Some(tcl_dialect::DialectProfile::by_name("tcl9.0")));
+        .with_interprocedural(&registry, Some(tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()));
         let summary = &cu.interproc.as_ref().expect("interproc").procedures["::build"];
         assert!(
             summary.direct_calls.iter().any(|c| c == "::onNode"),
@@ -3920,12 +3932,13 @@ mod tests {
 mod effect_propagation_tests {
     use super::*;
     use crate::lowering::lower_to_ir;
-    use tcl_dialect::DialectSet;
+    use tcl_dialect::model::{Family, SurfaceLayer};
+
     use tcl_registry::CommandRegistry;
 
     fn irules_registry() -> CommandRegistry {
         let mut reg = CommandRegistry::build_default();
-        reg.load_dialect(DialectSet::IRULES);
+        reg.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         reg
     }
 
@@ -3948,7 +3961,7 @@ mod effect_propagation_tests {
                 &reg,
                 Some(tcl_dialect::DialectProfile::irules()),
                 ObjectTypeMap::none(),
-                crate::head_identity::HeadIdentityMap::none(),
+                crate::realm::CommandBindingRealm::none(),
             );
             let s = ia.procedures.get("::p").expect("proc ::p in IA");
             assert!(
@@ -3965,7 +3978,7 @@ mod effect_propagation_tests {
             &reg,
             Some(tcl_dialect::DialectProfile::irules()),
             ObjectTypeMap::none(),
-            crate::head_identity::HeadIdentityMap::none(),
+            crate::realm::CommandBindingRealm::none(),
         );
         let s = ia.procedures.get("::q").expect("proc ::q in IA");
         assert!(

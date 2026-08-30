@@ -18,6 +18,7 @@
 
 //! `persist` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const TABLE_MODES: &[ArgValue] = &[
     ArgValue {
@@ -230,7 +231,7 @@ pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "persist",
         traits: Traits::DIAGRAM_ACTION,
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Sets the connection persistence type.",
@@ -255,9 +256,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &[],
             also_in: &["PERSIST_DOWN"],
-            init_only: false,
             flow: true,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "persist <mode> ?args?",

@@ -66,7 +66,11 @@ impl Svc {
     /// A compile service targeting `profile`'s grammar, registry, and dialect.
     fn for_profile(profile: &'static DialectProfile) -> Self {
         Self {
-            registry: tcl_registry::registry_for_profile(profile),
+            // The resolved environment's registry generation, through the
+            // one ingress seam (`tcl_registry::model::ingress`) — the same
+            // store the retired `registry_for_profile` published, shared by
+            // handle (centralisation row C2, ledger row B11).
+            registry: tcl_registry::model::static_context_for_profile(profile).commands(),
             config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             dialect: Some(profile),
         }
@@ -211,9 +215,18 @@ fn new_vm(version: Option<TclVersion>) -> Vm {
     // another release's profile. The profile is resolved once and drives
     // BOTH halves (issue #1462): the runtime semantics (below) and the
     // compiler's grammar/registry (`Svc::for_profile`).
-    let release = version
-        .unwrap_or_else(|| tcl_dialect::DialectProfile::by_name("tcl9.0").vm_runtime_version);
-    let profile = DialectProfile::by_name(release.dialect_name());
+    // Both dialect *names* resolve through the one ingress seam.
+    //
+    // P1: ledger row B11's other half — letting `--tcl-version` name a
+    // non-plain-Tcl environment — is a payload change (a new flag spelling
+    // and a wider acceptance set), not a refactor, so the ingress stays
+    // release-only here and only its resolution moves.
+    let release = version.unwrap_or_else(|| {
+        tcl_registry::model::resolve_environment("tcl9.0")
+            .unit_profile()
+            .vm_runtime_version
+    });
+    let profile = tcl_registry::model::resolve_environment(release.dialect_name()).unit_profile();
     vm.set_dialect_profile(profile);
     // Codegen targets the same release: the dialect is a *compile* target, not
     // an execution-time switch, so a numeric literal is resolved for 8.6 while

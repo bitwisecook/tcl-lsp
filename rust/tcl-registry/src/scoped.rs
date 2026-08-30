@@ -125,7 +125,6 @@ impl ScopedCommandEnv {
     }
 }
 
-// ---------------------------------------------------------------------------
 // report — the `report::defstyle styleName arguments script` style-definition
 // environment.
 //
@@ -135,7 +134,6 @@ impl ScopedCommandEnv {
 // `set`/`get`; separators additionally support `enable`/`disable`/`enabled`.
 // Column/caption methods (`columns`, `size`, `pad`, `justify`, `tcaption`,
 // `bcaption`, `printmatrix`, …) are plain commands.
-// ---------------------------------------------------------------------------
 
 /// `<line> set value` — install a template / separator string.
 const OP_SET: SubCommand = SubCommand {
@@ -341,7 +339,6 @@ pub const REPORT_DEFSTYLE_ENV: ScopedCommandEnv = ScopedCommandEnv {
     allow_unknown_commands: false,
 };
 
-// ---------------------------------------------------------------------------
 // tclpkg — the `tclpkg.tcl` package-manifest directive environment.
 //
 // A manifest is a Tcl script evaluated in a deprivileged interpreter that
@@ -352,7 +349,6 @@ pub const REPORT_DEFSTYLE_ENV: ScopedCommandEnv = ScopedCommandEnv {
 // Tcl/Tk commands (`package`, `entry`), so the environment must *replace*
 // normal resolution for its names inside a manifest file rather than merge
 // with it — exactly what a scoped environment does.
-// ---------------------------------------------------------------------------
 
 /// Build a hover snippet for a tclpkg manifest directive.
 const fn manifest_hover(summary: &'static str, synopsis: &'static str) -> HoverSnippet {

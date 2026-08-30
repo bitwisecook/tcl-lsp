@@ -37,6 +37,7 @@
 //! names, so the plain `TCL91` command-level gate is the whole story.
 
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 /// Build a pure 9.1 math command returning a two-element list.  `args` is
 /// the exact argument count after the command word (`divmod x y` ⇒ 2,
@@ -75,7 +76,7 @@ fn make(
         // the way `lseq` (which *does* carry `BYTE_COMPILED`, as an
         // established core builtin with its own manpage) does.
         traits: Traits::PURE.union(Traits::CSE_CANDIDATE),
-        dialects: Some(DialectSet::TCL91),
+        surface: Some(SpecSurface::TCL91),
         arity: Arity::exact(args),
         return_type: Some(TclType::List),
         hover: Some(hover),

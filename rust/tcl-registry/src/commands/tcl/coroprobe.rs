@@ -19,6 +19,7 @@
 //! `coroprobe` — run a command inside a suspended coroutine without
 //! resuming it.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "coroprobe coroName command ?arg ...?",
     ..FormSpec::DEFAULT
@@ -39,13 +40,13 @@ static SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 /// the shared `coroutine(n)` manual page alongside `coroutine`/`yield`/
 /// `yieldto`); the command itself is absent from the 8.4, 8.5, and 8.6
 /// manual pages (8.6's `coroutine.n` documents only `coroutine`/`yield`/
-/// `yieldto`), so `dialects: TCL90_PLUS` gates the whole command, not just
+/// `yieldto`), so `surface: TCL90_PLUS` gates the whole command, not just
 /// one form or option.
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "coroprobe",
         traits: Traits::EVALUATES_CODE | Traits::COROUTINE_PRIMITIVE,
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         arity: Arity::at_least(2),
         // `coroprobe coroName command ?arg ...?` — `command` (index 1) is a
         // command prefix run in the coroutine's context with runtime args

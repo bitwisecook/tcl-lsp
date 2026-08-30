@@ -55,7 +55,7 @@
 // to a variable in a non-existent namespace" error case): `unset` shares
 // `set`'s TIP 278 namespace/global-variable lookup (`tclVar.c`'s
 // `TclLookupSimpleVar`, also used by `incr` / `info exists` — see
-// `DialectSet::namespace_var_global_fallback`). Outside a procedure, an
+// `DialectProfile::namespace_var_global_fallback`). Outside a procedure, an
 // unqualified name not found in the current namespace falls back to a
 // same-named variable in the global namespace through Tcl 8.6; Tcl 9.0
 // removed that fallback, requiring an exact match in the current
@@ -63,6 +63,7 @@
 
 use crate::hooks::{CodegenHookId, LoweringHookId};
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "unset ?-nocomplain? ?--? ?name name name ...?",
@@ -102,17 +103,17 @@ fn unset_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "unset",
-        // A core variable primitive with no filesystem/process/network
-        // access, present unmodified in every dialect that hosts a real Tcl
-        // core (irules, iapps, tmsh, the EDA shells, expect, tk, itcl) —
-        // iRules enables it, so it carries the `IRULES` bit explicitly
-        // (`ALL_TCL.union(IRULES)`) and resolves under the bare `IRULES`
-        // mask, and no dialect grants it extra options or an alternate
-        // form: every `"unset"` hit under the irules/, expect/, iapps/,
-        // tk/, itcl/, and eda_*/ command packs is an unrelated subcommand
-        // of a different ensemble (`array unset`, `dict unset`) or a
-        // `trace` operation name, never a redefinition of this command.
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        // A core variable primitive with no filesystem/process/network access,
+        // present unmodified in every dialect that hosts a real Tcl core
+        // (irules, iapps, tmsh, the EDA shells, expect, tk, itcl) — iRules
+        // enables it, so it carries an iRules row explicitly
+        // (`ALL_TCL.union(IRULES)`) and resolves under the bare `IRULES` mask,
+        // and no dialect grants it extra options or an alternate form: every
+        // `"unset"` hit under the irules/, expect/, iapps/, tk/, itcl/, and
+        // eda_*/ command packs is an unrelated subcommand of a different
+        // ensemble (`array unset`, `dict unset`) or a `trace` operation name,
+        // never a redefinition of this command.
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         // `FIRE_AND_FORGET_TEARDOWN`: `Tcl_UnsetObjCmd` (tclCmdMZ.c) removes the
         // variable and errors ("can't unset …: no such variable") when the
         // target is already gone (absent `-nocomplain`) — the property the
@@ -144,7 +145,7 @@ pub fn spec() -> CommandSpec {
                     name: "-nocomplain",
                     value: OptionValue::flag(),
                     detail: "Suppress every error unset would otherwise raise for each name that follows — a missing variable, an array-element reference against a scalar, or a nonexistent namespace — and keep processing the remaining names. Must be the literal first argument, spelled out in full; never abbreviated, so it can't be confused with a variable name that happens to start the same way.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -153,7 +154,7 @@ pub fn spec() -> CommandSpec {
                     name: "--",
                     value: OptionValue::flag(),
                     detail: "End option parsing, so a following word is always treated as a variable name even if it looks like an option. Recognised only as the first argument, or as the second when it immediately follows -nocomplain — anywhere else -- is itself just another name to delete.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,

@@ -18,10 +18,11 @@
 
 //! `tcl::tm::roots` command (Tcl Modules, TIP 189 — added in Tcl 8.5).
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::tm::roots",
-        dialects: Some(DialectSet::TCL85_PLUS),
+        surface: Some(SpecSurface::TCL85_PLUS),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Set the root paths for Tcl module discovery.",

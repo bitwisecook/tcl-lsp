@@ -53,7 +53,7 @@
 //! `::tcl::mathfunc::abs` only exists from 8.5 (TIP 232 created the table).
 //! So the [`CommandSpec`](crate::spec::CommandSpec) gate that
 //! `mathfunc_generated.rs` writes (never looser than
-//! [`DialectSet::TCL85_PLUS`](crate::dialects::DialectSet)) is the right gate
+//! [`SpecSurface::TCL85_PLUS`]) is the right gate
 //! for the *qualified command* spelling and the **wrong** one for the bare
 //! in-`expr` spelling — [`CommandRegistry::math_function_spec`] exists so a
 //! consumer rendering the in-`expr` spelling gets the registry's hover data
@@ -166,7 +166,7 @@ impl CommandRegistry {
     /// gate is the *`expr` grammar* one ([`available_in_expr`]) rather than
     /// the spec's own command-table `dialects` — see the module docs for why
     /// the two differ. Consumers rendering the *qualified command* spelling
-    /// keep using [`CommandRegistry::get_for_dialect`] and get the tighter
+    /// keep using [`CommandRegistry::get_for_surface`] and get the tighter
     /// gate, as they should.
     #[must_use]
     pub fn math_function_spec(
@@ -202,7 +202,7 @@ mod tests {
     use super::*;
 
     fn profile(name: &str) -> &'static DialectProfile {
-        DialectProfile::by_name(name)
+        crate::model::ingress::resolve_environment(name).analyser_profile()
     }
 
     #[test]
@@ -266,7 +266,7 @@ mod tests {
 
     #[test]
     fn math_function_spec_serves_registry_hover_data_under_the_expr_gate() {
-        let reg = crate::registry_for_dialect("tcl8.6");
+        let reg = crate::model::ingress::static_context_for("tcl8.6").commands();
         let spec = reg
             .math_function_spec("sin", profile("tcl8.6"))
             .expect("sin has registry data under 8.6");
@@ -276,7 +276,7 @@ mod tests {
         // even though the spec's own command-table gate is TCL85_PLUS.
         assert!(reg.math_function_spec("sin", profile("tcl8.4")).is_some());
         // Version gate: `isnan` is 9.0+.
-        let reg9 = crate::registry_for_dialect("tcl9.0");
+        let reg9 = crate::model::ingress::static_context_for("tcl9.0").commands();
         assert!(
             reg9.math_function_spec("isnan", profile("tcl9.0"))
                 .is_some()
@@ -288,7 +288,7 @@ mod tests {
 
     #[test]
     fn math_function_names_are_bare_sorted_and_gated() {
-        let reg = crate::registry_for_dialect("tcl9.0");
+        let reg = crate::model::ingress::static_context_for("tcl9.0").commands();
         let names = reg.math_function_names(profile("tcl9.0"));
         assert!(names.contains(&"sin"), "{names:?}");
         assert!(names.contains(&"max"), "{names:?}");

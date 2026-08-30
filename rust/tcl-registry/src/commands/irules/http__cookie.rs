@@ -18,6 +18,7 @@
 
 //! `HTTP::cookie` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
@@ -305,7 +306,7 @@ pub const fn spec() -> CommandSpec {
         traits: Traits::PURE
             .union(Traits::CSE_CANDIDATE)
             .union(Traits::DIAGRAM_ACTION),
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Queries for or manipulates cookies in HTTP requests and responses.",
@@ -327,9 +328,7 @@ pub const fn spec() -> CommandSpec {
             transport: Some("tcp"),
             profiles: &["FASTHTTP", "HTTP"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "HTTP::cookie <subcommand> ?arg ...?",

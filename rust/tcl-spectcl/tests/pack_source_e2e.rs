@@ -35,7 +35,6 @@ use std::rc::Rc;
 
 use tcl_compiler::optimiser::manager::optimise_raw;
 use tcl_registry::CommandRegistry;
-use tcl_registry::dialects::DialectSet;
 use tcl_registry::hover::ScriptTiming;
 use tcl_registry::pack_hooks::{self, HookInputs};
 use tcl_spec_hooks::tclvm_host;
@@ -116,7 +115,7 @@ fn folds(registry: &CommandRegistry) -> Vec<String> {
 
 #[test]
 fn the_loader_carries_the_declared_inputs() {
-    let pack = loader::load_pack(SOURCE);
+    let pack = loader::evaluate_pack(SOURCE);
     let command = pack.command("mylib::strlen").expect("the pack declares it");
     let [hook] = &command.hooks[..] else {
         panic!("one hook, got {:?}", command.hooks.len());
@@ -145,7 +144,7 @@ fn a_pack_file_folds_a_call_site_in_the_optimiser() {
 
     let host = Rc::new(tclvm_host());
     for programs in plan.packs() {
-        let installed = host.load_pack(programs.clone());
+        let installed = host.install_pack_hooks(programs.clone());
         for (installation, program) in installed.iter().zip(&programs.programs) {
             assert_eq!(
                 installation.slot, program.slot,
@@ -193,7 +192,7 @@ fn a_pack_timing_hook_controls_a_live_command_prefix_position() {
     );
     let host = Rc::new(tclvm_host());
     for programs in plan.packs() {
-        let installed = host.load_pack(programs.clone());
+        let installed = host.install_pack_hooks(programs.clone());
         assert!(
             installed.iter().all(|entry| entry.declined.is_none()),
             "the timing hook installs: {installed:?}"
@@ -203,21 +202,11 @@ fn a_pack_timing_hook_controls_a_live_command_prefix_position() {
 
     let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &packs);
     assert_eq!(
-        registry.script_timing(
-            "mylib::callback",
-            &["now", "callback"],
-            1,
-            DialectSet::empty(),
-        ),
+        registry.script_timing("mylib::callback", &["now", "callback"], 1, None,),
         Some(ScriptTiming::SameInvocation),
     );
     assert_eq!(
-        registry.script_timing(
-            "mylib::callback",
-            &["later", "callback"],
-            1,
-            DialectSet::empty(),
-        ),
+        registry.script_timing("mylib::callback", &["later", "callback"], 1, None,),
         Some(ScriptTiming::Deferred),
     );
     pack_hooks::clear_host();

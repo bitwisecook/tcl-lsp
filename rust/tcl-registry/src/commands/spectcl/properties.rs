@@ -92,6 +92,12 @@ const ROWS: &[Row] = &[
         "Members verbatim (`tcl8.4` … `tcl9.1`, `f5-irules`, `f5-iapps`, `tk`, `expect`, `bpf`, `f5-tmsh`, `f5-bigip`), plus two shorthands: a `+` suffix on a Tcl version means \"and later\", and `all-tcl` / `tcl8.x` name the two common closures. On a `subcommand`, absent inherits the parent command's set.",
     ),
     (
+        "available",
+        Arity::at_least(1),
+        "Declare where the command is available, on the provider's own axis.",
+        "`SpecTcl` 2.0's spelling of `dialects`, and the same claim: one or more `{PROVIDER SPEC…}` rows, where PROVIDER is `tcl RANGE`, `f5-irules`, `jim RANGE`, or `package NAME ?RANGE?` and RANGE is Tcl requirement syntax — `8.6-` for \"and later\", `8.4-9.0` for a half-open window (maximum exclusive), or a bare `8.5` for that one release line. `available {tcl 8.6-} {package Tk}`. Both spellings load to the same spec, so a pack may use either; `tcl spec upgrade` rewrites 1.x sources mechanically.",
+    ),
+    (
         "arity",
         Arity::at_least(1),
         "Declare how many argument words the call takes.",
@@ -366,11 +372,6 @@ const ROWS: &[Row] = &[
         Arity::exact(1),
         "Whether the command is translatable.",
         "Tri-state: the argument is **required** — absent is `unset`, which is not `false`.",
-    ),
-    one(
-        "xc_operation",
-        "The translation operation the command maps to.",
-        "",
     ),
 ];
 

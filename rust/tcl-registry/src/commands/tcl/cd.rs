@@ -19,6 +19,7 @@
 //! `cd` — change the process's current working directory.
 
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "cd ?dirName?",
@@ -30,13 +31,13 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "cd",
         // Universal core Tcl 8.4-9.1 (identical `cd ?dirName?` synopsis and
-        // behaviour on every fetched manpage). Excluded from `f5-irules`
-        // (no real per-request filesystem there) by this explicit
-        // `Some(DialectSet::ALL_TCL)` group: `ALL_TCL` carries no `IRULES`
-        // bit, so the spec never intersects iRules' bare `IRULES`
-        // availability mask — the same way `open` is excluded, rather than
-        // by any disable list — see `open_.rs`.
-        dialects: Some(DialectSet::ALL_TCL),
+        // behaviour on every fetched manpage). Excluded from `f5-irules` (no
+        // real per-request filesystem there) by this explicit
+        // `Some(SpecSurface::ALL_TCL)` group: `ALL_TCL` carries no iRules row,
+        // so the spec never intersects iRules' bare `IRULES` availability
+        // point — the same way `open` is excluded, rather than by any disable
+        // list — see `open_.rs`.
+        surface: Some(SpecSurface::ALL_TCL),
         // `Traits::TAINT_SINK`: `dirName` unconditionally becomes the
         // process's current working directory — a per-process resource
         // shared by every interpreter and, in a threaded build, every

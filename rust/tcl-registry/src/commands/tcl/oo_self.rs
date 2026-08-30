@@ -18,6 +18,7 @@
 
 //! `self` — query the current method invocation's context.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 /// `self` is a `TclOO` command: like `next` (`next.rs`'s survey documents
 /// the same underlying fact), Tcl 8.4 and 8.5 have no `self.n` manpage at
@@ -124,7 +125,7 @@ pub fn spec() -> CommandSpec {
             | Traits::TCLOO_INTROSPECTION
             | Traits::TCLOO_METHOD_CONTEXT
             | Traits::TCLOO_REQUIRES_METHOD_FRAME,
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         arity: Arity::new(0, 1),
         return_type: Some(TclType::String),
         arg_values: &[(0, SELF_SUBCOMMAND_VALUES)],

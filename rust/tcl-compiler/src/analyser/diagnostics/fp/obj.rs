@@ -20,10 +20,8 @@
 
 use super::{D, codes, fires};
 
-// ---------------------------------------------------------------------------
 // W250 — instantiating an `oo::abstract` class (new / create is a runtime
 // error; abstract classes must be subclassed).
-// ---------------------------------------------------------------------------
 
 #[test]
 fn w250_fires_on_abstract_new_and_create() {
@@ -49,10 +47,8 @@ fn w250_not_on_definition_or_concrete_subclass() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-OBJ-01 — snit self-references ($self/$type/$selfns/$win) are method
 // dispatch on the current object, not stray non-literal command words.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_obj_01_snit_self_references_no_w307() {
@@ -78,9 +74,7 @@ fn fp_obj_01_self_ref_outside_snit_still_w307() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // FP-OBJ-02 — $hull dispatch (widgetadaptor)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_obj_02_widgetadaptor_hull_no_w307() {
@@ -93,9 +87,7 @@ fn fp_obj_02_widgetadaptor_hull_no_w307() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-OBJ-03 — snit component dispatch (instance-var method dispatch)
-// ---------------------------------------------------------------------------
 
 const FP_OBJ_03_REPRO_COMPONENT: &str = "\
 snit::type T {
@@ -139,9 +131,7 @@ fn fp_obj_03_typemethod_dispatch_no_w307() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-OBJ-04 — namespaced-factory provenance
-// ---------------------------------------------------------------------------
 
 const FP_OBJ_04_REPRO: &str = "\
 proc f {} {
@@ -235,9 +225,7 @@ proc f {} {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-OBJ-05 — snit instance dispatch (locally-defined snit type)
-// ---------------------------------------------------------------------------
 
 const FP_OBJ_05_REPRO: &str = "\
 snit::type ::Counter { method bump {} { return 1 } }
@@ -292,9 +280,7 @@ fn fp_obj_05_snit_instance_no_w308() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-OBJ-06 — snit private proc body IS analysed
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_obj_06_private_proc_body_analysed() {
@@ -310,9 +296,7 @@ fn fp_obj_06_private_proc_body_analysed() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-OBJ-07 — cmd-sub namespaced ensemble [ns_func]::method is dispatch, not stray word
-// ---------------------------------------------------------------------------
 
 const FP_OBJ_07_REPRO: &str = "\
 namespace eval ::ns {
@@ -359,9 +343,7 @@ fn fp_obj_07_namespaced_ensemble_const_prefix_fires_w307() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-OBJ-08 — W307 suppressed on eval-substituted dispatch (W101 covers it)
-// ---------------------------------------------------------------------------
 
 const FP_OBJ_08_REPRO: &str = "\
 proc f {cmd args} {
@@ -393,9 +375,7 @@ fn fp_obj_08_eval_substituted_dispatch_still_fires_w101() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-OBJ-09 — W307 multi-dispatch local var (>=2 dispatches on same local)
-// ---------------------------------------------------------------------------
 
 const FP_OBJ_09_REPRO: &str = "\
 proc analyze {G} {
@@ -440,9 +420,7 @@ fn fp_obj_09_const_string_multi_dispatch_fires_w307() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-OBJ-10 — W307 switch-callback array element ($state(-command))
-// ---------------------------------------------------------------------------
 
 const FP_OBJ_10_REPRO: &str = "\
 proc h {state token} {
@@ -497,9 +475,7 @@ fn fp_obj_10_const_string_dash_prefix_fires_w307() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-OBJ-11 — W307 interprocedural object-factory tracking
-// ---------------------------------------------------------------------------
 
 const FP_OBJ_11_REPRO: &str = "\
 proc createGraph {} { return [struct::tree] }
@@ -536,9 +512,7 @@ $g op }
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-OBJ-12 — W307 fires on [<cmd-sub>] run in a method body (D3-P3/D4-F5)
-// ---------------------------------------------------------------------------
 
 const FP_OBJ_12_REPRO: &str =
     "oo::class create C {\n    method m {} { [format notACommand] run }\n}";
@@ -565,9 +539,7 @@ fn fp_obj_12_known_class_new_in_method_silent() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-OBJ-13 — W307 fires on [my plain] where plain returns literal (D3-P4)
-// ---------------------------------------------------------------------------
 
 const FP_OBJ_13_REPRO: &str = "oo::class create C {\n    method plain {} { return notACommand }\n    method m {} { [my plain] run }\n}";
 
@@ -594,10 +566,8 @@ fn fp_obj_13_my_method_returns_object_silent() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-OBJ-14 — registered ::ns::cmd / known user proc with non-OBJECT return overrides
 // the ::-prefix factory heuristic (D3-P5 PARTIAL / D4-F6)
-// ---------------------------------------------------------------------------
 
 const FP_OBJ_14_REPRO: &str = "\
 namespace eval ::pkg { proc plain {} { return notACommand } }
@@ -643,9 +613,7 @@ fn fp_obj_14_unregistered_external_namespaced_still_silent() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-OBJ-15 — bare-name [NotAClass new] no longer suppressed (D3-P6/D4-F6)
-// ---------------------------------------------------------------------------
 
 const FP_OBJ_15_REPRO: &str = "proc f {} { set x [NotAClass new]; $x method }\n";
 
@@ -672,9 +640,7 @@ fn fp_obj_15_known_oo_class_new_silent() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-OBJ-16 — composed ${ns}::tail ensemble lookup runs unconditionally (D4-F7)
-// ---------------------------------------------------------------------------
 
 const FP_OBJ_16_REPRO: &str = "\
 namespace eval ::mypkg { proc dowork {arg} {} }
@@ -703,9 +669,7 @@ fn fp_obj_16_const_prefix_unknown_proc_fires() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-OBJ-17 — array set literal-element harvester for callback array (D3-P7)
-// ---------------------------------------------------------------------------
 
 const FP_OBJ_17_REPRO: &str =
     "proc f {} { array set state {-command notACommand}; $state(-command) hi }\n";
@@ -734,9 +698,7 @@ fn fp_obj_17_callback_array_holds_known_command_silent() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-OBJ-18 — dict with key-value pair harvester for interproc callback (D3-P8)
-// ---------------------------------------------------------------------------
 
 const FP_OBJ_18_REPRO: &str = "proc f {d} { dict with d { $cmd hi } }\nf {cmd notACommand}\n";
 
@@ -763,9 +725,7 @@ fn fp_obj_18_interproc_dict_with_known_command_silent() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Follow-up findings (not tagged FP-OBJ-NN)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_w307_dict_with_does_not_suppress_explicit_local_dispatch() {
@@ -848,10 +808,8 @@ fn fp_w307_itcl_created_instance_dispatch_silent() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // VAR-as-command dispatch tests
 // Pair 1: local literal assignment of a user-proc / builtin name
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_var_as_cmd_literal_user_proc_silent() {
@@ -976,11 +934,9 @@ fn fp_var_as_cmd_mixed_callers_conservative_silent() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-OBJ-19 — `CLASS create NAME` binds a command NAME; later `NAME method`
 // dispatch (and `$var method` where var provably holds NAME) is a real call,
 // not an unknown command / stray dispatch.  Issue #777.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn fp_obj_19_external_class_create_name_no_w123() {
@@ -1097,11 +1053,9 @@ fn fp_obj_19_dict_create_key_is_not_a_command() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // FP-OBJ-20 — an external (unindexed) mixin contributes methods through the
 // MRO exactly as an external superclass does, so the W308 external-class
 // escape hatch must cover mixins too.
-// ---------------------------------------------------------------------------
 
 const FP_OBJ_20_REPRO: &str = "\
 oo::class create Reactive {

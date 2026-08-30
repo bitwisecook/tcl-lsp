@@ -20,7 +20,7 @@
 //!
 //! This crate is the single owner of what a *dialect* means:
 //!
-//! - [`DialectSet`] — the compact membership bitflags commands and options
+//! - `SpecSurface` — the compact membership bitflags commands and options
 //!   are tagged with (the availability atom).
 //! - [`TclVersion`] — the ordered Tcl release enum behaviour/const-fold
 //!   semantics key off.
@@ -42,28 +42,30 @@
 
 #![deny(missing_docs)]
 
-mod dialect_set;
+pub mod build_info;
 mod expr_number;
 mod grammar;
 mod library;
+pub mod model;
 mod profile;
 mod version;
 
-pub use dialect_set::{DialectSet, KNOWN_DIALECTS, available_dialects};
 pub use expr_number::{
     ExprNumberLexeme, NanPayloadLexeme, expr_binary_word_operator_at,
     expr_word_operator_boundary_ok, expr_word_operator_right_boundary_ok, is_expr_bareword_byte,
     scan_expr_number, scan_nan_payload,
 };
 pub use grammar::{
-    BracedVarStyle, EXPR_WORD_OPERATORS, EscapeSyntax, ExprCommentStyle, LexerGrammar,
-    NumberSyntax, expr_word_operator_since, is_expr_word_operator,
+    BraceLineContinuation, BracedVarStyle, EXPR_WORD_OPERATORS, EscapeSyntax, ExprCommentStyle,
+    LexerGrammar, NumberSyntax, expr_word_operator_since, is_expr_word_operator,
 };
 pub use library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
 pub use profile::{DialectFileExtension, DialectProfile};
+pub use profile::{KNOWN_DIALECTS, available_dialects};
 pub use version::{
-    ByteStringEncoding, PackagePrefer, StringCharacterModel, TclVersion, Ternary, compare_versions,
-    exact_requirement, select_package_version, version_is_stable, version_satisfies,
+    ByteStringEncoding, CorePackage, PackagePrefer, StringCharacterModel, TclVersion, Ternary,
+    compare_versions, exact_requirement, select_package_version, version_is_stable,
+    version_satisfies,
 };
 
 /// Crate version string.

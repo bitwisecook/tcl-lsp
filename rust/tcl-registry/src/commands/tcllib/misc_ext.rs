@@ -2388,14 +2388,6 @@ const SMTPD_CMDS: &[Row] = &[(
     "Halt the server and release the listening socket.",
 )];
 
-/// The `struct::tree` package.
-const STRUCT__TREE_CMDS: &[Row] = &[(
-    "struct::tree::prune",
-    Arity::exact(0),
-    &["struct::tree::prune"],
-    "This command is provided outside of the tree methods, as it is not a tree method per se.",
-)];
-
 /// The `tcl::chan` package.
 const TCL__CHAN_CMDS: &[Row] = &[
     (
@@ -2901,12 +2893,12 @@ const GROUPS: &[(&str, &[Row])] = &[
     ("pt_export_api", PT_EXPORT_API_CMDS),
     ("pt_import_api", PT_IMPORT_API_CMDS),
     ("sha1", SHA1_CMDS),
-    ("sha2", SHA2_CMDS),
+    // The `::sha2` namespace; the package is `sha256` (P5 identity).
+    ("sha256", SHA2_CMDS),
     ("simulation::annealing", SIMULATION__ANNEALING_CMDS),
     ("simulation::montecarlo", SIMULATION__MONTECARLO_CMDS),
     ("simulation::random", SIMULATION__RANDOM_CMDS),
     ("smtpd", SMTPD_CMDS),
-    ("struct::tree", STRUCT__TREE_CMDS),
     ("tcl::chan", TCL__CHAN_CMDS),
     ("tcl::transform", TCL__TRANSFORM_CMDS),
     ("term::ansi::code::attr", TERM__ANSI__CODE__ATTR_CMDS),

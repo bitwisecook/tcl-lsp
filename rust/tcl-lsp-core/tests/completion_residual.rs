@@ -45,6 +45,7 @@
 //! editor presentation.
 
 use tcl_compiler::analyser::{Analyser, AnalysisResult};
+use tcl_dialect::model::{Family, SurfaceLayer};
 use tcl_lsp_core::completion::{CompletionKind, completions};
 use tcl_lsp_core::workspace_index::WorkspaceIndex;
 use tcl_registry::CommandRegistry;
@@ -63,7 +64,7 @@ fn registry() -> CommandRegistry {
 /// An iRules-loaded registry (carries `when` / `call` / `HTTP::…`).
 fn irules_registry() -> CommandRegistry {
     let mut r = CommandRegistry::build_default();
-    r.load_dialect(tcl_dialect::DialectSet::IRULES);
+    r.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
     r
 }
 
@@ -86,16 +87,14 @@ fn smoke_completion_binary_exists() {
         &analysis,
         Some(&reg),
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     assert!(items.iter().any(|i| i.label == "puts"), "{items:?}");
 }
 
-// ===========================================================================
 // Variable completion — braced `${…}` form, the forward-scan that swallows an
 // existing reference, cross-namespace qualified vars, and the substitutable
 // filter. Lines ~412, 488-520, 597, 628-656.
-// ===========================================================================
 
 #[test]
 fn var_brace_trigger_emits_braced_text_edit() {
@@ -113,7 +112,7 @@ fn var_brace_trigger_emits_braced_text_edit() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let v = items
         .iter()
@@ -145,7 +144,7 @@ fn var_completion_replace_range_swallows_existing_braced_reference() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let v = items
         .iter()
@@ -176,7 +175,7 @@ fn var_completion_bare_form_forward_scan_over_namespace_segments() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let v = items
         .iter()
@@ -208,7 +207,7 @@ fn var_completion_hyphenated_name_forces_brace_form() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let v = items.iter().find(|i| i.label == "$a-b");
     if let Some(v) = v {
@@ -237,7 +236,7 @@ fn var_completion_cross_namespace_offers_qualified_name() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let q = items
         .iter()
@@ -275,7 +274,7 @@ fn var_brace_forward_scan_handles_nested_braces_and_backslash() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let v = items.iter().find(|i| i.label == "$na");
     if let Some(v) = v {
@@ -311,7 +310,7 @@ fn var_bare_forward_scan_crosses_namespace_separator() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     // Whether or not a candidate matches, the call must not panic and the bare
     // scan ran. If `$a::b` is offered, its edit covers through `b`.
@@ -321,9 +320,7 @@ fn var_bare_forward_scan_crosses_namespace_separator() {
     }
 }
 
-// ===========================================================================
 // Array-element completion — `$arr(` / `$arr(prefix`. Lines 533-579.
-// ===========================================================================
 
 #[test]
 fn array_element_completion_lists_recorded_indices() {
@@ -341,7 +338,7 @@ fn array_element_completion_lists_recorded_indices() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let ls = labels(&items);
     assert!(ls.contains(&"$arr(one)"), "{ls:?}");
@@ -372,7 +369,7 @@ fn array_element_completion_filters_by_index_prefix() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let ls = labels(&items);
     assert!(ls.contains(&"$arr(one)"), "{ls:?}");
@@ -401,7 +398,7 @@ fn array_element_completion_replace_range_swallows_existing_paren() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     if let Some(one) = items.iter().find(|i| i.label == "$arr(one)") {
         let edit = one.text_edit.as_ref().expect("array edit");
@@ -425,7 +422,7 @@ fn array_element_completion_unknown_array_yields_nothing() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     assert!(
         items.is_empty(),
@@ -433,11 +430,9 @@ fn array_element_completion_unknown_array_yields_nothing() {
     );
 }
 
-// ===========================================================================
 // Switch / option completion — the text-edit range and documentation.
 // Lines around 720 (the `start == 0` guard is exercised by the dash-at-col-0
 // path) and switch_completions' edit.
-// ===========================================================================
 
 #[test]
 fn switch_completion_attaches_replacement_edit_over_dash_partial() {
@@ -455,7 +450,7 @@ fn switch_completion_attaches_replacement_edit_over_dash_partial() {
         &analysis,
         Some(&reg),
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let opt = items
         .iter()
@@ -489,7 +484,7 @@ fn switch_partial_at_col_zero_is_not_a_switch() {
         &analysis,
         Some(&reg),
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     // `-` is in SKIP_BUILTIN_NAMES, so it never surfaces as a command either.
     assert!(
@@ -499,10 +494,8 @@ fn switch_partial_at_col_zero_is_not_a_switch() {
     );
 }
 
-// ===========================================================================
 // Command-level positional arg-value completion (iRules) — `when … timing` and
 // `HTTP::respond <status> content|noserver|…`. Lines 271-288.
-// ===========================================================================
 
 #[test]
 fn http_respond_status_offers_bareword_option_values() {
@@ -648,10 +641,8 @@ fn when_value_slot_suppressed_after_priority_keyword() {
     );
 }
 
-// ===========================================================================
 // Subcommand argument-value completion — `string is <class>` exercising the
 // subcommand (not command-level) arg-value path. Lines 255-264.
-// ===========================================================================
 
 #[test]
 fn string_is_class_completion_uses_subcommand_arg_values() {
@@ -672,7 +663,7 @@ fn string_is_class_completion_uses_subcommand_arg_values() {
         &analysis,
         Some(&reg),
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let ls = labels(&items);
     assert!(ls.contains(&"alnum"), "{ls:?}");
@@ -686,10 +677,8 @@ fn string_is_class_completion_uses_subcommand_arg_values() {
     }
 }
 
-// ===========================================================================
 // iRules event-name completion (the `event_name_completions` body) and `call`
 // proc completion under the iRules dialect. Lines 232, 244-245, 773-809.
-// ===========================================================================
 
 #[test]
 fn event_name_completion_documents_event_from_registry_props() {
@@ -787,10 +776,8 @@ fn call_completion_lists_user_procs_under_irules() {
     }
 }
 
-// ===========================================================================
 // Workspace-wide proc enumeration — the cross-document fallback and its
 // `workspace_proc_detail` ("1 param" vs "N params"). Lines 302-325, 364-371.
-// ===========================================================================
 
 #[test]
 fn workspace_proc_detail_uses_singular_for_one_param() {
@@ -812,7 +799,7 @@ fn workspace_proc_detail_uses_singular_for_one_param() {
         &cur,
         None,
         Some(&index),
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let one = items
         .iter()
@@ -857,7 +844,7 @@ fn workspace_proc_zero_params_is_plural() {
         &cur,
         None,
         Some(&index),
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let noop = items.iter().find(|i| i.label == "znoop");
     if let Some(noop) = noop {
@@ -885,7 +872,7 @@ fn workspace_completion_dedupes_against_local_and_builtins() {
         &cur,
         None,
         Some(&index),
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     // `shared` appears exactly once (the local copy).
     assert_eq!(
@@ -903,10 +890,8 @@ fn workspace_completion_dedupes_against_local_and_builtins() {
     }
 }
 
-// ===========================================================================
 // `is_bare_var_name` edges via observable completion behaviour — empty name
 // guards (lines 131, 135) and the brace-vs-bare choice for qualified names.
-// ===========================================================================
 
 #[test]
 fn qualified_global_var_completes_in_bare_form() {
@@ -925,7 +910,7 @@ fn qualified_global_var_completes_in_bare_form() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let v = items
         .iter()
@@ -938,10 +923,8 @@ fn qualified_global_var_completes_in_bare_form() {
     }
 }
 
-// ===========================================================================
 // Snippet surface in the iRules dialect — the `current_event` / `file_events`
 // segmentation that only runs for `f5-irules`. Lines 341-344.
-// ===========================================================================
 
 #[test]
 fn irules_dialect_runs_event_segmentation_for_snippets() {
@@ -991,7 +974,7 @@ fn plain_tcl_dialect_skips_irules_event_segmentation() {
         &analysis,
         Some(&reg),
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     assert!(
         !items.iter().any(|i| i.label.starts_with("iRule")),
@@ -1000,10 +983,8 @@ fn plain_tcl_dialect_skips_irules_event_segmentation() {
     );
 }
 
-// ===========================================================================
 // Built-in `command_detail` provenance — proc signature rendering with params
 // and defaults (the proc fallback). Lines 970-983.
-// ===========================================================================
 
 #[test]
 fn proc_completion_renders_param_signature_detail() {
@@ -1022,7 +1003,7 @@ fn proc_completion_renders_param_signature_detail() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let greet = items
         .iter()
@@ -1054,7 +1035,7 @@ fn proc_completion_paramless_detail_is_no_args() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let noop = items.iter().find(|i| i.label == "noop").expect("noop");
     assert_eq!(noop.detail.as_deref(), Some("(no args)"), "{noop:?}");
@@ -1074,7 +1055,7 @@ fn proc_completion_variadic_detail_includes_args() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let va = items.iter().find(|i| i.label == "va").expect("va");
     let detail = va.detail.as_deref().unwrap_or("");
@@ -1082,11 +1063,9 @@ fn proc_completion_variadic_detail_includes_args() {
     assert!(detail.contains("args"), "{detail:?}");
 }
 
-// ===========================================================================
 // Structural edges — comment/string suppression is not a special case here
 // (the provider is position-based), but empty / no-completion edges and the
 // command-position fallback are. These need no tclsh proof.
-// ===========================================================================
 
 #[test]
 fn no_matching_command_or_proc_yields_no_symbols() {
@@ -1102,7 +1081,7 @@ fn no_matching_command_or_proc_yields_no_symbols() {
         &analysis,
         Some(&reg),
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     assert!(
         items.iter().all(|i| i.kind == CompletionKind::Snippet),
@@ -1128,7 +1107,7 @@ fn command_context_in_leading_indent_falls_through_cleanly() {
         &analysis,
         Some(&reg),
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     // Empty partial at this point → the fallback lists symbols (the user proc
     // among them). No crash, and `helper` is reachable.
@@ -1153,7 +1132,7 @@ fn empty_array_name_yields_no_array_completion() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     assert!(items.is_empty(), "empty array name → nothing: {items:?}");
 }
@@ -1170,7 +1149,7 @@ fn variable_trigger_out_of_bounds_line_does_not_panic() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     assert!(items.is_empty() || items.iter().all(|i| i.kind == CompletionKind::Snippet));
 }
@@ -1191,7 +1170,7 @@ fn builtin_documentation_carries_registry_summary() {
         &analysis,
         Some(&reg),
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let puts = items
         .iter()

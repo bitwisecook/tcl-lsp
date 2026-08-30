@@ -28,6 +28,7 @@
 //! command `OptionSpec` entries.
 
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 /// Element-definition switches valid *inside* a definition element (not as
 /// command switches).  Data for definition-aware completion / harvesting.
@@ -98,7 +99,7 @@ macro_rules! opt {
                 OptionValue::flag()
             },
             detail: $detail,
-            dialects: None,
+            surface: None,
             aliases: &[],
             lifecycle: Lifecycle::UNSPECIFIED,
             min_abbrev: None,
@@ -236,7 +237,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "argparse",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
             summary: "Parse and validate switches and parameters from an argument list.",

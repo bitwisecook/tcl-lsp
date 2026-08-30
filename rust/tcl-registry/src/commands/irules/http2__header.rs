@@ -18,6 +18,7 @@
 
 //! `HTTP2::header` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
@@ -42,7 +43,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP2::header",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         // Versioned-library axis (§7.1): the F5 surface is the ambient
         // `f5-irules-cmds` library keyed on the BIG-IP release; this
         // command's introducing release comes from the hover prose below.
@@ -67,9 +68,7 @@ pub const fn spec() -> CommandSpec {
             transport: Some("tcp"),
             profiles: &["HTTP"],
             also_in: &["MR_EGRESS", "MR_INGRESS", "SERVER_CONNECTED"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             kind: FormKind::Getter,

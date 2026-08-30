@@ -82,8 +82,7 @@ fn detect_event_entries(
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> Vec<SymbolEntry> {
     let registry = registry_for_dialect(dialect.name);
-    let identities =
-        tcl_compiler::head_identity::command_head_identities(source, dialect, &registry);
+    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, &registry);
     let mut entries = Vec::new();
     let mut seen = std::collections::HashSet::new();
     for handler in tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver(
@@ -463,7 +462,7 @@ mod tests {
         let entries = detect_event_entries(
             source,
             &LineIndex::new(source),
-            tcl_dialect::DialectProfile::irules(),
+            tcl_cli_support::environment::profile_for_dialect("f5-irules"),
         );
         assert_eq!(
             entries
@@ -480,7 +479,7 @@ mod tests {
         let entries = detect_event_entries(
             source,
             &LineIndex::new(source),
-            tcl_dialect::DialectProfile::irules(),
+            tcl_cli_support::environment::profile_for_dialect("f5-irules"),
         );
         assert_eq!(
             entries

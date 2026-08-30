@@ -18,10 +18,11 @@
 
 //! `LSN::pool` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "LSN::pool",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Explicitly set the LSN pool used for translation.",
@@ -43,9 +44,7 @@ pub const fn spec() -> CommandSpec {
                 "LB_SELECTED",
                 "SA_PICKED",
             ],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "LSN::pool LSN_POOL",

@@ -130,6 +130,8 @@ pub enum BinOp {
     EndsWith,
     /// `equals`
     StrEquals,
+    /// `matches`
+    Matches,
     /// `matches_glob`
     MatchesGlob,
     /// `matches_regex`
@@ -174,6 +176,7 @@ impl BinOp {
             Self::StartsWith => "starts_with",
             Self::EndsWith => "ends_with",
             Self::StrEquals => "equals",
+            Self::Matches => "matches",
             Self::MatchesGlob => "matches_glob",
             Self::MatchesRegex => "matches_regex",
         }
@@ -201,6 +204,7 @@ impl BinOp {
             | Self::StartsWith
             | Self::EndsWith
             | Self::StrEquals
+            | Self::Matches
             | Self::MatchesGlob
             | Self::MatchesRegex => 6,
             Self::Lt

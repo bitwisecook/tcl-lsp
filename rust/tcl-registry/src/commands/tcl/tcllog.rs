@@ -48,7 +48,7 @@
 //! reconstructed command text when it resolves a C-shell-style history
 //! substitution (`!!`, `!N`, `^old^new^`) before re-evaluating it.
 //!
-//! `dialects: Some(DialectSet::ALL_TCL)` here is a deliberate reading of
+//! `surface: Some(SpecSurface::ALL_TCL)` here is a deliberate reading of
 //! the current data, not an oversight. Under the explicit-per-spec model
 //! (there is no subtractive disable list any more), `ALL_TCL` spans every
 //! core Tcl version but not the `IRULES` bit, so `tclLog` never intersects
@@ -67,12 +67,13 @@
 //! `commands/iapps`, `commands/tk`, or `commands/itcl` registers a
 //! competing `tclLog` (checked by grep). Whether real iRules genuinely
 //! exposes a working `tclLog` is not independently confirmed, so
-//! `Some(DialectSet::ALL_TCL)` — the conservative, not-yet-fully-audited
+//! `Some(SpecSurface::ALL_TCL)` — the conservative, not-yet-fully-audited
 //! value the sibling `disabled_in_irules.rs`, `tclpkgsetup.rs`, and
 //! `tclpkgunknown.rs` also carry — stands here, following the same
 //! data-over-assumption call `parray.rs` made.
 
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "tclLog string",
@@ -93,7 +94,7 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tclLog",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         // A redefinable Tcl library proc — see `Traits::OVERRIDABLE_LIBRARY_PROC`.
         // The default body directly wraps `puts stderr $string` (module
         // doc comment above) — the same output-injection hazard `puts`

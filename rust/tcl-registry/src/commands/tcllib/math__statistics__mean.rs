@@ -32,7 +32,7 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "math::statistics::mean",
         traits: Traits::PURE,
-        dialects: None,
+        surface: None,
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Compute the arithmetic mean of a list of values.",

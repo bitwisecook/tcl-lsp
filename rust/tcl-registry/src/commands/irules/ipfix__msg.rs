@@ -18,10 +18,11 @@
 
 //! `IPFIX::msg` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "IPFIX::msg",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "IPFIX::msg Provides the ability to create, delete and set values in an IPFIX message that can then be used to send IPFIX message based on processing in the iRule.",
@@ -40,7 +41,7 @@ pub const fn spec() -> CommandSpec {
                 name: "-pos",
                 value: OptionValue::value("IPFIX_POS"),
                 detail: "Position index for duplicate field types.",
-                dialects: None,
+                surface: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,

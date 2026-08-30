@@ -64,7 +64,7 @@ fn control_do_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "control::do",
-        dialects: None,
+        surface: None,
         arity: Arity::new(1, 3),
         // `body` is a script evaluated in the caller's frame (Plain),
         // `option` is the `while`/`until` keyword, and `test` is an

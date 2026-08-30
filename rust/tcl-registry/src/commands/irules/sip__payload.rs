@@ -18,10 +18,11 @@
 
 //! `SIP::payload` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "SIP::payload",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Returns the accumulated SIP data content.",
@@ -42,9 +43,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &["SIP"],
             also_in: &["MR_EGRESS", "MR_FAILED", "MR_INGRESS"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "SIP::payload (LENGTH | (OFFSET LENGTH))?",

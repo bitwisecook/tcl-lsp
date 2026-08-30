@@ -21,8 +21,10 @@
 use crate::abbrev::Keyword;
 use crate::arg_role::{AppendedArity, ArgRole};
 use crate::body_kind::BodyKind;
-use crate::dialects::DialectSet;
 use crate::lifecycle::{Lifecycle, LifecycleState};
+use tcl_dialect::model::SpecSurface;
+use tcl_dialect::model::SurfaceQuery;
+use tcl_dialect::model::surface_admits;
 
 /// Short hover content derived from man pages or vendor docs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -596,7 +598,7 @@ pub struct OptionSpec {
     /// version (e.g. `lsearch -stride` is Tcl 8.6+, `clock scan
     /// -validate` is Tcl 9.0+) so the option doesn't surface in
     /// older dialects.
-    pub dialects: Option<DialectSet>,
+    pub surface: Option<&'static [SpecSurface]>,
     /// Documented alternate spellings Tcl accepts for this same option
     /// (e.g. `-bd` for `-borderwidth`, `-bg` for `-background`).  These are
     /// *explicit* aliases the command's own option table recognises — not the
@@ -625,7 +627,7 @@ impl OptionSpec {
         name: "",
         value: OptionValue::Flag,
         detail: "",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -838,25 +840,19 @@ impl OptionSpec {
     /// Check whether this option is available in *dialect*.
     ///
     /// If the option has its own `dialects` set, use it.  Otherwise
-    /// inherit from *`parent_dialects`* (the parent `CommandSpec` or
+    /// inherit from *`parent_surface`* (the parent `CommandSpec` or
     /// `SubCommand`).  When either side is `None`, the option is
     /// considered available (no restriction).
     #[must_use]
     pub fn supports_dialect(
         &self,
-        dialect: Option<DialectSet>,
-        parent_dialects: Option<DialectSet>,
+        dialect: Option<SurfaceQuery<'_>>,
+        parent_surface: Option<&'static [SpecSurface]>,
     ) -> bool {
-        let Some(active) = dialect else {
+        let Some(rows) = self.surface.or(parent_surface) else {
             return true;
         };
-        if let Some(own) = self.dialects {
-            return own.contains(active);
-        }
-        let Some(parent) = parent_dialects else {
-            return true;
-        };
-        parent.contains(active)
+        surface_admits(rows, dialect.as_ref())
     }
 
     /// Whether `option_name` is this option's canonical name or an alias.
@@ -1003,11 +999,11 @@ pub struct FormSpec {
     /// Dialects in which this form applies, when narrower than the
     /// command's own availability — e.g. `return`'s bare `"return"`
     /// synopsis only documents an iRules event-body form, even though
-    /// `return` itself is universal Tcl (`CommandSpec::dialects: None`).
+    /// `return` itself is universal Tcl (`CommandSpec::surface: None`).
     /// `None` = inherits the command's own dialect gating, so every form
     /// declared before this field existed keeps its meaning unchanged.
     /// Mirrors [`crate::forms::CommandForm::dialects`].
-    pub dialects: Option<DialectSet>,
+    pub surface: Option<&'static [SpecSurface]>,
     /// Introduction / deprecation / retirement releases of this invocation
     /// form on the owning command's package version axis — a synopsis a later
     /// release added or withdrew. [`Lifecycle::UNSPECIFIED`] means the form is
@@ -1022,7 +1018,7 @@ impl FormSpec {
     pub const DEFAULT: Self = Self {
         kind: FormKind::Default,
         synopsis: "",
-        dialects: None,
+        surface: None,
         lifecycle: Lifecycle::UNSPECIFIED,
     };
 
@@ -1047,6 +1043,8 @@ impl FormSpec {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tcl_dialect::model::SpecSurface;
+    use tcl_dialect::model::{Family, SurfaceQuery};
 
     #[test]
     fn supports_dialect_inherits_from_parent_when_unset() {
@@ -1054,18 +1052,27 @@ mod tests {
             name: "-foo",
             value: OptionValue::flag(),
             detail: "",
-            dialects: None,
+            surface: None,
             aliases: &[],
             lifecycle: Lifecycle::UNSPECIFIED,
             min_abbrev: None,
         };
         // No parent: always available.
-        assert!(opt.supports_dialect(Some(DialectSet::TCL84), None));
+        assert!(opt.supports_dialect(Some(SurfaceQuery::core(Family::Tcl, "8.4")), None));
         // Parent allows everything: available.
-        assert!(opt.supports_dialect(Some(DialectSet::TCL84), Some(DialectSet::ALL_TCL)));
+        assert!(opt.supports_dialect(
+            Some(SurfaceQuery::core(Family::Tcl, "8.4")),
+            Some(SpecSurface::ALL_TCL)
+        ));
         // Parent restricts: inherit the restriction.
-        assert!(opt.supports_dialect(Some(DialectSet::TCL86), Some(DialectSet::TCL86_PLUS)));
-        assert!(!opt.supports_dialect(Some(DialectSet::TCL85), Some(DialectSet::TCL86_PLUS)));
+        assert!(opt.supports_dialect(
+            Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            Some(SpecSurface::TCL86_PLUS)
+        ));
+        assert!(!opt.supports_dialect(
+            Some(SurfaceQuery::core(Family::Tcl, "8.5")),
+            Some(SpecSurface::TCL86_PLUS)
+        ));
     }
 
     #[test]
@@ -1077,15 +1084,27 @@ mod tests {
             name: "-stride",
             value: OptionValue::value("int"),
             detail: "",
-            dialects: Some(DialectSet::TCL86_PLUS),
+            surface: Some(SpecSurface::TCL86_PLUS),
             aliases: &[],
             lifecycle: Lifecycle::UNSPECIFIED,
             min_abbrev: None,
         };
-        assert!(opt.supports_dialect(Some(DialectSet::TCL86), Some(DialectSet::ALL_TCL)));
-        assert!(opt.supports_dialect(Some(DialectSet::TCL90), Some(DialectSet::ALL_TCL)));
-        assert!(!opt.supports_dialect(Some(DialectSet::TCL84), Some(DialectSet::ALL_TCL)));
-        assert!(!opt.supports_dialect(Some(DialectSet::TCL85), Some(DialectSet::ALL_TCL)));
+        assert!(opt.supports_dialect(
+            Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+            Some(SpecSurface::ALL_TCL)
+        ));
+        assert!(opt.supports_dialect(
+            Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+            Some(SpecSurface::ALL_TCL)
+        ));
+        assert!(!opt.supports_dialect(
+            Some(SurfaceQuery::core(Family::Tcl, "8.4")),
+            Some(SpecSurface::ALL_TCL)
+        ));
+        assert!(!opt.supports_dialect(
+            Some(SurfaceQuery::core(Family::Tcl, "8.5")),
+            Some(SpecSurface::ALL_TCL)
+        ));
     }
 
     #[test]
@@ -1096,12 +1115,12 @@ mod tests {
             name: "-x",
             value: OptionValue::flag(),
             detail: "",
-            dialects: Some(DialectSet::TCL90),
+            surface: Some(SpecSurface::TCL90),
             aliases: &[],
             lifecycle: Lifecycle::UNSPECIFIED,
             min_abbrev: None,
         };
-        assert!(opt.supports_dialect(None, Some(DialectSet::TCL90)));
+        assert!(opt.supports_dialect(None, Some(SpecSurface::TCL90)));
     }
 
     #[test]

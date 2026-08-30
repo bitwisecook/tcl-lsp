@@ -21,30 +21,28 @@
 //!
 //! This file's registered command name (`CommandSpec.name`, below) is the
 //! literal `"pkg_mkindex"` (lower-case `i`), not the real Tcl spelling
-//! `pkg_mkIndex` — Tcl command dispatch is case-sensitive, so
-//! `pkg_mkindex` does not resolve in real `tclsh` at all.
-//! `commands/stdlib/pkg_mkindex.rs` already registers the correctly-cased
-//! `"pkg_mkIndex"` with its own metadata, and every other mention of this
-//! command elsewhere in the codebase (`package_.rs`'s hover prose,
-//! `auto_reset.rs`, `tcl-lsp-core`'s package resolver, the analyser's
-//! library-proc signature table in
-//! `tcl-compiler/src/analyser/diagnostics/fp/sty.rs`) spells it
-//! `pkg_mkIndex`. This audit deliberately leaves the registered name
-//! unchanged rather than "fixing" it in isolation:
-//! `xtask/src/command_backing.rs`'s WASM-backing-exemption table keys off
-//! the exact string `"pkg_mkindex"` today, so renaming it here alone
-//! would silently drop that WASM-backing exemption. (The command's iRules
-//! exclusion, by contrast, no longer keys off this string at all — it
-//! rides on this spec's own `dialects` group, see the `dialects` comment
-//! in `spec()` below — so a rename would leave the iRules behaviour
-//! untouched.) Every other field below documents the real `pkg_mkIndex`
-//! command, which is unambiguously the intended referent of this stub; a
-//! proper fix needs a coordinated rename across this file and
-//! `command_backing.rs` plus a check for the resulting duplicate
-//! registration under `"pkg_mkIndex"` alongside
-//! `commands/stdlib/pkg_mkindex.rs` — out of scope for a single-file
-//! audit.
+//! `pkg_mkIndex` — Tcl command dispatch is case-sensitive, so `pkg_mkindex`
+//! does not resolve in real `tclsh` at all. `commands/stdlib/pkg_mkindex.rs`
+//! already registers the correctly-cased `"pkg_mkIndex"` with its own
+//! metadata, and every other mention of this command elsewhere in the codebase
+//! (`package_.rs`'s hover prose, `auto_reset.rs`, `tcl-lsp-core`'s package
+//! resolver, the analyser's library-proc signature table in
+//! `tcl-compiler/src/analyser/diagnostics/fp/sty.rs`) spells it `pkg_mkIndex`.
+//! This audit deliberately leaves the registered name unchanged rather than
+//! "fixing" it in isolation: `xtask/src/command_backing.rs`'s
+//! WASM-backing-exemption table keys off the exact string `"pkg_mkindex"`
+//! today, so renaming it here alone would silently drop that WASM-backing
+//! exemption. (The command's iRules exclusion, by contrast, no longer keys off
+//! this string at all — it rides on this spec's own surface, see the
+//! `dialects` comment in `spec()` below — so a rename would leave the iRules
+//! behaviour untouched.) Every other field below documents the real
+//! `pkg_mkIndex` command, which is unambiguously the intended referent of this
+//! stub; a proper fix needs a coordinated rename across this file and
+//! `command_backing.rs` plus a check for the resulting duplicate registration
+//! under `"pkg_mkIndex"` alongside `commands/stdlib/pkg_mkindex.rs` — out of
+//! scope for a single-file audit.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 // The 8.4 and 8.5 manpages spell the four switches out in the SYNOPSIS
 // line itself (`?-direct? ?-lazy? ?-load pkgPat? ?-verbose?`); 8.6, 9.0,
@@ -72,7 +70,7 @@ const OPTIONS: &[OptionSpec] = &[
     // does not appear anywhere on the 8.4 manpage). The flag itself, and
     // its core delay-loading behaviour, are unchanged since 8.4 — only
     // the documented caveat is newer — so this is current-truth prose on
-    // a universal option, not a `dialects:` gate.
+    // a universal option, not a `surface:` gate.
     OptionSpec {
         name: "-lazy",
         value: OptionValue::flag(),
@@ -104,18 +102,18 @@ const OPTIONS: &[OptionSpec] = &[
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "pkg_mkindex",
-        // `Some(DialectSet::ALL_TCL)` is deliberate, mirroring
-        // `auto_mkindex`'s precedent: F5 iRules excludes this proc
-        // (K36322151 — `"pkg_mkindex"` sits among the filesystem bans
-        // alongside `auto_mkindex`/`auto_mkindex_old`), and that exclusion
-        // now falls straight out of this `dialects:` group — `ALL_TCL`
-        // carries no `IRULES` bit, so it never intersects the bare
-        // `IRULES` mask. There is no disable list. No other dialect
-        // directory (Expect, the EDA vendor shells, tmsh, iApps, Tk, itcl,
-        // BPF) registers a `pkg_mkIndex`/`pkg_mkindex` spec of its own or
-        // otherwise alters it, and each carries a Tcl-version bit that
-        // `ALL_TCL` intersects, so it stays reachable in every one of them.
-        dialects: Some(DialectSet::ALL_TCL),
+        // `Some(SpecSurface::ALL_TCL)` is deliberate, mirroring
+        // `auto_mkindex`'s precedent: F5 iRules excludes this proc (K36322151
+        // — `"pkg_mkindex"` sits among the filesystem bans alongside
+        // `auto_mkindex`/`auto_mkindex_old`), and that exclusion now falls
+        // straight out of this `surface:` group — `ALL_TCL` carries no iRules
+        // row, so it never intersects the bare `IRULES` mask. There is no
+        // disable list. No other dialect directory (Expect, the EDA vendor
+        // shells, tmsh, iApps, Tk, itcl, BPF) registers a
+        // `pkg_mkIndex`/`pkg_mkindex` spec of its own or otherwise alters it,
+        // and each carries a Tcl release that `ALL_TCL` intersects, so it
+        // stays reachable in every one of them.
+        surface: Some(SpecSurface::ALL_TCL),
         // A Tcl-level library proc (`library/package.tcl`, `proc
         // pkg_mkIndex {args} {...}`), not a `Tcl_CreateObjCommand`-registered
         // builtin — carries no `CmdInfo` row, so `Traits::SAFE_INTERP_HIDDEN`

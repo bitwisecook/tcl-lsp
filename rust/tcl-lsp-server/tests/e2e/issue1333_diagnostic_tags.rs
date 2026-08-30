@@ -61,9 +61,7 @@ fn with_code(diags: &[Value], code: &str) -> Vec<Value> {
         .collect()
 }
 
-// ---------------------------------------------------------------------------
 // Unnecessary — the reported symptom.
-// ---------------------------------------------------------------------------
 
 /// nico's exact repro from the issue.
 const UNUSED_PARAM: &str =
@@ -118,9 +116,7 @@ fn w211_unused_variable_carries_tags_1_on_the_wire() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Deprecated.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn deprecated_irules_command_carries_tags_2_on_the_wire() {
@@ -140,9 +136,7 @@ fn deprecated_irules_command_carries_tags_2_on_the_wire() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Negative: tags land on exactly the intended codes and on no others.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn ordinary_diagnostics_carry_no_tags_field_at_all() {

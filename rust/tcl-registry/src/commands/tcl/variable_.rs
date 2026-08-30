@@ -21,6 +21,9 @@
 use crate::hooks::LoweringHookId;
 use crate::prelude::*;
 use crate::state_transition::local_alias_name;
+use tcl_dialect::model::Family;
+use tcl_dialect::model::SpecSurface;
+use tcl_dialect::surface;
 
 const VARIABLE_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
     StateTransitionDomain::VariableCells,
@@ -72,16 +75,22 @@ const FORMS: &[FormSpec] = &[
     // core-8-4-20/core-8-5-19 (guard present), and empirically against
     // tclsh 8.6.14 (`catch {variable}` -> 0). Expect, Synopsys, and
     // Cadence embed that 8.6-based Tcl core
-    // (`DialectSet::expr_grammar_base_version`), so they follow this pair
+    // (`DialectProfile::expr_grammar_base`), so they follow this pair
     // of forms too.
     FormSpec {
         synopsis: "variable name",
-        dialects: Some(DialectSet::TCL86_PLUS.union(DialectSet::EXPECT)),
+        surface: Some(surface![
+            SpecSurface::core_in(Family::Tcl, &[("8.6", Some("9.2"))]),
+            SpecSurface::package("expect")
+        ]),
         ..FormSpec::DEFAULT
     },
     FormSpec {
         synopsis: "variable ?name value...?",
-        dialects: Some(DialectSet::TCL86_PLUS.union(DialectSet::EXPECT)),
+        surface: Some(surface![
+            SpecSurface::core_in(Family::Tcl, &[("8.6", Some("9.2"))]),
+            SpecSurface::package("expect")
+        ]),
         ..FormSpec::DEFAULT
     },
     // Tcl 8.4 and 8.5 require at least one `name`: `Tcl_VariableObjCmd`
@@ -90,17 +99,16 @@ const FORMS: &[FormSpec] = &[
     // those versions' manpage SYNOPSIS, one combined `variable ?name
     // value...? name ?value?` line). iRules, iApps, tmsh, and the
     // Xilinx/Quartus/Mentor EDA shells embed an 8.4- or 8.5-based Tcl core
-    // (`DialectSet::expr_grammar_base_version`), so they inherit the same
+    // (`DialectProfile::expr_grammar_base`), so they inherit the same
     // requirement.
     FormSpec {
         synopsis: "variable ?name value...? name ?value?",
-        dialects: Some(
-            DialectSet::TCL84
-                .union(DialectSet::TCL85)
-                .union(DialectSet::IRULES)
-                .union(DialectSet::IAPPS)
-                .union(DialectSet::TMSH),
-        ),
+        surface: Some(surface![
+            SpecSurface::core_in(Family::Tcl, &[("8.4", Some("8.6"))]),
+            SpecSurface::core(Family::F5Irules),
+            SpecSurface::package("iapps"),
+            SpecSurface::package("tmsh")
+        ]),
         ..FormSpec::DEFAULT
     },
 ];
@@ -127,16 +135,15 @@ static REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout::strided(ArgRole::Va
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "variable",
-        // Present and unrestricted: iRules enables `variable`, so it
-        // carries the `IRULES` bit explicitly (`ALL_TCL.union(IRULES)`) and
-        // resolves under the bare `IRULES` mask; no dialect pack under
+        // Present and unrestricted: iRules enables `variable`, so it carries
+        // an iRules row explicitly (`ALL_TCL.union(IRULES)`) and resolves
+        // under the bare `IRULES` mask; no dialect pack under
         // `tcl-registry/src/commands/` (irules/, iapps/, tk/, expect/, the
-        // eda_*/ vendor packs, itcl/, bpf/) defines its own `variable`
-        // spec either, so every dialect inherits this one unmodified.
-        // Only the minimum argument count narrows per Tcl version —
-        // captured on the individual FORMS entries above, not as a
-        // whole-command dialect gate.
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        // eda_*/ vendor packs, itcl/, bpf/) defines its own `variable` spec
+        // either, so every dialect inherits this one unmodified. Only the
+        // minimum argument count narrows per Tcl version — captured on the
+        // individual FORMS entries above, not as a whole-command dialect gate.
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::FRAMELESS_RUNTIME
             | Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED

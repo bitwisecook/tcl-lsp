@@ -723,7 +723,8 @@ pub fn unary(op: UnaryOp, v: &Value) -> Result<Value, TclError> {
 /// `[string equal]`.
 pub(crate) fn irule_binary(op: BinOp, left: &Value, right: &Value) -> Result<Value, TclError> {
     use BinOp::{
-        Contains, EndsWith, MatchesGlob, MatchesRegex, StartsWith, StrEquals, WordAnd, WordOr,
+        Contains, EndsWith, Matches, MatchesGlob, MatchesRegex, StartsWith, StrEquals, WordAnd,
+        WordOr,
     };
     // `and`/`or` are boolean tests, not string ones — they never render an
     // operand.
@@ -737,8 +738,19 @@ pub(crate) fn irule_binary(op: BinOp, left: &Value, right: &Value) -> Result<Val
         Contains => subject.contains(&*operand),
         StartsWith => subject.starts_with(&*operand),
         EndsWith => subject.ends_with(&*operand),
-        // `equals` is the word spelling of `eq`: always a string comparison.
-        StrEquals => compare(BinOp::StrEq, left, right)?,
+        // `equals` is the word spelling of `eq`: always a string
+        // comparison. The bare `matches` shares that answer, but not for
+        // the same reason, and the difference is deliberately recorded
+        // rather than hidden behind the shared arm: only the operator's
+        // *presence* is measured
+        // (`docs/design/bigip-irule-parser-measurements.md` §4a
+        // `e_matches`: `expr {"abc" matches "abc"}` → `1`), and that cell
+        // is an exact-equality case, so equality is the one reading the
+        // evidence actually exercises. §12 carries the discriminating
+        // re-probe; until it runs the compiler deliberately refuses to
+        // constant-fold `matches` (`tcl_compiler::tcl_expr_eval`), so no
+        // unmeasured semantics is ever baked into a rewrite.
+        StrEquals | Matches => compare(BinOp::StrEq, left, right)?,
         // Case-sensitive `string match` / `regexp` — the dialect operators have
         // no `-nocase` form.
         MatchesGlob => tcl_syntax::glob::string_match(&operand, &subject),

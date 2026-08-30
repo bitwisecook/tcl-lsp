@@ -19,6 +19,7 @@
 //! `if` — conditional execution with optional elseif/else clauses.
 
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 /// Result of one pass over an `if` invocation's argument words: the
 /// per-word [`ArgRole`] assignments [`if_arg_roles`] returns, and — for
@@ -200,14 +201,14 @@ pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "if",
         // Present and unrestricted everywhere. `if` is a pure control-flow
-        // keyword with no filesystem/process/network access, so its
-        // `dialects` group carries the `IRULES` bit explicitly
-        // (`ALL_TCL.union(IRULES)`) and it resolves under the bare `IRULES`
-        // mask, the same as under every other dialect that hosts a real Tcl
-        // core (iapps, tmsh, the EDA shells, expect, tk). iRules availability
-        // is fully explicit per spec now — there is no `disabled_commands`
-        // list for a command to be absent from.
-        dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
+        // keyword with no filesystem/process/network access, so its surface
+        // carries an iRules row explicitly (`ALL_TCL.union(IRULES)`) and it
+        // resolves under the bare `IRULES` mask, the same as under every other
+        // dialect that hosts a real Tcl core (iapps, tmsh, the EDA shells,
+        // expect, tk). iRules availability is fully explicit per spec now —
+        // there is no `disabled_commands` list for a command to be absent
+        // from.
+        surface: Some(SpecSurface::ALL_TCL_AND_IRULES),
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::CONTROL_FLOW

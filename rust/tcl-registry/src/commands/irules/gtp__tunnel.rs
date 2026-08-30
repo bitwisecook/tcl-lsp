@@ -18,10 +18,11 @@
 
 //! `GTP::tunnel` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "GTP::tunnel",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "These commands parse the payload of G-PDU as IP datagram and return the values from IP header and TCP/UDP header.",
@@ -40,7 +41,7 @@ pub const fn spec() -> CommandSpec {
                 name: "-message",
                 value: OptionValue::value("MESSAGE"),
                 detail: "Operate on a specific GTP message object.",
-                dialects: None,
+                surface: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,

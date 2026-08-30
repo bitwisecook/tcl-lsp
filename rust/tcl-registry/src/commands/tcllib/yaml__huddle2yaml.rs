@@ -26,7 +26,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "yaml::huddle2yaml",
-        dialects: None,
+        surface: None,
         arity: Arity::new(1, 3),
         hover: Some(HoverSnippet {
             summary: "Convert a huddle object to a YAML string.",

@@ -18,6 +18,8 @@
 
 //! `tmsh::version` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
+use tcl_dialect::surface;
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "tmsh::version",
     ..FormSpec::DEFAULT
@@ -26,7 +28,10 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tmsh::version",
-        dialects: Some(DialectSet::IAPPS.union(DialectSet::TMSH)),
+        surface: Some(surface![
+            SpecSurface::package("iapps"),
+            SpecSurface::package("tmsh")
+        ]),
         arity: Arity::exact(0),
         hover: Some(HoverSnippet::brief(
             "Returns the version number of the BIG-IP system as a Tcl string.",

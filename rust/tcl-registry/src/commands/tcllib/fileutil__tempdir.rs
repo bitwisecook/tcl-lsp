@@ -26,7 +26,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "fileutil::tempdir",
-        dialects: None,
+        surface: None,
         arity: Arity::new(0, 1),
         hover: Some(HoverSnippet {
             summary: "Return the path of the system temporary directory.",

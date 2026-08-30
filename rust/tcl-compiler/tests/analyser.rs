@@ -60,7 +60,7 @@
 use tcl_compiler::analyser::{Analyser, Severity};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::compiler_checks::run_all_checks;
-use tcl_registry::registry_for_dialect;
+use tcl_registry::model::ingress::static_context_for;
 
 /// Default dialect for reproducers that are not dialect-sensitive.
 const D: &str = "tcl8.6";
@@ -87,9 +87,10 @@ fn codes(src: &str, dialect: &str) -> Vec<String> {
         .iter()
         .map(|d| d.code.to_string())
         .collect();
-    let registry = registry_for_dialect(dialect);
+    let registry = static_context_for(dialect).commands();
     let cu = CompilationUnit::build_for(src, registry, false);
-    let dialect_opt = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let dialect_opt = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     for d in run_all_checks(&cu, registry, dialect_opt) {
         if d.code.is_optimisation() {
             continue;
@@ -133,9 +134,7 @@ fn w210_for(src: &str, var: &str) -> usize {
         .count()
 }
 
-// ===========================================================================
 // Proc records in the semantic model.
-// ===========================================================================
 mod proc_analysis {
     use super::*;
 
@@ -209,7 +208,6 @@ mod proc_analysis {
     }
 }
 
-// ===========================================================================
 // `tcl::OptProc` — the `opt` package's automatic-option-parsing proc
 // definer (issue #923 idx 90). Runtime mechanism (tclsh9.0/8.6-verified):
 // installs `::proc $name args {...}` unconditionally — the real Tcl-level
@@ -217,7 +215,6 @@ mod proc_analysis {
 // `optlist` declares; `optlist`'s own descriptor words are bound as local
 // variables in the body by `::tcl::OptKeyParse`, with a leading `-` on a
 // flag descriptor stripped for the bound name.
-// ===========================================================================
 mod opt_proc_definer {
     use super::*;
 
@@ -391,9 +388,7 @@ mod opt_proc_definer {
     }
 }
 
-// ===========================================================================
 // Variable definitions across scopes.
-// ===========================================================================
 mod variable_analysis {
     use super::*;
 
@@ -446,7 +441,6 @@ mod variable_analysis {
     }
 }
 
-// ===========================================================================
 // Issue #1108 — a registry `VarRead`-role name word is a reference site.
 //
 // A variable is read by more than `$name`. Any command whose spec puts an
@@ -460,7 +454,6 @@ mod variable_analysis {
 // Before the fix only `$m` and the *statement* form `set m` reached
 // `VarDef::references`, so Find References / document-highlight / the
 // minifier's rename pass under-reported every one of these sites.
-// ===========================================================================
 mod var_read_role_references {
     use super::*;
 
@@ -575,7 +568,6 @@ mod var_read_role_references {
     }
 }
 
-// ===========================================================================
 // Issue #1138 — a script argument *built* with `list` is walked as the
 // command it provably is.
 //
@@ -589,7 +581,6 @@ mod var_read_role_references {
 // `list` packs its already-substituted arguments into exactly one command,
 // so the built form is not dynamic — yet every pass keyed on a literal
 // `{…}` body skipped it.
-// ===========================================================================
 mod list_quoted_script_arguments {
     use super::*;
 
@@ -754,9 +745,7 @@ there and answer nothing for `$file`"
     }
 }
 
-// ===========================================================================
 // Namespace scopes + qualified procs.
-// ===========================================================================
 mod namespace_analysis {
     use super::*;
 
@@ -779,10 +768,8 @@ mod namespace_analysis {
     }
 }
 
-// ===========================================================================
 // Arity (E001/E002/E003), unknown subcommand (W001),
 // read-before-set (W210), and the constant-branch family (I230).
-// ===========================================================================
 mod diagnostics {
     use super::*;
 
@@ -1329,9 +1316,7 @@ mod diagnostics {
     // switch subject into an unreachable-arm diagnostic.
 }
 
-// ===========================================================================
 // `set` dual-shape role resolution, observed through behaviour.
-// ===========================================================================
 mod set_dual_shape {
     use super::*;
 
@@ -1357,9 +1342,7 @@ mod set_dual_shape {
     }
 }
 
-// ===========================================================================
 // `when` body recursion is dialect-gated (iRules-only builtin).
-// ===========================================================================
 mod when_dialect_gating {
     use super::*;
 
@@ -1397,9 +1380,7 @@ mod when_dialect_gating {
     }
 }
 
-// ===========================================================================
 // Bodies of if/while/for/foreach/dict-for are walked.
-// ===========================================================================
 mod control_flow {
     use super::*;
 
@@ -1491,9 +1472,7 @@ mod control_flow {
     }
 }
 
-// ===========================================================================
 // Recorded regex literals.
-// ===========================================================================
 mod regex_patterns {
     use super::*;
 
@@ -1623,9 +1602,7 @@ mod regex_patterns {
     }
 }
 
-// ===========================================================================
 // package require / provide records.
-// ===========================================================================
 mod package_require {
     use super::*;
 
@@ -1681,9 +1658,7 @@ mod package_require {
     }
 }
 
-// ===========================================================================
 // Unused proc parameters (W214) — pure static heuristic.
-// ===========================================================================
 mod unused_proc_parameters {
     use super::*;
 
@@ -1833,9 +1808,7 @@ mod unused_proc_parameters {
     // (which fires either way) covers this.
 }
 
-// ===========================================================================
 // Trace callbacks.
-// ===========================================================================
 mod trace_callbacks {
     use super::*;
 
@@ -1857,9 +1830,7 @@ mod trace_callbacks {
     }
 }
 
-// ===========================================================================
 // interp alias records in `command_aliases`.
-// ===========================================================================
 mod interp_alias {
     use super::*;
 
@@ -2063,12 +2034,10 @@ mod interp_alias {
     }
 }
 
-// ===========================================================================
 // interp_value_flow — issue #923 idx 9: `set VAR [interp create ...]`
 // binds VAR to an interpreter-domain key, so a later dynamic `$VAR` operand
 // to `interp alias` / `interp eval` / the handle's own object command can
 // resolve through the tracked binding instead of abstaining outright.
-// ===========================================================================
 mod interp_value_flow {
     use super::*;
 
@@ -2280,10 +2249,8 @@ mod interp_value_flow {
     }
 }
 
-// ===========================================================================
 // rename — issue #923 idx 3: constant-folding a dynamic-but-resolvable
 // `rename OLD NEW` argument instead of unconditionally giving up.
-// ===========================================================================
 mod rename {
     use super::*;
 
@@ -2453,14 +2420,12 @@ mod rename {
     }
 }
 
-// ===========================================================================
 // EvalUplevelIndirectDispatch — issue #923 idx 94: a bare `$var` body of an
 // `ArgRole::Body`-marked argument (`eval $cmd`, `uplevel #0 $cmd …`)
 // dynamically evaluates $var's value as a script at runtime, whose first
 // word is the command actually dispatched — previously invisible to
 // `command_invocations` (found by hover/go-to-definition via an independent
 // cursor-token walk, missed by references/rename).
-// ===========================================================================
 mod eval_uplevel_indirect_dispatch {
     use super::*;
 
@@ -2565,11 +2530,9 @@ mod eval_uplevel_indirect_dispatch {
     }
 }
 
-// ===========================================================================
 // `apply [list {params} {body} ns]` — the list-constructor lambda idiom
 // (issue #923 idx 116). Each list element must reach the body walk with its
 // list delimiters removed, exactly as a literal braced lambda does.
-// ===========================================================================
 mod apply_list_lambda {
     use super::*;
 
@@ -2594,11 +2557,9 @@ mod apply_list_lambda {
     }
 }
 
-// ===========================================================================
 // `::tcl::dict::*` standalone spellings (issue #923 idx 105) must carry the
 // same analysis contract as the `dict` subcommands they mirror, not a
 // `CommandSpec::DEFAULT` stub (Codex review, PR #1020).
-// ===========================================================================
 mod dict_qualified_specs {
     use super::*;
 
@@ -2641,9 +2602,7 @@ mod dict_qualified_specs {
     }
 }
 
-// ===========================================================================
 // TestW123UnresolvedCommand — unknown-command detection.
-// ===========================================================================
 mod unresolved_command {
     use super::*;
 
@@ -3152,9 +3111,7 @@ mod unresolved_command {
     }
 }
 
-// ===========================================================================
 // `source` command extraction.
-// ===========================================================================
 mod source_targets {
     use super::*;
 
@@ -3197,9 +3154,7 @@ mod source_targets {
     }
 }
 
-// ===========================================================================
 // TclOO class definition extraction.
-// ===========================================================================
 mod tcloo_classes {
     use super::*;
     use tcl_compiler::analyser::ClassDef;
@@ -3623,11 +3578,9 @@ mod tcloo_classes {
     }
 }
 
-// ===========================================================================
 // oo::Helpers::link — ClassDef::linked_members population (issue #923
 // idx 113). Consumer-side (definition/hover resolution) is covered in
 // tcl-lsp-core; this module is about `collect_oo_links` itself.
-// ===========================================================================
 mod oo_link {
     use super::*;
     use tcl_compiler::analyser::ClassDef;
@@ -3779,7 +3732,6 @@ mod oo_link {
     }
 }
 
-// ===========================================================================
 // The `oo::Helpers` family is method-context-scoped (issue #1026).
 //
 // tclsh 9.0.4, at the top level:
@@ -3800,7 +3752,6 @@ mod oo_link {
 // are `::oo::Helpers::*`, `my` is `::oo::ObjN::my`), and adding
 // `::oo::Helpers::link` the way Tcllib's `ooutil` does still leaves the
 // top-level bare `link` an `invalid command name`.
-// ===========================================================================
 mod oo_helpers_scoping {
     use super::*;
 
@@ -4033,7 +3984,6 @@ mod oo_helpers_scoping {
     }
 }
 
-// ===========================================================================
 // Diagnostics keyed on command name must hit identically across bare /
 // qualified / aliased spellings.
 //
@@ -4041,7 +3991,6 @@ mod oo_helpers_scoping {
 // variable/upvar/global suppressions); others do NOT — qualified `::unset` and
 // aliased `unset` do not currently canonicalise to the W213 path. Each arm is
 // asserted against the actual verdict, with the exceptions flagged inline.
-// ===========================================================================
 mod canonicalisation_matrix {
     use super::*;
 
@@ -4301,7 +4250,6 @@ mod canonicalisation_matrix {
     }
 }
 
-// ===========================================================================
 // Issue #806 — report::defstyle scoped command environment.
 //
 // The style script exposes the report configuration methods (`top`, `data`,
@@ -4310,7 +4258,6 @@ mod canonicalisation_matrix {
 // positives) while still catching genuine typos and misuse (TP), and keeps
 // them unknown outside the body (correct scoping).  Organised as a
 // TP / FP / TN / FN matrix.
-// ===========================================================================
 mod report_scoped_commands {
     use super::*;
 
@@ -4516,7 +4463,6 @@ mod report_scoped_commands {
     }
 }
 
-// ===========================================================================
 // Class factories and dynamically-installed members — issue #923 audit
 // cluster C3 (idx 43/44/53/55/96/97).
 //
@@ -4538,7 +4484,6 @@ mod report_scoped_commands {
 //   `method $m {*}[info class definition ::Base $m]` are equally real but
 //   carry no statically-knowable element list.
 // * `set ns tc; ${ns}::setdef …` dispatches to `::tc::setdef`.
-// ===========================================================================
 mod class_factories {
     use super::*;
     use tcl_compiler::analyser::{AnalysisResult, ClassDef, MetaclassProvenance};
@@ -8284,7 +8229,6 @@ mod class_factories {
     }
 }
 
-// ===========================================================================
 // Constant command-substitution `set` RHS folding — issue #1132.
 //
 // The analyser's constant lattice folds `set VAR [cmd …]` through the
@@ -8299,7 +8243,6 @@ mod class_factories {
 // method`, `self class` raises `method not defined by a class`; inside a
 // `classmethod` it answers the internal `::oo::ObjN:: oo ::delegate` class,
 // never the written one.
-// ===========================================================================
 mod const_cmd_subst_set_rhs {
     use super::*;
     use tcl_compiler::analyser::AnalysisResult;
@@ -8532,9 +8475,7 @@ mod const_cmd_subst_set_rhs {
     }
 }
 
-// ===========================================================================
 // Leading byte-order mark (issue #1218).
-// ===========================================================================
 mod leading_bom {
     use super::{Analyser, analyser_diags, fires};
 
@@ -8602,7 +8543,6 @@ mod leading_bom {
     }
 }
 
-// ===========================================================================
 // A TclOO member body's implicit `namespace path` — issue #1137 idx 51.
 //
 // tclsh 8.6.16 and 9.0.4, inside `oo::class create C { method m {} { … } }`:
@@ -8617,7 +8557,6 @@ mod leading_bom {
 // (the one cross-file resolver) walks it, so recording it once here fixes
 // definition, references, rename, call hierarchy, and W123 together, across
 // files, instead of each consumer growing its own lenient fallback.
-// ===========================================================================
 mod oo_helpers_namespace_path {
     use super::Analyser;
 
@@ -8714,7 +8653,6 @@ mod oo_helpers_namespace_path {
     }
 }
 
-// ===========================================================================
 // A constant-dominated computed `namespace eval` target — issue #1113 item 3.
 //
 // `set ns ::app; namespace eval $ns { … }` creates `::app` on every run, so
@@ -8723,7 +8661,6 @@ mod oo_helpers_namespace_path {
 // `rename`, and `oo::define`'s target already use, so its dominance rule —
 // a branch-conditional binding proves nothing — applies here unchanged.
 // Anything it cannot settle keeps the per-site `@dynns@` domain.
-// ===========================================================================
 mod const_dominated_namespace_eval {
     use super::Analyser;
 
@@ -8801,7 +8738,6 @@ mod const_dominated_namespace_eval {
     }
 }
 
-// ===========================================================================
 // Issue #1252 — a brace-quoted word's *elements* are literal too.
 //
 // The IR/analyser word arrives with its braces already stripped, so scanning
@@ -8816,7 +8752,6 @@ mod const_dominated_namespace_eval {
 //     ->  {::$ns} ::x        (an entry literally named `::$ns`, no var read)
 //   foreach n {aa {$b} cc} { puts $n }
 //     ->  aa / $b / cc       (three literal iterations, no read of `b`)
-// ===========================================================================
 mod braced_word_elements_are_literal {
     use super::*;
 

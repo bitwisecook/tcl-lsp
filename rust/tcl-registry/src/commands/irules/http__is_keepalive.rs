@@ -18,11 +18,12 @@
 
 //! `HTTP::is_keepalive` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::is_keepalive",
         traits: Traits::PURE,
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::exact(0),
         hover: Some(HoverSnippet {
             summary: "Returns a true value if this is a Keep-Alive connection.",
@@ -38,9 +39,7 @@ pub const fn spec() -> CommandSpec {
             transport: Some("tcp"),
             profiles: &["FASTHTTP", "HTTP"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             kind: FormKind::Getter,

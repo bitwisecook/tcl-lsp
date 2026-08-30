@@ -26,7 +26,6 @@
 //! (tclsh8.6 / tclsh9.0 via `scripts/dev/tclsh_check.sh`).
 //!
 //! C-Tcl proof model
-//! -----------------
 //! A "reference" is a genuine call/use site in runnable Tcl, and a rename is
 //! correct exactly when the renamed script still resolves the same way Tcl
 //! itself would. Every snippet below is a COMPLETE runnable Tcl script in
@@ -87,9 +86,7 @@ fn edit_lines(edits: &[TextEdit]) -> Vec<u32> {
     v
 }
 
-// ---------------------------------------------------------------------------
 // references — procs
-// ---------------------------------------------------------------------------
 
 #[test]
 fn references_proc_from_definition_includes_decl_and_both_calls() {
@@ -102,7 +99,7 @@ fn references_proc_from_definition_includes_decl_and_both_calls() {
     // Cursor on `greet` in the declaration (line 0, col 6).
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         0,
         6,
         &analysis,
@@ -126,7 +123,7 @@ fn references_proc_from_call_site_finds_the_same_set() {
     // Cursor on the first `greet` CALL (line 1, inside `[greet]`).
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         1,
         7,
         &analysis,
@@ -149,7 +146,7 @@ fn references_proc_named_in_info_body_include_the_introspection_site() {
     // Cursor on `greet` in the declaration (line 0, col 6).
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         0,
         6,
         &analysis,
@@ -176,7 +173,7 @@ fn references_proc_called_inside_oo_objdefine_method_body() {
     let analysis = analyse(src);
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         0,
         6,
         &analysis,
@@ -200,7 +197,7 @@ fn namespace_which_command_probe_navigates_and_renames_945() {
     let analysis = analyse(src);
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         0,
         6,
         &analysis,
@@ -214,7 +211,7 @@ fn namespace_which_command_probe_navigates_and_renames_945() {
     // Rename rewrites the exact probe token alongside the declaration.
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         0,
         6,
         "salute",
@@ -232,7 +229,7 @@ fn namespace_which_command_probe_navigates_and_renames_945() {
     let analysis2 = analyse(src2);
     let refs2 = references(
         src2,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         0,
         6,
         &analysis2,
@@ -256,7 +253,7 @@ fn references_proc_named_in_trace_add_execution_include_the_trace_site() {
     // Cursor on `greet` in the declaration (line 0, col 6).
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         0,
         6,
         &analysis,
@@ -277,7 +274,7 @@ fn references_proc_exclude_declaration_drops_the_decl_line() {
     let analysis = analyse(src);
     let with_decl = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         0,
         6,
         &analysis,
@@ -285,7 +282,7 @@ fn references_proc_exclude_declaration_drops_the_decl_line() {
     );
     let without_decl = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         0,
         6,
         &analysis,
@@ -314,7 +311,7 @@ fn references_proc_only_at_real_call_sites_not_substrings() {
     // References for `greet` (cursor on its decl, line 0).
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         0,
         6,
         &analysis,
@@ -336,9 +333,7 @@ fn references_proc_only_at_real_call_sites_not_substrings() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // references — variables
-// ---------------------------------------------------------------------------
 
 #[test]
 fn references_var_includes_definition_and_every_read() {
@@ -349,7 +344,7 @@ fn references_var_includes_definition_and_every_read() {
     // Cursor inside the first `$x` read (line 1).
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         1,
         6,
         &analysis,
@@ -368,7 +363,7 @@ fn references_var_exclude_declaration_keeps_only_reads() {
     let analysis = analyse(src);
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         1,
         6,
         &analysis,
@@ -393,7 +388,7 @@ fn references_var_scoped_to_its_proc_not_a_same_named_local_elsewhere() {
     // Cursor on `$v` in proc a's body (line 2).
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         2,
         12,
         &analysis,
@@ -410,9 +405,7 @@ fn references_var_scoped_to_its_proc_not_a_same_named_local_elsewhere() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // references — namespaces (qualified vs short, cross-namespace isolation)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn references_namespaced_proc_matches_qualified_and_short_calls() {
@@ -424,7 +417,7 @@ fn references_namespaced_proc_matches_qualified_and_short_calls() {
     // Cursor on the `greet` declaration (line 1).
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         1,
         9,
         &analysis,
@@ -458,7 +451,7 @@ fn references_relative_qualified_call_falls_back_to_global_target() {
     // Cursor on the `::inner::p` declaration (line 1).
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         1,
         13,
         &analysis,
@@ -491,7 +484,7 @@ fn references_relative_qualified_call_prefers_existing_local_over_global() {
     // `outer` belongs to the local proc, so it must not appear here.
     let global_refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         1,
         13,
         &analysis,
@@ -505,7 +498,7 @@ fn references_relative_qualified_call_prefers_existing_local_over_global() {
     // Cursor on the *local* `::outer::inner::p` declaration (line 3).
     let local_refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         3,
         55,
         &analysis,
@@ -528,7 +521,7 @@ fn references_namespaced_proc_does_not_leak_to_same_name_in_other_namespace() {
     // Cursor on `::a`'s helper declaration (line 1).
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         1,
         9,
         &analysis,
@@ -546,7 +539,6 @@ fn references_namespaced_proc_does_not_leak_to_same_name_in_other_namespace() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // references — nested namespaces (2+ levels): qualified, relative, and the
 // exact `bind`-callback shape from
 // https://github.com/bitwisecook/tcl-lsp/issues/923
@@ -564,7 +556,6 @@ fn references_namespaced_proc_does_not_leak_to_same_name_in_other_namespace() {
 // routing through `Analyser::command_resolution_namespace` /
 // `command_resolution_namespace_at`, the single accumulating implementation
 // shared by the analyser and every `tcl-lsp-core` provider.
-// ---------------------------------------------------------------------------
 
 #[test]
 fn references_two_level_nested_namespace_bare_call_matches_from_same_namespace() {
@@ -586,7 +577,7 @@ fn references_two_level_nested_namespace_bare_call_matches_from_same_namespace()
     // Cursor on the `specAddButtonPopUp` declaration (line 2).
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         2,
         14,
         &analysis,
@@ -623,7 +614,7 @@ fn references_two_level_nested_namespace_qualified_call_in_bind_style_body_match
     let analysis = analyse(src);
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         2,
         14,
         &analysis,
@@ -658,7 +649,7 @@ fn references_issue_923_two_bind_lines_qualified_and_bare_both_resolve_correctly
     // specAddButtonPopUp: fully-qualified call site (line 4).
     let spec_refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         2,
         14,
         &analysis,
@@ -673,7 +664,7 @@ fn references_issue_923_two_bind_lines_qualified_and_bare_both_resolve_correctly
     // testAddButtonPopUp: bare call site (line 5), same namespace.
     let test_refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         3,
         14,
         &analysis,
@@ -705,7 +696,7 @@ fn references_bare_call_outside_the_namespace_is_correctly_not_a_reference() {
     let analysis = analyse(src);
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         2,
         14,
         &analysis,
@@ -741,7 +732,7 @@ fn references_two_level_nested_namespace_isolates_same_named_procs() {
     // References for `::a::b::helper` (cursor on its decl, line 2).
     let refs_ab = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         2,
         14,
         &analysis,
@@ -755,7 +746,7 @@ fn references_two_level_nested_namespace_isolates_same_named_procs() {
     // References for `::c::d::helper` (cursor on its decl, line 7).
     let refs_cd = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         7,
         14,
         &analysis,
@@ -788,7 +779,7 @@ fn references_three_level_nested_namespace_bare_and_qualified_calls() {
     let analysis = analyse(src);
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         3,
         18,
         &analysis,
@@ -831,7 +822,7 @@ fn references_relative_name_with_embedded_colons_prefers_current_namespace() {
     // References for `::outer::inner::p` (cursor on its decl, line 5).
     let refs_outer = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         5,
         13,
         &analysis,
@@ -847,7 +838,7 @@ fn references_relative_name_with_embedded_colons_prefers_current_namespace() {
     // must NOT include ::outer's caller.
     let refs_global = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         1,
         9,
         &analysis,
@@ -860,11 +851,9 @@ fn references_relative_name_with_embedded_colons_prefers_current_namespace() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // references — classes in nested namespaces (parity with the proc cases
 // above): a bare class-name match must be gated by namespace, never
 // cross-attributed across namespaces unconditionally
-// ---------------------------------------------------------------------------
 
 #[test]
 fn references_class_two_level_nested_namespace_isolates_same_named_classes() {
@@ -893,7 +882,7 @@ fn references_class_two_level_nested_namespace_isolates_same_named_classes() {
     // References for `::a::b::Widget` (cursor on its decl, line 2).
     let refs_ab = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         2,
         26,
         &analysis,
@@ -907,7 +896,7 @@ fn references_class_two_level_nested_namespace_isolates_same_named_classes() {
     // References for `::c::d::Widget` (cursor on its decl, line 7).
     let refs_cd = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         7,
         26,
         &analysis,
@@ -945,7 +934,7 @@ fn references_class_and_method_two_level_nested_namespace_dollar_dispatch() {
     // Cursor on the `render` method declaration (line 3).
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         3,
         20,
         &analysis,
@@ -959,9 +948,7 @@ fn references_class_and_method_two_level_nested_namespace_dollar_dispatch() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // rename — nested namespaces (parity with the reference fixes above)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn rename_proc_two_level_nested_namespace_scoped_correctly() {
@@ -983,7 +970,7 @@ fn rename_proc_two_level_nested_namespace_scoped_correctly() {
     let analysis = analyse(src);
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         7,
         14,
         "assist",
@@ -1021,7 +1008,7 @@ fn rename_class_two_level_nested_namespace_scoped_correctly() {
     }
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         7,
         26,
         "Panel",
@@ -1058,7 +1045,7 @@ fn rename_class_rewrites_its_superclass_and_mixin_sites() {
     // Cursor on `Base` in its declaration (line 0, col 18).
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         0,
         18,
         "Base2",
@@ -1073,9 +1060,7 @@ fn rename_class_rewrites_its_superclass_and_mixin_sites() {
     assert!(edits.iter().all(|e| e.new_text == "Base2"));
 }
 
-// ---------------------------------------------------------------------------
 // references — known limitation: a command name held in a variable
-// ---------------------------------------------------------------------------
 
 #[test]
 fn references_variable_held_command_name_is_not_resolved_documented_limitation() {
@@ -1092,7 +1077,7 @@ fn references_variable_held_command_name_is_not_resolved_documented_limitation()
     let analysis = analyse(src);
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         0,
         6,
         &analysis,
@@ -1105,9 +1090,7 @@ fn references_variable_held_command_name_is_not_resolved_documented_limitation()
     );
 }
 
-// ---------------------------------------------------------------------------
 // references — non-symbols / robustness
-// ---------------------------------------------------------------------------
 
 #[test]
 fn references_builtin_command_yields_nothing() {
@@ -1117,7 +1100,7 @@ fn references_builtin_command_yields_nothing() {
     assert!(
         references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             1,
             &analysis,
@@ -1136,7 +1119,7 @@ fn references_unrelated_word_yields_nothing() {
     assert!(
         references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             6,
             &analysis,
@@ -1154,7 +1137,7 @@ fn references_out_of_range_and_empty_file_do_not_panic() {
     assert!(
         references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             99,
             0,
             &analysis,
@@ -1165,7 +1148,7 @@ fn references_out_of_range_and_empty_file_do_not_panic() {
     assert!(
         references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             999,
             &analysis,
@@ -1178,7 +1161,7 @@ fn references_out_of_range_and_empty_file_do_not_panic() {
     assert!(
         references(
             "",
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             0,
             &empty,
@@ -1188,9 +1171,7 @@ fn references_out_of_range_and_empty_file_do_not_panic() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // rename — procs
-// ---------------------------------------------------------------------------
 
 #[test]
 fn rename_proc_updates_definition_and_all_call_sites() {
@@ -1202,7 +1183,7 @@ fn rename_proc_updates_definition_and_all_call_sites() {
     // Cursor on the declaration (line 0).
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         0,
         6,
         "salute",
@@ -1236,7 +1217,7 @@ fn rename_parent_proc_does_not_edit_a_child_interp_body() {
     // Cursor on the parent `foo` declaration (line 1, col 6).
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         1,
         6,
         "bar",
@@ -1262,7 +1243,7 @@ fn rename_proc_from_call_site_rewrites_declaration_too() {
     // Cursor on the first call (line 1).
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         1,
         2,
         "salute",
@@ -1285,7 +1266,7 @@ fn rename_proc_rejected_when_new_name_collides_with_existing_proc() {
     let analysis = analyse(src);
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         0,
         6,
         "hello",
@@ -1298,9 +1279,7 @@ fn rename_proc_rejected_when_new_name_collides_with_existing_proc() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // rename — variables (scoping is the load-bearing correctness fact)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn rename_var_updates_definition_and_reads_with_dollar_preserved() {
@@ -1311,7 +1290,7 @@ fn rename_var_updates_definition_and_reads_with_dollar_preserved() {
     // Cursor in the first `$x` read.
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         1,
         6,
         "y",
@@ -1344,7 +1323,7 @@ fn rename_var_from_definition_site_resolves_without_dollar() {
     // Cursor on `x` in `set x` (line 0, col 4).
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         0,
         4,
         "y",
@@ -1371,7 +1350,7 @@ fn rename_local_var_is_scoped_and_leaves_same_named_var_in_other_proc_intact() {
     // Cursor on the def site `v` in proc a (line 1, col 8).
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         1,
         8,
         "w",
@@ -1407,7 +1386,7 @@ fn rename_var_rejected_on_same_scope_collision() {
     // Rename `x` (its read site on line 3) to the already-present `y`.
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         3,
         10,
         "y",
@@ -1420,9 +1399,7 @@ fn rename_var_rejected_on_same_scope_collision() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // rename — namespaces (qualified call keeps its qualifier; isolation holds)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn rename_namespaced_proc_rewrites_qualified_and_short_forms() {
@@ -1435,7 +1412,7 @@ fn rename_namespaced_proc_rewrites_qualified_and_short_forms() {
     // Cursor on the declaration (line 1).
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         1,
         9,
         "hello",
@@ -1469,7 +1446,7 @@ fn rename_namespaced_proc_from_its_own_decl_isolates_to_that_namespace() {
     // Cursor on ::a's helper declaration (line 1).
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         1,
         9,
         "assist",
@@ -1509,7 +1486,7 @@ fn rename_second_same_named_proc_resolves_to_that_proc_not_the_first() {
     // Cursor on ::b's helper declaration (line 4) — should rename ::b::helper.
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         4,
         9,
         "assist",
@@ -1535,9 +1512,7 @@ fn rename_second_same_named_proc_resolves_to_that_proc_not_the_first() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // rename — safety gating (shape + builtin shadow)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn rename_rejects_syntactically_unsafe_new_names() {
@@ -1556,7 +1531,7 @@ fn rename_rejects_syntactically_unsafe_new_names() {
         assert!(
             rename(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl"),
+                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
                 0,
                 6,
                 bad,
@@ -1577,7 +1552,7 @@ fn rename_var_also_rejects_unsafe_new_name() {
     assert!(
         rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             6,
             "bad name",
@@ -1598,7 +1573,7 @@ fn rename_proc_to_builtin_command_name_is_blocked_with_registry() {
     let registry = CommandRegistry::build_default();
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         0,
         6,
         "puts",
@@ -1619,7 +1594,7 @@ fn rename_proc_to_non_builtin_succeeds_with_registry() {
     let registry = CommandRegistry::build_default();
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         0,
         6,
         "salut",
@@ -1642,7 +1617,7 @@ fn rename_var_to_builtin_name_is_allowed() {
     let registry = CommandRegistry::build_default();
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         1,
         6,
         "puts",
@@ -1655,9 +1630,7 @@ fn rename_var_to_builtin_name_is_allowed() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // rename — non-symbols / robustness
-// ---------------------------------------------------------------------------
 
 #[test]
 fn rename_unknown_word_yields_no_edits() {
@@ -1667,7 +1640,7 @@ fn rename_unknown_word_yields_no_edits() {
     assert!(
         rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             6,
             "x",
@@ -1687,7 +1660,7 @@ fn rename_builtin_without_registry_still_yields_no_edits() {
     assert!(
         rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             1,
             "show",
@@ -1705,7 +1678,7 @@ fn rename_out_of_range_and_empty_file_do_not_panic() {
     assert!(
         rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             99,
             0,
             "z",
@@ -1717,7 +1690,7 @@ fn rename_out_of_range_and_empty_file_do_not_panic() {
     assert!(
         rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             999,
             "z",
@@ -1730,7 +1703,7 @@ fn rename_out_of_range_and_empty_file_do_not_panic() {
     assert!(
         rename(
             "",
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             0,
             "z",
@@ -1741,9 +1714,7 @@ fn rename_out_of_range_and_empty_file_do_not_panic() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // prepare_rename — gates the rename UI
-// ---------------------------------------------------------------------------
 
 #[test]
 fn prepare_rename_offers_proc_name_and_placeholder() {
@@ -1803,9 +1774,7 @@ fn prepare_rename_out_of_range_and_empty_file_return_none() {
     assert!(prepare_rename("", 0, 0, &empty).is_none());
 }
 
-// ---------------------------------------------------------------------------
 // is_safe_symbol_name — the shape predicate behind the gate
-// ---------------------------------------------------------------------------
 
 #[test]
 fn is_safe_symbol_name_accepts_identifiers_and_rejects_the_rest() {
@@ -1825,10 +1794,8 @@ fn is_safe_symbol_name_accepts_identifiers_and_rejects_the_rest() {
     }
 }
 
-// ===================================================================
 // Renaming a TclOO instance variable must NOT rewrite the method body, and
 // `uplevel #0` var resolution must skip proc locals.  TP/FP/TN/FN coverage.
-// ===================================================================
 
 /// The `oo::class create C { variable n; method get {} {return $n} … }`
 /// fixture used across the object-variable tests.  `$n` in `get` sits at line 2.
@@ -1844,7 +1811,7 @@ fn object_var_rename_never_rewrites_method_body() {
     let col = OBJECT_VAR_SRC.lines().nth(2).unwrap().find("$n").unwrap() as u32 + 1;
     let edits = rename(
         OBJECT_VAR_SRC,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         2,
         col,
         "w",
@@ -1874,7 +1841,7 @@ fn object_var_rename_edits_declaration_and_use() {
     let col = OBJECT_VAR_SRC.lines().nth(2).unwrap().find("$n").unwrap() as u32 + 1;
     let edits = rename(
         OBJECT_VAR_SRC,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         2,
         col,
         "w",
@@ -1912,7 +1879,7 @@ fn object_var_references_are_token_sized() {
     let col = OBJECT_VAR_SRC.lines().nth(2).unwrap().find("$n").unwrap() as u32 + 1;
     let refs = references(
         OBJECT_VAR_SRC,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         2,
         col,
         &analysis,
@@ -1937,7 +1904,7 @@ fn plain_proc_local_rename_unaffected() {
     let col = src.lines().nth(3).unwrap().find("$count").unwrap() as u32 + 1;
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         3,
         col,
         "total",
@@ -1968,7 +1935,7 @@ fn uplevel_zero_resolves_global_not_proc_local() {
     let col = body_line.find("$g").unwrap() as u32 + 1; // on the `g`
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         3,
         col,
         &analysis,
@@ -1995,7 +1962,7 @@ fn non_uplevel_proc_local_still_resolves_locally() {
     let col = body_line.find("$g").unwrap() as u32 + 1;
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         3,
         col,
         &analysis,
@@ -2020,7 +1987,7 @@ fn uplevel_nonzero_abstains_from_proc_and_global() {
     let col = body_line.find("$g").unwrap() as u32 + 1; // on the `g`
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         3,
         col,
         &analysis,
@@ -2048,7 +2015,7 @@ fn uplevel_nonzero_body_local_resolves_within_body() {
     let col = body_line.find("$h").unwrap() as u32 + 1;
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         3,
         col,
         &analysis,
@@ -2065,12 +2032,10 @@ fn uplevel_nonzero_body_local_resolves_within_body() {
     );
 }
 
-// ===================================================================
 // Target selection: rename / references triggered from a bareword
 // CALL SITE must resolve namespace-aware (the proc/class C Tcl would
 // dispatch), never a namespace-blind `name == word` scan that picks an
 // arbitrary same-named symbol in another namespace.
-// ===================================================================
 
 /// Two same-named procs in disjoint namespaces; `::a::run` calls `helper`.
 const NS_COLLISION_PROC_SRC: &str = "namespace eval ::a {\n    proc helper {} { return 1 }\n    proc run {} { helper }\n}\nnamespace eval ::b {\n    proc helper {} { return 2 }\n}\n";
@@ -2089,7 +2054,7 @@ fn proc_rename_from_callsite_targets_caller_namespace() {
         + 2;
     let edits = rename(
         NS_COLLISION_PROC_SRC,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         2,
         col,
         "assist",
@@ -2125,7 +2090,7 @@ fn proc_references_from_callsite_targets_caller_namespace() {
         + 2;
     let refs = references(
         NS_COLLISION_PROC_SRC,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         2,
         col,
         &analysis,
@@ -2147,7 +2112,7 @@ fn proc_rename_unambiguous_callsite_unaffected() {
     let analysis = analyse(src);
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         1,
         0,
         "welcome",
@@ -2169,7 +2134,7 @@ fn class_rename_from_callsite_targets_caller_namespace() {
     let col = src.lines().nth(2).unwrap().find("Widget new").unwrap() as u32 + 1;
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         2,
         col,
         "Panel",
@@ -2197,7 +2162,7 @@ fn object_var_references_unify_across_methods() {
     let col = src.lines().nth(2).unwrap().find("$n").unwrap() as u32 + 1;
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         2,
         col,
         &analysis,
@@ -2227,7 +2192,7 @@ fn object_var_rename_unifies_declaration_and_all_method_uses() {
     let col = src.lines().nth(2).unwrap().find("$n").unwrap() as u32 + 1;
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         2,
         col,
         "count",
@@ -2263,7 +2228,7 @@ fn namespace_variable_unifies_across_procs() {
     let col = src.lines().nth(3).unwrap().find("$count").unwrap() as u32 + 1;
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         3,
         col,
         &analysis,
@@ -2291,7 +2256,7 @@ fn global_variable_unifies_across_procs() {
     let col = src.lines().nth(2).unwrap().find("$g").unwrap() as u32 + 1;
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         2,
         col,
         &analysis,
@@ -2318,7 +2283,7 @@ fn namespace_variable_rename_unifies_all_aliases() {
     let col = src.lines().nth(3).unwrap().find("$count").unwrap() as u32 + 1;
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         3,
         col,
         "total",
@@ -2354,7 +2319,7 @@ fn namespace_variables_in_different_namespaces_do_not_unify() {
     let col = src.lines().nth(1).unwrap().find("$count").unwrap() as u32 + 1;
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         1,
         col,
         &analysis,
@@ -2368,9 +2333,7 @@ fn namespace_variables_in_different_namespaces_do_not_unify() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // M7 — command names carried in variables / dispatch tables
-// ---------------------------------------------------------------------------
 
 #[test]
 fn references_include_a_const_cmd_dispatch_site_m7() {
@@ -2382,7 +2345,7 @@ fn references_include_a_const_cmd_dispatch_site_m7() {
     let analysis = analyse(src);
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         0,
         6,
         &analysis,
@@ -2453,7 +2416,7 @@ fn rename_rewrites_the_defining_literal_and_never_the_dispatch_span_945() {
     let analysis = analyse(src);
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         0,
         6,
         "renamed",
@@ -2513,7 +2476,7 @@ fn rename_from_the_defining_literal_cursor_follows_the_dispatch_945() {
     let analysis = analyse(src);
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         1,
         8,
         "renamed",
@@ -2542,7 +2505,7 @@ fn rename_abstains_when_a_contributing_constant_has_no_writable_span_945() {
         .any(|i| i.indirect && !i.rename_safe);
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         0,
         6,
         "renamed",
@@ -2574,7 +2537,7 @@ fn rename_rewrites_a_consumed_dispatch_table_literal_m7() {
     let analysis = analyse(src);
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         0,
         6,
         &analysis,
@@ -2587,7 +2550,7 @@ fn rename_rewrites_a_consumed_dispatch_table_literal_m7() {
     );
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         0,
         6,
         "sum",
@@ -2607,9 +2570,7 @@ fn rename_rewrites_a_consumed_dispatch_table_literal_m7() {
     assert_eq!(table_edit.new_text, "sum");
 }
 
-// ---------------------------------------------------------------------------
 // rename — [incr Tcl] `Factory::make` class-proc dispatch (issue #990)
-// ---------------------------------------------------------------------------
 
 /// TP: renaming an itcl class-scoped `proc` rewrites its declaration, its
 /// bare sibling call, and the tail of every `::`-qualified dispatch — the
@@ -2629,7 +2590,7 @@ fn rename_itcl_class_proc_rewrites_every_dispatch_spelling() {
     // Cursor on the declaration name.
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         1,
         10,
         "produce",
@@ -2664,7 +2625,7 @@ fn rename_itcl_class_proc_from_the_call_site_matches_the_declaration() {
     let analysis = analyse(src);
     let from_site = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         3,
         11,
         "produce",
@@ -2673,7 +2634,7 @@ fn rename_itcl_class_proc_from_the_call_site_matches_the_declaration() {
     );
     let from_decl = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         1,
         10,
         "produce",
@@ -2693,7 +2654,7 @@ fn rename_plain_namespace_qualified_proc_is_unaffected() {
     let analysis = analyse(src);
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         3,
         11,
         "produce",
@@ -2707,9 +2668,7 @@ fn rename_plain_namespace_qualified_proc_is_unaffected() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // rename — namespace-scoped bare class dispatch (issue #981)
-// ---------------------------------------------------------------------------
 
 /// Two classes sharing a simple name in different namespaces, one bare
 /// `Factory make` dispatch each.  Oracle (tclsh 8.6.14 and 9.0.4): the
@@ -2738,7 +2697,7 @@ fn rename_classmethod_does_not_rewrite_a_sibling_namespaces_dispatch() {
     let analysis = analyse(src);
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         2,
         20,
         "produce",
@@ -2773,7 +2732,7 @@ fn rename_classmethod_is_scoped_in_the_other_direction_too() {
     let analysis = analyse(src);
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         8,
         20,
         "produce",
@@ -2783,9 +2742,7 @@ fn rename_classmethod_is_scoped_in_the_other_direction_too() {
     assert_eq!(edit_lines(&edits), vec![8, 10], "{edits:?}");
 }
 
-// ---------------------------------------------------------------------------
 // Issue #1078 — a brace-quoted `$`-bearing name is its own variable
-// ---------------------------------------------------------------------------
 //
 // tclsh 9.0.4 and 8.6.14, byte-identical:
 //
@@ -2815,7 +2772,7 @@ fn references_of_the_plain_name_exclude_the_brace_literal_cell() {
     // Cursor on the `n` of `set n 2` (line 2).
     let refs = references(
         BRACE_LITERAL_MIX,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         2,
         8,
         &analysis,
@@ -2834,7 +2791,7 @@ fn rename_of_the_plain_name_never_rewrites_a_brace_literal_word() {
     let analysis = analyse(BRACE_LITERAL_MIX);
     let edits = rename(
         BRACE_LITERAL_MIX,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         2,
         8,
         "q",
@@ -2862,7 +2819,7 @@ fn rename_of_a_brace_literal_name_is_refused_with_a_reason() {
     // Cursor inside the `{$n}` word on line 1.
     let refusal = rename_with_diagnosis(
         BRACE_LITERAL_MIX,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         1,
         10,
         "q",
@@ -2888,7 +2845,7 @@ fn rename_of_an_ordinary_name_is_still_allowed() {
     let analysis = analyse(BRACE_LITERAL_MIX);
     let edits = rename_with_diagnosis(
         BRACE_LITERAL_MIX,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         2,
         8,
         "q",
@@ -2899,10 +2856,8 @@ fn rename_of_an_ordinary_name_is_still_allowed() {
     assert_eq!(edit_lines(&edits), vec![2, 3], "{edits:?}");
 }
 
-// ---------------------------------------------------------------------------
 // PR #1106 review, P2 — every variable provider resolves a brace-literal
 // cursor to the literal cell (the cursor half of issue #1108)
-// ---------------------------------------------------------------------------
 //
 // The character scan behind `find_var_at_position` reports `n` for a cursor on
 // the `n` of `set {$n} 1`.  That word is brace-quoted, so Tcl substitutes
@@ -2937,7 +2892,7 @@ fn hover_text(src: &str, line: u32, character: u32, analysis: &AnalysisResult) -
         line,
         character,
         analysis,
-        Some(tcl_registry::registry_for_dialect("tcl8.6")),
+        Some(tcl_registry::model::ingress::static_context_for("tcl8.6").commands()),
     )
     .map(|h| h.value)
 }
@@ -2995,7 +2950,7 @@ declaration"
             };
             let refs = references(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
                 decl_line,
                 col,
                 &analysis,
@@ -3017,7 +2972,7 @@ own declaration and read"
             // declaration cursors is an independent gap, not this finding.
             let highlights = tcl_lsp_core::references::document_highlights(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
                 decl_line,
                 col,
                 &analysis,
@@ -3048,7 +3003,7 @@ fn a_brace_literal_cursor_never_answers_the_plain_cells_sites() {
         }
         for r in references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             3,
             col,
             &analysis,
@@ -3091,7 +3046,7 @@ fn a_plain_cursor_is_unaffected_by_the_shared_gate() {
         assert_eq!(
             ref_lines(&references(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
                 line,
                 col,
                 &analysis,
@@ -3113,7 +3068,7 @@ fn rename_still_refuses_from_every_column_of_the_brace_literal_word() {
     for col in [8u32, 9, 10] {
         let refusal = rename_with_diagnosis(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             3,
             col,
             "q",
@@ -3131,7 +3086,7 @@ fn rename_still_refuses_from_every_column_of_the_brace_literal_word() {
     // edits stay off the `{$n}` words (lines 3 and 4).
     let edits = rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         1,
         8,
         "q",
@@ -3162,7 +3117,7 @@ fn genuinely_inert_dollar_shapes_still_resolve_to_nothing() {
         assert!(
             references(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
                 line,
                 col,
                 &analysis,
@@ -3174,9 +3129,7 @@ fn genuinely_inert_dollar_shapes_still_resolve_to_nothing() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Issue #1108 — a registry `VarRead`-role name word is a navigable use site
-// ---------------------------------------------------------------------------
 //
 // A variable is read by more than `$name`.  tclsh 9.0.4 / 8.6.16, identical:
 //
@@ -3199,7 +3152,7 @@ fn find_references_reports_var_read_role_name_words() {
     // Cursor on the `m` of `set m 1`.
     let refs = references(
         ROLE_READ_SRC,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         1,
         8,
         &analysis,
@@ -3231,7 +3184,7 @@ fn a_cursor_on_a_role_read_word_resolves_the_cell() {
         assert_eq!(
             ref_lines(&references(
                 ROLE_READ_SRC,
-                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
                 line,
                 col,
                 &analysis,
@@ -3253,7 +3206,7 @@ fn tn_a_value_word_of_the_same_spelling_is_not_a_reference() {
     assert_eq!(
         ref_lines(&references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             1,
             8,
             &analysis,
@@ -3264,9 +3217,7 @@ fn tn_a_value_word_of_the_same_spelling_is_not_a_reference() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Issue #1138 idx 102 — a read inside a `[list …]`-built script argument
-// ---------------------------------------------------------------------------
 //
 // `::tk::SourceLibFile` in Tk's `library/tk.tcl`:
 //
@@ -3307,7 +3258,7 @@ fn a_parameter_read_inside_a_list_built_body_navigates() {
     assert_eq!(
         references(
             TK_SOURCE_LIB_FILE,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             1,
             62,
             &analysis,

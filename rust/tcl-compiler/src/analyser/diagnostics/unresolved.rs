@@ -16,31 +16,77 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Unknown-command and missing-`package require` checks.
+//! The analyser's one command-`exists` oracle (centralisation R-c) and
+//! the checks built on it: unknown-command and missing-`package require`.
 //!
-//! [`Analyser::emit_unresolved_command_diagnostics`] flags command heads
-//! that resolve to no known command, user procedure, imported ensemble, or
-//! runtime-provided name (W123), after the cross-function walk has recorded
-//! every invocation. [`Analyser::emit_missing_package_require_diagnostics`]
+//! [`Analyser::command_existence_oracle`] assembles the document's
+//! existence state — the per-tier known-name sets plus the document-wide
+//! widenings (a `package require`, a dynamic provider, a dynamic
+//! `unknown` handler) — and
+//! [`Analyser::command_binding_knowledge`] answers
+//! [`BindingKnowledge`] (`Absent`/`Must`/`May`/`Unknown`) for one command
+//! head at one program point. W123 is that oracle's `Absent` verdict:
+//! [`Analyser::emit_unresolved_command_diagnostics`] flags exactly the
+//! heads proved absent, after the cross-function walk has recorded every
+//! invocation. [`Analyser::emit_missing_package_require_diagnostics`]
 //! flags use of a command that a package provides without a matching
 //! `package require` (W120) and offers an insertion fix at the computed
 //! offset.
 
 use std::collections::{HashMap, HashSet};
 use tcl_core_types::DiagCode;
-use tcl_registry::ProfileQueries;
 
 use rustc_hash::FxHashSet;
+use tcl_registry::model::{BindingKnowledge, BindingTarget, SpecKey};
 
 use crate::analyser::state::Analyser;
 use crate::analyser::types::Severity;
 
-/// The "known command name" sets consulted by the W123 unresolved-command
-/// pass: registry names enabled in the active dialect, the simple-name tails
-/// of user procs / classes / aliases / rename targets / ensemble commands,
-/// inline-stub names, the tails of literal `namespace import` patterns, and
-/// the deduplicated candidate list for "did you mean…?" suggestions.
-struct W123KnownNames {
+/// Why the whole document's command domain is widened to
+/// [`BindingKnowledge::Unknown`] — the package/provider transitions of
+/// redesign §4.2 restated as oracle state: each of these can introduce
+/// commands the static walk cannot see, so absence is no longer provable
+/// anywhere in the document.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CommandDomainWidening {
+    /// A `package require` was seen — its `ifneeded`/`unknown` scripts
+    /// may define arbitrary commands (the package-transition widening).
+    PackageRequire,
+    /// A dynamic provider: `load`, a dynamic `rename` / `package
+    /// require` name, a dynamic `namespace import` pattern, an
+    /// `auto_path` mutation, or a `namespace unknown` handler.
+    DynamicProviders,
+    /// A user-level `unknown` proc with a dynamic dispatch shape.
+    DynamicUnknownHandler,
+}
+
+/// The one command-`exists` oracle at document scope (centralisation
+/// R-c): either the whole domain is widened ([`CommandDomainWidening`] ⇒
+/// every name answers `Unknown`), or the per-tier known-name state is
+/// built and each head answers per program point through
+/// [`Analyser::command_binding_knowledge`].
+pub(crate) struct CommandExistenceOracle {
+    widening: Option<CommandDomainWidening>,
+    /// The known-name tiers; `None` exactly when `widening` is set (a
+    /// widened domain needs no tiers — nothing is provably absent).
+    known: Option<KnownNameTiers>,
+}
+
+impl CommandExistenceOracle {
+    /// The document-wide widening in force, if any.
+    pub(crate) fn widening(&self) -> Option<CommandDomainWidening> {
+        self.widening
+    }
+}
+
+/// The known-command-name tiers consulted by the oracle: registry names
+/// enabled in the active dialect (the shared
+/// [`Analyser::builtin_command_names`] tier, C5), the simple-name tails
+/// of user procs / classes / aliases / rename targets / ensemble
+/// commands, inline-stub names, the tails of literal `namespace import`
+/// patterns, and the deduplicated candidate list for "did you mean…?"
+/// suggestions.
+struct KnownNameTiers {
     registry_names: HashSet<String>,
     /// Per-tail proc definitions (qualified name, establishing offset) —
     /// a tail may match several qualified names (same simple name in
@@ -145,57 +191,75 @@ impl Analyser {
             return;
         }
         self.unresolved_commands_emitted = true;
+        // Prime the one `exists` oracle's registry tier (R-c/C5) so this
+        // pass and settlement read the same cached set.
+        let _ = self.builtin_command_names();
         // The W123 *diagnostic* honours `disabled_diagnostics`, but the
         // unresolved-command *call sites* are recorded regardless (below), so a
         // cross-file consumer can run its arity check independently of the W123
-        // toggle.  The knowability gates that follow (dynamic `package require` /
-        // dynamic providers / `unknown` proc) still suppress both, since
-        // resolution is then unknown.
+        // toggle.  A document-wide widening still suppresses both, since
+        // absence is then unprovable everywhere.
         let emit_w123 = !self.disabled_diagnostics.contains("W123");
 
-        // Conservative gate: if any ``package require`` was seen,
-        // suppress W123 entirely.  The package may load arbitrary
-        // commands at runtime that the analyser can't see.
-        if !self.result.package_requires.is_empty() {
+        let oracle = self.command_existence_oracle(registry);
+        if oracle.widening().is_some() {
+            // Every name answers `Unknown` — nothing is provably absent,
+            // so there is nothing to record or emit.
             return;
         }
+        self.emit_w123_for_invocations(&oracle, emit_w123);
+    }
 
-        // Dynamic providers ⇒ unknowable command set ⇒ no W123 — the same
-        // gate W120 applies (see
-        // [`Self::emit_missing_package_require_diagnostics`]).  Set by
-        // `load`, a dynamic `rename` / `package require` name, a dynamic
-        // `namespace import` pattern, an `auto_path` mutation, and a
-        // `namespace unknown` handler installation.
-        if self.result.has_dynamic_providers {
-            return;
-        }
-
-        // When the document defines a
-        // user-level ``unknown`` proc with a *dynamic* dispatch
-        // shape — chains the original handler, case-folds,
-        // uses pattern (glob / regexp) dispatch, calls
-        // ``exec``, or calls ``auto_load`` — the analyser can't
-        // statically prove which commands are resolvable, so
-        // suppress W123 entirely.  For the *non-dynamic* shape
-        // (only explicit ``dispatch_targets`` listed), W123
-        // still fires below; the per-invocation loop checks
-        // ``dispatch_targets`` membership and lets unrelated
-        // commands surface their warnings.  Empty-stub
-        // ``unknown`` (``proc unknown {cmd args} {}``) resolves
-        // nothing so we never hit this gate.
-        if let Some(info) = self.result.unknown_proc_info.as_ref() {
-            let is_dynamic = info.chains_original
+    /// Assemble the one command-`exists` oracle for this document
+    /// (centralisation R-c): the document-wide widenings first — each a
+    /// §4.2 transition that can introduce commands the static walk
+    /// cannot see, so every name answers
+    /// [`BindingKnowledge::Unknown`] — else the per-tier known-name
+    /// state every per-point query resolves against.
+    ///
+    /// The widenings, in the order they are checked:
+    ///
+    /// - **a `package require`** — its `ifneeded`/`unknown` scripts may
+    ///   load arbitrary commands (the package-transition widening);
+    /// - **dynamic providers** — `load`, a dynamic `rename` / `package
+    ///   require` name, a dynamic `namespace import` pattern, an
+    ///   `auto_path` mutation, a `namespace unknown` handler (the same
+    ///   gate W120 applies);
+    /// - **a dynamic user `unknown` proc** — chains the original
+    ///   handler, case-folds, pattern-dispatches, calls `exec` or
+    ///   `auto_load`. The *non-dynamic* shape (explicit
+    ///   `dispatch_targets` only) does not widen: the per-name query
+    ///   resolves its listed targets and lets unrelated commands answer
+    ///   `Absent`; an empty-stub `unknown` resolves nothing.
+    pub(crate) fn command_existence_oracle(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> CommandExistenceOracle {
+        let widening = if !self.result.package_requires.is_empty() {
+            Some(CommandDomainWidening::PackageRequire)
+        } else if self.result.has_dynamic_providers {
+            Some(CommandDomainWidening::DynamicProviders)
+        } else if self.result.unknown_proc_info.as_ref().is_some_and(|info| {
+            info.chains_original
                 || info.case_insensitive
                 || info.has_pattern_dispatch
                 || info.has_exec
-                || info.has_auto_load;
-            if is_dynamic {
-                return;
-            }
+                || info.has_auto_load
+        }) {
+            Some(CommandDomainWidening::DynamicUnknownHandler)
+        } else {
+            None
+        };
+        if let Some(widening) = widening {
+            return CommandExistenceOracle {
+                widening: Some(widening),
+                known: None,
+            };
         }
-
-        let known = self.build_w123_known_names(registry);
-        self.emit_w123_for_invocations(&known, emit_w123);
+        CommandExistenceOracle {
+            widening: None,
+            known: Some(self.build_w123_known_names(registry)),
+        }
     }
 
     /// Whether `qualified`'s establishing fact — an `interp alias`
@@ -331,11 +395,49 @@ impl Analyser {
             .collect()
     }
 
-    /// Build the [`W123KnownNames`] sets consulted by the unresolved-command
+    /// The registry names "known" for W123 — the cached registry tier of
+    /// the one `exists` oracle ([`Analyser::builtin_command_names`],
+    /// centralisation R-c/C5), shared with settlement, constant-dispatch,
+    /// and W113 so the passes cannot disagree about which registry
+    /// commands exist. A registry command is known whenever the active
+    /// dialect enables it — including package-gated commands such as
+    /// ``argparse`` or the Tk widgets, which resolve under a Tcl version
+    /// and are ambient in a `wish` interpreter.  The *missing `package
+    /// require`* case is reported separately by W120 (see
+    /// ``emit_missing_package_require_diagnostics``), which carries an
+    /// add-the-require code fix; firing W123 here as well would
+    /// double-report and would false-positive on ambient Tk widgets.
+    /// Under `f5-irules` the set additionally carries the §4b
+    /// interpreter-present (compiler-refused) builtins.
+    ///
+    /// The caller primes the cache
+    /// (`emit_unresolved_command_diagnostics` calls
+    /// `builtin_command_names` first), so a cold cache falls back to a
+    /// fresh build over the analysis context — same answer, uncached.
+    fn w123_registry_known_names(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> HashSet<String> {
+        if self.builtin_dialect == Some(self.profile.name)
+            && let Some(names) = self.builtin_names.as_ref()
+        {
+            return names.clone();
+        }
+        let generation = self.analysis_context();
+        let mut registry_names: HashSet<String> = registry
+            .command_names()
+            .filter(|name| generation.context().resolve_spec(registry, name).is_some())
+            .map(str::to_string)
+            .collect();
+        self.extend_with_irules_interpreter_present_names(&mut registry_names);
+        registry_names
+    }
+
+    /// Build the [`KnownNameTiers`] sets consulted by the unresolved-command
     /// pass: registry names enabled in the active dialect, user proc / class /
     /// alias / ensemble simple-name tails, inline-stub names, and the
     /// suggestion candidate list.
-    fn build_w123_known_names(&self, registry: &tcl_registry::CommandRegistry) -> W123KnownNames {
+    fn build_w123_known_names(&self, registry: &tcl_registry::CommandRegistry) -> KnownNameTiers {
         // Only commands
         // *enabled in the active dialect profile* count as "known" for W123.
         // The registry's `command_names()` returns every loaded spec —
@@ -348,19 +450,7 @@ impl Analyser {
         // should also fire — and a vendor profile's embedded Tcl core (8.5
         // `dict` under f5-iapps, 8.6 `coroutine` under expect) would be
         // wrongly unknown, the confirmed bare-bit defect the profile fixes.
-        let profile = tcl_dialect::DialectProfile::by_name(self.dialect());
-        // A registry command is "known" for W123 whenever the active dialect
-        // enables it — including package-gated commands such as ``argparse`` or
-        // the Tk widgets, which resolve under a Tcl version and are ambient in a
-        // `wish` interpreter.  The *missing `package require`* case is reported
-        // separately by W120 (see ``emit_missing_package_require_diagnostics``),
-        // which carries an add-the-require code fix; firing W123 here as well
-        // would double-report and would false-positive on ambient Tk widgets.
-        let registry_names: HashSet<String> = registry
-            .command_names()
-            .filter(|name| profile.resolve_command(registry, name).is_some())
-            .map(str::to_string)
-            .collect();
+        let registry_names = self.w123_registry_known_names(registry);
         let stub_names = self.stub_command_names();
         // These two tail sets feed only the "did you mean…?" candidate
         // list below — resolution itself uses `proc_defs_by_tail` /
@@ -491,7 +581,7 @@ impl Analyser {
             .cloned()
             .collect();
 
-        W123KnownNames {
+        KnownNameTiers {
             registry_names,
             proc_defs_by_tail,
             class_defs_by_tail,
@@ -628,20 +718,96 @@ impl Analyser {
             .any(|cd| cd.linked_members.contains_key(name))
     }
 
-    /// Whether the command head `name`, invoked at `range`, resolves through
-    /// any W123 resolution path — first match wins (see
-    /// [`Self::emit_unresolved_command_diagnostics`] for the ordered list).
-    /// A head that resolves nowhere falls through to the diagnostic emitter.
-    #[must_use]
-    fn w123_invocation_resolves(
+    /// The live user-definition tier of the oracle: the tails of user
+    /// procs / classes / alias targets / rename targets. A tail may match
+    /// several qualified names (the same simple name in different
+    /// namespaces) — a fact counts only while still live for this
+    /// specific call (issue #973 for procs/classes, issue #1006 for
+    /// aliases/rename targets: a name renamed or deleted away, with no
+    /// later re-establishment, must not resolve here;
+    /// [`Analyser::fact_live_for_call`] also keeps a top-level call
+    /// textually before a later deletion, and a deletion recorded inside
+    /// a never-triggered proc/class body, correctly resolving). Exactly
+    /// one live definition proves `Must`; several stay `May` candidates —
+    /// which one the call reaches depends on the namespace path (I5:
+    /// never a pick by order); none defers to the later tiers.
+    fn live_user_definition_knowledge(
         &self,
-        known: &W123KnownNames,
+        known: &KnownNameTiers,
+        name: &str,
+        call_off: u32,
+    ) -> Option<BindingKnowledge> {
+        let mut live: Vec<BindingTarget> = Vec::new();
+        for defs_by_tail in [
+            &known.proc_defs_by_tail,
+            &known.class_defs_by_tail,
+            &known.alias_defs_by_tail,
+            &known.rename_defs_by_tail,
+        ] {
+            let targets = defs_by_tail
+                .get(name)
+                .into_iter()
+                .flatten()
+                .filter(|(qualified, fact_off)| {
+                    self.fact_live_for_call(qualified, *fact_off, call_off)
+                })
+                .map(|(qualified, _)| BindingTarget::document(qualified));
+            for target in targets {
+                if !live.contains(&target) {
+                    live.push(target);
+                }
+            }
+        }
+        match live.len() {
+            0 => None,
+            1 => Some(BindingKnowledge::Must(live.remove(0))),
+            _ => Some(BindingKnowledge::May(live.into())),
+        }
+    }
+
+    /// The oracle's per-point answer (centralisation R-c): the
+    /// [`BindingKnowledge`] for command head `name` invoked at `range`,
+    /// resolved through the ordered W123 resolution paths — first match
+    /// wins (see [`Self::emit_unresolved_command_diagnostics`] for the
+    /// list). Under a document-wide widening every head answers
+    /// [`BindingKnowledge::Unknown`]; a head no path resolves is proved
+    /// [`BindingKnowledge::Absent`] — the verdict W123 fires on.
+    ///
+    /// `Must`/`May` targets are spec-keyed where the environment provides
+    /// the binding ([`BindingTarget::Spec`] — the I4 hook licence) and
+    /// document-keyed for user definitions, aliases, scoped-environment
+    /// commands, and the iRules §4b interpreter-present names (which
+    /// exist but carry no catalogue availability here).
+    #[must_use]
+    pub(crate) fn command_binding_knowledge(
+        &self,
+        oracle: &CommandExistenceOracle,
         name: &str,
         range: tcl_lexer::Span,
         resolved_qualified_name: Option<&str>,
         is_mathfunc_call: bool,
         resolution_candidates: &[String],
-    ) -> bool {
+    ) -> BindingKnowledge {
+        if oracle.widening.is_some() {
+            return BindingKnowledge::Unknown;
+        }
+        let Some(known) = oracle.known.as_ref() else {
+            return BindingKnowledge::Unknown;
+        };
+        // The spec-keyed target for a registry-known name; the §4b
+        // interpreter-present names are registry-known without resolving
+        // under the environment, so they fall to a document target — they
+        // exist, but no catalogue semantics apply here (I4).
+        let generation = self.analysis_context();
+        let spec_target = |spelling: &str| {
+            generation
+                .context()
+                .resolve_spec(generation.commands(), spelling)
+                .map_or_else(
+                    || BindingTarget::document(spelling),
+                    |spec| BindingTarget::Spec(SpecKey::new(spec)),
+                )
+        };
         // A built-in renamed away / deleted at an earlier offset no longer
         // resolves here — fall through to the user-defined paths below,
         // which carry any later re-binding of the name (a fresh `proc` /
@@ -652,7 +818,7 @@ impl Analyser {
             && (!known.method_context_names.contains(name)
                 || self.offset_in_oo_method_context(range.start()))
         {
-            return true;
+            return BindingKnowledge::Must(spec_target(name));
         }
         // An `expr` math-function application (`sin($x)`, `max($a, $b)`) is
         // recorded by `record_expr_function_invocations` with the *bare*
@@ -692,7 +858,7 @@ impl Analyser {
                 && (is_mathfunc_call || self.mathfunc_command_wrappers_available())
                 && !self.qualified_name_deleted_before(&mathfunc_qualified, range.start())
             {
-                return true;
+                return BindingKnowledge::Must(spec_target(&mathfunc_qualified));
             }
         }
         // A bare name resolved relative to the call's *enclosing lexical
@@ -717,41 +883,23 @@ impl Analyser {
         // deleted away before this call, e.g. `::tcl::mathfunc::sin` after
         // `rename ::tcl::mathfunc::sin {}`, must not resolve here either —
         // confirmed against tclsh 9.0.4).
-        if resolution_candidates.iter().any(|cand| {
-            known.registry_names.contains(cand)
+        if let Some(candidate) = resolution_candidates.iter().find(|cand| {
+            known.registry_names.contains(cand.as_str())
                 && !self.qualified_name_deleted_before(cand, range.start())
         }) {
-            return true;
+            return BindingKnowledge::Must(spec_target(candidate));
         }
-        // Qualified names defer to per-namespace logic (conservative skip);
-        // `$`-interpolated / `[…]`-substituted heads are W307 / W308's
-        // domain.
+        // Qualified names defer to per-namespace logic (conservative
+        // abstention); `$`-interpolated / `[…]`-substituted heads are
+        // W307 / W308's domain — neither is provable here.
         if name.contains("::") || name.starts_with('$') || name.starts_with('[') {
-            return true;
+            return BindingKnowledge::Unknown;
         }
-        // A tail may match several qualified names (the same simple name
-        // in different namespaces) — resolve if *any* of them has a fact
-        // still live for this specific call (issue #973 for procs/classes,
-        // issue #1006 for aliases/rename targets: a name renamed or
-        // deleted away, with no later re-establishment, must not resolve
-        // here; `fact_live_for_call` also keeps a top-level call textually
-        // before a later deletion, and a deletion recorded inside a
-        // never-triggered proc/class body, correctly resolving).
-        let tail_has_live_def = |defs_by_tail: &HashMap<String, Vec<(String, u32)>>| {
-            defs_by_tail.get(name).is_some_and(|defs| {
-                defs.iter().any(|(qualified, fact_off)| {
-                    self.fact_live_for_call(qualified, *fact_off, range.start())
-                })
-            })
-        };
-        if tail_has_live_def(&known.proc_defs_by_tail)
-            || tail_has_live_def(&known.class_defs_by_tail)
-            || tail_has_live_def(&known.alias_defs_by_tail)
-            || tail_has_live_def(&known.rename_defs_by_tail)
-            || known.ensemble_cmds.contains(name)
-            || known.stub_names.contains(name)
-        {
-            return true;
+        if let Some(knowledge) = self.live_user_definition_knowledge(known, name, range.start()) {
+            return knowledge;
+        }
+        if known.ensemble_cmds.contains(name) || known.stub_names.contains(name) {
+            return BindingKnowledge::Must(BindingTarget::document(name));
         }
         // A bare name matching the tail of a literal `namespace import`
         // pattern resolves to the imported command (`namespace import
@@ -763,16 +911,23 @@ impl Analyser {
             .iter()
             .any(|tail| tcl_syntax::glob::string_match(tail, name))
         {
-            return true;
+            // A glob import (`::acme::*`) provides an unknowable subset —
+            // absence is unprovable; an exact-tail import names exactly
+            // this command.
+            return if known.import_pattern_tails.iter().any(|tail| tail == name) {
+                BindingKnowledge::Must(BindingTarget::document(name))
+            } else {
+                BindingKnowledge::Unknown
+            };
         }
         // User-declared extra commands (`tclLsp.extraCommands`) are known.
         if self.extra_commands.contains(name) {
-            return true;
+            return BindingKnowledge::Must(BindingTarget::document(name));
         }
         if let Some(info) = self.result.unknown_proc_info.as_ref()
             && info.dispatch_targets.contains(name)
         {
-            return true;
+            return BindingKnowledge::Must(BindingTarget::document(name));
         }
         // Absolute-form fallback — ``cmd`` may be defined as ``::cmd`` in
         // the global namespace. Same per-call deletion gate as the
@@ -785,31 +940,39 @@ impl Analyser {
         }) || self.result.all_classes.get(&absolute).is_some_and(|def| {
             self.fact_live_for_call(&absolute, def.name_span.start(), range.start())
         }) {
-            return true;
+            return BindingKnowledge::Must(BindingTarget::document(&absolute));
         }
         // A bareword `link` installed in the enclosing object's namespace.
         if self.linked_member_resolves(name, range.start()) {
-            return true;
+            return BindingKnowledge::Must(BindingTarget::document(name));
         }
         // A command bound by `CLASS create NAME` (or a registry
         // `defines_command_at` argument — `coroutine NAME cmd`, `interp
         // create NAME`) — later calls dispatch on a real command, not an
         // unknown (issue #777).
         if self.result.created_instance_commands.contains(name) {
-            return true;
+            return BindingKnowledge::Must(BindingTarget::document(name));
         }
         // A bare head inside a scoped command environment (a
         // `report::defstyle` style script, …) resolves against that
         // environment's registry-declared command set — plus any sibling
         // definitions it exposes (#806).  Registry data drives the check;
         // no command name is matched here.
-        self.is_scoped_command_resolved(name, range)
+        if self.is_scoped_command_resolved(name, range) {
+            return BindingKnowledge::Must(BindingTarget::document(name));
+        }
+        // No path resolves the head: proved absent — W123's verdict.
+        BindingKnowledge::Absent
     }
 
-    /// Walk every recorded command invocation, record the unresolved ones as
-    /// call sites, and (when `emit_w123`) push a W123 with a "did you mean…?"
-    /// suggestion.  Restores `command_invocations` on exit.
-    fn emit_w123_for_invocations(&mut self, known: &W123KnownNames, emit_w123: bool) {
+    /// Walk every recorded command invocation, record the ones the oracle
+    /// proves `Absent` as call sites, and (when `emit_w123`) push a W123
+    /// with a "did you mean…?" suggestion.  Restores
+    /// `command_invocations` on exit.
+    fn emit_w123_for_invocations(&mut self, oracle: &CommandExistenceOracle, emit_w123: bool) {
+        let Some(known) = oracle.known.as_ref() else {
+            return;
+        };
         // Pre-compute the deduplicated ``Vec<&str>`` over the
         // candidate set once, instead of rebuilding it per
         // unresolved invocation.  ``candidates`` may carry
@@ -839,18 +1002,21 @@ impl Analyser {
             if inv.existence_probe {
                 continue;
             }
-            if self.w123_invocation_resolves(
-                known,
+            // The oracle's verdict (R-c): only proved absence feeds W123
+            // — `Must`/`May`/`Unknown` all suppress it.
+            if self.command_binding_knowledge(
+                oracle,
                 name,
                 inv.range,
                 inv.resolved_qualified_name.as_deref(),
                 inv.is_mathfunc_call,
                 &inv.resolution_candidates,
-            ) {
+            ) != BindingKnowledge::Absent
+            {
                 continue;
             }
 
-            // Unresolved.  Record the call site so a cross-file consumer can run
+            // Proved absent.  Record the call site so a cross-file consumer can run
             // its arity check independently of the W123 toggle, then emit the W123
             // diagnostic unless it is disabled.
             self.result
@@ -967,6 +1133,7 @@ impl Analyser {
         if self.result.has_dynamic_providers {
             return;
         }
+        let generation = self.analysis_context();
 
         // This is the **single-file** W120: it knows only the packages
         // required / provided *in this document*.  Workspace-level
@@ -1021,7 +1188,7 @@ impl Analyser {
             // the primitive `build_w123_known_names` already resolves
             // `registry_names` through, so a command's package-gating is
             // read from the one spec this dialect actually sees.
-            let Some(spec) = self.profile.resolve_command(registry, &inv.name) else {
+            let Some(spec) = generation.context().resolve_spec(registry, &inv.name) else {
                 continue;
             };
             if spec.required_package.is_none() {
@@ -1065,9 +1232,9 @@ impl Analyser {
         }
         let mut new_diags: Vec<super::types::Diagnostic> = Vec::new();
         for inv in best.values() {
-            let spec = self
-                .profile
-                .resolve_command(registry, &inv.name)
+            let spec = generation
+                .context()
+                .resolve_spec(registry, &inv.name)
                 .expect("invocation selected only when registry-known");
             let pkg = spec
                 .required_package
@@ -1079,7 +1246,7 @@ impl Analyser {
             // shell's own tool commands, or a package a loaded pack declared
             // with `ambient_package`) is part of the runtime — no
             // `package require` exists for it (§7.1 axis C).
-            if self.profile_registry().is_ambient_package(pkg) {
+            if generation.context().ambient_package(pkg) {
                 continue;
             }
             let fix = super::types::CodeFix {
@@ -1100,6 +1267,142 @@ impl Analyser {
                 .with_fixes(vec![fix]),
             );
         }
+        self.result.diagnostics.extend(new_diags);
+    }
+
+    /// H301 — a command used *above* the `package require` that provides it.
+    ///
+    /// **The assistance half of Q8** (owner ruling 2026-08-28: on by
+    /// default). The semantic view is position-insensitive and stays that
+    /// way: a `package require` anywhere in the file makes its commands
+    /// available for the whole file, because Tcl only resolves a command
+    /// name when the call actually runs, so
+    ///
+    /// ```tcl
+    /// proc later {} { csv::join {a b} }
+    /// package require csv
+    /// ```
+    ///
+    /// is correct and must not be reported as broken. What this reports is
+    /// the *reading* problem: top-down, the call appears before the thing
+    /// that provides it. It is a hint, it carries no fix, and it never
+    /// changes what is available.
+    ///
+    /// Disjoint from W120 by construction: W120 fires when the package is
+    /// **not** required at all, this when it **is**.
+    ///
+    /// Silent when:
+    /// * the dialect has no `package` command, or the file loads packages
+    ///   dynamically — the same two gates W120 takes;
+    /// * the package is ambient (part of the runtime, so no `package
+    ///   require` exists for it at all);
+    /// * the file `package provide`s the package — it is the package's own
+    ///   implementation, and requiring yourself first is not a rule;
+    /// * every `package require` for it is conditional — inside a guarded
+    ///   branch there is no unconditional "before" to be after;
+    /// * H301 is in `disabled_diagnostics`.
+    ///
+    /// One hint per package, not per command: a package with twenty
+    /// commands used above its requirement is one ordering mistake with one
+    /// edit behind it, and twenty hints would be twenty ways of saying so.
+    pub fn emit_package_require_ordering_hints(
+        &mut self,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
+        if self.disabled_diagnostics.contains("H301") {
+            return;
+        }
+        if registry.get("package").is_none() || self.result.has_dynamic_providers {
+            return;
+        }
+        // The package's own implementation file requires nothing of itself.
+        let provided: FxHashSet<&str> = self
+            .result
+            .package_provides
+            .iter()
+            .map(|pp| pp.name.as_str())
+            .collect();
+
+        // The earliest *unconditional* requirement per package. A
+        // conditional one cannot anchor an ordering claim.
+        let mut required_at: HashMap<&str, u32> = HashMap::new();
+        for pr in &self.result.package_requires {
+            if pr.conditional {
+                continue;
+            }
+            required_at
+                .entry(pr.name.as_str())
+                .and_modify(|at| *at = (*at).min(pr.range.start()))
+                .or_insert_with(|| pr.range.start());
+        }
+        if required_at.is_empty() {
+            return;
+        }
+        let generation = self.analysis_context();
+        let declared = super::validity::UserResolutionFacts::build(self);
+
+        // The earliest offending invocation per package, and the command
+        // name it was — the message names one command, because naming
+        // twenty would not help.
+        let mut earliest: HashMap<&str, (u32, tcl_lexer::Span, &str)> = HashMap::new();
+        for inv in &self.result.command_invocations {
+            let Some(spec) = generation.context().resolve_spec(registry, &inv.name) else {
+                continue;
+            };
+            let Some(pkg) = spec.required_package else {
+                continue;
+            };
+            if provided.contains(pkg) || generation.context().ambient_package(pkg) {
+                continue;
+            }
+            let Some(&require_start) = required_at.get(pkg) else {
+                continue;
+            };
+            if inv.range.start() >= require_start {
+                continue;
+            }
+            // The same two suppressions W120 takes: a head a scoped command
+            // environment resolved is not the package's command, and a
+            // command this document defines resolves to that definition.
+            if self.is_scoped_command_resolved(&inv.name, inv.range) {
+                continue;
+            }
+            let candidates: Vec<String> = if inv.resolution_candidates.is_empty() {
+                crate::naming::bareword_resolution_candidates("", &inv.name)
+            } else {
+                inv.resolution_candidates.clone()
+            };
+            let bare = inv.name.rsplit("::").next().unwrap_or(&inv.name);
+            if declared.declares_any(&candidates, bare) {
+                continue;
+            }
+            let row = (inv.range.start(), inv.range, inv.name.as_str());
+            earliest
+                .entry(pkg)
+                .and_modify(|cur| {
+                    if row.0 < cur.0 {
+                        *cur = row;
+                    }
+                })
+                .or_insert(row);
+        }
+
+        // Sorted so the emitted order does not depend on hash iteration.
+        let mut rows: Vec<(&str, (u32, tcl_lexer::Span, &str))> = earliest.into_iter().collect();
+        rows.sort_by_key(|(pkg, (start, _, _))| (*start, *pkg));
+        let new_diags: Vec<super::types::Diagnostic> = rows
+            .into_iter()
+            .map(|(pkg, (_, range, name))| {
+                crate::analyser::types::Diagnostic::new(
+                    DiagCode::H301,
+                    range,
+                    format!(
+                        "\"{name}\" is used above the `package require {pkg}` that provides it"
+                    ),
+                    Severity::Hint,
+                )
+            })
+            .collect();
         self.result.diagnostics.extend(new_diags);
     }
 
@@ -1125,5 +1428,94 @@ impl Analyser {
             off += 1; // past the newline
         }
         u32::try_from(off).unwrap_or(0)
+    }
+}
+
+#[cfg(test)]
+mod require_ordering_tests {
+    use crate::analyser::state::Analyser;
+
+    /// `(code, message)` for the two package-requirement codes only — H301
+    /// and the W120 it must stay disjoint from.
+    fn diags(source: &str) -> Vec<(String, String)> {
+        Analyser::new()
+            .analyse(source, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| matches!(d.code.as_str(), "H301" | "W120"))
+            .map(|d| (d.code.to_string(), d.message.clone()))
+            .collect()
+    }
+
+    fn count(source: &str, code: &str) -> usize {
+        diags(source).iter().filter(|(c, _)| c == code).count()
+    }
+
+    #[test]
+    fn a_command_above_its_require_is_hinted() {
+        let src = "csv::join {a b}\npackage require csv\n";
+        assert_eq!(count(src, "H301"), 1, "{:?}", diags(src));
+        // The requirement is present, so the missing-require warning must not
+        // also fire: the two are disjoint by construction.
+        assert_eq!(count(src, "W120"), 0, "{:?}", diags(src));
+    }
+
+    #[test]
+    fn a_command_below_its_require_is_silent() {
+        let src = "package require csv\ncsv::join {a b}\n";
+        assert_eq!(count(src, "H301"), 0, "{:?}", diags(src));
+    }
+
+    /// The semantic view is position-insensitive and stays that way: a call
+    /// inside a proc body runs after the file has been sourced, so requiring
+    /// at the bottom is correct Tcl. It still *reads* as out of order, which
+    /// is the whole point of a hint — but W120 must not fire, because
+    /// nothing is missing.
+    #[test]
+    fn a_deferred_call_above_its_require_is_a_hint_and_not_a_warning() {
+        let src = "proc later {} { csv::join {a b} }\npackage require csv\n";
+        assert_eq!(count(src, "W120"), 0, "{:?}", diags(src));
+        assert_eq!(count(src, "H301"), 1, "{:?}", diags(src));
+    }
+
+    #[test]
+    fn a_missing_require_stays_w120_and_is_not_also_hinted() {
+        let src = "csv::join {a b}\n";
+        assert_eq!(count(src, "W120"), 1, "{:?}", diags(src));
+        assert_eq!(count(src, "H301"), 0, "{:?}", diags(src));
+    }
+
+    /// One ordering mistake, one hint — not one per command.
+    #[test]
+    fn many_commands_above_one_require_hint_once() {
+        let src = "csv::join {a b}\ncsv::split x\ncsv::report x\npackage require csv\n";
+        assert_eq!(count(src, "H301"), 1, "{:?}", diags(src));
+    }
+
+    /// The package's own implementation file requires nothing of itself.
+    #[test]
+    fn a_providing_file_is_silent() {
+        let src = "csv::join {a b}\npackage provide csv 1.0\npackage require csv\n";
+        assert_eq!(count(src, "H301"), 0, "{:?}", diags(src));
+    }
+
+    /// Inside a guarded branch there is no unconditional "before" to be
+    /// after, so the ordering claim cannot be made.
+    #[test]
+    fn a_conditional_require_anchors_nothing() {
+        let src = "csv::join {a b}\nif {$x} { package require csv }\n";
+        assert_eq!(count(src, "H301"), 0, "{:?}", diags(src));
+    }
+
+    #[test]
+    fn the_hint_is_off_when_disabled() {
+        let src = "csv::join {a b}\npackage require csv\n";
+        let out = Analyser::with_disabled_diagnostics(["H301".to_owned()].into_iter().collect())
+            .analyse(src, "tcl8.6");
+        assert!(
+            !out.diagnostics.iter().any(|d| d.code.as_str() == "H301"),
+            "{:?}",
+            out.diagnostics
+        );
     }
 }

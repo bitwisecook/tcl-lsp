@@ -18,10 +18,11 @@
 
 //! `DATAGRAM::tcp` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "DATAGRAM::tcp",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Returns TCP header and payload information.",
@@ -41,9 +42,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &["FLOW"],
             also_in: &["CLIENT_DATA"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "DATAGRAM::tcp (flags | payload_length | window)",

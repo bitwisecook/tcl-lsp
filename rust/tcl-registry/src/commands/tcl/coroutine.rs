@@ -25,6 +25,7 @@
 // additionally documents the sibling `coroinject`/`coroprobe` commands
 // (their own registry specs), not present in 8.6.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 // `coroutine` both (a) creates the named command in the interpreter's
 // command table — an `InterpState` write, matching `yield`/`yieldto`/
@@ -58,7 +59,7 @@ pub fn spec() -> CommandSpec {
             | Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD
             | Traits::COROUTINE_PRIMITIVE,
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         arity: Arity::at_least(2),
         arg_roles: &[(0, ArgRole::Name)],
         // `coroutine NAME cmd ?arg …?` creates the command NAME

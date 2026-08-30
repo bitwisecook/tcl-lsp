@@ -18,13 +18,14 @@
 
 //! `HTTP::host` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::host",
         traits: Traits::PURE
             .union(Traits::CSE_CANDIDATE)
             .union(Traits::DIAGRAM_ACTION),
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::new(0, 1),
         hover: Some(HoverSnippet {
             summary: "Returns the value contained in the Host header of an HTTP request.",
@@ -40,9 +41,7 @@ pub const fn spec() -> CommandSpec {
             transport: Some("tcp"),
             profiles: &["FASTHTTP", "HTTP"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[
             FormSpec {

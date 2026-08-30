@@ -18,11 +18,12 @@
 
 //! `tcl::idna::encode` command (`cookiejar` package, bundled since Tcl 8.6).
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tcl::idna::encode",
         traits: Traits::PURE,
-        dialects: Some(DialectSet::TCL86_PLUS),
+        surface: Some(SpecSurface::TCL86_PLUS),
         arity: Arity::exact(1),
         hover: Some(HoverSnippet {
             summary: "Encode a hostname to IDNA (Internationalised Domain Names) format.",

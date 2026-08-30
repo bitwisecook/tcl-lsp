@@ -238,16 +238,18 @@ fn collect_rows(
     // call-site evidence the caller gathered (issue #977).  The analyser's
     // CFG/SSA tail would otherwise build its **own** unit — with no evidence —
     // and its I230 / I231 constant-branch findings would disagree with the
-    // compiler-checks pass below.  `LexerConfig::default()` matches what
-    // `emit_cfg_ssa_diagnostics` builds for itself, mirroring the server's
-    // `set_cu_override` seam in `tcl_lsp_db::file_analysis_incremental`.
+    // compiler-checks pass below.  The document's own environment grammar
+    // matches what `emit_cfg_ssa_diagnostics` builds for itself, mirroring the
+    // server's `set_cu_override` seam in `tcl_lsp_db::analyse_per_item_with`
+    // (redesign §11.4 row E1: it used to be `LexerConfig::default()` on all
+    // four hosts — agreeing, but wrong for every non-9.x dialect).
     let registry = registry_for_dialect(dialect.name);
     let analysis_cu = std::sync::Arc::new(CompilationUnit::build_with_options(
         source,
         UnitBuildOptions {
             registry: &registry,
             defer_top_level: false,
-            config: tcl_lexer::LexerConfig::default(),
+            config: tcl_lexer::LexerConfig::for_dialect(dialect.name),
             dialect: Some(dialect),
             external_call_sites,
         },
@@ -276,26 +278,11 @@ fn collect_rows(
     // Compiler-checks pass — the same `run_all_checks` set the server lifts via
     // `compiler_check_diagnostics`. Built once per document; `diag` is a batch
     // verb, not latency-sensitive.
-    // The checks pass lowers under the document's own dialect config (`{*}` /
-    // iRules braces), which coincides with the analyser tail's default for
-    // every dialect but `tcl8.4` / `f5-irules` — reuse the unit above when it
-    // does, exactly as the server's shared `compilation_unit` query does.
-    let checks_config = tcl_lexer::LexerConfig::for_dialect(dialect.name);
-    let checks_cu = if checks_config == tcl_lexer::LexerConfig::default() {
-        std::sync::Arc::clone(&analysis_cu)
-    } else {
-        std::sync::Arc::new(CompilationUnit::build_with_options(
-            source,
-            UnitBuildOptions {
-                registry: &registry,
-                defer_top_level: false,
-                config: checks_config,
-                dialect: Some(dialect),
-                external_call_sites,
-            },
-        ))
-    };
-    let cu = checks_cu.as_ref();
+    // The checks pass lowers under the document's own environment grammar,
+    // which is now what the analyser tail above built under too — so the unit
+    // is always reused, exactly as the server's shared `compilation_unit`
+    // query now shares for every environment (redesign §11.4 row E1).
+    let cu = analysis_cu.as_ref();
     let dialect_opt = Some(dialect);
     for d in run_all_checks(cu, &registry, dialect_opt) {
         if d.code.is_optimisation() || disabled.contains(d.code.as_str()) {

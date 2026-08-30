@@ -565,9 +565,7 @@ fn push_irules_flow_checks(
 ) {
     // Every iRules security/flow check receives the resolved availability
     // fact, so a legacy alias cannot be treated differently by a later pass.
-    let dialect = dialect.map_or(tcl_dialect::DialectSet::empty(), |profile| {
-        profile.availability_mask
-    });
+    let dialect = dialect.map(tcl_dialect::DialectProfile::surface_query);
     for w in find_unguarded_drop_warnings(cu, dialect) {
         out.push(Diagnostic::from_irules_check(&w));
     }
@@ -646,12 +644,12 @@ mod tests {
             "llength {a b}\nllength {a b}",
             &registry(),
             false,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         let diags = run_all_checks(
             &cu,
             &registry(),
-            Some(tcl_dialect::DialectProfile::by_name("tcl9.0")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()),
         );
         let o105: Vec<_> = diags
             .iter()

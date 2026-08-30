@@ -18,10 +18,11 @@
 
 //! `CRYPTO::verify` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "CRYPTO::verify",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Verifies a signed block of data.",
@@ -43,7 +44,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-alg",
                     value: OptionValue::value("ALG"),
                     detail: "Verification algorithm.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -52,7 +53,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-ctx",
                     value: OptionValue::value("CTX_VAR"),
                     detail: "Context variable for multi-step operations.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -61,7 +62,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-final",
                     value: OptionValue::flag(),
                     detail: "Finalize context-based operation.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -70,7 +71,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-key",
                     value: OptionValue::value("KEY"),
                     detail: "Binary key.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -79,7 +80,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-keyhex",
                     value: OptionValue::value("KEY_HEX"),
                     detail: "Hex-encoded key.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -88,7 +89,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-signature",
                     value: OptionValue::value("SIGNATURE"),
                     detail: "Signature to verify against.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,

@@ -15,7 +15,11 @@
 #
 # Full evidence and gap numbering: ../external/README.md
 
-speclib ticklecharts 3.2 {
+# The second word of `speclib` is the DSL **vocabulary** version, not the
+# library's; ticklecharts' own 3.2 sat here until SpecTcl 2.0 made an
+# unsupported major a load error (redesign 6.1) and the draft stopped
+# loading at all.
+speclib ticklecharts 1.2 {
 
 # ---------------------------------------------------------------------------
 # Shared, named closed-value tables.

@@ -62,7 +62,6 @@ use tcl_compiler::parsing::syntax::segment::segments_from_document;
 use tcl_compiler::signature_scan::types::ParamDef;
 use tcl_lexer::{LexerConfig, SourceMap};
 use tcl_registry::arg_role::ArgRole;
-use tcl_registry::cache::registry_for_dialect;
 use tcl_registry::registry::CommandRegistry;
 
 use crate::draft::{self, Draft};
@@ -70,9 +69,7 @@ use crate::draft::{self, Draft};
 /// How deep the body walk follows nested scripts.
 const MAX_DEPTH: usize = 16;
 
-// ---------------------------------------------------------------------------
 // What a body can be made to admit
-// ---------------------------------------------------------------------------
 
 /// One option the body dispatches on.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -229,7 +226,7 @@ fn option_row(option: &OptionShape) -> Value {
     json!({
         "name": option.name,
         "detail": option.evidence,
-        "dialects": Value::Null,
+        "surface": Value::Null,
         "aliases": [],
         "introduced_version": Value::Null,
         "deprecated_version": Value::Null,
@@ -240,9 +237,7 @@ fn option_row(option: &OptionShape) -> Value {
     })
 }
 
-// ---------------------------------------------------------------------------
 // Reading the body
-// ---------------------------------------------------------------------------
 
 /// One statement of the body, flattened to its word texts.
 struct Stmt {
@@ -371,9 +366,7 @@ fn consumes_a_value(script: &str) -> bool {
         .any(|needle| script.contains(needle))
 }
 
-// ---------------------------------------------------------------------------
 // The scan
-// ---------------------------------------------------------------------------
 
 /// Read `body` — the text between a proc's braces — for the shapes above.
 ///
@@ -382,7 +375,7 @@ fn consumes_a_value(script: &str) -> bool {
 /// script-argument declarations drive the walk.
 #[must_use]
 pub fn scan(body: &str, params: &[ParamDef], dialect: &str) -> Shape {
-    let registry = registry_for_dialect(dialect);
+    let registry = crate::environment::store_for_dialect(dialect);
     let mut stmts = Vec::new();
     statements(registry, body, 0, &mut stmts);
 

@@ -18,6 +18,7 @@
 
 //! `bell` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
     writes: true,
@@ -29,7 +30,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-displayof",
         value: OptionValue::value("window"),
         detail: "Specifies the display on which to ring the bell.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -38,7 +39,7 @@ const OPTIONS: &[OptionSpec] = &[
         name: "-nice",
         value: OptionValue::flag(),
         detail: "Do not reset the screen saver when ringing the bell.",
-        dialects: None,
+        surface: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
@@ -53,7 +54,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "bell",
-        dialects: Some(DialectSet::TK_AND_TCL),
+        surface: Some(SpecSurface::TK_AND_TCL),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Ring the display's bell.",

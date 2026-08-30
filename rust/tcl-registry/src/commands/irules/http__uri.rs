@@ -19,6 +19,7 @@
 //! `HTTP::uri` iRules command.
 use crate::prelude::*;
 use crate::taint::SetterConstraint;
+use tcl_dialect::model::SpecSurface;
 
 /// The setter form of `HTTP::uri` requires its value to start
 /// with `/` (IRULE3101). Registry-driven replacement for the hardcoded
@@ -37,14 +38,14 @@ pub const fn spec() -> CommandSpec {
             .union(Traits::CSE_CANDIDATE)
             .union(Traits::DIAGRAM_ACTION)
             .union(Traits::UNNORMALISED_HTTP_GETTER),
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::new(0, 1),
         options: const {
             &[OptionSpec {
                 name: "-normalized",
                 value: OptionValue::flag(),
                 detail: "Return the canonicalised URI (URL evasion patterns rejected).",
-                dialects: None,
+                surface: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,
@@ -59,15 +60,32 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns the URI part of the HTTP request.",
         }),
         setter_constraints: SETTER_CONSTRAINTS,
+        // Measured on the appliance: the rule compiler refuses
+        // `HTTP::uri` in `HTTP_RESPONSE` with `command is not valid in
+        // current event context (HTTP_RESPONSE)`, even though the event
+        // carries an HTTP profile — the request URI is simply not
+        // addressable once the response is in hand
+        // (`docs/design/bigip-irule-parser-measurements.md` §8, which
+        // names this cell as *"exactly the mistakes an editor should
+        // catch"*).
+        excluded_events: &["HTTP_RESPONSE"],
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,
             transport: Some("tcp"),
             profiles: &["FASTHTTP", "HTTP"],
-            also_in: &["MR_EGRESS", "MR_FAILED", "MR_INGRESS", "SERVER_CONNECTED"],
-            init_only: false,
+            // `LB_SELECTED` implies no HTTP profile, yet the rule
+            // compiler accepts `HTTP::uri` there (§8) — an unconditional
+            // event, like the `MR_*` and `SERVER_CONNECTED` rows beside
+            // it.
+            also_in: &[
+                "LB_SELECTED",
+                "MR_EGRESS",
+                "MR_FAILED",
+                "MR_INGRESS",
+                "SERVER_CONNECTED",
+            ],
             flow: false,
-            capability: None,
         }),
         forms: &[
             FormSpec {

@@ -18,11 +18,12 @@
 
 //! `HTTP::collect` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "HTTP::collect",
         traits: Traits::DIAGRAM_ACTION,
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         data_collection: Some(HTTP_COLLECT),
         hover: Some(HoverSnippet {
@@ -38,16 +39,18 @@ pub const fn spec() -> CommandSpec {
             server_side: false,
             transport: Some("tcp"),
             profiles: &["FASTHTTP", "HTTP"],
+            // `LB_SELECTED` implies no HTTP profile, yet the rule
+            // compiler accepts `HTTP::collect` there
+            // (`docs/design/bigip-irule-parser-measurements.md` §8).
             also_in: &[
                 "AUTH_ERROR",
                 "AUTH_FAILURE",
                 "AUTH_RESULT",
                 "AUTH_SUCCESS",
                 "AUTH_WANTCREDENTIAL",
+                "LB_SELECTED",
             ],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "HTTP::collect (CONTENT_LENGTH)?",

@@ -2822,7 +2822,7 @@ mod tests {
             "configured iRules words: {:?}",
             cmd.texts
         );
-        let registry = tcl_registry::cache::registry_for_dialect("f5-irules");
+        let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let mut reads = Vec::new();
         collect_script_command_reads(source, &cmd, registry, config, &mut reads);
         assert!(reads.iter().any(|r| r.name == "x"));

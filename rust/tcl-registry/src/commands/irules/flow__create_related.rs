@@ -18,10 +18,11 @@
 
 //! `FLOW::create_related` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "FLOW::create_related",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Creates a related client side and server side flow.",
@@ -39,9 +40,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &[],
             also_in: &["CLIENT_DATA", "SERVER_CONNECTED", "SERVER_DATA"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "FLOW::create_related (((-translation-loose) (-hairpin))#)? (FLOW_CREATE_RELATED_SUBCMDS)+",
@@ -53,7 +52,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-translation-loose",
                     value: OptionValue::flag(),
                     detail: "Option -translation-loose.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,
@@ -62,7 +61,7 @@ pub const fn spec() -> CommandSpec {
                     name: "-hairpin",
                     value: OptionValue::flag(),
                     detail: "Option -hairpin.",
-                    dialects: None,
+                    surface: None,
                     aliases: &[],
                     lifecycle: Lifecycle::UNSPECIFIED,
                     min_abbrev: None,

@@ -18,10 +18,11 @@
 
 //! `msgcat::mcset` command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "msgcat::mcset",
-        dialects: Some(DialectSet::ALL_TCL),
+        surface: Some(SpecSurface::ALL_TCL),
         arity: Arity::new(2, 3),
         hover: Some(HoverSnippet {
             summary: "Set the translation for a string in a given locale.",

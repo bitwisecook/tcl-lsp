@@ -18,10 +18,11 @@
 
 //! `UDP::payload` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "UDP::payload",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         data_collection: Some(UDP_PAYLOAD),
         hover: Some(HoverSnippet {
@@ -47,9 +48,7 @@ pub const fn spec() -> CommandSpec {
                 "SIP_RESPONSE",
                 "STREAM_MATCHED",
             ],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "UDP::payload (LENGTH | (OFFSET LENGTH))?",

@@ -33,7 +33,6 @@ use std::time::Instant;
 use tcl_compiler::analyser::Analyser;
 use tcl_compiler::analyser::types::{AnalysisResult, Diagnostic};
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-use tcl_dialect::DialectProfile;
 use tcl_lexer::LexerConfig;
 
 fn gather_tcl(dir: &Path, out: &mut Vec<PathBuf>, cap: usize) {
@@ -289,8 +288,10 @@ fn e6_e7_lattice_costs(root: &Path, dialect: &str) {
         return;
     };
     let mut reg = tcl_registry::CommandRegistry::build_default();
-    if let Some(d) = tcl_dialect::DialectSet::parse(dialect) {
-        reg.load_dialect(d);
+    if let Some(profile) = tcl_dialect::DialectProfile::find(dialect) {
+        for &layer in profile.base_layers {
+            reg.load_surface(layer);
+        }
     }
     let n = 3;
     let time = |f: &dyn Fn()| {
@@ -302,7 +303,7 @@ fn e6_e7_lattice_costs(root: &Path, dialect: &str) {
         s.elapsed().as_secs_f64() * 1000.0 / f64::from(n)
     };
     let cfg = LexerConfig::for_dialect(dialect);
-    let profile = DialectProfile::by_name(dialect);
+    let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
     let t_cu = time(&|| {
         let _ = CompilationUnit::build_for_with_config(&src, &reg, false, cfg);
     });

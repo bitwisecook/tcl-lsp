@@ -31,6 +31,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::io::{self, Write};
 use std::rc::{Rc, Weak};
 use std::sync::atomic::{AtomicU64, Ordering};
+use tcl_dialect::model::SurfaceQuery;
 
 use tcl_bytecode::{FunctionAsm, ModuleAsm};
 use tcl_core_types::RecursionLimit;
@@ -508,7 +509,7 @@ pub struct InterpState {
     runtime_version: tcl_dialect::TclVersion,
     /// The dialect profile this VM validates its builtin command surface
     /// against (issue #1463): [`Self::builtin_command_visible_for_surface`]
-    /// consults this profile's availability mask, so a command the emulated
+    /// consults this profile's availability point, so a command the emulated
     /// release does not have (`lassign` at 8.4, `lpop` before 9.0) resolves
     /// like C Tcl — to `invalid command name`. Defaults to the permissive
     /// fallback profile, which hides nothing; `set_runtime_version` pins the
@@ -519,11 +520,22 @@ pub struct InterpState {
     /// may expose a broader Tcl host surface while retaining a vendor grammar
     /// and bytecode identity (for example, the iRules simulation harness).
     command_surface_profile: &'static tcl_dialect::DialectProfile,
-    /// The availability registry for [`Self::command_surface_profile`], resolved once
-    /// at pin time (`registry_for_profile` guards its cache with a lock, and
-    /// this is consulted on every command resolution). `None` for the
-    /// permissive fallback profile, which gates nothing.
+    /// The availability registry for [`Self::command_surface_profile`] —
+    /// its environment's registry generation, resolved once at pin time
+    /// through the ingress seam ([`crate::environment::store_for_profile`];
+    /// the generation cache guards itself with a lock, and this is
+    /// consulted on every command resolution). `None` for the permissive
+    /// fallback profile, which gates nothing.
     profile_registry: Option<&'static tcl_registry::CommandRegistry>,
+    /// The availability point [`Self::command_surface_profile`]'s environment
+    /// answers the builtin-surface gate under — its **document authoring
+    /// mask** ([`crate::environment::surface_point`]), resolved at pin time
+    /// for the same reason [`Self::profile_registry`] is: the generation
+    /// lookup takes a lock and this is read on every command resolution, where
+    /// the retired `profile.surface_query()` was a field read. Equal to that
+    /// mask for every profile an ingress can produce, pinned by the seam's own
+    /// sweep.
+    command_surface_point: Option<SurfaceQuery<'static>>,
     /// Monotonic invalidation generation for bytecode that depends on the
     /// selected profile's grammar or command surface. It is deliberately
     /// independent of `cmd_epoch`: command resolution can be recomputed from
@@ -690,6 +702,13 @@ pub struct InterpState {
     /// seam a step debugger drives). `None` in normal runs — the only
     /// per-instruction cost is an `Option` check.
     debug_hook: Option<crate::debug::DebugHook>,
+    /// Optional shared cell tracking the source line of the instruction being
+    /// dispatched — the lightweight sibling of the debug hook, for an embedder
+    /// that needs "what line is the interpreter on" (the `SpecTcl`
+    /// pack-evaluation loader attributes captured registrations with it)
+    /// without paying for a per-command [`crate::debug::DebugSnapshot`].
+    /// `None` in normal runs — one `Option` check per instruction.
+    line_watch: Option<std::rc::Rc<std::cell::Cell<u32>>>,
     /// The `(line, span-start)` key of the last command the debug hook fired
     /// for, so it fires once per source command rather than per instruction
     /// (`startCommand` is emitted only conditionally, so it cannot be the
@@ -1038,15 +1057,19 @@ impl Vm {
     pub fn set_runtime_version(&mut self, version: tcl_dialect::TclVersion) {
         // A bare release pin is the matching plain-Tcl profile: the emulated
         // release is one fact carrying both the runtime semantics and the
-        // command-surface availability mask (issue #1463).
-        self.set_dialect_profile(tcl_dialect::DialectProfile::by_name(version.dialect_name()));
+        // command-surface availability point (issue #1463). The release name
+        // is a dialect *name*, so it resolves through the one ingress seam
+        // (`crate::environment`) rather than through `by_name`.
+        self.set_dialect_profile(crate::environment::profile_for_dialect(
+            version.dialect_name(),
+        ));
     }
 
     /// Pin the dialect profile this VM emulates — the profile form of
     /// [`Self::set_runtime_version`], for hosts whose dialect is a vendor
     /// profile rather than a plain Tcl release. The runtime version follows
     /// the profile's pinned `vm_runtime_version`, and the profile's
-    /// availability mask becomes the builtin command-surface filter
+    /// availability point becomes the builtin command-surface filter
     /// ([`Self::builtin_command_visible_for_surface`]).
     pub fn set_dialect_profile(&mut self, profile: &'static tcl_dialect::DialectProfile) {
         // The 8.4 `namespace path` tier gate (M10.1) and the availability
@@ -1066,8 +1089,9 @@ impl Vm {
         }
         self.dialect_profile = profile;
         self.command_surface_profile = profile;
+        self.command_surface_point = Some(crate::environment::surface_point(profile));
         self.profile_registry =
-            (!profile.is_fallback()).then(|| tcl_registry::registry_for_profile(profile));
+            (!profile.is_fallback()).then(|| crate::environment::store_for_profile(profile));
         self.runtime_version = profile.vm_runtime_version;
         // Install the release's numeric grammar for this runtime: `0755` is 493
         // under 8.6 and 755 under 9.0, `0b`/`0o` exist from 8.5 and `0d` / `_`
@@ -1078,6 +1102,14 @@ impl Vm {
         // mid-execution.
         tcl_syntax::number::set_runtime_syntax(self.runtime_version.number_syntax());
         self.write_release_globals();
+        // `package provide Tcl` is a release fact, not an engine constant, and
+        // the pre-provided entries were written against the *previous* pin —
+        // re-derive them (ledger row B4). Guarded because the very first
+        // profile pin happens inside `register_builtins`, before the `package`
+        // command itself is registered; that call site provides them directly.
+        if self.commands.contains_key("package") {
+            crate::cmd_package::provide_core_packages(self);
+        }
     }
 
     /// Override only the builtin command-availability surface.
@@ -1114,8 +1146,9 @@ impl Vm {
         self.eval_cache_traced.clear();
         self.module_procs.clear();
         self.command_surface_profile = profile;
+        self.command_surface_point = Some(crate::environment::surface_point(profile));
         self.profile_registry =
-            (!profile.is_fallback()).then(|| tcl_registry::registry_for_profile(profile));
+            (!profile.is_fallback()).then(|| crate::environment::store_for_profile(profile));
         true
     }
 
@@ -1136,16 +1169,21 @@ impl Vm {
         if surface.is_fallback() {
             return true;
         }
-        let compiled_registry = tcl_registry::registry_for_profile(dialect);
-        let surface_registry = tcl_registry::registry_for_profile(surface);
+        // Both halves are per-environment generations now (ledger row B1): the
+        // store is the generation's, and the mask each side is checked under
+        // is its environment's document authoring mask, which the ingress seam
+        // pins equal to the profile point this read used.
+        let compiled_registry = crate::environment::store_for_profile(dialect);
+        let surface_registry = crate::environment::store_for_profile(surface);
+        let compiled_mask = Some(crate::environment::surface_point(dialect));
+        let surface_point = Some(crate::environment::surface_point(surface));
         compiled_registry.command_names().all(|name| {
-            let Some(spec) = compiled_registry.get_for_dialect(name, dialect.availability_mask)
-            else {
+            let Some(spec) = compiled_registry.get_for_surface(name, compiled_mask) else {
                 return true;
             };
             !spec.traits.contains(tcl_registry::Traits::BYTE_COMPILED)
                 || surface_registry
-                    .get_for_dialect(name, surface.availability_mask)
+                    .get_for_surface(name, surface_point)
                     .is_some()
         })
     }
@@ -1288,7 +1326,7 @@ impl InterpState {
         };
         registry.get(name).is_none()
             || registry
-                .get_for_dialect(name, self.command_surface_profile.availability_mask)
+                .get_for_surface(name, self.command_surface_point)
                 .is_some()
     }
 
@@ -1303,10 +1341,16 @@ impl InterpState {
         // advanced must not authorise a speculative path.
         guards.poison(GuardDomain::Interpreter);
         guards.poison(GuardDomain::ObjectDispatch);
+        // The "no dialect pinned" ingress: the lenient environment, whose
+        // unit profile is the permissive fallback that hides nothing. A
+        // pin (`set_runtime_version` / `set_dialect_profile`) replaces all
+        // three fields together.
+        let unpinned = crate::environment::profile_for_dialect("");
         Self {
             runtime_version: tcl_dialect::TclVersion::V9_0,
-            dialect_profile: tcl_dialect::DialectProfile::plain_tcl(),
-            command_surface_profile: tcl_dialect::DialectProfile::plain_tcl(),
+            dialect_profile: unpinned,
+            command_surface_profile: unpinned,
+            command_surface_point: Some(crate::environment::surface_point(unpinned)),
             profile_registry: None,
             profile_generation: 0,
             frames: vec![CallFrame::new(0, ROOT_NS, None, Vec::new())],
@@ -1343,6 +1387,7 @@ impl InterpState {
             out,
             compiler: None,
             debug_hook: None,
+            line_watch: None,
             last_debug_key: None,
             pending_exit: None,
             eval_cache: HashMap::new(),
@@ -1779,6 +1824,23 @@ impl Vm {
     pub fn set_debug_hook(&mut self, hook: Option<crate::debug::DebugHook>) {
         self.debug_hook = hook;
         self.last_debug_key = None;
+    }
+
+    /// Install a shared cell the VM keeps set to the source line of the
+    /// instruction being dispatched — the cheap sibling of
+    /// [`Self::set_debug_hook`] for an embedder that only needs line
+    /// attribution (a registered command reads the cell to learn which line
+    /// invoked it). Pass `None` to detach.
+    pub fn set_line_watch(&mut self, watch: Option<std::rc::Rc<std::cell::Cell<u32>>>) {
+        self.line_watch = watch;
+    }
+
+    /// Publish `line` to the line watch, when one is installed.
+    #[inline]
+    pub(crate) fn note_line(&self, line: u32) {
+        if let Some(watch) = &self.line_watch {
+            watch.set(line);
+        }
     }
 
     /// Record a pending `exit` with the given process code. The VM library does
@@ -2462,6 +2524,11 @@ impl Vm {
         child.runtime_version = self.runtime_version;
         child.dialect_profile = self.dialect_profile;
         child.command_surface_profile = self.command_surface_profile;
+        // The pin's three derived facts travel together: the surface
+        // profile, the mask its environment gates under, and the
+        // generation's store. A child that inherited two of the three would
+        // gate the parent's registry under the unpinned permissive mask.
+        child.command_surface_point = self.command_surface_point;
         child.profile_registry = self.profile_registry;
         Box::new(child)
     }
@@ -3093,29 +3160,19 @@ impl Vm {
     /// Hidden commands move to `hidden_commands`, invocable via
     /// `interp invokehidden` and restorable with `interp expose`.
     fn make_safe(&mut self) {
-        // Pinned against real tclsh 8.6.14 (`interp create -safe s; s hidden`):
-        // `after` / `vwait` are deliberately NOT on this list — confirmed
-        // present and callable inside a real safe child (`s eval {info
-        // commands after}` returns `after`). An earlier version of this list
-        // incorrectly hid them, which would have broken legitimate
-        // safe-interp code using `after idle`/`after cancel`.
-        const UNSAFE: &[&str] = &[
-            "exec",
-            "exit",
-            "cd",
-            "pwd",
-            "glob",
-            "open",
-            "socket",
-            "source",
-            "load",
-            "file",
-            "fconfigure",
-            "encoding",
-        ];
         // The host-revealing `tcl_platform` elements (C's `Tcl_MakeSafe` unsets
-        // os/osVersion/machine/user) plus our backend-introspection keys, so a
-        // safe interp exposes only the portable subset.
+        // os/osVersion/machine/user — measured: a safe child on tclsh 8.6.14
+        // and 9.0.4 keeps only byteOrder/engine/pathSeparator/platform/
+        // pointerSize/wordSize, plus 8.6's `threaded`) and our own
+        // backend-introspection keys, so a safe interp exposes only the
+        // portable subset.
+        //
+        // TODO(ledger B2-platform): this stays a name list because
+        // `tcl_registry::special_vars` models `tcl_platform`'s keys with a
+        // dialect set and a summary but no "scrubbed when the interpreter is
+        // made safe" flag — driving it from there needs a new
+        // `SpecialVarKey` field, which is a table change, not a query. The
+        // command half of row B2 is discharged below.
         const UNSAFE_PLATFORM: &[&str] = &[
             "os",
             "osVersion",
@@ -3130,7 +3187,32 @@ impl Vm {
             "ebpf",
         ];
         self.bump_cmd_epoch();
-        for &c in UNSAFE {
+        // The hide list is the registry's `Traits::SAFE_INTERP_HIDDEN` query,
+        // not a name list this engine keeps (ledger row B2): C's own set is
+        // the `CmdInfo` rows lacking `CMD_IS_SAFE` plus the whole-command rows
+        // of `unsafeEnsembleCommands`, and that is what the trait records.
+        //
+        // Narrowed per release by what this interpreter actually carries: a
+        // command that is not in the table, or that the pinned surface hides,
+        // is not there to be hidden — which is how `unload` (8.5+) and `zipfs`
+        // (9.0+) stay out of an older pin's hidden set without a second
+        // availability rule. Gating on visibility matters as well as on
+        // presence: parking an unavailable builtin in `hidden_commands` would
+        // let `interp invokehidden` reach it past the surface check.
+        //
+        // `after` / `vwait` are correctly absent from the trait — confirmed
+        // present and callable inside a real safe child on tclsh 8.6.14
+        // (`s eval {info commands after}` returns `after`); an earlier
+        // hand-typed list here once hid them, breaking legitimate safe-interp
+        // code using `after idle` / `after cancel`.
+        for &c in tcl_registry::safe_interp_hidden_commands() {
+            if !self
+                .commands
+                .get(c)
+                .is_some_and(|command| self.builtin_command_visible_for_surface(c, command))
+            {
+                continue;
+            }
             let import_origin = self.imported_commands.get(c).cloned();
             let builtin_identity = self.builtin_identity_for_key(c);
             if let Some(cmd) = self.commands.remove(c) {
@@ -4346,6 +4428,12 @@ impl Vm {
     /// Record a provided package version.
     pub(crate) fn provide_package(&mut self, name: &str, version: &str) {
         self.packages.insert(name.to_string(), version.to_string());
+    }
+
+    /// Withdraw a package's provided version (`package forget`, and the
+    /// release re-pin that replaces the core's own pre-provided entries).
+    pub(crate) fn forget_package(&mut self, name: &str) {
+        self.packages.remove(name);
     }
 
     /// The provided version of a package, if any.
@@ -6733,7 +6821,8 @@ mod family_b_tests {
             src: &str,
             profile: &'static DialectProfile,
         ) -> Result<Self::Module, CompileError> {
-            let registry = tcl_registry::registry_for_profile(profile);
+            let registry =
+                tcl_registry::model::ingress::static_context_for_profile(profile).commands();
             let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
             let ir = lower_to_ir(src, registry, config, Some(profile));
             let cfg = build_cfg_codegen(&ir, false);
@@ -6747,9 +6836,13 @@ mod family_b_tests {
         let child_name = vm.create_child(Some("child".to_string()), false);
         let child = vm.child_id(&child_name).unwrap();
         vm.in_interp(child, |child_vm| {
-            child_vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+            child_vm.set_dialect_profile(
+                tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
+            );
             child_vm.hide_command("lassign", "held").unwrap();
-            child_vm.set_dialect_profile(DialectProfile::by_name("tcl8.4"));
+            child_vm.set_dialect_profile(
+                tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
+            );
         });
         let named = vm.invoke_hidden_in_child("child", "held", &[]).unwrap();
         assert_eq!(named.code, Code::Error);
@@ -6767,9 +6860,13 @@ mod family_b_tests {
     #[test]
     fn root_invokehidden_rechecks_identity_and_restores_hidden_state_after_error() {
         let mut vm = Vm::new();
-        vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+        vm.set_dialect_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
+        );
         vm.hide_command("lassign", "held").unwrap();
-        vm.set_dialect_profile(DialectProfile::by_name("tcl8.4"));
+        vm.set_dialect_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
+        );
 
         let result = vm.invoke_hidden_in_child("", "held", &[]).unwrap();
         assert_eq!(result.code, Code::Error);
@@ -6787,16 +6884,22 @@ mod family_b_tests {
 
     fn prepare_stale_hidden_proc(vm: &mut Vm) {
         vm.set_compiler(Box::new(TestCompiler));
-        vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+        vm.set_dialect_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
+        );
         assert_eq!(eval_value(vm, "proc p {} { return hidden }"), "");
         vm.hide_command("p", "held").unwrap();
         assert_eq!(eval_value(vm, "proc p {} { return replacement }"), "");
-        vm.set_dialect_profile(DialectProfile::by_name("tcl8.6"));
+        vm.set_dialect_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
     }
 
     fn prepare_trace_deleted_hidden_proc(vm: &mut Vm) {
         vm.set_compiler(Box::new(TestCompiler));
-        vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+        vm.set_dialect_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
+        );
         assert_eq!(eval_value(vm, "proc p {} { return hidden }"), "");
         assert_eq!(
             eval_value(
@@ -6808,7 +6911,9 @@ mod family_b_tests {
         assert_eq!(eval_value(vm, "trace add execution p enter replace"), "");
         vm.hide_command("p", "held").unwrap();
         assert_eq!(eval_value(vm, "proc p {} { return initial }"), "");
-        vm.set_dialect_profile(DialectProfile::by_name("tcl8.6"));
+        vm.set_dialect_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
     }
 
     #[test]
@@ -6838,7 +6943,9 @@ mod family_b_tests {
         );
 
         vm.in_interp(child, |child| {
-            child.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+            child.set_dialect_profile(
+                tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
+            );
         });
         let by_id = vm.invoke_hidden_by_id(child, "held", &[]).unwrap();
         assert_eq!(by_id.code, Code::Ok);
@@ -6899,7 +7006,9 @@ mod family_b_tests {
     fn relocated_hidden_refresh_persists_at_the_live_visible_key() {
         let mut vm = Vm::new();
         vm.set_compiler(Box::new(TestCompiler));
-        vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+        vm.set_dialect_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
+        );
         assert_eq!(eval_value(&mut vm, "proc p {} { return hidden }"), "");
         assert_eq!(
             eval_value(
@@ -6914,7 +7023,9 @@ mod family_b_tests {
         );
         vm.hide_command("p", "held").unwrap();
         assert_eq!(eval_value(&mut vm, "proc p {} { return replacement }"), "");
-        vm.set_dialect_profile(DialectProfile::by_name("tcl8.6"));
+        vm.set_dialect_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
 
         let result = vm.invoke_hidden_in_child("", "held", &[]).unwrap();
         assert_eq!(result.code, Code::Ok);
@@ -6927,7 +7038,9 @@ mod family_b_tests {
     fn imported_proc_profile_refresh_updates_the_resolved_import_not_its_source_name() {
         let mut vm = Vm::new();
         vm.set_compiler(Box::new(TestCompiler));
-        vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+        vm.set_dialect_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
+        );
         assert_eq!(
             eval_value(
                 &mut vm,
@@ -6938,7 +7051,9 @@ mod family_b_tests {
             ""
         );
 
-        vm.set_dialect_profile(DialectProfile::by_name("tcl8.6"));
+        vm.set_dialect_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         assert_eq!(eval_value(&mut vm, "::dst::p"), "original");
         assert_eq!(eval_value(&mut vm, "::src::p"), "replacement");
         assert_eq!(eval_value(&mut vm, "::src::q"), "original");
@@ -6972,12 +7087,16 @@ mod family_b_tests {
         let child_name = vm.create_child(Some("child".to_string()), false);
         let child = vm.child_id(&child_name).unwrap();
         vm.in_interp(child, |child_vm| {
-            child_vm.set_dialect_profile(DialectProfile::by_name("tcl9.0"));
+            child_vm.set_dialect_profile(
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+            );
             child_vm.register_native_command("tcl::mathfunc::isfinite", Rc::new(TestNative));
             child_vm
                 .hide_command("tcl::mathfunc::isfinite", "held")
                 .unwrap();
-            child_vm.set_dialect_profile(DialectProfile::by_name("tcl8.6"));
+            child_vm.set_dialect_profile(
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            );
         });
 
         assert_eq!(

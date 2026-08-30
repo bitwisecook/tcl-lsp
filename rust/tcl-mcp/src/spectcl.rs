@@ -16,19 +16,26 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `spectcl_check` — the structured parse report for a `.tclspec` spec pack.
+//! `spectcl_check` and `spectcl_expand` — the AI author's two views of a
+//! `.tclspec` spec pack (design E §15.3, E-R13).
 //!
-//! The CLI-side `tcl spec check` of `docs/design/spec-packs.md`, exposed to an
-//! agent instead of a terminal: a pack's source text in, a machine-readable
-//! account of what the loader made of it out. It is what the `spec-author`
-//! skill calls to validate a pack it has just written.
+//! The CLI-side `tcl spec check` / `tcl spec export` of
+//! `docs/design/spec-packs.md`, exposed to an agent instead of a terminal: a
+//! pack's source text in, a machine-readable account of what the loader made
+//! of it out, and — for a pack written as a *program* — its expansion back
+//! out as canonical source. They are what the `spec-author` skill calls to
+//! validate a pack it has just written, and to read what its own loop
+//! actually registered.
 //!
-//! **There is exactly one parser.** Every fact below comes from
-//! [`tcl_spectcl::load_pack`] — the same loader the LSP, the studio, and the
-//! equivalence gate use — and from the [`Draft`] the studio seeds from its
-//! result through the ordinary [`draft::from_command_spec`], so a field this
-//! report calls "set" is set in exactly the sense the Spec Studio's form
-//! means. This module reads that result and renders it;
+//! **There is exactly one loader** — and since the `one-loader` lane that is
+//! true of the tree, not just of this module. Every fact below comes from
+//! [`tcl_spectcl::evaluate_pack`], which is now the only door from `.tclspec`
+//! text to a `Pack`: the LSP's discovery and reload path reaches the same
+//! function through `tcl_spectcl::evaluate_pack_cached` (the cache, not a
+//! second reading), and so do the Spec Studio and the `tcl` CLI. Facts also
+//! come from the [`Draft`] the studio seeds from that result through the
+//! ordinary [`draft::from_command_spec`], so a field this report calls "set"
+//! is set in exactly the sense the Spec Studio's form means. This module reads that result and renders it;
 //! it never looks at the pack text itself, with the single, documented
 //! exception of the hook-body `ctx` scan under
 //! [`declaration_conflict`](fn@declaration_conflict), which inspects body text
@@ -64,12 +71,15 @@
 //!
 //! ## A note on cost
 //!
-//! [`load_pack`] installs a pack for the
+//! Loading a pack installs it for the
 //! process's life by leaking its strings and specs — a `CommandSpec` is a
 //! `&'static`-shaped record. Checking a pack therefore leaks it, by design of
 //! the loader rather than of this tool. That is fine for an MCP server driven
 //! by an authoring session (a few packs per session, kilobytes each) and is
-//! noted here so nobody wires this handler into a hot loop.
+//! noted here so nobody wires this handler into a hot loop. Evaluation adds
+//! a bounded interpreter run on top: the budgets are the only thing standing
+//! between a generated pack's loop and this process, and they are what make
+//! running one safe.
 
 use std::collections::BTreeSet;
 
@@ -78,7 +88,7 @@ use tcl_registry::CommandRegistry;
 use tcl_registry::pack_hooks::HookInputs;
 use tcl_registry::spec::CommandSpec;
 use tcl_spec_studio::draft::{self, Draft, UNRENDERABLE_KEY};
-use tcl_spectcl::{HookDecl, HookFamily, HookOwner, HookSource, PackCommand, load_pack};
+use tcl_spectcl::{HookDecl, HookFamily, HookOwner, HookSource, PackCommand, Tier, evaluate_pack};
 
 /// Every key the hook calling convention puts in `ctx`, exactly as
 /// `tcl_spec_hooks`'s `ctx_value` builds it. A `dict get $ctx` on anything
@@ -112,12 +122,26 @@ fn ctx_key_in_shape(key: &str) -> bool {
 }
 
 /// The MCP `spectcl_check` handler.
+///
+/// The pack is **evaluated** (design E §1), not walked: a program written by
+/// a model runs in the deterministic sandbox — no clock, no IO, no network,
+/// hard budgets, transactional registration — so checking an untrusted
+/// generated pack is safe by construction, and a runaway `foreach` comes
+/// back as a budget notice rather than a hung tool.
+///
+/// A straight-line declarative pack reports exactly what it always did: the
+/// golden gate (`tcl-spectcl/tests/golden_packs.rs`) holds every shipped pack
+/// to its checked-in snapshot and notices. What evaluation adds is what only
+/// evaluation can see — [`load_error`](tcl_spectcl::LoadError) for the four transactional
+/// failures (a determinism denial naming its axis, a blown budget naming its
+/// axis, a Tcl error, a provenance refusal), the target-dependence flag, and
+/// the workspace-tier provenance verdict below.
 pub fn spectcl_check(args: &Value) -> Value {
     let source = args.get("source").and_then(Value::as_str).unwrap_or("");
     let dialect = crate::tools::declared_dialect(args);
     let registry = tcl_spectcl::bundled::registry_for_dialect(&dialect);
 
-    let pack = load_pack(source);
+    let pack = evaluate_pack(source);
 
     let defaults = draft::default_command_draft();
     let sub_defaults = draft::default_subcommand_draft();
@@ -127,11 +151,34 @@ pub fn spectcl_check(args: &Value) -> Value {
         .iter()
         .map(|c| command_json(c, &defaults, &sub_defaults))
         .collect();
-    let notices: Vec<Value> = pack
+    let mut notices: Vec<Value> = pack
         .notices
         .iter()
-        .map(|n| json!({ "line": n.line, "context": n.context, "reason": n.message }))
+        .map(|n| {
+            json!({
+                "line": n.line,
+                "context": n.context,
+                "class": n.class.name(),
+                "reason": n.message,
+            })
+        })
         .collect();
+    // The provenance verdict the *author's* tier does not raise. Checking
+    // evaluates a pack as trusted, because the file is the author's own; a
+    // pack lands in a workspace or a Spec Studio override, where E-R2 refuses
+    // a `-override` on a compiled name, a `dialect` block, or a reserved
+    // `environment` name outright. Reporting it here is the difference
+    // between finding that out now and finding it out when the pack silently
+    // fails to load in an editor.
+    let provenance = tcl_spectcl::provenance_violation(&pack, Tier::Workspace);
+    if let Some((line, message)) = &provenance {
+        notices.push(json!({
+            "line": line,
+            "context": "pack",
+            "class": "provenance",
+            "reason": message,
+        }));
+    }
     let collisions: Vec<Value> = pack
         .commands
         .iter()
@@ -155,6 +202,7 @@ pub fn spectcl_check(args: &Value) -> Value {
         .iter()
         .filter(|c| c["effect"] == "shipped-spec-wins")
         .count();
+    let notice_count = notices.len();
 
     json!({
         "pack": pack.name,
@@ -163,15 +211,72 @@ pub fn spectcl_check(args: &Value) -> Value {
         "commands": commands,
         "notices": notices,
         "collisions": collisions,
+        "load_error": pack.load_error.as_ref().map(ToString::to_string),
+        "target_dependent": pack.target_dependent,
+        "untrusted_tier_refusal": provenance.as_ref().map(|(_, message)| message.clone()),
         "summary": {
             "commands": pack.commands.len(),
-            "notices": pack.notices.len(),
+            "notices": notice_count,
             "hooks": hook_count,
             "uncacheable_hooks": uncacheable,
             "declaration_conflicts": conflicts,
             "collisions": collisions.len(),
             "shadowed_commands": shadowed,
         },
+    })
+}
+
+// ── Expand ────────────────────────────────────────────────────────────
+
+/// The MCP `spectcl_expand` handler — a pack's snapshot as canonical source.
+///
+/// The affordance that makes a *programmed* pack reviewable. A model that
+/// writes a pack as a loop cannot see what the loop registered without
+/// simulating it in its head, which is exactly the opacity design E's frozen
+/// snapshot exists to prevent (§1.1). This evaluates the pack and writes the
+/// registrations back as straight-line declarations, so the author reads the
+/// expansion as a diff against intent and iterates.
+///
+/// Expansion is total; contraction is never attempted — the program is not
+/// recovered from its expansion, and re-exporting a canonical pack is a
+/// no-op.
+pub fn spectcl_expand(args: &Value) -> Value {
+    let source = args.get("source").and_then(Value::as_str).unwrap_or("");
+    let pack = evaluate_pack(source);
+    let (canonical, losses) = tcl_spectcl::export_pack_reporting(&pack);
+    // The same formatter profile the studio's editors and `tcl spec export`
+    // use, so a pack reads the same however it was produced.
+    let canonical = tcl_spec_studio::format_pack(&canonical);
+
+    json!({
+        "pack": pack.name,
+        "dsl_version": pack.dsl_version,
+        "canonical_source": canonical,
+        "target_dependent": pack.target_dependent,
+        "load_error": pack.load_error.as_ref().map(ToString::to_string),
+        "commands": pack
+            .commands
+            .iter()
+            .map(|c| c.spec.name)
+            .collect::<Vec<_>>(),
+        "notices": pack
+            .notices
+            .iter()
+            .map(|n| json!({
+                "line": n.line,
+                "context": n.context,
+                "class": n.class.name(),
+                "reason": n.message,
+            }))
+            .collect::<Vec<_>>(),
+        "unwritable": losses
+            .iter()
+            .map(|loss| json!({
+                "word": loss.word,
+                "line": loss.line,
+                "text": loss.text,
+            }))
+            .collect::<Vec<_>>(),
     })
 }
 
@@ -257,6 +362,7 @@ fn family_key(family: HookFamily) -> &'static str {
         HookFamily::ContextGate => "context_gate",
         HookFamily::LiteralArgumentValidator => "literal_argument_validator",
         HookFamily::ClauseShapeCheck => "clause_shape_check",
+        HookFamily::Constraints => "constraints",
         HookFamily::OptionArity => "-arity-hook",
     }
 }
@@ -522,12 +628,27 @@ fn dict_get_key(body: &str, at: usize, after: usize) -> Option<String> {
 
 // ── Registry collisions ───────────────────────────────────────────────
 
-/// Resolve a name the way this registry's own dialect rules resolve it.
-fn shipped<'r>(registry: &'r CommandRegistry, name: &str) -> Option<&'r CommandSpec> {
-    match registry.profile() {
-        Some(profile) => registry.get_for_dialect(name, profile.availability_mask),
-        None => registry.get(name),
-    }
+/// Resolve a name the way the **target dialect** resolves it.
+///
+/// The mask comes from the threaded dialect name through the one ingress
+/// seam ([`crate::environment::analyser_point_for_dialect`]) rather than
+/// being read back off the generation's profile *stamp*, so this no longer
+/// depends on the stamp surviving. Same answer: the store handed in here is
+/// the one built for that same name.
+///
+/// T6 (P2): the *payload* this ledger row retires is the bit test itself —
+/// a collision is properly `targets ⊆ applicable` over the declaration's
+/// version sets, not a mask intersection. That is a model change, not a
+/// port, and stays open.
+fn shipped<'r>(
+    registry: &'r CommandRegistry,
+    name: &str,
+    dialect: &str,
+) -> Option<&'r CommandSpec> {
+    registry.get_for_surface(
+        name,
+        Some(crate::environment::analyser_point_for_dialect(dialect)),
+    )
 }
 
 /// A warning when the target dialect's shipped registry already defines this
@@ -538,7 +659,7 @@ fn shipped<'r>(registry: &'r CommandRegistry, name: &str) -> Option<&'r CommandS
 /// `-override` means the pack's command never reaches a query — the failure
 /// worth catching before a user reports "my spec does nothing".
 fn collision_json(cmd: &PackCommand, registry: &CommandRegistry, dialect: &str) -> Option<Value> {
-    let shipped = shipped(registry, cmd.spec.name)?;
+    let shipped = shipped(registry, cmd.spec.name, dialect)?;
     let (effect, message) = if cmd.overrides_shipped {
         (
             "pack-spec-wins",
@@ -997,6 +1118,196 @@ speclib mylib 1.0 {
         // blocks the cache nor contradicts the declaration.
         assert_eq!(hook["shape_cacheable"], json!(true), "{hook}");
         assert_eq!(hook["declaration_conflict"], Value::Null, "{hook}");
+    }
+
+    // ── The evaluation-only classes (design E §15.3) ──────────────────
+
+    /// A pack that reaches for a clock fails closed, and the report names
+    /// the determinism axis rather than describing a half-loaded pack.
+    #[test]
+    fn a_determinism_denial_is_a_load_error_naming_its_axis() {
+        let result = check(
+            "speclib clocky 2.0 {\n    command fine { arity 1 }\n    \
+             set now [clock seconds]\n}\n",
+            "tcl9.0",
+        );
+        let error = result["load_error"].as_str().unwrap_or_default();
+        assert!(error.contains("determinism axis: clock/time"), "{result}");
+        // Registration is transactional: the command declared *before* the
+        // denial is not loaded either.
+        assert_eq!(result["summary"]["commands"], 0, "{result}");
+        let reasons: Vec<&str> = result["notices"]
+            .as_array()
+            .expect("notices")
+            .iter()
+            .filter_map(|n| n["reason"].as_str())
+            .collect();
+        assert!(
+            reasons.iter().any(|r| r.contains("transactional")),
+            "{reasons:?}"
+        );
+    }
+
+    /// A runaway loop is a notice, not a hung tool — which is the whole
+    /// reason an AI-generated program can be checked at all.
+    #[test]
+    fn a_runaway_loop_is_a_budget_notice_naming_its_axis() {
+        let result = check(
+            "speclib hungry 2.0 {\n    command fine { arity 1 }\n    \
+             set i 0\n    while {1} { incr i }\n}\n",
+            "tcl9.0",
+        );
+        let error = result["load_error"].as_str().unwrap_or_default();
+        assert!(
+            error.contains("budget")
+                && (error.contains("command steps") || error.contains("wall clock")),
+            "{result}"
+        );
+        assert_eq!(result["summary"]["commands"], 0, "{result}");
+    }
+
+    /// `available?` makes the answer depend on the analysis target, and the
+    /// report says so — the E-R1 trap, named where an author will see it.
+    #[test]
+    fn a_target_dependent_pack_is_flagged_with_its_notice() {
+        let result = check(
+            "speclib trap 2.0 {\n    default available {tcl 8.6-}\n    \
+             command base { arity 1 }\n    if {[available? {tcl 8.6-}]} {\n        \
+             command extra { arity 1 }\n    }\n}\n",
+            "tcl9.0",
+        );
+        assert_eq!(result["target_dependent"], json!(true), "{result}");
+        assert_eq!(result["summary"]["commands"], 2, "{result}");
+        let reasons: Vec<&str> = result["notices"]
+            .as_array()
+            .expect("notices")
+            .iter()
+            .filter_map(|n| n["reason"].as_str())
+            .collect();
+        assert!(
+            reasons
+                .iter()
+                .any(|r| r.contains("target-dependent registration")),
+            "{reasons:?}"
+        );
+    }
+
+    /// The provenance class: the pack loads for its author and would be
+    /// refused from a workspace, and the report says which and why.
+    #[test]
+    fn a_workspace_tier_refusal_is_reported_without_failing_the_check() {
+        let result = check(
+            "speclib sneaky 2.0 {\n    command lsort -override {\n        arity 1..\n    }\n}\n",
+            "tcl9.0",
+        );
+        // The check itself still reports the command and its collision.
+        assert_eq!(result["summary"]["commands"], 1, "{result}");
+        assert_eq!(result["load_error"], Value::Null, "{result}");
+        let refusal = result["untrusted_tier_refusal"]
+            .as_str()
+            .unwrap_or_default();
+        assert!(refusal.contains("design E-R2"), "{result}");
+        assert!(refusal.contains("workspace"), "{result}");
+        let classes: Vec<&str> = result["notices"]
+            .as_array()
+            .expect("notices")
+            .iter()
+            .filter_map(|n| n["class"].as_str())
+            .collect();
+        assert!(classes.contains(&"provenance"), "{result}");
+    }
+
+    /// A pack that touches nothing reserved carries no refusal.
+    #[test]
+    fn an_ordinary_pack_carries_no_tier_refusal() {
+        let result = check(VALID, "tcl9.0");
+        assert_eq!(result["untrusted_tier_refusal"], Value::Null, "{result}");
+        assert_eq!(result["target_dependent"], json!(false), "{result}");
+        assert_eq!(result["load_error"], Value::Null, "{result}");
+    }
+
+    // ── spectcl_expand ────────────────────────────────────────────────
+
+    fn expand(source: &str) -> Value {
+        dispatch("spectcl_expand", &json!({ "source": source })).expect("spectcl_expand tool")
+    }
+
+    const PROGRAM: &str = r"speclib fleet 2.0 {
+    proc fleet-command {name arity} {
+        command math::fleet::$name {
+            arity $arity
+            traits {PURE}
+            option -verbose -detail {Report each step as it runs.}
+        }
+    }
+    foreach {name arity} {alpha 2 beta 1 gamma 3} {
+        fleet-command $name $arity
+    }
+}
+";
+
+    /// The affordance: a loop in, one literal declaration per iteration out.
+    #[test]
+    fn expand_writes_a_programmed_packs_registrations_as_canonical_source() {
+        let result = expand(PROGRAM);
+        assert_eq!(result["pack"], "fleet", "{result}");
+        assert_eq!(
+            result["commands"],
+            json!([
+                "math::fleet::alpha",
+                "math::fleet::beta",
+                "math::fleet::gamma"
+            ]),
+            "{result}"
+        );
+        assert_eq!(result["target_dependent"], json!(false));
+        assert_eq!(result["load_error"], Value::Null);
+        let canonical = result["canonical_source"].as_str().expect("source");
+        assert!(
+            canonical.contains("command math::fleet::alpha {"),
+            "{canonical}"
+        );
+        assert!(canonical.contains("arity 3"), "{canonical}");
+        for word in ["proc ", "foreach ", "$name", "$arity"] {
+            assert!(!canonical.contains(word), "{canonical}");
+        }
+        // And the expansion is a pack the checker accepts, with the same
+        // commands — the loop the author is meant to close.
+        let checked = check(canonical, "tcl9.0");
+        assert_eq!(checked["summary"]["commands"], 3, "{checked}");
+        assert_eq!(checked["notices"], json!([]), "{checked}");
+    }
+
+    /// A pack that is already canonical expands to itself, modulo layout:
+    /// the same commands, the same notices, nothing invented.
+    #[test]
+    fn expand_is_a_no_op_on_a_canonical_pack() {
+        let once = expand(VALID);
+        let source = once["canonical_source"].as_str().expect("source");
+        let twice = expand(source);
+        assert_eq!(
+            twice["canonical_source"], once["canonical_source"],
+            "expansion is not idempotent"
+        );
+        assert_eq!(once["commands"], json!(["mylib::with_var"]), "{once}");
+        // The hook body survives verbatim — a `CommandSpec` could not carry
+        // it, and the record does.
+        assert!(source.contains("arg_role_resolver -inputs"), "{source}");
+        assert!(source.contains("role 1 Body"), "{source}");
+    }
+
+    /// A pack whose evaluation failed expands to nothing, and says why.
+    #[test]
+    fn expand_reports_a_pack_that_registered_nothing() {
+        let result = expand("speclib clocky 2.0 {\n    set now [clock seconds]\n}\n");
+        assert!(
+            result["load_error"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("determinism axis"),
+            "{result}"
+        );
+        assert_eq!(result["commands"], json!([]), "{result}");
     }
 
     /// A source with no `speclib` wrapper loads nothing and says why, rather

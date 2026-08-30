@@ -645,7 +645,7 @@ mod tests {
     /// tests carry one, matching the production `extract_signatures` path.
     fn registry_ctx() -> ScanCtx<'static> {
         ScanCtx {
-            registry: Some(tcl_registry::registry_for_dialect("")),
+            registry: Some(tcl_registry::model::ingress::static_context_for("").commands()),
             ..ScanCtx::default()
         }
     }

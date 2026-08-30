@@ -26,7 +26,7 @@ use std::collections::HashSet;
 
 use serde_json::{Map, Value, json};
 use tcl_compiler::analyser::{Analyser, AnalysisResult, Diagnostic};
-use tcl_dialect::{DialectProfile, KNOWN_DIALECTS};
+use tcl_dialect::DialectProfile;
 use tcl_lexer::{LineIndex, SourceMap, Span, Utf16Col};
 use tcl_lsp_core::definition::LspRange;
 use tcl_registry::CommandRegistry;
@@ -54,13 +54,13 @@ fn resolve_dialect(args: &Value, source: &str) -> String {
                 .lock()
                 .expect("session dialect lock")
                 .clone();
-            // `detect_dialect`'s default must be `&'static`; map the session
-            // name onto a known dialect, else fall back to the built-in default.
-            let default = KNOWN_DIALECTS
-                .iter()
-                .copied()
-                .find(|&d| d == session)
-                .unwrap_or(DEFAULT_DIALECT);
+            // `detect_dialect`'s default must be `&'static`; the session
+            // name's canonical environment id supplies one, else the
+            // built-in default. The session always holds a canonical id
+            // (`set_dialect` stores one), so this answers as the retired
+            // `KNOWN_DIALECTS` membership scan did.
+            let default =
+                crate::environment::canonical_id_for_dialect(&session).unwrap_or(DEFAULT_DIALECT);
             tcl_registry::detect_dialect(source, None, default).to_owned()
         }
     }
@@ -86,12 +86,19 @@ pub(crate) fn declared_dialect(args: &Value) -> String {
 
 fn set_dialect(args: &Value) -> Value {
     let requested = arg_str(args, "dialect");
-    // Aliases (`irules`, `tclspec`, …) resolve here, so the session holds the
-    // canonical name `resolve_dialect` matches against `KNOWN_DIALECTS`.
-    let Some(profile) = DialectProfile::find(requested) else {
+    // Aliases (`irules`, `tclspec`, …) resolve here, so the session holds a
+    // canonical environment id.
+    //
+    // Ledger row F9/T6: the validator is now the one `Environment::resolve`,
+    // exactly as wave 2 made the LSP's `setDialect` — so this accepts every
+    // *declared* name (canonical ids, aliases, and the contributed editor
+    // identities) rather than only those the profile catalogue happened to
+    // hold, and still rejects an unknown spelling. The advertised `enum`
+    // stays the canonical catalogue (its payload is row T6).
+    let Some(profile) = crate::environment::known_profile_for_dialect(requested) else {
         return json!({
             "error": format!(
-                "Unknown dialect '{requested}'; valid dialects: {}",
+                "Unknown dialect '{requested}'; valid surface: {}",
                 dialect_names().join(", ")
             ),
             "valid_dialects": dialect_names(),
@@ -424,7 +431,7 @@ fn optimize(args: &Value) -> Value {
     let (optimised, opts, iterations) = optimise_source_multipass_filtered(
         source,
         &registry(&dialect),
-        Some(tcl_dialect::DialectProfile::by_name(&dialect)),
+        Some(crate::environment::profile_for_dialect(&dialect)),
         profile.max_iterations(),
         &disabled,
     );
@@ -469,7 +476,7 @@ fn compile_wasm(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
     let registry = registry(&dialect);
-    let profile = DialectProfile::by_name(&dialect);
+    let profile = crate::environment::profile_for_dialect(&dialect);
     let unit = tcl_compiler::compilation_unit::CompilationUnit::build_for_profile(
         source, &registry, false, profile,
     );
@@ -758,10 +765,12 @@ fn event_info(args: &Value) -> Value {
 fn command_info(args: &Value) -> Value {
     let command = arg_str(args, "command_name").trim();
     let reg = registry(IRULES_DIALECT);
-    let Some(spec) = ({
-        use tcl_registry::ProfileQueries;
-        tcl_dialect::DialectProfile::irules().resolve_command(&reg, command)
-    }) else {
+    // The fixed iRules assistance view — the `ResolvedContext` that
+    // replaces `ProfileQueries` (ledger row F1's assistance half). It
+    // answers over the pack-layered store this tool holds rather than its
+    // own generation, which is what `resolve_spec` exists for.
+    let irules = crate::environment::context_for_dialect(IRULES_DIALECT);
+    let Some(spec) = irules.resolve_spec(&reg, command) else {
         return json!({ "command": command, "found": false });
     };
     // Optional BIG-IP target release: report the declared version range
@@ -772,10 +781,7 @@ fn command_info(args: &Value) -> Value {
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|s| !s.is_empty());
-    let keyed_range = {
-        use tcl_registry::ProfileQueries;
-        tcl_dialect::DialectProfile::irules().keyed_version_range(spec)
-    };
+    let keyed_range = irules.keyed_version_range(spec);
     let events = EventRegistry::build();
     let profiles = ProfileRegistry::build();
     let mut obj = json!({ "command": command, "found": true });
@@ -788,10 +794,7 @@ fn command_info(args: &Value) -> Value {
             m.insert("synopsis".to_owned(), json!(h.synopsis));
         }
     }
-    let switches = {
-        use tcl_registry::ProfileQueries;
-        tcl_dialect::DialectProfile::irules().available_option_names(spec)
-    };
+    let switches = irules.available_option_names(spec);
     if !switches.is_empty() {
         m.insert("switches".to_owned(), json!(switches));
     }
@@ -1308,8 +1311,8 @@ fn dialect_names() -> Vec<&'static str> {
 /// `enum`, plus the `name — display_name` pairs appended to `desc` so a model
 /// reading only the description still sees what each name means.
 ///
-/// The `enum` lists canonical names only; [`DialectProfile::find`] keeps
-/// accepting registered aliases at runtime.
+/// The `enum` lists canonical names only (its payload is ledger row T6);
+/// the runtime ingress keeps accepting every declared name.
 fn dialect_schema(desc: &str) -> Value {
     let pairs: Vec<String> = DialectProfile::all()
         .iter()
@@ -1874,7 +1877,7 @@ const TOOLS: &[ToolDef] = &[
     },
     ToolDef {
         name: "spectcl_check",
-        description: "Validate a SpecTcl (.tclspec) spec pack: commands parsed with the draft fields each sets, loader notices (dropped/unknown words), declared hooks with their family and shape-cacheability, hooks whose body reads past its own `-inputs` declaration (the one way a pack miscompiles silently), and collisions with the shipped registry for the target dialect.",
+        description: "Validate a SpecTcl (.tclspec) spec pack by EVALUATING it in the deterministic pack sandbox (no clock, no IO, hard budgets, transactional registration — a generated pack is safe to check): commands parsed with the draft fields each sets, loader notices (dropped/unknown words), declared hooks with their family and shape-cacheability, hooks whose body reads past its own `-inputs` declaration (the one way a pack miscompiles silently), and collisions with the shipped registry for the target dialect. Also reports the evaluation-only failures — `load_error` for a determinism denial naming its axis, a blown budget naming its axis, or a Tcl error (all of which load NOTHING, since registration is transactional) — plus `target_dependent` (the pack queried `available?`, so its surface depends on the analysis target) and `untrusted_tier_refusal` (this pack loads for you but a workspace or Spec Studio tier would refuse it). Use spectcl_expand to see what a templated pack registered.",
         params: &[
             (
                 "source",
@@ -1889,6 +1892,17 @@ const TOOLS: &[ToolDef] = &[
         ],
         required: &["source"],
         handler: crate::spectcl::spectcl_check,
+    },
+    ToolDef {
+        name: "spectcl_expand",
+        description: "Expand a SpecTcl (.tclspec) pack into canonical form: evaluate it in the deterministic pack sandbox and return the straight-line source of every registration it actually made — one literal `command`/`option`/`subcommand` declaration per iteration, no proc/foreach/set. Use it whenever a pack is written as a PROGRAM (a loop or helper procedure over a data table): review the expansion, not the loop, before shipping the pack, and after any edit to the template. A pack that is already straight-line comes back as itself, so it is also a cheap way to see the pack exactly as the loader reads it. Also returns whether the pack is target-dependent (it queried `available?`, so the expansion is one target's answer) and every load notice. Hand the pack itself to spectcl_check for field-level validation.",
+        params: &[(
+            "source",
+            "string",
+            "SpecTcl pack source text (the contents of a .tclspec file)",
+        )],
+        required: &["source"],
+        handler: crate::spectcl::spectcl_expand,
     },
     ToolDef {
         name: "spec_import",

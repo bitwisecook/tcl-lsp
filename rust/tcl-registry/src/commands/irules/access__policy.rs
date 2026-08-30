@@ -18,6 +18,7 @@
 
 //! `ACCESS::policy` iRules command.
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
@@ -45,7 +46,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 name: "-sid",
                 value: OptionValue::value("SESSION_ID"),
                 detail: "Session ID.",
-                dialects: None,
+                surface: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,
@@ -71,7 +72,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
                 name: "-sid",
                 value: OptionValue::value("SESSION_ID"),
                 detail: "Session ID.",
-                dialects: None,
+                surface: None,
                 aliases: &[],
                 lifecycle: Lifecycle::UNSPECIFIED,
                 min_abbrev: None,
@@ -104,7 +105,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
 pub const fn spec() -> CommandSpec {
     CommandSpec {
         name: "ACCESS::policy",
-        dialects: Some(DialectSet::IRULES),
+        surface: Some(SpecSurface::IRULES),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
             summary: "Return information about access policies.",
@@ -125,9 +126,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &["HTTP"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "ACCESS::policy <subcommand> ?args?",

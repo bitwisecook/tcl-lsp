@@ -51,6 +51,8 @@
 //! - ``initialise`` / ``initialize`` — recognised; the body is
 //!   walked in the enclosing scope for variable tracking.
 
+use tcl_dialect::model::SurfaceQuery;
+use tcl_dialect::model::surface_admits;
 use tcl_lexer::{Span, Token, TokenType};
 use tcl_registry::arg_role::ArgRole;
 use tcl_registry::definer::{DefinitionBodyGrammar, MemberRefKind, MemberSpec, MemberVisibility};
@@ -344,7 +346,7 @@ fn loop_installed_member_shape(
     body_word: &str,
     body_content_start: u32,
     lexer_config: tcl_lexer::LexerConfig,
-    dialect: tcl_registry::dialects::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     var_name: &str,
 ) -> Option<(&'static str, Span)> {
     let inner_cmds = crate::segmenter::segment_commands_with_offset_and_config(
@@ -409,11 +411,10 @@ impl Analyser {
     /// when the enclosing definer (`oo::configurable`, itself 9.0+) is already
     /// flagged: one diagnostic for the version-only construct, not a cascade.
     pub(super) fn command_dialect_disabled(&self, cmd_name: &str) -> bool {
-        use tcl_registry::ProfileQueries;
         self.registry
             .as_deref()
             .and_then(|r| r.get(cmd_name))
-            .is_some_and(|spec| !self.profile.is_available(spec))
+            .is_some_and(|spec| !self.analysis_context().context().spec_available(spec))
     }
 
     /// Whether the definition-body member `subcmd` is available in the active
@@ -427,9 +428,12 @@ impl Analyser {
         let Some(member) = grammar.member(subcmd) else {
             return true;
         };
-        match member.dialects {
+        match member.surface {
             None => true,
-            Some(allowed) => allowed.intersects(self.profile.availability_mask),
+            Some(allowed) => surface_admits(
+                allowed,
+                Some(&self.analysis_context().context().authoring_query()),
+            ),
         }
     }
 
@@ -496,8 +500,10 @@ impl Analyser {
         if definer_disabled {
             return false;
         }
-        let Some(option) = member.unavailable_option_for(args, self.profile.availability_mask)
-        else {
+        let Some(option) = member.unavailable_option_for(
+            args,
+            Some(self.analysis_context().context().authoring_query()),
+        ) else {
             return false;
         };
         let Some(position) = member.optional_argument.map(|optional| optional.position) else {
@@ -616,7 +622,11 @@ impl Analyser {
         // $x }` is entirely readable); the `{*}` test above is what catches
         // the genuinely reflected signature.
         member
-            .indices_for_call_in(&texts[1..], self.profile.availability_mask, ArgRole::Name)
+            .indices_for_call_in(
+                &texts[1..],
+                Some(self.analysis_context().context().authoring_query()),
+                ArgRole::Name,
+            )
             .any(|idx| {
                 texts
                     .get(idx + 1)
@@ -722,7 +732,7 @@ impl Analyser {
             body_word,
             body_content_start,
             self.lexer_config(),
-            self.profile.availability_mask,
+            Some(self.analysis_context().context().authoring_query()),
             var_name,
         ) else {
             return;
@@ -798,7 +808,7 @@ impl Analyser {
         }
         for idx in spec.indices_for_call_in(
             arg_texts,
-            self.profile.availability_mask,
+            Some(self.analysis_context().context().authoring_query()),
             ArgRole::CommandName,
         ) {
             if let (Some(name), Some(tok)) = (arg_texts.get(idx), arg_toks.get(idx)) {
@@ -968,7 +978,11 @@ impl Analyser {
             {
                 let tokens = argv.get(1..).unwrap_or(&[]);
                 let parameter_indices: Vec<usize> = member
-                    .indices_for_call_in(args, self.profile.availability_mask, ArgRole::ParamList)
+                    .indices_for_call_in(
+                        args,
+                        Some(self.analysis_context().context().authoring_query()),
+                        ArgRole::ParamList,
+                    )
                     .collect();
                 super::diagnostics::emit_invalid_formal_parameter_list_diagnostics(
                     self,
@@ -982,12 +996,15 @@ impl Analyser {
                 texts,
                 argv,
                 class_def,
-                self.profile.availability_mask,
+                Some(self.analysis_context().context().authoring_query()),
             );
             self.record_member_command_references(grammar, texts, argv, scope_path);
-            if let Some(method) =
-                collect_method_body(grammar, texts, argv, self.profile.availability_mask)
-            {
+            if let Some(method) = collect_method_body(
+                grammar,
+                texts,
+                argv,
+                Some(self.analysis_context().context().authoring_query()),
+            ) {
                 bodies.methods.push(method);
             }
         }
@@ -995,7 +1012,7 @@ impl Analyser {
             grammar,
             texts,
             argv,
-            self.profile.availability_mask,
+            Some(self.analysis_context().context().authoring_query()),
             &mut bodies.accessors,
             &mut bodies.initialisers,
         );
@@ -1441,7 +1458,11 @@ impl Analyser {
                 continue;
             }
             let Some(name) = member
-                .indices_for_call_in(sub_args, self.profile.availability_mask, ArgRole::VarWrite)
+                .indices_for_call_in(
+                    sub_args,
+                    Some(self.analysis_context().context().authoring_query()),
+                    ArgRole::VarWrite,
+                )
                 .next()
                 .and_then(|i| sub_args.get(i))
             else {
@@ -1521,7 +1542,11 @@ impl Analyser {
             return;
         };
         let parameter_indices: Vec<usize> = member
-            .indices_for_call_in(sub_args, self.profile.availability_mask, ArgRole::ParamList)
+            .indices_for_call_in(
+                sub_args,
+                Some(self.analysis_context().context().authoring_query()),
+                ArgRole::ParamList,
+            )
             .collect();
         super::diagnostics::emit_invalid_formal_parameter_list_diagnostics(
             self,
@@ -1544,7 +1569,11 @@ impl Analyser {
         // Only body-bearing members define a walkable method scope; pure
         // declarations (`variable` …) and option/delegate members carry none.
         if member
-            .indices_for_call_in(sub_args, self.profile.availability_mask, ArgRole::Body)
+            .indices_for_call_in(
+                sub_args,
+                Some(self.analysis_context().context().authoring_query()),
+                ArgRole::Body,
+            )
             .next()
             .is_none()
         {
@@ -1593,21 +1622,18 @@ impl Analyser {
             label,
             visibility,
         } = *form;
-        let Some(body_idx) = member
-            .indices_for_call_in(args, self.profile.availability_mask, ArgRole::Body)
-            .next()
-        else {
+        let context = self.analysis_context();
+        let mask = Some(context.context().authoring_query());
+        let Some(body_idx) = member.indices_for_call_in(args, mask, ArgRole::Body).next() else {
             return;
         };
         let Some(body_text) = args.get(body_idx).cloned() else {
             return;
         };
         let body_tok = arg_tokens.get(body_idx).copied();
-        let name_idx = member
-            .indices_for_call_in(args, self.profile.availability_mask, ArgRole::Name)
-            .next();
+        let name_idx = member.indices_for_call_in(args, mask, ArgRole::Name).next();
         let params_idx = member
-            .indices_for_call_in(args, self.profile.availability_mask, ArgRole::ParamList)
+            .indices_for_call_in(args, mask, ArgRole::ParamList)
             .next();
 
         // A named member (`method NAME …`) uses its name word; the nameless
@@ -1628,8 +1654,11 @@ impl Analyser {
         let mut params: Vec<ParamDef> = params_idx
             .and_then(|i| args.get(i))
             .map_or_else(Vec::new, |p| parse_param_list(p));
-        for i in member.indices_for_call_in(args, self.profile.availability_mask, ArgRole::VarWrite)
-        {
+        for i in member.indices_for_call_in(
+            args,
+            Some(self.analysis_context().context().authoring_query()),
+            ArgRole::VarWrite,
+        ) {
             if let Some(v) = args.get(i) {
                 params.push(ParamDef {
                     name: v.clone(),
@@ -1839,7 +1868,11 @@ impl Analyser {
                 continue;
             };
             let parameter_indices: Vec<usize> = member
-                .indices_for_call_in(kw_args, self.profile.availability_mask, ArgRole::ParamList)
+                .indices_for_call_in(
+                    kw_args,
+                    Some(self.analysis_context().context().authoring_query()),
+                    ArgRole::ParamList,
+                )
                 .collect();
             super::diagnostics::emit_invalid_formal_parameter_list_diagnostics(
                 self,
@@ -1853,7 +1886,11 @@ impl Analyser {
             // recorded as a method here).  `inherit` and the like carry no body.
             if matches!(kw, "variable" | "common")
                 || member
-                    .indices_for_call_in(kw_args, self.profile.availability_mask, ArgRole::Body)
+                    .indices_for_call_in(
+                        kw_args,
+                        Some(self.analysis_context().context().authoring_query()),
+                        ArgRole::Body,
+                    )
                     .next()
                     .is_none()
             {
@@ -1951,10 +1988,9 @@ impl Analyser {
         // shells out, and which loads more script; fall back to the cached
         // dialect registry when the analyser was built without one (direct
         // handler calls in unit tests).
-        let registry: &CommandRegistry = self
-            .registry
-            .as_deref()
-            .unwrap_or_else(|| tcl_registry::cache::registry_for_dialect(self.dialect()));
+        let registry: &CommandRegistry = self.registry.as_deref().unwrap_or_else(|| {
+            tcl_registry::model::ingress::static_context_for(self.dialect()).commands()
+        });
 
         for stmt in &module.top_level.statements {
             walk_unknown_stmt(stmt, registry, &first_param, &mut info, 0);
@@ -1973,7 +2009,7 @@ pub(super) fn parse_oo_define_inline_in(
     args: &[String],
     arg_tokens: &[Token],
     class_def: &mut ClassDef,
-    dialect: tcl_registry::dialects::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) {
     if args.is_empty() {
         return;
@@ -2143,7 +2179,7 @@ fn collect_class_level_bodies(
     grammar: &DefinitionBodyGrammar,
     texts: &[String],
     argv: &[Token],
-    dialect: tcl_registry::dialects::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
     accessor_bodies: &mut Vec<CollectedMethodBody>,
     init_bodies: &mut Vec<CollectedMethodBody>,
 ) {
@@ -2393,7 +2429,7 @@ fn collect_method_body(
     grammar: &DefinitionBodyGrammar,
     texts: &[String],
     argv: &[Token],
-    dialect: tcl_registry::dialects::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) -> Option<CollectedMethodBody> {
     // Unwrap a leading `self`/`private` modifier first (issue #923 idx
     // 120): its body would otherwise never be walked at all (no internal
@@ -2457,7 +2493,7 @@ fn apply_oo_private(
     sub_args: &[String],
     sub_tokens: &[Token],
     class_def: &mut ClassDef,
-    dialect: tcl_registry::dialects::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) {
     if sub_args.is_empty() {
         return;
@@ -2843,7 +2879,7 @@ fn apply_oo_self(
     sub_args: &[String],
     sub_tokens: &[Token],
     class_def: &mut ClassDef,
-    dialect: tcl_registry::dialects::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) {
     if sub_args.is_empty() {
         return;
@@ -2936,7 +2972,7 @@ fn declared_member_visibility(
     member: &MemberSpec,
     args: &[String],
     fallback: String,
-    dialect: tcl_registry::dialects::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) -> String {
     member
         .declared_visibility_for_in(args, dialect)
@@ -3016,7 +3052,7 @@ fn apply_oo_ctor_or_dtor(
     sub_tokens: &[Token],
     argv: &[Token],
     kind: &str,
-    dialect: tcl_registry::dialects::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) -> Option<MethodDef> {
     let synthetic_id = if kind == "constructor" {
         "<constructor>"
@@ -3047,13 +3083,7 @@ pub(super) fn apply_oo_subcommand(
     argv: &[Token],
     class_def: &mut ClassDef,
 ) {
-    apply_oo_subcommand_in(
-        grammar,
-        texts,
-        argv,
-        class_def,
-        tcl_registry::dialects::DialectSet::all(),
-    );
+    apply_oo_subcommand_in(grammar, texts, argv, class_def, None);
 }
 
 /// Apply one registry member using the selected dialect's concrete layout.
@@ -3062,7 +3092,7 @@ pub(super) fn apply_oo_subcommand_in(
     texts: &[String],
     argv: &[Token],
     class_def: &mut ClassDef,
-    dialect: tcl_registry::dialects::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) {
     let Some(subcmd) = texts.first().map(String::as_str) else {
         return;
@@ -3350,7 +3380,7 @@ fn extract_method_def(
         kind,
         visibility,
         synthetic_name,
-        tcl_registry::dialects::DialectSet::all(),
+        None,
     )
 }
 
@@ -3361,7 +3391,7 @@ fn extract_method_def_in(
     kind: &str,
     visibility: &str,
     synthetic_name: &str,
-    dialect: tcl_registry::dialects::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) -> Option<MethodDef> {
     let zero = tcl_lexer::Span::new(0, 0);
     let body_idx = member
@@ -4014,9 +4044,10 @@ mod tests {
                 "tcl9.0",
             )
             .clone();
-        let known = r
-            .class_hierarchy()
-            .known_methods(Some(tcl_registry::registry_for_dialect("tcl9.0")), "::C");
+        let known = r.class_hierarchy().known_methods(
+            Some(tcl_registry::model::ingress::static_context_for("tcl9.0").commands()),
+            "::C",
+        );
         assert!(known.contains(&"configure".to_owned()), "{known:?}");
         assert!(!known.contains(&"cget".to_owned()), "{known:?}");
     }

@@ -45,6 +45,8 @@
 //! computation, no I/O, no async.
 
 use std::collections::HashMap;
+use tcl_dialect::model::SurfaceQuery;
+use tcl_dialect::model::surface_admits;
 
 use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::{AnalysisResult, ClassDef, ProcDef, VarDef};
@@ -56,6 +58,7 @@ use tcl_lexer::{LexerConfig, Token, TokenType};
 use tcl_registry::{CommandRegistry, InvocationArguments};
 
 use crate::definition::utf16_col_to_char_col;
+use tcl_dialect::model::SpecSurface;
 
 /// LSP markup-content kind for a hover body.
 ///
@@ -151,7 +154,9 @@ pub fn hover(
         character,
         analysis,
         registry,
-        tcl_dialect::DialectProfile::plain_tcl(),
+        // The "no dialect stated" ingress: the lenient environment, which
+        // resolves to the permissive fallback profile.
+        crate::profile_for_dialect(""),
     )
 }
 
@@ -412,7 +417,7 @@ fn variable_hover(
     profile: &'static tcl_dialect::DialectProfile,
 ) -> Option<Hover> {
     let registry = ctx.registry;
-    let dialect = profile.availability_mask;
+    let dialect = Some(crate::document_context_for_profile(profile).authoring_query());
     // `$var` resolution sits at a position where `find_word_span_at_position`
     // would also match the unqualified name, but a `$`-led ref should
     // surface the `VarDef` not the (typically absent) proc of the same name.
@@ -559,7 +564,7 @@ fn registry_pattern_format_hover(
     let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
     let config = LexerConfig::for_file_grammar(profile.grammar);
     let identities =
-        tcl_compiler::head_identity::command_head_identities_with_config(source, config, registry);
+        tcl_compiler::realm::document_realm_bindings_with_config(source, config, registry);
     let context = PatternFormatContext {
         analysis,
         source,
@@ -574,7 +579,7 @@ fn registry_pattern_format_hover(
         source,
         config,
         registry,
-        profile.availability_mask,
+        Some(crate::document_context_for_profile(profile).authoring_query()),
         &identities,
         &mut |command, identity, _context| {
             answer = pattern_format_hover_for_command(&context, command, identity);
@@ -629,15 +634,17 @@ fn pattern_format_hover_for_command(
     }
     let head = (!identity.resolved.is_empty()).then_some(identity.resolved)?;
     let args: Vec<&str> = command.texts.iter().skip(1).map(String::as_str).collect();
-    context
-        .registry
-        .resolve_call(head, &args, context.profile.availability_mask)?;
+    context.registry.resolve_call(
+        head,
+        &args,
+        Some(crate::document_context_for_profile(context.profile).authoring_query()),
+    )?;
 
     let source_args = segmented_command_arguments(command);
     for pattern in context.registry.pattern_args_words_for_dialect(
         head,
         InvocationArguments::structured(&source_args),
-        context.profile.availability_mask,
+        Some(crate::document_context_for_profile(context.profile).authoring_query()),
     ) {
         let Some(&token) = command.argv.get(usize::from(pattern.index) + 1) else {
             continue;
@@ -659,7 +666,7 @@ fn pattern_format_hover_for_command(
     for format in context.registry.format_string_args_words_for_dialect(
         head,
         InvocationArguments::structured(&source_args),
-        context.profile.availability_mask,
+        Some(crate::document_context_for_profile(context.profile).authoring_query()),
     ) {
         let Some(&token) = command.argv.get(format.index + 1) else {
             continue;
@@ -789,7 +796,7 @@ fn hover_impl(
     profile: &'static tcl_dialect::DialectProfile,
 ) -> Option<Hover> {
     let registry = ctx.registry;
-    let dialect = profile.availability_mask;
+    let dialect = Some(crate::document_context_for_profile(profile).authoring_query());
     // One index shared by the position conversions below.
     let line_index = tcl_lexer::LineIndex::new(source);
 
@@ -1040,6 +1047,10 @@ fn builtin_command_hover_text(
     // command must exist — e.g. iRules bans it), and never shown for a
     // package the profile ships ambiently (an F5 surface is part of the
     // runtime, §7.1 axis C — there is nothing to require).
+    // Ledger C1/F1 (post-P1-G): as in `completion::command_detail` — the
+    // context-keyed twin (`ResolvedContext::ambient_package`) answers
+    // identically over this document's own generation; the swap waits for
+    // the profile stamp.
     if let Some(pkg) = spec.required_package
         && !registry.is_ambient_package(pkg)
     {
@@ -1163,7 +1174,7 @@ fn subcommand_hover_text(
     character: u32,
     registry: &CommandRegistry,
     cursor_word: &str,
-    dialect: tcl_dialect::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) -> Option<String> {
     use std::fmt::Write;
     let line_text = source.split('\n').nth(line as usize)?;
@@ -1275,7 +1286,7 @@ fn sub_subcommand_hover_text(
     character: u32,
     registry: &CommandRegistry,
     cursor_word: &str,
-    dialect: tcl_dialect::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) -> Option<String> {
     use std::fmt::Write;
     let line_text = source.split('\n').nth(line as usize)?;
@@ -1320,7 +1331,7 @@ fn option_hover_text(
     profile: &'static tcl_dialect::DialectProfile,
 ) -> Option<String> {
     use std::fmt::Write;
-    let dialect = profile.availability_mask;
+    let dialect = Some(crate::document_context_for_profile(profile).authoring_query());
     let line_text = source.split('\n').nth(line as usize)?;
     let chars: Vec<char> = line_text.chars().collect();
     let col = utf16_col_to_char_col(line_text, character).min(chars.len());
@@ -1355,19 +1366,19 @@ fn option_hover_text(
     // option and `namespace ensemble create -namespace` is a bad one, so
     // only the operation's own table can answer either (issue #1610). The
     // owner line names whichever level supplied the table.
-    let (options, parent_dialects, owner) = match words
+    let (options, parent_surface, owner) = match words
         .next()
         .and_then(|sub_name| spec.resolve_subcommand_for_dialect(sub_name, dialect))
     {
         Some(sub) => {
-            let scope = sub.option_scope(words.next(), Some(dialect), None, spec.dialects);
+            let scope = sub.option_scope(words.next(), dialect, None, spec.surface);
             let owner = match scope.sub_subcommand {
                 Some(op) => format!("{cmd_name} {} {op}", sub.name),
                 None => format!("{cmd_name} {}", sub.name),
             };
-            (scope.options, scope.dialects, owner)
+            (scope.options, scope.surface, owner)
         }
-        None => (spec.options, spec.dialects, cmd_name.to_owned()),
+        None => (spec.options, spec.surface, cmd_name.to_owned()),
     };
     let opt = options.iter().find(|o| o.matches(option.as_str()))?;
     let mut out = format!("**`{}`** — option of `{owner}`\n", opt.name);
@@ -1394,10 +1405,7 @@ fn option_hover_text(
     // §5.2 profile gating: intersects membership + the version ceiling —
     // an inherited option on a vendor command counts as available under
     // that vendor's composed profile.
-    if !{
-        use tcl_registry::ProfileQueries;
-        profile.is_option_available(opt, parent_dialects)
-    } {
+    if !crate::document_context_for_profile(profile).option_available(opt, parent_surface) {
         let _ = write!(out, "\n_Not available in the active dialect._\n");
     }
     Some(out)
@@ -3257,7 +3265,7 @@ fn var_hover_text(var_def: &VarDef, type_info: Option<&str>, taint_info: Option<
 /// and — for arrays — the keys available in the active `dialect`.
 fn special_var_hover_text(
     spec: &tcl_registry::SpecialVarSpec,
-    dialect: tcl_dialect::DialectSet,
+    dialect: Option<SurfaceQuery<'_>>,
 ) -> String {
     use std::fmt::Write as _;
     use tcl_registry::{SpecialVarKind, VarAccess, VarOrigin};
@@ -3294,7 +3302,7 @@ fn special_var_hover_text(
     }
 
     // CMP-safety note only matters under iRules.
-    if spec.cmp_unsafe && dialect.intersects(tcl_dialect::DialectSet::IRULES) {
+    if spec.cmp_unsafe && surface_admits(SpecSurface::IRULES, dialect.as_ref()) {
         let _ = write!(
             text,
             "\n\n⚠️ Accessing `{}` as a plain global demotes the virtual server \
@@ -3802,7 +3810,7 @@ fn obj_method_hover_text(
         class_q,
         method,
         package_version,
-        Some(profile.availability_mask),
+        Some(crate::document_context_for_profile(profile).authoring_query()),
     )?;
     Some(format!(
         "**method** `{class_q} {method}`  \n{detail}\n\n`{synopsis}`",
@@ -3853,12 +3861,15 @@ fn oo_resolution_note_for_provider(
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::model::SurfaceQuery;
+    use tcl_dialect::model::{Family, SurfaceLayer};
 
     use super::*;
     use tcl_compiler::analyser::Analyser;
 
     /// Dialect-agnostic default for the subcommand-hover helper tests.
-    const ALL: tcl_dialect::DialectSet = tcl_dialect::DialectSet::ALL_TCL;
+    /// The point these hover probes ask at: any Tcl release.
+    const ALL: Option<SurfaceQuery<'static>> = Some(SurfaceQuery::any_release(Family::Tcl));
 
     fn analyse(source: &str) -> AnalysisResult {
         let mut a = Analyser::new();
@@ -4320,9 +4331,7 @@ mod tests {
             transport: None,
             profiles: &["ASM"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         };
         let events = valid_events(&requires);
         assert_eq!(
@@ -4351,9 +4360,7 @@ mod tests {
             transport: Some("tcp"),
             profiles: &["FASTHTTP", "HTTP"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         };
         let events = valid_events(&requires);
         assert!(events.iter().any(|e| e == "HTTP_REQUEST"), "{events:?}");
@@ -4374,7 +4381,7 @@ mod tests {
     #[test]
     fn irules_command_hover_lists_valid_events() {
         let mut registry = CommandRegistry::build_default();
-        registry.load_dialect(tcl_dialect::DialectSet::IRULES);
+        registry.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         if let Some(text) =
             builtin_command_hover_text(&registry, "ASM::is_authenticated", &analyse(""), u32::MAX)
         {
@@ -4391,7 +4398,7 @@ mod tests {
         // `DIAMETER` namespace's profiles, so the hover shows a profile
         // **Requires** line (none would appear without the injection).
         let mut registry = CommandRegistry::build_default();
-        registry.load_dialect(tcl_dialect::DialectSet::IRULES);
+        registry.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         let text = builtin_command_hover_text(
             &registry,
             "DIAMETER::retransmission_default",
@@ -4415,9 +4422,7 @@ mod tests {
             transport: None,
             profiles: &[],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         };
         let eff = super::effective_event_requires("DIAMETER::foo", &base);
         assert_eq!(
@@ -4636,10 +4641,9 @@ mod tests {
 
     #[test]
     fn special_var_hover_is_dialect_aware() {
-        use tcl_dialect::DialectSet;
         let analysis = analyse("puts $auto_path\n");
         let mut registry = CommandRegistry::build_default();
-        registry.load_dialect(DialectSet::IRULES);
+        registry.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         // iRules provides no `auto_path`, so no special-var hover fires there.
         assert!(
             hover_with_profile(
@@ -4845,7 +4849,8 @@ mod tests {
             let mut analyser = Analyser::new();
             let analysis = analyser.analyse(source, dialect).clone();
             let (line, column) = position_of(source, needle);
-            let profile = tcl_dialect::DialectProfile::by_name(dialect);
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
             let hover = hover_with_profile(source, line, column, &analysis, None, profile)
                 .unwrap_or_else(|| panic!("no hover for {dialect}: {source}"));
             assert!(hover.value.contains(expected), "{}", hover.value);
@@ -5211,7 +5216,8 @@ mod tests {
         for (dialect, expected) in [("tcl8.6", false), ("tcl9.0", true)] {
             let mut analyser = tcl_compiler::analyser::Analyser::new();
             let analysis = analyser.analyse(src, dialect).clone();
-            let profile = tcl_dialect::DialectProfile::by_name(dialect);
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
             let found = hover_with_profile(
                 src,
                 0,
@@ -5480,25 +5486,57 @@ mod tests {
 
     #[test]
     fn subcommand_hover_prefix_is_dialect_aware() {
-        use tcl_dialect::DialectSet;
         let registry = tcl_registry::CommandRegistry::build_default();
         // `info class def` is `definition` in 8.6 (unique) but ambiguous with
         // `definitionnamespace` in 9.0 (verified against tclsh).
         let src = "info class def ::C\n";
-        let t86 = sub_subcommand_hover_text(src, 0, 11, &registry, "def", DialectSet::TCL86);
+        let t86 = sub_subcommand_hover_text(
+            src,
+            0,
+            11,
+            &registry,
+            "def",
+            Some(SurfaceQuery::core(Family::Tcl, "8.6")),
+        );
         assert!(
             t86.is_some_and(|t| t.contains("`info class definition`")),
             "8.6 should resolve `def` to definition",
         );
         assert!(
-            sub_subcommand_hover_text(src, 0, 11, &registry, "def", DialectSet::TCL90).is_none(),
+            sub_subcommand_hover_text(
+                src,
+                0,
+                11,
+                &registry,
+                "def",
+                Some(SurfaceQuery::core(Family::Tcl, "9.0"))
+            )
+            .is_none(),
             "9.0 `def` is ambiguous — no hover",
         );
         // `string rev` (reverse, 8.5+) hovers in 8.6 but not in 8.4.
         let src = "string rev abc\n";
-        assert!(subcommand_hover_text(src, 0, 8, &registry, "rev", DialectSet::TCL86).is_some(),);
         assert!(
-            subcommand_hover_text(src, 0, 8, &registry, "rev", DialectSet::TCL84).is_none(),
+            subcommand_hover_text(
+                src,
+                0,
+                8,
+                &registry,
+                "rev",
+                Some(SurfaceQuery::core(Family::Tcl, "8.6"))
+            )
+            .is_some(),
+        );
+        assert!(
+            subcommand_hover_text(
+                src,
+                0,
+                8,
+                &registry,
+                "rev",
+                Some(SurfaceQuery::core(Family::Tcl, "8.4"))
+            )
+            .is_none(),
             "`string rev` is unknown in 8.4",
         );
     }
@@ -5523,7 +5561,7 @@ mod tests {
             30,
             &registry,
             "inputmode",
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         )
         .expect("hover should resolve the configure-scoped option");
         assert!(t.contains("`-inputmode`"), "{t}");
@@ -5540,7 +5578,7 @@ mod tests {
             30,
             &registry,
             "inputmode",
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         )
         .expect("hover should still resolve the option under an older dialect");
         assert!(old.contains("Not available in the active dialect"), "{old}");
@@ -5550,7 +5588,7 @@ mod tests {
             30,
             &registry,
             "inputmode",
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         )
         .expect("hover should resolve under tcl9.0");
         assert!(
@@ -5571,7 +5609,7 @@ mod tests {
             14,
             &registry,
             "exact",
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         )
         .expect("hover should resolve a simple command's own option");
         assert!(t.contains("`-exact`"), "{t}");
@@ -5988,8 +6026,9 @@ mod tests {
         let src = "ttk::treeview .tree\n.tree current\n";
         let analysis = analyse(src);
         for (dialect, expected) in [("tcl9.0", false), ("tcl9.1", true)] {
-            let profile = tcl_dialect::DialectProfile::by_name(dialect);
-            let registry = tcl_registry::registry_for_dialect(dialect);
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+            let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
             let hover = hover_with_profile(src, 1, 6, &analysis, Some(registry), profile);
             assert_eq!(
                 hover.is_some(),
@@ -6004,13 +6043,13 @@ mod tests {
         // into the provider.
         let raised = "package require Tk 9.1\nttk::treeview .tree\n.tree current\n";
         let raised_analysis = analyse(raised);
-        let tcl90 = tcl_dialect::DialectProfile::by_name("tcl9.0");
+        let tcl90 = tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
         let raised_hover = hover_with_profile(
             raised,
             2,
             6,
             &raised_analysis,
-            Some(tcl_registry::registry_for_dialect("tcl9.0")),
+            Some(tcl_registry::model::ingress::static_context_for("tcl9.0").commands()),
             tcl90,
         );
         assert!(

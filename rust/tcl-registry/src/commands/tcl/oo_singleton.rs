@@ -19,6 +19,7 @@
 //! `oo::singleton` — metaclass for classes that permit at most one instance.
 use super::oo_class::{CLASS_FACTORY_SUBCOMMANDS, oo_class_arg_roles};
 use crate::prelude::*;
+use tcl_dialect::model::SpecSurface;
 
 // `oo::singleton create` / `createWithNamespace` mint a new class as a
 // command in the interpreter's command table; no file I/O, process, or
@@ -63,7 +64,7 @@ pub fn spec() -> CommandSpec {
         // METHODS/NON-EXPORTED METHODS/EXAMPLE text in both the 9.0.4 and
         // 9.1b0 singleton.n pages (only the version banner and internal
         // anchor IDs differ) — a Tcl 9.0 addition, unchanged in 9.1.
-        dialects: Some(DialectSet::TCL90_PLUS),
+        surface: Some(SpecSurface::TCL90_PLUS),
         arity: Arity::at_least(1),
         arg_role_resolver: Some(oo_class_arg_roles),
         return_type: Some(TclType::String),

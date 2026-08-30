@@ -38,8 +38,8 @@ use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::expr_ast::{BinOp, ExprNode};
 use tcl_compiler::ir::Statement;
 use tcl_compiler::lowering::{lower_to_ir_with_config, lower_to_ir_with_dialect};
-use tcl_registry::dialects::DialectSet;
-use tcl_registry::registry_for_dialect;
+use tcl_registry::model::ingress::static_context_for;
+use tcl_registry::model::semantic::SemanticContext;
 
 const IRULES: &str = "f5-irules";
 const TCL: &str = "tcl8.6";
@@ -85,14 +85,14 @@ fn first_if_condition(module: &tcl_compiler::ir::Module) -> ExprNode {
 /// what stopped the fold.
 #[test]
 fn lowering_parses_a_word_operator_condition_under_the_irules_dialect() {
-    let registry = registry_for_dialect(IRULES);
+    let registry = static_context_for(IRULES).commands();
     let config = tcl_lexer::LexerConfig::for_dialect(IRULES);
 
     let with_dialect = lower_to_ir_with_dialect(
         CONSTANT_WORD_OP,
         registry,
         config,
-        Some(tcl_dialect::DialectProfile::by_name(IRULES)),
+        Some(tcl_registry::model::ingress::resolve_environment(IRULES).analyser_profile()),
     );
     assert!(
         matches!(
@@ -117,12 +117,12 @@ fn lowering_parses_a_word_operator_condition_under_the_irules_dialect() {
 /// report the unavailable operator.
 #[test]
 fn lowering_leaves_a_word_operator_raw_in_plain_tcl() {
-    let registry = registry_for_dialect(TCL);
+    let registry = static_context_for(TCL).commands();
     let module = lower_to_ir_with_dialect(
         "set x \"abcdef\"\nif {$x contains \"cd\"} { puts hit }\n",
         registry,
         tcl_lexer::LexerConfig::for_dialect(TCL),
-        Some(tcl_dialect::DialectProfile::by_name(TCL)),
+        Some(tcl_registry::model::ingress::resolve_environment(TCL).analyser_profile()),
     );
     let condition = module
         .top_level
@@ -145,7 +145,7 @@ fn lowering_leaves_a_word_operator_raw_in_plain_tcl() {
 /// dialect-blind `build_for` on the same source does not.
 #[test]
 fn build_for_dialect_folds_a_word_operator_branch() {
-    let registry = registry_for_dialect(IRULES);
+    let registry = static_context_for(IRULES).commands();
     let with_dialect =
         CompilationUnit::build_for_dialect(CONSTANT_WORD_OP, registry, false, IRULES);
     let folded: usize = with_dialect
@@ -174,8 +174,8 @@ fn build_for_dialect_folds_a_word_operator_branch() {
 /// to the plain fallback between registry construction and SCCP.
 #[test]
 fn build_for_profile_folds_a_word_operator_branch() {
-    let registry = registry_for_dialect(IRULES);
-    let profile = tcl_dialect::DialectProfile::by_name(IRULES);
+    let registry = static_context_for(IRULES).commands();
+    let profile = tcl_registry::model::ingress::resolve_environment(IRULES).analyser_profile();
     let unit = CompilationUnit::build_for_profile(CONSTANT_WORD_OP, registry, false, profile);
     assert!(
         unit.functions()
@@ -189,11 +189,14 @@ fn build_for_profile_folds_a_word_operator_branch() {
 /// canonicalising the input to the plain fallback profile's `tcl` name.
 #[test]
 fn build_for_dialect_retains_the_tk_set_only_bit() {
-    let registry = registry_for_dialect("tk");
+    let registry = static_context_for("tk").commands();
     let unit = CompilationUnit::build_for_dialect("button .b\n", registry, false, "tk");
 
     assert_eq!(unit.ir_module.dialect.as_deref(), Some("tk"));
-    assert_eq!(unit.top_level.semantic_facts.dialect(), DialectSet::TK);
+    assert_eq!(
+        unit.top_level.semantic_facts.context(),
+        Some(SemanticContext::for_environment("tk"))
+    );
 }
 
 /// The resolved-profile mirror of the case above, and the one that actually
@@ -206,9 +209,10 @@ fn build_for_dialect_retains_the_tk_set_only_bit() {
 /// profile through untouched.
 #[test]
 fn build_for_profile_retains_the_tk_set_only_bit() {
-    let registry = registry_for_dialect("tk");
-    let profile = tcl_dialect::DialectProfile::resolve_known("tk")
-        .expect("`tk` is a recognised additive dialect ingress");
+    let registry = static_context_for("tk").commands();
+    let profile = tcl_registry::model::ingress::resolve_known_environment("tk")
+        .expect("`tk` is a recognised additive dialect ingress")
+        .unit_profile();
     let unit = CompilationUnit::build_for_profile("button .b\n", registry, false, profile);
 
     assert_eq!(
@@ -217,9 +221,9 @@ fn build_for_profile_retains_the_tk_set_only_bit() {
         "the resolved-profile entry point must not canonicalise `tk` away"
     );
     assert_eq!(
-        unit.top_level.semantic_facts.dialect(),
-        DialectSet::TK,
-        "the TK semantic bit must survive the resolved-profile entry point"
+        unit.top_level.semantic_facts.context(),
+        Some(SemanticContext::for_environment("tk")),
+        "the `tk` environment must survive the resolved-profile entry point"
     );
 }
 
@@ -270,4 +274,85 @@ fn i230_stays_silent_on_a_non_constant_word_operator_condition() {
 fn i230_still_fires_on_a_plain_tcl_constant_condition() {
     let src = "set x 1\nif {$x == 1} { puts hit }\n";
     assert!(fires(src, TCL, "I230"), "codes: {:?}", codes(src, TCL));
+}
+
+// N5 — the F5 `if` else/elseif single-newline lookahead
+// (`docs/design/bigip-irule-parser-measurements.md` §2 N5, measured on TMM
+// in a cli script reproducing the parser).
+
+/// Under the F5 grammar, `else {…}` on the immediately following line is
+/// the `if`'s own else branch: the lowered IR carries it as `else_body`, so
+/// the CFG is correct and no `else` command exists.
+#[test]
+fn n5_else_line_lowers_into_the_if_under_the_f5_grammar() {
+    let registry = static_context_for(IRULES).commands();
+    let module = lower_to_ir_with_config(
+        "if {0} {set a 1}\nelse {set a 2}\n",
+        registry,
+        tcl_lexer::LexerConfig::for_dialect(IRULES),
+    );
+    let statements = &module.top_level.statements;
+    assert_eq!(statements.len(), 1, "one merged if, got {statements:?}");
+    let Statement::If {
+        clauses, else_body, ..
+    } = &statements[0]
+    else {
+        panic!("expected an If statement, got {statements:?}");
+    };
+    assert_eq!(clauses.len(), 1);
+    assert!(
+        else_body.is_some(),
+        "the else line must lower as the if's else branch (N5)"
+    );
+}
+
+/// N5's other half: across a **blank** line the lookahead fails on TMM
+/// (`undefined procedure: else`), so lowering stays exactly as stock — an
+/// `if` with no else branch, followed by a standalone `else` command.
+#[test]
+fn n5_else_across_a_blank_line_stays_standalone_under_the_f5_grammar() {
+    let registry = static_context_for(IRULES).commands();
+    let module = lower_to_ir_with_config(
+        "if {0} {set a 1}\n\nelse {set a 2}\n",
+        registry,
+        tcl_lexer::LexerConfig::for_dialect(IRULES),
+    );
+    let statements = &module.top_level.statements;
+    let Some(Statement::If { else_body, .. }) = statements.first() else {
+        panic!("expected an If statement first, got {statements:?}");
+    };
+    assert!(else_body.is_none(), "a blank line breaks the lookahead");
+    assert!(
+        statements.len() > 1,
+        "the else line stays its own (invalid) command: {statements:?}"
+    );
+}
+
+/// The analyser mirror: no unknown-command / orphaned-keyword diagnostic for
+/// the single-newline case under `f5-irules`; the blank-line case keeps the
+/// stock diagnosis.
+#[test]
+fn n5_analyser_accepts_single_newline_else_and_rejects_blank_line_else() {
+    let single = "when RULE_INIT { if {0} {set static::a 1}\nelse {set static::a 2} }";
+    let found = codes(single, IRULES);
+    assert!(
+        !found.iter().any(|c| c == "W123" || c == "W125"),
+        "N5: a single-newline else belongs to the if: {found:?}"
+    );
+    let blank = "when RULE_INIT { if {0} {set static::a 1}\n\nelse {set static::a 2} }";
+    let found = codes(blank, IRULES);
+    assert!(
+        found.iter().any(|c| c == "W123"),
+        "blank line: `undefined procedure: else` stays diagnosed: {found:?}"
+    );
+    assert!(
+        found.iter().any(|c| c == "W125"),
+        "blank line: the orphaned-keyword warning stays: {found:?}"
+    );
+    // Plain Tcl keeps the stock diagnosis for the single-newline spelling.
+    let found = codes("if {0} {set a 1}\nelse {set a 2}", TCL);
+    assert!(
+        found.iter().any(|c| c == "W125"),
+        "plain Tcl: else after a newline stays orphaned: {found:?}"
+    );
 }

@@ -207,9 +207,7 @@ fn version_guard_in_braced_data_ignored() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // SpecTcl — `.tclspec` command packs (`docs/design/spec-packs.md`).
-// ---------------------------------------------------------------------------
 
 /// The extension is the registration `spec-packs.md` calls for: "the editor
 /// extensions and the LSP register it as Tcl in the `SpecTcl` dialect, so a
@@ -260,20 +258,29 @@ fn the_speclib_directive_is_a_content_signature() {
 }
 
 /// `spectcl` is a first-class catalogue dialect: it names a profile, parses
-/// to its own bit, and round-trips through the canonical-name inverse.
+/// to its own surface, and round-trips through the catalogue.
 #[test]
 fn spectcl_is_a_catalogued_dialect() {
-    use tcl_dialect::{DialectProfile, DialectSet, KNOWN_DIALECTS};
+    use tcl_dialect::KNOWN_DIALECTS;
+    use tcl_dialect::model::{Family, SurfaceLayer, SurfaceQuery};
 
     assert!(KNOWN_DIALECTS.contains(&"spectcl"));
-    assert_eq!(DialectSet::parse("spectcl"), Some(DialectSet::SPECTCL));
-    assert_eq!(DialectSet::SPECTCL.canonical_name(), Some("spectcl"));
-    let profile = DialectProfile::by_name("spectcl");
+    assert_eq!(
+        tcl_dialect::DialectProfile::find("spectcl")
+            .map(tcl_dialect::DialectProfile::surface_query),
+        Some(SurfaceQuery::core(Family::Tcl, "9.0").with_packages(&["spectcl"]))
+    );
+    let profile = tcl_registry::model::ingress::resolve_environment("spectcl").analyser_profile();
     assert_eq!(profile.name, "spectcl");
-    assert_eq!(profile.base_layers, &[DialectSet::SPECTCL]);
+    assert_eq!(profile.base_layers, &[SurfaceLayer::Package("spectcl")]);
     // The editor / MCP spellings canonicalise to it.
     for alias in ["tclspec", "tcl-spec"] {
-        assert_eq!(DialectProfile::by_name(alias).name, "spectcl");
+        assert_eq!(
+            tcl_registry::model::ingress::resolve_environment(alias)
+                .analyser_profile()
+                .name,
+            "spectcl"
+        );
     }
 }
 

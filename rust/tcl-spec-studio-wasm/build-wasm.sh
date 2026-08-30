@@ -122,6 +122,21 @@ else
     echo "    note: node not found — skipping wasm growability check"
 fi
 
+# The evaluation loader, run rather than merely linked (design E §15.2's WASM
+# item). Compiling for wasm32 proves nothing about a pack that is a *program*:
+# the evaluator runs Tcl on the bytecode VM, and reaching for a host clock or
+# arming a budget nothing can measure both compile perfectly and then trap at
+# run time. `test/eval-loader.mjs` loads a canonical and a templated fixture
+# pack through the real exports of the module just built, and checks that a
+# form edit against the templated one lands as a StudioOverride patch pack
+# instead of rewriting the author's program (E-R12).
+echo "==> running the evaluation loader inside the module"
+if command -v node >/dev/null 2>&1; then
+    node "$here/test/eval-loader.mjs" "$out"
+else
+    echo "    note: node not found — skipping the eval-loader smoke"
+fi
+
 for required in dist/studio.js dist/assets/monaco-host.js dist/assets/monaco-host.css dist/assets/native-editor-host.js; do
     if [ ! -f "$web/$required" ]; then
         echo "error: $web/$required is missing — build the front-end first:" >&2

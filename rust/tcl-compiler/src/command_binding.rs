@@ -46,8 +46,8 @@ use crate::naming::is_dynamic_word;
 use crate::naming::normalise_qualified_name as nqn;
 use crate::var_escape::helpers::invocation_facts;
 use tcl_registry::{
-    CommandBindingDefinitionKind, CommandBindingTransition, CommandRegistry, CommandTableEffect,
-    StateTransition, StateTransitionDomain, TransitionSubject,
+    CommandBindingDefinitionKind, CommandBindingTransition, CommandRegistry, StateTransition,
+    StateTransitionDomain, TransitionSubject,
 };
 
 /// The lattice element a command name resolves to.
@@ -237,6 +237,7 @@ fn apply_binding_transition(
             alias,
             target_interpreter: _,
             target,
+            arguments: _,
         } => {
             let Some(source_interpreter) = literal_subject(source_interpreter) else {
                 state.wildcard = true;
@@ -315,19 +316,6 @@ fn stmt_gen(stmt: &Statement, state: &mut State, registry: &CommandRegistry) {
 
     // The canonical command falls back to the source spelling.
     let cmd = stmt.canonical_command_or_source();
-    let cmd_bare = cmd.strip_prefix("::").unwrap_or(cmd);
-
-    if matches!(
-        registry.command_table_effect(cmd_bare, args.first().map(String::as_str)),
-        Some(
-            CommandTableEffect::DefinesProcedure
-                | CommandTableEffect::RenamesCommands
-                | CommandTableEffect::CreatesAliases
-        )
-    ) {
-        state.wildcard = true;
-        return;
-    }
 
     // Class lifecycle.  A registry-described definer creates a command;
     // registry-declared object-surface methods can delete it or manufacture
@@ -775,9 +763,9 @@ fn collect_proc_rebindings(
     rebound: &mut std::collections::HashSet<String>,
     dynamic: &mut bool,
 ) {
-    let (Statement::Call { args, .. } | Statement::Barrier { args, .. }) = stmt else {
+    if !matches!(stmt, Statement::Call { .. } | Statement::Barrier { .. }) {
         return;
-    };
+    }
     if let Some(facts) = invocation_facts(stmt, registry)
         && let Some(transitions) = facts.state_transitions.declared()
     {
@@ -855,21 +843,6 @@ fn collect_proc_rebindings(
                 | StateTransition::Widen(_) => {}
             }
         }
-        return;
-    }
-
-    let cmd = stmt.canonical_command_or_source();
-    let cmd_bare = cmd.strip_prefix("::").unwrap_or(cmd);
-    match registry.command_table_effect(cmd_bare, args.first().map(String::as_str)) {
-        Some(CommandTableEffect::RenamesCommands | CommandTableEffect::CreatesAliases) => {
-            // An unstamped command-table mutation is not safe to decode in a
-            // consumer. The registry transition descriptor must be enriched;
-            // until then, distrust every binding.
-            *dynamic = true;
-        }
-        // A `proc` declaration is deliberately NOT recorded here — see
-        // the doc comment above.
-        Some(CommandTableEffect::DefinesProcedure) | None => {}
     }
 }
 

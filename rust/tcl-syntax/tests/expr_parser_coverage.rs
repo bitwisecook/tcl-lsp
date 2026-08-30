@@ -113,9 +113,7 @@ fn is_raw(n: &ExprNode) -> bool {
     matches!(n, ExprNode::Raw { .. })
 }
 
-// ===========================================================================
 // 1. Every binary operator maps to its BinOp variant.
-// ===========================================================================
 
 #[test]
 fn all_arithmetic_operators() {
@@ -181,6 +179,7 @@ fn irules_word_and_string_operators() {
     assert_eq!(binop(&pi(r#"$u starts_with "x""#)), BinOp::StartsWith);
     assert_eq!(binop(&pi(r#"$u ends_with "x""#)), BinOp::EndsWith);
     assert_eq!(binop(&pi(r#"$u equals "x""#)), BinOp::StrEquals);
+    assert_eq!(binop(&pi(r#"$u matches "x""#)), BinOp::Matches);
     assert_eq!(binop(&pi(r#"$u matches_glob "x*""#)), BinOp::MatchesGlob);
     assert_eq!(binop(&pi(r#"$u matches_regex "x.""#)), BinOp::MatchesRegex);
 }
@@ -191,9 +190,7 @@ fn irules_word_not_is_unary() {
     assert_eq!(unop(&pi("not $x")), UnaryOp::WordNot);
 }
 
-// ===========================================================================
 // 2. Every unary operator + unary chains.
-// ===========================================================================
 
 #[test]
 fn all_unary_operators() {
@@ -257,9 +254,7 @@ fn negative_literal_is_unary_neg_over_literal() {
     assert_eq!(lit_text(operand(&n)), "7");
 }
 
-// ===========================================================================
 // 3. Precedence + associativity (each pinned to a tclsh value).
-// ===========================================================================
 
 #[test]
 fn mul_binds_tighter_than_add() {
@@ -444,9 +439,7 @@ fn full_precedence_ladder_root_is_ternary() {
     }
 }
 
-// ===========================================================================
 // 4. Ternary (structure, nesting, right-associativity).
-// ===========================================================================
 
 #[test]
 fn ternary_basic_structure() {
@@ -502,9 +495,7 @@ fn ternary_branches_can_be_expressions() {
     }
 }
 
-// ===========================================================================
 // 5. Function calls: every documented arity, nesting, expr args.
-// ===========================================================================
 
 #[test]
 fn zero_arg_functions() {
@@ -629,9 +620,7 @@ fn function_call_as_operand_keeps_precedence() {
     assert!(matches!(left(&n), ExprNode::Call { .. }));
 }
 
-// ===========================================================================
 // 6. Literals — every numeric form, booleans, IEEE specials.
-// ===========================================================================
 
 #[test]
 fn integer_literal_forms() {
@@ -693,9 +682,7 @@ fn boolean_under_unary_not() {
     assert_eq!(lit_text(operand(&n)), "true");
 }
 
-// ===========================================================================
 // 7. String / brace operands.
-// ===========================================================================
 
 #[test]
 fn quoted_string_is_string_node() {
@@ -742,9 +729,7 @@ fn quoted_strings_around_eq() {
     assert!(matches!(right(&n), ExprNode::String { .. }));
 }
 
-// ===========================================================================
 // 8. Variable forms + command substitution nodes.
-// ===========================================================================
 
 #[test]
 fn variable_forms_normalise_base_name() {
@@ -799,9 +784,7 @@ fn command_and_var_mixed() {
     assert!(matches!(left(right(&n)), ExprNode::Command { .. }));
 }
 
-// ===========================================================================
 // 9. vars() and command_texts() walkers over every node kind.
-// ===========================================================================
 
 fn sorted_vars(n: &ExprNode) -> Vec<String> {
     let mut v: Vec<String> = n.vars().into_iter().collect();
@@ -863,9 +846,7 @@ fn command_texts_empty_when_no_commands() {
     assert!(p("$a + 1").command_texts().is_empty());
 }
 
-// ===========================================================================
 // 10. render_expr round-trips (precedence-preserving).
-// ===========================================================================
 
 #[test]
 fn render_inserts_parens_for_precedence() {
@@ -913,13 +894,11 @@ fn render_word_not_keeps_space() {
     assert_eq!(render_expr(&pi("not $x")), "not $x");
 }
 
-// ===========================================================================
 // 11. ERROR / RECOVERY paths — the usually-uncovered lines.
 //
 // `parse_expr` must NEVER panic; every malformed input degrades to
 // `ExprNode::Raw` (empty token stream, unknown chars, parse failure, or
 // unconsumed trailing tokens).
-// ===========================================================================
 
 #[test]
 fn empty_and_whitespace_are_raw() {

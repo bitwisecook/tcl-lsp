@@ -42,6 +42,7 @@ use std::rc::Rc;
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::lowering::lower_to_ir;
+use tcl_dialect::{DialectProfile, TclVersion};
 use tcl_registry::CommandRegistry;
 use tcl_vm::{CompileError, CompileService, Vm};
 
@@ -87,6 +88,59 @@ fn run(src: &str) -> (bool, String) {
     let c = vm.run_module(&asm);
     let out = String::from_utf8_lossy(&cap.0.borrow()).trim().to_string();
     (c.code.is_ok(), out)
+}
+
+/// [`run`] with the VM (and its compiler) pinned to a Tcl release, so a
+/// release-gated command is genuinely absent from the surface rather than
+/// merely unhidden — the shape `tclvm --tcl-version` builds.
+fn run_at(version: TclVersion, src: &str) -> (bool, String) {
+    let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_profile_name())
+        .analyser_profile();
+    let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+    let ir = tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect(
+        src,
+        registry,
+        tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+        Some(profile),
+    );
+    let cfg = build_cfg_codegen(&ir, false);
+    let asm = codegen_module(&cfg, &ir, registry);
+    let cap = Capture::default();
+    let mut vm = Vm::with_output(Box::new(cap.clone()));
+    vm.set_dialect_profile(profile);
+    vm.set_compiler(Box::new(ProfiledCompilerSvc { profile }));
+    let c = vm.run_module(&asm);
+    let out = String::from_utf8_lossy(&cap.0.borrow()).trim().to_string();
+    (c.code.is_ok(), out)
+}
+
+/// A compile service pinned to one resolved profile, as `tclvm` wires it.
+struct ProfiledCompilerSvc {
+    profile: &'static DialectProfile,
+}
+
+impl CompileService for ProfiledCompilerSvc {
+    type Module = tcl_bytecode::ModuleAsm;
+
+    fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        self.compile_for_profile(src, self.profile)
+    }
+
+    fn compile_for_profile(
+        &self,
+        src: &str,
+        profile: &'static DialectProfile,
+    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let ir = tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect(
+            src,
+            registry,
+            tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+            Some(profile),
+        );
+        let cfg = build_cfg_codegen(&ir, false);
+        Ok(codegen_module(&cfg, &ir, registry))
+    }
 }
 
 /// TP: a hidden command called directly inside a safe child's `interp eval`
@@ -218,26 +272,253 @@ fn after_and_vwait_remain_callable_in_a_safe_interp() {
     );
 }
 
-/// The registry's `Traits::SAFE_INTERP_HIDDEN` set is 13 commands (`source`,
-/// `load`, `file`, `exec`, `open`, `socket`, `cd`, `pwd`, `glob`, `exit`,
-/// `fconfigure`, `encoding`, `unload` — pinned against real tclsh 8.6.14,
-/// `interp create -safe s; s hidden`). `tcl-vm` does not implement `load` /
-/// `unload` / `socket` as real commands at all (nothing to hide — calling
-/// any of the three already fails with "invalid command name" regardless of
-/// safe-interp state, for an unrelated reason — confirmed via `info
-/// commands` returning empty for each in a plain, non-safe interpreter), so
-/// only the 10 it does implement are checked here.
+/// Every command `interp create -safe` hides, per release, measured on the
+/// reference interpreters with
+/// `interp create -safe s; lsort [interp hidden s]` — top-level command
+/// names only. The `tcl:file:*` / `tcl:zipfs:*` / `tcl:clock:*` entries a
+/// real 8.6+ interpreter also lists are C's internal rewrite names for the
+/// *unsafe subcommands* of an ensemble, not commands a script can name;
+/// neither engine models ensembles that way, so they are out of scope here.
+///
+/// Patch levels measured: 8.4.20, 8.5.19, 8.6.14, 9.0.4, 9.1b0.
+const MEASURED_HIDDEN: &[(TclVersion, &[&str])] = &[
+    (
+        TclVersion::V8_4,
+        &[
+            "cd",
+            "encoding",
+            "exec",
+            "exit",
+            "fconfigure",
+            "file",
+            "glob",
+            "load",
+            "open",
+            "pwd",
+            "socket",
+            "source",
+        ],
+    ),
+    // 8.5 adds `unload` (TIP 100).
+    (
+        TclVersion::V8_5,
+        &[
+            "cd",
+            "encoding",
+            "exec",
+            "exit",
+            "fconfigure",
+            "file",
+            "glob",
+            "load",
+            "open",
+            "pwd",
+            "socket",
+            "source",
+            "unload",
+        ],
+    ),
+    (
+        TclVersion::V8_6,
+        &[
+            "cd",
+            "encoding",
+            "exec",
+            "exit",
+            "fconfigure",
+            "file",
+            "glob",
+            "load",
+            "open",
+            "pwd",
+            "socket",
+            "source",
+            "unload",
+        ],
+    ),
+    // 9.0 adds `zipfs`.
+    (
+        TclVersion::V9_0,
+        &[
+            "cd",
+            "encoding",
+            "exec",
+            "exit",
+            "fconfigure",
+            "file",
+            "glob",
+            "load",
+            "open",
+            "pwd",
+            "socket",
+            "source",
+            "unload",
+            "zipfs",
+        ],
+    ),
+    // 9.1 additionally lists `clock`. That is *not* an unsafety fact and is
+    // deliberately not in the registry's trait: 9.1 hides the C `clock` and
+    // immediately re-provides a safe one, so `clock format 0 -gmt 1` works
+    // inside a 9.1 safe child exactly as it does inside an 8.6 one
+    // (measured). See `NOT_IMPLEMENTED` below.
+    (
+        TclVersion::V9_1,
+        &[
+            "cd",
+            "clock",
+            "encoding",
+            "exec",
+            "exit",
+            "fconfigure",
+            "file",
+            "glob",
+            "load",
+            "open",
+            "pwd",
+            "socket",
+            "source",
+            "unload",
+            "zipfs",
+        ],
+    ),
+];
+
+/// The measured names this VM cannot hide, with why. Listing them explicitly
+/// rather than intersecting silently means implementing any of them forces
+/// this test to be revisited.
+const NOT_IMPLEMENTED: &[&str] = &[
+    // Not commands in this VM at all: `info commands` is empty for each in a
+    // plain, non-safe interpreter, so calling one already fails with
+    // "invalid command name" for an unrelated reason and there is nothing to
+    // park in the hidden table.
+    "load", "unload", "socket", "zipfs",
+    // `clock` is implemented and stays *visible*, which is what a real 9.1
+    // safe child does behaviourally. Only its appearance in `interp hidden`
+    // differs, and that is the safe base's hide-then-alias artefact.
+    "clock",
+];
+
+/// The hidden set under each pinned release is exactly the measured tclsh
+/// set, narrowed to the commands this VM implements — no name list in
+/// `make_safe`, which is now the registry's `Traits::SAFE_INTERP_HIDDEN`
+/// query (ledger row B2).
+///
+/// The narrowing is not a fudge: it is the mechanism. `unload` (8.5+) and
+/// `zipfs` (9.0+) are release-gated commands, so "hide what the trait names,
+/// if this interpreter carries it" reproduces the per-release differences
+/// with no second availability rule — which is why the 8.4 row below has no
+/// `unload` even though the trait does.
 #[test]
-fn safe_interp_hides_every_implemented_command_in_the_registry_set() {
-    let (ok, out) = run("interp create -safe s\n\
-         foreach c {source file exec open cd pwd glob exit fconfigure encoding} {\n\
-             puts \"$c [expr {[lsearch [interp hidden s] $c] >= 0}]\"\n\
-         }\n");
+fn safe_interp_hidden_set_matches_the_measured_tclsh_sets() {
+    for &(version, measured) in MEASURED_HIDDEN {
+        let expected: Vec<&str> = measured
+            .iter()
+            .copied()
+            .filter(|name| !NOT_IMPLEMENTED.contains(name))
+            .collect();
+        let (ok, out) = run_at(
+            version,
+            "interp create -safe s\nputs [lsort [interp hidden s]]\n",
+        );
+        assert!(ok, "[{version:?}] must not error: {out}");
+        let actual: Vec<&str> = out.split_whitespace().collect();
+        assert_eq!(actual, expected, "[{version:?}] hidden set");
+    }
+}
+
+/// FP guard on `NOT_IMPLEMENTED`'s first four entries: they are absent
+/// because the VM has no such command, not because `make_safe` skipped
+/// them. If one is ever implemented this fails, and the row above becomes
+/// the right answer.
+#[test]
+fn the_unhidden_residue_is_genuinely_unimplemented() {
+    let (ok, out) = run_at(
+        TclVersion::V9_1,
+        "foreach c {load unload socket zipfs} { puts \"$c [info commands $c]\" }\n",
+    );
     assert!(ok, "must not error: {out}");
     for line in out.lines() {
+        let (name, found) = line.split_once(' ').unwrap_or((line, ""));
         assert!(
-            line.ends_with(" 1"),
-            "expected every listed command hidden, got: {line:?} (full: {out:?})"
+            found.trim().is_empty(),
+            "{name} is implemented now — move it out of NOT_IMPLEMENTED and \
+             expect it in the hidden set"
         );
     }
+}
+
+/// TP: `clock` stays callable inside a safe child, on every release —
+/// measured on tclsh 8.6.14, 9.0.4 and 9.1b0, where
+/// `s eval {clock format 0 -gmt 1}` succeeds even though 9.1 lists `clock`
+/// in `interp hidden`.
+#[test]
+fn clock_remains_callable_in_a_safe_child() {
+    for &(version, _) in MEASURED_HIDDEN {
+        let (ok, out) = run_at(
+            version,
+            "interp create -safe s\nputs [s eval {clock format 0 -gmt 1 -format %Y}]\n",
+        );
+        assert!(ok, "[{version:?}] must not error: {out}");
+        assert_eq!(out, "1970", "[{version:?}] safe clock");
+    }
+}
+
+/// Byte-compare the measured sets against a real interpreter when one is on
+/// `PATH`; skips silently otherwise. This is the half that keeps
+/// `MEASURED_HIDDEN` honest — the hermetic test above only pins what this
+/// engine does with it.
+#[test]
+fn measured_hidden_sets_match_real_tclsh_when_available() {
+    let mut checked = 0usize;
+    for &(version, measured) in MEASURED_HIDDEN {
+        let bin = format!("tclsh{}", version.version_string());
+        let env = format!("TCLSH{}", version.version_string().replace('.', ""));
+        let Some(out) = tclsh_output(
+            &env,
+            &[&bin],
+            "interp create -safe s\nputs [lsort [interp hidden s]]\n",
+        ) else {
+            continue;
+        };
+        // Top-level command names only: C's ensemble-subcommand rewrite names
+        // (`tcl:file:atime`, `tcl:zipfs:mount`, …) are not commands a script
+        // can name and are not what this set models.
+        let actual: Vec<&str> = out
+            .split_whitespace()
+            .filter(|name| !name.starts_with("tcl:"))
+            .collect();
+        assert_eq!(actual, measured, "[{version:?}] real tclsh hidden set");
+        checked += 1;
+    }
+    if checked == 0 {
+        eprintln!("no system tclsh found — pinned expectations still verified");
+    }
+}
+
+/// Run `src` under a real tclsh, or `None` when that binary isn't available.
+fn tclsh_output(bin_env: &str, names: &[&str], src: &str) -> Option<String> {
+    use std::io::Write as _;
+    let mut candidates: Vec<String> = Vec::new();
+    if let Ok(explicit) = std::env::var(bin_env) {
+        candidates.push(explicit);
+    }
+    candidates.extend(names.iter().map(ToString::to_string));
+    for name in candidates {
+        let Ok(mut child) = std::process::Command::new(&name)
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+        else {
+            continue;
+        };
+        if let Some(stdin) = child.stdin.as_mut() {
+            let _ = stdin.write_all(src.as_bytes());
+        }
+        let Ok(out) = child.wait_with_output() else {
+            continue;
+        };
+        return Some(String::from_utf8_lossy(&out.stdout).trim().to_string());
+    }
+    None
 }

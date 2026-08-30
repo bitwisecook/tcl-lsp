@@ -1,0 +1,30 @@
+# A pack whose *rows* are templated: the command declarations are literal, and
+# each body loops over its own option table. The data stays adjacent to the
+# loop, which is the authoring rule design E asks for.
+
+speclib rows 2.0 {
+
+    command sortish {
+        arity 1..
+        traits {PURE}
+
+        foreach {flag prose} {
+            -ascii {Compare in code-point order.}
+            -integer {Compare as integers.}
+            -real {Compare as floating-point values.}
+        } {
+            option $flag -detail $prose
+        }
+    }
+
+    command joinish {
+        arity 1..2
+
+        foreach name {first last every} {
+            subcommand $name {
+                arity 1
+                detail {One element of the sequence.}
+            }
+        }
+    }
+}

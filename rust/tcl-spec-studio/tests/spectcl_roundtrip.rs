@@ -19,7 +19,7 @@
 //! The gate for the `SpecTcl` renderer: draft → `.tclspec` → draft.
 //!
 //! [`render_spectcl`](tcl_spec_studio::render_spectcl) is the inverse of
-//! [`spectcl::load_pack`](tcl_spec_studio::spectcl::load_pack), so the honest
+//! [`spectcl::evaluate_pack`](tcl_spec_studio::spectcl::evaluate_pack), so the honest
 //! test of it is the round trip, run over the *whole* command surface rather
 //! than a handful of examples: every command in every browsable dialect is
 //! drafted from the live registry, rendered to `SpecTcl`, loaded back, drafted
@@ -277,7 +277,7 @@ fn round_trip(shipped: &Value) -> Trip {
         .unwrap_or("pack")
         .to_owned();
     let (text, losses) = render_spectcl::render_pack_reporting(&[draft], &pack_name);
-    let pack = spectcl::load_pack(&text);
+    let pack = spectcl::evaluate_pack(&text);
     let name = shipped["name"].as_str().unwrap_or_default();
     // Naming a lowering or codegen hook is *reported* by design — "this
     // changes how the compiler translates the command" — so it is a policy
@@ -604,14 +604,14 @@ fn the_eleven_port_fixtures_render_and_reload_as_themselves() {
 
     for file in &files {
         let source = std::fs::read_to_string(dir.join(file)).expect("a port");
-        let hand = spectcl::load_pack(&source);
+        let hand = spectcl::evaluate_pack(&source);
         let drafts: Vec<draft::Draft> = hand
             .commands
             .iter()
             .map(|command| draft::from_command_spec(command.spec))
             .collect();
         let rendered = render_spectcl::render_pack(&drafts, &hand.name);
-        let reloaded = spectcl::load_pack(&rendered);
+        let reloaded = spectcl::evaluate_pack(&rendered);
 
         let hand_lines = source.lines().count();
         let rendered_lines = rendered.lines().count();
