@@ -1569,11 +1569,26 @@ pub(crate) fn method_references_for_class(
             if other_q.as_str() != class_q
                 && hierarchy.method_target(other_q, method) == Some(class_q)
             {
-                // An inheritor can export or unexport this inherited method,
-                // so provider visibility cannot prove whether a captured
-                // `[self]` object command is callable for that receiver.
-                // Preserve internal `my` references and abstain from inherited
-                // callbacks until #1705 models effective receiver visibility.
+                // An inheritor can `export` / `unexport` this inherited name
+                // without redeclaring it, so whether a captured `[self]`
+                // object command is callable is a fact about *that* receiver,
+                // not about the provider's own declaration (issue #1705).
+                // `my` captures are unaffected either way — they keep the
+                // current object's internal dispatch.
+                //
+                // Asked through the shared dispatch walk rather than re-read
+                // here, so this direction and the cursor-origin resolution in
+                // `list_built_self_method_target_at_cursor` cannot disagree
+                // about which family a capture belongs to — the exact
+                // invariant a half-applied rename would break.
+                let external_callback_allowed = crate::oo_dispatch::method_dispatch_provider(
+                    analysis,
+                    other_q,
+                    method,
+                    true,
+                    crate::definition::MethodBucket::Instance,
+                )
+                .is_some_and(|(provider, _)| provider == class_q);
                 let inherited_bodies = collect_member_bodies_scoped(other_cd, false);
                 call_spans.extend(scan_method_sites(
                     source,
@@ -1581,7 +1596,7 @@ pub(crate) fn method_references_for_class(
                     &inherited_bodies,
                     method,
                     Some(decl_span),
-                    false,
+                    external_callback_allowed,
                 ));
             }
         }
@@ -1614,6 +1629,13 @@ pub(crate) fn method_references_for_class(
 /// the exact word span as one of its callback references.  Definition,
 /// references, prepare-rename, and rename therefore cannot infer a callback
 /// target from looser syntax than the code lens uses.
+///
+/// An **inherited** provider is a normal answer (issue #1705): the walk
+/// applies the receiver's own effective export state, so a captured `[self]`
+/// callback in a subclass joins the provider's edit family exactly when
+/// `method_references_for_class` collects it from the other direction, and
+/// abstains — through the same [`crate::oo_dispatch::method_dispatch_provider`]
+/// reading — when the receiver has unexported the name.
 pub(crate) fn list_built_self_method_target_at_cursor(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
@@ -1635,9 +1657,6 @@ pub(crate) fn list_built_self_method_target_at_cursor(
         external,
         bucket,
     )?;
-    if provider != receiver_q {
-        return None;
-    }
     Some((provider.to_owned(), is_classmethod))
 }
 
@@ -2799,6 +2818,28 @@ fn scan_next_dispatch_region_with_target(
     }
 }
 
+/// What a **subclass-only** document cannot derive from its own tables, and
+/// so must be handed by the workspace tier that can — the two facts
+/// [`inherited_method_call_sites`] needs about a class it holds the
+/// `ClassDef` for but whose method's *definer* may live in a document it
+/// never mentions.
+#[derive(Clone, Copy, Debug)]
+pub struct InheritedReceiverFacts<'a> {
+    /// The workspace-wide class names that are valid bare-dispatch heads for
+    /// `method` when it is a `classmethod`.  A pure inheritor never declares a
+    /// copy of `method`, so its own `class_methods` map never lists it.  See
+    /// [`obj_method_call_sites`]'s identical parameter for the pure-consumer
+    /// case this mirrors.
+    pub extra_classmethod_cmd_names: &'a [String],
+    /// Whether this receiver can dispatch `method` **externally**, so a
+    /// captured `[self]` object command in its bodies really reaches the
+    /// declaration (issue #1705).  A subclass-only document cannot decide that
+    /// alone: its own `export` / `unexport` stub is local, but the provider's
+    /// declared visibility is next door.  A `my` capture needs no such
+    /// permission and is collected either way.
+    pub external_callback_allowed: bool,
+}
+
 /// Call sites of an **inherited** `method` inside `class_q`, a class that
 /// does *not* declare `method` itself but inherits it (its MRO resolves
 /// `method` to an ancestor).  Returns the intra-class `my method` sites in
@@ -2827,8 +2868,12 @@ pub(crate) fn inherited_method_call_sites(
     class_q: &str,
     method: &str,
     is_classmethod: bool,
-    extra_classmethod_cmd_names: &[String],
+    workspace: InheritedReceiverFacts<'_>,
 ) -> Vec<tcl_lexer::Span> {
+    let InheritedReceiverFacts {
+        extra_classmethod_cmd_names,
+        external_callback_allowed,
+    } = workspace;
     let Some(class_def) = analysis.all_classes.get(class_q) else {
         return Vec::new();
     };
@@ -2837,7 +2882,14 @@ pub(crate) fn inherited_method_call_sites(
     // inheritor itself, so its own classmethod bodies may still contain a
     // `my <method>` call reaching the inherited classmethod.
     let bodies = collect_member_bodies_scoped(class_def, is_classmethod);
-    let mut spans = scan_my_method_sites(source, dialect, &bodies, method, None);
+    let mut spans = scan_method_sites(
+        source,
+        dialect,
+        &bodies,
+        method,
+        None,
+        external_callback_allowed,
+    );
     spans.extend(find_obj_method_call_sites_with_extra_cmd_names(
         source,
         dialect,
@@ -6617,25 +6669,123 @@ mod tests {
     }
 
     #[test]
-    fn inherited_callback_cursor_abstains_with_the_reference_set() {
-        // Even a publicly declared provider is not enough: the inheriting
-        // receiver can independently export or unexport the effective method.
-        // Until #1705 models that state, both declaration-origin collection
-        // and cursor-origin navigation must abstain together.
+    fn inherited_callback_joins_the_providers_reference_set() {
+        // #1705: a captured `[self]` object command in an inheriting class
+        // reaches the provider's exported implementation — tclsh 8.6.16 /
+        // 9.0.4 both run `Base`'s body for `[list [Child new] tick]`.  Both
+        // directions must agree on that, or rename would edit one and not the
+        // other.
         let src = "oo::class create Base {\n    method tick {} { return 1 }\n}\noo::class create Child {\n    superclass Base\n    method wire {} {\n        after idle [list [self] tick]\n    }\n}\n";
         let analysis = analyse(src);
         let dialect = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
         let cursor = u32::try_from(src.find("] tick").unwrap() + 2).unwrap();
-        assert!(
-            list_built_self_method_target_at_cursor(src, dialect, &analysis, "tick", cursor,)
-                .is_none(),
-            "cursor-origin resolution must not produce a partial rename family"
+        assert_eq!(
+            list_built_self_method_target_at_cursor(src, dialect, &analysis, "tick", cursor),
+            Some(("::Base".to_owned(), false)),
+            "the inherited callback resolves to its effective provider"
         );
 
         let refs = references(src, dialect, 1, 11, &analysis, true);
         assert!(
-            !refs.iter().any(|range| range.start_line == 6),
+            refs.iter().any(|range| range.start_line == 6),
+            "declaration-origin references must collect the same site: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn a_receiver_that_unexports_the_inherited_name_abstains_both_ways() {
+        // The receiver's own `unexport` decides, not the provider's
+        // declaration: tclsh 8.6.16 / 9.0.4 answer `[Child new] tick` with
+        // `unknown method "tick"` even though `Base` exports it, so the
+        // capture is not a call site of `Base::tick` at all.
+        let src = "oo::class create Base {\n    method tick {} { return 1 }\n}\noo::class create Child {\n    superclass Base\n    unexport tick\n    method wire {} {\n        after idle [list [self] tick]\n    }\n}\n";
+        let analysis = analyse(src);
+        let dialect = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
+        let cursor = u32::try_from(src.find("] tick").unwrap() + 2).unwrap();
+        assert!(
+            list_built_self_method_target_at_cursor(src, dialect, &analysis, "tick", cursor)
+                .is_none(),
+            "an unexported receiver name must not resolve a captured [self] callback"
+        );
+
+        let refs = references(src, dialect, 1, 11, &analysis, true);
+        assert!(
+            !refs.iter().any(|range| range.start_line == 7),
             "declaration-origin references must make the same abstention: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn a_receiver_that_reexports_an_unexported_provider_resolves_both_ways() {
+        // The mirror case, and the one a provider-only reading gets wrong in
+        // the other direction: `Base` unexports its own `tock`, `Child`
+        // exports the inherited name, and tclsh 8.6.16 / 9.0.4 run `Base`'s
+        // body for `[Child new] tock`.
+        let src = "oo::class create Base {\n    method tock {} { return 1 }\n    unexport tock\n}\noo::class create Child {\n    superclass Base\n    export tock\n    method wire {} {\n        after idle [list [self] tock]\n    }\n}\n";
+        let analysis = analyse(src);
+        let dialect = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
+        let cursor = u32::try_from(src.find("] tock").unwrap() + 2).unwrap();
+        assert_eq!(
+            list_built_self_method_target_at_cursor(src, dialect, &analysis, "tock", cursor),
+            Some(("::Base".to_owned(), false)),
+            "a re-exporting receiver revives the inherited callback target"
+        );
+
+        let refs = references(src, dialect, 1, 11, &analysis, true);
+        assert!(
+            refs.iter().any(|range| range.start_line == 8),
+            "declaration-origin references must collect the same site: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn an_overriding_receiver_keeps_its_callback_in_its_own_family() {
+        // `Child` declares its own `tick`, so the capture dispatches there.
+        // `Base::tick`'s family must not claim it (renaming `Base::tick`
+        // would otherwise rewrite a word that never called it).
+        let src = "oo::class create Base {\n    method tick {} { return 1 }\n}\noo::class create Child {\n    superclass Base\n    method tick {} { return 2 }\n    method wire {} {\n        after idle [list [self] tick]\n    }\n}\n";
+        let analysis = analyse(src);
+        let dialect = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
+        let cursor = u32::try_from(src.find("] tick").unwrap() + 2).unwrap();
+        assert_eq!(
+            list_built_self_method_target_at_cursor(src, dialect, &analysis, "tick", cursor),
+            Some(("::Child".to_owned(), false)),
+            "the override, not the base, provides this capture"
+        );
+
+        let refs = references(src, dialect, 1, 11, &analysis, true);
+        assert!(
+            !refs.iter().any(|range| range.start_line == 7),
+            "the base declaration must not collect the override's capture: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn an_unrelated_class_does_not_collect_a_same_named_callback() {
+        // No `superclass` edge, so nothing links the two `tick`s.
+        let src = "oo::class create Base {\n    method tick {} { return 1 }\n}\noo::class create Other {\n    method tick {} { return 2 }\n    method wire {} {\n        after idle [list [self] tick]\n    }\n}\n";
+        let analysis = analyse(src);
+        let dialect = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
+        let refs = references(src, dialect, 1, 11, &analysis, true);
+        assert!(
+            !refs.iter().any(|range| range.start_line == 6),
+            "an unrelated class's capture is not a reference: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn a_mixins_unexport_does_not_suppress_the_superclass_capture() {
+        // C enters each mixin with a fresh copy of the dispatch flags, so a
+        // mixin that unexports the name empties only its own branch: tclsh
+        // 8.6.16 / 9.0.4 still run `Base`'s `tick` for `[Child new] tick`.
+        let src = "oo::class create Base {\n    method tick {} { return 1 }\n}\noo::class create Mix {\n    unexport tick\n}\noo::class create Child {\n    superclass Base\n    mixin Mix\n    method wire {} {\n        after idle [list [self] tick]\n    }\n}\n";
+        let analysis = analyse(src);
+        let dialect = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
+        let cursor = u32::try_from(src.find("] tick").unwrap() + 2).unwrap();
+        assert_eq!(
+            list_built_self_method_target_at_cursor(src, dialect, &analysis, "tick", cursor),
+            Some(("::Base".to_owned(), false)),
+            "a mixin's unexport must not suppress the spine's provider"
         );
     }
 

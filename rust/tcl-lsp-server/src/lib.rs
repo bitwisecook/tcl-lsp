@@ -6777,6 +6777,88 @@ struct ConsumerScan {
     classmethod_cmd_names: Vec<String>,
 }
 
+/// The document-local inputs [`family_spans_in_document`] scans one document
+/// with — bundled so the cross-file references and rename passes share one
+/// call shape rather than two near-identical argument lists.
+#[derive(Clone, Copy)]
+struct FamilySpanScan<'a> {
+    source: &'a str,
+    profile: &'static tcl_dialect::DialectProfile,
+    analysis: &'a AnalysisResult,
+    method: &'a str,
+    is_classmethod: bool,
+    /// See [`core_references::InheritedReceiverFacts::extra_classmethod_cmd_names`].
+    classmethod_cmd_names: &'a [String],
+    /// The receivers the workspace proved can dispatch `method` externally —
+    /// see [`MethodFamily::external_callback_receivers`].
+    external_receivers: &'a std::collections::HashSet<String>,
+}
+
+/// Which span set a **definer** in this document contributes — the one place
+/// the two cross-file legs differ.
+#[derive(Clone, Copy)]
+enum DefinerSpans {
+    /// Everything renaming the member must rewrite, declaration included.
+    Rename,
+    /// Everything Find All References reports, with the declaration included
+    /// only when the client asked for it.
+    References { include_declaration: bool },
+}
+
+/// Every span one document contributes to a method family: its **definers'**
+/// own set (per `definer_spans`) followed by its pure **inheritors'** call
+/// sites, in the order the classes were given.
+///
+/// Shared by the cross-file references and rename passes so the two cannot
+/// disagree about what a document contributes, and so the receiver-scoped
+/// `[self]`-capture permission (issue #1705) is read the same way on both.
+fn family_spans_in_document(
+    scan: FamilySpanScan<'_>,
+    definers: &[String],
+    inheritors: &[String],
+    definer_spans: DefinerSpans,
+) -> Vec<tcl_lexer::Span> {
+    let mut all: Vec<tcl_lexer::Span> = Vec::new();
+    for cq in definers {
+        match definer_spans {
+            DefinerSpans::Rename => all.extend(core_rename::method_spans_in_document(
+                scan.source,
+                scan.profile,
+                scan.analysis,
+                cq,
+                scan.method,
+                scan.is_classmethod,
+            )),
+            DefinerSpans::References {
+                include_declaration,
+            } => all.extend(core_references::method_reference_spans_in_document(
+                scan.source,
+                scan.profile,
+                scan.analysis,
+                cq,
+                scan.method,
+                include_declaration,
+                scan.is_classmethod,
+            )),
+        }
+    }
+    for cq in inheritors {
+        all.extend(core_rename::inherited_method_spans_in_document(
+            scan.source,
+            scan.profile,
+            scan.analysis,
+            cq,
+            scan.method,
+            scan.is_classmethod,
+            core_references::InheritedReceiverFacts {
+                extra_classmethod_cmd_names: scan.classmethod_cmd_names,
+                external_callback_allowed: scan.external_receivers.contains(cq),
+            },
+        ));
+    }
+    all
+}
+
 /// The family classes one document declares: the **definers** that (re)define
 /// the method and the pure **inheritors** that only inherit it.
 #[derive(Default)]
@@ -6791,6 +6873,22 @@ struct FamilyClasses {
 struct MethodFamily {
     by_uri: Vec<(String, FamilyClasses)>,
     classmethod_cmd_names: Vec<String>,
+    /// The inheriting receivers that can dispatch the method **externally**,
+    /// so a captured `[self]` object command written in their bodies really
+    /// reaches the family's declaration (issue #1705).
+    ///
+    /// A property of the receiver, not of the provider: a subclass can
+    /// `export` / `unexport` a name it inherits without redeclaring it, and
+    /// the two halves of the answer routinely live in different documents —
+    /// the stub next to the subclass, the declared visibility next to the
+    /// base.  The workspace dispatch chain already folds both, so it decides
+    /// here, under the same index read the family itself is built from, and
+    /// the per-document scans are handed a plain fact.
+    ///
+    /// A `my` capture is not gated on this: it keeps the current object's
+    /// internal dispatch, which ignores the export flag entirely (tclsh
+    /// 8.6.16 / 9.0.4).
+    external_callback_receivers: std::collections::HashSet<String>,
 }
 
 /// One memoised workspace-class-oracle analysis — see
@@ -11341,10 +11439,18 @@ impl Backend {
             classes.inheritors.sort();
             classes.inheritors.dedup();
         }
+        let external_callback_receivers = index.external_dispatch_receivers(
+            by_uri
+                .values()
+                .flat_map(|classes| classes.inheritors.iter().map(String::as_str)),
+            method,
+            is_classmethod,
+        );
         drop(index);
         MethodFamily {
             by_uri: by_uri.into_iter().collect(),
             classmethod_cmd_names,
+            external_callback_receivers,
         }
     }
     /// The cross-file **override-family** method rename, or `None` when the
@@ -11907,6 +12013,7 @@ impl Backend {
                 is_classmethod,
             )
             .await;
+        let external_callback_receivers = family.external_callback_receivers;
         let classmethod_cmd_names = family.classmethod_cmd_names;
         for (
             u,
@@ -11929,34 +12036,25 @@ impl Backend {
             let dialect = target_doc.dialect.clone();
             let method_owned = method.to_owned();
             let classmethod_cmd_names_cl = classmethod_cmd_names.clone();
+            let external_receivers_cl = external_callback_receivers.clone();
             let spans: Vec<tcl_lexer::Span> = crate::rt::spawn_blocking(move || {
-                // Resolved once for the whole closure: the profile is a pure
-                // function of `dialect`, so re-resolving it per iteration only
-                // repeats the lookup.
-                let profile = tcl_lsp_core::profile_for_dialect(&dialect);
-                let mut all: Vec<tcl_lexer::Span> = Vec::new();
-                for cq in &definers {
-                    all.extend(core_rename::method_spans_in_document(
-                        &src,
-                        profile,
-                        &analysis,
-                        cq,
-                        &method_owned,
+                family_spans_in_document(
+                    FamilySpanScan {
+                        source: &src,
+                        // Resolved once: the profile is a pure function of
+                        // `dialect`, so re-resolving it per class only repeats
+                        // the lookup.
+                        profile: tcl_lsp_core::profile_for_dialect(&dialect),
+                        analysis: &analysis,
+                        method: &method_owned,
                         is_classmethod,
-                    ));
-                }
-                for cq in &inheritors {
-                    all.extend(core_rename::inherited_method_spans_in_document(
-                        &src,
-                        profile,
-                        &analysis,
-                        cq,
-                        &method_owned,
-                        is_classmethod,
-                        &classmethod_cmd_names_cl,
-                    ));
-                }
-                all
+                        classmethod_cmd_names: &classmethod_cmd_names_cl,
+                        external_receivers: &external_receivers_cl,
+                    },
+                    &definers,
+                    &inheritors,
+                    DefinerSpans::Rename,
+                )
             })
             .await
             .unwrap_or_default();
@@ -12031,6 +12129,7 @@ impl Backend {
         let family = self
             .method_family_by_document(dialect, seed_class, method, is_classmethod)
             .await;
+        let external_callback_receivers = family.external_callback_receivers;
         let classmethod_cmd_names = family.classmethod_cmd_names;
         let mut out = Vec::new();
         for (
@@ -12057,35 +12156,27 @@ impl Backend {
             let dialect = target_doc.dialect.clone();
             let method_owned = method.to_owned();
             let classmethod_cmd_names_cl = classmethod_cmd_names.clone();
+            let external_receivers_cl = external_callback_receivers.clone();
             let spans: Vec<tcl_lexer::Span> = crate::rt::spawn_blocking(move || {
-                // Resolved once for the whole closure: the profile is a pure
-                // function of `dialect`, so re-resolving it per iteration only
-                // repeats the lookup.
-                let profile = tcl_lsp_core::profile_for_dialect(&dialect);
-                let mut all: Vec<tcl_lexer::Span> = Vec::new();
-                for cq in &definers {
-                    all.extend(core_references::method_reference_spans_in_document(
-                        &src,
-                        profile,
-                        &analysis,
-                        cq,
-                        &method_owned,
+                family_spans_in_document(
+                    FamilySpanScan {
+                        source: &src,
+                        // Resolved once: the profile is a pure function of
+                        // `dialect`, so re-resolving it per class only repeats
+                        // the lookup.
+                        profile: tcl_lsp_core::profile_for_dialect(&dialect),
+                        analysis: &analysis,
+                        method: &method_owned,
+                        is_classmethod,
+                        classmethod_cmd_names: &classmethod_cmd_names_cl,
+                        external_receivers: &external_receivers_cl,
+                    },
+                    &definers,
+                    &inheritors,
+                    DefinerSpans::References {
                         include_declaration,
-                        is_classmethod,
-                    ));
-                }
-                for cq in &inheritors {
-                    all.extend(core_rename::inherited_method_spans_in_document(
-                        &src,
-                        profile,
-                        &analysis,
-                        cq,
-                        &method_owned,
-                        is_classmethod,
-                        &classmethod_cmd_names_cl,
-                    ));
-                }
-                all
+                    },
+                )
             })
             .await
             .unwrap_or_default();

@@ -127,9 +127,17 @@ impl OoFrame {
 /// is *visible* in this context wins:
 ///
 /// * `external` (a `$obj m` / `CLASS m` dispatch) sees exported
-///   implementations only.
+///   implementations only — and "exported" is the receiver's *effective*
+///   state ([`superclass_chain_export_state`]), not the provider's own
+///   declaration, because a subclass can `export` / `unexport` a name it
+///   inherits without redeclaring it.  A provider reached through a mixin
+///   keeps the per-entry reading: C enters each mixin with a fresh copy of
+///   the dispatch flags, so the spine's state does not travel there.
 /// * an internal (`my m`) dispatch also reaches unexported ones, and
-///   `private` ones only in the receiver's own class.
+///   `private` ones only in the receiver's own class.  Export state is not
+///   consulted at all: `my` ignores it (tclsh 8.6.16 / 9.0.4 —
+///   `oo::define Child { unexport tick }` leaves `my tick` reaching
+///   `Base`'s body).
 ///
 /// `None` is a definitive "no implementation is callable here" — mirroring
 /// C's `unknown method` — not "look somewhere else".
@@ -148,6 +156,16 @@ pub(crate) fn method_dispatch_provider<'a>(
 ) -> Option<(&'a str, &'a MethodDef)> {
     let hierarchy = analysis.class_hierarchy();
     let mro = hierarchy.mro_map.get(class_q)?;
+    // Read once for the whole walk: the flag is a property of the *receiver*,
+    // and every spine provider answers to it.
+    let spine_export = external
+        .then(|| superclass_chain_export_state(analysis, class_q, method, bucket))
+        .flatten();
+    let spine: &[String] = if spine_export.is_some() {
+        hierarchy.spine_map.get(class_q).map_or(&[], Vec::as_slice)
+    } else {
+        &[]
+    };
     for provider_q in mro {
         let Some(cd) = analysis.all_classes.get(provider_q) else {
             continue;
@@ -166,12 +184,89 @@ pub(crate) fn method_dispatch_provider<'a>(
         };
         let Some(md) = md else { continue };
         let visible = if external {
-            md.visibility == "public"
+            match spine_export {
+                // `private` is the one state an `export` cannot lift: it is
+                // not a flag on a table entry but a separate, class-local
+                // slot (tclsh 9.0.4 — a subclass's `export priv` still
+                // leaves `[Child new] priv` an `unknown method`).
+                Some(exported) if spine.contains(provider_q) => {
+                    exported && md.visibility != "private"
+                }
+                _ => md.visibility == "public",
+            }
         } else {
             md.visibility != "private" || provider_q == class_q
         };
         if visible {
             return Some((provider_q.as_str(), md));
+        }
+    }
+    None
+}
+
+/// The export flag an **external** dispatch (`$obj m`, `CLASS m`, or a
+/// captured `[self]` object command) reads for `method` on a receiver of
+/// class `class_q` — `None` when nothing on the superclass spine mentions the
+/// name, so there is no state to read.
+///
+/// The spine is `ClassHierarchy::spine_map` — the mixin-free linearisation,
+/// built from the same resolved superclass edges as `mro_map`, because C
+/// enters each mixin with a fresh copy of the dispatch flags and so lets a
+/// mixin's `unexport` empty only its own branch.
+///
+/// `TclOO` takes this flag from the *most specific* spine class that mentions
+/// the member and the **implementation** from the first class that declares a
+/// body; the two are genuinely independent, because `export` / `unexport`
+/// accept a name their class does not define and create a body-less table
+/// entry whose only content is the flag.  `info class methods` does not list
+/// such an entry, which is why this cannot be read off the member tables
+/// alone.  Oracle, byte-identical on tclsh 8.6.16 and 9.0.4:
+///
+/// ```tcl
+/// oo::class create Base   { method tick {} { return base } }
+/// oo::class create Child  { superclass Base }
+/// oo::define Child { unexport tick }
+/// [Child new] tick    ;# -> unknown method "tick"  (Base's public body, suppressed here)
+/// oo::class create Base3  { method tock {} { return b3 } ; unexport tock }
+/// oo::class create Child3 { superclass Base3 ; export tock }
+/// [Child3 new] tock   ;# -> b3   (Base3's unexported body, revived here)
+/// [Base3 new] tock    ;# -> unknown method "tock"
+/// ```
+///
+/// A declaration on the deciding class outranks that class's own stub sets: a
+/// later `method g {…}` re-applies the name's default visibility over an
+/// earlier `unexport g` (tclsh 8.6.16 / 9.0.4 — `oo::define G { unexport g ;
+/// method g {} {…} }` leaves `[G new] g` callable), and the analyser has
+/// already folded that source order into `MethodDef::visibility`.
+///
+/// Multiple `superclass`es are walked in declaration order and the first
+/// mention wins, matching the order the chain builder appends them in.  C
+/// keeps each branch's flags independent, so a *later* branch disagreeing
+/// with the first is approximated rather than modelled — the same
+/// single-linearisation approximation `mro_map` already makes.
+fn superclass_chain_export_state(
+    analysis: &AnalysisResult,
+    class_q: &str,
+    method: &str,
+    bucket: MethodBucket,
+) -> Option<bool> {
+    let hierarchy = analysis.class_hierarchy();
+    for spine_q in hierarchy.spine_map.get(class_q)? {
+        let Some(cd) = analysis.all_classes.get(spine_q) else {
+            continue;
+        };
+        let (table, exports, unexports) = match bucket {
+            MethodBucket::Instance => (&cd.methods, &cd.exports, &cd.unexports),
+            MethodBucket::Class => (&cd.class_methods, &cd.class_exports, &cd.class_unexports),
+        };
+        if let Some(md) = table.get(method) {
+            return Some(md.visibility == "public");
+        }
+        if exports.contains(method) {
+            return Some(true);
+        }
+        if unexports.contains(method) {
+            return Some(false);
         }
     }
     None
