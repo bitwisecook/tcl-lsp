@@ -12,4 +12,4 @@ registrations 1
 notices 1
 notice command foreach 44 presentation names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
 commands 1
-command foreach line 10 overrides false degraded false spec 6c928e19b4aeb96c hooks 11d82c6adf139993 grammar 715ea0deb6f6f5f9
+command foreach line 10 overrides false degraded false spec b35dd94ebb31eb3c hooks 11d82c6adf139993 grammar 715ea0deb6f6f5f9
