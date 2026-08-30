@@ -264,6 +264,24 @@ Registering the provider is not itself an activation event: the extension
 activates on a Tcl language id or on a workspace containing Tcl sources, which
 an ILX workspace always does. A JavaScript-only project never activates it.
 
+### Desktop only, and why
+
+The whole relation — definition, hover and both directions of
+find-references — is **filesystem-path** shaped: `extensions/<name>/` is
+matched on path components, the entry point is resolved through
+`package.json`'s `main`, and the caller search lists directories. Every server
+tier therefore starts by turning the request's URI into a path, and a URI that
+is not `file:` has none.
+
+So on the web hosts (vscode.dev / github.dev, where documents are `vscode-vfs:`
+and friends) every ILX tier abstains, and has since the relation landed. The
+browser entry point deliberately does **not** register the JavaScript reference
+provider: it would send a request the server cannot answer. Making this work on
+the web means giving the relation a URI-shaped discovery path rather than a
+path-shaped one — extension lookup, entry-point resolution and directory
+listing all over the virtual filesystem — which is its own change, not a
+registration.
+
 ## Anchors
 
 - `rust/tcl-registry/src/remote_method.rs` — the descriptors.

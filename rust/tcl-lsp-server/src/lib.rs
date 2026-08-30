@@ -9538,11 +9538,19 @@ impl Backend {
         let store = self.store.as_ref();
         let open = self.open_document_texts().await;
         let files = core_ilx::IlxFiles::new(store).with_open_documents(&open);
-        let plugins = self.ilx_plugin_roots(uri).await;
         // Which end of the relation the cursor is on decides which dialect's
-        // registry reads the *rule* files, so the file gate is asked first —
-        // it needs no registry at all.
+        // registry reads the *rule* files — and which declarations apply — so
+        // the file gate is asked first; it needs no registry at all.
         let js_end = core_ilx::is_extension_entry(&path, files);
+        // A Tcl document belongs to a workspace folder, so its own folder's
+        // declarations are the ones that describe it. A JavaScript entry point
+        // is matched by *workspace path* instead, so which folder declared it
+        // is irrelevant — see `all_ilx_plugin_roots`.
+        let plugins = if js_end {
+            self.all_ilx_plugin_roots().await
+        } else {
+            self.ilx_plugin_roots(uri).await
+        };
         let registry = if js_end {
             // A JavaScript source has no Tcl dialect of its own, so the rule
             // files it is matched against are read with the dialect that owns
@@ -9620,7 +9628,9 @@ impl Backend {
         if !core_ilx::is_extension_entry(&path, files) {
             return None;
         }
-        let plugins = self.ilx_plugin_roots(&uri).await;
+        // Every declaration in the session, not just the ones the folder
+        // holding this `.js` made — see `all_ilx_plugin_roots`.
+        let plugins = self.all_ilx_plugin_roots().await;
         // JavaScript has no Tcl dialect of its own, so the rule files it is
         // matched against are read with the dialect that owns the ILX surface.
         let registry = self
@@ -15418,6 +15428,23 @@ impl Backend {
     /// (and the e2e config barrier) can see *that* a declaration has been
     /// applied and *where* it resolved to, without having to name a document
     /// inside the folder that carries it.
+    ///
+    /// It is also what the **JavaScript** end of the ILX relation resolves
+    /// against, rather than [`Self::ilx_plugin_roots`]. A declaration may point
+    /// outside the folder that made it (`prod = ../shared/ws`, or an absolute
+    /// path), and then the entry point is not under that folder at all — so a
+    /// folder-scoped lookup keyed on the `.js` URI would find nothing and fall
+    /// back to the workspace's *directory name*, which is exactly the name the
+    /// declaration exists to correct. Reverse references would then find no
+    /// callers even though Tcl-to-JavaScript navigation through the same
+    /// mapping worked (issue #1707 review).
+    ///
+    /// Widening cannot mismatch here, because the JavaScript end selects by
+    /// resolved **workspace path**: a declaration only applies when its
+    /// workspace *is* this entry point's. The Tcl end keeps the folder-scoped
+    /// lookup, where a session-wide one would make two folders that each
+    /// declare the same plugin name for their own workspace ambiguous for
+    /// both.
     /// [`Self::all_ilx_plugin_roots`] as the JSON `tcl-lsp.getEffectiveConfig`
     /// reports: `[{plugin, workspace, rules}]`, paths absolute.
     async fn reported_ilx_plugin_roots(&self) -> Vec<serde_json::Value> {

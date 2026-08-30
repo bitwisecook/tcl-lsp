@@ -616,3 +616,126 @@ fn the_ilx_references_command_ignores_an_ordinary_javascript_file() {
     );
     assert!(result.is_null(), "{result:?}");
 }
+
+/// A declaration that points **outside** the folder that made it — the shape a
+/// `../shared/ws` mapping (or an absolute path, or a second workspace root)
+/// takes.
+///
+/// ```text
+/// <root>/app/rules/rule1.tcl                          <- the workspace folder
+/// <root>/ws_alpha/rules/rule2.tcl                     <- outside it
+/// <root>/ws_alpha/extensions/my_extension/index.js    <- outside it
+/// ```
+///
+/// The JavaScript entry point is not under the configuring folder, so a
+/// folder-scoped lookup keyed on its own URI finds no declaration and falls
+/// back to the workspace's directory name — the very name the declaration
+/// exists to correct.
+struct OutsideFolderFixture {
+    plugin: String,
+    root: PathBuf,
+    folder: PathBuf,
+    inside_uri: String,
+    workspace_rule_uri: String,
+    extension_uri: String,
+}
+
+impl OutsideFolderFixture {
+    fn new(label: &str) -> Self {
+        let plugin = format!("prod_{label}_{}", std::process::id());
+        let root = std::env::temp_dir().join(format!("tcl-lsp-e2e-1707o-{plugin}"));
+        let folder = root.join("app");
+        let workspace = root.join("ws_alpha");
+        let folder_rules = folder.join("rules");
+        let workspace_rules = workspace.join("rules");
+        let extension_dir = workspace.join("extensions").join("my_extension");
+        for dir in [&folder_rules, &workspace_rules, &extension_dir] {
+            std::fs::create_dir_all(dir).expect("mk dir");
+        }
+        let inside = folder_rules.join("rule1.tcl");
+        let workspace_rule = workspace_rules.join("rule2.tcl");
+        let extension_path = extension_dir.join("index.js");
+        std::fs::write(&inside, rule_source(&plugin)).expect("write folder rule");
+        std::fs::write(&workspace_rule, rule_source(&plugin)).expect("write workspace rule");
+        std::fs::write(&extension_path, EXTENSION).expect("write extension");
+        Self {
+            plugin,
+            inside_uri: uri_of(&inside),
+            workspace_rule_uri: uri_of(&workspace_rule),
+            extension_uri: uri_of(&extension_path),
+            folder,
+            root,
+        }
+    }
+
+    fn serve(&self) -> Lsp {
+        let config = serde_json::json!({
+            "iruleslx": { "plugins": { &self.plugin: "../ws_alpha" } }
+        });
+        let mut lsp = Lsp::with_config_at_root(config, &self.folder);
+        lsp.open_ready_lang(&self.inside_uri, &rule_source(&self.plugin), "tcl-irule");
+        lsp
+    }
+}
+
+impl Drop for OutsideFolderFixture {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.root);
+    }
+}
+
+#[test]
+fn a_declaration_outside_its_folder_reaches_both_ends() {
+    let fixture = OutsideFolderFixture::new("outsidefolder");
+    let mut lsp = fixture.serve();
+
+    // The Tcl end: the rule *is* under the configuring folder, so its own
+    // folder's declarations describe it.
+    let from_tcl = locations(&lsp.definition(&fixture.inside_uri, CALL_METHOD.0, CALL_METHOD.1));
+    assert_eq!(from_tcl.len(), 1, "{from_tcl:?}");
+    assert_eq!(from_tcl[0].uri, fixture.extension_uri, "{from_tcl:?}");
+
+    // The JavaScript end: the entry point is *not* under that folder, so a
+    // lookup keyed on its own URI sees no declaration and falls back to the
+    // directory name `ws_alpha` — which no `ILX::init` in these rules writes.
+    // Resolving against every declaration in the session is what keeps the two
+    // directions symmetric.
+    let from_js = locations(&lsp.references(
+        &fixture.extension_uri,
+        REGISTRATION.0,
+        REGISTRATION.1,
+        false,
+    ));
+    assert_eq!(
+        from_js
+            .iter()
+            .filter(|l| l.uri == fixture.workspace_rule_uri)
+            .count(),
+        2,
+        "the declared workspace's own rules/ must still be searched: {from_js:?}"
+    );
+
+    // …and through the command the VS Code client uses for an open buffer.
+    let via_command = lsp.request(
+        "workspace/executeCommand",
+        serde_json::json!({
+            "command": "tcl-lsp.ilxReferences",
+            "arguments": [{
+                "uri": fixture.extension_uri,
+                "text": EXTENSION,
+                "line": REGISTRATION.0,
+                "character": REGISTRATION.1,
+                "includeDeclaration": false,
+            }],
+        }),
+    );
+    let found = locations(&via_command);
+    assert_eq!(
+        found
+            .iter()
+            .filter(|l| l.uri == fixture.workspace_rule_uri)
+            .count(),
+        2,
+        "{found:?}"
+    );
+}

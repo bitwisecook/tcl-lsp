@@ -137,6 +137,14 @@ export function createIlxReferenceProvider(
  * a Tcl language id or on a workspace containing Tcl sources, which an ILX
  * workspace always does (its `rules/`). A JavaScript-only project therefore
  * never activates it, and never pays for this.
+ *
+ * The **browser** entry point (`extensionBrowser.ts`) deliberately does not
+ * call this. The whole ILX relation is filesystem-path shaped — `extensions/`
+ * matched on path components, `package.json`'s `main`, directory listing — so
+ * every server tier begins by turning the URI into a path, and abstains for the
+ * `vscode-vfs:`-style URIs a web host uses. Registering there would send a
+ * request the server cannot answer. See
+ * `docs/design/iruleslx-remote-methods.md`.
  */
 export function registerIlxReferenceProvider(
   getClient: () => IlxReferenceClient | undefined,
