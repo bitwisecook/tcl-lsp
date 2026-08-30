@@ -62,6 +62,37 @@ fn array_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
         "for" => array_for(vm, rest),
         "set" => match rest {
             [n, list] => {
+                // C's `Tcl_ArrayObjCmd` set path resolves the target through
+                // the standard variable lookup *before* it looks at the list,
+                // and that lookup parses the name: an element-form name yields
+                // a scalar element cell, never an array, so the command refuses
+                // it (issue #1578). The check therefore precedes both the list
+                // parse and the even-length test.
+                //
+                // Oracle, identical on tclsh 8.4.20 / 8.5.19 / 8.6.14 / 9.0.4 /
+                // 9.1 (`catch` result : message):
+                //
+                //   array set (x) {a 1}     -> 1:can't set "(x)": variable isn't array
+                //   array set (x) {}        -> 1:can't set "(x)": variable isn't array
+                //   array set (x) {a}       -> 1:can't set "(x)": variable isn't array
+                //   array set (x) "a \{b"   -> 1:can't set "(x)": variable isn't array
+                //   array set arr(k) {a 1}  -> 1:can't set "arr(k)": variable isn't array
+                //   array set {arr(k)} {a 1}-> 1:can't set "arr(k)": variable isn't array
+                //   array set okarr {a}     -> 1:list must have an even number of elements
+                //   array set {a)b} {a 1}   -> 0:            (a `)` with no `(` is a name)
+                //   array set {a(b} {a 1}   -> 0:            (an unclosed `(` is a name)
+                //
+                // 8.6+ also carry `errorCode` `TCL LOOKUP VARNAME <name>` (8.4 /
+                // 8.5: `NONE`); the VM's shared `TCL LOOKUP VARNAME` spelling
+                // omits the trailing name element here as it does at its
+                // sibling site (`missing_parent_ns`).
+                let name = n.to_str();
+                if tcl_syntax::naming::split_element_ref(&name).is_some() {
+                    return crate::command::err_with_code(
+                        format!("can't set \"{name}\": variable isn't array"),
+                        "TCL LOOKUP VARNAME",
+                    );
+                }
                 let items = match list.as_list() {
                     Ok(i) => i,
                     Err(e) => return err(e.message),
@@ -69,7 +100,6 @@ fn array_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
                 if items.len() % 2 != 0 {
                     return err("list must have an even number of elements");
                 }
-                let name = n.to_str();
                 if items.is_empty() {
                     // `array set a {}` still materialises an empty array; onto an
                     // existing scalar it errors. C words *this* case as the

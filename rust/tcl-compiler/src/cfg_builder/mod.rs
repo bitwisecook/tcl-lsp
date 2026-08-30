@@ -467,8 +467,17 @@ impl CfgBuilder {
         };
         Some(Statement::Barrier {
             span: *span,
+            // A widening *effect*, not a command to run: the call itself is
+            // already in the statement stream immediately beside this barrier,
+            // so naming the callee here made codegen invoke it a second time
+            // (issue #1602 — `proc p {} { upvar 1 {a b} v ; puts "u=$v" }; p`
+            // printed `u=…` twice on the VM where tclsh 8.6.14 / 9.0.4 print it
+            // once; `proc setter {body} { uplevel #0 $body }; setter {set q 1}`
+            // failed with `wrong # args` from the re-invoke). The reserved
+            // marker keeps the callee's name in `reason` for the disassembly
+            // and the explorer.
             reason,
-            command: command.clone(),
+            command: crate::ir::CALLER_FRAME_OPAQUE_MARKER.to_owned(),
             canonical_command: None,
             args: Vec::new(),
             tokens: None,

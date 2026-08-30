@@ -58,6 +58,19 @@ pub(crate) fn has_unescaped_subst(s: &str) -> bool {
 /// Tag appended to no-dedup literal comments.
 pub(crate) const NO_DEDUP_TAG: &str = " #nodedup";
 
+/// A static store's name word, resolved by
+/// [`CodegenCtx::store_target`] — see that method for the rule and its oracle.
+struct StoreTarget {
+    /// The variable name the store must use: the name word's *value*, with the
+    /// element key still in source form when [`Self::key_is_literal`] is false.
+    name: String,
+    /// Whether the element key (if this names one) is already a finished
+    /// literal, so codegen pushes it verbatim instead of substituting it.
+    /// True for a braced word and for any word whose only substitutions were
+    /// backslash escapes; false while a live `$` / `[` remains in the key.
+    key_is_literal: bool,
+}
+
 impl CodegenCtx<'_> {
     /// Emit a statement, wrapping with `startCommand` if needed.
     ///
@@ -121,6 +134,87 @@ impl CodegenCtx<'_> {
         self.cmd_index += 1;
     }
 
+    /// Resolve a *static store*'s name word for codegen.
+    ///
+    /// Tcl substitutes a command word **whole** and only then scans the result
+    /// for the `(`…`)` that makes it an array element. The IR carries the
+    /// word's *source spelling*, so codegen owns both halves; it resolves the
+    /// two shapes a static store can take:
+    ///
+    /// * **Fully static** — a braced word (which substitutes nothing) or one
+    ///   carrying only backslash escapes. The word's value is known here:
+    ///   decode it, and both the name and any element key are finished
+    ///   literals that must be pushed *verbatim* so the VM's `subst_word`
+    ///   never touches them again.
+    /// * **Live key** — the word still holds an unescaped `$` / `[`, which can
+    ///   only be inside the element key: `lower_set` keeps a computed *base*
+    ///   (`set $x v`, `set a[f] v`) a generic `Call` whose `STORE_STK` operand
+    ///   is the substituted word. The split then runs on the source spelling
+    ///   and `push_array_key` resolves the key at run time; the escape-only
+    ///   base is still decoded.
+    ///
+    /// Two divergences close here. Not decoding put the variable in the table
+    /// under its source spelling, so a read through one spelling missed a write
+    /// through the other (issue #1616); not pushing the resolved name verbatim
+    /// let `subst_word` substitute it a *second* time — stripping a name's
+    /// outer braces, reading a `${…}` inside it, and running a `[…]` inside it
+    /// (issue #1602).
+    ///
+    /// Oracle — identical on tclsh 8.4.20, 8.5.19, 8.6.14, 9.0.4 and 9.1:
+    ///
+    /// ```text
+    /// # issue #1616 — the name is the word's value, not its spelling
+    /// set "z1\\" A ; set "z2\}" B ; set "z3\ x" C ; set z4\\ D ; set {z5\\} E
+    /// set "z6\x41" F ; set "z7\t" G
+    /// foreach n [lsort [info vars z*]] { puts "$n len=[string length $n]" }
+    /// ->  z1\ len=3      (quoted `\\`   -> one backslash)
+    ///     z2} len=3      (quoted `\}`   -> a brace)
+    ///     z3 x len=4     (quoted `\ `   -> a space)
+    ///     z4\ len=3      (bare   `\\`   -> one backslash)
+    ///     z5\\ len=4     (BRACED `\\`   -> kept verbatim: the negative case)
+    ///     z6A len=3      (quoted `\x41`)
+    ///     z7<TAB> len=3  (quoted `\t`)
+    ///
+    /// # issue #1602 — the resolved name is never substituted again
+    /// set {{a}} V ; set {a[bogus]} V ; set {${x}} V ; set arr({k}) V
+    /// ->  variables `{a}` (len 3), `a[bogus]` (len 8) and `${x}` (len 4),
+    ///     plus `arr` with the single key `{k}` (len 3) — no command runs,
+    ///     no `x` is read, no braces are stripped.
+    ///
+    /// # the two halves together: escapes decide where the element starts, and
+    /// # an escaped `$` inside a key stays a literal `$`
+    /// set i IDX ; set q\(b\) 1 ; set r(\$i) 2 ; set s($i) 3
+    /// ->  array q key b ; array r key {$i} ; array s key IDX
+    /// ```
+    fn store_target(&self, name: &str, name_braced: bool) -> StoreTarget {
+        // Braces suppressed every substitution: the content *is* the name.
+        if name_braced {
+            return StoreTarget {
+                name: name.to_owned(),
+                key_is_literal: true,
+            };
+        }
+        if has_unescaped_subst(name) {
+            // Live key: keep the key's source spelling so `push_array_key`
+            // substitutes it, but resolve the escape-only base as Tcl does.
+            let name = match split_array_ref(name) {
+                Some((base, elem)) => format!(
+                    "{}({elem})",
+                    tcl_lexer::backslash_subst_in(base, self.escapes)
+                ),
+                None => name.to_owned(),
+            };
+            return StoreTarget {
+                name,
+                key_is_literal: false,
+            };
+        }
+        StoreTarget {
+            name: tcl_lexer::backslash_subst_in(name, self.escapes).into_owned(),
+            key_is_literal: true,
+        }
+    }
+
     /// Emit `Statement::AssignConst` / `AssignValue` / `AssignExpr`
     /// / `Incr` / `ExprEval`.  Extracted from [`Self::emit_stmt`] to
     /// keep the dispatcher under threshold.
@@ -132,8 +226,10 @@ impl CodegenCtx<'_> {
                 value,
                 ..
             } => {
+                let target = self.store_target(name, *name_braced);
+                let name = target.name.as_str();
                 if needs_stk_var_ref(name, self.is_proc) {
-                    self.push_var_ref(name, *name_braced);
+                    self.push_var_ref(name, target.key_is_literal);
                 }
                 // A constant value is verbatim: push it as-is so the VM does
                 // not run word substitution on any `[…]` / `$` it contains
@@ -166,8 +262,10 @@ impl CodegenCtx<'_> {
                         value.clone()
                     };
                 let inline = Self::assign_value_inlines_cmd_subst(&value);
+                let target = self.store_target(name, *name_braced);
+                let name = target.name.as_str();
                 if needs_stk_var_ref(name, self.is_proc) {
-                    self.push_var_ref(name, *name_braced);
+                    self.push_var_ref(name, target.key_is_literal);
                 } else if inline && self.is_proc && !is_qualified(name) {
                     // Pre-intern the target so it gets a lower LVT slot than any
                     // variable introduced inside the substitution (catch result
@@ -189,8 +287,10 @@ impl CodegenCtx<'_> {
                 expr,
                 ..
             } => {
+                let target = self.store_target(name, *name_braced);
+                let name = target.name.as_str();
                 if needs_stk_var_ref(name, self.is_proc) {
-                    self.push_var_ref(name, *name_braced);
+                    self.push_var_ref(name, target.key_is_literal);
                 }
                 let inner_end = self.fresh_label("cmd_end");
                 self.emit_comment(
@@ -207,8 +307,14 @@ impl CodegenCtx<'_> {
                 self.emit(Op::POP, vec![]);
                 true
             }
-            Statement::Incr { name, amount, .. } => {
-                self.emit_incr(name, amount.as_deref());
+            Statement::Incr {
+                name,
+                name_braced,
+                amount,
+                ..
+            } => {
+                let target = self.store_target(name, *name_braced);
+                self.emit_incr(&target.name, target.key_is_literal, amount.as_deref());
                 self.emit(Op::POP, vec![]);
                 true
             }
@@ -234,15 +340,15 @@ impl CodegenCtx<'_> {
         tokens: Option<&crate::ir::CommandTokens>,
         used_generic_invoke: &mut bool,
     ) {
-        if command == "<cond>" {
-            return;
-        }
-        // `<upvar-invalidate>` is a synthetic marker the CFG builder prepends to
-        // carry caller-side / embedded-substitution `defs` so the optimiser
-        // doesn't propagate a stale value past a mutation. It is not a real
-        // command — emit nothing (it must never reach the VM, which would reject
-        // it as an invalid command name).
-        if command == "<upvar-invalidate>" {
+        // The CFG builder's synthetic markers (`<cond>`, `<upvar-invalidate>`,
+        // `<global-frame-script>`, `<caller-frame-opaque>`) carry `defs` or a
+        // widening effect, never a command to run — emit nothing. Dispatching
+        // one either duplicates the callee's side effects (issue #1602: the
+        // caller-frame barrier used to reuse the callee's own name, so
+        // `proc p {} { upvar 1 {a b} v ; puts "u=$v" }; p` printed twice) or
+        // reaches the VM as an invalid command name
+        // (`invalid command name "<global-frame-script>"`).
+        if crate::ir::is_synthetic_marker_command(command) {
             return;
         }
         if command == "<empty_clause>" {
@@ -556,28 +662,33 @@ impl CodegenCtx<'_> {
 
     /// Push variable reference for store operations (name/key on stack).
     ///
-    /// When `name_braced` is `true` the target word was a brace-string
-    /// literal (`set {a($x)} v`); Tcl braces suppress substitution, so an
-    /// array-element key is pushed LITERALLY (`$x` stays `$x`) instead of
-    /// being substituted. A scalar target is unaffected.
-    pub fn push_var_ref(&mut self, name: &str, name_braced: bool) {
-        if let Some((base, elem)) = split_array_ref(name) {
-            if self.is_proc && !is_qualified(name) {
-                if name_braced {
-                    self.push_lit(elem);
-                } else {
-                    self.push_array_key(elem);
-                }
-            } else {
-                self.push_lit(base);
-                if name_braced {
-                    self.push_lit(elem);
-                } else {
-                    self.push_array_key(elem);
-                }
-            }
+    /// `name` is a [resolved store name](Self::store_target) — the name word's
+    /// *value*, not its source spelling — so every literal half goes out
+    /// **verbatim**: the VM must not run word substitution over a name it has
+    /// already resolved, or it strips a name's outer braces (`set {{a}} V`
+    /// creating `a` instead of `{a}`), reads a `${…}` inside one, and runs a
+    /// `[…]` inside one (issue #1602). The literal bytes are unchanged — only
+    /// the out-of-band `push_verbatim` flag differs — so the disassembly is
+    /// byte-stable.
+    ///
+    /// `key_is_literal` says whether an array-element key is likewise finished
+    /// (a braced word — `set {a($x)} v` keys on the literal `$x` — or one whose
+    /// only substitutions were backslash escapes). A key that still substitutes
+    /// (`set a($i) v`) keeps the [`push_array_key`](Self::push_array_key) path.
+    pub fn push_var_ref(&mut self, name: &str, key_is_literal: bool) {
+        let Some((base, elem)) = split_array_ref(name) else {
+            self.push_lit_verbatim(name);
+            return;
+        };
+        // In a proc the base is the LVT slot `store_var` names; only the key
+        // goes on the stack.
+        if !self.is_proc || is_qualified(name) {
+            self.push_lit_verbatim(base);
+        }
+        if key_is_literal {
+            self.push_lit_verbatim(elem);
         } else {
-            self.push_lit(name);
+            self.push_array_key(elem);
         }
     }
 

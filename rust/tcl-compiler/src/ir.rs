@@ -810,11 +810,14 @@ pub enum Statement {
         /// Whether the *name* word was a brace-string literal
         /// (`set {a($x)} v`). Braces suppress substitution, so an
         /// array-element target's key (`a($x)`) must be pushed
-        /// LITERALLY (`$x` stays `$x`) rather than substituted.
+        /// LITERALLY (`$x` stays `$x`) rather than substituted — and,
+        /// conversely, a *non*-braced name word still has its backslash
+        /// escapes to decode before it is a variable name (issue #1616).
         /// Mirrors the `braced` precedent on [`Self::Return`].
         /// Defaults to `false` for every construction site except
         /// the `set` lowering hook (only it knows the source token
-        /// kind); honoured by codegen's `push_var_ref`.
+        /// kind); resolved by codegen's `store_target`, which
+        /// `push_var_ref` / `emit_incr` then consume.
         name_braced: bool,
         /// Constant value text.
         value: String,
@@ -1246,6 +1249,38 @@ impl Statement {
         }
     }
 }
+
+/// Whether `command` is one of the reserved *synthetic marker* spellings the
+/// CFG builder puts on a [`Statement::Call`] / [`Statement::Barrier`] that
+/// models an **effect**, not a command to run.
+///
+/// A `Barrier` normally *is* a command whose side effects defeat static
+/// analysis (`eval`, a dynamic-body `catch`, `return -code …`), so codegen
+/// dispatches it. The CFG builder also inserts statements that carry only a
+/// `defs` list or a widening effect — the `if`/`while` condition kill-set
+/// (`<cond>`), the embedded-substitution invalidation (`<upvar-invalidate>`),
+/// an unreadable global-frame script (`<global-frame-script>`), and the
+/// opaque caller-frame widening a callee's unplaceable `upvar` alias forces
+/// (`<caller-frame-opaque>`). None of those names a command, so **codegen
+/// must never emit an invoke for one**.
+///
+/// Getting this wrong duplicates side effects: before issue #1602's fix the
+/// caller-frame widening reused the *callee's own* name on the barrier, so
+/// `proc p {} { upvar 1 {a b} v ; puts "u=$v" }; p` invoked `p` twice and
+/// printed its body's output twice where tclsh 8.6.14 / 9.0.4 print it once.
+/// The reserved spellings all carry `<`/`>`, which no real Tcl command name
+/// does, so a script can never collide with one.
+#[must_use]
+pub fn is_synthetic_marker_command(command: &str) -> bool {
+    matches!(
+        command,
+        "<cond>" | "<upvar-invalidate>" | "<global-frame-script>" | "<caller-frame-opaque>"
+    )
+}
+
+/// The reserved marker name for the opaque caller-frame widening
+/// [`is_synthetic_marker_command`] documents.
+pub const CALLER_FRAME_OPAQUE_MARKER: &str = "<caller-frame-opaque>";
 
 /// Switch matching mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
