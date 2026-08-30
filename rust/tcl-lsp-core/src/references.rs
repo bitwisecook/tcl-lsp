@@ -1544,7 +1544,6 @@ pub(crate) fn method_references_for_class(
     // established evidence in this codebase of how classmethod inheritance
     // should fold into this specific intra-class scan, so this stays scoped
     // to `class_q`'s own class-method bodies only.
-    let hierarchy = analysis.class_hierarchy();
     if is_classmethod {
         let bodies: Vec<Span> = collect_member_bodies_scoped(class_def, true);
         call_spans.extend(scan_method_sites(
