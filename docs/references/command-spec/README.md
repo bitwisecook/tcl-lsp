@@ -22,6 +22,14 @@ This manual is in two parts:
 - **This page** — how a spec resolves at a call site, and the impact
   tables: which fields drive which editor features, optimisations, and
   diagnostics.
+- **[The callback-surface inventory](../../design/contracts/callback-surface-inventory.md)**
+  — every script, callback, and command-reference position the registry
+  declares, projected into
+  [`callback-surfaces.md`](../../generated/callback-surfaces.md), plus the
+  authored [coverage manifest](callback-surface-requirements.json) that pins
+  each documented callback to its classification. Declaring a `-command`
+  option or a command-prefix argument means adding a row there too; the
+  contract page has the checklist.
 
 ## How a spec resolves at a call site
 

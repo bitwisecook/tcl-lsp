@@ -542,6 +542,19 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // different call frame than the one that registered it (same
         // reasoning as `after`'s `body_kind`, which see).
         body_kind: BodyKind::Structural,
+        // …and *because* it fires later, `chan event` stores its script
+        // rather than running it, exactly as its legacy spelling
+        // `fileevent` declares (`fileevent.rs`). Measured with the shape
+        // that sweep uses, `proc p {ch} { chan event $ch readable {error
+        // stop}; set ::reached 1 }`: `::reached` is set on tclsh 8.5.19,
+        // 8.6.16, 9.0.4 and 9.1b0 alike, so the body cannot stop control
+        // reaching the next statement. Without this the analyser reads the
+        // absent trait as "runs now" and the callback inventory reports the
+        // script as same-invocation while `fileevent`'s is deferred — the
+        // disagreement issue #1706's coverage audit found. The registry's
+        // own `BODY_RUNS_NOW` sweep missed it because its probe leads never
+        // select an ensemble's `event` subcommand.
+        traits: Traits::DEFERS_BODY,
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             reads: true,

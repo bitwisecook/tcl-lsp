@@ -913,6 +913,21 @@ fails on a waiver whose gap has closed. See
 [`docs/design/compiler/command-registry.md`](docs/design/compiler/command-registry.md)
 § *The audit-registry option-surface gate*.
 
+A command's **callback** surface has the same shape of gate:
+**`cargo xtask callback-inventory --check`** (wired into `make xtask-check` as
+`xtask-callback-inventory`) projects every declared script / command-prefix /
+reference-only position into `docs/generated/callback-surfaces.{json,md}`, and
+checks it against the authored
+[`callback-surface-requirements.json`](docs/references/command-spec/callback-surface-requirements.json).
+The projection alone only proves the report is fresh — regenerating it would
+happily bless a `-command` option downgraded to a plain value — so the authored
+manifest pins each documented callback (kind, timing, appended arity, dialect
+floor, its documentation, and the interpreter run that measured it) and is
+enforced in write mode too. A surface that cannot be classified yet goes in
+`known_gaps` with a tracking issue, and the gate fails once that gap closes.
+Declaring a new callback means adding its row; see
+[`docs/design/contracts/callback-surface-inventory.md`](docs/design/contracts/callback-surface-inventory.md).
+
 ### Native specs and the SpecTcl DSL must maintain functional parity
 
 Anything a native `.rs` `CommandSpec` (or one of its attached descriptor
