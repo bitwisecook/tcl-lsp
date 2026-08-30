@@ -179,6 +179,35 @@ impl CodegenCtx<'_> {
         self.instructions[pos].push_verbatim = true;
     }
 
+    /// Push a *verbatim* literal **byte for byte** — a value that is already
+    /// final, with no word-level rule left to apply.
+    ///
+    /// [`push_lit_verbatim`](Self::push_lit_verbatim) collapses `\<newline>`
+    /// continuations because its input is a *braced word*, where Tcl really
+    /// does collapse them (tclsh 8.6.16 / 9.0.4: `set {z1\`<newline>`y} B`
+    /// creates the 4-byte name `z1 y`). A resolved **variable name** is not a
+    /// word: a backslash inside `${…}` is an ordinary name byte, so the
+    /// collapse would load a different variable. Verified identical on tclsh
+    /// 8.4.20, 8.5.19, 8.6.16, 9.0.4 and 9.1:
+    ///
+    /// ```text
+    /// set n [format a%c%cb 92 10]   ;# the 4-byte name a\<newline>b
+    /// set $n VALUE
+    /// set {a b} COLLAPSED
+    /// set out ${a\`<newline>`b}
+    /// -> VALUE      (the collapse would have read `a b` and given COLLAPSED)
+    /// ```
+    pub fn push_lit_exact(&mut self, value: &str) {
+        let idx = self.literals.intern(value);
+        let op = if idx < 256 { Op::PUSH1 } else { Op::PUSH4 };
+        let pos = self.emit_comment(
+            op,
+            vec![Operand::Imm(bytecode_imm(idx))],
+            &format!("\"{}\"", esc(value, 40)),
+        );
+        self.instructions[pos].push_verbatim = true;
+    }
+
     /// Push a literal using a fresh slot (no deduplication).
     pub fn push_lit_no_dedup(&mut self, value: &str) {
         let idx = self.literals.register(value);
@@ -389,12 +418,16 @@ impl CodegenCtx<'_> {
             // its outer braces — `set {{}} Z; puts ${{}}` reads the variable
             // `{}` on tclsh 9.0.4 / 9.1 and printed `can't read ""` here
             // (issue #1602). Only the element key still substitutes.
+            //
+            // Byte-exact, not `push_lit_verbatim`: a resolved name is not a
+            // braced *word*, so its `\<newline>` bytes are name content and
+            // must not collapse — see `push_lit_exact`.
             if let Some((base, elem)) = split_array_ref(name) {
-                self.push_lit_verbatim(base);
+                self.push_lit_exact(base);
                 self.push_array_key(elem);
                 self.emit(Op::LOAD_ARRAY_STK, vec![]);
             } else {
-                self.push_lit_verbatim(name);
+                self.push_lit_exact(name);
                 self.emit(Op::LOAD_STK, vec![]);
             }
         }
@@ -516,14 +549,14 @@ impl CodegenCtx<'_> {
     fn push_incr_target(&mut self, name: &str, key_is_literal: bool) {
         match split_array_ref(name) {
             Some((base, elem)) => {
-                self.push_lit_verbatim(base);
+                self.push_lit_exact(base);
                 if key_is_literal {
-                    self.push_lit_verbatim(elem);
+                    self.push_lit_exact(elem);
                 } else {
                     self.push_lit(elem);
                 }
             }
-            None => self.push_lit_verbatim(name),
+            None => self.push_lit_exact(name),
         }
     }
 
@@ -575,13 +608,38 @@ impl CodegenCtx<'_> {
         }
     }
 
-    /// Fallback: emit `incr name amt` as a generic invokeStk1.
+    /// Fallback: emit `incr name amt` as a generic invokeStk1 — the shape an
+    /// out-of-immediate-range or non-literal amount takes.
+    ///
+    /// The name word must reach the command *already resolved*. Pushing a
+    /// [resolved store name](CodegenCtx::store_target) through the plain
+    /// `push_lit` path sends it back through the VM's `subst_word`, which
+    /// re-substitutes a base whose escapes the compiler has already decoded:
+    /// `incr a\133b\135($i) 999` names the array `a[b]`, and re-substituting
+    /// `a[b]($i)` executed the command `b` and incremented the array `a7`.
+    /// tclsh 8.4.20 / 8.5.19 / 8.6.16 / 9.0.4 / 9.1 all agree:
+    ///
+    /// ```text
+    /// proc b {} { puts "BOOM-b-ran" ; return 7 }
+    /// set i K ; set a\133b\135(K) 5 ; incr a\133b\135($i) 999
+    /// -> array `a[b]` (4 bytes) is `K 1004`, and `b` never runs
+    /// ```
+    ///
+    /// So the halves are pushed separately — the resolved base verbatim, the
+    /// live key through the substituting path — and joined into the one word
+    /// the command takes. A fully resolved name (the scalar case, and any
+    /// braced or escape-only target) is a single verbatim push as before.
     fn invoke_incr_fallback(&mut self, name: &str, key_is_literal: bool, amt: &str) {
         self.push_lit("incr");
-        if key_is_literal {
-            self.push_lit_verbatim(name);
-        } else {
-            self.push_lit(name);
+        match split_array_ref(name) {
+            Some((base, elem)) if !key_is_literal => {
+                self.push_lit_exact(base);
+                self.push_lit_exact("(");
+                self.push_lit(elem);
+                self.push_lit_exact(")");
+                self.emit(Op::STR_CONCAT1, vec![Operand::Imm(4)]);
+            }
+            _ => self.push_lit_exact(name),
         }
         self.push_lit(amt);
         self.emit_comment(Op::INVOKE_STK1, vec![Operand::Imm(3)], "incr");

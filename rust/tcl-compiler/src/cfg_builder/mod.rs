@@ -392,7 +392,9 @@ impl CfgBuilder {
             command: "<global-frame-script>".to_owned(),
             canonical_command: None,
             args: Vec::new(),
-            tokens: None,
+            tokens: Some(crate::ir::CommandTokens::marker(
+                crate::ir::SyntheticMarker::GlobalFrameScript,
+            )),
         });
 
         // 3. Merge into the host statement when it's a Call.
@@ -431,7 +433,9 @@ impl CfgBuilder {
                 reads: Vec::new(),
                 reads_own_defs: false,
                 safe_on_uninit: false,
-                tokens: None,
+                tokens: Some(crate::ir::CommandTokens::marker(
+                    crate::ir::SyntheticMarker::UpvarInvalidate,
+                )),
                 foreach_groups: None,
             });
         }
@@ -473,14 +477,18 @@ impl CfgBuilder {
             // (issue #1602 — `proc p {} { upvar 1 {a b} v ; puts "u=$v" }; p`
             // printed `u=…` twice on the VM where tclsh 8.6.14 / 9.0.4 print it
             // once; `proc setter {body} { uplevel #0 $body }; setter {set q 1}`
-            // failed with `wrong # args` from the re-invoke). The reserved
-            // marker keeps the callee's name in `reason` for the disassembly
-            // and the explorer.
+            // failed with `wrong # args` from the re-invoke). The typed
+            // `SyntheticMarker` on the tokens is what stops codegen
+            // dispatching it; the `command` spelling below is a label for the
+            // disassembly and the explorer, and `reason` keeps the callee's
+            // name.
             reason,
-            command: crate::ir::CALLER_FRAME_OPAQUE_MARKER.to_owned(),
+            command: "<caller-frame-opaque>".to_owned(),
             canonical_command: None,
             args: Vec::new(),
-            tokens: None,
+            tokens: Some(crate::ir::CommandTokens::marker(
+                crate::ir::SyntheticMarker::CallerFrameOpaque,
+            )),
         })
     }
 
@@ -811,7 +819,9 @@ impl CfgBuilder {
                 reads: Vec::new(),
                 reads_own_defs: false,
                 safe_on_uninit: false,
-                tokens: None,
+                tokens: Some(crate::ir::CommandTokens::marker(
+                    crate::ir::SyntheticMarker::Condition,
+                )),
                 foreach_groups: None,
             });
         }
@@ -822,7 +832,9 @@ impl CfgBuilder {
                 command: "<global-frame-script>".into(),
                 canonical_command: None,
                 args: Vec::new(),
-                tokens: None,
+                tokens: Some(crate::ir::CommandTokens::marker(
+                    crate::ir::SyntheticMarker::GlobalFrameScript,
+                )),
             });
         }
     }
@@ -1228,7 +1240,9 @@ impl CfgBuilder {
                     reads: Vec::new(),
                     reads_own_defs: false,
                     safe_on_uninit: false,
-                    tokens: None,
+                    tokens: Some(crate::ir::CommandTokens::marker(
+                        crate::ir::SyntheticMarker::UpvarInvalidate,
+                    )),
                     foreach_groups: None,
                 };
                 self.block_mut(current).statements.push(synthetic);

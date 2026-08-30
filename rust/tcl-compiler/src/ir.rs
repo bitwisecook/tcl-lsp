@@ -413,6 +413,67 @@ pub enum WordOpacity {
     LossySnapshot,
 }
 
+/// A statement the CFG builder **synthesised**: it models an analysis effect
+/// or a codegen placeholder, and is never a Tcl command to run.
+///
+/// A [`Statement::Barrier`] normally *is* a command whose side effects defeat
+/// static analysis (`eval`, a dynamic-body `catch`, `return -code …`), so
+/// codegen dispatches it. The CFG builder also inserts statements that carry
+/// only a `defs` list or a widening effect, and codegen must never emit an
+/// invoke for one of *those*: before issue #1602's fix the caller-frame
+/// widening reused the callee's own name, so
+/// `proc p {} { upvar 1 {a b} v ; puts "u=$v" }; p` invoked `p` twice and
+/// printed its body's output twice where tclsh 8.6.16 / 9.0.4 print it once.
+///
+/// The identity has to be **typed**, which is why this enum exists rather than
+/// a list of reserved command spellings. A Tcl command name is an arbitrary
+/// string, so every spelling the marker set used is a name a script may
+/// legally define and call, and a name-based check silently dropped such a
+/// call. Verified identical on tclsh 8.4.20, 8.5.19, 8.6.16, 9.0.4 and 9.1:
+///
+/// ```text
+/// proc <cond> {} { puts "hit-cond" }
+/// proc <caller-frame-opaque> {} { puts "hit-cfo" }
+/// proc <global-frame-script> {} { puts "hit-gfs" }
+/// proc <upvar-invalidate> {} { puts "hit-uv" }
+/// proc <empty_clause> {} { puts "hit-ec" }
+/// <cond> ; <caller-frame-opaque> ; <global-frame-script>
+/// <upvar-invalidate> ; <empty_clause>
+/// ->  hit-cond / hit-cfo / hit-gfs / hit-uv / hit-ec   (all five run)
+/// ```
+///
+/// Not even the empty name is reservable — `proc {} {} { puts EMPTY-NAME-RAN
+/// }; {}` prints `EMPTY-NAME-RAN` on all five releases — so no string sentinel
+/// can carry this. A marker is recognised only through
+/// [`CommandTokens::synthetic`], which both [`CommandTokens`] constructors
+/// always leave `None`; nothing a script can write reaches
+/// [`CommandTokens::marker`]. The statement keeps a readable `command`
+/// spelling for the disassembly and the explorer — it is a label, not the
+/// identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SyntheticMarker {
+    /// The `if` / `while` condition kill-set: a [`Statement::Call`] whose
+    /// `defs` are the variables the condition's own substitutions write, so a
+    /// value-motion pass cannot carry a stale value across the branch.
+    Condition,
+    /// An empty `for` init / next clause. Codegen emits the three `nop`s
+    /// tclsh's bytecode has there, so the clause keeps its place in the
+    /// instruction stream.
+    EmptyClause,
+    /// Caller-side `defs` for an `[upvar_proc …]` embedded in a word, carried
+    /// on a statement of its own because the host statement cannot hold them.
+    UpvarInvalidate,
+    /// A callee that runs an unreadable script at the global frame
+    /// (`uplevel #0 $body`, issue #1198): it can write any global or namespace
+    /// name, so the site widens instead of enumerating defs.
+    GlobalFrameScript,
+    /// A callee whose caller-frame `upvar` alias cannot be placed
+    /// (`upvar 1 $computed x`): it can write any caller variable, so the call
+    /// site widens. It sits *beside* the call it widens for, which is why
+    /// naming the callee on it made codegen run the callee twice (issue #1602).
+    CallerFrameOpaque,
+}
+
 /// Original parsed tokens for a command invocation.
 ///
 /// Carried on [`Statement::Call`] and [`Statement::Barrier`] so
@@ -447,6 +508,14 @@ pub struct CommandTokens {
     pub all_tokens: Vec<Span>,
     /// `{*}` expansion markers per word, if any word uses expansion.
     pub expand_word: Option<Vec<bool>>,
+    /// The [`SyntheticMarker`] this statement *is*, when the CFG builder
+    /// synthesised it to carry an effect rather than a command to run.
+    ///
+    /// `None` for everything that came from a Tcl word — both constructors
+    /// hard-code it, so the only way to set it is [`Self::marker`], which no
+    /// lowering path calls. That is the whole point: command *names* are
+    /// forgeable (see [`SyntheticMarker`]), a private constructor is not.
+    pub synthetic: Option<SyntheticMarker>,
 }
 
 impl CommandTokens {
@@ -488,6 +557,31 @@ impl CommandTokens {
             single_token_word: seg.single_token_word.clone(),
             all_tokens: seg.all_tokens.iter().map(|token| token.span).collect(),
             expand_word: seg.expand_word.clone(),
+            // Came from a Tcl word, so it is a command however it is spelled.
+            synthetic: None,
+        }
+    }
+
+    /// A token snapshot for a statement the CFG builder synthesised — see
+    /// [`SyntheticMarker`] for why the marker has to live here rather than in
+    /// the statement's `command` spelling.
+    ///
+    /// The word vectors are empty: a marker has no words, and
+    /// [`Self::words_align_with_argv_text`] holds trivially. Consumers that
+    /// need real word data (the WASM source-compatibility view) already
+    /// decline a snapshot they cannot line up, which is the conservative
+    /// direction.
+    #[must_use]
+    pub fn marker(kind: SyntheticMarker) -> Self {
+        Self {
+            argv: Vec::new(),
+            argv_texts: Vec::new(),
+            word_exprs: Vec::new(),
+            argv_kinds: Vec::new(),
+            single_token_word: Vec::new(),
+            all_tokens: Vec::new(),
+            expand_word: None,
+            synthetic: Some(kind),
         }
     }
 
@@ -532,6 +626,8 @@ impl CommandTokens {
             single_token_word,
             all_tokens,
             expand_word,
+            // A lossy snapshot of real words is still a command.
+            synthetic: None,
         }
     }
 
@@ -1249,38 +1345,6 @@ impl Statement {
         }
     }
 }
-
-/// Whether `command` is one of the reserved *synthetic marker* spellings the
-/// CFG builder puts on a [`Statement::Call`] / [`Statement::Barrier`] that
-/// models an **effect**, not a command to run.
-///
-/// A `Barrier` normally *is* a command whose side effects defeat static
-/// analysis (`eval`, a dynamic-body `catch`, `return -code …`), so codegen
-/// dispatches it. The CFG builder also inserts statements that carry only a
-/// `defs` list or a widening effect — the `if`/`while` condition kill-set
-/// (`<cond>`), the embedded-substitution invalidation (`<upvar-invalidate>`),
-/// an unreadable global-frame script (`<global-frame-script>`), and the
-/// opaque caller-frame widening a callee's unplaceable `upvar` alias forces
-/// (`<caller-frame-opaque>`). None of those names a command, so **codegen
-/// must never emit an invoke for one**.
-///
-/// Getting this wrong duplicates side effects: before issue #1602's fix the
-/// caller-frame widening reused the *callee's own* name on the barrier, so
-/// `proc p {} { upvar 1 {a b} v ; puts "u=$v" }; p` invoked `p` twice and
-/// printed its body's output twice where tclsh 8.6.14 / 9.0.4 print it once.
-/// The reserved spellings all carry `<`/`>`, which no real Tcl command name
-/// does, so a script can never collide with one.
-#[must_use]
-pub fn is_synthetic_marker_command(command: &str) -> bool {
-    matches!(
-        command,
-        "<cond>" | "<upvar-invalidate>" | "<global-frame-script>" | "<caller-frame-opaque>"
-    )
-}
-
-/// The reserved marker name for the opaque caller-frame widening
-/// [`is_synthetic_marker_command`] documents.
-pub const CALLER_FRAME_OPAQUE_MARKER: &str = "<caller-frame-opaque>";
 
 /// Switch matching mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]

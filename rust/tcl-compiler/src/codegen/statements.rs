@@ -187,10 +187,15 @@ impl CodegenCtx<'_> {
     /// ->  array q key b ; array r key {$i} ; array s key IDX
     /// ```
     fn store_target(&self, name: &str, name_braced: bool) -> StoreTarget {
-        // Braces suppressed every substitution: the content *is* the name.
+        // Braces suppressed every substitution *except* the one they permit:
+        // a `\<newline>` continuation (and the whitespace after it) collapses
+        // to a single space. Doing it here rather than at each push site keeps
+        // the name final for the local-variable table too — tclsh 8.4.20 /
+        // 8.5.19 / 8.6.16 / 9.0.4 / 9.1 all make `set {z1\<newline>y} B` the
+        // 4-byte name `z1 y` (hex `7a312079`).
         if name_braced {
             return StoreTarget {
-                name: name.to_owned(),
+                name: tcl_syntax::backslash::collapse_brace_continuations_str(name).into_owned(),
                 key_is_literal: true,
             };
         }
@@ -340,22 +345,28 @@ impl CodegenCtx<'_> {
         tokens: Option<&crate::ir::CommandTokens>,
         used_generic_invoke: &mut bool,
     ) {
-        // The CFG builder's synthetic markers (`<cond>`, `<upvar-invalidate>`,
-        // `<global-frame-script>`, `<caller-frame-opaque>`) carry `defs` or a
-        // widening effect, never a command to run — emit nothing. Dispatching
-        // one either duplicates the callee's side effects (issue #1602: the
-        // caller-frame barrier used to reuse the callee's own name, so
-        // `proc p {} { upvar 1 {a b} v ; puts "u=$v" }; p` printed twice) or
-        // reaches the VM as an invalid command name
-        // (`invalid command name "<global-frame-script>"`).
-        if crate::ir::is_synthetic_marker_command(command) {
-            return;
-        }
-        if command == "<empty_clause>" {
-            self.literals.intern("");
-            self.emit(Op::NOP, vec![]);
-            self.emit(Op::NOP, vec![]);
-            self.emit(Op::NOP, vec![]);
+        // A statement the CFG builder synthesised carries an effect or a
+        // placeholder, never a command to run. The identity is the *typed*
+        // `CommandTokens::synthetic` discriminant, never the `command`
+        // spelling: `<cond>`, `<empty_clause>` and the rest are all legal Tcl
+        // command names a script may define and call (tclsh 8.4.20 / 8.5.19 /
+        // 8.6.16 / 9.0.4 / 9.1 all run `proc <cond> {} { puts hit-cond };
+        // <cond>`), so matching on the name silently dropped such a call.
+        //
+        // Dispatching a *marker*, conversely, either duplicates the callee's
+        // side effects (issue #1602: the caller-frame barrier used to reuse
+        // the callee's own name, so `proc p {} { upvar 1 {a b} v ; puts
+        // "u=$v" }; p` printed twice) or reaches the VM as an invalid command
+        // name (`invalid command name "<global-frame-script>"`).
+        if let Some(marker) = tokens.and_then(|t| t.synthetic) {
+            if marker == crate::ir::SyntheticMarker::EmptyClause {
+                // tclsh's bytecode keeps three `nop`s where a `for` clause is
+                // empty; match it so the instruction stream stays byte-true.
+                self.literals.intern("");
+                self.emit(Op::NOP, vec![]);
+                self.emit(Op::NOP, vec![]);
+                self.emit(Op::NOP, vec![]);
+            }
             return;
         }
         let has_expand = tokens
@@ -664,12 +675,13 @@ impl CodegenCtx<'_> {
     ///
     /// `name` is a [resolved store name](Self::store_target) — the name word's
     /// *value*, not its source spelling — so every literal half goes out
-    /// **verbatim**: the VM must not run word substitution over a name it has
-    /// already resolved, or it strips a name's outer braces (`set {{a}} V`
-    /// creating `a` instead of `{a}`), reads a `${…}` inside one, and runs a
-    /// `[…]` inside one (issue #1602). The literal bytes are unchanged — only
-    /// the out-of-band `push_verbatim` flag differs — so the disassembly is
-    /// byte-stable.
+    /// **verbatim and byte-exact**
+    /// ([`push_lit_exact`](Self::push_lit_exact)): the VM must not run word
+    /// substitution over a name it has already resolved, or it strips a name's
+    /// outer braces (`set {{a}} V` creating `a` instead of `{a}`), reads a
+    /// `${…}` inside one, and runs a `[…]` inside one (issue #1602). The
+    /// literal bytes are unchanged — only the out-of-band `push_verbatim` flag
+    /// differs — so the disassembly is byte-stable.
     ///
     /// `key_is_literal` says whether an array-element key is likewise finished
     /// (a braced word — `set {a($x)} v` keys on the literal `$x` — or one whose
@@ -677,16 +689,16 @@ impl CodegenCtx<'_> {
     /// (`set a($i) v`) keeps the [`push_array_key`](Self::push_array_key) path.
     pub fn push_var_ref(&mut self, name: &str, key_is_literal: bool) {
         let Some((base, elem)) = split_array_ref(name) else {
-            self.push_lit_verbatim(name);
+            self.push_lit_exact(name);
             return;
         };
         // In a proc the base is the LVT slot `store_var` names; only the key
         // goes on the stack.
         if !self.is_proc || is_qualified(name) {
-            self.push_lit_verbatim(base);
+            self.push_lit_exact(base);
         }
         if key_is_literal {
-            self.push_lit_verbatim(elem);
+            self.push_lit_exact(elem);
         } else {
             self.push_array_key(elem);
         }
@@ -1016,11 +1028,9 @@ mod tests {
         assert_eq!(ctx.cmd_index, 2);
     }
 
-    #[test]
-    fn emit_empty_clause() {
-        let registry = CommandRegistry::build_default();
-        let mut ctx = CodegenCtx::new(true, &[], &registry);
-        let stmt = Statement::Call {
+    /// A `Statement::Call` carrying the `<empty_clause>` name.
+    fn empty_clause_call(marked: bool) -> Statement {
+        Statement::Call {
             span: sp(),
             command: "<empty_clause>".into(),
             canonical_command: None,
@@ -1029,12 +1039,39 @@ mod tests {
             reads: vec![],
             reads_own_defs: false,
             safe_on_uninit: false,
-            tokens: None,
+            tokens: marked
+                .then(|| crate::ir::CommandTokens::marker(crate::ir::SyntheticMarker::EmptyClause)),
             foreach_groups: None,
-        };
+        }
+    }
+
+    #[test]
+    fn emit_empty_clause() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
         let mut ugi = false;
-        ctx.emit_stmt(&stmt, &mut ugi);
+        ctx.emit_stmt(&empty_clause_call(true), &mut ugi);
         assert_eq!(opcodes(&ctx), vec![Op::NOP, Op::NOP, Op::NOP]);
+    }
+
+    /// The marker identity is the typed `SyntheticMarker`, never the command
+    /// spelling: `<empty_clause>` — like every other marker name — is a legal
+    /// Tcl command name, and tclsh 8.4.20 / 8.5.19 / 8.6.16 / 9.0.4 / 9.1 all
+    /// run `proc <empty_clause> {} { puts hit-ec }; <empty_clause>`. An
+    /// unmarked call of that name must therefore be *dispatched*, not folded
+    /// away.
+    #[test]
+    fn an_unmarked_call_named_like_a_marker_is_still_dispatched() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &[], &registry);
+        let mut ugi = false;
+        ctx.emit_stmt(&empty_clause_call(false), &mut ugi);
+        let ops = opcodes(&ctx);
+        assert!(
+            ops.contains(&Op::INVOKE_STK1),
+            "expected a real invoke, got {ops:?}"
+        );
+        assert!(!ops.contains(&Op::NOP), "must not fold to nops: {ops:?}");
     }
 
     #[test]

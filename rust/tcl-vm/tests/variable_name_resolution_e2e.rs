@@ -26,12 +26,21 @@
 //! was substituted a *second* time (#1602: `set {{a}} V` created `a` rather
 //! than `{a}`, `set {a[bogus]} V` ran `bogus`, `set {${x}} V` read `x`).
 //!
+//! Two corollaries of that rule are pinned here too: the resolved name must
+//! also be pushed *byte-exactly*, because a `\<newline>` inside a resolved name
+//! is name content and not a word continuation; and the `incr` generic-invoke
+//! fallback must build its word from the resolved halves rather than hand the
+//! VM a name whose decoded base would substitute again.
+//!
 //! #1602's other half is not a name bug at all: the CFG builder's opaque
 //! caller-frame widening named the *callee* on its `Statement::Barrier`, and
 //! codegen dispatches a barrier that names a command — so the call site was
 //! emitted twice and the callee's body ran twice. The same defect reached the
 //! VM as `invalid command name "<global-frame-script>"` for the `uplevel #0`
-//! widening, whose marker codegen did not filter either.
+//! widening, whose marker codegen did not filter either. Synthetic identity is
+//! now the typed `ir::SyntheticMarker`, because every reserved spelling is a
+//! legal Tcl command name a script may define and call — matching on the name
+//! silently dropped such a call, which is the vector below.
 //!
 //! #1578 is separate: C's `Tcl_ArrayObjCmd` set path resolves its target
 //! through the standard variable lookup, which parses the name — so an
@@ -333,6 +342,82 @@ puts [array get zok]:[array get {z)b}]:[array names {z(b}]
                   1:can't set \"zarr(k)\": variable isn't array\n\
                   1:list must have an even number of elements\n\
                   0:\n0:\n0:\na 1:a 1:a",
+    },
+    // -- The review round on #1602/#1616/#1578: a marker is typed, a resolved
+    //    name is pushed once and byte-exact. --
+    Vector {
+        name: "a proc named like a CFG marker is still a command, not a marker",
+        script: r#"proc <cond> {} { puts "hit-cond" }
+proc <caller-frame-opaque> {} { puts "hit-cfo" }
+proc <global-frame-script> {} { puts "hit-gfs" }
+proc <upvar-invalidate> {} { puts "hit-uv" }
+proc <empty_clause> {} { puts "hit-ec" }
+<cond>
+<caller-frame-opaque>
+<global-frame-script>
+<upvar-invalidate>
+<empty_clause>
+puts done
+"#,
+        want_8x: "hit-cond\nhit-cfo\nhit-gfs\nhit-uv\nhit-ec\ndone",
+        want_90: "hit-cond\nhit-cfo\nhit-gfs\nhit-uv\nhit-ec\ndone",
+    },
+    Vector {
+        name: "the incr fallback keeps a resolved base literal and substitutes only the key",
+        script: r#"proc b {} { puts "BOOM-b-ran" ; return 7 }
+set i K
+set a\133b\135(K) 5
+incr a\133b\135($i) 999
+foreach n [lsort [info vars a*]] {
+    if {[array exists $n] && [string length $n] <= 6} {
+        puts "array <$n> len=[string length $n] : [array get $n]"
+    }
+}
+"#,
+        want_8x: "array <a[b]> len=4 : K 1004",
+        want_90: "array <a[b]> len=4 : K 1004",
+    },
+    Vector {
+        name: "a resolved name keeps its backslash-newline bytes (no brace-word collapse)",
+        script: r"set n [format a%c%cb 92 10]
+set $n VALUE
+set {a b} COLLAPSED
+set out ${a\
+b}
+puts assign=$out
+puts ${a\
+b}
+",
+        want_8x: "assign=VALUE\nVALUE",
+        want_90: "assign=VALUE\nVALUE",
+    },
+    // The negative boundary for that one: a braced or quoted *word* really does
+    // collapse `\<newline>`, so the name it spells is the collapsed one.
+    Vector {
+        name: "a braced or quoted name word still collapses its continuation",
+        script: r#"set {z1\
+y} BRACED
+set "z2\
+y" QUOTED
+foreach n [lsort [info vars z*]] {
+    puts "[string length $n]:[string map [list { } _SP_] $n]:[set $n]"
+}
+"#,
+        want_8x: "4:z1_SP_y:BRACED\n4:z2_SP_y:QUOTED",
+        want_90: "4:z1_SP_y:BRACED\n4:z2_SP_y:QUOTED",
+    },
+    Vector {
+        name: "a proc-local braced continuation name agrees with its local-variable slot",
+        script: r#"proc p {} {
+    set {z1\
+y} LOCAL
+    return "[lsort [info locals]]:[set {z1\
+y}]"
+}
+puts [p]
+"#,
+        want_8x: "{z1 y}:LOCAL",
+        want_90: "{z1 y}:LOCAL",
     },
 ];
 
