@@ -1964,6 +1964,18 @@ pub struct CommandSpec {
     /// handle.  See [`crate::handle_binding`].
     pub binds_handle: Option<&'static crate::handle_binding::HandleBindingSpec>,
 
+    /// Cross-language RPC role — `Some` when this command either opens a
+    /// handle onto a remote extension (`ILX::init PLUGIN EXTENSION`) or calls
+    /// a method that extension implements in another language
+    /// (`ILX::call HANDLE ?-timeout ms? ?--? METHOD …`).
+    ///
+    /// The descriptor says which word is the handle, which word is the method,
+    /// and whether the call awaits a reply, so the navigation providers cross
+    /// from an iRule to the Node.js `ILXServer.addMethod` registration without
+    /// naming a command — issue #1707.  `None` = the command takes part in no
+    /// RPC family.  See [`crate::remote_method`].
+    pub remote_method: Option<&'static crate::remote_method::RemoteMethodRole>,
+
     /// Object-factory instance-name argument — `Some(idx)` when this command
     /// creates an object *command* named by its `idx`-th argument (0-based,
     /// after the command name), of the class given by its own
@@ -2304,6 +2316,7 @@ impl CommandSpec {
         defines_symbol: None,
         body_scope: None,
         binds_handle: None,
+        remote_method: None,
         creates_instance_at: None,
         defines_command_at: None,
         context_gate: None,

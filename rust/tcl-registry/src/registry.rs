@@ -2306,6 +2306,49 @@ impl CommandRegistry {
         self.get(name).and_then(|spec| spec.binds_handle)
     }
 
+    /// What role `name` plays in a **cross-language RPC family**, when it plays
+    /// one — [`CommandSpec::remote_method`], resolved through [`Self::get`] so
+    /// `::ILX::call` answers exactly as the bare spelling does (issue #1707).
+    ///
+    /// This is also the dialect gate for the whole relation: the ILX commands
+    /// are `SpecSurface::IRULES` specs, so a registry built for stock Tcl holds
+    /// no command of the name and this answers `None` — an ordinary Tcl
+    /// document whose own `proc ILX::call` shadows nothing gets no
+    /// remote-method navigation.
+    ///
+    /// [`CommandSpec::remote_method`]: crate::spec::CommandSpec::remote_method
+    #[must_use]
+    pub fn remote_method(
+        &self,
+        name: &str,
+    ) -> Option<&'static crate::remote_method::RemoteMethodRole> {
+        self.get(name).and_then(|spec| spec.remote_method)
+    }
+
+    /// Every command in this registry that takes part in a cross-language RPC
+    /// family, by name.
+    ///
+    /// The membership test a consumer needs *before* it walks a document: if
+    /// this is empty (every non-iRules registry), there is no relation to look
+    /// for and the walk is skipped entirely; if it is not, a document that
+    /// mentions none of the names cannot contain a site — a rename or an
+    /// `interp alias` still has to spell the target once to create the binding.
+    /// Enumerating them here is what keeps that gate out of the consumers,
+    /// which would otherwise have to name `ILX::call` to ask the question.
+    #[must_use]
+    pub fn remote_method_commands(&self) -> Vec<&'static str> {
+        let mut out: Vec<&'static str> = self
+            .by_name
+            .values()
+            .filter_map(|specs| specs.last())
+            .filter(|spec| spec.remote_method.is_some())
+            .map(|spec| spec.name)
+            .collect();
+        out.sort_unstable();
+        out.dedup();
+        out
+    }
+
     /// Every member-body command that binds an object handle, as
     /// `(word, layout)` pairs collected from the definition-body grammars this
     /// registry's definers carry.
@@ -4886,6 +4929,41 @@ mod tests {
     use tcl_dialect::model::SpecProvider;
     use tcl_dialect::model::{Family, SpecSurface, SurfaceLayer, SurfaceQuery};
     use tcl_dialect::surface;
+
+    // -- cross-language RPC roles (issue #1707) ---------------------------
+
+    /// The remote-method relation is registry data on the iRules surface, so
+    /// it exists there and nowhere else. A consumer asking the registry —
+    /// rather than naming `ILX::call` — is what makes the dialect gate
+    /// automatic.
+    #[test]
+    fn remote_method_commands_are_an_irules_only_surface() {
+        let plain = CommandRegistry::build_default();
+        assert!(
+            plain.remote_method_commands().is_empty(),
+            "stock Tcl has no cross-language RPC commands"
+        );
+        assert!(plain.remote_method("ILX::call").is_none());
+
+        let mut irules = CommandRegistry::build_default();
+        irules.load_irules();
+        assert_eq!(
+            irules.remote_method_commands(),
+            vec!["ILX::call", "ILX::init", "ILX::notify"]
+        );
+        // The explicitly-global spelling is the same command.
+        assert!(irules.remote_method("::ILX::call").is_some());
+        assert!(
+            irules
+                .remote_method("ILX::init")
+                .is_some_and(|role| role.opens_handle().is_some())
+        );
+        assert!(
+            irules
+                .remote_method("ILX::notify")
+                .is_some_and(|role| role.calls_method().is_some())
+        );
+    }
 
     // -- ambient packages (issue #1627) -----------------------------------
 

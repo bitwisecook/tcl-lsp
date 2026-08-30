@@ -262,7 +262,7 @@ pub const GAPS: &[Gap] = &[
     },
     // --- the draft has it; the loader does not read it yet -----------------
     //
-    // Empty. Eleven keys left this bucket as the loader grew their readers:
+    // Eleven keys left this bucket as the loader grew their readers:
     // the three `{VARIANT payload …}` element-structure facts,
     // `default_form_first_word`, `setter_constraints`, `format_string_type`,
     // `deprecation_fix`, `byte_array_payload`, `defines_symbol`,
@@ -270,6 +270,17 @@ pub const GAPS: &[Gap] = &[
     // vocabulary 1.1 — the option row's `-deprecation-fix {…}`. What a pack
     // still cannot say is above (no value in the draft) or below (excluded by
     // design), not here.
+    //
+    // `remote_method` (issue #1707) arrived here: the descriptor is plain data
+    // and the draft carries its whole Rust expression, but the SpecTcl
+    // vocabulary has no property word for it yet, so writing one would only
+    // produce an unknown-property notice.  A pack authoring a second RPC family
+    // is what will earn the reader.
+    Gap {
+        key: "remote_method",
+        spelling: "",
+        kind: GapKind::LoaderGap,
+    },
     // --- excluded by design -------------------------------------------------
     Gap {
         key: "completion",
@@ -2452,6 +2463,9 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
             None => todo(out, "binds_handle"),
         }
     }
+    // No property word in the vocabulary yet — see the `remote_method` entry in
+    // `GAPS` (issue #1707).
+    gap_todo(out, ctx, draft, "remote_method");
 
     // --- options -----------------------------------------------------------
     option_block(out, ctx, draft);

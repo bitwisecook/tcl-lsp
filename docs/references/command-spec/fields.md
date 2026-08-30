@@ -875,6 +875,12 @@ Extra commands that exist only *inside* this command's body argument — a mini-
 
 Declares that a call makes a *variable* hold an object handle, and which word says the handle's class — the `set axis [::verticalAxis $win.a]` and `install axis using ::verticalAxis …` shapes. With it, the variable's later `$axis method …` calls resolve against the right class.
 
+### `remote_method` — Remote method
+
+*command only* — Cross-language RPC role: which word is the handle, which is the method name.
+
+Declares that the command takes part in a *cross-language* RPC family: it either opens a handle onto a remote extension (`ILX::init PLUGIN EXTENSION`) or invokes a method that extension implements in another language (`ILX::call HANDLE ?-timeout ms? ?--? METHOD …`). Says which word carries the handle, where the method name sits — at a fixed index, or after the command's own leading options — and whether the call waits for a reply. With it, go-to-definition on the method word crosses into the Node.js `ILXServer.addMethod` registration that implements it.
+
 ### `context_gate` — Context gate
 
 *command only* — Validity gate keyed on lexical or dispatch context rather than argument shape.
