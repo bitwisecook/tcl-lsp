@@ -42,6 +42,14 @@ pub const fn spec() -> CommandSpec {
             connection_side: ConnectionSide::Both,
             ..SideEffect::DEFAULT
         }],
+        // The handle this returns names one Node.js extension, and that is what
+        // lets `ILX::call $handle METHOD` reach the extension's
+        // `ILXServer.addMethod("METHOD", …)` registration (issue #1707).  Only
+        // the two-word form F5 documents ("ILX::init [plugin name] [extension
+        // name]") carries the association; the undocumented one-word spelling
+        // in the synopsis above says nothing about which plugin it binds, so
+        // the descriptor's `exact_argc` makes it abstain.
+        remote_method: Some(&crate::remote_method::ILX_INIT_HANDLE),
         ..CommandSpec::DEFAULT
     }
 }

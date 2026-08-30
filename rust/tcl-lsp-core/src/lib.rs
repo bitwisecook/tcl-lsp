@@ -61,6 +61,7 @@ pub mod folding;
 pub mod formatting;
 pub mod graphs;
 pub mod hover;
+pub mod ilx_navigation;
 pub mod implementation;
 pub mod inert_text;
 pub mod inlay_hints;

@@ -94,6 +94,7 @@ pub(crate) mod profile_queries;
 pub mod profiles;
 pub mod registry;
 pub mod relation;
+pub mod remote_method;
 pub mod repeated;
 pub mod representation;
 pub mod resolved_invocation;

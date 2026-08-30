@@ -73,6 +73,7 @@ use tcl_lsp_core::file_ops as core_file_ops;
 use tcl_lsp_core::folding::FoldKind;
 use tcl_lsp_core::formatting as core_formatting;
 use tcl_lsp_core::hover::{self as core_hover, Hover as CoreHover, HoverKind as CoreHoverKind};
+use tcl_lsp_core::ilx_navigation as core_ilx;
 use tcl_lsp_core::implementation as core_implementation;
 use tcl_lsp_core::inlay_hints as core_inlay_hints;
 use tcl_lsp_core::linked_editing_range as core_linked_editing_range;
@@ -327,6 +328,20 @@ impl DocumentState {
     fn bump_revision(&mut self, version: i32) {
         self.revision = self.revision.saturating_add(1);
         self.version = Some(version);
+    }
+}
+
+/// A snapshot of what the editor holds for every open document, by path.
+///
+/// Built by [`Backend::open_document_texts`] and handed to the iRulesLX
+/// cross-file walk, which reads other files itself and must see the same bytes
+/// [`Backend::read_document`] would — the open buffer first, disk only for what
+/// is not open (issue #1707 review).
+struct OpenDocumentTexts(HashMap<PathBuf, Arc<str>>);
+
+impl tcl_lsp_core::ilx_navigation::OpenDocuments for OpenDocumentTexts {
+    fn text(&self, path: &Path) -> Option<Arc<str>> {
+        self.0.get(path).map(Arc::clone)
     }
 }
 
@@ -9434,6 +9449,159 @@ impl Backend {
         self.workspace_index.read().await.export_snapshot()
     }
 
+    /// The iRulesLX method word under `pos`, with what it resolves to
+    /// (issue #1707).
+    ///
+    /// The dialect gate is the registry itself: `ILX::call` / `ILX::notify` are
+    /// iRules-surface specs carrying the remote-method descriptors, so a
+    /// document analysed against any other dialect's registry has no such
+    /// command, finds no site, and answers `None` here. An ordinary Tcl file
+    /// that defines its own `ILX::call` is therefore untouched.
+    async fn ilx_method_at(
+        &self,
+        doc: &DocumentState,
+        path: &Path,
+        pos: Position,
+    ) -> Option<(core_ilx::MethodCall, core_ilx::IlxTarget)> {
+        let registry = self.registry_for_dialect(&doc.dialect).await;
+        let open = self.open_document_texts().await;
+        let document = core_ilx::IlxDocument {
+            path,
+            text: &doc.text,
+        };
+        let ctx =
+            core_ilx::IlxContext::new(&registry, self.store.as_ref()).with_open_documents(&open);
+        let call = core_ilx::method_call_at(document, ctx, pos.line, pos.character)?;
+        let target = core_ilx::definition(document, ctx, &call);
+        Some((call, target))
+    }
+
+    /// Find-references for the iRulesLX method relation, or `None` when the
+    /// cursor is not on one of its two ends (issue #1707).
+    ///
+    /// The JavaScript end is gated on the document actually being an ILX
+    /// extension entry point — `…/extensions/<name>/index.js`, or whatever its
+    /// `package.json` names as `main` — so an ordinary `.js` file anywhere
+    /// else in a project is never even scanned.
+    ///
+    /// `include_decl` is the request's own `includeDeclaration`: the
+    /// `addMethod` registration is this symbol's declaration, so a client
+    /// asking for uses only does not get it — including when the request came
+    /// *from* the registration.
+    async fn ilx_references(
+        &self,
+        uri: &Uri,
+        doc: &DocumentState,
+        pos: Position,
+        include_decl: bool,
+    ) -> Option<Vec<Location>> {
+        let path = uri.to_file_path()?.into_owned();
+        let document = core_ilx::IlxDocument {
+            path: &path,
+            text: &doc.text,
+        };
+        let store = self.store.as_ref();
+        let open = self.open_document_texts().await;
+        let files = core_ilx::IlxFiles::new(store).with_open_documents(&open);
+        // Which end of the relation the cursor is on decides which dialect's
+        // registry reads the *rule* files, so the file gate is asked first —
+        // it needs no registry at all.
+        let js_end = core_ilx::is_extension_entry(&path, files);
+        let registry = if js_end {
+            // A JavaScript source has no Tcl dialect of its own, so the rule
+            // files it is matched against are read with the dialect that owns
+            // the ILX surface.
+            self.registry_for_dialect(core_ilx::EXTENSION_RULE_DIALECT)
+                .await
+        } else {
+            self.registry_for_dialect(&doc.dialect).await
+        };
+        let ctx = core_ilx::IlxContext {
+            registry: &registry,
+            files,
+        };
+        let found = if js_end {
+            let registration = core_ilx::registration_at(document, pos.line, pos.character)?;
+            core_ilx::references_from_registration(document, ctx, &registration)
+        } else {
+            let call = core_ilx::method_call_at(document, ctx, pos.line, pos.character)?;
+            core_ilx::references(document, ctx, &call)
+        };
+        Some(
+            found
+                .iter()
+                .filter(|location| include_decl || location.kind != core_ilx::IlxSite::Registration)
+                .filter_map(Self::ilx_location)
+                .collect(),
+        )
+    }
+
+    /// Go-to-definition for an iRulesLX method word, or `None` when the cursor
+    /// is not on one (issue #1707).
+    ///
+    /// `Some(vec![])` — an ILX method word that resolved to nothing — is a
+    /// *definitive* answer, not a fall-through. The cursor sits on an argument
+    /// of `ILX::call` / `ILX::notify`, which no other tier has a real answer
+    /// for, so letting an unresolved one continue would turn a same-named
+    /// sibling proc into a false-positive jump: the opposite of the abstention
+    /// this relation is built on.
+    async fn ilx_definition(
+        &self,
+        uri: &Uri,
+        doc: &DocumentState,
+        pos: Position,
+    ) -> Option<Vec<Location>> {
+        let path = uri.to_file_path()?.into_owned();
+        let (_, target) = self.ilx_method_at(doc, &path, pos).await?;
+        Some(match target {
+            core_ilx::IlxTarget::Resolved(location) => {
+                Self::ilx_location(&location).into_iter().collect()
+            }
+            core_ilx::IlxTarget::Ambiguous { .. } | core_ilx::IlxTarget::Unresolved(_) => {
+                Vec::new()
+            }
+        })
+    }
+
+    /// The text the editor currently holds for every open document, by path.
+    ///
+    /// The cross-file half of the ILX relation reads *other* files — sibling
+    /// rules, and the extension's JavaScript — and must see the same bytes
+    /// [`Backend::read_document`] would: the open buffer when there is one,
+    /// the file on disk otherwise. Without this, find-references over a rule
+    /// with unsaved edits reports the text last written to disk (issue #1707
+    /// review).
+    ///
+    /// A snapshot rather than a per-file `read_document` round trip because
+    /// the core walk is synchronous and discovers the files itself; the map is
+    /// one `Arc` clone per open document, and the normalisation is the same
+    /// `normalise_lone_cr` pass `read_document` applies (skipped outright for
+    /// the documents that need none, which is all of them on LF and CRLF).
+    async fn open_document_texts(&self) -> OpenDocumentTexts {
+        let docs = self.documents.lock("open_document_texts").await;
+        let mut by_path = HashMap::with_capacity(docs.len());
+        for (uri, doc) in docs.iter() {
+            let Some(path) = uri.to_file_path() else {
+                continue;
+            };
+            let text: Arc<str> = if doc.has_bare_cr {
+                tcl_lexer::normalise_lone_cr(&doc.text).into_owned().into()
+            } else {
+                Arc::clone(&doc.text)
+            };
+            by_path.insert(path.into_owned(), text);
+        }
+        OpenDocumentTexts(by_path)
+    }
+
+    /// Lift an ILX location — a path plus a range — onto the wire.
+    fn ilx_location(location: &core_ilx::IlxLocation) -> Option<Location> {
+        Some(Location {
+            uri: canonical_file_uri(&location.path)?,
+            range: lift_lsp_range(location.range),
+        })
+    }
+
     /// Shared helper for the goto-definition family — runs the
     /// pure-CPU `tcl_lsp_core::definition::definition` provider
     /// off the LSP event loop and returns the matched ranges.
@@ -9441,6 +9609,10 @@ impl Backend {
         let Some(doc) = self.read_document(uri).await else {
             return Ok(Vec::new());
         };
+        // An iRulesLX method word is answered here, in full (issue #1707).
+        if let Some(locations) = self.ilx_definition(uri, &doc, pos).await {
+            return Ok(locations);
+        }
         let analysis = self
             .analysis_for(uri, doc.text.clone(), doc.dialect.clone())
             .await;
@@ -18865,6 +19037,14 @@ impl LanguageServer for Backend {
                 .collect();
             return Ok(Some(locations));
         }
+        // The iRulesLX method relation, in both directions (issue #1707): from
+        // a Tcl call site, and from the `addMethod` registration in the
+        // extension's own JavaScript. Answered here, in full — the sites are
+        // literal words in two languages, which the Tcl symbol analyser has no
+        // way to relate.
+        if let Some(locations) = self.ilx_references(&uri, &doc, pos, include_decl).await {
+            return Ok((!locations.is_empty()).then_some(locations));
+        }
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
@@ -20856,6 +21036,19 @@ impl LanguageServer for Backend {
                 .namespace_hover(&uri, &analysis, &cell)
                 .await
                 .map(lift_hover));
+        }
+        // An iRulesLX method word names a JavaScript function, not a Tcl one,
+        // so it is answered here rather than by the command-documentation
+        // tiers below (issue #1707). The body always says which of the two ILX
+        // commands reached it — they share the method target but not the
+        // semantics — and, when nothing resolved, why.
+        if let Some(path) = uri.to_file_path()
+            && let Some((call, target)) = self.ilx_method_at(&doc, &path, pos).await
+        {
+            return Ok(Some(lift_hover(CoreHover {
+                value: core_ilx::hover_markdown(&call, &target),
+                kind: CoreHoverKind::Markdown,
+            })));
         }
         let text = doc.text.clone();
         let analysis_worker = Arc::clone(&analysis);
