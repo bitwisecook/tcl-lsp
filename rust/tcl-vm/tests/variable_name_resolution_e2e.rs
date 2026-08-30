@@ -219,6 +219,33 @@ puts $k:[string length $k]:[set za($k)]
         want_90: "{k}:3:V",
     },
     Vector {
+        // The *read* side of the vector above: a key the compiler has already
+        // resolved must reach the VM byte-exactly, or `subst_word` strips its
+        // braces and the load looks up `zb(k)`. Storing the key correctly while
+        // reading it through a substituting push is worse than getting both
+        // wrong — the round-trip stops working — so the two sides are pinned
+        // together.
+        name: "an escape-braced array key round-trips through a `$` read",
+        script: r"set zb(\{k\}) V
+set k [lindex [array names zb] 0]
+puts $k:[string length $k]:$zb(\{k\}):[set zb(\{k\})]
+",
+        want_8x: "{k}:3:V:V",
+        want_90: "{k}:3:V:V",
+    },
+    Vector {
+        // Same rule inside a composite key: the parser has decoded the literal
+        // halves, so they are finished too and only the `$i` still substitutes.
+        name: "a composite array key keeps its decoded literal half byte-exact",
+        script: r"set i K
+set zd(\{k\}$i) V
+set d [lindex [array names zd] 0]
+puts $d:[string length $d]:$zd(\{k\}$i):[set zd(\{k\}$i)]
+",
+        want_8x: "{k}K:4:V:V",
+        want_90: "{k}K:4:V:V",
+    },
+    Vector {
         name: "a `${{}}` load follows the release's `${…}` close rule",
         script: r"set {{}} Z
 puts [info exists {{}}]:[catch {set r ${{}}} m]:$m

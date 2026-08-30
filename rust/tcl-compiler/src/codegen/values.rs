@@ -359,7 +359,9 @@ impl CodegenCtx<'_> {
             // inside the index would otherwise never expand.
             for part in &parts {
                 match part {
-                    super::helpers::SubstPart::Lit(text) => self.push_lit(text),
+                    // Already decoded by the template parser, so byte-exact —
+                    // see the finished-key arms below.
+                    super::helpers::SubstPart::Lit(text) => self.push_lit_exact(text),
                     super::helpers::SubstPart::Cmd(cmd) => self.emit_inline_cmd_subst(cmd),
                     super::helpers::SubstPart::Var(name) => self.load_var(name),
                 }
@@ -370,16 +372,32 @@ impl CodegenCtx<'_> {
                     i32::try_from(parts.len()).expect("array-key part count fits in i32"),
                 )],
             );
+        } else if has_unescaped_subst(elem) {
+            // A live `$` / `[` the template parser left whole (`a([f])`): only
+            // the VM’s runtime word substitution can resolve it, so this is the
+            // one key shape that still goes out through the substituting push.
+            self.push_lit(elem);
         } else if elem.contains('\\') {
             // Pure literal key carrying backslash escapes (`be(\w\w)`,
             // `be(a\ a)`): a non-braced array index is an ordinary Tcl word, so
             // its escapes are decoded (`\w` → `w`, `\ ` → space) before the
             // element lookup — matching C Tcl. (Braced keys like `set {a($x)} 1`
             // never reach here; `push_var_ref` pushes those literally.)
-            self.push_lit(&tcl_lexer::backslash_subst_in(elem, self.escapes));
+            self.push_lit_exact(&tcl_lexer::backslash_subst_in(elem, self.escapes));
         } else {
-            // Pure literal key (or a key the template parser left whole).
-            self.push_lit(elem);
+            // Pure literal key: finished here, so it is pushed byte-exactly for
+            // the same reason a resolved *name* is (see `push_var_ref`) — the
+            // VM must not substitute it a second time. An index is not a word:
+            // a brace in it is an ordinary key byte, so `subst_word` would strip
+            // it and read the wrong element. tclsh 8.4.20 / 8.5.19 / 8.6.16 all
+            // agree, and the store side already resolves the key this way:
+            //
+            // ```text
+            // set a({a}) BRACED ; set b(\{a\}) ESCBRACE
+            // array names a -> {a} ; array names b -> {a}
+            // set v $b(\{a\}) -> ESCBRACE   (a substituting push read `b(a)`)
+            // ```
+            self.push_lit_exact(elem);
         }
     }
 
