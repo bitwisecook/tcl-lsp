@@ -1566,39 +1566,54 @@ pub(crate) fn method_references_for_class(
             method_def.visibility == "public",
         ));
         for (other_q, other_cd) in &analysis.all_classes {
-            if other_q.as_str() != class_q
-                && hierarchy.method_target(other_q, method) == Some(class_q)
-            {
-                // An inheritor can `export` / `unexport` this inherited name
-                // without redeclaring it, so whether a captured `[self]`
-                // object command is callable is a fact about *that* receiver,
-                // not about the provider's own declaration (issue #1705).
-                // `my` captures are unaffected either way — they keep the
-                // current object's internal dispatch.
-                //
-                // Asked through the shared dispatch walk rather than re-read
-                // here, so this direction and the cursor-origin resolution in
-                // `list_built_self_method_target_at_cursor` cannot disagree
-                // about which family a capture belongs to — the exact
-                // invariant a half-applied rename would break.
-                let external_callback_allowed = crate::oo_dispatch::method_dispatch_provider(
+            if other_q.as_str() == class_q {
+                continue;
+            }
+            // The two dispatch kinds are asked separately because they can
+            // genuinely land on different classes.  An inheritor can `export`
+            // / `unexport` an inherited name without redeclaring it, and each
+            // `mixin` branch decides for itself, so whether a captured
+            // `[self]` object command reaches *this* declaration is a fact
+            // about that receiver's external dispatch — not about the
+            // provider's own visibility, and not the same question `my` asks
+            // (issue #1705).  Oracle, byte-identical on tclsh 8.6.16 and
+            // 9.0.4: with `MChild {superclass MBase; unexport m}` mixed into
+            // `D {superclass A}`, `my m` inside `D` reaches `MBase::m` while
+            // `[list [self] m]` reaches `A::m`.
+            //
+            // Both are asked through the shared dispatch walk rather than
+            // re-read here, so this direction and the cursor-origin
+            // resolution in `list_built_self_method_target_at_cursor` cannot
+            // disagree about which family a site belongs to — the exact
+            // invariant a half-applied rename would break.
+            let provider_for = |external| {
+                crate::oo_dispatch::method_dispatch_provider(
                     analysis,
                     other_q,
                     method,
-                    true,
+                    external,
                     crate::definition::MethodBucket::Instance,
                 )
-                .is_some_and(|(provider, _)| provider == class_q);
-                let inherited_bodies = collect_member_bodies_scoped(other_cd, false);
-                call_spans.extend(scan_method_sites(
-                    source,
-                    dialect,
-                    &inherited_bodies,
-                    method,
-                    Some(decl_span),
-                    external_callback_allowed,
-                ));
+                .is_some_and(|(provider, _)| provider == class_q)
+            };
+            let dispatches_internally = provider_for(false);
+            let external_callback_allowed = provider_for(true);
+            if !dispatches_internally && !external_callback_allowed {
+                continue;
             }
+            let inherited_bodies = collect_member_bodies_scoped(other_cd, false);
+            call_spans.extend(scan_method_sites_by_kind(
+                source,
+                dialect,
+                &inherited_bodies,
+                method,
+                Some(decl_span),
+                external_callback_allowed,
+                // `my` sites here belong to whichever family the *internal*
+                // dispatch reaches; when that is a different class, only the
+                // deferred captures are this declaration's.
+                !dispatches_internally,
+            ));
         }
     }
     // External `$obj method` / bare `ClassName method` sites.
@@ -6415,6 +6430,86 @@ mod tests {
         assert!(
             refs.iter().any(|r| r.start_line == 3),
             "the wrapped public `[self] changed` callback is missing: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn a_mixin_branch_decides_its_own_providers_visibility() {
+        // Codex review on PR #1726.  A mixin that inherits the member from its
+        // own superclass and unexports the name empties *its* branch only —
+        // the spine still answers.  tclsh 8.6.16 / 9.0.4 both run `A`'s body:
+        //   oo::class create MChild { superclass MBase } ; unexport m
+        //   oo::class create D { superclass A ; mixin MChild }
+        //   [D new] m  ->  A-m   (not MBase-m)
+        let src = "oo::class create A {\n    method m {} { return 1 }\n}\noo::class create MBase {\n    method m {} { return 2 }\n}\noo::class create MChild {\n    superclass MBase\n    unexport m\n}\noo::class create D {\n    superclass A\n    mixin MChild\n    method wire {} {\n        after idle [list [self] m]\n    }\n}\n";
+        let analysis = analyse(src);
+        let dialect = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
+        let cursor = u32::try_from(src.find("] m]").unwrap() + 2).unwrap();
+        assert_eq!(
+            list_built_self_method_target_at_cursor(src, dialect, &analysis, "m", cursor),
+            Some(("::A".to_owned(), false)),
+            "the suppressed mixin branch must not provide the capture"
+        );
+        assert!(
+            !references(src, dialect, 4, 11, &analysis, true)
+                .iter()
+                .any(|range| range.start_line == 14),
+            "`MBase::m` must not collect a capture its branch cannot dispatch"
+        );
+        assert!(
+            references(src, dialect, 1, 11, &analysis, true)
+                .iter()
+                .any(|range| range.start_line == 14),
+            "`A::m` — the provider the receiver actually reaches — must collect it"
+        );
+    }
+
+    #[test]
+    fn a_live_mixin_branch_still_outranks_the_spine() {
+        // The control for the case above: with the branch left public, the
+        // mixin's inherited `MBase::m` is what `[D new] m` enters (tclsh
+        // 8.6.16 / 9.0.4 -> MBase-m), so the capture belongs to *its* family.
+        let src = "oo::class create A {\n    method m {} { return 1 }\n}\noo::class create MBase {\n    method m {} { return 2 }\n}\noo::class create MPub {\n    superclass MBase\n}\noo::class create D {\n    superclass A\n    mixin MPub\n    method wire {} {\n        after idle [list [self] m]\n    }\n}\n";
+        let analysis = analyse(src);
+        let dialect = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
+        let cursor = u32::try_from(src.find("] m]").unwrap() + 2).unwrap();
+        assert_eq!(
+            list_built_self_method_target_at_cursor(src, dialect, &analysis, "m", cursor),
+            Some(("::MBase".to_owned(), false)),
+            "a live mixin branch provides the capture ahead of the spine"
+        );
+    }
+
+    #[test]
+    fn a_mixin_branch_can_revive_its_own_bases_unexported_member() {
+        // The mirror direction inside a branch: `NBase` unexports its own `n`,
+        // the mixin `NChild` exports the inherited name, and tclsh 8.6.16 /
+        // 9.0.4 run `NBase`'s body for `[D new] n` — ahead of the spine's
+        // public `A2::n`.
+        let src = "oo::class create A2 {\n    method n {} { return 1 }\n}\noo::class create NBase {\n    method n {} { return 2 }\n    unexport n\n}\noo::class create NChild {\n    superclass NBase\n    export n\n}\noo::class create D {\n    superclass A2\n    mixin NChild\n    method wire {} {\n        after idle [list [self] n]\n    }\n}\n";
+        let analysis = analyse(src);
+        let dialect = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
+        let cursor = u32::try_from(src.find("] n]").unwrap() + 2).unwrap();
+        assert_eq!(
+            list_built_self_method_target_at_cursor(src, dialect, &analysis, "n", cursor),
+            Some(("::NBase".to_owned(), false)),
+            "the branch's own export revives its base's body"
+        );
+    }
+
+    #[test]
+    fn a_mixin_declared_on_a_superclass_governs_its_branch_too() {
+        // Branch roots are collected transitively, so a `mixin` written on a
+        // superclass behaves exactly as one written on the receiver: tclsh
+        // 8.6.16 / 9.0.4 answer `[D new] m` with `A-m`.
+        let src = "oo::class create A {\n    method m {} { return 1 }\n}\noo::class create MBase {\n    method m {} { return 2 }\n}\noo::class create MChild {\n    superclass MBase\n    unexport m\n}\noo::class create S {\n    superclass A\n    mixin MChild\n}\noo::class create D {\n    superclass S\n    method wire {} {\n        after idle [list [self] m]\n    }\n}\n";
+        let analysis = analyse(src);
+        let dialect = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
+        let cursor = u32::try_from(src.find("] m]").unwrap() + 2).unwrap();
+        assert_eq!(
+            list_built_self_method_target_at_cursor(src, dialect, &analysis, "m", cursor),
+            Some(("::A".to_owned(), false)),
+            "a superclass-declared mixin's suppression empties that branch only"
         );
     }
 

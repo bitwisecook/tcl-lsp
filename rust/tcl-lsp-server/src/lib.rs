@@ -11439,10 +11439,18 @@ impl Backend {
             classes.inheritors.sort();
             classes.inheritors.dedup();
         }
+        // The family a receiver's capture may join is the set of definers
+        // this pass is about; a receiver whose external dispatch lands
+        // elsewhere is dispatching a different member (issue #1705).
+        let definer_names: Vec<&str> = by_uri
+            .values()
+            .flat_map(|classes| classes.definers.iter().map(String::as_str))
+            .collect();
         let external_callback_receivers = index.external_dispatch_receivers(
             by_uri
                 .values()
                 .flat_map(|classes| classes.inheritors.iter().map(String::as_str)),
+            &definer_names,
             method,
             is_classmethod,
         );

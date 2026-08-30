@@ -76,6 +76,15 @@ pub struct ClassHierarchy {
     pub classes: HashMap<String, ClassDef>,
     /// Class → linearised MRO (including self).
     pub mro_map: HashMap<String, Vec<String>>,
+    /// Class → its owner-resolved **direct** `mixin` edges, in declaration
+    /// order — the same resolution [`Self::mro_map`] linearises through, kept
+    /// so a consumer can tell which *branch* of the call chain a provider was
+    /// reached on without re-resolving the names itself.
+    ///
+    /// C walks each mixin branch with a fresh copy of the dispatch flags, so
+    /// the branch a provider sits on is what decides its export state (see
+    /// [`Self::spine_map`]).
+    pub mixin_map: HashMap<String, Vec<String>>,
     /// Class → its **mixin-free** linearisation (including self) — the
     /// `superclass` spine alone, in the order `TclOO`'s call-chain builder
     /// walks it.
@@ -885,6 +894,7 @@ pub fn build_class_hierarchy<S: std::hash::BuildHasher>(
     ClassHierarchy {
         classes,
         mro_map,
+        mixin_map: mixins_map,
         spine_map,
         subclasses: direct_subs,
         transitive_subtypes: transitive,
