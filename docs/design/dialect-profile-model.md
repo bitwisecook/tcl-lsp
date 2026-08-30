@@ -303,14 +303,51 @@ pub struct LexerGrammar {
     pub braced_var: BracedVarStyle,        // Tcl9Nesting vs FirstClose
     pub script_skips_leading_bom: bool,    // a whole-file source's BOM prologue
     pub expr_comments: ExprCommentStyle,   // `#` inside [expr] — TIP 582, 9.0
-    pub numbers: NumberSyntax,             // Tcl84 / Tcl85 / Tcl90
-    pub escapes: EscapeSyntax,             // Tcl84 / Tcl86 / Tcl90
+    pub numbers: NumberSyntax,             // Tcl84 / Tcl85 / Tcl90 / Jim / Jim080
+    pub escapes: EscapeSyntax,             // Tcl84 / Tcl86 / Tcl90 / Jim
+
+    // ---- the five JimTcl lexical axes (§Jim below) ----
+    pub word_separators: WordSeparators,   // is \v a separator? Tcl vs Jim
+    pub brace_backslash_newline: BraceBackslashNewline, // {a\<nl>b} — Folds vs Literal
+    pub quote_termination: QuoteTermination,  // "abc"def — Strict vs Concatenating
+    pub var_syntax: VarSyntax,             // $(...), nested index parens, high bytes
+    pub list_parse: ListParse,             // malformed list text — Strict vs Lenient
 }
 
 /// Three-valued so f5-bigip (runtime_base=None, "not Tcl") is INERT, not
 /// silently defaulted to octal/decimal (§11.1).
 pub enum Ternary { Yes, No, Inert }
 ```
+
+`JimTcl`'s parser is a reimplementation rather than a fork, so it differs from
+every C Tcl release on five further lexical points, each measured on
+interpreters built from the upstream tags 0.76-0.84 against tclsh 8.6 / 9.0:
+
+* `word_separators` — Jim's script parser has no `case '\v'`
+  (`JimParseSep`, jim.c:1338), so `eval "f a\vb"` passes **one** argument
+  where tclsh 8.6 passes two. Command parsing only: Jim's *list* parser still
+  uses `isspace()`, so `llength "a\vb"` is 2 in both.
+* `brace_backslash_newline` — `{a\<newline>b}` keeps its bytes in Jim
+  (`JimParseSubBrace`, jim.c:1444) rather than folding to a space, deliberately,
+  to preserve line numbers. Distinct from `brace_line_continuation`, which is
+  the F5 fork's next-line-`{` rule: that one decides where a *command* ends,
+  this one what a *word* contains.
+* `quote_termination` — Jim has no extra-characters-after-close-quote check
+  anywhere, so `puts "abc"def` prints `abcdef`. The brace twin still fires:
+  Jim rejects `{abc}def` exactly as C Tcl does, so that diagnostic stays
+  unconditional.
+* `var_syntax` — three `$` divergences present in every release: `$(...)` is
+  expression substitution (its own token kind, since the body is an
+  *expression* and must not be analysed as a script), index parens nest, and a
+  name may hold any byte >= 0x80.
+* `list_parse` — malformed list text never errors; `llength "a {b"` is 2.
+
+`brace_backslash_newline` moves real bindings, and the two word kinds resolve
+the surviving `\<newline>` differently because only one has a `name ?default?`
+level: `proc p {a b\<newline>c}` binds three parameters under Tcl and **two**
+under Jim (the second element is the specifier `b c`, so the parameter is `b`
+defaulting to `c`), while `foreach {a b\<newline>c}` binds a variable really
+named `b c`.
 
 `escapes` is the axis that forces the 8.x grammar constant apart: 8.5 and 8.6
 agree on every other field, but TIP 388 (8.6) capped `\x` at two hex digits,
