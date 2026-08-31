@@ -130,7 +130,9 @@ fn run() -> i32 {
     // Optionally source the backend-constraint overlay after tcltest discovery
     // and before the test file so unsupported host/backend probes are skipped.
     let overlay = match std::env::var("TCL_BACKEND_CONSTRAINTS") {
-        Ok(p) if !p.is_empty() => format!("source {p}\n"),
+        Ok(path) if !path.is_empty() => {
+            format!("source {}\n", tcl_syntax::list::list_element(&path))
+        }
         _ => String::new(),
     };
     // Diagnostic: `TCL_TEST_VERBOSE=1` makes tcltest announce each test as it

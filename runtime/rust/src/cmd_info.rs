@@ -119,7 +119,12 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"tclversion" => info_global(interp, argv, b"info tclversion", b"tcl_version"),
         b"patchlevel" => info_global(interp, argv, b"info patchlevel", b"tcl_patchLevel"),
         // The host shared-library suffix (`$::tcl_platform(platform)` is unix).
-        b"sharedlibextension" => fixed(interp, argv, b"info sharedlibextension", b".so"),
+        b"sharedlibextension" => fixed(
+            interp,
+            argv,
+            b"info sharedlibextension",
+            tcl_platform::bootstrap::SHARED_LIBRARY_EXTENSION.as_bytes(),
+        ),
         b"complete" => {
             if argv.len() != 3 {
                 return interp.wrong_args(b"info complete command");
@@ -764,6 +769,10 @@ mod tests {
             // every fresh Rust interp must expose the same core lifecycle.
             assert_eq!(run(i, b"info tclversion"), b"9.0");
             assert_eq!(run(i, b"info patchlevel"), b"9.0.4");
+            assert_eq!(
+                run(i, b"info sharedlibextension"),
+                tcl_platform::bootstrap::SHARED_LIBRARY_EXTENSION.as_bytes()
+            );
         });
     }
 

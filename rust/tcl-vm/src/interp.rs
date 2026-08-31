@@ -1847,11 +1847,11 @@ impl Vm {
     /// Initialise the selected Tcl script library through the same compiler and
     /// evaluator used by `eval`, command substitutions, and ordinary `source`.
     ///
-    /// The caller selects the exact library before constructing the VM by
-    /// setting `TCL_LIBRARY`; [`Self::bootstrap_globals`] publishes it as
-    /// `::tcl_library`. This method deliberately sources the library's real
-    /// `init.tcl` rather than reproducing any of its startup procedures in
-    /// Rust. A compiler must have been installed with [`Self::set_compiler`].
+    /// The caller selects the exact library through `::tcl_library` (normally
+    /// published from `TCL_LIBRARY` by [`Self::bootstrap_globals`]). This method
+    /// deliberately sources the library's real `init.tcl` rather than
+    /// reproducing any of its startup procedures in Rust. A compiler must have
+    /// been installed with [`Self::set_compiler`].
     pub fn init_library(&mut self) -> Completion<Value> {
         let Some(library) = self.get_var("::tcl_library") else {
             return err("can't find Tcl library: tcl_library is not set");

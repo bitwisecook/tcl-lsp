@@ -105,10 +105,10 @@ fn cmd_package(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             [name] => {
                 let name = name.to_str();
                 let mut versions = vm.package_ifneeded_versions(&name);
-                if let Some(provided) = vm.package_version(&name) {
-                    if !versions.iter().any(|version| version == provided) {
-                        versions.push(provided.to_owned());
-                    }
+                if let Some(provided) = vm.package_version(&name)
+                    && !versions.iter().any(|version| version == provided)
+                {
+                    versions.push(provided.to_owned());
                 }
                 versions.sort_by(|left, right| cmp_version(right, left));
                 ok(Value::list(
