@@ -25,6 +25,11 @@ import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
 import com.intellij.util.xmlb.XmlSerializerUtil
 
+internal fun signatureHelpDisabledCommandsOverride(
+    inheritFromIni: Boolean,
+    editorValue: String,
+): String? = if (inheritFromIni) null else editorValue
+
 @Service
 @State(name = "TclLspSettings", storages = [Storage("TclLspSettings.xml")])
 class TclLspSettings : PersistentStateComponent<TclLspSettings> {
