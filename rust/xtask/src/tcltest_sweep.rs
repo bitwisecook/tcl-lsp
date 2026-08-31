@@ -499,6 +499,79 @@ fn render_scoreboard(c: &BTreeMap<String, Record>, vm: &BTreeMap<String, Record>
     out
 }
 
+fn selected_stems(stem_filters: &[String]) -> Vec<&str> {
+    if stem_filters.is_empty() {
+        return all_stems();
+    }
+    stem_filters
+        .iter()
+        .map(String::as_str)
+        .inspect(|stem| {
+            let stem = *stem;
+            if tier_of(stem) == 0 {
+                eprintln!("note: stem {stem:?} is not in the ladder table (tier 0)");
+            }
+        })
+        .collect()
+}
+
+fn source_tree_for_sweep(
+    root: &Path,
+    tcl_root: Option<&Path>,
+    focused: bool,
+) -> Result<TclSourceTree> {
+    let source_tree = locate_source_tree(root, TclVersion::V9_0, tcl_root)?.ok_or_else(|| {
+        anyhow::anyhow!(
+            "no Tcl 9.0 source tree found; pass --tcl-root, set \
+             TCL_LSP_TCL_ROOT90, or fetch the pinned tmp/tcl9.0.4 tree"
+        )
+    })?;
+    if !focused && source_tree.patchlevel != TclVersion::V9_0.patchlevel() {
+        bail!(
+            "a full scoreboard run requires the pinned Tcl {}, but {} contains \
+             Tcl {}; use this tree only with focused --stem runs",
+            TclVersion::V9_0.patchlevel(),
+            source_tree.root.display(),
+            source_tree.patchlevel
+        );
+    }
+    Ok(source_tree)
+}
+
+fn sweep_reference(
+    root: &Path,
+    source_tree: &TclSourceTree,
+    stems: &[&str],
+    match_filter: Option<&str>,
+    timeout_s: u64,
+) -> Result<Vec<Record>> {
+    let tclsh = locate_tclsh(TclVersion::V9_0)?.ok_or_else(|| {
+        anyhow::anyhow!(
+            "no reference tclsh9.0 found; set TCL_LSP_TCLSH90 or run \
+             `make ensure-test-deps`"
+        )
+    })?;
+    if tclsh.patchlevel != source_tree.patchlevel {
+        bail!(
+            "reference {} reports Tcl {}, but source tree {} is Tcl {}; \
+             the oracle binary and tests must match",
+            tclsh.path.display(),
+            tclsh.patchlevel,
+            source_tree.root.display(),
+            source_tree.patchlevel
+        );
+    }
+    Ok(sweep(
+        root,
+        source_tree,
+        "C",
+        &[tclsh.path.as_path()],
+        stems,
+        match_filter,
+        timeout_s,
+    ))
+}
+
 /// `cargo xtask tcltest-sweep`.
 pub fn run(
     backend: Backend,
@@ -514,68 +587,21 @@ pub fn run(
         bail!("--match requires at least one --stem");
     }
     let focused = !stem_filters.is_empty() || match_filter.is_some();
-
     // Explicit stems form a focused run; no stems means the whole ladder.
-    let stems: Vec<&str> = if stem_filters.is_empty() {
-        all_stems()
-    } else {
-        stem_filters
-            .iter()
-            .map(String::as_str)
-            .inspect(|stem| {
-                let s = *stem;
-                if tier_of(s) == 0 {
-                    eprintln!("note: stem {s:?} is not in the ladder table (tier 0)");
-                }
-            })
-            .collect()
-    };
-
-    let source_tree = locate_source_tree(&root, TclVersion::V9_0, tcl_root)?.ok_or_else(|| {
-        anyhow::anyhow!(
-            "no Tcl 9.0 source tree found; pass --tcl-root, set \
-             TCL_LSP_TCL_ROOT90, or fetch the pinned tmp/tcl9.0.4 tree"
-        )
-    })?;
-    if !focused && source_tree.patchlevel != TclVersion::V9_0.patchlevel() {
-        bail!(
-            "a full scoreboard run requires the pinned Tcl {}, but {} contains \
-             Tcl {}; use this tree only with focused --stem runs",
-            TclVersion::V9_0.patchlevel(),
-            source_tree.root.display(),
-            source_tree.patchlevel
-        );
-    }
+    let stems = selected_stems(stem_filters);
+    let source_tree = source_tree_for_sweep(&root, tcl_root, focused)?;
 
     // Run the reference tclsh (unless VM-only).
     let c_records: Vec<Record> = if backend == Backend::Vm {
         Vec::new()
     } else {
-        let tclsh = locate_tclsh(TclVersion::V9_0)?.ok_or_else(|| {
-            anyhow::anyhow!(
-                "no reference tclsh9.0 found; set TCL_LSP_TCLSH90 or run \
-                 `make ensure-test-deps`"
-            )
-        })?;
-        if tclsh.patchlevel != source_tree.patchlevel {
-            bail!(
-                "reference {} reports Tcl {}, but source tree {} is Tcl {}; \
-                 the oracle binary and tests must match",
-                tclsh.path.display(),
-                tclsh.patchlevel,
-                source_tree.root.display(),
-                source_tree.patchlevel
-            );
-        }
-        sweep(
+        sweep_reference(
             &root,
             &source_tree,
-            "C",
-            &[tclsh.path.as_path()],
             &stems,
             match_filter,
             timeout_s,
-        )
+        )?
     };
 
     // Run the VM (unless tclsh-only).
