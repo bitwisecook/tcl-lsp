@@ -132,9 +132,9 @@ pub fn choice_list_bytes<T: AsRef<[u8]>>(table: &[T]) -> Vec<u8> {
     out
 }
 
-/// Render TclOO's method-list variant: `a`, `a or b`, or `a, b or c`.
+/// Render `TclOO`'s method-list variant: `a`, `a or b`, or `a, b or c`.
 ///
-/// TclOO's `unknown method` diagnostics deliberately omit the Oxford comma
+/// `TclOO`'s `unknown method` diagnostics deliberately omit the Oxford comma
 /// that [`choice_list_bytes`] uses for `Tcl_GetIndexFromObj` tables. Keeping
 /// the variant here prevents runtime consumers from reimplementing either
 /// separator rule beside their command handlers.
