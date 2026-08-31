@@ -14102,11 +14102,10 @@ impl Backend {
         collapse_inlay_alias(&mut global_ini);
         collapse_inlay_alias(&mut cfg);
         collapse_inlay_alias(&mut primary_project);
-        let merged = config_ini::merge_settings(
-            &config_ini::merge_settings(&global_ini, &cfg),
-            &primary_project,
-        );
-        self.apply_global_config(&merged).await;
+        let global_editor = config_ini::merge_settings(&global_ini, &cfg);
+        let merged = config_ini::merge_settings(&global_editor, &primary_project);
+        self.apply_global_config_with_signature_fallback(&merged, &global_editor)
+            .await;
         // Per-folder editor configuration: VS Code resolves `tclLsp` settings
         // per scope, so pull each folder's resolved config, layer it between the
         // global `config.ini` and that folder's `.tcl-lsp.ini`, and store it for
@@ -14248,7 +14247,21 @@ impl Backend {
     /// the client and then handles per-folder configs) so the apply logic is
     /// unit-testable without a live editor client.
     // A long but flat sequence of independent `tclLsp.*` knob applications.
+    #[cfg(test)]
     async fn apply_global_config(&self, cfg: &serde_json::Value) {
+        self.apply_global_config_with_signature_fallback(cfg, cfg)
+            .await;
+    }
+
+    /// Apply the primary root's merged configuration while keeping signature
+    /// suppression's folder fallback at the user/editor layers. Project INI
+    /// settings belong to their own root and must not leak into siblings whose
+    /// merged folder configuration omits `signatureHelp`.
+    async fn apply_global_config_with_signature_fallback(
+        &self,
+        cfg: &serde_json::Value,
+        signature_fallback_cfg: &serde_json::Value,
+    ) {
         if !cfg.is_object() {
             return;
         }
@@ -14256,7 +14269,7 @@ impl Backend {
             self.feature_toggles.lock().await.apply(features);
         }
         self.apply_global_library_paths(cfg).await;
-        self.apply_global_toggles(cfg).await;
+        self.apply_global_toggles(cfg, signature_fallback_cfg).await;
         self.apply_global_formatting(cfg).await;
         self.apply_global_analyser_knobs(cfg).await;
         // Mirror the applied analyser knobs onto the salsa config input so the
@@ -14321,12 +14334,17 @@ impl Backend {
     /// Feature controls: per-command signature suppression, `xcDiagnostics`,
     /// optimiser enable/profile/per-code overrides, and the `shimmer` master
     /// switch.
-    async fn apply_global_toggles(&self, cfg: &serde_json::Value) {
-        // The production caller passes the fully merged configuration, so an
-        // absent section means the list was removed from every layer. Reset
-        // unconditionally rather than leaving the last applied exclusions
-        // latched after an INI edit.
-        let commands = cfg
+    async fn apply_global_toggles(
+        &self,
+        cfg: &serde_json::Value,
+        signature_fallback_cfg: &serde_json::Value,
+    ) {
+        // This fallback contains only the user-config and editor layers. Each
+        // project INI is represented by its FolderConfig, so the primary
+        // project's exclusions cannot bleed into a sibling root. An absent
+        // section means the list was removed from every fallback layer; reset
+        // unconditionally rather than latching stale exclusions after an edit.
+        let commands = signature_fallback_cfg
             .get("signatureHelp")
             .and_then(serde_json::Value::as_object)
             .and_then(|signature_help| signature_help.get("disabledCommands"))
@@ -33343,6 +33361,51 @@ mod tests {
                 .iter()
                 .any(|(u, _)| u == &folder_a),
             "proj-a must have a per-folder AnalyserConfig handle for extraCommands",
+        );
+    }
+
+    #[tokio::test]
+    async fn primary_project_signature_exclusions_do_not_leak_into_sibling_root() {
+        let backend = test_backend();
+        let folder_a = Uri::from_str("file:///proj-a").unwrap();
+        let folder_b = Uri::from_str("file:///proj-b").unwrap();
+        let file_a = Uri::from_str("file:///proj-a/file.tcl").unwrap();
+        let file_b = Uri::from_str("file:///proj-b/file.tcl").unwrap();
+        *backend.workspace_folders.lock().await = vec![folder_a.clone(), folder_b.clone()];
+
+        let global_editor = serde_json::json!({});
+        let primary_merged = serde_json::json!({
+            "signatureHelp": { "disabledCommands": ["set"] }
+        });
+        backend
+            .apply_global_config_with_signature_fallback(&primary_merged, &global_editor)
+            .await;
+        backend
+            .apply_folder_configs(vec![
+                (
+                    folder_a,
+                    parse_folder_config(&primary_merged).expect("primary config"),
+                ),
+                (
+                    folder_b,
+                    parse_folder_config(&global_editor).expect("sibling config"),
+                ),
+            ])
+            .await;
+
+        assert_eq!(
+            backend
+                .resolved_signature_help_disabled_commands(&file_a)
+                .await,
+            vec!["::set".to_owned()],
+            "the primary project keeps its own exclusion",
+        );
+        assert!(
+            backend
+                .resolved_signature_help_disabled_commands(&file_b)
+                .await
+                .is_empty(),
+            "a sibling without an exclusion inherits only global/editor layers",
         );
     }
 
