@@ -9,18 +9,20 @@ tcl-lsp CLI
 
 ## Question
 
-How do I run the bundled Tcl 9.0.4 test files (`tmp/tcl9.0.4/tests/*.test`)
-through the bytecode VM, compare the result to reference C `tclsh`, and read
-the parity scoreboard?
+How do I run Tcl 9.0 test files through the bytecode VM, compare the result to
+reference C `tclsh`, and read the parity scoreboard?
 
 ## Before you start
 
-- The Tcl 9.0.4 source tree must be present at `tmp/tcl9.0.4/`. On the web
-  harness this is fetched automatically by the SessionStart hook; locally run
-  the `fetch-tcl-source` skill (`bash
-  .claude/skills/fetch-tcl-source/fetch_tcl_source.sh 9.0`).
-- The reference `tclsh9.0` must be built at `tmp/tcl9-install/bin/tclsh9.0`
-  (the same skill builds it) — it is the C oracle the VM is scored against.
+- For a full scoreboard run, the pinned Tcl 9.0.4 source tree must be present
+  at `tmp/tcl9.0.4/`. On the web harness the SessionStart hook fetches it;
+  locally run `bash
+  .claude/skills/fetch-tcl-source/fetch_tcl_source.sh 9.0`.
+- A focused run may instead use another Tcl 9.0 patchlevel with `--tcl-root`
+  or `TCL_LSP_TCL_ROOT90`. The matching source and interpreter patchlevels
+  must be identical.
+- A versioned `tclsh9.0` must be on `PATH`, or set `TCL_LSP_TCLSH90` to the
+  executable. `make ensure-test-deps` installs the pinned reference build.
 - `timeout` (coreutils) must be on `PATH`; the sweep runs each file under it so
   a hang or native-stack overflow can't stall the whole run.
 
@@ -32,11 +34,13 @@ The `run_test` example sources the real `tcltest.tcl`, then the test file, and
 lets tcltest print its `Total N Passed X Skipped Y Failed Z` summary:
 
 ```
-TCL_LIBRARY=tmp/tcl9.0.4/library \
-  cargo run -p tcl-vm --example run_test -- tmp/tcl9.0.4/tests/<stem>.test
+TCL_LIBRARY=~/src/tcl9.0.3/library \
+  cargo run -p tcl-vm --example run_test -- \
+  ~/src/tcl9.0.3/tests/<stem>.test --match '<test-id-glob>'
 ```
 
-`<stem>` is the file stem (e.g. `llength`, `interp`, `coroutine`).
+`<stem>` is the file stem (e.g. `llength`, `interp`, `coroutine`). Omit
+`--match` to run the whole file.
 `TCL_TEST_VERBOSE=1` makes tcltest announce each test as it starts (to pinpoint
 a hang); `TCL_BACKEND_CONSTRAINTS=<overlay.tcl>` sources a skip overlay before
 the file so tests the backend cannot support are skipped. The tree-walk runtime
@@ -45,8 +49,8 @@ analogue is `runtime/rust`'s `run_script --init`.
 Run the same file through the C oracle to compare:
 
 ```
-TCL_LIBRARY=tmp/tcl9.0.4/library tmp/tcl9-install/bin/tclsh9.0 \
-  tmp/tcl9.0.4/tests/<stem>.test
+TCL_LIBRARY=~/src/tcl9.0.3/library tclsh9.0 \
+  ~/src/tcl9.0.3/tests/<stem>.test -match '<test-id-glob>'
 ```
 
 ### Run the whole sweep + regenerate the scoreboard
@@ -62,8 +66,13 @@ per-file timeout), caches the stable C results in
 `docs/design/runtime/rust-vm-tier-parity.md`. Useful flags (`cargo xtask
 tcltest-sweep …`):
 
-- `--stem <name>` — sweep one stem and print its result (does not rewrite the
-  committed scoreboard); handy for a before/after on a single file.
+- `--stem <name>` — sweep one stem and print its result (repeatable; focused
+  runs do not rewrite the committed scoreboard).
+- `--match <glob-list>` — restrict each selected stem to Tcltest IDs matching
+  the Tcl glob/list. It requires at least one `--stem`.
+- `--tcl-root <path>` — use an explicit source tree. Without it, discovery
+  checks `TCL_LSP_TCL_ROOT90`, the pinned repository tree, matching sibling
+  checkouts, and `$HOME/src/tcl9.0*`.
 - `--backend vm` — re-run only the VM, reading the C column from the cached
   baseline (faster; skips `tclsh`).
 - `--timeout <secs>` — per-file budget (default 120).
@@ -87,7 +96,8 @@ Each stem's VM result is classified against its C reference:
 
 ## How to tell it worked
 
-`cargo xtask tcltest-sweep --backend both --stem join` prints:
+`cargo xtask tcltest-sweep --backend both --tcl-root ~/src/tcl9.0.3 --stem
+join` prints:
 
 ```
 join: C 10/0/0 | VM 10/0/0 | MATCH
@@ -114,5 +124,7 @@ highest-leverage fix.
   per-stem scoreboard (regenerate with `make tcltest-sweep`).
 - [`tcl-test-tiers.md`](../design/runtime/tcl-test-tiers.md) — the capability
   ladder (what each tier means, which files belong to it, why the order matters).
+- [`tcl-conformance-harness.md`](../design/runtime/tcl-conformance-harness.md) —
+  source/oracle discovery, exact-patch rules, and ownership.
 - `rust/tcl-vm/examples/run_test.rs` — the single-file VM driver.
 - `rust/xtask/src/tcltest_sweep.rs` — the sweep + scoreboard generator.

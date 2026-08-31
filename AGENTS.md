@@ -80,6 +80,7 @@ The current owners and their semantic axes are:
 | iRules `when EVENT` blocks | `tcl_syntax::event_handler::{event_handlers, script_commands}` for supplied script regions + `tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver`, with `tcl_irules::when_blocks` wrapper | caller-supplied `LexerConfig`; offset-keyed resolved command identity at the top-level iRules boundary |
 | Per-command knowledge | `tcl-registry::CommandSpec` and descriptors | per release/dialect |
 | Dialect / release facts | `tcl-dialect::DialectProfile` | resolved profile axis |
+| C Tcl conformance oracles | `tcl-test-support` | release line plus exact interpreter/source patchlevel |
 
 Run `cargo xtask owner-resolution` (included in `make rust-check`) after
 moving an owner or changing one of these axes. Do not add a new owner-shaped

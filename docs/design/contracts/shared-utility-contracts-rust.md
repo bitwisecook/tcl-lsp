@@ -52,6 +52,7 @@ entry point, or gate moves without this contract being updated.
 | text similarity | `rust/tcl-compiler/src/text.rs` | `edit_distance`; `rank_suggestions`; `rank_containment_suggestions` | invariant | none |
 | per-command knowledge | `rust/tcl-registry/src/spec.rs`; `rust/tcl-registry/src/hooks.rs`; `rust/tcl-registry/src/registry.rs` | `CommandSpec`; `SubCommand`; `CommandRegistry` | per release/dialect | `xtask-command-backing` |
 | dialect / release facts | `rust/tcl-dialect/src/profile.rs`; `rust/tcl-dialect/src/grammar.rs` | `DialectProfile`; `LexerGrammar`; `find` | the resolved dialect/release axis | `xtask-editor-extensions` |
+| C Tcl conformance oracles | `rust/tcl-test-support/src/lib.rs` | `locate_tclsh`; `available_tclshs`; `run_script`; `locate_source_tree`; `Tclsh`; `TclSourceTree`; `ScriptOutcome` | release line plus exact interpreter/source patchlevel | none |
 | shared plain types | `rust/tcl-core-types/src/diag_code.rs` | `DiagCode` | invariant | `xtask-diag-tables` |
 <!-- end-owner-resolution-manifest -->
 

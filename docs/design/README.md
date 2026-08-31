@@ -298,6 +298,9 @@ proof, and the entry contract that together gate stable-call CSE (`O105`).
 - [runtime/tcl-test-tiers.md](runtime/tcl-test-tiers.md) — the capability
   ladder (parsing → interpretation → fundamentals → control flow → I/O →
   platform features) ordering the work toward C tcltest parity.
+- [runtime/tcl-conformance-harness.md](runtime/tcl-conformance-harness.md) —
+  the shared C Tcl oracle/source discovery contract and focused-versus-full
+  tcltest execution model used by conformance tests and developer tools.
 - [runtime/backend-constraints.md](runtime/backend-constraints.md) — the
   ``tcl_platform`` backend-introspection schema and the loadable overlay that
   skips upstream tests a wasm / WASI / eBPF build cannot run.

@@ -356,10 +356,19 @@ enum Command {
         /// Which backend(s) to run: `vm` | `tclsh` | `both`.
         #[arg(long, default_value = "both")]
         backend: String,
-        /// Sweep only this single stem and print its result (does not rewrite the
-        /// committed scoreboard).
+        /// Sweep only these stems and print their results (repeatable; focused
+        /// runs do not rewrite the committed scoreboard).
+        #[arg(long = "stem")]
+        stems: Vec<String>,
+        /// Restrict each selected stem to Tcltest IDs matching this Tcl glob.
+        /// Requires at least one `--stem`.
         #[arg(long)]
-        stem: Option<String>,
+        r#match: Option<String>,
+        /// Tcl source root containing `generic/`, `library/`, and `tests/`.
+        /// Defaults to the release-specific environment override, the pinned
+        /// repository tree, or a matching checkout under `$HOME/src`.
+        #[arg(long)]
+        tcl_root: Option<PathBuf>,
         /// Per-file timeout in seconds (default 120).
         #[arg(long)]
         timeout: Option<u64>,
@@ -432,10 +441,19 @@ fn main() -> anyhow::Result<ExitCode> {
         } => registry_oracle::run(&irules_root, output.as_deref(), check),
         Command::TcltestSweep {
             backend,
-            stem,
+            stems,
+            r#match,
+            tcl_root,
             timeout,
             check,
-        } => tcltest_sweep::run(backend.parse()?, stem.as_deref(), timeout, check),
+        } => tcltest_sweep::run(
+            backend.parse()?,
+            &stems,
+            r#match.as_deref(),
+            tcl_root.as_deref(),
+            timeout,
+            check,
+        ),
         Command::FpSweep {
             codes,
             corpus,

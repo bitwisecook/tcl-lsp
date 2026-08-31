@@ -43,6 +43,8 @@ use std::time::Instant;
 use anyhow::{Context, Result, bail};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use tcl_dialect::TclVersion;
+use tcl_test_support::{TclSourceTree, locate_source_tree, locate_tclsh};
 
 use crate::util::{license_banner, repo_root};
 
@@ -174,11 +176,6 @@ const TIERS: &[(u8, &str, &[&str])] = &[
     ),
 ];
 
-const TESTS_DIR: &str = "tmp/tcl9.0.4/tests";
-const TCL_LIBRARY: &str = "tmp/tcl9.0.4/library";
-/// In-tree fallback when no installed `tclsh9.0` is found — the binary
-/// `ensure-test-deps.sh` leaves at `<tree>/unix/tclsh` after building.
-const IN_TREE_TCLSH: &str = "tmp/tcl9.0.4/unix/tclsh";
 const SCOREBOARD: &str = "docs/design/runtime/rust-vm-tier-parity.md";
 const BASELINE: &str = "tests/baselines/tcl9-tcltest/c-tclsh.ndjson";
 /// Per-stem working directory root (under `target/`, so it's git-ignored). File-
@@ -276,9 +273,17 @@ fn last_nonempty_line(s: &str) -> String {
 }
 
 /// Run one `.test` file through `argv…` under a `timeout`, returning its record.
-fn run_one(root: &Path, argv: &[&Path], stem: &str, timeout_s: u64, re: &Regex) -> Record {
+fn run_one(
+    root: &Path,
+    source_tree: &TclSourceTree,
+    argv: &[&Path],
+    stem: &str,
+    match_filter: Option<&str>,
+    timeout_s: u64,
+    re: &Regex,
+) -> Record {
     let tier = tier_of(stem);
-    let testfile = root.join(TESTS_DIR).join(format!("{stem}.test"));
+    let testfile = source_tree.tests_dir().join(format!("{stem}.test"));
     if !testfile.is_file() {
         return Record {
             stem: stem.to_owned(),
@@ -306,8 +311,11 @@ fn run_one(root: &Path, argv: &[&Path], stem: &str, timeout_s: u64, re: &Regex) 
     for a in argv {
         cmd.arg(a);
     }
-    cmd.arg(&testfile)
-        .env("TCL_LIBRARY", root.join(TCL_LIBRARY))
+    cmd.arg(&testfile);
+    if let Some(pattern) = match_filter {
+        cmd.arg("-match").arg(pattern);
+    }
+    cmd.env("TCL_LIBRARY", source_tree.library_dir())
         .current_dir(&work);
     let out = cmd.output();
     let duration_s = start.elapsed().as_secs_f64();
@@ -376,14 +384,22 @@ fn build_vm_runner(root: &Path) -> Result<PathBuf> {
 }
 
 /// Sweep `stems` through one backend command, logging progress.
-fn sweep(root: &Path, label: &str, argv: &[&Path], stems: &[&str], timeout_s: u64) -> Vec<Record> {
+fn sweep(
+    root: &Path,
+    source_tree: &TclSourceTree,
+    label: &str,
+    argv: &[&Path],
+    stems: &[&str],
+    match_filter: Option<&str>,
+    timeout_s: u64,
+) -> Vec<Record> {
     let re = Regex::new(r"Total\s+(\d+)\s+Passed\s+(\d+)\s+Skipped\s+(\d+)\s+Failed\s+(\d+)")
         .expect("valid summary regex");
     let total = stems.len();
     let mut records = Vec::with_capacity(total);
     for (i, stem) in stems.iter().enumerate() {
         eprint!("[{label} {}/{total}] {stem} … ", i + 1);
-        let r = run_one(root, argv, stem, timeout_s, &re);
+        let r = run_one(root, source_tree, argv, stem, match_filter, timeout_s, &re);
         eprintln!("{} ({:.1}s)", r.cell(), r.duration_s);
         records.push(r);
     }
@@ -483,113 +499,103 @@ fn render_scoreboard(c: &BTreeMap<String, Record>, vm: &BTreeMap<String, Record>
     out
 }
 
-/// Resolve the reference `tclsh9.0` binary, trying in order:
-/// 1. `TCL_LSP_TCLSH90` env var (explicit override);
-/// 2. `/usr/local/bin/tclsh9.0` (where `ensure-test-deps.sh` installs it);
-/// 3. `tclsh9.0` on `PATH`;
-/// 4. the in-tree build at `tmp/tcl9.0.4/unix/tclsh`.
-///
-/// Fails with a clear pointer to `make ensure-test-deps` when none exist —
-/// nothing creates the previously hardcoded `tmp/tcl9-install/bin/tclsh9.0`.
-/// The priority logic itself lives in [`pick_tclsh90`] so it can be unit
-/// tested without touching the real environment or filesystem.
-fn resolve_tclsh90(root: &Path) -> Result<PathBuf> {
-    let env_override = std::env::var_os("TCL_LSP_TCLSH90").map(PathBuf::from);
-    let installed = PathBuf::from("/usr/local/bin/tclsh9.0");
-    let on_path = which_on_path("tclsh9.0").ok();
-    let in_tree = root.join(IN_TREE_TCLSH);
-    pick_tclsh90(
-        env_override.as_deref(),
-        &installed,
-        on_path.as_deref(),
-        &in_tree,
-    )
+fn selected_stems(stem_filters: &[String]) -> Vec<&str> {
+    if stem_filters.is_empty() {
+        return all_stems();
+    }
+    stem_filters
+        .iter()
+        .map(String::as_str)
+        .inspect(|stem| {
+            let stem = *stem;
+            if tier_of(stem) == 0 {
+                eprintln!("note: stem {stem:?} is not in the ladder table (tier 0)");
+            }
+        })
+        .collect()
 }
 
-/// The pure priority-ordered choice behind [`resolve_tclsh90`]: the first
-/// candidate that is an existing file wins, in the order documented there.
-/// `env_override` set but not a file is a hard error (an explicit override
-/// pointing nowhere should never fall through silently).
-fn pick_tclsh90(
-    env_override: Option<&Path>,
-    installed: &Path,
-    on_path: Option<&Path>,
-    in_tree: &Path,
-) -> Result<PathBuf> {
-    if let Some(path) = env_override {
-        if path.is_file() {
-            return Ok(path.to_path_buf());
-        }
+fn source_tree_for_sweep(
+    root: &Path,
+    tcl_root: Option<&Path>,
+    focused: bool,
+) -> Result<TclSourceTree> {
+    let source_tree = locate_source_tree(root, TclVersion::V9_0, tcl_root)?.ok_or_else(|| {
+        anyhow::anyhow!(
+            "no Tcl 9.0 source tree found; pass --tcl-root, set \
+             TCL_LSP_TCL_ROOT90, or fetch the pinned tmp/tcl9.0.4 tree"
+        )
+    })?;
+    if !focused && source_tree.patchlevel != TclVersion::V9_0.patchlevel() {
         bail!(
-            "TCL_LSP_TCLSH90={} does not point at a file",
-            path.display()
+            "a full scoreboard run requires the pinned Tcl {}, but {} contains \
+             Tcl {}; use this tree only with focused --stem runs",
+            TclVersion::V9_0.patchlevel(),
+            source_tree.root.display(),
+            source_tree.patchlevel
         );
     }
-    if installed.is_file() {
-        return Ok(installed.to_path_buf());
-    }
-    if let Some(path) = on_path
-        && path.is_file()
-    {
-        return Ok(path.to_path_buf());
-    }
-    if in_tree.is_file() {
-        return Ok(in_tree.to_path_buf());
-    }
-    bail!(
-        "no reference tclsh9.0 found (checked $TCL_LSP_TCLSH90, \
-         /usr/local/bin/tclsh9.0, PATH, and {}) — run `make ensure-test-deps` \
-         to build one",
-        in_tree.display()
-    );
+    Ok(source_tree)
 }
 
-/// Locate `name` on `PATH`, without shelling out to `which`/`command -v`.
-fn which_on_path(name: &str) -> Result<PathBuf> {
-    let path_var = std::env::var_os("PATH").context("PATH not set")?;
-    for dir in std::env::split_paths(&path_var) {
-        let candidate = dir.join(name);
-        if candidate.is_file() {
-            return Ok(candidate);
-        }
+fn sweep_reference(
+    root: &Path,
+    source_tree: &TclSourceTree,
+    stems: &[&str],
+    match_filter: Option<&str>,
+    timeout_s: u64,
+) -> Result<Vec<Record>> {
+    let tclsh = locate_tclsh(TclVersion::V9_0)?.ok_or_else(|| {
+        anyhow::anyhow!(
+            "no reference tclsh9.0 found; set TCL_LSP_TCLSH90 or run \
+             `make ensure-test-deps`"
+        )
+    })?;
+    if tclsh.patchlevel != source_tree.patchlevel {
+        bail!(
+            "reference {} reports Tcl {}, but source tree {} is Tcl {}; \
+             the oracle binary and tests must match",
+            tclsh.path.display(),
+            tclsh.patchlevel,
+            source_tree.root.display(),
+            source_tree.patchlevel
+        );
     }
-    bail!("{name} not found on PATH")
+    Ok(sweep(
+        root,
+        source_tree,
+        "C",
+        &[tclsh.path.as_path()],
+        stems,
+        match_filter,
+        timeout_s,
+    ))
 }
 
 /// `cargo xtask tcltest-sweep`.
 pub fn run(
     backend: Backend,
-    stem_filter: Option<&str>,
+    stem_filters: &[String],
+    match_filter: Option<&str>,
+    tcl_root: Option<&Path>,
     timeout_s: Option<u64>,
     check: bool,
 ) -> Result<ExitCode> {
     let root = repo_root();
     let timeout_s = timeout_s.unwrap_or(DEFAULT_TIMEOUT_S);
-
-    // The stems to run: one via --stem, else the whole ladder.
-    let stems: Vec<&str> = match stem_filter {
-        Some(s) => {
-            if tier_of(s) == 0 {
-                eprintln!("note: stem {s:?} is not in the ladder table (tier 0)");
-            }
-            vec![s]
-        }
-        None => all_stems(),
-    };
-
-    if !root.join(TESTS_DIR).is_dir() {
-        bail!(
-            "test tree {} missing — fetch it with the `fetch-tcl-source` skill",
-            root.join(TESTS_DIR).display()
-        );
+    if match_filter.is_some() && stem_filters.is_empty() {
+        bail!("--match requires at least one --stem");
     }
+    let focused = !stem_filters.is_empty() || match_filter.is_some();
+    // Explicit stems form a focused run; no stems means the whole ladder.
+    let stems = selected_stems(stem_filters);
+    let source_tree = source_tree_for_sweep(&root, tcl_root, focused)?;
 
     // Run the reference tclsh (unless VM-only).
     let c_records: Vec<Record> = if backend == Backend::Vm {
         Vec::new()
     } else {
-        let tclsh = resolve_tclsh90(&root)?;
-        sweep(&root, "C", &[tclsh.as_path()], &stems, timeout_s)
+        sweep_reference(&root, &source_tree, &stems, match_filter, timeout_s)?
     };
 
     // Run the VM (unless tclsh-only).
@@ -597,11 +603,19 @@ pub fn run(
         Vec::new()
     } else {
         let bin = build_vm_runner(&root)?;
-        sweep(&root, "VM", &[bin.as_path()], &stems, timeout_s)
+        sweep(
+            &root,
+            &source_tree,
+            "VM",
+            &[bin.as_path()],
+            &stems,
+            match_filter,
+            timeout_s,
+        )
     };
 
     // Persist the C baseline whenever tclsh ran a full sweep.
-    if backend != Backend::Vm && stem_filter.is_none() {
+    if backend != Backend::Vm && !focused {
         write_baseline(&root, &c_records)?;
         eprintln!("wrote C baseline → {BASELINE}");
     }
@@ -622,18 +636,20 @@ pub fn run(
         .map(|r| (r.stem.clone(), r))
         .collect();
 
-    // A single-stem run just prints; it never rewrites the committed scoreboard.
-    if let Some(s) = stem_filter {
-        let c = c_map.get(s);
-        let vm = vm_map.get(s);
-        if let (Some(c), Some(vm)) = (c, vm) {
-            println!("{s}: C {} | VM {} | {}", c.cell(), vm.cell(), status(c, vm));
-        } else {
-            println!(
-                "{s}: incomplete (C {:?}, VM {:?})",
-                c.is_some(),
-                vm.is_some()
-            );
+    // Focused runs just print; they never rewrite the committed scoreboard.
+    if focused {
+        for s in &stems {
+            let c = c_map.get(*s);
+            let vm = vm_map.get(*s);
+            if let (Some(c), Some(vm)) = (c, vm) {
+                println!("{s}: C {} | VM {} | {}", c.cell(), vm.cell(), status(c, vm));
+            } else {
+                println!(
+                    "{s}: incomplete (C {:?}, VM {:?})",
+                    c.is_some(),
+                    vm.is_some()
+                );
+            }
         }
         return Ok(ExitCode::SUCCESS);
     }
@@ -653,99 +669,5 @@ pub fn run(
         std::fs::write(&path, &rendered).with_context(|| format!("writing {}", path.display()))?;
         eprintln!("wrote scoreboard → {SCOREBOARD}");
         Ok(ExitCode::SUCCESS)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::pick_tclsh90;
-    use std::path::PathBuf;
-
-    /// A path under the process's temp dir that does not exist, so
-    /// `.is_file()` is reliably false without touching the real filesystem.
-    fn missing(tag: &str) -> PathBuf {
-        std::env::temp_dir().join(format!(
-            "tcltest-sweep-missing-{tag}-{}",
-            std::process::id()
-        ))
-    }
-
-    /// A real file under the process's temp dir, unique to this test run.
-    fn present(tag: &str) -> PathBuf {
-        let path = std::env::temp_dir().join(format!(
-            "tcltest-sweep-present-{tag}-{}",
-            std::process::id()
-        ));
-        std::fs::write(&path, b"").expect("write temp fixture");
-        path
-    }
-
-    #[test]
-    fn env_override_wins_over_everything() {
-        let env = present("env");
-        let installed = present("installed");
-        let on_path = present("on-path");
-        let in_tree = present("in-tree");
-        let picked = pick_tclsh90(Some(&env), &installed, Some(&on_path), &in_tree).unwrap();
-        assert_eq!(picked, env);
-        for path in [installed, on_path, in_tree] {
-            let _ = std::fs::remove_file(path);
-        }
-        let _ = std::fs::remove_file(env);
-    }
-
-    #[test]
-    fn env_override_set_but_missing_is_a_hard_error() {
-        let env = missing("env");
-        let installed = present("installed2");
-        let err = pick_tclsh90(Some(&env), &installed, None, &missing("in-tree2"))
-            .unwrap_err()
-            .to_string();
-        assert!(err.contains("TCL_LSP_TCLSH90"), "unexpected message: {err}");
-        let _ = std::fs::remove_file(installed);
-    }
-
-    #[test]
-    fn installed_wins_over_path_and_in_tree() {
-        let installed = present("installed3");
-        let on_path = present("on-path3");
-        let in_tree = present("in-tree3");
-        let picked = pick_tclsh90(None, &installed, Some(&on_path), &in_tree).unwrap();
-        assert_eq!(picked, installed);
-        for path in [installed, on_path, in_tree] {
-            let _ = std::fs::remove_file(path);
-        }
-    }
-
-    #[test]
-    fn path_wins_over_in_tree_when_installed_missing() {
-        let installed = missing("installed4");
-        let on_path = present("on-path4");
-        let in_tree = present("in-tree4");
-        let picked = pick_tclsh90(None, &installed, Some(&on_path), &in_tree).unwrap();
-        assert_eq!(picked, on_path);
-        for path in [on_path, in_tree] {
-            let _ = std::fs::remove_file(path);
-        }
-    }
-
-    #[test]
-    fn falls_back_to_in_tree_when_nothing_else_present() {
-        let installed = missing("installed5");
-        let in_tree = present("in-tree5");
-        let picked = pick_tclsh90(None, &installed, None, &in_tree).unwrap();
-        assert_eq!(picked, in_tree);
-        let _ = std::fs::remove_file(in_tree);
-    }
-
-    #[test]
-    fn nothing_found_names_ensure_test_deps() {
-        let err = pick_tclsh90(None, &missing("installed6"), None, &missing("in-tree6"))
-            .unwrap_err()
-            .to_string();
-        assert!(
-            err.contains("make ensure-test-deps"),
-            "unexpected message: {err}"
-        );
     }
 }

@@ -20,7 +20,8 @@
 //! analogue of `runtime/rust`'s `run_script --init`, for comparing tcltest
 //! pass/fail/skip performance between the two runtimes.
 //!
-//! Usage: `TCL_LIBRARY=.../library cargo run -p tcl-vm --example run_test -- <file.test>`
+//! Usage: `TCL_LIBRARY=.../library cargo run -p tcl-vm --example run_test --
+//! <file.test> [--match <test-glob-list>]`
 //!
 //! The VM has no `init.tcl` bootstrap path, so the real `tcltest.tcl` is sourced
 //! directly (it `package provide`s itself, so the test file's `package require
@@ -86,9 +87,12 @@ fn main() {
 }
 
 fn run() -> i32 {
-    let Some(testfile) = std::env::args().nth(1) else {
-        eprintln!("usage: run_test <file.test>");
-        return 2;
+    let arguments = match Arguments::parse(std::env::args().skip(1)) {
+        Ok(arguments) => arguments,
+        Err(message) => {
+            eprintln!("{message}\nusage: run_test <file.test> [--match <test-glob-list>]");
+            return 2;
+        }
     };
     let lib = std::env::var("TCL_LIBRARY").unwrap_or_default();
     let tcltest = format!("{lib}/tcltest/tcltest.tcl");
@@ -111,8 +115,18 @@ fn run() -> i32 {
         Ok(v) if !v.is_empty() => "::tcltest::configure -verbose {body start}\n",
         _ => "",
     };
+    let match_config = arguments
+        .match_filter
+        .as_ref()
+        .map_or_else(String::new, |pattern| {
+            format!(
+                "::tcltest::configure -match {}\n",
+                tcl_syntax::list::list_element(pattern)
+            )
+        });
     let src = format!(
-        "source {tcltest}\nnamespace import -force ::tcltest::*\n{verbose}{overlay}source {testfile}\n"
+        "source {tcltest}\nnamespace import -force ::tcltest::*\n{verbose}{match_config}{overlay}source {}\n",
+        tcl_syntax::list::list_element(&arguments.testfile)
     );
     let ir = lower_to_ir(&src, &registry);
     let cfg = build_cfg(&ir, false);
@@ -132,5 +146,33 @@ fn run() -> i32 {
     } else {
         eprintln!("VM error: {}", c.result.to_str());
         1
+    }
+}
+
+struct Arguments {
+    testfile: String,
+    match_filter: Option<String>,
+}
+
+impl Arguments {
+    fn parse(mut args: impl Iterator<Item = String>) -> Result<Self, String> {
+        let testfile = args.next().ok_or_else(|| "missing test file".to_owned())?;
+        let mut match_filter = None;
+        while let Some(option) = args.next() {
+            match option.as_str() {
+                "--match" if match_filter.is_none() => {
+                    match_filter = Some(
+                        args.next()
+                            .ok_or_else(|| "--match requires a value".to_owned())?,
+                    );
+                }
+                "--match" => return Err("--match may be supplied only once".to_owned()),
+                _ => return Err(format!("unknown option {option:?}")),
+            }
+        }
+        Ok(Self {
+            testfile,
+            match_filter,
+        })
     }
 }

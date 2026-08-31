@@ -52,6 +52,7 @@ members = [
     "rust/tcl-version",
     "rust/tcl-core-types",
     "rust/tcl-dialect",
+    "rust/tcl-test-support",
     "rust/tcl-lexer",
     "rust/tcl-syntax",
     "rust/tcl-platform",
