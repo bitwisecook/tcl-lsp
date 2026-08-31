@@ -78,6 +78,7 @@ mod http;
 mod if_;
 mod incr_;
 mod info_;
+pub use info_::{InfoOoEnsembleKind, InfoOoSubcommands, info_oo_subcommands};
 mod interp;
 mod join_;
 mod lappend_;

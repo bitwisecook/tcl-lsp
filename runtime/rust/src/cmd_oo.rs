@@ -45,6 +45,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
 use tcl_core_types::RecursionLimit;
+use tcl_registry::commands::tcl::{InfoOoEnsembleKind, info_oo_subcommands};
 
 use crate::interp::{
     obj_bytes, CallMeta, Code, Command, Interp, MethodFrameWhat, Param, ProcFrame,
@@ -3194,86 +3195,15 @@ fn classvariable_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 // -- info object / info class (called from cmd_info) -------------------------
 
-/// Canonical `info object`/`info class` subcommands (in C's listing order, used
-/// for prefix resolution and the `unknown or ambiguous subcommand` message).
-const INFO_OBJECT_SUBS: &[&[u8]] = &[
-    b"call",
-    b"class",
-    b"creationid",
-    b"definition",
-    b"filters",
-    b"forward",
-    b"isa",
-    b"methods",
-    b"methodtype",
-    b"mixins",
-    b"namespace",
-    b"properties",
-    b"variables",
-    b"vars",
-];
-const INFO_CLASS_SUBS: &[&[u8]] = &[
-    b"call",
-    b"constructor",
-    b"definition",
-    b"definitionnamespace",
-    b"destructor",
-    b"filters",
-    b"forward",
-    b"instances",
-    b"methods",
-    b"methodtype",
-    b"mixins",
-    b"properties",
-    b"subclasses",
-    b"superclasses",
-    b"variables",
-];
-
-/// Resolve a (possibly abbreviated) `info object`/`info class` subcommand to its
-/// canonical name — exact name or unique prefix, matching the C ensemble. On a
-/// miss or an ambiguous prefix, set the `unknown or ambiguous subcommand` error.
-fn info_sub_resolve<'a>(
-    interp: &mut Interp,
-    sub: &[u8],
-    cands: &'a [&'a [u8]],
-) -> Result<&'a [u8], Code> {
-    if let Some(c) = cands.iter().find(|c| **c == sub) {
-        return Ok(c);
-    }
-    let mut it = cands.iter().filter(|c| c.starts_with(sub));
-    if let (Some(c), None) = (it.next(), it.next()) {
-        return Ok(c);
-    }
-    let mut m = b"unknown or ambiguous subcommand \"".to_vec();
-    m.extend_from_slice(sub);
-    m.extend_from_slice(b"\": must be ");
-    for (i, c) in cands.iter().enumerate() {
-        if i > 0 {
-            // Tcl ensemble style: ", or " before the last of 3+, " or " for 2.
-            m.extend_from_slice(if i == cands.len() - 1 {
-                if cands.len() == 2 {
-                    b" or " as &[u8]
-                } else {
-                    b", or "
-                }
-            } else {
-                b", "
-            });
-        }
-        m.extend_from_slice(c);
-    }
-    Err(interp.set_error(&m))
-}
-
 /// `info object subcommand object ?arg?`.
 pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
         return wrong_args(interp, b"info object subcommand ?arg ...?");
     }
-    let sub = match info_sub_resolve(interp, &obj_bytes(argv[2]), INFO_OBJECT_SUBS) {
-        Ok(s) => s,
-        Err(c) => return c,
+    let subcommands = info_oo_subcommands(InfoOoEnsembleKind::Object, interp.runtime_version());
+    let sub = match subcommands.resolve(&obj_bytes(argv[2])) {
+        Ok(sub) => sub.as_bytes(),
+        Err(message) => return interp.set_error(&message),
     };
     // `creationid` has its own arg-count message (it errors at 0 *or* 2+ names).
     if sub == b"creationid" && argv.len() != 4 {
@@ -3866,9 +3796,10 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
         return wrong_args(interp, b"info class subcommand ?arg ...?");
     }
-    let sub = match info_sub_resolve(interp, &obj_bytes(argv[2]), INFO_CLASS_SUBS) {
-        Ok(s) => s,
-        Err(c) => return c,
+    let subcommands = info_oo_subcommands(InfoOoEnsembleKind::Class, interp.runtime_version());
+    let sub = match subcommands.resolve(&obj_bytes(argv[2])) {
+        Ok(sub) => sub.as_bytes(),
+        Err(message) => return interp.set_error(&message),
     };
     if sub == b"call" && argv.len() != 5 {
         return wrong_args(interp, b"info class call className methodName");
@@ -7085,6 +7016,55 @@ mod tests {
             );
             // A non-object reports an error (without surrounding quotes).
             assert_eq!(i.eval_str(b"info object creationid nosuch"), Code::Error);
+        });
+    }
+
+    #[test]
+    fn info_oo_ensemble_resolution_and_release_gates_match_tcl() {
+        leak_free(|i| {
+            use tcl_dialect::TclVersion;
+
+            i.set_runtime_version(TclVersion::V9_0);
+            ok(i, b"oo::class create C; set o [C new]");
+            assert_eq!(ok(i, b"info object cl $o"), b"::C");
+            assert_eq!(i.eval_str(b"info object bogus $o"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"unknown or ambiguous subcommand \"bogus\": must be call, class, creationid, definition, filters, forward, isa, methods, methodtype, mixins, namespace, properties, variables, or vars"
+            );
+            assert_eq!(i.eval_str(b"info class def C nope"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"unknown or ambiguous subcommand \"def\": must be call, constructor, definition, definitionnamespace, destructor, filters, forward, instances, methods, methodtype, mixins, properties, subclasses, superclasses, or variables"
+            );
+            assert_eq!(ok(i, b"info class definitionnamespace C"), b"");
+
+            i.set_runtime_version(TclVersion::V8_6);
+            for (script, expected) in [
+                (
+                    &b"info object creationid $o"[..],
+                    &b"unknown or ambiguous subcommand \"creationid\": must be call, class, definition, filters, forward, isa, methods, methodtype, mixins, namespace, variables, or vars"[..],
+                ),
+                (
+                    &b"info object properties $o"[..],
+                    &b"unknown or ambiguous subcommand \"properties\": must be call, class, definition, filters, forward, isa, methods, methodtype, mixins, namespace, variables, or vars"[..],
+                ),
+                (
+                    &b"info class definitionnamespace C"[..],
+                    &b"unknown or ambiguous subcommand \"definitionnamespace\": must be call, constructor, definition, destructor, filters, forward, instances, methods, methodtype, mixins, subclasses, superclasses, or variables"[..],
+                ),
+                (
+                    &b"info class properties C"[..],
+                    &b"unknown or ambiguous subcommand \"properties\": must be call, constructor, definition, destructor, filters, forward, instances, methods, methodtype, mixins, subclasses, superclasses, or variables"[..],
+                ),
+            ] {
+                assert_eq!(i.eval_str(script), Code::Error);
+                assert_eq!(i.result_bytes(), expected);
+            }
+            // With the 9.0-only definitionnamespace row absent, `def` is once
+            // again the unique prefix of `definition`.
+            assert_eq!(i.eval_str(b"info class def C nope"), Code::Error);
+            assert_eq!(i.result_bytes(), b"unknown method \"nope\"");
         });
     }
 

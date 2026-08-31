@@ -22,6 +22,5 @@ orchestrator pushes — is in [`AGENTS.md`](../../../AGENTS.md) under
 
 ## In flight
 
-None. Every lane of the #1631 programme has landed; what each one
-decided lives in its final commit message, and what the programme left
-open lives in the redesign's §11 open-questions ledger.
+- [`tclvm-option-oo.md`](tclvm-option-oo.md) — #1609 and the bounded TclOO
+  `info object` / `info class` slice of #1607.

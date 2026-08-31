@@ -20,6 +20,7 @@
 
 use crate::hooks::InlineCodegenHookId;
 use crate::prelude::*;
+use tcl_dialect::TclVersion;
 use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
@@ -232,6 +233,82 @@ const INFO_CLASS_SUBS: &[SubSubCommand] = &[
         "info class variables class",
     ),
 ];
+
+/// Which TclOO second-level `info` ensemble is being dispatched.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InfoOoEnsembleKind {
+    /// `info object subcommand ...`
+    Object,
+    /// `info class subcommand ...`
+    Class,
+}
+
+impl InfoOoEnsembleKind {
+    const fn parent_name(self) -> &'static str {
+        match self {
+            Self::Object => "object",
+            Self::Class => "class",
+        }
+    }
+}
+
+/// The registry-derived, release-filtered operation table for one TclOO
+/// `info` ensemble.
+///
+/// The registry owns which operations exist; `tcl-cmd-core::ensemble` owns
+/// exact/unique-prefix resolution and the ensemble-specific `, or` rendering.
+/// Runtime consumers therefore receive one ready-to-dispatch table and never
+/// copy either the operation names or the miss-message list.
+#[derive(Debug, Clone)]
+pub struct InfoOoSubcommands {
+    names: Vec<&'static str>,
+}
+
+impl InfoOoSubcommands {
+    /// Canonical operation names in Tcl's listing order.
+    #[must_use]
+    pub fn names(&self) -> &[&'static str] {
+        &self.names
+    }
+
+    /// Resolve an exact name or unique prefix, returning the canonical name.
+    ///
+    /// # Errors
+    /// The Tcl ensemble miss message, including the release-filtered choices.
+    pub fn resolve(&self, word: &[u8]) -> Result<&'static str, Vec<u8>> {
+        tcl_cmd_core::ensemble::resolve_subcommand(&self.names, word, true)
+            .map(|index| self.names[index])
+            .ok_or_else(|| {
+                tcl_cmd_core::ensemble::unknown_subcommand_message(&self.names, word, true, b"")
+            })
+    }
+}
+
+/// Build the authoritative operation table for `info object` or `info class`
+/// at `version`.
+///
+/// This projects the same [`SubSubCommand`] rows used by diagnostics,
+/// completion, and hover. In particular, Tcl 9.0's `creationid`,
+/// `definitionnamespace`, and `properties` rows disappear on an 8.6 target
+/// before prefix uniqueness or error rendering is decided.
+#[must_use]
+pub fn info_oo_subcommands(kind: InfoOoEnsembleKind, version: TclVersion) -> InfoOoSubcommands {
+    let dialect =
+        Some(crate::model::static_document_context_for(version.dialect_name()).authoring_query());
+    let info = spec();
+    let parent = info
+        .subcommands
+        .iter()
+        .find(|subcommand| subcommand.name == kind.parent_name())
+        .expect("the info spec declares both TclOO ensembles");
+    InfoOoSubcommands {
+        names: parent
+            .available_sub_subcommands(dialect, None)
+            .into_iter()
+            .map(|subcommand| subcommand.name)
+            .collect(),
+    }
+}
 
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
@@ -610,5 +687,111 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const OBJECT_86: &[&str] = &[
+        "call",
+        "class",
+        "definition",
+        "filters",
+        "forward",
+        "isa",
+        "methods",
+        "methodtype",
+        "mixins",
+        "namespace",
+        "variables",
+        "vars",
+    ];
+    const OBJECT_90: &[&str] = &[
+        "call",
+        "class",
+        "creationid",
+        "definition",
+        "filters",
+        "forward",
+        "isa",
+        "methods",
+        "methodtype",
+        "mixins",
+        "namespace",
+        "properties",
+        "variables",
+        "vars",
+    ];
+    const CLASS_86: &[&str] = &[
+        "call",
+        "constructor",
+        "definition",
+        "destructor",
+        "filters",
+        "forward",
+        "instances",
+        "methods",
+        "methodtype",
+        "mixins",
+        "subclasses",
+        "superclasses",
+        "variables",
+    ];
+    const CLASS_90: &[&str] = &[
+        "call",
+        "constructor",
+        "definition",
+        "definitionnamespace",
+        "destructor",
+        "filters",
+        "forward",
+        "instances",
+        "methods",
+        "methodtype",
+        "mixins",
+        "properties",
+        "subclasses",
+        "superclasses",
+        "variables",
+    ];
+
+    #[test]
+    fn tcloo_info_tables_are_release_filtered_from_registry_rows() {
+        assert_eq!(
+            info_oo_subcommands(InfoOoEnsembleKind::Object, TclVersion::V8_6).names(),
+            OBJECT_86
+        );
+        assert_eq!(
+            info_oo_subcommands(InfoOoEnsembleKind::Object, TclVersion::V9_0).names(),
+            OBJECT_90
+        );
+        assert_eq!(
+            info_oo_subcommands(InfoOoEnsembleKind::Class, TclVersion::V8_6).names(),
+            CLASS_86
+        );
+        assert_eq!(
+            info_oo_subcommands(InfoOoEnsembleKind::Class, TclVersion::V9_0).names(),
+            CLASS_90
+        );
+    }
+
+    #[test]
+    fn tcloo_info_resolution_and_choices_match_tcl_ensembles() {
+        let object = info_oo_subcommands(InfoOoEnsembleKind::Object, TclVersion::V9_0);
+        assert_eq!(object.resolve(b"cl"), Ok("class"));
+        assert_eq!(
+            object.resolve(b"bogus").unwrap_err(),
+            b"unknown or ambiguous subcommand \"bogus\": must be call, class, creationid, definition, filters, forward, isa, methods, methodtype, mixins, namespace, properties, variables, or vars"
+        );
+
+        let class_86 = info_oo_subcommands(InfoOoEnsembleKind::Class, TclVersion::V8_6);
+        let class_90 = info_oo_subcommands(InfoOoEnsembleKind::Class, TclVersion::V9_0);
+        assert_eq!(class_86.resolve(b"def"), Ok("definition"));
+        assert_eq!(
+            class_90.resolve(b"def").unwrap_err(),
+            b"unknown or ambiguous subcommand \"def\": must be call, constructor, definition, definitionnamespace, destructor, filters, forward, instances, methods, methodtype, mixins, properties, subclasses, superclasses, or variables"
+        );
     }
 }

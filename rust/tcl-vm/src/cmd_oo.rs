@@ -48,6 +48,7 @@ use std::rc::Rc;
 use tcl_syntax::mro::{MroError, tcloo_linearise};
 
 use tcl_bytecode::FunctionAsm;
+use tcl_registry::commands::tcl::{InfoOoEnsembleKind, info_oo_subcommands};
 use tcl_runtime_api::{Code, Completion};
 
 use crate::command::{Command, Param, ProcDef, parse_params};
@@ -2192,9 +2193,14 @@ pub(crate) fn info_object(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err("wrong # args: should be \"info object subcommand object ?arg ...?\"");
     };
     let sub = sub.to_str();
+    let subcommands = info_oo_subcommands(InfoOoEnsembleKind::Object, vm.runtime_version());
+    let sub = match subcommands.resolve(sub.as_bytes()) {
+        Ok(sub) => sub,
+        Err(message) => return err(String::from_utf8_lossy(&message).into_owned()),
+    };
     // `isa` is the odd one out: `info object isa category object ?arg?` — the
     // object comes *after* the category.
-    if sub.as_ref() == "isa" {
+    if sub == "isa" {
         return info_object_isa(vm, rest);
     }
     let Some(obj_arg) = rest.first() else {
@@ -2207,7 +2213,7 @@ pub(crate) fn info_object(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Err(c) => return c,
     };
     let extra = &rest[1..];
-    match sub.as_ref() {
+    match sub {
         "class" => {
             if let Some(cls) = extra.first() {
                 let c = vm.qualify_name(&cls.to_str());
@@ -2264,9 +2270,7 @@ pub(crate) fn info_object(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             ok(Value::list(names.into_iter().map(Value::string).collect()))
         }
         "properties" => info_object_properties(vm, &obj, extra),
-        _ => err(format!(
-            "unknown or ambiguous subcommand \"{sub}\": must be class, creationid, isa, methods, mixins, namespace, properties, variables or vars"
-        )),
+        _ => err(format!("unsupported info object subcommand \"{sub}\"")),
     }
 }
 
@@ -2335,6 +2339,11 @@ pub(crate) fn info_class(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err("wrong # args: should be \"info class subcommand class ?arg ...?\"");
     };
     let sub = sub.to_str();
+    let subcommands = info_oo_subcommands(InfoOoEnsembleKind::Class, vm.runtime_version());
+    let sub = match subcommands.resolve(sub.as_bytes()) {
+        Ok(sub) => sub,
+        Err(message) => return err(String::from_utf8_lossy(&message).into_owned()),
+    };
     let Some(cls_arg) = rest.first() else {
         return err(format!(
             "wrong # args: should be \"info class {sub} class ?arg ...?\""
@@ -2348,7 +2357,7 @@ pub(crate) fn info_class(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err(format!("\"{}\" is not a class", display(&cls)));
     }
     let extra = &rest[1..];
-    match sub.as_ref() {
+    match sub {
         "superclasses" => ok(Value::list(
             vm.oo.classes[&cls]
                 .supers
@@ -2416,9 +2425,7 @@ pub(crate) fn info_class(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 .collect(),
         )),
         "properties" => info_class_properties(vm, &cls, extra),
-        _ => err(format!(
-            "unknown or ambiguous subcommand \"{sub}\": must be constructor, destructor, instances, methods, mixins, properties, subclasses, superclasses or variables"
-        )),
+        _ => err(format!("unsupported info class subcommand \"{sub}\"")),
     }
 }
 
