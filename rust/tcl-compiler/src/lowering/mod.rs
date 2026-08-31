@@ -3936,6 +3936,7 @@ const FATAL_PARSE_MESSAGES: &[&str] = &[
     "extra characters after close-brace",
     "missing close-brace",
     "missing close-brace for variable name",
+    "invalid character in array index",
     "missing \"",
     "missing )",
     "missing close-bracket",
@@ -4238,6 +4239,31 @@ mod tests {
 
     fn reg() -> CommandRegistry {
         CommandRegistry::build_default()
+    }
+
+    #[test]
+    fn fatal_array_index_source_mask_follows_the_release() {
+        let source = "puts $array({key})";
+        for dialect in ["tcl8.4", "tcl8.6"] {
+            assert_eq!(
+                first_fatal_parse_error_with_config(
+                    source,
+                    tcl_lexer::LexerConfig::for_dialect(dialect)
+                ),
+                None,
+                "{dialect} accepts the index text"
+            );
+        }
+        for dialect in ["tcl9.0", "tcl9.1"] {
+            assert_eq!(
+                first_fatal_parse_error_with_config(
+                    source,
+                    tcl_lexer::LexerConfig::for_dialect(dialect)
+                ),
+                Some(tcl_lexer::INVALID_CHARACTER_IN_ARRAY_INDEX.to_owned()),
+                "{dialect} rejects the raw brace"
+            );
+        }
     }
 
     #[test]

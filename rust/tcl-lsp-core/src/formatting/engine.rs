@@ -130,7 +130,7 @@ struct ParsedCommand {
 
 // Token → raw source reconstruction
 
-/// Collapse `\<newline>` continuations (LF, CR, or CRLF) to a single space.
+/// Collapse `\<newline>` continuations to a single space.
 ///
 /// `keep_preceding` controls whitespace *before* the backslash. Inside a
 /// double-quoted string that whitespace is literal data, so it must survive
@@ -1731,15 +1731,23 @@ pub(crate) fn trim_trailing_ws_preserving_literals(text: &str) -> String {
 /// formatted source out.
 #[must_use]
 pub fn format_tcl(source: &str, config: &FormatterConfig, registry: &CommandRegistry) -> String {
+    // Resolve this from the original document, before canonicalising its input
+    // for Tcl parsing; output still honours the document's established EOL.
+    let line_ending = config.resolved_line_ending(source).to_owned();
+    // Formatting operates on document text, so match Tcl's source-channel
+    // newline translation before handing it to lexer-owned parsing. This is
+    // deliberately outside the shared raw escape decoder: run-time strings
+    // with raw CR/CRLF retain their Tcl value semantics.
+    let source = super::normalise_document_line_endings(source);
     // The document's command-identity facts, computed once for the whole file
     // (issue #1275).  Empty — and lookup-free — unless the document binds
     // something.
     let identities = tcl_compiler::realm::document_realm_bindings_with_config(
-        source,
+        &source,
         config.lexer_config(),
         registry,
     );
-    let mut result = format_body(source, 0, config, registry, &identities, 0);
+    let mut result = format_body(&source, 0, config, registry, &identities, 0);
 
     if config.trim_trailing_whitespace {
         result = trim_trailing_ws_preserving_literals(&result);
@@ -1747,9 +1755,8 @@ pub fn format_tcl(source: &str, config: &FormatterConfig, registry: &CommandRegi
     if config.ensure_final_newline && !result.ends_with('\n') {
         result.push('\n');
     }
-    let line_ending = config.resolved_line_ending(source);
     if line_ending != "\n" {
-        result = result.replace('\n', line_ending);
+        result = result.replace('\n', &line_ending);
     }
     result
 }

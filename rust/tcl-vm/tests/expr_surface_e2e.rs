@@ -28,6 +28,50 @@ use tcl_dialect::TclVersion;
 use tcl_vm::Vm;
 
 #[test]
+fn boolean_word_prefixes_are_literals_in_every_release() {
+    for version in TclVersion::ALL {
+        let mut vm = Vm::new();
+        vm.set_runtime_version(version);
+
+        for source in ["t", "tru", "y", "ye", "f", "n", "of"] {
+            assert_eq!(
+                vm.eval_expr(source)
+                    .unwrap_or_else(|error| panic!("{version:?} expr {{{source}}}: {error:?}"))
+                    .to_str()
+                    .as_ref(),
+                source,
+                "{version:?} expr {{{source}}}"
+            );
+        }
+        assert_eq!(
+            vm.eval_expr("tru ? yes : no")
+                .expect("unique prefix is true in a boolean context")
+                .to_str()
+                .as_ref(),
+            "yes",
+            "{version:?}"
+        );
+        assert_eq!(
+            vm.eval_expr("!of")
+                .expect("unique false prefix under unary not")
+                .to_str()
+                .as_ref(),
+            "1",
+            "{version:?}"
+        );
+
+        let ambiguous = vm
+            .eval_expr("o")
+            .expect_err("the shared on/off prefix remains ambiguous");
+        assert_eq!(
+            ambiguous.error_code.as_deref(),
+            Some("TCL PARSE EXPR BAREWORD"),
+            "{version:?}"
+        );
+    }
+}
+
+#[test]
 fn tip461_and_tip521_follow_the_registry_selected_runtime_release() {
     let mut old = Vm::new();
     old.set_runtime_version(TclVersion::V8_6);

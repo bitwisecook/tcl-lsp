@@ -1234,6 +1234,12 @@ impl Vm {
         self.dialect_profile.grammar.braced_var
     }
 
+    /// The release's source-level `$name(index)` grammar.
+    #[must_use]
+    pub(crate) fn array_index_syntax(&self) -> tcl_dialect::ArrayIndexSyntax {
+        self.dialect_profile.grammar.array_index
+    }
+
     /// Generation of the dialect profile used to compile dynamic bytecode.
     #[must_use]
     pub(crate) fn profile_generation(&self) -> u64 {
