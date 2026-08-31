@@ -437,7 +437,9 @@ pub(crate) fn get_elem_at(
     level: usize,
 ) -> Option<*mut TclObj> {
     match resolve_at(frames, ns, name, level) {
-        Resolved::Place(p) if p.elem.is_none() => table(frames, ns, p.home)?.load_elem(&p.name, key),
+        Resolved::Place(p) if p.elem.is_none() => {
+            table(frames, ns, p.home)?.load_elem(&p.name, key)
+        }
         _ => None,
     }
 }
@@ -507,7 +509,9 @@ pub(crate) fn unset_elem_at(
     level: usize,
 ) -> bool {
     match resolve_at(frames, ns, name, level) {
-        Resolved::Place(p) if p.elem.is_none() => table_mut(frames, ns, p.home).remove_elem(&p.name, key),
+        Resolved::Place(p) if p.elem.is_none() => {
+            table_mut(frames, ns, p.home).remove_elem(&p.name, key)
+        }
         _ => false,
     }
 }

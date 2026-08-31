@@ -405,7 +405,10 @@ mod tests {
     #[test]
     fn upvar_validates_semantic_homes_and_error_precedence() {
         leak_free(|i| {
-            assert_eq!(i.eval_str(b"namespace eval x { variable ok READY }"), Code::Ok);
+            assert_eq!(
+                i.eval_str(b"namespace eval x { variable ok READY }"),
+                Code::Ok
+            );
             assert_eq!(i.eval_str(b"upvar #0 ::x::ok top"), Code::Ok);
             assert_eq!(i.eval_str(b"set top"), Code::Ok);
             assert_eq!(i.result_bytes(), b"READY");
