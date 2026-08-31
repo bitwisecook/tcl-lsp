@@ -390,6 +390,22 @@ impl EscapeSyntax {
         !matches!(self, Self::Tcl84)
     }
 
+    /// Whether `\u{…}` — a brace-delimited scalar of any width — is a form
+    /// this grammar decodes.
+    ///
+    /// `JimTcl` alone accepts it (`\u{1F600}` is one character on jimsh 0.76
+    /// and 0.84); no build of the Tcl core does, and tclsh 8.6 / 9.0 both read
+    /// the same text as a literal `u` followed by `{1F600}`. Spelled as an
+    /// exhaustive match so a new grammar has to state its answer rather than
+    /// inherit Jim's.
+    #[must_use]
+    pub fn has_braced_unicode(self) -> bool {
+        match self {
+            Self::Tcl84 | Self::Tcl86 | Self::Tcl90 => false,
+            Self::Jim => true,
+        }
+    }
+
     /// Whether an octal escape takes a **third** digit given the value its
     /// first two produced.
     ///
