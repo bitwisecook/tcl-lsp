@@ -20,9 +20,9 @@
 //!
 //! Surfaces a single [`SignatureInformation`] for the command
 //! whose name appears as the first word of the active command
-//! segment at the cursor.  The active parameter is derived from
-//! a simple whitespace-aware count of arguments typed so far on
-//! the current physical line.
+//! segment at the cursor. The active parameter is derived from a
+//! lexer-aware count of arguments in the innermost registry-declared
+//! executable region containing the cursor.
 //!
 //! Two lookup paths:
 //!
@@ -40,10 +40,10 @@
 //!    the command word; `hover.summary` becomes the
 //!    documentation.
 //!
-//! Limitations: only the cursor's physical line is walked, so
-//! multi-line command segments (continuation lines, embedded
-//! `[…]` / `{…}`) aren't understood, and rich doc-comment
-//! rendering isn't done — the summary is surfaced verbatim.
+//! Braced data remains part of its containing command, while registry-declared
+//! script bodies, clause actions, lambdas, definition members, and live
+//! command substitutions establish nested command contexts. Rich doc-comment
+//! rendering is not done — the summary is surfaced verbatim.
 
 use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::{AnalysisResult, ProcDef};
@@ -80,6 +80,17 @@ pub struct SignatureHelp {
     /// Index of the active parameter (0-based) within the
     /// active signature.
     pub active_parameter: u32,
+}
+
+/// Per-request controls for signature-help rendering.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SignatureHelpOptions<'a> {
+    /// Canonical qualified registry command names whose built-in signature
+    /// should not be shown (for example `::set`). Canonicalisation belongs to
+    /// [`tcl_syntax::naming::normalise_qualified_name`].
+    /// User-defined procs keep their signatures even when they have the same
+    /// written name, because Tcl resolves those before the registry fallback.
+    pub disabled_builtin_commands: &'a [String],
 }
 
 /// Compute signature help for the command being typed at the
@@ -134,8 +145,32 @@ pub fn signature_help_in_program(
     analysis: &AnalysisResult,
     resolution: crate::definition::CallResolution<'_>,
 ) -> Option<SignatureHelp> {
+    signature_help_in_program_with_options(
+        source,
+        line,
+        character,
+        analysis,
+        resolution,
+        SignatureHelpOptions::default(),
+    )
+}
+
+/// [`signature_help_in_program`] with per-request rendering controls.
+#[must_use]
+pub fn signature_help_in_program_with_options(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+    resolution: crate::definition::CallResolution<'_>,
+    options: SignatureHelpOptions<'_>,
+) -> Option<SignatureHelp> {
     let registry = resolution.registry;
-    let (command, args, active_param) = command_context_with_args(source, line, character)?;
+    let profile = crate::profile_for_dialect(&analysis.dialect);
+    let structural_registry =
+        registry.unwrap_or_else(|| crate::registry_for_dialect_profile(profile));
+    let (command, args, active_param) =
+        command_context_with_args(source, line, character, profile, structural_registry)?;
     // Resolve the command from the namespace the cursor sits in, the way C
     // Tcl's own command resolution would (caller namespace, then global), so a
     // same-named proc in an unrelated namespace never hijacks the signature and
@@ -156,6 +191,13 @@ pub fn signature_help_in_program(
     }
     let registry = registry?;
     let spec = registry.get(&command)?;
+    let canonical_spec_name = tcl_syntax::naming::normalise_qualified_name(spec.name);
+    if options
+        .disabled_builtin_commands
+        .contains(&canonical_spec_name)
+    {
+        return None;
+    }
     // Subcommand-scoped signatures:
     // when the spec has subcommands and the first argument
     // matches one, prefer the subcommand's signature over the
@@ -204,8 +246,10 @@ fn command_context_with_args(
     source: &str,
     line: u32,
     character: u32,
+    profile: &'static tcl_dialect::DialectProfile,
+    registry: &CommandRegistry,
 ) -> Option<(String, Vec<String>, u32)> {
-    use tcl_lexer::{Lexer, LineIndex, TokenType, Utf16Col};
+    use tcl_lexer::{Lexer, LexerConfig, LineIndex, TokenType, Utf16Col};
 
     let cursor_offset = {
         let line_index = LineIndex::new(source);
@@ -222,10 +266,25 @@ fn command_context_with_args(
         line_index.offset_at_utf16(line, Utf16Col::new(character), source)
     };
 
-    // Lex the document up to the cursor's byte offset.  We
-    // walk the full token stream and stop including tokens
-    // once we cross `cursor_offset`.
-    let lexer = Lexer::new(source);
+    let config = LexerConfig::for_file_dialect(profile.name);
+    let identities =
+        tcl_compiler::realm::document_realm_bindings_with_config(source, config, registry);
+    let region = crate::executable_regions::innermost_executable_region_at(
+        source,
+        config,
+        registry,
+        Some(profile.surface_query()),
+        &identities,
+        cursor_offset as usize,
+    )?;
+
+    // Lex only the executable region's prefix up to the cursor. A braced word
+    // that is ordinary data remains in the containing region and therefore in
+    // the outer command. A registry-declared body starts a deeper region, so
+    // newlines/comments inside it reset that body's command context instead of
+    // leaving the outer command (notably `proc ... body`) active indefinitely.
+    let prefix = &source[region.start..cursor_offset as usize];
+    let lexer = Lexer::with_config(prefix, config.at_depth(region.depth));
     let Ok(tokens) = lexer.tokenise_all() else {
         return None;
     };
@@ -233,9 +292,6 @@ fn command_context_with_args(
     let mut current_segment: Vec<String> = Vec::new();
     let mut at_new_word = true;
     for tok in tokens {
-        if tok.span.start() >= cursor_offset {
-            break;
-        }
         match tok.kind {
             TokenType::Sep => {
                 at_new_word = true;
@@ -245,7 +301,7 @@ fn command_context_with_args(
                 // line-ending newline) resets the segment.
                 // Synthetic empty EOLs (used to terminate the
                 // stream) leave the segment alone.
-                let raw = &source[tok.span.start() as usize..tok.span.end() as usize];
+                let raw = &prefix[tok.span.start() as usize..tok.span.end() as usize];
                 if !raw.is_empty() {
                     current_segment.clear();
                     at_new_word = true;
@@ -261,7 +317,7 @@ fn command_context_with_args(
                 // segment unless we're mid-word (the previous
                 // token also contributed without an intervening
                 // SEP).
-                let raw = &source[tok.span.start() as usize..tok.span.end() as usize];
+                let raw = &prefix[tok.span.start() as usize..tok.span.end() as usize];
                 if at_new_word || current_segment.is_empty() {
                     current_segment.push(raw.to_owned());
                 } else if let Some(last) = current_segment.last_mut() {
@@ -785,6 +841,105 @@ mod tests {
         // the start of arg 1 and the cursor sits in its body
         // (which the segmenter rolls into the same word).
         assert!(h.is_some(), "expected signature help on continuation line");
+    }
+
+    #[test]
+    fn proc_signature_stops_at_its_script_body() {
+        // Issue #1735's screenshots put the caret at the ends of these body
+        // lines. Neither position belongs to the outer `proc` invocation: the
+        // body is a registry-declared nested Tcl script.
+        let src = concat!(
+            "proc someproc {arg1 arg2} {\n",
+            "    # this box always appears\n",
+            "    # can be closed with ESC but comes back on the next SPACE press..\n",
+            "    set evenWhenWritingCode\n",
+            "}\n",
+        );
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+
+        for (needle, occurrence) in [
+            ("# this box always appears", 1),
+            (
+                "# can be closed with ESC but comes back on the next SPACE press..",
+                1,
+            ),
+        ] {
+            let (line, character) = pos_after(src, needle, occurrence);
+            assert!(
+                signature_help(src, line, character, &analysis, Some(&registry)).is_none(),
+                "a body comment must close the outer proc signature: {needle}",
+            );
+        }
+
+        let (line, character) = pos_after(src, "set evenWhenWritingCode", 1);
+        let help = signature_help(src, line, character, &analysis, Some(&registry))
+            .expect("the nested set call has its own signature");
+        assert!(
+            help.signatures[0].label.starts_with("set "),
+            "outer proc signature leaked into body: {help:?}",
+        );
+    }
+
+    #[test]
+    fn signature_help_is_available_in_proc_header_and_nested_proc_call() {
+        let src = concat!(
+            "proc helper {value} {}\n",
+            "proc outer {arg} {\n",
+            "    helper \n",
+            "}\n",
+        );
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+
+        let (header_line, header_character) = pos_after(src, "proc outer ", 1);
+        let header = signature_help(
+            src,
+            header_line,
+            header_character,
+            &analysis,
+            Some(&registry),
+        )
+        .expect("proc declaration header signature");
+        assert!(header.signatures[0].label.starts_with("proc "));
+
+        let (call_line, call_character) = pos_after(src, "helper ", 2);
+        let call = signature_help(src, call_line, call_character, &analysis, Some(&registry))
+            .expect("nested proc call signature");
+        assert_eq!(call.signatures[0].label, "helper value");
+    }
+
+    #[test]
+    fn disabled_builtin_signatures_do_not_disable_other_commands_or_procs() {
+        let src = concat!(
+            "set \n",
+            "format \n",
+            "proc custom {value} {}\n",
+            "custom \n",
+        );
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let disabled = vec!["::set".to_owned(), "::incr".to_owned()];
+        let help = |needle, occurrence| {
+            let (line, character) = pos_after(src, needle, occurrence);
+            signature_help_in_program_with_options(
+                src,
+                line,
+                character,
+                &analysis,
+                crate::definition::CallResolution {
+                    registry: Some(&registry),
+                    program: None,
+                },
+                SignatureHelpOptions {
+                    disabled_builtin_commands: &disabled,
+                },
+            )
+        };
+
+        assert!(help("set ", 1).is_none());
+        assert!(help("format ", 1).is_some_and(|h| h.signatures[0].label.starts_with("format ")));
+        assert!(help("custom ", 2).is_some_and(|h| h.signatures[0].label == "custom value"));
     }
 
     #[test]

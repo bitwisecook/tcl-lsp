@@ -41,6 +41,7 @@ class TclLspSettingsPanel {
     )
     private val extraCommandsField = JBTextField(30)
     private val libraryPathsField = JBTextField(30)
+    private val signatureHelpDisabledCommandsField = JBTextField(30)
 
     // Feature toggles
     private val featureHover = JBCheckBox("Hover")
@@ -341,6 +342,11 @@ class TclLspSettingsPanel {
         builder.addTooltip("Comma-separated list of additional command names to treat as known.")
         builder.addLabeledComponent(JBLabel("Library paths:"), libraryPathsField)
         builder.addTooltip("Comma-separated directories to scan for Tcl packages.")
+        builder.addLabeledComponent(
+            JBLabel("Signature help disabled commands:"),
+            signatureHelpDisabledCommandsField,
+        )
+        builder.addTooltip("Comma-separated built-in command names to silence, such as set,incr. User-defined proc signatures remain enabled.")
 
         // Features section
         builder.addComponent(TitledSeparator("Features"))
@@ -543,6 +549,7 @@ class TclLspSettingsPanel {
             dialectCombo.selectedIndex != TclLspSettings.DIALECT_OPTIONS.indexOfFirst { it.first == s.dialect } ||
             extraCommandsField.text != s.extraCommands ||
             libraryPathsField.text != s.libraryPaths ||
+            signatureHelpDisabledCommandsField.text != s.signatureHelpDisabledCommands ||
             // Features
             featureHover.isSelected != s.featureHover ||
             featureCompletion.isSelected != s.featureCompletion ||
@@ -814,6 +821,7 @@ class TclLspSettingsPanel {
         s.dialect = TclLspSettings.DIALECT_OPTIONS.getOrNull(dialectCombo.selectedIndex)?.first ?: "tcl8.6"
         s.extraCommands = extraCommandsField.text
         s.libraryPaths = libraryPathsField.text
+        s.signatureHelpDisabledCommands = signatureHelpDisabledCommandsField.text
 
         s.featureHover = featureHover.isSelected
         s.featureCompletion = featureCompletion.isSelected
@@ -1103,6 +1111,7 @@ class TclLspSettingsPanel {
         dialectCombo.selectedIndex = TclLspSettings.DIALECT_OPTIONS.indexOfFirst { it.first == s.dialect }.coerceAtLeast(0)
         extraCommandsField.text = s.extraCommands
         libraryPathsField.text = s.libraryPaths
+        signatureHelpDisabledCommandsField.text = s.signatureHelpDisabledCommands
 
         featureHover.isSelected = s.featureHover
         featureCompletion.isSelected = s.featureCompletion

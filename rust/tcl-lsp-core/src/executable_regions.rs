@@ -35,6 +35,33 @@ pub(crate) enum ExecutableContext {
     PotentialBody,
 }
 
+/// The deepest statically executable source region containing a cursor.
+///
+/// `start` follows the delimiter that introduced the region. `depth` is the
+/// lexer nesting depth required to interpret its prefix with the same grammar
+/// as [`visit_executable_commands`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ExecutableRegion {
+    pub(crate) start: usize,
+    pub(crate) depth: u32,
+}
+
+struct RegionProbe {
+    cursor: usize,
+    best: Option<ExecutableRegion>,
+}
+
+impl RegionProbe {
+    fn consider(&mut self, start: usize, end: usize, depth: u32) {
+        if start <= self.cursor
+            && self.cursor <= end
+            && self.best.is_none_or(|best| depth > best.depth)
+        {
+            self.best = Some(ExecutableRegion { start, depth });
+        }
+    }
+}
+
 /// Visit every statically locatable command that Tcl can execute from
 /// `source`, preserving each command's absolute source spans.
 ///
@@ -58,8 +85,43 @@ pub(crate) fn visit_executable_commands(
         availability,
         identities,
         visitor,
+        region_probe: None,
     };
     let _ = walk.region(0, source.len(), 0, None, ExecutableContext::Direct);
+}
+
+/// Return the innermost registry-declared executable region containing
+/// `cursor`.
+///
+/// This is the cursor-oriented counterpart to [`visit_executable_commands`]:
+/// it follows the exact same body, clause-list, lambda, definition-member, and
+/// command-substitution metadata. Consumers therefore do not need to infer
+/// script bodies from brace characters or command names.
+pub(crate) fn innermost_executable_region_at(
+    source: &str,
+    config: LexerConfig,
+    registry: &CommandRegistry,
+    availability: Option<SurfaceQuery<'_>>,
+    identities: &CommandBindingRealm,
+    cursor: usize,
+) -> Option<ExecutableRegion> {
+    if cursor > source.len() {
+        return None;
+    }
+    let mut probe = RegionProbe { cursor, best: None };
+    let mut visitor =
+        |_command: &SegmentedCommand, _head: HeadWords<'_>, _context: ExecutableContext| false;
+    let mut walk = ExecutableWalker {
+        source,
+        config,
+        registry,
+        availability,
+        identities,
+        visitor: &mut visitor,
+        region_probe: Some(&mut probe),
+    };
+    let _ = walk.region(0, source.len(), 0, None, ExecutableContext::Direct);
+    probe.best
 }
 
 struct ExecutableWalker<'a, F> {
@@ -69,11 +131,22 @@ struct ExecutableWalker<'a, F> {
     availability: Option<SurfaceQuery<'a>>,
     identities: &'a CommandBindingRealm,
     visitor: &'a mut F,
+    region_probe: Option<&'a mut RegionProbe>,
 }
 
 impl<F: FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool>
     ExecutableWalker<'_, F>
 {
+    fn begin_region(&mut self, start: usize, end: usize, depth: u32) -> bool {
+        if MAX_EXECUTABLE_REGION_DEPTH.exceeded(depth) || start > end || end > self.source.len() {
+            return false;
+        }
+        if let Some(probe) = self.region_probe.as_deref_mut() {
+            probe.consider(start, end, depth);
+        }
+        start < end
+    }
+
     fn region(
         &mut self,
         start: usize,
@@ -82,7 +155,7 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool>
         grammar: Option<&'static DefinitionBodyGrammar>,
         context: ExecutableContext,
     ) -> bool {
-        if MAX_EXECUTABLE_REGION_DEPTH.exceeded(depth) || start >= end || end > self.source.len() {
+        if !self.begin_region(start, end, depth) {
             return false;
         }
         let commands = segment_commands_with_offset_and_config(

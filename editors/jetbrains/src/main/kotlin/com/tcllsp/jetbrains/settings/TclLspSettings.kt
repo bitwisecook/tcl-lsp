@@ -39,6 +39,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var dialect: String = "tcl8.6"
     var extraCommands: String = ""  // comma-separated
     var libraryPaths: String = ""   // comma-separated
+    var signatureHelpDisabledCommands: String = ""  // comma-separated built-ins
 
     // Feature toggles
 
@@ -337,11 +338,15 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
         val libPaths = libraryPaths.split(",")
             .map { it.trim() }
             .filter { it.isNotEmpty() }
+        val disabledSignatures = signatureHelpDisabledCommands.split(",")
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
 
         return mapOf(
             "dialect" to dialect,
             "extraCommands" to extraCmds,
             "libraryPaths" to libPaths,
+            "signatureHelp" to mapOf("disabledCommands" to disabledSignatures),
             "features" to mapOf(
                 "hover" to featureHover,
                 "completion" to featureCompletion,

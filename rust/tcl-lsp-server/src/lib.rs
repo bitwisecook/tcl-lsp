@@ -5706,6 +5706,10 @@ pub struct Backend {
     /// known by the unknown-command (W123) check; mirrored onto the salsa
     /// `AnalyserConfig`.
     extra_commands: Mutex<Vec<String>>,
+    /// Built-in command names whose automatic signature help is suppressed
+    /// (`tclLsp.signatureHelp.disabledCommands`). User-defined proc signatures
+    /// are deliberately unaffected.
+    signature_help_disabled_commands: Mutex<Vec<String>>,
     /// `tclLsp.specPacks` — extra `.tclspec` files or directories to load as
     /// `SpecTcl` packs, on top of the ones discovery finds by convention.
     spec_pack_paths: Mutex<Vec<String>>,
@@ -6639,6 +6643,9 @@ struct FolderConfig {
     shimmer_enabled: Option<bool>,
     /// `tclLsp.extraCommands` override; `None` inherits the global set.
     extra_commands: Option<Vec<String>>,
+    /// `tclLsp.signatureHelp.disabledCommands` override; `None` inherits the
+    /// global list. `Some([])` explicitly enables every built-in signature.
+    signature_help_disabled_commands: Option<Vec<String>>,
     /// `tclLsp.diagnostics.genericVariablePatterns` override. See
     /// [`FolderGenericPatterns`]: `Inherit` falls back to the global value,
     /// `BuiltinDefaults` selects the analyser's built-in set, and `Replace`
@@ -7077,6 +7084,7 @@ impl Backend {
             editor_library_paths: Mutex::new(Vec::new()),
             package_prefer_latest_default: Mutex::new(false),
             extra_commands: Mutex::new(Vec::new()),
+            signature_help_disabled_commands: Mutex::new(Vec::new()),
             spec_pack_paths: Mutex::new(Vec::new()),
             spec_packs: Arc::new(Mutex::new(PublishedPackSet::default())),
             spec_pack_reload: Arc::new(Mutex::new(())),
@@ -9254,6 +9262,7 @@ impl Backend {
             editor_library_paths: _,
             package_prefer_latest_default: _,
             extra_commands: _,
+            signature_help_disabled_commands: _,
             spec_pack_paths: _,
             spec_packs: _,
             spec_pack_reload: _,
@@ -13740,11 +13749,7 @@ impl Backend {
             Some(uri) => self.resolved_extra_commands(uri).await,
             None => self.extra_commands.lock().await.clone(),
         };
-        // Resolved through the same folder chain every provider gate uses, so a
-        // client polling this command observes the fact the provider will act
-        // on rather than the process-global one.  The two used to differ, which
-        // made a folder-scoped toggle invisible here and left the VS Code
-        // suite's toggle barrier waiting on the wrong fact (issue #1295).
+        let disabled_signatures = self.signature_disabled_for(parsed_uri.as_ref()).await;
         // Resolved through the same folder chain every provider gate uses, so a
         // client polling this command observes the fact the provider will act
         // on rather than the process-global one.  The two used to differ, which
@@ -13821,6 +13826,7 @@ impl Backend {
             // temporary chat-command override from a configured dialect.
             "session_dialect_override": session_override,
             "extra_commands": extra_commands,
+            "signature_help_disabled_commands": disabled_signatures,
             "known_folder_uris": known_folders
                 .iter()
                 .map(|f| f.as_str().to_owned())
@@ -14312,9 +14318,27 @@ impl Backend {
         }
     }
 
-    /// The boolean / enum feature switches: `xcDiagnostics`, optimiser
-    /// enable/profile/per-code overrides, and the `shimmer` master switch.
+    /// Feature controls: per-command signature suppression, `xcDiagnostics`,
+    /// optimiser enable/profile/per-code overrides, and the `shimmer` master
+    /// switch.
     async fn apply_global_toggles(&self, cfg: &serde_json::Value) {
+        if let Some(signature_help) = cfg
+            .get("signatureHelp")
+            .and_then(serde_json::Value::as_object)
+        {
+            // VS Code sends the nullable setting's containing object even
+            // after its middleware drops an inherited `null`. Treat that
+            // present-but-empty object as the empty list so clearing an editor
+            // override cannot leave the previous exclusions latched. A wholly
+            // absent section still follows this apply API's partial-update
+            // contract and preserves the last value.
+            let commands = signature_help
+                .get("disabledCommands")
+                .and_then(serde_json::Value::as_array)
+                .map_or(&[][..], Vec::as_slice);
+            *self.signature_help_disabled_commands.lock().await =
+                normalise_disabled_signature_commands(commands);
+        }
         // `tclLsp.xcDiagnostics.enabled` is a dedicated config section (the
         // shipped VS Code setting "XC Migration: Enabled"), not a `features.*`
         // key, so it must be mapped onto the `xcDiagnostics` feature toggle
@@ -15005,6 +15029,27 @@ impl Backend {
         match folder {
             Some(v) => v,
             None => self.extra_commands.lock().await.clone(),
+        }
+    }
+
+    /// The resolved built-in signature-help exclusion list for `uri`: a
+    /// folder override wins, else the process-global list.
+    async fn resolved_signature_help_disabled_commands(&self, uri: &Uri) -> Vec<String> {
+        let folder = {
+            let configs = self.folder_configs.lock().await;
+            longest_folder_match(&configs, uri)
+                .and_then(|f| f.signature_help_disabled_commands.clone())
+        };
+        match folder {
+            Some(v) => v,
+            None => self.signature_help_disabled_commands.lock().await.clone(),
+        }
+    }
+
+    async fn signature_disabled_for(&self, uri: Option<&Uri>) -> Vec<String> {
+        match uri {
+            Some(uri) => self.resolved_signature_help_disabled_commands(uri).await,
+            None => self.signature_help_disabled_commands.lock().await.clone(),
         }
     }
 
@@ -21146,6 +21191,7 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
         let pos = params.text_document_position_params.position;
+        let disabled_commands = self.resolved_signature_help_disabled_commands(&uri).await;
         // Per-dialect cached registry — same source the
         // completion handler uses.  Threading it through lets
         // `S-signature-help-rich` surface signatures for
@@ -21161,7 +21207,7 @@ impl LanguageServer for Backend {
         let exports = self.export_snapshot().await;
         let uri_key = uri.as_str().to_owned();
         let result = crate::rt::spawn_blocking(move || {
-            core_sig::signature_help_in_program(
+            core_sig::signature_help_in_program_with_options(
                 &doc.text,
                 pos.line,
                 pos.character,
@@ -21172,6 +21218,9 @@ impl LanguageServer for Backend {
                         uri: &uri_key,
                         oracle: exports.as_ref(),
                     }),
+                },
+                core_sig::SignatureHelpOptions {
+                    disabled_builtin_commands: &disabled_commands,
                 },
             )
         })
@@ -22489,6 +22538,19 @@ fn parse_folder_diagnostics(
     }
 }
 
+fn normalise_disabled_signature_commands(values: &[serde_json::Value]) -> Vec<String> {
+    let mut commands: Vec<String> = values
+        .iter()
+        .filter_map(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|command| !command.is_empty())
+        .map(tcl_lsp_core::normalise_qualified_command_name)
+        .collect();
+    commands.sort();
+    commands.dedup();
+    commands
+}
+
 fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
     let obj = cfg.as_object()?;
     let mut fc = FolderConfig::default();
@@ -22536,6 +22598,13 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
                 .map(str::to_owned)
                 .collect(),
         );
+    }
+    if let Some(commands) = obj
+        .get("signatureHelp")
+        .and_then(|section| section.get("disabledCommands"))
+        .and_then(serde_json::Value::as_array)
+    {
+        fc.signature_help_disabled_commands = Some(normalise_disabled_signature_commands(commands));
     }
     parse_folder_diagnostics(obj, &mut fc);
     // `tclLsp.libraryPaths` per-folder override.
@@ -25859,6 +25928,34 @@ mod tests {
         for code in ["S100", "S101", "S102", "S103", "S110"] {
             assert!(disabled.contains(code), "{code} should be suppressed");
         }
+    }
+
+    #[tokio::test]
+    async fn signature_help_disabled_commands_apply_and_clear() {
+        let backend = test_backend();
+        backend
+            .apply_global_config(&serde_json::json!({
+                "signatureHelp": { "disabledCommands": [" ::::set ", "incr", "set"] }
+            }))
+            .await;
+        assert_eq!(
+            *backend.signature_help_disabled_commands.lock().await,
+            vec!["::incr".to_owned(), "::set".to_owned()],
+        );
+
+        // A nullable editor setting is removed by client middleware, leaving
+        // the section present but empty. That must clear a previously applied
+        // list rather than latching stale suppression until restart.
+        backend
+            .apply_global_config(&serde_json::json!({ "signatureHelp": {} }))
+            .await;
+        assert!(
+            backend
+                .signature_help_disabled_commands
+                .lock()
+                .await
+                .is_empty()
+        );
     }
 
     #[test]
@@ -30565,6 +30662,7 @@ mod tests {
             editor_library_paths: Mutex::new(Vec::new()),
             package_prefer_latest_default: Mutex::new(false),
             extra_commands: Mutex::new(Vec::new()),
+            signature_help_disabled_commands: Mutex::new(Vec::new()),
             spec_pack_paths: Mutex::new(Vec::new()),
             spec_packs: Arc::new(Mutex::new(PublishedPackSet::default())),
             spec_pack_reload: Arc::new(Mutex::new(())),
@@ -33138,6 +33236,7 @@ mod tests {
     fn parse_folder_config_reads_extra_library_and_generic_patterns() {
         let cfg = serde_json::json!({
             "extraCommands": ["mylib::send", "mylib::recv"],
+            "signatureHelp": { "disabledCommands": [" ::::set ", "incr", "set"] },
             "libraryPaths": ["/proj/lib"],
             "diagnostics": { "genericVariablePatterns": ["^proj_"] },
         });
@@ -33149,6 +33248,11 @@ mod tests {
         assert_eq!(
             fc.library_paths.as_deref(),
             Some(["/proj/lib".to_owned()].as_slice())
+        );
+        assert_eq!(
+            fc.signature_help_disabled_commands.as_deref(),
+            Some(["::incr".to_owned(), "::set".to_owned()].as_slice()),
+            "command names use the shared Tcl qualified-name canonicalisation",
         );
         assert_eq!(
             fc.generic_variable_patterns,
@@ -33192,8 +33296,10 @@ mod tests {
 
         // Global sets one extra command; proj-a overrides with its own.
         *backend.extra_commands.lock().await = vec!["globalcmd".to_owned()];
+        *backend.signature_help_disabled_commands.lock().await = vec!["::set".to_owned()];
         let fc = FolderConfig {
             extra_commands: Some(vec!["projacmd".to_owned()]),
+            signature_help_disabled_commands: Some(vec!["::incr".to_owned()]),
             generic_variable_patterns: FolderGenericPatterns::Replace(vec!["^proja_".to_owned()]),
             ..FolderConfig::default()
         };
@@ -33211,6 +33317,20 @@ mod tests {
             backend.resolved_extra_commands(&outside).await,
             vec!["globalcmd".to_owned()],
             "proj-b inherits the global extraCommands",
+        );
+        assert_eq!(
+            backend
+                .resolved_signature_help_disabled_commands(&inside)
+                .await,
+            vec!["::incr".to_owned()],
+            "proj-a replaces the global signature-help exclusion list",
+        );
+        assert_eq!(
+            backend
+                .resolved_signature_help_disabled_commands(&outside)
+                .await,
+            vec!["::set".to_owned()],
+            "proj-b inherits the global signature-help exclusion list",
         );
         // genericVariablePatterns resolve per folder.
         assert_eq!(

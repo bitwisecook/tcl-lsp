@@ -136,6 +136,9 @@ Add to your Zed `settings.json` to configure the language server:
             "declaration": true,
             "linkedEditingRange": true
           },
+          "signatureHelp": {
+            "disabledCommands": ["set", "incr"]
+          },
           "diagnostics": {
             "W100": true,
             "W111": true

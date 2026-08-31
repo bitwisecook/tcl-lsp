@@ -82,6 +82,18 @@
                                                 "documentLinks": { "type": "boolean", "default": true },
                                                 "selectionRange": { "type": "boolean", "default": true }
                                             }
+                                        },
+                                        "signatureHelp": {
+                                            "type": "object",
+                                            "markdownDescription": "Selective built-in signature-help suppression.",
+                                            "properties": {
+                                                "disabledCommands": {
+                                                    "type": "array",
+                                                    "items": { "type": "string" },
+                                                    "default": [],
+                                                    "markdownDescription": "Built-in command names to silence, such as set and incr. Other commands and user-defined procs retain signature help."
+                                                }
+                                            }
                                         }
                                     }
                                 }

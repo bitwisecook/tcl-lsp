@@ -245,6 +245,21 @@ pub fn settings_from_ini(content: &str, layer: Layer) -> Value {
         }
     }
 
+    // [signatureHelp]: built-in commands whose automatic signature help is
+    // suppressed. Accept the INI-native snake_case spelling and the editor's
+    // camelCase key so exported settings can be pasted back unchanged.
+    if let Some(raw) = section_value(&sections, "signatureHelp", "disabled_commands")
+        .or_else(|| section_value(&sections, "signatureHelp", "disabledCommands"))
+    {
+        let commands = parse_comma_list(raw);
+        let mut signature_help = Map::new();
+        signature_help.insert(
+            "disabledCommands".to_owned(),
+            Value::Array(commands.into_iter().map(Value::String).collect()),
+        );
+        out.insert("signatureHelp".to_owned(), Value::Object(signature_help));
+    }
+
     insert_formatting(&sections, &mut out);
 
     // [style] `line_length` → the W111 threshold; `nonAscii` → the W108
