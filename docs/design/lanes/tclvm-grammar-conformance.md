@@ -99,10 +99,21 @@ arriving through `$key` in both, write-side controls, and expression/main
 script/runtime consumers. That error-timing work should be coordinated with
 #1586/#1603 rather than hidden in a lenient lexer recovery branch.
 
-## Remaining work in this lane
+## Verification at hand-off
 
-- Run the focused crate checks and clippy under the worktree-isolated build
-  environment.
-- Mutation-verify the LF-only continuation branch and the boolean-prefix
-  acceptance branch.
-- Keep commits local; the orchestrator owns push, PR, and merge.
+- Root workspace `cargo fmt --check` and
+  `cargo check -p tcl-lexer -p tcl-syntax -p tcl-vm --tests`: passed under
+  `scripts/dev/agent-build-env.sh`.
+- `tcl-lexer` library: 401 passed; `tcl-syntax` expression parser integration:
+  98 passed; VM expression release matrix: 2 passed; VM raw-CR integration:
+  1 passed.
+- Separate Rust runtime `cargo fmt --check` and `cargo check --tests`: passed
+  with `TCL_TOMMATH_DIR=/home/jimd/src/tcl9.0.4/libtommath`; focused raw-CR and
+  boolean-prefix tests both passed. The check retains one pre-existing
+  `SurfaceQuery` unused-import warning in `runtime/rust/src/interp.rs`.
+- Mutation verification: changing the continuation owner from LF to CR made
+  `continuation_owner_accepts_only_raw_lf` fail; inverting the parser's shared
+  boolean-owner predicate made
+  `boolean_literal_prefixes_use_the_canonical_boolean_owner` fail. Both
+  mutations were restored before the clean run.
+- Commits remain local; the orchestrator owns push, PR, and merge.
