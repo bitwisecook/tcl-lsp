@@ -69,6 +69,7 @@ pub(crate) const RECURSION_LIMIT: usize = 1000;
 /// A semantic `upvar` link failure. The variable resolver decides which home
 /// each side denotes; command adapters only render Tcl's operation-specific
 /// message and error code.
+#[derive(Clone, Copy)]
 pub(crate) enum UpvarLinkError {
     /// The other-variable names an absent namespace.
     TargetNamespace,

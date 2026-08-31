@@ -2443,6 +2443,23 @@ impl Interp {
         )
     }
 
+    /// Frame-addressed `set name(key)`. The base and element stay separate at
+    /// the variable-store boundary, avoiding an ambiguous reconstructed name.
+    pub(crate) fn var_get_elem_at(
+        &self,
+        name: &[u8],
+        key: &[u8],
+        level: usize,
+    ) -> Option<*mut TclObj> {
+        crate::vars::get_elem_at(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            name,
+            key,
+            level,
+        )
+    }
+
     /// Frame-addressed [`var_set`](Self::var_set) — the cell takes a **+1**.
     pub(crate) fn var_set_at(
         &mut self,
@@ -2459,12 +2476,41 @@ impl Interp {
         )
     }
 
+    /// Frame-addressed `set name(key) value`. The table takes its +1 on `obj`.
+    pub(crate) fn var_set_elem_at(
+        &mut self,
+        name: &[u8],
+        key: &[u8],
+        obj: *mut TclObj,
+        level: usize,
+    ) -> Result<(), VarError> {
+        crate::vars::set_elem_at(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            name,
+            key,
+            obj,
+            level,
+        )
+    }
+
     /// Frame-addressed [`var_unset`](Self::var_unset).
     pub(crate) fn var_unset_at(&mut self, name: &[u8], level: usize) -> bool {
         crate::vars::unset_at(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
             name,
+            level,
+        )
+    }
+
+    /// Frame-addressed `unset name(key)`.
+    pub(crate) fn var_unset_elem_at(&mut self, name: &[u8], key: &[u8], level: usize) -> bool {
+        crate::vars::unset_elem_at(
+            &mut self.frames.borrow_mut(),
+            &mut self.namespaces.borrow_mut(),
+            name,
+            key,
             level,
         )
     }
@@ -8697,7 +8743,7 @@ mod tests {
     /// name; this runtime does not model ensembles that way.
     ///
     /// Patch levels measured: 8.4.20, 8.5.19, 8.6.14, 9.0.4, 9.1b0.
-    #[cfg(test)]
+    #[cfg(all(test, have_tommath))]
     const MEASURED_SAFE_HIDDEN: &[(tcl_dialect::TclVersion, &[&str])] = &[
         (
             tcl_dialect::TclVersion::V8_4,

@@ -473,6 +473,35 @@ puts "literal-key=[lindex [array names r] 0]"
                   z(b)c after=b 2\n\
                   literal-key=$i",
     },
+    // -- #1582 / #1588: `upvar` resolves semantic homes before shape checks. --
+    Vector {
+        name: "upvar validates namespace targets and rejects inverted proc links",
+        script: r#"namespace eval x { variable ok READY }
+puts "control=[catch {upvar #0 ::x::ok top} m opts]:[set top]"
+proc p {} {
+    set proc_local 1
+    puts "inverted=[catch {upvar 0 proc_local ::x::link(k)} m]:$m:$::errorCode"
+}
+p
+puts "target=[catch {upvar #0 ::missing::x local} m]:$m:$::errorCode"
+proc compiled_target {} { upvar #0 ::missing::compiled local }
+puts "compiled-target=[catch {compiled_target} m]:$m:$::errorCode"
+puts "local=[catch {upvar #0 x ::missing::local} m]:$m:$::errorCode"
+puts "element=[catch {upvar #0 x local(k)} m]:$m:$::errorCode"
+"#,
+        want_8x: "control=0:READY\n\
+                  inverted=1:bad variable name \"::x::link(k)\": can't create namespace variable that refers to procedure variable:TCL UPVAR INVERTED\n\
+                  target=1:can't access \"::missing::x\": parent namespace doesn't exist:TCL LOOKUP VARNAME ::missing::x\n\
+                  compiled-target=1:can't access \"::missing::compiled\": parent namespace doesn't exist:TCL LOOKUP VARNAME ::missing::compiled\n\
+                  local=1:can't create \"::missing::local\": parent namespace doesn't exist:TCL LOOKUP VARNAME ::missing::local\n\
+                  element=1:bad variable name \"local(k)\": can't create a scalar variable that looks like an array element:TCL UPVAR LOCAL_ELEMENT",
+        want_90: "control=0:READY\n\
+                  inverted=1:bad variable name \"::x::link(k)\": can't create namespace variable that refers to procedure variable:TCL UPVAR INVERTED\n\
+                  target=1:can't access \"::missing::x\": parent namespace doesn't exist:TCL LOOKUP VARNAME ::missing::x\n\
+                  compiled-target=1:can't access \"::missing::compiled\": parent namespace doesn't exist:TCL LOOKUP VARNAME ::missing::compiled\n\
+                  local=1:can't create \"::missing::local\": parent namespace doesn't exist:TCL LOOKUP VARNAME ::missing::local\n\
+                  element=1:bad variable name \"local(k)\": can't create a scalar variable that looks like an array element:TCL UPVAR LOCAL_ELEMENT",
+    },
 ];
 
 #[test]

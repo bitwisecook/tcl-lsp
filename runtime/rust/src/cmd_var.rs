@@ -399,6 +399,57 @@ mod tests {
         });
     }
 
+    /// The resolver classifies both homes before command-level validation:
+    /// namespace aliases may not retain procedure cells, while the missing
+    /// parent and element-name paths retain Tcl's distinct error codes.
+    #[test]
+    fn upvar_validates_semantic_homes_and_error_precedence() {
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"namespace eval x { variable ok READY }"), Code::Ok);
+            assert_eq!(i.eval_str(b"upvar #0 ::x::ok top"), Code::Ok);
+            assert_eq!(i.eval_str(b"set top"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"READY");
+
+            assert_eq!(
+                i.eval_str(
+                    b"proc inverted {} { set proc_local 1; upvar 0 proc_local ::x::link(k) }"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"inverted"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"bad variable name \"::x::link(k)\": can't create namespace variable that refers to procedure variable"
+            );
+            assert_eq!(i.eval_str(b"set ::errorCode"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"TCL UPVAR INVERTED");
+
+            for (script, message, code) in [
+                (
+                    &b"upvar #0 ::missing::x local"[..],
+                    &b"can't access \"::missing::x\": parent namespace doesn't exist"[..],
+                    &b"TCL LOOKUP VARNAME ::missing::x"[..],
+                ),
+                (
+                    b"upvar #0 x ::missing::local",
+                    b"can't create \"::missing::local\": parent namespace doesn't exist",
+                    b"TCL LOOKUP VARNAME ::missing::local",
+                ),
+                (
+                    b"upvar #0 x local(k)",
+                    b"bad variable name \"local(k)\": can't create a scalar variable that looks like an array element",
+                    b"TCL UPVAR LOCAL_ELEMENT",
+                ),
+            ] {
+                assert_eq!(i.eval_str(script), Code::Error, "{script:?}");
+                assert_eq!(i.result_bytes(), message, "{script:?}");
+                assert_eq!(i.eval_str(b"set ::errorCode"), Code::Ok, "{script:?}");
+                assert_eq!(i.result_bytes(), code, "{script:?}");
+            }
+            i.eval_str(b"unset -nocomplain ::x::ok ::x::link top");
+        });
+    }
+
     /// M11: the 8.x namespace-scope fallback to global, off by default (9.0 /
     /// TIP 278) and on for an 8.x runtime version — tclsh 8.6/9.0-pinned
     /// (reads fall back, writes hit the global, a `variable` declaration

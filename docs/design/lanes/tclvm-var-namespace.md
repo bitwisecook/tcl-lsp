@@ -18,10 +18,10 @@ spot-checked against the other locally available Tcl releases.
 ## Design decisions
 
 - Array element access remains a `(base, key)` operation all the way through
-  `tcl_runtime_api::VarStore`. A runtime implementation must not reconstruct
-  `base(key)` and feed it back through the scalar name parser. The bytecode VM
-  will add frame-aware pair access at its storage boundary; `tcl-cmd-core` then
-  keeps serving both runtime adapters without a command-specific workaround.
+  `tcl_runtime_api::VarStore`, including its frame-addressed implementation.
+  A runtime implementation must not reconstruct `base(key)` and feed it back
+  through the scalar name parser. `tcl-cmd-core` then serves both runtime
+  adapters without a command-specific workaround.
 - Parent-namespace validation belongs at variable target resolution/link
   installation, before element-shape checks. The written name and operation
   remain adapter concerns because Tcl's messages differ (`define`, `access`,
@@ -41,13 +41,13 @@ spot-checked against the other locally available Tcl releases.
 |---|---|---|
 | `rust/tcl-runtime-api/src/lib.rs` | Pair-valued `VarStore` contract | Done: non-recomposition invariant explicit |
 | `rust/tcl-cmd-core/src/array.rs` | Shared `array get`/`unset` consumer | Done: unchanged shared consumer, covered through both adapters |
-| `rust/tcl-vm/src/interp.rs` | Frame-aware pair element storage and link target classification | Pair access done; link classification pending |
-| `rust/tcl-vm/src/command.rs` | Generic `global`/`variable`/`upvar` messages and ordering | Partial: #1588 covers `global`/`variable`; `upvar` remains |
-| `rust/tcl-vm/src/exec.rs` | Specialised `UPVAR`/`NSUPVAR`/`VARIABLE` execution | Pending audit and shared-helper routing |
-| `runtime/rust/src/vars.rs` | Pair element access and link-home ownership | Pair access confirmed correct; inverted-link predicate pending |
-| `runtime/rust/src/cmd_var.rs` | Runtime adapter messages and ordering | Parent lookup mostly present; inverted-link ordering pending |
-| `rust/tcl-vm/tests/variable_name_resolution_e2e.rs` | TclVM oracle-derived end-to-end rows | #1729 done; link rows pending |
-| `runtime/rust` variable/array tests | Compiler-target runtime regressions | #1729 done; link rows pending |
+| `rust/tcl-vm/src/interp.rs` | Frame-aware pair element storage and link target classification | Done |
+| `rust/tcl-vm/src/command.rs` | Generic `global`/`variable`/`upvar` messages and ordering | Done |
+| `rust/tcl-vm/src/exec.rs` | Specialised `UPVAR`/`NSUPVAR`/`VARIABLE` execution | Done: `UPVAR` routes through the same semantic linker |
+| `runtime/rust/src/vars.rs` | Pair element access and link-home ownership | Done, including non-active `FrameId` access |
+| `runtime/rust/src/cmd_var.rs` | Runtime adapter messages and ordering | Done |
+| `rust/tcl-vm/tests/variable_name_resolution_e2e.rs` | TclVM oracle-derived end-to-end rows | Done: generic and compiled paths, messages and `errorCode` |
+| `runtime/rust` variable/array tests | Compiler-target runtime regressions | Done: pair store, inverted link, and precedence |
 
 ## Behavioural deltas
 
@@ -62,13 +62,19 @@ spot-checked against the other locally available Tcl releases.
   in Tcl's precedence order. #1728 already supplied `global`/`variable`
   parent checks in `tcl-vm`; this lane must not duplicate them.
 
-## Open uncertainties
+## Validation
 
-- The bytecode VM represents namespace variables in the global frame with a
-  canonical qualified key, unlike `runtime/rust`'s distinct namespace tables.
-  The shared helper therefore needs a semantic target-home classification,
-  not direct reuse of either runtime's storage representation.
-- Specialised opcodes only accept simple local aliases, so qualified-local
-  `upvar` falls back to generic dispatch. Namespace-script execution can still
-  turn an unqualified alias into a namespace variable and must be covered on
-  the specialised path.
+- `rust/tcl-vm/tests/variable_name_resolution_e2e.rs` runs the 8.6 and 9.0
+  VM profiles, exercises compiled and generic `upvar` dispatch, and compares
+  every deterministic vector to a real Tcl shell when available.
+- The link vector was run directly against Tcl 9.0.4 at
+  `/home/jimd/src/tcl9.0.4/unix/tclsh`, yielding the recorded messages and
+  `TCL UPVAR INVERTED`, `TCL LOOKUP VARNAME`, and `TCL UPVAR LOCAL_ELEMENT`
+  codes byte-for-byte.
+- `runtime/rust` unit tests cover the compiler-target runtime's semantic link
+  rejection and its active and non-active frame `(base, key)` VarStore paths.
+
+Qualified locals deliberately fall back to generic command dispatch because
+the bytecode `UPVAR` opcode only models a simple procedure-local slot. Both
+paths call the same target-home validation before their adapter renders Tcl's
+operation-specific failure.

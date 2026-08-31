@@ -427,6 +427,21 @@ pub(crate) fn get_at(
     }
 }
 
+/// Frame-addressed array-element read. `name` and `key` stay separate so an
+/// array base containing `(` is never reconstructed and parsed again.
+pub(crate) fn get_elem_at(
+    frames: &FrameStack,
+    ns: &Namespaces,
+    name: &[u8],
+    key: &[u8],
+    level: usize,
+) -> Option<*mut TclObj> {
+    match resolve_at(frames, ns, name, level) {
+        Resolved::Place(p) if p.elem.is_none() => table(frames, ns, p.home)?.load_elem(&p.name, key),
+        _ => None,
+    }
+}
+
 /// Frame-addressed [`set`] — the cell takes a **+1** on `obj`.
 pub(crate) fn set_at(
     frames: &mut FrameStack,
@@ -446,6 +461,24 @@ pub(crate) fn set_at(
     }
 }
 
+/// Frame-addressed array-element write. The caller retains ownership on an
+/// error, matching [`set_at`].
+pub(crate) fn set_elem_at(
+    frames: &mut FrameStack,
+    ns: &mut Namespaces,
+    name: &[u8],
+    key: &[u8],
+    obj: *mut TclObj,
+    level: usize,
+) -> Result<(), VarError> {
+    let place = match resolve_at(frames, ns, name, level) {
+        Resolved::Place(p) if p.elem.is_none() => p,
+        Resolved::Place(_) => return Err(VarError::IsScalar),
+        Resolved::NoNamespace => return Err(VarError::NoSuchNamespace),
+    };
+    table_mut(frames, ns, place.home).store_elem(&place.name, key, obj)
+}
+
 /// Frame-addressed [`unset`] — returns whether the variable existed.
 pub(crate) fn unset_at(
     frames: &mut FrameStack,
@@ -461,6 +494,21 @@ pub(crate) fn unset_at(
     match place.elem {
         Some(elem) => t.remove_elem(&place.name, &elem),
         None => t.remove(&place.name),
+    }
+}
+
+/// Frame-addressed array-element removal. `name` and `key` remain a pair at
+/// the storage boundary for the same reason as [`get_elem_at`].
+pub(crate) fn unset_elem_at(
+    frames: &mut FrameStack,
+    ns: &mut Namespaces,
+    name: &[u8],
+    key: &[u8],
+    level: usize,
+) -> bool {
+    match resolve_at(frames, ns, name, level) {
+        Resolved::Place(p) if p.elem.is_none() => table_mut(frames, ns, p.home).remove_elem(&p.name, key),
+        _ => false,
     }
 }
 
