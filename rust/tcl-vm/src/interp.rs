@@ -1748,10 +1748,10 @@ impl Vm {
                     .to_string()
                 })
         };
-        let wasm = detected(key::WASM);
-        let wasi = detected(key::WASI);
-        let wasi_version = detected(key::WASI_VERSION);
-        let ebpf = detected(key::EBPF);
+        let webassembly_level = detected(key::WASM);
+        let interface_level = detected(key::WASI);
+        let interface_host = detected(key::WASI_VERSION);
+        let bpf_level = detected(key::EBPF);
         #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         let user = std::env::var("USER")
             .or_else(|_| std::env::var("USERNAME"))
@@ -1766,10 +1766,10 @@ impl Vm {
             user: &user,
             runtime: "bytecode",
             runtime_version: env!("CARGO_PKG_VERSION"),
-            wasm: &wasm,
-            wasi: &wasi,
-            wasi_version: &wasi_version,
-            ebpf: &ebpf,
+            wasm: &webassembly_level,
+            wasi: &interface_level,
+            wasi_version: &interface_host,
+            ebpf: &bpf_level,
         };
         for entry in tcl_platform::bootstrap::entries() {
             let _ = self.write_array_raw(

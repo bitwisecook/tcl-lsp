@@ -2103,10 +2103,10 @@ impl Interp {
                     .filter(|v| !v.is_empty())
                     .unwrap_or_else(|| compiled.to_string())
             };
-            let wasm = detected(key::WASM, backend::compiled_wasm_spec());
-            let wasi = detected(key::WASI, backend::compiled_wasi_spec());
-            let wasi_version = detected(key::WASI_VERSION, backend::compiled_wasi_host());
-            let ebpf = detected(key::EBPF, backend::compiled_ebpf_spec());
+            let webassembly_level = detected(key::WASM, backend::compiled_wasm_spec());
+            let interface_level = detected(key::WASI, backend::compiled_wasi_spec());
+            let interface_host = detected(key::WASI_VERSION, backend::compiled_wasi_host());
+            let bpf_level = detected(key::EBPF, backend::compiled_ebpf_spec());
             let user = host
                 .env()
                 .get("USER")
@@ -2120,10 +2120,10 @@ impl Interp {
                 user: &user,
                 runtime: "treewalk",
                 runtime_version: env!("CARGO_PKG_VERSION"),
-                wasm: &wasm,
-                wasi: &wasi,
-                wasi_version: &wasi_version,
-                ebpf: &ebpf,
+                wasm: &webassembly_level,
+                wasi: &interface_level,
+                wasi_version: &interface_host,
+                ebpf: &bpf_level,
             };
             for entry in tcl_platform::bootstrap::entries() {
                 let o = new_string(entry.value(&platform).as_bytes());
@@ -7468,6 +7468,66 @@ mod tests {
             String::from_utf8_lossy(&i.result_bytes())
         );
         i.result_bytes()
+    }
+
+    #[test]
+    fn fresh_interp_installs_the_shared_platform_schema_before_init() {
+        leak_free(|i| {
+            let mut expected = tcl_platform::bootstrap::entries()
+                .iter()
+                .map(|entry| entry.name())
+                .collect::<Vec<_>>();
+            expected.sort_unstable();
+            assert_eq!(
+                ok(i, b"lsort [array names ::tcl_platform]"),
+                expected.join(" ").as_bytes()
+            );
+            assert_eq!(ok(i, b"set ::tcl_platform(osVersion)"), b"");
+            assert!(!ok(i, b"set ::tcl_platform(machine)").is_empty());
+            assert_eq!(
+                ok(
+                    i,
+                    b"list [info exists ::env] [info exists ::argv] \
+                      [info exists ::argv0] [info exists ::argc] \
+                      [info exists ::auto_path] [info exists ::tcl_library]"
+                ),
+                b"1 1 1 1 1 1"
+            );
+        });
+    }
+
+    #[test]
+    fn child_and_safe_platform_schemas_come_from_the_shared_owner() {
+        leak_free(|i| {
+            let mut child_keys = tcl_platform::bootstrap::entries()
+                .iter()
+                .map(|entry| entry.name())
+                .collect::<Vec<_>>();
+            child_keys.sort_unstable();
+            assert_eq!(
+                ok(
+                    i,
+                    b"interp create child; child eval {lsort [array names ::tcl_platform]}"
+                ),
+                child_keys.join(" ").as_bytes()
+            );
+
+            let scrubbed = tcl_platform::bootstrap::safe_scrub_keys().collect::<Vec<_>>();
+            let mut safe_keys = tcl_platform::bootstrap::entries()
+                .iter()
+                .map(|entry| entry.name())
+                .filter(|name| !scrubbed.contains(name))
+                .collect::<Vec<_>>();
+            safe_keys.sort_unstable();
+            assert_eq!(
+                ok(
+                    i,
+                    b"interp create -safe safe; safe eval {lsort [array names ::tcl_platform]}"
+                ),
+                safe_keys.join(" ").as_bytes()
+            );
+            assert!(safe_keys.contains(&"threaded"));
+        });
     }
 
     #[test]

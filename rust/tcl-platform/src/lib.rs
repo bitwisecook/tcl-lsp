@@ -455,7 +455,7 @@ pub mod bootstrap {
 
     /// The complete platform array schema, in deterministic installation order.
     #[must_use]
-    pub const fn entries() -> &'static [Entry] {
+    pub fn entries() -> &'static [Entry] {
         ENTRIES
     }
 
@@ -465,7 +465,7 @@ pub mod bootstrap {
             .iter()
             .copied()
             .filter(|entry| entry.scrub_in_safe())
-            .map(|entry| entry.name())
+            .map(Entry::name)
     }
 
     #[cfg(test)]

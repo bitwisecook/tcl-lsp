@@ -698,6 +698,25 @@ fn bootstrap_globals_present() {
 }
 
 #[test]
+fn bootstrap_platform_schema_comes_from_the_shared_owner() {
+    let mut keys = tcl_platform::bootstrap::entries()
+        .iter()
+        .map(|entry| entry.name())
+        .collect::<Vec<_>>();
+    keys.sort_unstable();
+    out_eq(
+        "puts [lsort [array names ::tcl_platform]]\n",
+        &format!("{}\n", keys.join(" ")),
+    );
+    out_eq(
+        "puts [list [info exists ::tcl_platform(machine)] \
+         [info exists ::tcl_platform(user)] \
+         [expr {$::tcl_platform(osVersion) eq {}}]]\n",
+        "1 1 1\n",
+    );
+}
+
+#[test]
 fn cmd_subst_substitutes_proc_param() {
     // A bare `$param` arg to a *generic* command inside a command substitution
     // must load the variable, not push the literal `$param`.

@@ -53,8 +53,27 @@ entry point, or gate moves without this contract being updated.
 | per-command knowledge | `rust/tcl-registry/src/spec.rs`; `rust/tcl-registry/src/hooks.rs`; `rust/tcl-registry/src/registry.rs` | `CommandSpec`; `SubCommand`; `CommandRegistry` | per release/dialect | `xtask-command-backing` |
 | dialect / release facts | `rust/tcl-dialect/src/profile.rs`; `rust/tcl-dialect/src/grammar.rs` | `DialectProfile`; `LexerGrammar`; `find` | the resolved dialect/release axis | `xtask-editor-extensions` |
 | C Tcl conformance oracles | `rust/tcl-test-support/src/lib.rs` | `locate_tclsh`; `available_tclshs`; `run_script`; `locate_source_tree`; `Tclsh`; `TclSourceTree`; `ScriptOutcome` | release line plus exact interpreter/source patchlevel | none |
+| interpreter platform bootstrap | `rust/tcl-platform/src/lib.rs` | `bootstrap::Values`; `bootstrap::entries`; `bootstrap::safe_scrub_keys` | key and safe-scrub policy invariant; host/build values supplied per engine | none |
 | shared plain types | `rust/tcl-core-types/src/diag_code.rs` | `DiagCode` | invariant | `xtask-diag-tables` |
 <!-- end-owner-resolution-manifest -->
+
+### `tcl-platform` — predefined platform surface
+
+- `bootstrap::entries` is the one schema for the predefined
+  `tcl_platform` array in both interpreters. Constants live in the schema;
+  machine, user, operating-system version, engine identity, and backend facts
+  enter through `bootstrap::Values`, so the engines adapt host data without
+  owning another key list.
+- `bootstrap::safe_scrub_keys` is derived from those same entries. It follows
+  Tcl 9's `Tcl_MakeSafe` distinction: identity-bearing `os`, `osVersion`,
+  `machine`, and `user` are removed; portable facts, including `threaded`,
+  remain. The project-specific runtime/WASM/WASI/eBPF facts are also removed.
+
+  Consumers: `tcl-vm::Vm::bootstrap_globals` and
+  `tcl_runtime::Interp::set_startup_globals` install the schema;
+  each engine's `make_safe` consumes the derived scrub iterator. A fresh
+  tree-walk `Interp`, its normal children, and bytecode-VM children all install
+  the surface before any `init.tcl` work.
 
 ### `tcl-syntax` — the parse grammars and value seam
 
