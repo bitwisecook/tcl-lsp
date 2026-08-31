@@ -39,7 +39,9 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var dialect: String = "tcl8.6"
     var extraCommands: String = ""  // comma-separated
     var libraryPaths: String = ""   // comma-separated
-    var signatureHelpDisabledCommands: String = ""  // comma-separated built-ins
+    // null means this editor layer inherits config.ini; an explicit empty
+    // string clears a previously configured editor override.
+    var signatureHelpDisabledCommands: String? = null  // comma-separated built-ins
 
     // Feature toggles
 
@@ -338,15 +340,10 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
         val libPaths = libraryPaths.split(",")
             .map { it.trim() }
             .filter { it.isNotEmpty() }
-        val disabledSignatures = signatureHelpDisabledCommands.split(",")
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-
-        return mapOf(
+        val settings = mutableMapOf<String, Any?>(
             "dialect" to dialect,
             "extraCommands" to extraCmds,
             "libraryPaths" to libPaths,
-            "signatureHelp" to mapOf("disabledCommands" to disabledSignatures),
             "features" to mapOf(
                 "hover" to featureHover,
                 "completion" to featureCompletion,
@@ -625,6 +622,13 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "extraPrompts" to aiExtraPrompts,
             ),
         )
+        signatureHelpDisabledCommands?.let { configured ->
+            val disabledSignatures = configured.split(",")
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+            settings["signatureHelp"] = mapOf("disabledCommands" to disabledSignatures)
+        }
+        return settings
     }
 
     companion object {

@@ -549,7 +549,7 @@ class TclLspSettingsPanel {
             dialectCombo.selectedIndex != TclLspSettings.DIALECT_OPTIONS.indexOfFirst { it.first == s.dialect } ||
             extraCommandsField.text != s.extraCommands ||
             libraryPathsField.text != s.libraryPaths ||
-            signatureHelpDisabledCommandsField.text != s.signatureHelpDisabledCommands ||
+            signatureHelpDisabledCommandsField.text != s.signatureHelpDisabledCommands.orEmpty() ||
             // Features
             featureHover.isSelected != s.featureHover ||
             featureCompletion.isSelected != s.featureCompletion ||
@@ -821,7 +821,9 @@ class TclLspSettingsPanel {
         s.dialect = TclLspSettings.DIALECT_OPTIONS.getOrNull(dialectCombo.selectedIndex)?.first ?: "tcl8.6"
         s.extraCommands = extraCommandsField.text
         s.libraryPaths = libraryPathsField.text
-        s.signatureHelpDisabledCommands = signatureHelpDisabledCommandsField.text
+        if (signatureHelpDisabledCommandsField.text != s.signatureHelpDisabledCommands.orEmpty()) {
+            s.signatureHelpDisabledCommands = signatureHelpDisabledCommandsField.text
+        }
 
         s.featureHover = featureHover.isSelected
         s.featureCompletion = featureCompletion.isSelected
@@ -1111,7 +1113,7 @@ class TclLspSettingsPanel {
         dialectCombo.selectedIndex = TclLspSettings.DIALECT_OPTIONS.indexOfFirst { it.first == s.dialect }.coerceAtLeast(0)
         extraCommandsField.text = s.extraCommands
         libraryPathsField.text = s.libraryPaths
-        signatureHelpDisabledCommandsField.text = s.signatureHelpDisabledCommands
+        signatureHelpDisabledCommandsField.text = s.signatureHelpDisabledCommands.orEmpty()
 
         featureHover.isSelected = s.featureHover
         featureCompletion.isSelected = s.featureCompletion

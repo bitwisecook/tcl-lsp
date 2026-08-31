@@ -14322,23 +14322,18 @@ impl Backend {
     /// optimiser enable/profile/per-code overrides, and the `shimmer` master
     /// switch.
     async fn apply_global_toggles(&self, cfg: &serde_json::Value) {
-        if let Some(signature_help) = cfg
+        // The production caller passes the fully merged configuration, so an
+        // absent section means the list was removed from every layer. Reset
+        // unconditionally rather than leaving the last applied exclusions
+        // latched after an INI edit.
+        let commands = cfg
             .get("signatureHelp")
             .and_then(serde_json::Value::as_object)
-        {
-            // VS Code sends the nullable setting's containing object even
-            // after its middleware drops an inherited `null`. Treat that
-            // present-but-empty object as the empty list so clearing an editor
-            // override cannot leave the previous exclusions latched. A wholly
-            // absent section still follows this apply API's partial-update
-            // contract and preserves the last value.
-            let commands = signature_help
-                .get("disabledCommands")
-                .and_then(serde_json::Value::as_array)
-                .map_or(&[][..], Vec::as_slice);
-            *self.signature_help_disabled_commands.lock().await =
-                normalise_disabled_signature_commands(commands);
-        }
+            .and_then(|signature_help| signature_help.get("disabledCommands"))
+            .and_then(serde_json::Value::as_array)
+            .map_or(&[][..], Vec::as_slice);
+        *self.signature_help_disabled_commands.lock().await =
+            normalise_disabled_signature_commands(commands);
         // `tclLsp.xcDiagnostics.enabled` is a dedicated config section (the
         // shipped VS Code setting "XC Migration: Enabled"), not a `features.*`
         // key, so it must be mapped onto the `xcDiagnostics` feature toggle
@@ -25943,12 +25938,9 @@ mod tests {
             vec!["::incr".to_owned(), "::set".to_owned()],
         );
 
-        // A nullable editor setting is removed by client middleware, leaving
-        // the section present but empty. That must clear a previously applied
-        // list rather than latching stale suppression until restart.
-        backend
-            .apply_global_config(&serde_json::json!({ "signatureHelp": {} }))
-            .await;
+        // Removing the setting from every merged layer must clear a previously
+        // applied list rather than latching stale suppression until restart.
+        backend.apply_global_config(&serde_json::json!({})).await;
         assert!(
             backend
                 .signature_help_disabled_commands
