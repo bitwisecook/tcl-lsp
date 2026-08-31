@@ -22,6 +22,6 @@ orchestrator pushes — is in [`AGENTS.md`](../../../AGENTS.md) under
 
 ## In flight
 
-- [`tclvm-bootstrap-centralisation.md`](tclvm-bootstrap-centralisation.md) —
-  centralising #1452's platform/bootstrap and safe-scrub policy while
-  re-verifying the already-landed #1450/#1464 work.
+None. Every lane of the #1631 programme has landed; what each one
+decided lives in its final commit message, and what the programme left
+open lives in the redesign's §11 open-questions ledger.
