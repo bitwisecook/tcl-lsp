@@ -41,6 +41,7 @@ use crate::segmenter::{
     SegmentedCommand, segment_commands, segment_commands_with_offset_and_config,
 };
 use tcl_dialect::model::surface_admits;
+use tcl_syntax::word_rules::WordValueRules;
 
 pub(crate) mod hooks;
 mod structured;
@@ -331,29 +332,6 @@ fn proc_body_namespace(qualified: &str, lexical_fallback: &str) -> String {
     }
 }
 
-/// Collapse the one substitution a braced word permits before the word's text
-/// is parsed as a list.
-///
-/// Both list words below arrive as brace-quoted source, so a `\<newline>` line
-/// continuation is still spelled out in the text the segmenter hands over —
-/// without collapsing it a wrapped var list (`foreach {a b\<nl>  c} …`) or a
-/// wrapped `proc` parameter list would keep the `\` glued to the preceding name
-/// (`b\`) and bind the wrong variable.
-///
-/// `JimTcl` performs no such collapse — a braced word keeps its bytes
-/// (`JimParseSubBrace`, jim.c:1444) — so the dialect's
-/// [`tcl_dialect::BraceBackslashNewline`] decides. The downstream list split
-/// then applies its own element escapes, and the two word kinds resolve the
-/// surviving `\<newline>` differently: `proc p {a b\<newline>c}` binds three
-/// parameters under Tcl and two under Jim (`b`, defaulting to `c`), while
-/// `foreach {a b\<newline>c}` binds a variable really named `b c`.
-fn collapse_list_word(
-    word_text: &str,
-    rule: tcl_dialect::BraceBackslashNewline,
-) -> std::borrow::Cow<'_, str> {
-    tcl_syntax::backslash::collapse_brace_continuations_str_for(word_text, rule)
-}
-
 /// Split a Tcl *variable list* word into the variable names it binds.
 ///
 /// This is the `foreach` / `lmap` varList word, and the identically-shaped
@@ -368,48 +346,8 @@ fn collapse_list_word(
 /// `None` means the word is not a well-formed list (an unmatched brace or
 /// quote). Callers fall back to the runtime command, which raises Tcl's own
 /// error, rather than guessing at a binding.
-/// The two dialect axes that decide how a braced *word* becomes a list of
-/// names: whether a `\<newline>` inside the braces folds, and whether a
-/// malformed remainder is an error or is split anyway.
-///
-/// They travel together because every site that splits a word-shaped list
-/// needs both, and reading them from one place keeps a call site from
-/// answering one axis per dialect and the other per hardcoded default.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct ListWordRules {
-    pub(crate) brace: tcl_dialect::BraceBackslashNewline,
-    pub(crate) list: tcl_dialect::ListParse,
-}
-
-impl ListWordRules {
-    fn from_config(config: &tcl_lexer::LexerConfig) -> Self {
-        Self {
-            brace: config.brace_backslash_newline,
-            list: config.list_parse,
-        }
-    }
-
-    /// Split *text* into elements under this dialect's list rule.
-    ///
-    /// `Strict` propagates the list error as `None`, which lowering turns into
-    /// a barrier; `Lenient` cannot fail, because `JimTcl`'s list parser never
-    /// raises — an unterminated element simply runs to the end of the string.
-    fn split(self, text: &str) -> Option<Vec<String>> {
-        let owned = |v: Vec<std::borrow::Cow<'_, str>>| {
-            v.into_iter()
-                .map(std::borrow::Cow::into_owned)
-                .collect::<Vec<_>>()
-        };
-        match self.list {
-            tcl_dialect::ListParse::Strict => tcl_syntax::list::split_list(text).ok().map(owned),
-            tcl_dialect::ListParse::Lenient => Some(owned(tcl_syntax::list::split_list_jim(text))),
-        }
-    }
-}
-
-fn parse_var_list_names(list_text: &str, rules: ListWordRules) -> Option<Vec<String>> {
-    let collapsed = collapse_list_word(list_text, rules.brace);
-    rules.split(&collapsed)
+fn parse_var_list_names(list_text: &str, rules: WordValueRules) -> Option<Vec<String>> {
+    rules.split_word_names(list_text)
 }
 
 /// Split a Tcl *formal parameter* list word into its parameter names.
@@ -430,8 +368,8 @@ fn parse_var_list_names(list_text: &str, rules: ListWordRules) -> Option<Vec<Str
 /// `None` means Tcl itself would refuse to create the procedure (a malformed
 /// list, a specifier with three or more fields, an array-element or qualified
 /// name), so the caller defers to the runtime command that reports it.
-fn parse_formal_param_names(param_text: &str, rules: ListWordRules) -> Option<Vec<String>> {
-    let collapsed = collapse_list_word(param_text, rules.brace);
+fn parse_formal_param_names(param_text: &str, rules: WordValueRules) -> Option<Vec<String>> {
+    let collapsed = rules.collapse_braced_word(param_text);
     let parameters = tcl_syntax::formal_params::parse_formal_parameters(&collapsed).ok()?;
     Some(
         parameters
@@ -1909,7 +1847,7 @@ impl<'r> Lowerer<'r> {
         // the runtime `proc`, which raises the error, rather than registering a
         // Procedure whose parameters we guessed at.
         let Some(params) =
-            parse_formal_param_names(&args[1], ListWordRules::from_config(&self.config))
+            parse_formal_param_names(&args[1], WordValueRules::from_config(&self.config))
         else {
             return Statement::Barrier {
                 span: seg.span,
@@ -2549,7 +2487,7 @@ impl<'r> Lowerer<'r> {
         // its reads against the wrong frame.
         let params = match lambda_elems.first() {
             Some((_, param_text)) => {
-                parse_formal_param_names(param_text, ListWordRules::from_config(&self.config))
+                parse_formal_param_names(param_text, WordValueRules::from_config(&self.config))
             }
             None => Some(Vec::new()),
         };
@@ -2635,7 +2573,7 @@ impl<'r> Lowerer<'r> {
         if args.len() == 4
             && body_is_braced
             && let Some(vars) =
-                parse_var_list_names(&args[1], ListWordRules::from_config(&self.config))
+                parse_var_list_names(&args[1], WordValueRules::from_config(&self.config))
         {
             let body_tok = &arg_tokens[3];
             // The body runs in the *caller's* frame (`vm.eval_source` in place),
@@ -3376,7 +3314,7 @@ impl<'r> Lowerer<'r> {
             args,
             seg,
             base,
-            ListWordRules::from_config(&self.config),
+            WordValueRules::from_config(&self.config),
         ) else {
             self.module
                 .oo_unanalysed_classes
@@ -3463,7 +3401,7 @@ fn member_param_names(
     args: &[String],
     seg: &SegmentedCommand,
     base: usize,
-    rules: ListWordRules,
+    rules: WordValueRules,
 ) -> Option<Vec<String>> {
     let param_text = member
         .indices_for_call(args, ArgRole::ParamList)
@@ -4292,14 +4230,14 @@ pub(crate) fn is_literal_trace_target(s: &str) -> bool {
 mod tests {
     /// Every C-Tcl dialect folds a brace-word line continuation; the Jim
     /// answer is asserted in `jim_brace_continuation_binds_different_names`.
-    const FOLD_RULES: ListWordRules = ListWordRules {
+    const FOLD_RULES: WordValueRules = WordValueRules {
         brace: tcl_dialect::BraceBackslashNewline::Folds,
         list: tcl_dialect::ListParse::Strict,
     };
 
     /// `JimTcl`: the braced word keeps its bytes, and a malformed remainder is
     /// split rather than raised.
-    const LITERAL_RULES: ListWordRules = ListWordRules {
+    const LITERAL_RULES: WordValueRules = WordValueRules {
         brace: tcl_dialect::BraceBackslashNewline::Literal,
         list: tcl_dialect::ListParse::Lenient,
     };
@@ -4373,14 +4311,18 @@ mod tests {
         for &release in Family::Jim.releases() {
             let config = tcl_lexer::LexerConfig::from_grammar(grammar(Family::Jim, release));
             assert_eq!(
-                ListWordRules::from_config(&config),
+                WordValueRules::from_config(&config),
                 LITERAL_RULES,
                 "{release}"
             );
         }
         for &release in Family::Tcl.releases() {
             let config = tcl_lexer::LexerConfig::from_grammar(grammar(Family::Tcl, release));
-            assert_eq!(ListWordRules::from_config(&config), FOLD_RULES, "{release}");
+            assert_eq!(
+                WordValueRules::from_config(&config),
+                FOLD_RULES,
+                "{release}"
+            );
         }
     }
 

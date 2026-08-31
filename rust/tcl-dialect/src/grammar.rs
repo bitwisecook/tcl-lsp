@@ -124,12 +124,7 @@ impl BracedVarStyle {
     /// turn it into this grammar fact (issue #1568).
     #[must_use]
     pub fn of_dialect_name(name: Option<&str>) -> Self {
-        name.map_or(Self::default(), |n| {
-            crate::DialectProfile::find(n)
-                .unwrap_or_else(crate::DialectProfile::plain_tcl)
-                .grammar
-                .braced_var
-        })
+        grammar_of_dialect_name(name).braced_var
     }
 
     /// The rule of an already-resolved `profile`, or the 9.x default when the
@@ -146,6 +141,37 @@ impl BracedVarStyle {
     pub fn of_profile(profile: Option<&crate::DialectProfile>) -> Self {
         profile.map_or(Self::default(), |p| p.grammar.braced_var)
     }
+}
+
+/// The [`LexerGrammar`] a dialect *name* selects — the one place a name
+/// becomes a grammar.
+///
+/// Every `of_dialect_name` axis constructor delegates here, so a layer that
+/// holds only a name (codegen from `IrModule::dialect`, the optimiser's
+/// `PassContext`, taint) reads the same grammar the document was lexed with
+/// rather than a per-axis approximation of it.
+///
+/// It resolves through [`crate::model::DialectPoint`], which is where P6 put
+/// the truth: a grammar is a function of `(family, release, build)`, so an
+/// environment names its family and ladder and needs no resolved-grammar row.
+/// That is why `jim` works at all — it is an environment with no catalogue
+/// profile, so every axis constructor used to answer `Tcl90` for a Jim
+/// document. `tk` had the same hole.
+///
+/// A name carries only the environment's *default* release, so this cannot
+/// tell jim 0.79 from 0.84 or tcl8.5 from 8.6. A caller that knows the
+/// document's release should resolve a [`crate::model::DialectPoint`] with
+/// [`crate::model::DialectPoint::of_name_and_release`] and take its grammar.
+#[must_use]
+pub fn grammar_of_dialect_name(name: Option<&str>) -> LexerGrammar {
+    if let Some(point) = crate::model::DialectPoint::of_dialect_name(name) {
+        return point.grammar();
+    }
+    // No Tcl ladder: either no name at all, or the one shipped dialect that
+    // is not Tcl (`f5-bigip`, the BIG-IP config surface), whose grammar the
+    // legacy catalogue still states.
+    name.and_then(crate::DialectProfile::find)
+        .map_or_else(LexerGrammar::default, |p| p.grammar)
 }
 
 /// The brace-line continuation axis — the F5 N-rules
@@ -365,12 +391,7 @@ impl EscapeSyntax {
     /// `name` is [`None`].
     #[must_use]
     pub fn of_dialect_name(name: Option<&str>) -> Self {
-        name.map_or(Self::default(), |n| {
-            crate::DialectProfile::find(n)
-                .unwrap_or_else(crate::DialectProfile::plain_tcl)
-                .grammar
-                .escapes
-        })
+        grammar_of_dialect_name(name).escapes
     }
 
     /// How many hex digits `\x` may consume. [`None`] means unbounded — the
@@ -518,12 +539,7 @@ impl NumberSyntax {
     /// `name` is [`None`].
     #[must_use]
     pub fn of_dialect_name(name: Option<&str>) -> Self {
-        name.map_or(Self::default(), |n| {
-            crate::DialectProfile::find(n)
-                .unwrap_or_else(crate::DialectProfile::plain_tcl)
-                .grammar
-                .numbers
-        })
+        grammar_of_dialect_name(name).numbers
     }
 
     /// Answer `f` under **every** grammar, returning `Some` only when they all
@@ -913,5 +929,107 @@ mod tests {
             }
         }
         assert_eq!(EscapeSyntax::ALL.len(), 4);
+    }
+}
+
+/// The single name→grammar resolution, and the agreement it buys.
+#[cfg(test)]
+mod grammar_of_dialect_name_tests {
+    use super::*;
+    use crate::model::DialectPoint;
+
+    /// Wherever both catalogues know a name they must answer the same
+    /// grammar. This is the property that lets the resolution prefer the
+    /// environment model without changing any existing dialect's behaviour —
+    /// and it fails loudly if the two ever drift apart.
+    #[test]
+    fn the_two_catalogues_agree_wherever_both_know_a_name() {
+        for profile in crate::DialectProfile::all() {
+            let Some(point) = DialectPoint::of_dialect_name(Some(profile.name)) else {
+                continue;
+            };
+            assert_eq!(
+                point.grammar(),
+                profile.grammar,
+                "`{}` resolves to a different grammar in the two catalogues",
+                profile.name
+            );
+        }
+    }
+
+    /// An environment with no catalogue profile still gets its own grammar —
+    /// the hole this resolution closes. Before it, every `of_dialect_name`
+    /// answered with C Tcl's grammar for a Jim document, so codegen compiled
+    /// one with 9.0 numerals and escapes.
+    #[test]
+    fn an_environment_without_a_profile_still_resolves() {
+        assert!(
+            crate::DialectProfile::find("jim").is_none(),
+            "jim is deliberately not a catalogue profile (P6)"
+        );
+        let jim = grammar_of_dialect_name(Some("jim"));
+        // The default release is 0.84, which sits on the `Jim080` rung —
+        // `0d` became available at 0.80.
+        assert_eq!(jim.numbers, NumberSyntax::Jim080);
+        assert_eq!(jim.escapes, EscapeSyntax::Jim);
+        assert_eq!(jim.word_separators, WordSeparators::Jim);
+        assert_eq!(jim.list_parse, ListParse::Lenient);
+        assert_eq!(jim.brace_backslash_newline, BraceBackslashNewline::Literal);
+        assert_ne!(
+            jim,
+            LexerGrammar::default(),
+            "a Jim document is not compiled under the 9.0 grammar"
+        );
+        for alias in ["jimsh", "jimtcl"] {
+            assert_eq!(grammar_of_dialect_name(Some(alias)), jim, "{alias}");
+        }
+    }
+
+    /// The one shipped dialect with no Tcl ladder still answers from the
+    /// legacy catalogue rather than falling to the default.
+    #[test]
+    fn the_config_dialect_still_answers() {
+        assert!(DialectPoint::of_dialect_name(Some("f5-bigip")).is_none());
+        let profile = crate::DialectProfile::find("f5-bigip").expect("shipped");
+        assert_eq!(grammar_of_dialect_name(Some("f5-bigip")), profile.grammar);
+    }
+
+    /// A name neither catalogue knows, and no name at all, are C Tcl.
+    #[test]
+    fn an_unknown_name_is_the_default() {
+        assert_eq!(grammar_of_dialect_name(None), LexerGrammar::default());
+        assert_eq!(
+            grammar_of_dialect_name(Some("nonsense")),
+            LexerGrammar::default()
+        );
+    }
+
+    /// The per-axis constructors must not disagree with the central one for
+    /// any name in either catalogue — the regression this exists to prevent.
+    #[test]
+    fn every_axis_constructor_agrees_with_the_central_one() {
+        let mut names: Vec<String> = crate::DialectProfile::all()
+            .iter()
+            .map(|p| p.name.to_string())
+            .collect();
+        names.extend(["jim".to_string(), "tk".to_string()]);
+        for name in names {
+            let central = grammar_of_dialect_name(Some(&name));
+            assert_eq!(
+                NumberSyntax::of_dialect_name(Some(&name)),
+                central.numbers,
+                "numbers disagree for `{name}`"
+            );
+            assert_eq!(
+                EscapeSyntax::of_dialect_name(Some(&name)),
+                central.escapes,
+                "escapes disagree for `{name}`"
+            );
+            assert_eq!(
+                BracedVarStyle::of_dialect_name(Some(&name)),
+                central.braced_var,
+                "braced_var disagrees for `{name}`"
+            );
+        }
     }
 }

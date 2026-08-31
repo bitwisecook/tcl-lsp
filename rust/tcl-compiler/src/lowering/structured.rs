@@ -32,7 +32,8 @@ use crate::lowering_hooks::word_content_base;
 use crate::naming::normalise_var_name;
 use crate::segmenter::SegmentedCommand;
 
-use super::{ListWordRules, Lowerer, parse_var_list_names};
+use super::{Lowerer, parse_var_list_names};
+use tcl_syntax::word_rules::WordValueRules;
 
 /// A single pattern/body pair collected by
 /// [`lower_switch`](super::Lowerer::lower_switch) before the
@@ -466,7 +467,7 @@ impl Lowerer<'_> {
             // A varList that is not a well-formed Tcl list binds nothing we can
             // name; the runtime `foreach` raises Tcl's own error.
             let Some(var_names) =
-                parse_var_list_names(&args[i], ListWordRules::from_config(&self.config))
+                parse_var_list_names(&args[i], WordValueRules::from_config(&self.config))
             else {
                 return Self::barrier(seg, "foreach with malformed variable list");
             };
@@ -598,7 +599,7 @@ impl Lowerer<'_> {
         // not the literal value.  See the type-level doc-comment
         // above for the runtime-semantics caveat.
         let cmd_tokens = Self::cmd_tokens(seg);
-        let Some(vars) = parse_var_list_names(&args[0], ListWordRules::from_config(&self.config))
+        let Some(vars) = parse_var_list_names(&args[0], WordValueRules::from_config(&self.config))
         else {
             return Self::barrier(seg, "foreachLine with malformed variable list");
         };
@@ -745,7 +746,7 @@ impl Lowerer<'_> {
                 let handler_single = arg_single.get(i + 3).copied().unwrap_or(false);
 
                 let Some(var_names) =
-                    parse_var_list_names(var_list, ListWordRules::from_config(&self.config))
+                    parse_var_list_names(var_list, WordValueRules::from_config(&self.config))
                 else {
                     return Self::barrier(seg, "try with malformed handler variable list");
                 };
@@ -1060,7 +1061,7 @@ impl Lowerer<'_> {
         match sub.as_str() {
             "for" | "map" if sub_args.len() >= 3 => {
                 let Some(var_names) =
-                    parse_var_list_names(&sub_args[0], ListWordRules::from_config(&self.config))
+                    parse_var_list_names(&sub_args[0], WordValueRules::from_config(&self.config))
                 else {
                     return Self::barrier(seg, &format!("dict {sub} with malformed variable list"));
                 };

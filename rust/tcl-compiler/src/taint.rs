@@ -2991,7 +2991,11 @@ fn find_callback_substitution_warnings(
                     let materialised_callback = if source_is_command_substitution {
                         command_substitution.unwrap_or(callback).to_owned()
                     } else if let Some(word) = callback_word {
-                        let Some(value) = static_word_expr_value(word, lexer_config.escapes) else {
+                        let Some(value) = static_word_expr_value(
+                            word,
+                            lexer_config.escapes,
+                            tcl_syntax::word_rules::WordValueRules::from_config(&lexer_config),
+                        ) else {
                             continue;
                         };
                         value
@@ -3243,7 +3247,12 @@ fn callback_replay_list_prefix(
         .zip(&command.word_fragments)
         .enumerate()
     {
-        let value = callback_static_word_value(word, fragments, config.escapes)?;
+        let value = callback_static_word_value(
+            word,
+            fragments,
+            config.escapes,
+            tcl_syntax::word_rules::WordValueRules::from_config(&config),
+        )?;
         if expand.get(index).copied().unwrap_or(false) {
             values.extend(
                 tcl_syntax::list::split_list(&value)
@@ -3321,7 +3330,12 @@ fn callback_replay_script(
                 // Preserve dynamic substitutions for the ordinary compiler
                 // pipeline (including a phase-correct `$command` head), while
                 // reducing static words to their exact runtime value.
-                callback_replay_script_word(word, fragments, config.escapes)?
+                callback_replay_script_word(
+                    word,
+                    fragments,
+                    config.escapes,
+                    tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                )?
             };
             // `{*}` is an argv operation outside the word itself. Canonical
             // word rendering must retain that marker or a callback whose
@@ -3405,12 +3419,13 @@ fn callback_replay_script_word(
     word: &str,
     fragments: &[crate::segmenter::WordFragment],
     escapes: tcl_dialect::EscapeSyntax,
+    rules: tcl_syntax::word_rules::WordValueRules,
 ) -> Option<String> {
     if !fragments
         .iter()
         .any(|fragment| matches!(fragment.token.kind, TokenType::Var | TokenType::Cmd))
     {
-        return callback_static_word_value(word, fragments, escapes)
+        return callback_static_word_value(word, fragments, escapes, rules)
             .map(|value| tcl_syntax::list::list_element(&value));
     }
 
@@ -3445,10 +3460,11 @@ fn callback_static_word_value(
     word: &str,
     fragments: &[crate::segmenter::WordFragment],
     escapes: tcl_dialect::EscapeSyntax,
+    rules: tcl_syntax::word_rules::WordValueRules,
 ) -> Option<String> {
     match fragments {
         [fragment] if fragment.token.kind == TokenType::Str => {
-            Some(tcl_syntax::backslash::collapse_brace_continuations_str(word).into_owned())
+            Some(rules.collapse_braced_word(word).into_owned())
         }
         fragments
             if fragments
@@ -3934,7 +3950,11 @@ fn static_invocation(
     call_args: &[String],
     dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> Option<StaticInvocation> {
-    let head = static_command_head(tokens, tcl_dialect::EscapeSyntax::of_profile(dialect))?;
+    let head = static_command_head(
+        tokens,
+        tcl_dialect::EscapeSyntax::of_profile(dialect),
+        tcl_syntax::word_rules::WordValueRules::of_profile(dialect),
+    )?;
     let effective_args = head.effective_args(call_args);
     Some(StaticInvocation {
         head,
@@ -3949,20 +3969,22 @@ fn static_invocation(
 fn static_command_head(
     tokens: &CommandTokens,
     escapes: tcl_dialect::EscapeSyntax,
+    rules: tcl_syntax::word_rules::WordValueRules,
 ) -> Option<StaticCommandHead> {
-    static_command_head_from(tokens, escapes, 0)
+    static_command_head_from(tokens, escapes, rules, 0)
 }
 
 fn static_command_head_from(
     tokens: &CommandTokens,
     escapes: tcl_dialect::EscapeSyntax,
+    rules: tcl_syntax::word_rules::WordValueRules,
     start: usize,
 ) -> Option<StaticCommandHead> {
     for (source_index, word) in tokens.word_exprs.iter().enumerate().skip(start) {
         match word {
             WordExpr::Expand { word, .. } => {
-                let value = static_word_expr_value(word, escapes)?;
-                let elements = tcl_syntax::list::split_list(&value).ok()?;
+                let value = static_word_expr_value(word, escapes, rules)?;
+                let elements = rules.split_list(&value).ok()?;
                 let Some((command, rest)) = elements.split_first() else {
                     continue;
                 };
@@ -3975,7 +3997,7 @@ fn static_command_head_from(
             }
             _ => {
                 return Some(StaticCommandHead {
-                    command: static_word_expr_value(word, escapes)?,
+                    command: static_word_expr_value(word, escapes, rules)?,
                     prepended_args: Vec::new(),
                     consumed_source_args: source_index,
                     expanded: false,
@@ -3989,12 +4011,14 @@ fn static_command_head_from(
 /// Exact static value of a command-head word retained by semantic IR.
 /// Variable/command substitutions abstain; literal, braced, quoted, and
 /// backslash-built heads reduce under Tcl's shared decoder.
-fn static_word_expr_value(word: &WordExpr, escapes: tcl_dialect::EscapeSyntax) -> Option<String> {
+fn static_word_expr_value(
+    word: &WordExpr,
+    escapes: tcl_dialect::EscapeSyntax,
+    rules: tcl_syntax::word_rules::WordValueRules,
+) -> Option<String> {
     match word {
         WordExpr::Literal { text, .. } => Some(text.clone()),
-        WordExpr::BracedLiteral { text, .. } => {
-            Some(tcl_syntax::backslash::collapse_brace_continuations_str(text).into_owned())
-        }
+        WordExpr::BracedLiteral { text, .. } => Some(rules.collapse_braced_word(text).into_owned()),
         WordExpr::Template { parts, .. } => {
             let mut value = String::new();
             for part in parts {
@@ -4442,7 +4466,14 @@ fn parse_taint_command_substitution(
         .texts
         .first()
         .zip(command.word_fragments.first())
-        .and_then(|(word, fragments)| callback_static_word_value(word, fragments, config.escapes))
+        .and_then(|(word, fragments)| {
+            callback_static_word_value(
+                word,
+                fragments,
+                config.escapes,
+                tcl_syntax::word_rules::WordValueRules::from_config(&config),
+            )
+        })
         .unwrap_or(written_head);
     Some((semantic_head, args))
 }
@@ -4553,6 +4584,7 @@ fn resolve_taint_command_heads(
         .and_then(|tokens| tokens.word_exprs.first())
         .is_some_and(|word| matches!(word, WordExpr::Expand { .. }));
     let escapes = tcl_dialect::EscapeSyntax::of_profile(dialect);
+    let rules = tcl_syntax::word_rules::WordValueRules::of_profile(dialect);
     let mut heads = Vec::with_capacity(contributors.len());
     for contributor in contributors {
         let head = if expanded {
@@ -4572,7 +4604,8 @@ fn resolve_taint_command_heads(
                 let Some(tokens) = tokens else {
                     continue;
                 };
-                let Some(mut following) = static_command_head_from(tokens, escapes, 1) else {
+                let Some(mut following) = static_command_head_from(tokens, escapes, rules, 1)
+                else {
                     // This arm's command remains dynamic. Retain any other
                     // reaching arm already proven to invoke a concrete sink.
                     continue;

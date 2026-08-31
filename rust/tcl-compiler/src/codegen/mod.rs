@@ -92,6 +92,16 @@ pub struct CodegenCtx<'r> {
     /// `\x4142` is `B` when compiling for 8.5 and `A42` from 8.6 (issue #1479).
     /// Defaults to 9.0 for the hand-built contexts in tests.
     pub escapes: tcl_dialect::EscapeSyntax,
+    /// The word-value rules of the release being compiled *for* — whether a
+    /// braced word's `\<newline>` folds, and whether malformed list text
+    /// raises.
+    ///
+    /// Threaded from `IrModule::dialect` beside [`Self::numbers`] and
+    /// [`Self::escapes`], and for the same reason: a braced literal's bytes
+    /// are the target dialect's, not whatever the emitting host would do.
+    /// Before this, `push_lit_verbatim` collapsed unconditionally and a Jim
+    /// `set x {a\<newline>b}` compiled to the Tcl value `a b`.
+    pub word_rules: tcl_syntax::word_rules::WordValueRules,
     /// The `${…}` variable-name close rule of the release being compiled
     /// *for*.
     ///
@@ -232,6 +242,7 @@ impl<'r> CodegenCtx<'r> {
         Self {
             numbers: tcl_dialect::NumberSyntax::default(),
             escapes: tcl_dialect::EscapeSyntax::default(),
+            word_rules: tcl_syntax::word_rules::WordValueRules::default(),
             braced_var: tcl_dialect::BracedVarStyle::default(),
             dialect: None,
             literals: LiteralTable::new(),

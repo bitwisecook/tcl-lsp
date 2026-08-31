@@ -48,6 +48,7 @@ pub mod environment;
 pub mod expr_grammar;
 pub mod family;
 pub mod inherited_surface;
+pub mod point;
 pub mod version_set;
 
 pub use authored_surface::{
@@ -78,6 +79,7 @@ pub use inherited_surface::{
     InheritedSurface, InheritedSurfaceError, InheritedSurfaceRegistration,
     inherited_surface_generation, register_inherited_surfaces, roster_for,
 };
+pub use point::DialectPoint;
 pub use version_set::{
     HalfOpenRange, ItemHistory, ItemHistoryError, ItemState, Version, VersionAxisId, VersionSet,
     VersionSetError,
