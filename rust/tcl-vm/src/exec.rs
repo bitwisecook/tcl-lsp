@@ -2638,13 +2638,8 @@ impl Vm {
                 } else {
                     self.current_level().saturating_sub(1)
                 };
-                // Mirror cmd_upvar's namespace-eval aliasing.
-                if self.in_ns_script() && !local.contains("::") && !self.current_ns().is_empty() {
-                    let alias = self.qualify_name(&local);
-                    let target_name = self.qualify_name(&other);
-                    self.add_global_link(&alias, 0, &target_name);
-                } else {
-                    self.add_link(&local, target_level, &other);
+                if let Err(error) = self.link_upvar(target_level, &other, &local) {
+                    return Tick::Return(crate::command::upvar_link_error(error, &other, &local));
                 }
             }
             // `variable` (C `INST_VARIABLE`): link the local slot to the

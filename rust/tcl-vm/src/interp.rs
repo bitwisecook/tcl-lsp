@@ -66,6 +66,20 @@ use crate::value::Value;
 /// A deeper nesting is a catchable error, not a native stack overflow.
 pub(crate) const RECURSION_LIMIT: usize = 1000;
 
+/// A semantic `upvar` link failure. The variable resolver decides which home
+/// each side denotes; command adapters only render Tcl's operation-specific
+/// message and error code.
+pub(crate) enum UpvarLinkError {
+    /// The other-variable names an absent namespace.
+    TargetNamespace,
+    /// A namespace cell would point into a shorter-lived procedure frame.
+    Inverted,
+    /// The alias name has array-element shape.
+    LocalElement,
+    /// The alias names an absent namespace.
+    LocalNamespace,
+}
+
 /// Native-stack safety net for `cmd_control.rs`'s runtime-command fallback
 /// (`cmd_if`/`cmd_while`/`cmd_for`/`each_loop`, reached via a computed
 /// command name or dynamic body — see that module's own doc comment) —
@@ -5413,6 +5427,56 @@ impl Vm {
         }
     }
 
+    /// Resolve and install one `upvar` link, preserving Tcl's semantic homes.
+    ///
+    /// Namespace variables are stored in frame zero in this VM, so resolving
+    /// the target before installing the link gives a representation-independent
+    /// answer to the lifetime check: any final non-zero procedure frame is a
+    /// procedure local. The check precedes alias shape/namespace validation, as
+    /// C's `MakeUpvar` does (`TCL UPVAR INVERTED`).
+    pub(crate) fn link_upvar(
+        &mut self,
+        target_level: usize,
+        other: &str,
+        local: &str,
+    ) -> Result<(), UpvarLinkError> {
+        let (other_base, other_key) =
+            elem_ref(other).map_or((other, None), |(base, key)| (base, Some(key)));
+        if !self.var_parent_exists(other_base) {
+            return Err(UpvarLinkError::TargetNamespace);
+        }
+
+        let (owner_level, owner_base) = self.locate_from(other_base, target_level);
+        let owner_is_proc = self
+            .frames
+            .get(owner_level)
+            .is_some_and(|frame| frame.proc_name.is_some());
+        let alias_is_namespace =
+            tcl_syntax::naming::is_qualified(local.as_bytes()) || !self.in_proc_frame();
+        if owner_is_proc && alias_is_namespace {
+            return Err(UpvarLinkError::Inverted);
+        }
+        if tcl_syntax::naming::split_element_ref(local).is_some() {
+            return Err(UpvarLinkError::LocalElement);
+        }
+        if !self.var_parent_exists(local) {
+            return Err(UpvarLinkError::LocalNamespace);
+        }
+
+        // Link targets are internal keys after this boundary. Element aliases
+        // retain the already-split key while the base is resolved exactly once.
+        let target_name =
+            other_key.map_or(owner_base.clone(), |key| format!("{owner_base}({key})"));
+        if alias_is_namespace {
+            let alias = self.canonical_var_name(local);
+            let alias = alias.strip_prefix("::").unwrap_or(&alias).to_owned();
+            self.add_global_link(&alias, owner_level, &target_name);
+        } else {
+            self.add_link(local, owner_level, &target_name);
+        }
+        Ok(())
+    }
+
     /// Whether a `namespace eval`/`inscope` body is *directly* executing in the
     /// current frame. Returns `false` inside a proc called from such a body —
     /// a proc activation has its own scope where unqualified names are locals,
@@ -5470,6 +5534,18 @@ impl Vm {
             )));
         }
         Ok(())
+    }
+
+    /// Whether the parent namespace of a variable base exists. Element syntax
+    /// is removed before qualification, so `v(x::y)` keeps `::` as key data.
+    pub(crate) fn var_parent_exists(&self, name: &str) -> bool {
+        let base = tcl_syntax::naming::split_element_ref(name).map_or(name, |(base, _)| base);
+        if !tcl_syntax::naming::is_qualified(base.as_bytes()) {
+            return true;
+        }
+        let rooted = self.canonical_var_name(base);
+        let (parent, _) = tcl_syntax::naming::key_holder_and_tail(&rooted);
+        self.namespace_exists(parent.strip_prefix("::").unwrap_or(parent))
     }
 
     /// Like [`Self::locate`] but begins link resolution at frame `start` (used

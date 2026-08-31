@@ -3720,6 +3720,17 @@ impl Interp {
         );
     }
 
+    /// The storage resolver's lifetime check for an `upvar` alias.
+    pub(crate) fn upvar_would_invert(&self, target: &Link, local: &[u8]) -> bool {
+        crate::vars::upvar_would_invert(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            self.current_ns.get(),
+            target,
+            local,
+        )
+    }
+
     /// `upvar … target ns::tail` — install the link as namespace variable
     /// `home_ns::tail` (a qualified local name).
     pub(crate) fn make_upvar_in(&mut self, home_ns: NsId, tail: &[u8], target: Link) {

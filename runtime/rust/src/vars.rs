@@ -173,6 +173,36 @@ fn follow_links(frames: &FrameStack, ns: &Namespaces, mut place: Place) -> Place
     place
 }
 
+/// Whether installing `local` in the current context would make a namespace
+/// variable point into a procedure frame. C rejects this inverted `upvar`
+/// because the procedure cell can disappear before the namespace cell.
+///
+/// Follow an existing target link first: a proc-local `global`/`variable`
+/// alias ultimately has namespace lifetime and is therefore safe.
+pub(crate) fn upvar_would_invert(
+    frames: &FrameStack,
+    ns: &Namespaces,
+    current_ns: NsId,
+    target: &Link,
+    local: &[u8],
+) -> bool {
+    let local_is_namespace =
+        is_qualified(local) || matches!(current_home(frames, current_ns), VarHome::Namespace(_));
+    if !local_is_namespace {
+        return false;
+    }
+    let target = follow_links(
+        frames,
+        ns,
+        Place {
+            home: target.home,
+            name: target.name.clone(),
+            elem: target.elem.clone(),
+        },
+    );
+    matches!(target.home, VarHome::Frame(level) if frames.is_proc_at(level))
+}
+
 /// Classify then follow `global`/`variable`/`upvar` links to the concrete cell.
 fn resolve(frames: &FrameStack, ns: &Namespaces, current_ns: NsId, name: &[u8]) -> Resolved {
     match classify(frames, ns, current_ns, name) {
