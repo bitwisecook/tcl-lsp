@@ -202,6 +202,34 @@ pub fn locate_tclsh(version: TclVersion) -> Result<Option<Tclsh>, OracleError> {
     Ok(None)
 }
 
+/// Validate the interpreter built inside `source_tree` and require its exact
+/// patch level to match the source headers. Conformance harnesses use this when
+/// the interpreter and library must be one indivisible oracle selection.
+pub fn tclsh_from_source_tree(
+    source_tree: &TclSourceTree,
+    version: TclVersion,
+) -> Result<Tclsh, OracleError> {
+    let path = source_tree.root.join("unix/tclsh");
+    if !path.is_file() {
+        return Err(OracleError::InvalidInterpreter(format!(
+            "{} has no built unix/tclsh",
+            source_tree.root.display()
+        )));
+    }
+    let interpreter =
+        validate_tclsh_with_library(path, version, Some(source_tree.root.join("unix").as_path()))?;
+    if interpreter.patchlevel != source_tree.patchlevel {
+        return Err(OracleError::InvalidInterpreter(format!(
+            "{} reports Tcl {}, but source tree {} is Tcl {}",
+            interpreter.path.display(),
+            interpreter.patchlevel,
+            source_tree.root.display(),
+            source_tree.patchlevel
+        )));
+    }
+    Ok(interpreter)
+}
+
 /// Every available reference interpreter, in release order.
 #[must_use]
 pub fn available_tclshs() -> Vec<Tclsh> {
@@ -223,15 +251,34 @@ pub fn available_tclshs() -> Vec<Tclsh> {
 /// Run a Tcl script through a reference interpreter and preserve its raw byte
 /// channels and exit code.
 pub fn run_script(tclsh: &Path, script: &[u8]) -> Result<ScriptOutcome, OracleError> {
-    let mut child = Command::new(tclsh)
+    run_script_with_library(tclsh, script, None)
+}
+
+fn run_script_with_library(
+    tclsh: &Path,
+    script: &[u8],
+    library_dir: Option<&Path>,
+) -> Result<ScriptOutcome, OracleError> {
+    let mut command = Command::new(tclsh);
+    command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|source| OracleError::Io {
-            action: "spawning tclsh",
-            source,
+        .stderr(Stdio::piped());
+    if let Some(library_dir) = library_dir {
+        let mut paths = vec![library_dir.to_owned()];
+        if let Some(existing) = std::env::var_os("LD_LIBRARY_PATH") {
+            paths.extend(std::env::split_paths(&existing));
+        }
+        let joined = std::env::join_paths(paths).map_err(|source| OracleError::Io {
+            action: "constructing LD_LIBRARY_PATH",
+            source: std::io::Error::new(std::io::ErrorKind::InvalidInput, source),
         })?;
+        command.env("LD_LIBRARY_PATH", joined);
+    }
+    let mut child = command.spawn().map_err(|source| OracleError::Io {
+        action: "spawning tclsh",
+        source,
+    })?;
     child
         .stdin
         .as_mut()
@@ -302,7 +349,19 @@ pub fn locate_source_tree(
 }
 
 fn validate_tclsh(path: PathBuf, version: TclVersion) -> Result<Tclsh, OracleError> {
-    let outcome = run_script(&path, b"puts [info tclversion]\nputs [info patchlevel]\n")?;
+    validate_tclsh_with_library(path, version, None)
+}
+
+fn validate_tclsh_with_library(
+    path: PathBuf,
+    version: TclVersion,
+    library_dir: Option<&Path>,
+) -> Result<Tclsh, OracleError> {
+    let outcome = run_script_with_library(
+        &path,
+        b"puts [info tclversion]\nputs [info patchlevel]\n",
+        library_dir,
+    )?;
     let text = outcome.strict_text().map_err(|message| {
         OracleError::InvalidInterpreter(format!(
             "{} is not a usable tclsh: {message}",

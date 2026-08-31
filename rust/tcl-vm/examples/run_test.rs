@@ -194,13 +194,15 @@ impl Arguments {
         let mut match_filter = None;
         while let Some(option) = args.next() {
             match option.as_str() {
-                "--match" if match_filter.is_none() => {
+                "--match" | "-match" if match_filter.is_none() => {
                     match_filter = Some(
                         args.next()
                             .ok_or_else(|| "--match requires a value".to_owned())?,
                     );
                 }
-                "--match" => return Err("--match may be supplied only once".to_owned()),
+                "--match" | "-match" => {
+                    return Err("--match may be supplied only once".to_owned());
+                }
                 _ => return Err(format!("unknown option {option:?}")),
             }
         }

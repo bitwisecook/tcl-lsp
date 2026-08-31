@@ -35,9 +35,9 @@ lane.
 - [x] `rust/tcl-vm/src/cmd_package.rs`: package unknown/ifneeded discovery.
 - [x] `rust/tcl-vm/examples/run_test.rs`: initialise, require, then source test.
 - [ ] `rust/tcl-vm/tests/`: mutation-resistant startup and package tests.
-- [ ] `rust/xtask/src/tcltest_sweep.rs`: exact shared Tcl 9.0.4 selection and
+- [x] `rust/xtask/src/tcltest_sweep.rs`: exact shared Tcl 9.0.4 selection and
       default overlay for both backends.
-- [ ] `tests/external/backend_constraints.tcl`: backend-only constraints and
+- [x] `tests/external/backend_constraints.tcl`: backend-only constraints and
       scope tests.
 - [ ] `runtime/rust/vendor/tcl_library/`: refresh from
       `/home/jimd/src/tcl9.0.4/library` with provenance/version drift check.
@@ -57,6 +57,19 @@ lane.
   unsupported and fail explicitly.
 - Focused evidence: real Tcl 9.0.4 `set.test` test `set-1.1` completed through
   the new path with `Total 64 Passed 1 Skipped 63 Failed 0`.
+- The sweep now selects `unix/tclsh`, `library/`, and `tests/` from one
+  `TclSourceTree`, validates the interpreter with that tree's `unix/` on
+  `LD_LIBRARY_PATH`, and rejects every patch level except 9.0.4. This caught
+  the selected 9.0.4 binary resolving a host 9.0.3 library before the loader
+  path was applied.
+- The default overlay registers backend identity constraints and excludes only
+  the exact extended-platform-key assertion plus whole socket, exec, thread,
+  asynchronous-thread, filesystem-host, and file-command groups when the
+  corresponding host capability is absent. An xtask unit test pins that allow
+  list and rejects representative ordinary-semantic stem globs.
+- Focused paired evidence: `set-1.1` under
+  `/home/jimd/src/tcl9.0.4/{unix/tclsh,library,tests}` is
+  `C 1/63/0 | VM 1/63/0 | MATCH`.
 
 ## Open uncertainties
 
