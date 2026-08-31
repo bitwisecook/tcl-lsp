@@ -2123,6 +2123,7 @@ pub(crate) fn cmd_variable(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 "TCL UPVAR LOCAL_ELEMENT",
             );
         }
+        vm.declare_namespace_variable(&qual);
         vm.add_link(&local, 0, &qual);
         if i + 1 < args.len() {
             // `set_var` follows the alias just installed to the real cell.

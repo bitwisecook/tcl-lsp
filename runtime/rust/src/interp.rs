@@ -6685,28 +6685,32 @@ impl Interp {
             {
                 let resolved = &subs[idx];
                 // The target command prefix: a `-map` entry, else `<ns>::<sub>`.
-                let prefix: Vec<Vec<u8>> = cfg
-                    .map
-                    .as_ref()
-                    .and_then(|m| {
-                        m.iter()
-                            .find(|(k, _)| k == resolved)
-                            .map(|(_, p)| p.clone())
-                    })
-                    .unwrap_or_else(|| {
-                        let mut t = self.namespaces.borrow().qualified_name(cfg.ns);
-                        if cfg.ns != GLOBAL {
-                            t.extend_from_slice(b"::");
-                        }
-                        t.extend_from_slice(resolved);
-                        vec![t]
-                    });
+                let mapped = cfg.map.as_ref().and_then(|m| {
+                    m.iter()
+                        .find(|(k, _)| k == resolved)
+                        .map(|(_, p)| p.clone())
+                });
+                let default_target = mapped.is_none();
+                let prefix: Vec<Vec<u8>> = mapped.unwrap_or_else(|| {
+                    let mut t = self.namespaces.borrow().qualified_name(cfg.ns);
+                    if cfg.ns != GLOBAL {
+                        t.extend_from_slice(b"::");
+                    }
+                    t.extend_from_slice(resolved);
+                    vec![t]
+                });
                 // Spell-fix the subcommand to its resolved name in the recorded
                 // source, so an abbreviated `ev` is reported as `event` (C's
                 // `TclSpellFix`).
                 let mut source: Vec<Vec<u8>> = argv.iter().map(|&a| obj_bytes(a)).collect();
                 source[1 + nparams] = resolved.clone();
-                return self.dispatch_ensemble_target(&prefix, argv, nparams, source);
+                return self.dispatch_ensemble_target(
+                    &prefix,
+                    argv,
+                    nparams,
+                    source,
+                    default_target.then_some(resolved.as_slice()),
+                );
             }
             // Miss: try the `-unknown` handler once.
             if !cfg.unknown.is_empty() && !reparsed {
@@ -6714,7 +6718,7 @@ impl Interp {
                 match self.ensemble_unknown(cfg, argv) {
                     EnsembleUnknown::Prefix(prefix) => {
                         let source: Vec<Vec<u8>> = argv.iter().map(|&a| obj_bytes(a)).collect();
-                        return self.dispatch_ensemble_target(&prefix, argv, nparams, source);
+                        return self.dispatch_ensemble_target(&prefix, argv, nparams, source, None);
                     }
                     EnsembleUnknown::Reparse => continue,
                     EnsembleUnknown::Failed(code) => return code,
@@ -6762,7 +6766,12 @@ impl Interp {
         argv: &[*mut TclObj],
         nparams: usize,
         source: Vec<Vec<u8>>,
+        default_name: Option<&[u8]>,
     ) -> Code {
+        let default_target_was_missing = default_name.is_some()
+            && self
+                .resolve_cmd_fqn(prefix.first().map_or(b"", Vec::as_slice))
+                .is_none();
         let mut new_argv: Vec<*mut TclObj> = Vec::with_capacity(prefix.len() + argv.len() - 1);
         for w in prefix {
             let o = new_string(w);
@@ -6785,7 +6794,22 @@ impl Interp {
         // ensemble command, its `-parameters`, and the subcommand word (`2 +
         // nparams`) are removed; the target prefix + `-parameters` are inserted.
         let is_root = self.begin_ensemble_rewrite(source, 2 + nparams, prefix.len() + nparams);
-        let code = self.dispatch(&new_argv);
+        let mut code = self.dispatch(&new_argv);
+        if code == Code::Error && default_target_was_missing {
+            if let Some(name) = default_name {
+                let mut qualified = b"invalid command name \"".to_vec();
+                qualified.extend_from_slice(&prefix[0]);
+                qualified.push(b'"');
+                if obj_bytes(self.get_obj_result()) == qualified {
+                    let mut message = b"invalid command name \"".to_vec();
+                    message.extend_from_slice(name);
+                    message.push(b'"');
+                    let mut error_code = b"TCL LOOKUP COMMAND ".to_vec();
+                    error_code.extend_from_slice(name);
+                    code = self.error_with_code(&message, &error_code);
+                }
+            }
+        }
         if is_root {
             self.clear_ensemble_rewrite();
         }

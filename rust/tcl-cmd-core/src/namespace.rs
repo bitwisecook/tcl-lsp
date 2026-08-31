@@ -25,7 +25,7 @@
 //! `current`/`which` cores *do* read namespace state, so they are generic over
 //! the [`Namespaces`] role trait + [`ValueOps`].
 
-use tcl_runtime_api::Namespaces;
+use tcl_runtime_api::{Namespaces, NsId};
 use tcl_syntax::glob::string_match;
 use tcl_syntax::value::ValueOps;
 
@@ -137,6 +137,134 @@ pub fn imported_command_candidate(pattern: &str, name: &str) -> Option<String> {
         }
         Qualifier::Unqualified => (pattern_tail == name).then(|| name.to_owned()),
     }
+}
+
+/// What `namespace which` should resolve its name as.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WhichKind {
+    /// The default / `-command` form.
+    Command,
+    /// The `-variable` form.
+    Variable,
+}
+
+/// Parse the words after `namespace which` as C's `NamespaceWhichCmd` does.
+///
+/// One word is always the name, even when it starts with `-`. Two words are
+/// accepted only when the first is an unambiguous abbreviation of `-command`
+/// or `-variable`; every other shape is the command's wrong-arity path.
+#[must_use]
+pub fn which_request<T: AsRef<[u8]>>(args: &[T]) -> Option<(WhichKind, usize)> {
+    match args {
+        [_] => Some((WhichKind::Command, 0)),
+        [option, _] => {
+            let option = option.as_ref();
+            if option.len() > 1 && b"-command".starts_with(option) {
+                Some((WhichKind::Command, 1))
+            } else if option.len() > 1 && b"-variable".starts_with(option) {
+                Some((WhichKind::Variable, 1))
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+/// A validated `namespace import` pattern: the source namespace and the glob
+/// tail matched against its exported command names.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImportPattern {
+    /// The source namespace named by the pattern qualifier.
+    pub source: NsId,
+    /// The simple command-name glob after the qualifier.
+    pub tail: Vec<u8>,
+}
+
+/// Why a `namespace import` pattern cannot name a source namespace.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ImportPatternError {
+    /// The whole pattern is empty.
+    Empty,
+    /// The pattern has no namespace qualifier.
+    Unqualified(Vec<u8>),
+    /// Its qualifier names no namespace.
+    Unknown(Vec<u8>),
+    /// Its qualifier resolves back to the importing namespace.
+    SelfImport {
+        /// The written pattern.
+        pattern: Vec<u8>,
+        /// The source namespace's simple name.
+        namespace: Vec<u8>,
+    },
+}
+
+impl ImportPatternError {
+    /// The exact Tcl error result bytes for this failure.
+    #[must_use]
+    pub fn message(&self) -> Vec<u8> {
+        match self {
+            Self::Empty => b"empty import pattern".to_vec(),
+            Self::Unqualified(pattern) => {
+                let mut message = b"no namespace specified in import pattern \"".to_vec();
+                message.extend_from_slice(pattern);
+                message.push(b'"');
+                message
+            }
+            Self::Unknown(pattern) => {
+                let mut message = b"unknown namespace in import pattern \"".to_vec();
+                message.extend_from_slice(pattern);
+                message.push(b'"');
+                message
+            }
+            Self::SelfImport { pattern, namespace } => {
+                let mut message = b"import pattern \"".to_vec();
+                message.extend_from_slice(pattern);
+                message.extend_from_slice(b"\" tries to import from namespace \"");
+                message.extend_from_slice(namespace);
+                message.extend_from_slice(b"\" into itself");
+                message
+            }
+        }
+    }
+}
+
+/// Resolve and validate one `namespace import` pattern against the namespace
+/// tree. This is C's `Tcl_Import` source-namespace gate, shared by both runtime
+/// adapters before either enumerates or binds commands.
+///
+/// # Errors
+/// Empty and unqualified patterns, unknown source namespaces, and self-imports
+/// receive their distinct Tcl diagnostics.
+pub fn import_pattern<O: Namespaces + ?Sized>(
+    ops: &O,
+    destination: NsId,
+    pattern: &[u8],
+) -> Result<ImportPattern, ImportPatternError> {
+    if pattern.is_empty() {
+        return Err(ImportPatternError::Empty);
+    }
+    let qualifier = match qualifier(pattern) {
+        Qualifier::Absolute(prefix) | Qualifier::Relative(prefix) => prefix,
+        Qualifier::Unqualified => {
+            return Err(ImportPatternError::Unqualified(pattern.to_vec()));
+        }
+    };
+    let source = ops
+        .find_namespace_bytes(destination, qualifier)
+        .ok_or_else(|| ImportPatternError::Unknown(pattern.to_vec()))?;
+    if source == destination {
+        let source_name = ops.name_bytes(source);
+        let simple = tail(&source_name);
+        return Err(ImportPatternError::SelfImport {
+            pattern: pattern.to_vec(),
+            namespace: simple.to_vec(),
+        });
+    }
+    Ok(ImportPattern {
+        source,
+        tail: tail(pattern).to_vec(),
+    })
 }
 
 /// `namespace current` — the fully-qualified name of the current namespace
@@ -304,7 +432,8 @@ pub fn parent<O: ValueOps + Namespaces>(
 }
 
 /// `namespace children ?name? ?pattern?` — the FQNs of the (named, or current)
-/// namespace's child namespaces, glob-filtered and sorted. A pattern without a
+/// namespace's child namespaces, glob-filtered in C's hash-table iteration
+/// order. A pattern without a
 /// leading `::` is qualified with the target namespace's FQN first (C's
 /// `NamespaceChildrenCmd`).
 ///
@@ -326,15 +455,58 @@ pub fn children<O: ValueOps + Namespaces>(
             format!("{target_fqn}::{p}")
         }
     });
-    // Collect child FQNs (the ids are owned, so the `name` lookups don't alias).
+    // Adapters return children in creation order. Rebuild the string-key hash
+    // table C stores them in, including its bucket-chain reversal at a resize,
+    // because Tcl_FirstHashEntry order is observable in this command's list.
     let mut names: Vec<String> = Vec::new();
     for child in ops.children(ns) {
         names.push(ops.name(child));
     }
+    let order = tcl_string_hash_order(&names);
+    names = order
+        .into_iter()
+        .map(|index| names[index].clone())
+        .collect();
     names.retain(|n| qualified.as_deref().is_none_or(|p| string_match(p, n)));
-    names.sort();
     let items: Vec<O::Value> = names.iter().map(|n| ops.new_str(n)).collect();
     Ok(ops.new_list(items))
+}
+
+/// The enumeration order of Tcl's `TCL_STRING_KEYS` hash table after inserting
+/// `names` in the supplied order. Namespace child tables use the simple tail as
+/// their key, start at four buckets, and quadruple at a 3:1 load factor.
+fn tcl_string_hash_order<T: AsRef<str>>(names: &[T]) -> Vec<usize> {
+    fn hash(bytes: &[u8]) -> usize {
+        let mut iter = bytes.iter().copied();
+        let mut result = usize::from(iter.next().unwrap_or(0));
+        for byte in iter {
+            result = result
+                .wrapping_add(result.wrapping_shl(3))
+                .wrapping_add(usize::from(byte));
+        }
+        result
+    }
+
+    let mut buckets: Vec<Vec<usize>> = vec![Vec::new(); 4];
+    let mut rebuild_size = 12usize;
+    for (entry, name) in names.iter().enumerate() {
+        let key = tail(name.as_ref().as_bytes());
+        let bucket = hash(key) & (buckets.len() - 1);
+        buckets[bucket].insert(0, entry);
+        if entry + 1 == rebuild_size {
+            let old = std::mem::take(&mut buckets);
+            buckets = vec![Vec::new(); old.len() * 4];
+            for chain in old {
+                for existing in chain {
+                    let key = tail(names[existing].as_ref().as_bytes());
+                    let bucket = hash(key) & (buckets.len() - 1);
+                    buckets[bucket].insert(0, existing);
+                }
+            }
+            rebuild_size *= 4;
+        }
+    }
+    buckets.into_iter().flatten().collect()
 }
 
 /// Resolve the optional `name` argument to a namespace handle: the current
@@ -403,5 +575,57 @@ mod tests {
             Some("::foo::".to_owned())
         );
         assert_eq!(imported_command_candidate("::src::im*", "other"), None);
+    }
+
+    #[test]
+    fn which_request_matches_namespace_whichs_positional_option_rule() {
+        assert_eq!(which_request(&["puts"]), Some((WhichKind::Command, 0)));
+        assert_eq!(which_request(&["-command"]), Some((WhichKind::Command, 0)));
+        assert_eq!(
+            which_request(&["-com", "puts"]),
+            Some((WhichKind::Command, 1))
+        );
+        assert_eq!(
+            which_request(&["-var", "name"]),
+            Some((WhichKind::Variable, 1))
+        );
+        assert_eq!(which_request::<&str>(&[]), None);
+        assert_eq!(which_request(&["-zork", "puts"]), None);
+        assert_eq!(which_request(&["-command", "-variable", "puts"]), None);
+    }
+
+    #[test]
+    fn tcl_string_hash_order_matches_namespace_children_oracle() {
+        let names = [
+            "::order::one",
+            "::order::two",
+            "::order::three",
+            "::order::four",
+            "::order::five",
+            "::order::six",
+            "::order::seven",
+            "::order::eight",
+            "::order::nine",
+            "::order::ten",
+        ];
+        let actual: Vec<_> = tcl_string_hash_order(&names)
+            .into_iter()
+            .map(|index| names[index])
+            .collect();
+        assert_eq!(
+            actual,
+            [
+                "::order::six",
+                "::order::four",
+                "::order::three",
+                "::order::eight",
+                "::order::seven",
+                "::order::nine",
+                "::order::five",
+                "::order::two",
+                "::order::one",
+                "::order::ten",
+            ]
+        );
     }
 }

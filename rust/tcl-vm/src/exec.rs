@@ -575,25 +575,23 @@ fn dict_from_pairs(ps: &[(String, Value)]) -> Value {
 /// missing key — are returned untouched, so they keep the `errorCode` their own
 /// rules give them.
 pub(crate) fn dict_parse_err(message: &str) -> Completion<Value> {
-    let (msg, code) = if let Some(rest) = message.strip_prefix("list element in ") {
-        (
-            format!("dict element in {rest}"),
-            "TCL VALUE DICTIONARY JUNK",
-        )
-    } else if message == "unmatched open brace in list" {
+    let worded = tcl_cmd_core::dict::worded_parse_error(message);
+    let (msg, code) = if worded.starts_with("dict element in ") {
+        (worded, "TCL VALUE DICTIONARY JUNK")
+    } else if worded == "unmatched open brace in dict" {
         (
             "unmatched open brace in dict".to_owned(),
             "TCL VALUE DICTIONARY BRACE",
         )
-    } else if message == "unmatched open quote in list" {
+    } else if worded == "unmatched open quote in dict" {
         (
             "unmatched open quote in dict".to_owned(),
             "TCL VALUE DICTIONARY QUOTE",
         )
-    } else if message == "missing value to go with key" {
-        (message.to_owned(), "TCL VALUE DICTIONARY")
+    } else if worded == "missing value to go with key" {
+        (worded, "TCL VALUE DICTIONARY")
     } else {
-        return err(message.to_owned());
+        return err(worded);
     };
     crate::command::err_with_code(msg, code)
 }
