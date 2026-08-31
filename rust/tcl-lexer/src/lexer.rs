@@ -219,6 +219,12 @@ pub struct LexerConfig {
     /// the consumers that build a braced word's *value* already thread a
     /// `LexerConfig` from the dialect grammar.
     pub brace_backslash_newline: tcl_dialect::BraceBackslashNewline,
+    /// Whether malformed *list* text raises or is split anyway. The lexer
+    /// itself never splits a list — this rides on the config so the value
+    /// consumers that do (`tcl_syntax::list`, via lowering's word-list
+    /// helpers) can read the document's answer from the same place they read
+    /// every other lexical axis, instead of defaulting to `Strict`.
+    pub list_parse: tcl_dialect::ListParse,
 }
 
 /// How the lexer reads a UTF-8 byte-order mark (U+FEFF) sitting at byte 0 of
@@ -261,6 +267,7 @@ impl Default for LexerConfig {
             quote_termination: tcl_dialect::QuoteTermination::Strict,
             var_syntax: tcl_dialect::VarSyntax::Tcl,
             brace_backslash_newline: tcl_dialect::BraceBackslashNewline::Folds,
+            list_parse: tcl_dialect::ListParse::Strict,
         }
     }
 }
@@ -284,6 +291,7 @@ impl LexerConfig {
             quote_termination: grammar.quote_termination,
             var_syntax: grammar.var_syntax,
             brace_backslash_newline: grammar.brace_backslash_newline,
+            list_parse: grammar.list_parse,
             ..Self::default()
         }
     }
@@ -910,12 +918,11 @@ impl<'src> Lexer<'src> {
         // ASCII ones") — `$café` names the variable `caf` and `é` is ordinary
         // word text, and a `$` before a non-ASCII letter is a literal `$`.
         let name_start = self.pos;
-        let name_end =
-            tcl_core_types::naming::scan_var_name_end_with(
-                self.source().as_bytes(),
-                self.pos as usize,
-                self.config.var_syntax.name_allows_high_bytes(),
-            );
+        let name_end = tcl_core_types::naming::scan_var_name_end_with(
+            self.source().as_bytes(),
+            self.pos as usize,
+            self.config.var_syntax.name_allows_high_bytes(),
+        );
         self.pos = u32::try_from(name_end).expect("source offset fits u32");
         // `$arr(idx)` array-index form
         if self.current_byte() == Some(b'(') {
@@ -1272,7 +1279,9 @@ impl<'src> Lexer<'src> {
                         self.pending_sep = Some(Token::new(TokenType::Sep, sep_span));
                     }
                 } else {
-                    let ok = is_separator_byte(after, self.config.word_separators) || after == b']' || is_bs_nl;
+                    let ok = is_separator_byte(after, self.config.word_separators)
+                        || after == b']'
+                        || is_bs_nl;
                     if !ok {
                         self.warn_or_error("extra characters after close-quote")?;
                     }
@@ -1802,7 +1811,9 @@ impl Iterator for Lexer<'_> {
             }
         } else {
             match ch {
-                _ if is_horizontal_whitespace(ch, self.config.word_separators) => Ok(self.parse_sep()),
+                _ if is_horizontal_whitespace(ch, self.config.word_separators) => {
+                    Ok(self.parse_sep())
+                }
                 // F5 N1 (measurements §2): a newline whose next line
                 // starts (after horizontal whitespace) with `{` is a word
                 // separator, not a command terminator. A `;` always
@@ -3722,12 +3733,9 @@ mod jim_divergence_tests {
     #[test]
     fn expr_sugar_body_nests() {
         assert!(
-            kinds("puts $(($a+1)*2)", jim())
-                .contains(&(TokenType::ExprSugar, "$(($a+1)*2".into()))
+            kinds("puts $(($a+1)*2)", jim()).contains(&(TokenType::ExprSugar, "$(($a+1)*2".into()))
         );
-        assert!(
-            kinds(r"puts $(a\)b)", jim()).contains(&(TokenType::ExprSugar, r"$(a\)b".into()))
-        );
+        assert!(kinds(r"puts $(a\)b)", jim()).contains(&(TokenType::ExprSugar, r"$(a\)b".into())));
     }
 
     /// `$name(index)` counts nested parens in Jim; C Tcl stops at the first
@@ -3743,7 +3751,10 @@ mod jim_divergence_tests {
     #[test]
     fn unbalanced_index_backs_up_to_the_last_close_paren() {
         let toks = kinds("puts $a((b) tail", jim());
-        assert!(toks.contains(&(TokenType::Var, "$a((b)".into())), "{toks:?}");
+        assert!(
+            toks.contains(&(TokenType::Var, "$a((b)".into())),
+            "{toks:?}"
+        );
         assert!(toks.contains(&(TokenType::Esc, "tail".into())), "{toks:?}");
     }
 

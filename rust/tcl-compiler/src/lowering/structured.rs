@@ -32,7 +32,7 @@ use crate::lowering_hooks::word_content_base;
 use crate::naming::normalise_var_name;
 use crate::segmenter::SegmentedCommand;
 
-use super::{Lowerer, parse_var_list_names};
+use super::{ListWordRules, Lowerer, parse_var_list_names};
 
 /// A single pattern/body pair collected by
 /// [`lower_switch`](super::Lowerer::lower_switch) before the
@@ -465,7 +465,9 @@ impl Lowerer<'_> {
         for i in (0..body_idx).step_by(2) {
             // A varList that is not a well-formed Tcl list binds nothing we can
             // name; the runtime `foreach` raises Tcl's own error.
-            let Some(var_names) = parse_var_list_names(&args[i], self.config.brace_backslash_newline) else {
+            let Some(var_names) =
+                parse_var_list_names(&args[i], ListWordRules::from_config(&self.config))
+            else {
                 return Self::barrier(seg, "foreach with malformed variable list");
             };
             iterators.push(ForeachIterator {
@@ -596,7 +598,8 @@ impl Lowerer<'_> {
         // not the literal value.  See the type-level doc-comment
         // above for the runtime-semantics caveat.
         let cmd_tokens = Self::cmd_tokens(seg);
-        let Some(vars) = parse_var_list_names(&args[0], self.config.brace_backslash_newline) else {
+        let Some(vars) = parse_var_list_names(&args[0], ListWordRules::from_config(&self.config))
+        else {
             return Self::barrier(seg, "foreachLine with malformed variable list");
         };
         let iterators = vec![ForeachIterator {
@@ -741,7 +744,9 @@ impl Lowerer<'_> {
                 let handler_tok = arg_tokens.get(i + 3);
                 let handler_single = arg_single.get(i + 3).copied().unwrap_or(false);
 
-                let Some(var_names) = parse_var_list_names(var_list, self.config.brace_backslash_newline) else {
+                let Some(var_names) =
+                    parse_var_list_names(var_list, ListWordRules::from_config(&self.config))
+                else {
                     return Self::barrier(seg, "try with malformed handler variable list");
                 };
                 let result_var = var_names.first().map(|v| normalise_var_name(v).to_owned());
@@ -1054,7 +1059,9 @@ impl Lowerer<'_> {
 
         match sub.as_str() {
             "for" | "map" if sub_args.len() >= 3 => {
-                let Some(var_names) = parse_var_list_names(&sub_args[0], self.config.brace_backslash_newline) else {
+                let Some(var_names) =
+                    parse_var_list_names(&sub_args[0], ListWordRules::from_config(&self.config))
+                else {
                     return Self::barrier(seg, &format!("dict {sub} with malformed variable list"));
                 };
                 let body_idx = 3; // index in original args

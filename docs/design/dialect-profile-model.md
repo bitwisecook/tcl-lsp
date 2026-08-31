@@ -340,7 +340,13 @@ interpreters built from the upstream tags 0.76-0.84 against tclsh 8.6 / 9.0:
   expression substitution (its own token kind, since the body is an
   *expression* and must not be analysed as a script), index parens nest, and a
   name may hold any byte >= 0x80.
-* `list_parse` — malformed list text never errors; `llength "a {b"` is 2.
+* `list_parse` — malformed list text never errors. All four `ListError`
+  cases become values: an unterminated `{`/`"` runs to the end of the string
+  (`llength "a {b"` is 2, and its second element is `b`), while junk after a
+  closing delimiter *begins the next element* (`a {b}c` is three elements).
+  `tcl_syntax::list::split_list_jim` implements this; it is distinct from the
+  pre-existing `split_list_lenient`, which returns only the elements before
+  the malformed tail and is a best-effort partial, not Jim's answer.
 
 `brace_backslash_newline` moves real bindings, and the two word kinds resolve
 the surviving `\<newline>` differently because only one has a `name ?default?`

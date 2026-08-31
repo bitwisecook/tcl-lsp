@@ -368,18 +368,48 @@ fn collapse_list_word(
 /// `None` means the word is not a well-formed list (an unmatched brace or
 /// quote). Callers fall back to the runtime command, which raises Tcl's own
 /// error, rather than guessing at a binding.
-fn parse_var_list_names(
-    list_text: &str,
-    rule: tcl_dialect::BraceBackslashNewline,
-) -> Option<Vec<String>> {
-    let collapsed = collapse_list_word(list_text, rule);
-    let names = tcl_syntax::list::split_list(&collapsed).ok()?;
-    Some(
-        names
-            .into_iter()
-            .map(std::borrow::Cow::into_owned)
-            .collect(),
-    )
+/// The two dialect axes that decide how a braced *word* becomes a list of
+/// names: whether a `\<newline>` inside the braces folds, and whether a
+/// malformed remainder is an error or is split anyway.
+///
+/// They travel together because every site that splits a word-shaped list
+/// needs both, and reading them from one place keeps a call site from
+/// answering one axis per dialect and the other per hardcoded default.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ListWordRules {
+    pub(crate) brace: tcl_dialect::BraceBackslashNewline,
+    pub(crate) list: tcl_dialect::ListParse,
+}
+
+impl ListWordRules {
+    fn from_config(config: &tcl_lexer::LexerConfig) -> Self {
+        Self {
+            brace: config.brace_backslash_newline,
+            list: config.list_parse,
+        }
+    }
+
+    /// Split *text* into elements under this dialect's list rule.
+    ///
+    /// `Strict` propagates the list error as `None`, which lowering turns into
+    /// a barrier; `Lenient` cannot fail, because `JimTcl`'s list parser never
+    /// raises — an unterminated element simply runs to the end of the string.
+    fn split(self, text: &str) -> Option<Vec<String>> {
+        let owned = |v: Vec<std::borrow::Cow<'_, str>>| {
+            v.into_iter()
+                .map(std::borrow::Cow::into_owned)
+                .collect::<Vec<_>>()
+        };
+        match self.list {
+            tcl_dialect::ListParse::Strict => tcl_syntax::list::split_list(text).ok().map(owned),
+            tcl_dialect::ListParse::Lenient => Some(owned(tcl_syntax::list::split_list_jim(text))),
+        }
+    }
+}
+
+fn parse_var_list_names(list_text: &str, rules: ListWordRules) -> Option<Vec<String>> {
+    let collapsed = collapse_list_word(list_text, rules.brace);
+    rules.split(&collapsed)
 }
 
 /// Split a Tcl *formal parameter* list word into its parameter names.
@@ -400,11 +430,8 @@ fn parse_var_list_names(
 /// `None` means Tcl itself would refuse to create the procedure (a malformed
 /// list, a specifier with three or more fields, an array-element or qualified
 /// name), so the caller defers to the runtime command that reports it.
-fn parse_formal_param_names(
-    param_text: &str,
-    rule: tcl_dialect::BraceBackslashNewline,
-) -> Option<Vec<String>> {
-    let collapsed = collapse_list_word(param_text, rule);
+fn parse_formal_param_names(param_text: &str, rules: ListWordRules) -> Option<Vec<String>> {
+    let collapsed = collapse_list_word(param_text, rules.brace);
     let parameters = tcl_syntax::formal_params::parse_formal_parameters(&collapsed).ok()?;
     Some(
         parameters
@@ -1881,7 +1908,9 @@ impl<'r> Lowerer<'r> {
         // an array-element or qualified name) creates no procedure: leave it to
         // the runtime `proc`, which raises the error, rather than registering a
         // Procedure whose parameters we guessed at.
-        let Some(params) = parse_formal_param_names(&args[1], self.config.brace_backslash_newline) else {
+        let Some(params) =
+            parse_formal_param_names(&args[1], ListWordRules::from_config(&self.config))
+        else {
             return Statement::Barrier {
                 span: seg.span,
                 reason: "malformed proc params".into(),
@@ -2519,7 +2548,9 @@ impl<'r> Lowerer<'r> {
         // unwalked: with no trustworthy bound names, a body unit would resolve
         // its reads against the wrong frame.
         let params = match lambda_elems.first() {
-            Some((_, param_text)) => parse_formal_param_names(param_text, self.config.brace_backslash_newline),
+            Some((_, param_text)) => {
+                parse_formal_param_names(param_text, ListWordRules::from_config(&self.config))
+            }
             None => Some(Vec::new()),
         };
 
@@ -2603,7 +2634,8 @@ impl<'r> Lowerer<'r> {
         // body is walked, so a rejected loop leaves no const-map traces behind.
         if args.len() == 4
             && body_is_braced
-            && let Some(vars) = parse_var_list_names(&args[1], self.config.brace_backslash_newline)
+            && let Some(vars) =
+                parse_var_list_names(&args[1], ListWordRules::from_config(&self.config))
         {
             let body_tok = &arg_tokens[3];
             // The body runs in the *caller's* frame (`vm.eval_source` in place),
@@ -3339,7 +3371,13 @@ impl<'r> Lowerer<'r> {
         // A parameter list Tcl would reject defines no method, and the class as
         // a whole becomes unanalysable — the same abstention the dynamic name /
         // body check above makes.
-        let Some(params) = member_param_names(member, args, seg, base, self.config.brace_backslash_newline) else {
+        let Some(params) = member_param_names(
+            member,
+            args,
+            seg,
+            base,
+            ListWordRules::from_config(&self.config),
+        ) else {
             self.module
                 .oo_unanalysed_classes
                 .insert(class_qname.to_string());
@@ -3425,7 +3463,7 @@ fn member_param_names(
     args: &[String],
     seg: &SegmentedCommand,
     base: usize,
-    rule: tcl_dialect::BraceBackslashNewline,
+    rules: ListWordRules,
 ) -> Option<Vec<String>> {
     let param_text = member
         .indices_for_call(args, ArgRole::ParamList)
@@ -3433,7 +3471,7 @@ fn member_param_names(
         .and_then(|rel| seg.texts.get(base + rel))
         .filter(|text| !text.is_empty());
     match param_text {
-        Some(text) => parse_formal_param_names(text, rule),
+        Some(text) => parse_formal_param_names(text, rules),
         None => Some(Vec::new()),
     }
 }
@@ -4254,7 +4292,17 @@ pub(crate) fn is_literal_trace_target(s: &str) -> bool {
 mod tests {
     /// Every C-Tcl dialect folds a brace-word line continuation; the Jim
     /// answer is asserted in `jim_brace_continuation_binds_different_names`.
-    const FOLD: tcl_dialect::BraceBackslashNewline = tcl_dialect::BraceBackslashNewline::Folds;
+    const FOLD_RULES: ListWordRules = ListWordRules {
+        brace: tcl_dialect::BraceBackslashNewline::Folds,
+        list: tcl_dialect::ListParse::Strict,
+    };
+
+    /// `JimTcl`: the braced word keeps its bytes, and a malformed remainder is
+    /// split rather than raised.
+    const LITERAL_RULES: ListWordRules = ListWordRules {
+        brace: tcl_dialect::BraceBackslashNewline::Literal,
+        list: tcl_dialect::ListParse::Lenient,
+    };
 
     /// A brace-word line continuation is folded to a space by every build of
     /// the Tcl core and kept verbatim by `JimTcl`, so a wrapped parameter or
@@ -4276,35 +4324,70 @@ mod tests {
     /// specifiers (`a {b c}`), not the parameter names.
     #[test]
     fn jim_brace_continuation_binds_different_names() {
-        const LITERAL: tcl_dialect::BraceBackslashNewline =
-            tcl_dialect::BraceBackslashNewline::Literal;
         let wrapped = "a b\\\nc";
 
         assert_eq!(
-            parse_formal_param_names(wrapped, FOLD).unwrap(),
+            parse_formal_param_names(wrapped, FOLD_RULES).unwrap(),
             vec!["a", "b", "c"],
             "C Tcl folds the continuation into a separator"
         );
         assert_eq!(
-            parse_formal_param_names(wrapped, LITERAL).unwrap(),
+            parse_formal_param_names(wrapped, LITERAL_RULES).unwrap(),
             vec!["a", "b"],
             "Jim keeps the bytes, so `b c` is one specifier: `b` defaulting to `c`"
         );
 
         assert_eq!(
-            parse_var_list_names(wrapped, FOLD).unwrap(),
+            parse_var_list_names(wrapped, FOLD_RULES).unwrap(),
             vec!["a", "b", "c"]
         );
         assert_eq!(
-            parse_var_list_names(wrapped, LITERAL).unwrap(),
+            parse_var_list_names(wrapped, LITERAL_RULES).unwrap(),
             vec!["a", "b c"]
         );
+    }
+
+    /// `JimTcl`'s list parser never raises, so a word whose list text is
+    /// malformed still binds names instead of collapsing lowering to a
+    /// barrier. `llength "a {b"` is 2 under jimsh 0.84 and an error under
+    /// tclsh 8.6, and the same split backs `foreach`'s variable list.
+    #[test]
+    fn malformed_list_word_binds_names_only_for_jim() {
+        assert_eq!(
+            parse_var_list_names("a {b", FOLD_RULES),
+            None,
+            "C Tcl raises, which lowering turns into a barrier"
+        );
+        assert_eq!(
+            parse_var_list_names("a {b", LITERAL_RULES).unwrap(),
+            vec!["a", "b"],
+            "Jim splits it anyway — the unterminated element runs to the end"
+        );
+    }
+
+    /// Both axes reach the helpers from the dialect, so `list_parse` is not
+    /// silently left at its `Strict` default for a Jim document.
+    #[test]
+    fn list_word_rules_come_from_the_dialect() {
+        use tcl_dialect::model::{Family, grammar};
+        for &release in Family::Jim.releases() {
+            let config = tcl_lexer::LexerConfig::from_grammar(grammar(Family::Jim, release));
+            assert_eq!(
+                ListWordRules::from_config(&config),
+                LITERAL_RULES,
+                "{release}"
+            );
+        }
+        for &release in Family::Tcl.releases() {
+            let config = tcl_lexer::LexerConfig::from_grammar(grammar(Family::Tcl, release));
+            assert_eq!(ListWordRules::from_config(&config), FOLD_RULES, "{release}");
+        }
     }
 
     /// The knob is wired to the dialect, not chosen per call site.
     #[test]
     fn brace_continuation_comes_from_the_dialect() {
-        use tcl_dialect::model::{Family, Release, grammar};
+        use tcl_dialect::model::{Family, grammar};
         for &release in Family::Jim.releases() {
             assert_eq!(
                 grammar(Family::Jim, release).brace_backslash_newline,
@@ -5196,17 +5279,17 @@ mod tests {
     #[test]
     fn formal_param_names_take_the_specifier_name_only() {
         assert_eq!(
-            parse_formal_param_names("a b c", FOLD).unwrap(),
+            parse_formal_param_names("a b c", FOLD_RULES).unwrap(),
             vec!["a", "b", "c"],
         );
         assert_eq!(
-            parse_formal_param_names("{x default} y", FOLD).unwrap(),
+            parse_formal_param_names("{x default} y", FOLD_RULES).unwrap(),
             vec!["x", "y"]
         );
-        assert!(parse_formal_param_names("", FOLD).unwrap().is_empty());
+        assert!(parse_formal_param_names("", FOLD_RULES).unwrap().is_empty());
         // A wrapped parameter list collapses its continuation before splitting.
         assert_eq!(
-            parse_formal_param_names("a b\\\n    c", FOLD).unwrap(),
+            parse_formal_param_names("a b\\\n    c", FOLD_RULES).unwrap(),
             vec!["a", "b", "c"]
         );
     }
@@ -5214,25 +5297,34 @@ mod tests {
     #[test]
     fn formal_param_names_reject_what_tcl_rejects() {
         // Tcl refuses to create these procedures, so lowering declines too.
-        assert_eq!(parse_formal_param_names("{a b c}", FOLD), None);
-        assert_eq!(parse_formal_param_names("{a::b}", FOLD), None);
-        assert_eq!(parse_formal_param_names("{a(1)}", FOLD), None);
-        assert_eq!(parse_formal_param_names("{a", FOLD), None);
+        assert_eq!(parse_formal_param_names("{a b c}", FOLD_RULES), None);
+        assert_eq!(parse_formal_param_names("{a::b}", FOLD_RULES), None);
+        assert_eq!(parse_formal_param_names("{a(1)}", FOLD_RULES), None);
+        assert_eq!(parse_formal_param_names("{a", FOLD_RULES), None);
     }
 
     #[test]
     fn var_list_names_keep_grouped_elements_whole() {
-        assert_eq!(parse_var_list_names("a b", FOLD).unwrap(), vec!["a", "b"]);
-        // tclsh 9.0: both spellings bind the one variable named `a b`.
-        assert_eq!(parse_var_list_names("{a b}", FOLD).unwrap(), vec!["a b"]);
-        assert_eq!(parse_var_list_names("a\\ b", FOLD).unwrap(), vec!["a b"]);
-        assert!(parse_var_list_names("", FOLD).unwrap().is_empty());
         assert_eq!(
-            parse_var_list_names("a b\\\n    c", FOLD).unwrap(),
+            parse_var_list_names("a b", FOLD_RULES).unwrap(),
+            vec!["a", "b"]
+        );
+        // tclsh 9.0: both spellings bind the one variable named `a b`.
+        assert_eq!(
+            parse_var_list_names("{a b}", FOLD_RULES).unwrap(),
+            vec!["a b"]
+        );
+        assert_eq!(
+            parse_var_list_names("a\\ b", FOLD_RULES).unwrap(),
+            vec!["a b"]
+        );
+        assert!(parse_var_list_names("", FOLD_RULES).unwrap().is_empty());
+        assert_eq!(
+            parse_var_list_names("a b\\\n    c", FOLD_RULES).unwrap(),
             vec!["a", "b", "c"]
         );
         // Unbalanced — no binding can be named, so the caller barriers.
-        assert_eq!(parse_var_list_names("{a", FOLD), None);
+        assert_eq!(parse_var_list_names("{a", FOLD_RULES), None);
     }
 
     // issue #1431: a formal-parameter list has two list levels, so a grouped or

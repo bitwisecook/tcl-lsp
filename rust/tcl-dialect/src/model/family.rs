@@ -36,8 +36,8 @@
 
 use crate::LexerGrammar;
 use crate::grammar::{
-    BraceBackslashNewline, BraceLineContinuation, BracedVarStyle, EscapeSyntax,
-    ExprCommentStyle, ListParse, NumberSyntax, QuoteTermination, VarSyntax, WordSeparators,
+    BraceBackslashNewline, BraceLineContinuation, BracedVarStyle, EscapeSyntax, ExprCommentStyle,
+    ListParse, NumberSyntax, QuoteTermination, VarSyntax, WordSeparators,
 };
 use crate::model::expr_grammar::{self, ExprGrammar};
 use crate::version::StringCharacterModel;
@@ -1396,4 +1396,3 @@ mod tests {
         assert_eq!(id.build, BuildProfileId::Canonical);
     }
 }
-

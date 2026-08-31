@@ -478,8 +478,13 @@ impl NumberSyntax {
     /// For callers that must answer a question across all of them — e.g.
     /// "do the releases agree how to read this word?" — so adding a future
     /// grammar reaches them without each keeping its own list.
-    pub const ALL: &'static [Self] =
-        &[Self::Tcl84, Self::Tcl85, Self::Tcl90, Self::Jim, Self::Jim080];
+    pub const ALL: &'static [Self] = &[
+        Self::Tcl84,
+        Self::Tcl85,
+        Self::Tcl90,
+        Self::Jim,
+        Self::Jim080,
+    ];
 
     /// The grammar of `profile`, or the permissive 9.x default when no profile
     /// is loaded.

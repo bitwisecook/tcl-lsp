@@ -30,9 +30,8 @@
 //! axis.
 
 use crate::grammar::{
-    BraceBackslashNewline, BraceLineContinuation, BracedVarStyle, EscapeSyntax,
-    ExprCommentStyle, LexerGrammar, ListParse, NumberSyntax, QuoteTermination, VarSyntax,
-    WordSeparators,
+    BraceBackslashNewline, BraceLineContinuation, BracedVarStyle, EscapeSyntax, ExprCommentStyle,
+    LexerGrammar, ListParse, NumberSyntax, QuoteTermination, VarSyntax, WordSeparators,
 };
 use crate::library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
 use crate::model::{Family, SpecProvider, SurfaceLayer, SurfaceQuery};

@@ -371,6 +371,18 @@ fn scan_tokens(
                     vars_found.extend(scan_tokens(text, registry, options, false));
                 }
             }
+            // `JimTcl`'s `$(…)`. Its body is an *expression*, not a nested
+            // script, so its `$x` reads belong to the enclosing word exactly
+            // as `$x` in a quoted word would — hence no
+            // `recurse_cmd_substitutions` gate, which is about `[…]`.
+            // Without this arm a variable read only inside `$(…)` is invisible
+            // to every unused/rename/reference consumer.
+            TokenType::ExprSugar => {
+                let text = source_map.token_text(*tok);
+                if !text.is_empty() {
+                    vars_found.extend(scan_tokens(text, registry, options, false));
+                }
+            }
             _ => {}
         }
     }
@@ -538,7 +550,10 @@ fn collect_ref_forms(text: &str, out: &mut Vec<(String, bool)>) {
                     out.push((form.to_owned(), braced));
                 }
             }
-            TokenType::Cmd => {
+            // `ExprSugar` is `JimTcl`'s `$(…)`. Its body is an *expression*
+            // rather than a nested script, but either way the reference forms
+            // inside it are read by the enclosing word, so both recurse.
+            TokenType::Cmd | TokenType::ExprSugar => {
                 let inner = source_map.token_text(*tok);
                 if !inner.is_empty() {
                     collect_ref_forms(inner, out);
