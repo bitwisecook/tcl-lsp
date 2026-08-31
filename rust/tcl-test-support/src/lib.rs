@@ -203,6 +203,7 @@ pub fn locate_tclsh(version: TclVersion) -> Result<Option<Tclsh>, OracleError> {
 }
 
 /// Every available reference interpreter, in release order.
+#[must_use]
 pub fn available_tclshs() -> Vec<Tclsh> {
     let mut interpreters = Vec::new();
     for version in TclVersion::ALL {
