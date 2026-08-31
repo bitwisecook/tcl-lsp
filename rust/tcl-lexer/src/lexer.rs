@@ -118,23 +118,12 @@
 //! [`SourcePosition`]: crate::SourcePosition
 //! [`SourcePosition::offset`]: crate::SourcePosition#structfield.offset
 
-use tcl_core_types::RecursionLimit;
-use tcl_dialect::BracedVarStyle;
+use tcl_dialect::{ArrayIndexSyntax, BracedVarStyle};
 use thiserror::Error;
 
 use crate::source_map::SourceMap;
 use crate::span::Span;
 use crate::tokens::{Token, TokenType};
-
-/// Cap on `$name(…)` array-index nesting depth that
-/// [`Lexer::scan_array_index_body`]/[`Lexer::skip_var_in_index`] will
-/// recurse into. The two are mutually recursive with no natural bound —
-/// `$a($b($c(...)))` recurses one native-stack frame group per `(` — so
-/// pathologically deep input (e.g. generated/minified Tcl) could otherwise
-/// abort the process with an uncatchable stack overflow. 64 is far past any
-/// array-index nesting real Tcl code uses; see
-/// `docs/design/compiler/recursive-descent-depth-limits.md`.
-const MAX_ARRAY_INDEX_DEPTH: RecursionLimit = RecursionLimit(64);
 
 /// Configuration for the Tcl lexer.
 ///
@@ -177,6 +166,9 @@ pub struct LexerConfig {
     pub strict_quoting: bool,
     /// How a `${…}` variable name is delimited — see [`BracedVarStyle`].
     pub braced_var: BracedVarStyle,
+    /// Which literal source bytes an array-index read accepts — see
+    /// [`ArrayIndexSyntax`].
+    pub array_index: ArrayIndexSyntax,
     /// Byte offset to add to every `SourcePosition.offset`
     /// produced by the lexer. Used when sub-lexing a body
     /// extracted from a parent token.
@@ -232,6 +224,7 @@ impl Default for LexerConfig {
             brace_line_continuation: tcl_dialect::BraceLineContinuation::Terminates,
             strict_quoting: false,
             braced_var: BracedVarStyle::Tcl9Nesting,
+            array_index: ArrayIndexSyntax::Tcl9,
             base_offset: 0,
             base_line: 0,
             base_col: 0,
@@ -255,6 +248,7 @@ impl LexerConfig {
             irules_brace_separator: grammar.irules_brace_separator,
             brace_line_continuation: grammar.brace_line_continuation,
             braced_var: grammar.braced_var,
+            array_index: grammar.array_index,
             escapes: grammar.escapes,
             ..Self::default()
         }
@@ -843,7 +837,7 @@ impl<'src> Lexer<'src> {
         self.pos = u32::try_from(name_end).expect("source offset fits u32");
         // `$arr(idx)` array-index form
         if self.current_byte() == Some(b'(') {
-            self.scan_array_index_body(0)?;
+            self.scan_array_index_body()?;
             return Ok(Token::with_content_offset(
                 TokenType::Var,
                 Span::new(dollar_pos, self.pos),
@@ -879,122 +873,28 @@ impl<'src> Lexer<'src> {
     /// Advances `self.pos` past the closing `)` (or to EOF
     /// for unterminated input).
     ///
-    /// `depth` is the nesting level of this call (0 at the top, via
-    /// [`Self::parse_var`]); past [`MAX_ARRAY_INDEX_DEPTH`] a nested `$…(`
-    /// is no longer recursed into — its `(` is scanned as an ordinary
-    /// character instead — so pathologically deep `$a($b($c(...)))` input
-    /// degrades gracefully rather than overflowing the native stack.
-    fn scan_array_index_body(&mut self, depth: u32) -> Result<(), LexError> {
+    /// The structural scan is delegated to [`crate::scan_array_index`], the
+    /// iterative owner shared with expression lexing and both runtimes.
+    fn scan_array_index_body(&mut self) -> Result<(), LexError> {
         debug_assert_eq!(self.current_byte(), Some(b'('));
-        self.pos += 1; // skip '('
-        let past_cap = MAX_ARRAY_INDEX_DEPTH.exceeded(depth);
-        loop {
-            let Some(ch) = self.current_char() else {
+        let scan = crate::scan_array_index(
+            self.source().as_bytes(),
+            self.pos as usize,
+            self.config.array_index,
+            self.config.braced_var,
+        );
+        if let Some(invalid) = scan.invalid {
+            self.pos = u32::try_from(invalid).expect("source offset fits u32");
+            self.warn_or_error(crate::INVALID_CHARACTER_IN_ARRAY_INDEX)?;
+        }
+        match scan.end {
+            crate::ArrayIndexEnd::Closed(end) => {
+                self.pos = u32::try_from(end).expect("source offset fits u32");
+            }
+            crate::ArrayIndexEnd::Unterminated => {
+                self.pos = u32::try_from(self.source().len()).expect("source length fits u32");
                 self.warn_or_error("missing )")?;
-                return Ok(());
-            };
-            match ch {
-                ')' => {
-                    self.pos += 1;
-                    return Ok(());
-                }
-                '\\' => {
-                    // Escape: consume the backslash and the byte it protects, so
-                    // `\)` stays in the index.
-                    self.pos += 1;
-                    if let Some(next) = self.current_char() {
-                        self.pos += u32::try_from(next.len_utf8()).expect("char len fits u32");
-                    }
-                }
-                '[' => self.skip_command_in_index(),
-                '$' if !past_cap => self.skip_var_in_index(depth + 1)?,
-                _ => {
-                    self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
-                }
             }
-        }
-    }
-
-    /// Skip a `[…]` command substitution inside an array index so a `)` inside
-    /// it is not the index terminator. Tracks brace nesting (`blevel`) and
-    /// double-quote state (`in_quotes`) — mirroring [`Self::parse_command`] — so
-    /// a `]` inside a braced or quoted word (e.g. `$a([puts {]}])`) does not
-    /// close the substitution early. Stops after the matching `]` (or at EOF).
-    fn skip_command_in_index(&mut self) {
-        debug_assert_eq!(self.current_byte(), Some(b'['));
-        self.pos += 1;
-        let mut depth: u32 = 1;
-        let mut blevel: u32 = 0;
-        let mut in_quotes = false;
-        while depth > 0 {
-            let Some(ch) = self.current_char() else {
-                return;
-            };
-            match ch {
-                '\\' => {
-                    self.pos += 1;
-                    if let Some(next) = self.current_char() {
-                        self.pos += u32::try_from(next.len_utf8()).expect("char len fits u32");
-                    }
-                }
-                '"' if blevel == 0 => {
-                    in_quotes = !in_quotes;
-                    self.pos += 1;
-                }
-                '{' if !in_quotes => {
-                    blevel += 1;
-                    self.pos += 1;
-                }
-                '}' if !in_quotes => {
-                    blevel = blevel.saturating_sub(1);
-                    self.pos += 1;
-                }
-                '[' if blevel == 0 && !in_quotes => {
-                    depth += 1;
-                    self.pos += 1;
-                }
-                ']' if blevel == 0 && !in_quotes => {
-                    depth -= 1;
-                    self.pos += 1;
-                }
-                _ => {
-                    self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
-                }
-            }
-        }
-    }
-
-    /// Skip a `$` variable reference inside an array index (`${…}` or `$name`
-    /// with an optional nested `(…)` index) so its inner `)` are not mistaken
-    /// for the outer index terminator.
-    ///
-    /// `depth` is passed straight through to a nested
-    /// [`Self::scan_array_index_body`] call — see its doc comment.
-    fn skip_var_in_index(&mut self, depth: u32) -> Result<(), LexError> {
-        debug_assert_eq!(self.current_byte(), Some(b'$'));
-        self.pos += 1; // skip '$'
-        if self.current_byte() == Some(b'{') {
-            self.pos += 1;
-            self.skip_braced_var_name_body();
-            if self.current_byte() == Some(b'}') {
-                self.pos += 1;
-            }
-            return Ok(());
-        }
-        // Bare name: an ASCII alphanumeric / `_` run (`TclIsBareword`), with
-        // `::` namespace separators.
-        while let Some(ch) = self.current_char() {
-            if ch.is_ascii_alphanumeric() || ch == '_' {
-                self.pos += 1;
-            } else if ch == ':' && self.peek_byte(1) == Some(b':') {
-                self.pos += 2;
-            } else {
-                break;
-            }
-        }
-        // A nested `$name(index)` — recurse so its `)` closes the inner index.
-        if self.current_byte() == Some(b'(') {
-            self.scan_array_index_body(depth)?;
         }
         Ok(())
     }

@@ -177,6 +177,11 @@ impl PackDialect {
             Some("tcl9-nesting") | None => BracedVarStyle::Tcl9Nesting,
             Some(_) => return None,
         };
+        let array_index = match self.axis("array_index") {
+            Some("tcl8") => tcl_dialect::ArrayIndexSyntax::Tcl8,
+            Some("tcl9") | None => tcl_dialect::ArrayIndexSyntax::Tcl9,
+            Some(_) => return None,
+        };
         let expr_comments = match self.axis("expr_comments") {
             Some("none") => ExprCommentStyle::None,
             Some("hash") | None => ExprCommentStyle::Hash,
@@ -203,6 +208,7 @@ impl PackDialect {
                 BraceLineContinuation::Terminates
             },
             braced_var,
+            array_index,
             script_skips_leading_bom: flag("bom_skip", true)?,
             expr_comments,
             numbers,

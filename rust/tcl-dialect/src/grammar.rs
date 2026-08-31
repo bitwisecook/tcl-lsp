@@ -148,6 +148,39 @@ impl BracedVarStyle {
     }
 }
 
+/// Which literal source bytes may appear in a `$name(index)` variable read.
+///
+/// Tcl 9 changed the mask passed from `Tcl_ParseVarName` to `ParseTokens`.
+/// Tcl 8.x stops only at the closing `)`, so an opening parenthesis, quote,
+/// or brace is ordinary index text. Tcl 9.x stops on those bytes as well and
+/// raises `invalid character in array index`. The rule applies only to raw
+/// bytes at the index token level: a backslash escape, `${…}` / `$name(…)`,
+/// or `[…]` substitution shields its own source, and the substituted value
+/// may contain any of the same characters.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum ArrayIndexSyntax {
+    /// Tcl 9.x (and the unversioned default): reject the complete
+    /// `TYPE_BAD_ARRAY_INDEX` source mask apart from `)`, which remains the
+    /// successful index terminator.
+    #[default]
+    Tcl9,
+    /// Tcl 8.4–8.6 and runtimes based on them: every raw byte apart from the
+    /// closing `)` may be index text.
+    Tcl8,
+}
+
+impl ArrayIndexSyntax {
+    /// Whether a raw byte at array-index token level is invalid.
+    ///
+    /// Callers must first skip escapes and complete variable/command
+    /// substitutions. This method owns the release-varying byte set so the
+    /// main lexer, expression lexer, and runtimes cannot drift.
+    #[must_use]
+    pub const fn rejects_literal(self, byte: u8) -> bool {
+        matches!(self, Self::Tcl9) && matches!(byte, b'(' | b'"' | b'{' | b'}')
+    }
+}
+
 /// The brace-line continuation axis — the F5 N-rules
 /// (`docs/design/bigip-irule-parser-measurements.md` §2), a second
 /// divergence independent of the implicit word break and likewise an
@@ -240,6 +273,9 @@ pub struct LexerGrammar {
     pub brace_line_continuation: BraceLineContinuation,
     /// How a `${…}` variable name is delimited — see [`BracedVarStyle`].
     pub braced_var: BracedVarStyle,
+    /// Which literal source bytes an array-index read accepts — see
+    /// [`ArrayIndexSyntax`].
+    pub array_index: ArrayIndexSyntax,
     /// When true, the script reader skips a leading UTF-8 byte-order mark
     /// (U+FEFF) at offset 0 of a *file* before evaluating it.
     ///
@@ -546,6 +582,7 @@ impl Default for LexerGrammar {
             irules_brace_separator: false,
             brace_line_continuation: BraceLineContinuation::Terminates,
             braced_var: BracedVarStyle::Tcl9Nesting,
+            array_index: ArrayIndexSyntax::Tcl9,
             script_skips_leading_bom: true,
             expr_comments: ExprCommentStyle::Hash,
             numbers: NumberSyntax::Tcl90,
@@ -556,13 +593,29 @@ impl Default for LexerGrammar {
 
 #[cfg(test)]
 mod tests {
-    use super::{BracedVarStyle, EscapeSyntax, ExprCommentStyle, LexerGrammar, NumberSyntax};
+    use super::{
+        ArrayIndexSyntax, BracedVarStyle, EscapeSyntax, ExprCommentStyle, LexerGrammar,
+        NumberSyntax,
+    };
 
     #[test]
     fn nesting_rule_is_tcl9_only() {
         assert!(BracedVarStyle::Tcl9Nesting.nests());
         assert!(!BracedVarStyle::FirstClose.nests());
         assert_eq!(BracedVarStyle::default(), BracedVarStyle::Tcl9Nesting);
+    }
+
+    #[test]
+    fn array_index_source_mask_is_tcl9_only() {
+        for byte in [b'(', b'"', b'{', b'}'] {
+            assert!(ArrayIndexSyntax::Tcl9.rejects_literal(byte));
+            assert!(!ArrayIndexSyntax::Tcl8.rejects_literal(byte));
+        }
+        for byte in [b'a', b'[', b'$', b'\\'] {
+            assert!(!ArrayIndexSyntax::Tcl9.rejects_literal(byte));
+            assert!(!ArrayIndexSyntax::Tcl8.rejects_literal(byte));
+        }
+        assert_eq!(ArrayIndexSyntax::default(), ArrayIndexSyntax::Tcl9);
     }
 
     #[test]
