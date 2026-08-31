@@ -338,6 +338,237 @@ pub trait Host {
     }
 }
 
+/// Canonical bootstrap schema for the predefined `tcl_platform` array.
+///
+/// The two interpreters supply the few host- and engine-dependent values via
+/// [`Values`], then install every [`entries`] row.  Keeping the key set, its
+/// portable defaults, and the safe-interpreter scrub policy in this leaf crate
+/// prevents a runtime from silently acquiring a different platform surface.
+pub mod bootstrap {
+    use super::backend;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    enum ValueSource {
+        Literal(&'static str),
+        OsVersion,
+        Machine,
+        User,
+        Runtime,
+        RuntimeVersion,
+        Wasm,
+        Wasi,
+        WasiVersion,
+        Ebpf,
+    }
+
+    /// Engine-provided values for the non-constant platform facts.
+    ///
+    /// Providers intentionally remain strings: Tcl exposes every
+    /// `tcl_platform` element as a string and a restricted host may only know
+    /// the empty value for a fact such as the operating-system release.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct Values<'a> {
+        pub os_version: &'a str,
+        pub machine: &'a str,
+        pub user: &'a str,
+        pub runtime: &'a str,
+        pub runtime_version: &'a str,
+        pub wasm: &'a str,
+        pub wasi: &'a str,
+        pub wasi_version: &'a str,
+        pub ebpf: &'a str,
+    }
+
+    /// One canonical `tcl_platform` element and its safe-interpreter policy.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct Entry {
+        name: &'static str,
+        source: ValueSource,
+        scrub_in_safe: bool,
+    }
+
+    impl Entry {
+        const fn new(name: &'static str, source: ValueSource, scrub_in_safe: bool) -> Self {
+            Self {
+                name,
+                source,
+                scrub_in_safe,
+            }
+        }
+
+        /// The array-element name.
+        #[must_use]
+        pub const fn name(self) -> &'static str {
+            self.name
+        }
+
+        /// Resolve this element for an interpreter's supplied values.
+        #[must_use]
+        pub fn value<'a>(self, values: &'a Values<'a>) -> &'a str {
+            match self.source {
+                ValueSource::Literal(value) => value,
+                ValueSource::OsVersion => values.os_version,
+                ValueSource::Machine => values.machine,
+                ValueSource::User => values.user,
+                ValueSource::Runtime => values.runtime,
+                ValueSource::RuntimeVersion => values.runtime_version,
+                ValueSource::Wasm => values.wasm,
+                ValueSource::Wasi => values.wasi,
+                ValueSource::WasiVersion => values.wasi_version,
+                ValueSource::Ebpf => values.ebpf,
+            }
+        }
+
+        /// Whether `Tcl_MakeSafe` must remove this host-revealing element.
+        #[must_use]
+        pub const fn scrub_in_safe(self) -> bool {
+            self.scrub_in_safe
+        }
+    }
+
+    const ENTRIES: &[Entry] = &[
+        Entry::new("platform", ValueSource::Literal("unix"), false),
+        Entry::new("os", ValueSource::Literal("Linux"), true),
+        Entry::new("osVersion", ValueSource::OsVersion, true),
+        Entry::new("machine", ValueSource::Machine, true),
+        Entry::new("byteOrder", ValueSource::Literal("littleEndian"), false),
+        Entry::new("wordSize", ValueSource::Literal("8"), false),
+        Entry::new("pointerSize", ValueSource::Literal("8"), false),
+        Entry::new("pathSeparator", ValueSource::Literal(":"), false),
+        Entry::new("engine", ValueSource::Literal("Tcl"), false),
+        // Tcl itself keeps `threaded` in a safe child.  It reports build
+        // capability rather than host identity; an embedder may change it to
+        // `1` after bootstrap when it installs thread support.
+        Entry::new("threaded", ValueSource::Literal("0"), false),
+        Entry::new("user", ValueSource::User, true),
+        Entry::new(backend::key::RUNTIME, ValueSource::Runtime, true),
+        Entry::new(
+            backend::key::RUNTIME_VERSION,
+            ValueSource::RuntimeVersion,
+            true,
+        ),
+        Entry::new(backend::key::WASM, ValueSource::Wasm, true),
+        Entry::new(backend::key::WASI, ValueSource::Wasi, true),
+        Entry::new(backend::key::WASI_VERSION, ValueSource::WasiVersion, true),
+        Entry::new(backend::key::EBPF, ValueSource::Ebpf, true),
+    ];
+
+    /// The complete platform array schema, in deterministic installation order.
+    #[must_use]
+    pub fn entries() -> &'static [Entry] {
+        ENTRIES
+    }
+
+    /// Keys removed when an interpreter becomes safe, derived from [`entries`].
+    pub fn safe_scrub_keys() -> impl Iterator<Item = &'static str> {
+        ENTRIES
+            .iter()
+            .copied()
+            .filter(|entry| entry.scrub_in_safe())
+            .map(Entry::name)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        const VALUES: Values<'static> = Values {
+            os_version: "kernel",
+            machine: "machine",
+            user: "user",
+            runtime: "runtime",
+            runtime_version: "runtime-version",
+            wasm: "wasm",
+            wasi: "wasi",
+            wasi_version: "wasi-version",
+            ebpf: "ebpf",
+        };
+
+        #[test]
+        fn schema_has_unique_expected_keys_and_provider_values() {
+            let names = entries()
+                .iter()
+                .map(|entry| entry.name())
+                .collect::<Vec<_>>();
+            assert_eq!(
+                names,
+                [
+                    "platform",
+                    "os",
+                    "osVersion",
+                    "machine",
+                    "byteOrder",
+                    "wordSize",
+                    "pointerSize",
+                    "pathSeparator",
+                    "engine",
+                    "threaded",
+                    "user",
+                    "runtime",
+                    "runtimeVersion",
+                    "wasm",
+                    "wasi",
+                    "wasiVersion",
+                    "ebpf",
+                ]
+            );
+            let mut unique = names.clone();
+            unique.sort_unstable();
+            unique.dedup();
+            assert_eq!(unique.len(), names.len());
+
+            for (name, expected) in [
+                ("osVersion", VALUES.os_version),
+                ("machine", VALUES.machine),
+                ("user", VALUES.user),
+                ("runtime", VALUES.runtime),
+                ("runtimeVersion", VALUES.runtime_version),
+                ("wasm", VALUES.wasm),
+                ("wasi", VALUES.wasi),
+                ("wasiVersion", VALUES.wasi_version),
+                ("ebpf", VALUES.ebpf),
+            ] {
+                let entry = entries()
+                    .iter()
+                    .find(|entry| entry.name() == name)
+                    .expect("provider-backed platform key");
+                assert_eq!(entry.value(&VALUES), expected);
+            }
+        }
+
+        #[test]
+        fn safe_scrub_is_derived_from_the_schema() {
+            let scrubbed = safe_scrub_keys().collect::<Vec<_>>();
+            assert_eq!(
+                scrubbed,
+                [
+                    "os",
+                    "osVersion",
+                    "machine",
+                    "user",
+                    "runtime",
+                    "runtimeVersion",
+                    "wasm",
+                    "wasi",
+                    "wasiVersion",
+                    "ebpf",
+                ]
+            );
+            for portable in [
+                "platform",
+                "byteOrder",
+                "wordSize",
+                "pointerSize",
+                "pathSeparator",
+                "engine",
+                "threaded",
+            ] {
+                assert!(!scrubbed.contains(&portable));
+            }
+        }
+    }
+}
+
 /// Backend introspection for the `tcl_platform` keys the test-suite
 /// backend-constraint overlay reads to decide which upstream tcltest tests a
 /// given build can run.

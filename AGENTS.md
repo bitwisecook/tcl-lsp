@@ -81,6 +81,7 @@ The current owners and their semantic axes are:
 | Per-command knowledge | `tcl-registry::CommandSpec` and descriptors | per release/dialect |
 | Dialect / release facts | `tcl-dialect::DialectProfile` | resolved profile axis |
 | C Tcl conformance oracles | `tcl-test-support` | release line plus exact interpreter/source patchlevel |
+| Interpreter platform bootstrap / safe scrub | `tcl-platform::bootstrap` | host/build values; invariant key and safe policy |
 
 Run `cargo xtask owner-resolution` (included in `make rust-check`) after
 moving an owner or changing one of these axes. Do not add a new owner-shaped
