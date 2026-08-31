@@ -302,13 +302,16 @@ mod tests {
     }
 
     #[test]
-    fn backslash_newline_continuation_collapses_crlf_like_lf() {
-        // A `\<newline>` continuation (LF, CR, or CRLF) plus the whitespace
-        // after it collapses to a single space, matching tclsh.
+    fn only_raw_lf_is_a_backslash_newline_continuation() {
+        // TclParseBackslash recognises raw LF here. A channel may translate
+        // CRLF before this parser seam, but raw CR and CRLF remain data.
         let m: HashMap<String, String> = HashMap::new();
         assert_eq!(subst_nocommands("a\\\n   b", &m).as_deref(), Some("a b"));
-        assert_eq!(subst_nocommands("a\\\r\n\t b", &m).as_deref(), Some("a b"));
-        assert_eq!(subst_nocommands("a\\\rb", &m).as_deref(), Some("a b"));
+        assert_eq!(
+            subst_nocommands("a\\\r\n\t b", &m).as_deref(),
+            Some("a\r\n\t b")
+        );
+        assert_eq!(subst_nocommands("a\\\rb", &m).as_deref(), Some("a\rb"));
     }
 
     #[test]

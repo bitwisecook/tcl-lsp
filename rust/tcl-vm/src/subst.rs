@@ -650,14 +650,12 @@ mod tests {
     }
 
     #[test]
-    fn subst_backslash_newline_collapses_crlf_like_lf() {
-        // `\<LF>`, `\<CR>`, and `\<CRLF>` each collapse — together with the
-        // spaces/tabs after the newline — to a single space, matching what C
-        // Tcl produces for a continuation (`TclParseBackslash`, with CRLF
-        // normalised the way its channel layer would).
+    fn subst_backslash_continuation_accepts_only_raw_lf() {
+        // TclParseBackslash recognises raw LF. A channel may translate CRLF
+        // before this parser seam, but raw CR and CRLF remain data.
         assert_eq!(subst_backslashes("a\\\n   b"), "a b");
-        assert_eq!(subst_backslashes("a\\\r\n\t b"), "a b");
-        assert_eq!(subst_backslashes("a\\\rb"), "a b");
+        assert_eq!(subst_backslashes("a\\\r\n\t b"), "a\r\n\t b");
+        assert_eq!(subst_backslashes("a\\\rb"), "a\rb");
         // FP guard: `\\` is an escaped backslash, so the newline after it is
         // real content, not a continuation.
         assert_eq!(subst_backslashes("x\\\\\r\ny"), "x\\\r\ny");
