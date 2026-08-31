@@ -5447,7 +5447,20 @@ impl Vm {
             return Err(UpvarLinkError::TargetNamespace);
         }
 
-        let (owner_level, owner_base) = self.locate_from(other_base, target_level);
+        // A direct namespace script executes in its caller's frame, but its
+        // unqualified variables live in the active namespace. Frame-only
+        // lookup cannot infer that home for frame zero (there is no synthetic
+        // namespace frame), so resolve this one written-name case before
+        // following links. Other target levels retain their own frame homes.
+        let target_base = if target_level == self.current_level()
+            && self.in_ns_script()
+            && !tcl_syntax::naming::is_qualified(other_base.as_bytes())
+        {
+            tcl_syntax::naming::qualify(self.current_ns(), other_base)
+        } else {
+            other_base.to_owned()
+        };
+        let (owner_level, owner_base) = self.locate_from(&target_base, target_level);
         let owner_is_proc = self
             .frames
             .get(owner_level)
@@ -5469,7 +5482,7 @@ impl Vm {
         let target_name =
             other_key.map_or(owner_base.clone(), |key| format!("{owner_base}({key})"));
         if alias_is_namespace {
-            let alias = self.canonical_var_name(local);
+            let alias = tcl_syntax::naming::qualify(self.current_ns(), local);
             let alias = alias.strip_prefix("::").unwrap_or(&alias).to_owned();
             self.add_global_link(&alias, owner_level, &target_name);
         } else {

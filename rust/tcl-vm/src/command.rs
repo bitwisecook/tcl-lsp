@@ -1862,8 +1862,17 @@ fn missing_parent_ns(vm: &Vm, op: &str, name: &str) -> Option<Completion<Value>>
     }
     Some(err_with_code(
         format!("can't {op} \"{name}\": parent namespace doesn't exist"),
-        &format!("TCL LOOKUP VARNAME {name}"),
+        &lookup_var_error_code(name),
     ))
+}
+
+/// C's `TCL LOOKUP VARNAME` detail is the scalar/array **base**, while the
+/// human-readable message retains the name exactly as written. Keep that
+/// split at the command adapter boundary so `variable`, `global`, and `upvar`
+/// cannot drift (`::missing::v(k)` reports detail `::missing::v`).
+fn lookup_var_error_code(name: &str) -> String {
+    let base = tcl_syntax::naming::split_element_ref(name).map_or(name, |(base, _)| base);
+    format!("TCL LOOKUP VARNAME {base}")
 }
 
 /// C's `MakeUpvar` refusal for a link *target name* that looks like an array
@@ -1888,7 +1897,7 @@ pub(crate) fn upvar_link_error(
     match error {
         crate::interp::UpvarLinkError::TargetNamespace => err_with_code(
             format!("can't access \"{other}\": parent namespace doesn't exist"),
-            &format!("TCL LOOKUP VARNAME {other}"),
+            &lookup_var_error_code(other),
         ),
         crate::interp::UpvarLinkError::Inverted => err_with_code(
             format!(
@@ -1899,7 +1908,7 @@ pub(crate) fn upvar_link_error(
         crate::interp::UpvarLinkError::LocalElement => bad_link_name(local),
         crate::interp::UpvarLinkError::LocalNamespace => err_with_code(
             format!("can't create \"{local}\": parent namespace doesn't exist"),
-            &format!("TCL LOOKUP VARNAME {local}"),
+            &lookup_var_error_code(local),
         ),
     }
 }
