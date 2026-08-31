@@ -85,6 +85,10 @@ const AXES: &[Axis] = &[
         values: &["first-close", "tcl9-nesting"],
     },
     Axis {
+        name: "array_index",
+        values: &["tcl8", "tcl9"],
+    },
+    Axis {
         name: "expr_comments",
         values: &["none", "hash"],
     },

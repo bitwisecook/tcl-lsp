@@ -8444,7 +8444,7 @@ mod tests {
         let pack = evaluate_pack(
             "speclib probe 2.0 {\n dialect picol2 {\n release 2.0\n \
              release 2.1 -build Unknown\n axis expand_syntax off\n \
-             axis braced_var first-close\n axis numbers tcl90\n \
+             axis braced_var first-close\n axis array_index tcl8\n axis numbers tcl90\n \
              axis escapes tcl90\n axis expr_comments hash\n \
              axis bom_skip on\n }\n command demo { arity 1 }\n}",
         );
@@ -8458,6 +8458,7 @@ mod tests {
         let grammar = dialect.to_grammar().expect("every value has a backing");
         assert!(!grammar.expand_syntax);
         assert_eq!(grammar.braced_var, BracedVarStyle::FirstClose);
+        assert_eq!(grammar.array_index, tcl_dialect::ArrayIndexSyntax::Tcl8);
     }
 
     /// An unknown axis, or an unknown value on a known axis, is §6.1's
@@ -8495,7 +8496,7 @@ mod tests {
             "speclib probe 2.0 {\n dialect my-tcl {\n release 1.0\n \
              axis expand_syntax on\n axis braced_var first-close\n \
              axis numbers tcl85\n axis escapes tcl86\n \
-             axis expr_comments none\n axis bom_skip off\n \
+             axis array_index tcl8\n axis expr_comments none\n axis bom_skip off\n \
              axis irules_brace_separator off\n }\n command demo { arity 1 }\n}",
         );
         assert!(pack.dialects.is_empty(), "{:?}", pack.dialects);
