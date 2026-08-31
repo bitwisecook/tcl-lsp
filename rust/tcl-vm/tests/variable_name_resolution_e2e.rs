@@ -446,6 +446,33 @@ puts [p]
         want_8x: "{z1 y}:LOCAL",
         want_90: "{z1 y}:LOCAL",
     },
+    // -- #1729: array element access keeps `(base, key)` as a pair. --
+    Vector {
+        name: "array commands preserve bases containing parentheses",
+        script: r#"foreach name [list {z(b} {z)b} {z(b)c}] {
+    array set $name {a 1 b 2}
+    puts "$name get=[array get $name] names=[array names $name] size=[array size $name]"
+    array unset $name a
+    puts "$name after=[array get $name]"
+}
+set r(\$i) 2
+puts "literal-key=[lindex [array names r] 0]"
+"#,
+        want_8x: "z(b get=a 1 b 2 names=a b size=2\n\
+                  z(b after=b 2\n\
+                  z)b get=a 1 b 2 names=a b size=2\n\
+                  z)b after=b 2\n\
+                  z(b)c get=a 1 b 2 names=a b size=2\n\
+                  z(b)c after=b 2\n\
+                  literal-key=$i",
+        want_90: "z(b get=a 1 b 2 names=a b size=2\n\
+                  z(b after=b 2\n\
+                  z)b get=a 1 b 2 names=a b size=2\n\
+                  z)b after=b 2\n\
+                  z(b)c get=a 1 b 2 names=a b size=2\n\
+                  z(b)c after=b 2\n\
+                  literal-key=$i",
+    },
 ];
 
 #[test]

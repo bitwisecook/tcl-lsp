@@ -6444,27 +6444,65 @@ impl VarStore for Vm {
         }
     }
 
-    // Element access: the VM's by-name accessors already parse `base(key)`, so
-    // get/set/exists reconstruct the name and delegate (honouring `FrameId`).
-    // `unset` is the exception — `unset_var` is element-blind — so it removes the
-    // element directly (active frame; the cores always pass the current frame).
+    // Element access carries `(base, key)` through to the array table. Rebuilding
+    // `base(key)` and feeding it through the scalar-name parser loses bases that
+    // themselves contain `(` (`z(b` + `a` was reparsed as array `z`, key `b(a`).
+    // The active frame keeps the inherent accessors' namespace fallback and
+    // traces; a non-active frame resolves the base from that frame directly.
 
     fn get_elem(&self, frame: FrameId, name: &str, key: &str) -> Option<Value> {
-        self.get(frame, &format!("{name}({key})"))
+        if frame.0 == self.current_level() {
+            self.get_array_elem(name, key)
+        } else {
+            let (level, base) = self.locate_from(name, frame.0);
+            match self.frames.get(level)?.locals.get(&base) {
+                Some(Local::Array(elements)) => elements.get(key).cloned(),
+                _ => None,
+            }
+        }
     }
 
     fn set_elem(&mut self, frame: FrameId, name: &str, key: &str, value: Value) {
-        self.set(frame, &format!("{name}({key})"), value);
+        if frame.0 == self.current_level() {
+            let _ = self.set_array_elem(name, key, value);
+            return;
+        }
+        let (level, base) = self.locate_from(name, frame.0);
+        let Some(owner) = self.frames.get_mut(level) else {
+            return;
+        };
+        match owner.locals.get_mut(&base) {
+            Some(Local::Array(elements)) => {
+                elements.insert(key.to_owned(), value);
+            }
+            Some(Local::Undefined) | None => {
+                let mut elements = BTreeMap::new();
+                elements.insert(key.to_owned(), value);
+                owner.locals.insert(base, Local::Array(elements));
+            }
+            Some(Local::Scalar(_) | Local::Link { .. }) => {}
+        }
     }
 
-    fn unset_elem(&mut self, _frame: FrameId, name: &str, key: &str) -> bool {
-        let existed = self.get_array_elem(name, key).is_some();
-        self.array_unset_elem(name, key);
-        existed
+    fn unset_elem(&mut self, frame: FrameId, name: &str, key: &str) -> bool {
+        if frame.0 == self.current_level() {
+            let existed = self.get_array_elem(name, key).is_some();
+            self.array_unset_elem(name, key);
+            return existed;
+        }
+        let (level, base) = self.locate_from(name, frame.0);
+        match self
+            .frames
+            .get_mut(level)
+            .and_then(|owner| owner.locals.get_mut(&base))
+        {
+            Some(Local::Array(elements)) => elements.remove(key).is_some(),
+            _ => false,
+        }
     }
 
     fn exists_elem(&self, frame: FrameId, name: &str, key: &str) -> bool {
-        self.exists(frame, &format!("{name}({key})"))
+        self.get_elem(frame, name, key).is_some()
     }
 
     fn array_keys(&self, _frame: FrameId, name: &str) -> Option<Vec<String>> {
@@ -7410,6 +7448,19 @@ mod family_b_tests {
         assert!(!vm.exists_elem(GLOBAL_FRAME, "a", "nope"));
         assert!(vm.unset_elem(GLOBAL_FRAME, "a", "k"));
         assert!(!vm.exists_elem(GLOBAL_FRAME, "a", "k"));
+
+        // The pair is never recomposed and reparsed: every parenthesis shape is
+        // a valid array base when the caller already supplied it separately.
+        for base in ["z(b", "z)b", "z(b)c"] {
+            vm.set_elem(GLOBAL_FRAME, base, "a", Value::string(base));
+            assert_eq!(
+                vm.get_elem(GLOBAL_FRAME, base, "a")
+                    .map(|value| value.to_str().to_string()),
+                Some(base.to_owned())
+            );
+            assert!(vm.exists_elem(GLOBAL_FRAME, base, "a"));
+            assert!(vm.unset_elem(GLOBAL_FRAME, base, "a"));
+        }
     }
 
     #[test]

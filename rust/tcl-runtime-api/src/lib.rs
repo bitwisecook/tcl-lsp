@@ -160,7 +160,10 @@ pub trait VarStore {
 
     // Array-element access. The `name` is the array *base* and `key` the element,
     // already split from `base(key)` — runtimes differ on whether the by-name
-    // accessors parse `a(k)`, so element ops are explicit. Mirror the scalar ops.
+    // accessors parse `a(k)`, so element ops are explicit. Implementations must
+    // preserve this pair through storage resolution: recomposing `base(key)` and
+    // parsing it again is ambiguous when the base itself contains `(`. Mirror
+    // the scalar ops.
 
     /// Read array element `name(key)` in `frame`, following links.
     fn get_elem(&self, frame: FrameId, name: &str, key: &str) -> Option<Self::Value>;
