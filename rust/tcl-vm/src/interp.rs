@@ -640,6 +640,11 @@ pub struct InterpState {
     cmd_arena: RefCell<CmdArena>,
     /// Provided packages → version (`package provide`/`require`).
     packages: HashMap<String, String>,
+    /// Package name → version → loader script (`package ifneeded`).
+    package_ifneeded: HashMap<String, HashMap<String, String>>,
+    /// Command prefix invoked by `package require` when no suitable package is
+    /// known yet (`package unknown`).
+    package_unknown: Option<String>,
     /// Variable traces, keyed by a resolved-owner key (frame level + name) so a
     /// trace fires regardless of the access path (`upvar` alias, qualified
     /// name, …). Newest trace last; fired newest-first.
@@ -1391,6 +1396,8 @@ impl InterpState {
             ns_unknown_depth: 0,
             cmd_arena: RefCell::new(CmdArena::default()),
             packages: HashMap::new(),
+            package_ifneeded: HashMap::new(),
+            package_unknown: None,
             var_traces: HashMap::new(),
             cmd_traces: HashMap::new(),
             exec_traces: HashMap::new(),
@@ -1834,6 +1841,31 @@ impl Vm {
         match self.eval_source(AUTO_LOAD_BOOTSTRAP) {
             Ok(c) => c,
             Err(e) => err(e.message),
+        }
+    }
+
+    /// Initialise the selected Tcl script library through the same compiler and
+    /// evaluator used by `eval`, command substitutions, and ordinary `source`.
+    ///
+    /// The caller selects the exact library before constructing the VM by
+    /// setting `TCL_LIBRARY`; [`Self::bootstrap_globals`] publishes it as
+    /// `::tcl_library`. This method deliberately sources the library's real
+    /// `init.tcl` rather than reproducing any of its startup procedures in
+    /// Rust. A compiler must have been installed with [`Self::set_compiler`].
+    pub fn init_library(&mut self) -> Completion<Value> {
+        let Some(library) = self.get_var("::tcl_library") else {
+            return err("can't find Tcl library: tcl_library is not set");
+        };
+        let library = library.to_str();
+        if library.is_empty() {
+            return err("can't find Tcl library: TCL_LIBRARY is empty");
+        }
+        let init_path = std::path::Path::new(&*library).join("init.tcl");
+        let init_path = init_path.to_string_lossy();
+        let script = format!("source {}", tcl_syntax::list::list_element(&init_path));
+        match self.eval_source(&script) {
+            Ok(completion) => completion,
+            Err(error) => err(error.message),
         }
     }
 
@@ -4435,7 +4467,47 @@ impl Vm {
 
     /// Names of all provided packages.
     pub(crate) fn package_names(&self) -> Vec<String> {
-        self.packages.keys().cloned().collect()
+        self.packages
+            .keys()
+            .chain(self.package_ifneeded.keys())
+            .cloned()
+            .collect::<std::collections::HashSet<_>>()
+            .into_iter()
+            .collect()
+    }
+
+    pub(crate) fn set_package_ifneeded(&mut self, name: &str, version: &str, script: &str) {
+        self.package_ifneeded
+            .entry(name.to_owned())
+            .or_default()
+            .insert(version.to_owned(), script.to_owned());
+    }
+
+    pub(crate) fn package_ifneeded(&self, name: &str, version: &str) -> Option<&str> {
+        self.package_ifneeded
+            .get(name)
+            .and_then(|versions| versions.get(version))
+            .map(String::as_str)
+    }
+
+    pub(crate) fn package_ifneeded_versions(&self, name: &str) -> Vec<String> {
+        self.package_ifneeded
+            .get(name)
+            .map(|versions| versions.keys().cloned().collect())
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn forget_package_completely(&mut self, name: &str) {
+        self.packages.remove(name);
+        self.package_ifneeded.remove(name);
+    }
+
+    pub(crate) fn set_package_unknown(&mut self, script: Option<String>) {
+        self.package_unknown = script;
+    }
+
+    pub(crate) fn package_unknown(&self) -> Option<&str> {
+        self.package_unknown.as_deref()
     }
 
     // -- variable traces (`trace add|remove|info variable`) --

@@ -44,6 +44,13 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("::tcl::clock::format", |vm, a| member(vm, "format", a));
     vm.register("::tcl::clock::add", |vm, a| member(vm, "add", a));
     vm.register("::tcl::clock::scan", |vm, a| member(vm, "scan", a));
+    vm.register(
+        "::tcl::unsupported::clock::configure",
+        |_vm, args| match args {
+            [option] if &*option.to_str() == "-init-complete" => ok(Value::empty()),
+            _ => err("unsupported clock configuration option"),
+        },
+    );
 }
 
 /// Dispatch an `::tcl::clock::<sub>` ensemble member by prepending `sub`.

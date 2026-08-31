@@ -16,11 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The `package` command — a minimal version registry.
-//!
-//! Enough to satisfy the `package require Tcl …` / `package provide` /
-//! `package vsatisfies` calls at the top of library scripts like `tcltest`.
-//! No real on-disk package loading (`ifneeded` scripts) is performed yet.
+//! The `package` command — provided versions plus the standard-library
+//! discovery protocol (`unknown` and `ifneeded`).
 
 use std::cmp::Ordering;
 
@@ -76,7 +73,8 @@ fn cmd_package(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
             _ => err("wrong # args: should be \"package provide package ?version?\""),
         },
-        "require" | "present" => pkg_require(vm, rest),
+        "require" => pkg_require(vm, rest, true),
+        "present" => pkg_require(vm, rest, false),
         "vsatisfies" => match rest {
             [version, reqs @ ..] if !reqs.is_empty() => {
                 let v = version.to_str();
@@ -103,24 +101,69 @@ fn cmd_package(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             names.sort();
             ok(Value::list(names.into_iter().map(Value::string).collect()))
         }
-        // The registry tracks a single provided version per package, so
-        // `versions` reports that one (empty list for an unknown package).
         "versions" => match rest {
-            [name] => ok(Value::list(
-                vm.package_version(&name.to_str())
-                    .map(|v| Value::string(v.to_owned()))
-                    .into_iter()
-                    .collect(),
-            )),
+            [name] => {
+                let name = name.to_str();
+                let mut versions = vm.package_ifneeded_versions(&name);
+                if let Some(provided) = vm.package_version(&name) {
+                    if !versions.iter().any(|version| version == provided) {
+                        versions.push(provided.to_owned());
+                    }
+                }
+                versions.sort_by(|left, right| cmp_version(right, left));
+                ok(Value::list(
+                    versions.into_iter().map(Value::string).collect(),
+                ))
+            }
             _ => err("wrong # args: should be \"package versions package\""),
         },
-        // Accepted no-ops.
-        "ifneeded" | "forget" | "unknown" | "prefer" => ok(Value::empty()),
+        "ifneeded" => pkg_ifneeded(vm, rest),
+        "unknown" => pkg_unknown(vm, rest),
+        "forget" => {
+            for name in rest {
+                vm.forget_package_completely(&name.to_str());
+            }
+            ok(Value::empty())
+        }
+        // The VM currently has one deterministic preference policy: newest.
+        "prefer" => match rest {
+            [] => ok(Value::string("latest")),
+            [preference] if &*preference.to_str() == "latest" => ok(Value::string("latest")),
+            [_] => err("bad preference \"stable\": must be latest"),
+            _ => err("wrong # args: should be \"package prefer ?preference?\""),
+        },
         other => err(format!("unknown or ambiguous subcommand \"{other}\"")),
     }
 }
 
-fn pkg_require(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+fn pkg_ifneeded(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    match rest {
+        [name, version] => ok(vm
+            .package_ifneeded(&name.to_str(), &version.to_str())
+            .map_or_else(Value::empty, Value::string)),
+        [name, version, script] => {
+            vm.set_package_ifneeded(&name.to_str(), &version.to_str(), &script.to_str());
+            ok(Value::empty())
+        }
+        _ => err("wrong # args: should be \"package ifneeded package version ?script?\""),
+    }
+}
+
+fn pkg_unknown(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    match rest {
+        [] => ok(vm
+            .package_unknown()
+            .map_or_else(Value::empty, Value::string)),
+        [script] => {
+            let script = script.to_str().to_string();
+            vm.set_package_unknown((!script.is_empty()).then_some(script));
+            ok(Value::empty())
+        }
+        _ => err("wrong # args: should be \"package unknown ?command?\""),
+    }
+}
+
+fn pkg_require(vm: &mut Vm, rest: &[Value], discover: bool) -> Completion<Value> {
     // `-exact NAME VERSION` is the requirement `VERSION-VERSION` — the same
     // rewrite `tclPkg.c`'s `PKG_REQUIRE` arm performs, so exactness needs no
     // second comparison rule (issue #1090).
@@ -139,18 +182,75 @@ fn pkg_require(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     } else {
         reqs.iter().map(|r| r.to_str().to_string()).collect()
     };
-    match vm.package_version(&name) {
-        Some(v) => {
-            let v = v.to_string();
-            let ok_version = reqs.is_empty() || reqs.iter().any(|r| vsatisfies(&v, r));
-            if ok_version {
-                ok(Value::string(v))
-            } else {
-                err(format!("version conflict for package \"{name}\": have {v}"))
-            }
-        }
-        None => err(format!("can't find package {name}")),
+    if let Some(version) = satisfying_provided(vm, &name, &reqs) {
+        return ok(Value::string(version));
     }
+    if !discover {
+        return err(format!("package {name} is not present"));
+    }
+
+    if let Some(prefix) = vm.package_unknown().map(str::to_owned) {
+        let mut callback = prefix;
+        callback.push(' ');
+        callback.push_str(&tcl_syntax::list::list_element(&name));
+        for requirement in &reqs {
+            callback.push(' ');
+            callback.push_str(&tcl_syntax::list::list_element(requirement));
+        }
+        match vm.eval_source(&callback) {
+            Ok(completion) if completion.code.is_ok() => {}
+            Ok(completion) => return completion,
+            Err(error) => return err(error.message),
+        }
+    }
+
+    if let Some((version, loader)) = newest_loader(vm, &name, &reqs) {
+        match vm.eval_source(&loader) {
+            Ok(completion) if completion.code.is_ok() => {}
+            Ok(completion) => return completion,
+            Err(error) => return err(error.message),
+        }
+        if let Some(provided) = satisfying_provided(vm, &name, &reqs) {
+            return ok(Value::string(provided));
+        }
+        return err(format!(
+            "attempt to provide package {name} {version} failed: no version of package {name} provided"
+        ));
+    }
+
+    if let Some(version) = vm.package_version(&name) {
+        err(format!(
+            "version conflict for package \"{name}\": have {version}"
+        ))
+    } else {
+        err(format!("can't find package {name}"))
+    }
+}
+
+fn satisfying_provided(vm: &Vm, name: &str, requirements: &[String]) -> Option<String> {
+    vm.package_version(name)
+        .filter(|version| {
+            requirements.is_empty()
+                || requirements
+                    .iter()
+                    .any(|requirement| vsatisfies(version, requirement))
+        })
+        .map(str::to_owned)
+}
+
+fn newest_loader(vm: &Vm, name: &str, requirements: &[String]) -> Option<(String, String)> {
+    let mut versions = vm.package_ifneeded_versions(name);
+    versions.retain(|version| {
+        requirements.is_empty()
+            || requirements
+                .iter()
+                .any(|requirement| vsatisfies(version, requirement))
+    });
+    versions.sort_by(|left, right| cmp_version(right, left));
+    versions.into_iter().find_map(|version| {
+        vm.package_ifneeded(name, &version)
+            .map(|script| (version, script.to_owned()))
+    })
 }
 
 #[cfg(test)]

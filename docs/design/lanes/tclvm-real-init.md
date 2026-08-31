@@ -31,9 +31,9 @@ lane.
 
 ## Site inventory
 
-- [ ] `rust/tcl-vm/src/interp.rs`: real library initialisation entry point.
-- [ ] `rust/tcl-vm/src/cmd_package.rs`: package unknown/ifneeded discovery.
-- [ ] `rust/tcl-vm/examples/run_test.rs`: initialise, require, then source test.
+- [x] `rust/tcl-vm/src/interp.rs`: real library initialisation entry point.
+- [x] `rust/tcl-vm/src/cmd_package.rs`: package unknown/ifneeded discovery.
+- [x] `rust/tcl-vm/examples/run_test.rs`: initialise, require, then source test.
 - [ ] `rust/tcl-vm/tests/`: mutation-resistant startup and package tests.
 - [ ] `rust/xtask/src/tcltest_sweep.rs`: exact shared Tcl 9.0.4 selection and
       default overlay for both backends.
@@ -47,7 +47,16 @@ lane.
 
 ## Accepted behavioural deltas
 
-None yet.
+- Tcl 9 `source -nopkg` follows the ordinary VM source path because the VM has
+  no package-source bookkeeping to suppress.
+- `glob -directory DIR -join PATTERN ...` now matches successive path
+  components. Real `tclPkgUnknown` requires this to find only child
+  `pkgIndex.tcl` files rather than treating every directory entry as an index.
+- `::tcl::unsupported::clock::configure -init-complete` is accepted as the
+  internal startup notification. Other clock-configuration options remain
+  unsupported and fail explicitly.
+- Focused evidence: real Tcl 9.0.4 `set.test` test `set-1.1` completed through
+  the new path with `Total 64 Passed 1 Skipped 63 Failed 0`.
 
 ## Open uncertainties
 
