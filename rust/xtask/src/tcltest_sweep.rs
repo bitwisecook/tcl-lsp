@@ -595,13 +595,7 @@ pub fn run(
     let c_records: Vec<Record> = if backend == Backend::Vm {
         Vec::new()
     } else {
-        sweep_reference(
-            &root,
-            &source_tree,
-            &stems,
-            match_filter,
-            timeout_s,
-        )?
+        sweep_reference(&root, &source_tree, &stems, match_filter, timeout_s)?
     };
 
     // Run the VM (unless tclsh-only).
