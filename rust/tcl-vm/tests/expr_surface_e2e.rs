@@ -36,11 +36,11 @@ fn boolean_word_prefixes_are_literals_in_every_release() {
         for source in ["t", "tru", "y", "ye", "f", "n", "of"] {
             assert_eq!(
                 vm.eval_expr(source)
-                    .unwrap_or_else(|error| panic!("{version} expr {{{source}}}: {error:?}"))
+                    .unwrap_or_else(|error| panic!("{version:?} expr {{{source}}}: {error:?}"))
                     .to_str()
                     .as_ref(),
                 source,
-                "{version} expr {{{source}}}"
+                "{version:?} expr {{{source}}}"
             );
         }
         assert_eq!(
@@ -49,7 +49,7 @@ fn boolean_word_prefixes_are_literals_in_every_release() {
                 .to_str()
                 .as_ref(),
             "yes",
-            "{version}"
+            "{version:?}"
         );
         assert_eq!(
             vm.eval_expr("!of")
@@ -57,7 +57,7 @@ fn boolean_word_prefixes_are_literals_in_every_release() {
                 .to_str()
                 .as_ref(),
             "1",
-            "{version}"
+            "{version:?}"
         );
 
         let ambiguous = vm
@@ -66,7 +66,7 @@ fn boolean_word_prefixes_are_literals_in_every_release() {
         assert_eq!(
             ambiguous.error_code.as_deref(),
             Some("TCL PARSE EXPR BAREWORD"),
-            "{version}"
+            "{version:?}"
         );
     }
 }

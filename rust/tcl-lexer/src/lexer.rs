@@ -49,8 +49,8 @@
 //!   state (`in_comment` / `at_command_start`). A `[` increments
 //!   `level` only when not inside braces, quotes, or a comment; a `]`
 //!   closes the command only when the outer bracket is the innermost
-//!   nesting and it is not commented out. Backslash escapes consume
-//!   two characters (CRLF counted as one line advance); `${…}`
+//!   nesting and it is not commented out. Backslash escapes use the shared
+//!   raw-parser width (`\\<LF>` is a continuation; raw CRLF is not); `${…}`
 //!   sub-scans exist to stop a `)` or `}` inside a braced variable
 //!   name from fooling the counter. Unterminated `[` tokenizes
 //!   best-effort.
@@ -696,19 +696,12 @@ impl<'src> Lexer<'src> {
                     // Consume backslash + next char as a pair.
                     // `\<newline>` continues the comment to the
                     // next line (matching C Tcl behaviour).
-                    self.pos += 1;
-                    match self.current_char() {
-                        Some(esc @ ('\n' | '\r')) => {
-                            self.pos += 1;
-                            if esc == '\r' && self.current_byte() == Some(b'\n') {
-                                self.pos += 1;
-                            }
-                        }
-                        Some(esc) => {
-                            self.pos += u32::try_from(esc.len_utf8()).expect("char len fits u32");
-                        }
-                        None => {}
-                    }
+                    let end = crate::substitution::backslash_escape_end_in(
+                        self.source(),
+                        self.pos as usize,
+                        self.config.escapes,
+                    );
+                    self.pos = u32::try_from(end).expect("source offset fits u32");
                 }
                 _ => {
                     self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
@@ -1084,19 +1077,12 @@ impl<'src> Lexer<'src> {
                     // text). `\<newline>` inside a quote is NOT a
                     // word break — it's just another pair of
                     // literal bytes.
-                    self.pos += 1;
-                    match self.current_char() {
-                        Some(esc @ ('\n' | '\r')) => {
-                            self.pos += 1;
-                            if esc == '\r' && self.current_byte() == Some(b'\n') {
-                                self.pos += 1;
-                            }
-                        }
-                        Some(esc) => {
-                            self.pos += u32::try_from(esc.len_utf8()).expect("char len fits u32");
-                        }
-                        None => {} // trailing backslash at EOF
-                    }
+                    let end = crate::substitution::backslash_escape_end_in(
+                        self.source(),
+                        self.pos as usize,
+                        self.config.escapes,
+                    );
+                    self.pos = u32::try_from(end).expect("source offset fits u32");
                 }
                 _ => {
                     self.pos += u32::try_from(ch.len_utf8()).expect("char len fits u32");
@@ -1123,11 +1109,11 @@ impl<'src> Lexer<'src> {
             self.in_quote = false;
             // Check for extra characters after close-quote.
             if let Some(after) = self.current_byte() {
-                let is_bs_nl = after == b'\\'
-                    && matches!(
-                        self.source().as_bytes().get(self.pos as usize + 1),
-                        Some(b'\n' | b'\r')
-                    );
+                let is_bs_nl = crate::substitution::backslash_continuation_end(
+                    self.source().as_bytes(),
+                    self.pos as usize,
+                )
+                .is_some();
                 if self.config.irules_brace_separator {
                     // F5 R2 (measurements §1): a word that started with
                     // `"` splits exactly as a braced one — `"a"b` →
@@ -1225,8 +1211,8 @@ impl<'src> Lexer<'src> {
     /// character in `parse_esc`, not a braced-string opener.
     ///
     /// The scanner counts balanced `{` / `}` pairs (`level` starts
-    /// at 1 after skipping the opening `{`). Backslash sequences
-    /// consume two characters as a pair (CRLF counted as one), but
+    /// at 1 after skipping the opening `{`). Backslash sequences use the
+    /// shared raw-parser escape width, but
     /// the backslash and the following character are preserved
     /// literally in the token text — braces are "verbatim" in Tcl,
     /// so `\}` inside a brace body does NOT count as a close brace
@@ -1255,23 +1241,13 @@ impl<'src> Lexer<'src> {
         while let Some(ch) = self.current_char() {
             match ch {
                 '\\' => {
-                    // Consume the backslash and the next character
-                    // as a pair (CRLF counted as one character).
-                    self.pos += 1;
-                    match self.current_char() {
-                        Some(esc @ ('\n' | '\r')) => {
-                            self.pos += 1;
-                            if esc == '\r' && self.current_byte() == Some(b'\n') {
-                                self.pos += 1;
-                            }
-                        }
-                        Some(esc) => {
-                            self.pos += u32::try_from(esc.len_utf8()).expect("char len fits u32");
-                        }
-                        None => {
-                            // Trailing backslash at EOF — leave as is.
-                        }
-                    }
+                    // Consume the canonical raw-parser escape span.
+                    let end = crate::substitution::backslash_escape_end_in(
+                        self.source(),
+                        self.pos as usize,
+                        self.config.escapes,
+                    );
+                    self.pos = u32::try_from(end).expect("source offset fits u32");
                 }
                 '{' => {
                     level += 1;
@@ -1315,11 +1291,11 @@ impl<'src> Lexer<'src> {
                 && !is_separator_byte(after)
             {
                 // Backslash-newline after close-brace is fine
-                let is_bs_nl = after == b'\\'
-                    && matches!(
-                        self.source().as_bytes().get(self.pos as usize + 1),
-                        Some(b'\n' | b'\r')
-                    );
+                let is_bs_nl = crate::substitution::backslash_continuation_end(
+                    self.source().as_bytes(),
+                    self.pos as usize,
+                )
+                .is_some();
                 if !is_bs_nl {
                     if self.config.irules_brace_separator {
                         // F5 R2 (measurements §1): the word started with
@@ -1417,8 +1393,8 @@ impl<'src> Lexer<'src> {
 
     /// Advance one character/escape while inside a command-position comment
     /// nested in `[...]`. Returns `true` only when an unescaped newline ends
-    /// the comment. Escape width comes from the canonical decoder, including
-    /// CRLF continuations and their swallowed indentation.
+    /// the comment. Escape width comes from the canonical decoder; raw CRLF
+    /// is an escaped CR followed by an unescaped LF, not a continuation.
     fn advance_command_comment(&mut self, ch: char) -> bool {
         match ch {
             '\n' => {
@@ -2651,6 +2627,12 @@ mod tests {
                 "\n# hidden \\\n] still comment\nset y 2".into()
             )
         );
+    }
+
+    #[test]
+    fn cmd_comment_raw_crlf_is_not_a_continuation() {
+        let (rows, _) = cmd_token_rows("[\r\n# hidden \\\r\n] visible]");
+        assert_eq!(rows[0], (TokenType::Cmd, "\r\n# hidden \\\r\n".into()));
     }
 
     #[test]

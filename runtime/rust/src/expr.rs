@@ -35,7 +35,7 @@ use core::cmp::Ordering;
 
 use crate::bignum::{self, ArithError};
 use crate::obj::{self, TclObj};
-use tcl_syntax::expr::{BinOp, ExprNode, ExprOps, NumericCompare, UnaryOp, eval};
+use tcl_syntax::expr::{eval, BinOp, ExprNode, ExprOps, NumericCompare, UnaryOp};
 
 /// An expr-evaluation error: Tcl's verbatim message bytes plus an optional
 /// `-errorcode` (a pre-formatted list, e.g. `ARITH DIVZERO {divide by zero}`).
@@ -228,7 +228,7 @@ pub trait ExprCtx {
 /// ([`tcl_syntax::expr::mathfunc`]) — the fallback when a function isn't an
 /// overridable command. `args` are the already-evaluated operands.
 pub fn dispatch_shared(name: &str, args: &[Owned]) -> Result<Owned, ExprError> {
-    use tcl_syntax::expr::mathfunc::{NumValue, dispatch_with_backend};
+    use tcl_syntax::expr::mathfunc::{dispatch_with_backend, NumValue};
     let nums: Option<Vec<NumValue<crate::bignum::TowerMp>>> = args
         .iter()
         .map(|o| crate::bignum::as_math_num(o.ptr()))
@@ -423,10 +423,11 @@ fn bool_obj(b: bool) -> Owned {
     Owned::fresh(obj::new_wide_int_obj(i64::from(b)))
 }
 
-/// Build an object from a literal token: a number (via the shared grammar), a
-/// boolean keyword, else a plain string.
+/// Build an object from a literal token: a number through the shared grammar,
+/// otherwise its original string spelling. Tcl preserves boolean literal text
+/// (`expr {yes}` returns `yes`); coercion happens only in a boolean context.
 fn make_literal(text: &str) -> Owned {
-    use tcl_syntax::number::{Number, parse_whole};
+    use tcl_syntax::number::{parse_whole, Number};
     if let Some(n) = parse_whole(text) {
         return Owned::fresh(match n {
             Number::Int(v) => obj::new_wide_int_obj(v),
@@ -438,11 +439,6 @@ fn make_literal(text: &str) -> Owned {
             } => bignum::from_big_digits(negative, radix, &digits),
             Number::Nan { .. } => obj::new_double_obj(f64::NAN),
         });
-    }
-    match text.to_ascii_lowercase().as_str() {
-        "true" | "yes" | "on" => return bool_obj(true),
-        "false" | "no" | "off" => return bool_obj(false),
-        _ => {}
     }
     Owned::fresh(obj::new_string_bytes(text.as_bytes()))
 }
@@ -524,6 +520,18 @@ mod tests {
         assert_eq!(ok("!0"), b"1");
         assert_eq!(ok("1 ? 42 : 99"), b"42");
         assert_eq!(ok("0 ? 42 : 99"), b"99");
+    }
+
+    #[test]
+    fn boolean_prefixes_share_the_canonical_converter() {
+        for source in [
+            "true", "tru", "t", "yes", "ye", "y", "false", "f", "no", "n", "off", "of",
+        ] {
+            assert_eq!(ok(source), source.as_bytes(), "{source}");
+        }
+        assert_eq!(ok("tru ? yes : no"), b"yes");
+        assert_eq!(ok("!of"), b"1");
+        assert!(ev("o", &[]).is_err(), "on/off share the prefix o");
     }
 
     #[test]

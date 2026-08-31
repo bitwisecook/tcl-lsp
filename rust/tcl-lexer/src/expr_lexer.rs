@@ -29,7 +29,7 @@ use std::collections::HashSet;
 
 use tcl_core_types::RecursionLimit;
 
-use crate::{close_quote_offset, command_substitution_end};
+use crate::{backslash_continuation_end, close_quote_offset, command_substitution_end};
 
 /// Cap on `$name(…)` array-index nesting depth for `Inner::scan_array_index`
 /// — mirrors the main lexer's `MAX_ARRAY_INDEX_DEPTH` (`crate::lexer`) and
@@ -376,8 +376,8 @@ impl<'s> Inner<'s> {
     /// and degrade the whole expression to `ExprNode::Raw`.  The
     /// whitespace scan is LF only — a `\`
     /// before `\r\n` is not a continuation.
-    fn is_backslash_nl(&self, i: usize) -> bool {
-        self.b.get(i) == Some(&b'\\') && self.b.get(i + 1) == Some(&b'\n')
+    fn backslash_nl_end(&self, i: usize) -> Option<usize> {
+        backslash_continuation_end(self.b, i)
     }
 
     fn run(&mut self) -> Vec<ExprToken> {
@@ -386,13 +386,14 @@ impl<'s> Inner<'s> {
             let follows_numeric_lexeme = self.numeric_suffix_probe;
             self.numeric_suffix_probe = false;
             let ch = self.b[self.i];
-            if matches!(ch, b' ' | b'\t' | b'\n' | b'\r') || self.is_backslash_nl(self.i) {
+            if matches!(ch, b' ' | b'\t' | b'\n' | b'\r') || self.backslash_nl_end(self.i).is_some()
+            {
                 let start = self.i;
                 while self.i < self.b.len() {
                     if matches!(self.b[self.i], b' ' | b'\t' | b'\n' | b'\r') {
                         self.i += 1;
-                    } else if self.is_backslash_nl(self.i) {
-                        self.i += 2;
+                    } else if let Some(end) = self.backslash_nl_end(self.i) {
+                        self.i = end;
                     } else {
                         break;
                     }

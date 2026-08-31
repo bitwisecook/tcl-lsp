@@ -495,15 +495,16 @@ pub fn backslash_escape_end(text: &str, i: usize) -> usize {
 /// escape at a time.  Widths match [`backslash_subst_in`] exactly — they are
 /// literally the same scan — covering `\xNN` (two hex
 /// digits from 8.6, unbounded before), `\uNNNN` (1–4 hex), `\UNNNNNNNN` (1–8
-/// hex, 8.6 onward), `\NNN` (1–3 octal), the `\<newline>` line continuation
-/// (LF, CR, or CRLF plus the run of spaces/tabs it absorbs, per
-/// `TclParseBackslash`'s backslash-newline rule), else the backslash plus one
-/// full character.
+/// hex, 8.6 onward), `\NNN` (1–3 octal), the raw `\<LF>` line continuation
+/// plus the run of spaces/tabs it absorbs. A channel may translate CRLF before
+/// parsing; raw escaped CR and raw escaped CRLF are ordinary two-byte escapes
+/// at this parser seam. Every other escape consumes the backslash plus one full
+/// character.
 ///
 /// It lives beside the evaluator because it *is* the same rule.  Separate
 /// hand-rolled copies had drifted — one consumed unbounded hex digits, one
 /// never recognised `\U`, one assumed every escape was two bytes, one missed
-/// the CRLF continuation — so `\x41` was tokenised as an escape `\x` plus a
+/// the continuation indentation — so `\x41` was tokenised as an escape `\x` plus a
 /// string `41`.  The digits (and the continuation's whitespace) belong to the
 /// escape.
 ///
@@ -739,7 +740,7 @@ mod release_vector_tests {
 
 #[cfg(test)]
 mod escape_end_tests {
-    use super::backslash_escape_end;
+    use super::{backslash_continuation_end, backslash_escape_end};
 
     #[test]
     fn widths_match_the_evaluator() {
@@ -783,6 +784,14 @@ mod escape_end_tests {
         // FP guard: an escaped backslash is a 2-byte escape — a newline after
         // it is content, not part of a continuation.
         assert_eq!(backslash_escape_end("\\\\\n  x", 0), 2);
+    }
+
+    #[test]
+    fn continuation_owner_accepts_only_raw_lf() {
+        assert_eq!(backslash_continuation_end(b"\\\n\t  x", 0), Some(5));
+        assert_eq!(backslash_continuation_end(b"\\\r\n\t  x", 0), None);
+        assert_eq!(backslash_continuation_end(b"\\\r\t  x", 0), None);
+        assert_eq!(backslash_continuation_end(b"x\\\n", 0), None);
     }
 }
 
