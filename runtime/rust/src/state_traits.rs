@@ -83,25 +83,35 @@ impl VarStore for Interp {
         }
     }
 
-    // Element access. The runtime's by-name accessors take the array *base*, so
-    // elements use the dedicated `var_*_elem` accessors directly. These resolve
-    // against the active frame (the cores always pass the current `FrameId`); a
-    // non-active frame's elements are a documented gap (no consumer yet).
+    // Element access carries the base and key independently through both the
+    // current and frame-addressed resolver paths.
 
-    fn get_elem(&self, _frame: FrameId, name: &str, key: &str) -> Option<*mut TclObj> {
-        self.var_get_elem(name.as_bytes(), key.as_bytes())
+    fn get_elem(&self, frame: FrameId, name: &str, key: &str) -> Option<*mut TclObj> {
+        if frame.0 == self.frames.borrow().current_level() {
+            self.var_get_elem(name.as_bytes(), key.as_bytes())
+        } else {
+            self.var_get_elem_at(name.as_bytes(), key.as_bytes(), frame.0)
+        }
     }
 
-    fn set_elem(&mut self, _frame: FrameId, name: &str, key: &str, value: *mut TclObj) {
-        let _ = self.var_set_elem(name.as_bytes(), key.as_bytes(), value);
+    fn set_elem(&mut self, frame: FrameId, name: &str, key: &str, value: *mut TclObj) {
+        if frame.0 == self.frames.borrow().current_level() {
+            let _ = self.var_set_elem(name.as_bytes(), key.as_bytes(), value);
+        } else {
+            let _ = self.var_set_elem_at(name.as_bytes(), key.as_bytes(), value, frame.0);
+        }
     }
 
-    fn unset_elem(&mut self, _frame: FrameId, name: &str, key: &str) -> bool {
-        self.var_unset_elem(name.as_bytes(), key.as_bytes())
+    fn unset_elem(&mut self, frame: FrameId, name: &str, key: &str) -> bool {
+        if frame.0 == self.frames.borrow().current_level() {
+            self.var_unset_elem(name.as_bytes(), key.as_bytes())
+        } else {
+            self.var_unset_elem_at(name.as_bytes(), key.as_bytes(), frame.0)
+        }
     }
 
-    fn exists_elem(&self, _frame: FrameId, name: &str, key: &str) -> bool {
-        self.var_get_elem(name.as_bytes(), key.as_bytes()).is_some()
+    fn exists_elem(&self, frame: FrameId, name: &str, key: &str) -> bool {
+        self.get_elem(frame, name, key).is_some()
     }
 
     fn array_keys(&self, _frame: FrameId, name: &str) -> Option<Vec<String>> {
@@ -566,6 +576,15 @@ mod tests {
             assert!(i.get(here, "g").is_none());
             assert!(i.exists(here, "loc"));
             assert!(!i.exists(GLOBAL_FRAME, "loc"));
+            // Frame-addressed pair access must not rebuild `z(b(key)` and
+            // reparse it as a different array reference.
+            i.set_elem(GLOBAL_FRAME, "z(b", "key", new_string(b"pair"));
+            assert_eq!(
+                obj_bytes(i.get_elem(GLOBAL_FRAME, "z(b", "key").unwrap()),
+                b"pair"
+            );
+            assert!(i.exists_elem(GLOBAL_FRAME, "z(b", "key"));
+            assert!(i.unset_elem(GLOBAL_FRAME, "z(b", "key"));
             // Reach back into the global frame from the proc frame.
             i.set(GLOBAL_FRAME, "g2", new_string(b"two"));
             // Pop the proc frame (frees `loc`); the reached-back write is visible.
@@ -573,6 +592,7 @@ mod tests {
             assert_eq!(obj_bytes(i.get(GLOBAL_FRAME, "g2").unwrap()), b"two");
             assert!(i.unset(GLOBAL_FRAME, "g2"));
             assert!(i.unset(GLOBAL_FRAME, "g"));
+            assert!(i.unset(GLOBAL_FRAME, "z(b"));
             assert!(!i.exists(GLOBAL_FRAME, "g"));
         });
     }

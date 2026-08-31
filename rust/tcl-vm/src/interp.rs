@@ -66,6 +66,21 @@ use crate::value::Value;
 /// A deeper nesting is a catchable error, not a native stack overflow.
 pub(crate) const RECURSION_LIMIT: usize = 1000;
 
+/// A semantic `upvar` link failure. The variable resolver decides which home
+/// each side denotes; command adapters only render Tcl's operation-specific
+/// message and error code.
+#[derive(Clone, Copy)]
+pub(crate) enum UpvarLinkError {
+    /// The other-variable names an absent namespace.
+    TargetNamespace,
+    /// A namespace cell would point into a shorter-lived procedure frame.
+    Inverted,
+    /// The alias name has array-element shape.
+    LocalElement,
+    /// The alias names an absent namespace.
+    LocalNamespace,
+}
+
 /// Native-stack safety net for `cmd_control.rs`'s runtime-command fallback
 /// (`cmd_if`/`cmd_while`/`cmd_for`/`each_loop`, reached via a computed
 /// command name or dynamic body — see that module's own doc comment) —
@@ -5413,6 +5428,69 @@ impl Vm {
         }
     }
 
+    /// Resolve and install one `upvar` link, preserving Tcl's semantic homes.
+    ///
+    /// Namespace variables are stored in frame zero in this VM, so resolving
+    /// the target before installing the link gives a representation-independent
+    /// answer to the lifetime check: any final non-zero procedure frame is a
+    /// procedure local. The check precedes alias shape/namespace validation, as
+    /// C's `MakeUpvar` does (`TCL UPVAR INVERTED`).
+    pub(crate) fn link_upvar(
+        &mut self,
+        target_level: usize,
+        other: &str,
+        local: &str,
+    ) -> Result<(), UpvarLinkError> {
+        let (other_base, other_key) =
+            elem_ref(other).map_or((other, None), |(base, key)| (base, Some(key)));
+        if !self.var_parent_exists(other_base) {
+            return Err(UpvarLinkError::TargetNamespace);
+        }
+
+        // A direct namespace script executes in its caller's frame, but its
+        // unqualified variables live in the active namespace. Frame-only
+        // lookup cannot infer that home for frame zero (there is no synthetic
+        // namespace frame), so resolve this one written-name case before
+        // following links. Other target levels retain their own frame homes.
+        let target_base = if target_level == self.current_level()
+            && self.in_ns_script()
+            && !tcl_syntax::naming::is_qualified(other_base.as_bytes())
+        {
+            tcl_syntax::naming::qualify(self.current_ns(), other_base)
+        } else {
+            other_base.to_owned()
+        };
+        let (owner_level, owner_base) = self.locate_from(&target_base, target_level);
+        let owner_is_proc = self
+            .frames
+            .get(owner_level)
+            .is_some_and(|frame| frame.proc_name.is_some());
+        let alias_is_namespace =
+            tcl_syntax::naming::is_qualified(local.as_bytes()) || !self.in_proc_frame();
+        if owner_is_proc && alias_is_namespace {
+            return Err(UpvarLinkError::Inverted);
+        }
+        if tcl_syntax::naming::split_element_ref(local).is_some() {
+            return Err(UpvarLinkError::LocalElement);
+        }
+        if !self.var_parent_exists(local) {
+            return Err(UpvarLinkError::LocalNamespace);
+        }
+
+        // Link targets are internal keys after this boundary. Element aliases
+        // retain the already-split key while the base is resolved exactly once.
+        let target_name =
+            other_key.map_or(owner_base.clone(), |key| format!("{owner_base}({key})"));
+        if alias_is_namespace {
+            let alias = tcl_syntax::naming::qualify(self.current_ns(), local);
+            let alias = alias.strip_prefix("::").unwrap_or(&alias).to_owned();
+            self.add_global_link(&alias, owner_level, &target_name);
+        } else {
+            self.add_link(local, owner_level, &target_name);
+        }
+        Ok(())
+    }
+
     /// Whether a `namespace eval`/`inscope` body is *directly* executing in the
     /// current frame. Returns `false` inside a proc called from such a body —
     /// a proc activation has its own scope where unqualified names are locals,
@@ -5470,6 +5548,18 @@ impl Vm {
             )));
         }
         Ok(())
+    }
+
+    /// Whether the parent namespace of a variable base exists. Element syntax
+    /// is removed before qualification, so `v(x::y)` keeps `::` as key data.
+    pub(crate) fn var_parent_exists(&self, name: &str) -> bool {
+        let base = tcl_syntax::naming::split_element_ref(name).map_or(name, |(base, _)| base);
+        if !tcl_syntax::naming::is_qualified(base.as_bytes()) {
+            return true;
+        }
+        let rooted = self.canonical_var_name(base);
+        let (parent, _) = tcl_syntax::naming::key_holder_and_tail(&rooted);
+        self.namespace_exists(parent.strip_prefix("::").unwrap_or(parent))
     }
 
     /// Like [`Self::locate`] but begins link resolution at frame `start` (used
@@ -6444,27 +6534,65 @@ impl VarStore for Vm {
         }
     }
 
-    // Element access: the VM's by-name accessors already parse `base(key)`, so
-    // get/set/exists reconstruct the name and delegate (honouring `FrameId`).
-    // `unset` is the exception — `unset_var` is element-blind — so it removes the
-    // element directly (active frame; the cores always pass the current frame).
+    // Element access carries `(base, key)` through to the array table. Rebuilding
+    // `base(key)` and feeding it through the scalar-name parser loses bases that
+    // themselves contain `(` (`z(b` + `a` was reparsed as array `z`, key `b(a`).
+    // The active frame keeps the inherent accessors' namespace fallback and
+    // traces; a non-active frame resolves the base from that frame directly.
 
     fn get_elem(&self, frame: FrameId, name: &str, key: &str) -> Option<Value> {
-        self.get(frame, &format!("{name}({key})"))
+        if frame.0 == self.current_level() {
+            self.get_array_elem(name, key)
+        } else {
+            let (level, base) = self.locate_from(name, frame.0);
+            match self.frames.get(level)?.locals.get(&base) {
+                Some(Local::Array(elements)) => elements.get(key).cloned(),
+                _ => None,
+            }
+        }
     }
 
     fn set_elem(&mut self, frame: FrameId, name: &str, key: &str, value: Value) {
-        self.set(frame, &format!("{name}({key})"), value);
+        if frame.0 == self.current_level() {
+            let _ = self.set_array_elem(name, key, value);
+            return;
+        }
+        let (level, base) = self.locate_from(name, frame.0);
+        let Some(owner) = self.frames.get_mut(level) else {
+            return;
+        };
+        match owner.locals.get_mut(&base) {
+            Some(Local::Array(elements)) => {
+                elements.insert(key.to_owned(), value);
+            }
+            Some(Local::Undefined) | None => {
+                let mut elements = BTreeMap::new();
+                elements.insert(key.to_owned(), value);
+                owner.locals.insert(base, Local::Array(elements));
+            }
+            Some(Local::Scalar(_) | Local::Link { .. }) => {}
+        }
     }
 
-    fn unset_elem(&mut self, _frame: FrameId, name: &str, key: &str) -> bool {
-        let existed = self.get_array_elem(name, key).is_some();
-        self.array_unset_elem(name, key);
-        existed
+    fn unset_elem(&mut self, frame: FrameId, name: &str, key: &str) -> bool {
+        if frame.0 == self.current_level() {
+            let existed = self.get_array_elem(name, key).is_some();
+            self.array_unset_elem(name, key);
+            return existed;
+        }
+        let (level, base) = self.locate_from(name, frame.0);
+        match self
+            .frames
+            .get_mut(level)
+            .and_then(|owner| owner.locals.get_mut(&base))
+        {
+            Some(Local::Array(elements)) => elements.remove(key).is_some(),
+            _ => false,
+        }
     }
 
     fn exists_elem(&self, frame: FrameId, name: &str, key: &str) -> bool {
-        self.exists(frame, &format!("{name}({key})"))
+        self.get_elem(frame, name, key).is_some()
     }
 
     fn array_keys(&self, _frame: FrameId, name: &str) -> Option<Vec<String>> {
@@ -7410,6 +7538,19 @@ mod family_b_tests {
         assert!(!vm.exists_elem(GLOBAL_FRAME, "a", "nope"));
         assert!(vm.unset_elem(GLOBAL_FRAME, "a", "k"));
         assert!(!vm.exists_elem(GLOBAL_FRAME, "a", "k"));
+
+        // The pair is never recomposed and reparsed: every parenthesis shape is
+        // a valid array base when the caller already supplied it separately.
+        for base in ["z(b", "z)b", "z(b)c"] {
+            vm.set_elem(GLOBAL_FRAME, base, "a", Value::string(base));
+            assert_eq!(
+                vm.get_elem(GLOBAL_FRAME, base, "a")
+                    .map(|value| value.to_str().to_string()),
+                Some(base.to_owned())
+            );
+            assert!(vm.exists_elem(GLOBAL_FRAME, base, "a"));
+            assert!(vm.unset_elem(GLOBAL_FRAME, base, "a"));
+        }
     }
 
     #[test]

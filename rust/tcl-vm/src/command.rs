@@ -1847,32 +1847,6 @@ fn variable_name_tail(name: &str) -> &str {
     }
 }
 
-/// The namespace qualifier `name` names, or `None` when it is unqualified.
-///
-/// The array element is split off **first**, through the same
-/// [`split_element_ref`](tcl_syntax::naming::split_element_ref) owner the
-/// element guard uses: `TclObjLookupVarEx` separates `part1(part2)` before any
-/// namespace lookup, so a `::` inside an index is data, not a path.
-///
-/// The split only applies when the name *ends* with `)`, and that distinction
-/// is load-bearing — it is what separates these three, all verified on 8.6.16
-/// and 9.0.4:
-///
-/// | name | part1 | qualifier | outcome |
-/// |---|---|---|---|
-/// | `v(x::y)` | `v` | none | accepted — the `::` is index data |
-/// | `v(a)::b` | `v(a)::b` | `v(a)` | parent namespace doesn't exist |
-/// | `::nosuch::v(k)` | `::nosuch::v` | `::nosuch` | parent namespace doesn't exist |
-///
-/// A qualifier of `""` is the global namespace, which always exists.
-fn parent_namespace_of(name: &str) -> Option<&str> {
-    let part1 = match tcl_syntax::naming::split_element_ref(name) {
-        Some((base, _)) => base,
-        None => name,
-    };
-    part1.rfind("::").map(|i| &part1[..i])
-}
-
 /// C's refusal when a qualified variable name's parent namespace is absent —
 /// `TclObjLookupVar`'s `TCL_LEAVE_ERR_MSG` path, which takes the operation
 /// word (`define` for `variable`, `access` for `global`) and reports the name
@@ -1883,14 +1857,22 @@ fn parent_namespace_of(name: &str) -> Option<&str> {
 /// alike. It closes a slice of #1588 (the VM had no parent-namespace check at
 /// all); the remaining `upvar` surface of that issue is untouched.
 fn missing_parent_ns(vm: &Vm, op: &str, name: &str) -> Option<Completion<Value>> {
-    let qualifier = parent_namespace_of(name)?;
-    if vm.namespace_exists(&vm.qualify_name(qualifier)) {
+    if vm.var_parent_exists(name) {
         return None;
     }
     Some(err_with_code(
         format!("can't {op} \"{name}\": parent namespace doesn't exist"),
-        "TCL LOOKUP VARNAME",
+        &lookup_var_error_code(name),
     ))
+}
+
+/// C's `TCL LOOKUP VARNAME` detail is the scalar/array **base**, while the
+/// human-readable message retains the name exactly as written. Keep that
+/// split at the command adapter boundary so `variable`, `global`, and `upvar`
+/// cannot drift (`::missing::v(k)` reports detail `::missing::v`).
+fn lookup_var_error_code(name: &str) -> String {
+    let base = tcl_syntax::naming::split_element_ref(name).map_or(name, |(base, _)| base);
+    format!("TCL LOOKUP VARNAME {base}")
 }
 
 /// C's `MakeUpvar` refusal for a link *target name* that looks like an array
@@ -1904,6 +1886,31 @@ fn bad_link_name(name: &str) -> Completion<Value> {
         ),
         "TCL UPVAR LOCAL_ELEMENT",
     )
+}
+
+/// Render the typed variable-resolver failure from [`Vm::link_upvar`].
+pub(crate) fn upvar_link_error(
+    error: crate::interp::UpvarLinkError,
+    other: &str,
+    local: &str,
+) -> Completion<Value> {
+    match error {
+        crate::interp::UpvarLinkError::TargetNamespace => err_with_code(
+            format!("can't access \"{other}\": parent namespace doesn't exist"),
+            &lookup_var_error_code(other),
+        ),
+        crate::interp::UpvarLinkError::Inverted => err_with_code(
+            format!(
+                "bad variable name \"{local}\": can't create namespace variable that refers to procedure variable"
+            ),
+            "TCL UPVAR INVERTED",
+        ),
+        crate::interp::UpvarLinkError::LocalElement => bad_link_name(local),
+        crate::interp::UpvarLinkError::LocalNamespace => err_with_code(
+            format!("can't create \"{local}\": parent namespace doesn't exist"),
+            &lookup_var_error_code(local),
+        ),
+    }
 }
 
 /// `global name ?name ...?` — link names to the global frame.
@@ -1964,26 +1971,8 @@ fn cmd_upvar(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     while i + 1 < rest.len() {
         let other = rest[i].to_str();
         let local = rest[i + 1].to_str();
-        // The *local* name may not look like an array element (C's `MakeUpvar`);
-        // the other-var side legally may (`upvar 0 arr(k) v` is fine).
-        //
-        // Scoped to unqualified locals on purpose: a *qualified* element-looking
-        // local (`upvar 0 zz ::x::l(k)`) hits C's earlier `can't create namespace
-        // variable that refers to procedure variable` check instead, which this
-        // VM does not implement — guarding it here would emit the wrong message.
-        if !local.contains("::") && looks_like_element(&local) {
-            return bad_link_name(&local);
-        }
-        // Inside a `namespace eval` body, an unqualified alias names a namespace
-        // variable: store the link in the global frame under the qualified name
-        // (and resolve the target to its namespace-qualified location), so a
-        // proc's `variable <name>` finds the same cell.
-        if vm.in_ns_script() && !local.contains("::") && !vm.current_ns().is_empty() {
-            let alias = vm.qualify_name(&local);
-            let target_name = vm.qualify_name(&other);
-            vm.add_global_link(&alias, 0, &target_name);
-        } else {
-            vm.add_link(&local, target, &other);
+        if let Err(error) = vm.link_upvar(target, &other, &local) {
+            return upvar_link_error(error, &other, &local);
         }
         i += 2;
     }

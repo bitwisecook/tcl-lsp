@@ -554,8 +554,9 @@ fn global_element_guard_applies_only_inside_a_proc() {
 /// guard, so a missing namespace is reported as such rather than as an element
 /// error (closes a slice of #1588; the `upvar` surface of that issue remains).
 ///
-/// C reports the name **as written** with `errorCode` `TCL LOOKUP VARNAME`, and
-/// uses a different verb per command — `define` for `variable`, `access` for
+/// C reports the message name **as written**, but `errorCode` is
+/// `TCL LOOKUP VARNAME <base>` — array syntax is stripped from that detail.
+/// It uses a different verb per command: `define` for `variable`, `access` for
 /// `global`. The element split happens first and only when the name *ends* with
 /// `)`, which is what keeps `global v(x::y)` (index data, not a path) accepted
 /// while `variable v(a)::b` is a namespace error.
@@ -581,7 +582,7 @@ fn parent_namespace_is_resolved_before_the_element_guard() {
             err_of(&src),
             format!("can't define \"{name}\": parent namespace doesn't exist")
         );
-        assert_eq!(code_of(&src), "TCL LOOKUP VARNAME");
+        assert_eq!(code_of(&src), "TCL LOOKUP VARNAME ::nosuch::v");
     }
     // A *relative* qualified name resolves against the current namespace.
     assert_eq!(
@@ -605,7 +606,7 @@ fn parent_namespace_is_resolved_before_the_element_guard() {
             err_of(&src),
             format!("can't access \"{name}\": parent namespace doesn't exist")
         );
-        assert_eq!(code_of(&src), "TCL LOOKUP VARNAME");
+        assert_eq!(code_of(&src), "TCL LOOKUP VARNAME ::nosuch::v");
     }
 
     // The element split only applies when the name ENDS with `)`. That is what
