@@ -292,14 +292,26 @@ fn scan_parts_at_depth(
                 i = scan_var_name(src, i);
                 let name = &src[ns..i];
                 if i < len && src[i] == b'(' {
-                    i += 1;
-                    let ks = i;
-                    while i < len && src[i] != b')' {
-                        i += 1;
-                    }
-                    let ke = i;
-                    if i < len {
-                        i += 1; // consume `)`
+                    let scan = tcl_lexer::scan_array_index(
+                        src,
+                        i,
+                        config.array_index,
+                        config.braced_var,
+                    );
+                    let (ks, ke) = match scan.end {
+                        tcl_lexer::ArrayIndexEnd::Closed(end) => (i + 1, end - 1),
+                        tcl_lexer::ArrayIndexEnd::Unterminated => (i + 1, len),
+                    };
+                    i = match scan.end {
+                        tcl_lexer::ArrayIndexEnd::Closed(end) => end,
+                        tcl_lexer::ArrayIndexEnd::Unterminated => len,
+                    };
+                    if scan.invalid.is_some() {
+                        parts.push(WordPart::ParseError(
+                            tcl_lexer::INVALID_CHARACTER_IN_ARRAY_INDEX,
+                        ));
+                        lit_start = i;
+                        continue;
                     }
                     // The index is itself substituted at eval time — unless
                     // this call is already past the depth cap, in which case
@@ -572,11 +584,19 @@ fn build_word<'s>(
                     tcl_syntax::backslash::collapse_brace_continuations(bytes),
                 ));
             }
-            TokenType::Var => parts.push(WordPart::Variable(parse_var_ref(
-                bytes,
-                t.content_offset == 2,
-                config,
-            ))),
+            TokenType::Var => {
+                if array_index_parse_error(bytes, t.content_offset == 2, config) {
+                    parts.push(WordPart::ParseError(
+                        tcl_lexer::INVALID_CHARACTER_IN_ARRAY_INDEX,
+                    ));
+                } else {
+                    parts.push(WordPart::Variable(parse_var_ref(
+                        bytes,
+                        t.content_offset == 2,
+                        config,
+                    )));
+                }
+            }
             TokenType::Cmd => parts.push(WordPart::Command(bytes)),
             _ => {}
         }
@@ -631,6 +651,21 @@ fn parse_var_ref(bytes: &[u8], braced: bool, config: LexerConfig) -> VarRef<'_> 
         name: bytes,
         index: None,
     }
+}
+
+/// Whether a lexer-produced variable token carries an array-index source byte
+/// forbidden by the selected release. The script lexer records the same fact
+/// as a recovery warning; this runtime parser turns it into an evaluable
+/// parse-error part so direct Rust/WASM interpretation cannot bypass #1732.
+fn array_index_parse_error(bytes: &[u8], braced: bool, config: LexerConfig) -> bool {
+    if braced {
+        return false;
+    }
+    let open = scan_var_name(bytes, 0);
+    bytes.get(open) == Some(&b'(')
+        && tcl_lexer::scan_array_index(bytes, open, config.array_index, config.braced_var)
+            .invalid
+            .is_some()
 }
 
 // ---------------------------------------------------------------------------
@@ -759,6 +794,37 @@ mod tests {
         assert_eq!(scan_var_name(b"::a:::b rest", 0), 7);
         assert_eq!(scan_var_name(b"foo::: rest", 0), 6);
         assert_eq!(scan_var_name(b"a:::b(k)", 0), 5);
+    }
+
+    #[test]
+    fn array_index_source_mask_follows_the_release() {
+        for (dialect, malformed) in [
+            ("tcl8.4", false),
+            ("tcl8.6", false),
+            ("tcl9.0", true),
+            ("tcl9.1", true),
+        ] {
+            let config = LexerConfig::for_dialect(dialect);
+            let body = scan_parts(b"$a({key})", true, true, true, config);
+            let parts = match body {
+                WordBody::Parts(parts) => parts,
+                WordBody::Literal(_) => panic!("variable must produce parts"),
+            };
+            assert_eq!(
+                matches!(parts.as_slice(), [WordPart::ParseError(msg)] if *msg == tcl_lexer::INVALID_CHARACTER_IN_ARRAY_INDEX),
+                malformed,
+                "{dialect}: {parts:?}"
+            );
+        }
+
+        let config = LexerConfig::for_dialect("tcl9.0");
+        for source in [b"$a(\\{key\\})" as &[u8], b"$a(${key})", b"$a([format \\{])"] {
+            let body = scan_parts(source, true, true, true, config);
+            assert!(
+                !matches!(body, WordBody::Parts(ref parts) if parts.iter().any(|part| matches!(part, WordPart::ParseError(_)))),
+                "Tcl 9 accepts escaped/substituted source: {source:?}"
+            );
+        }
     }
 
     #[test]

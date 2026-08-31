@@ -26,15 +26,15 @@ release.
 
 ## Site inventory
 
-- [ ] `rust/tcl-dialect`: release axis, catalogue/dynamic grammar values, and
+- [x] `rust/tcl-dialect`: release axis, catalogue/dynamic grammar values, and
   invariant tests.
-- [ ] `rust/tcl-lexer`: `LexerConfig` threading, main array scanner, expression
+- [x] `rust/tcl-lexer`: `LexerConfig` threading, main array scanner, expression
   scanner, shared error spelling, and release/control tests.
-- [ ] `rust/tcl-compiler`: fatal parse barrier classification and tests.
-- [ ] `runtime/rust`: `scan_parts_at_depth` / script-word runtime parity and
-  focused execution tests.
-- [ ] `rust/tcl-vm`: cross-version bytecode VM and Tcl oracle coverage.
-- [ ] ownership/design documentation and mutation verification.
+- [x] `rust/tcl-compiler`: fatal parse barrier classification and tests.
+- [x] `runtime/rust`: `scan_parts_at_depth` / script-word runtime parity and
+  focused parser tests.
+- [x] `rust/tcl-vm`: cross-version bytecode VM coverage.
+- [x] ownership/design documentation.
 
 ## Oracle evidence
 
@@ -50,13 +50,18 @@ Upstream source evidence is `generic/tclParse.h`'s
 `ParseTokens`. Tcl 8.6 passes only `TYPE_CLOSE_PAREN`; Tcl 9.0.4 also stops on
 raw open parenthesis, quote, and either brace, then raises the exact message.
 
+The locally built oracle was re-run after the implementation. Tcl 9.0.4 emits
+`invalid character in array index` for `set ignored $a({key})`, accepts the
+escaped form `$a(\{key\})`, and treats a substituted `{key}` as a runtime key
+rather than a source parse error.
+
 ## Open uncertainties
 
-- The runtime parser currently represents other malformed substitutions as
-  `WordPart::ParseError` so evaluation can raise them. Verify whether the new
-  script-word error needs the same representation or can be rejected earlier
-  from the lexer warning without changing public command structures.
-- The requested regression is raw braces, but the named Tcl 9 axis should
-  model C's complete source mask rather than baking two brace checks into
-  three scanners. Add controls for the complete mask without broadening the
-  issue's behavioural claims beyond verified C source.
+- The Rust runtime uses `WordPart::ParseError` for the direct parser path,
+  preserving recovery while reporting the compiler-parity message during
+  evaluation. The bytecode compiler rejects it earlier through the fatal parse
+  barrier, matching Tcl's catchable dynamic compilation behaviour.
+- The requested raw-brace regression is implemented through the complete
+  observed Tcl 9 source mask: opening parenthesis, quote, and either brace.
+  Escapes and complete substitutions are intentionally skipped before that
+  classifier is consulted.

@@ -27,17 +27,7 @@
 
 use std::collections::HashSet;
 
-use tcl_core_types::RecursionLimit;
-
 use crate::{backslash_continuation_end, close_quote_offset, command_substitution_end};
-
-/// Cap on `$name(…)` array-index nesting depth for `Inner::scan_array_index`
-/// — mirrors the main lexer's `MAX_ARRAY_INDEX_DEPTH` (`crate::lexer`) and
-/// exists for the same reason: unbounded self-recursion on
-/// `$a($b($c(...)))` could otherwise abort the process with an
-/// uncatchable native-stack overflow on pathologically deep input. See
-/// `docs/design/compiler/recursive-descent-depth-limits.md`.
-const MAX_EXPR_ARRAY_INDEX_DEPTH: RecursionLimit = RecursionLimit(64);
 
 /// Token types specific to Tcl expressions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -310,6 +300,10 @@ struct Inner<'s> {
     /// the VM answer one expression grammar two ways depending on the carrying
     /// command (issue #1601).
     braced_var: tcl_dialect::BracedVarStyle,
+    /// The release's source-level array-index grammar. Kept with the other
+    /// profile grammar facts so `expr` cannot accept an index the containing
+    /// script lexer rejects (issue #1732).
+    array_index: tcl_dialect::ArrayIndexSyntax,
     /// The release whose `expr` lexeme table this dialect uses, for the
     /// word-shaped operators (`eq`, `in`, `lt`, …) — the profile's
     /// `expr_grammar_base`, resolved through
@@ -338,6 +332,7 @@ impl<'s> Inner<'s> {
             expr_comments: profile.grammar.expr_comments.comments(),
             numbers: profile.grammar.numbers,
             braced_var: profile.grammar.braced_var,
+            array_index: profile.grammar.array_index,
             expr_grammar_base: profile.expr_grammar_base,
             numeric_suffix_probe: false,
             unknown: false,
@@ -525,85 +520,19 @@ impl<'s> Inner<'s> {
                 }
             }
             if self.i < self.b.len() && self.b[self.i] == b'(' {
-                self.i += 1;
-                if !self.scan_array_index(0) {
-                    // As with an unterminated command or quote, let recovery
-                    // retain the token while making `parse_expr` fail closed.
-                    self.unknown = true;
-                }
+                let scan =
+                    crate::scan_array_index(self.b, self.i, self.array_index, self.braced_var);
+                self.i = match scan.end {
+                    crate::ArrayIndexEnd::Closed(end) => end,
+                    crate::ArrayIndexEnd::Unterminated => self.b.len(),
+                };
+                // The expression parser has no diagnostic channel, so any
+                // malformed index makes this recovery token inexecutable.
+                self.unknown |= scan.invalid.is_some()
+                    || matches!(scan.end, crate::ArrayIndexEnd::Unterminated);
             }
         }
         self.tok(ExprTokenType::Variable, start)
-    }
-
-    /// Scan a `$name(…)` array-index body (after the opening `(`) up to and
-    /// including the first top-level `)`.
-    ///
-    /// Mirrors the main lexer's `scan_array_index_body`: C Tcl does NOT nest
-    /// parens, so the index ends at the first `)`; a literal `(` is text. A `)`
-    /// stays in the index only when escaped (`\)`), inside a `[…]` command
-    /// substitution, or inside a nested `${…}` / `$name(…)` reference — whose
-    /// tokens are scanned so their inner `)` are not the terminator. The old
-    /// paren-counting left `$a((b)` unterminated and ended `$a(x\)y)` at the
-    /// escaped `)`.
-    ///
-    /// `depth` is the nesting level of this call (0 at the top); past
-    /// [`MAX_EXPR_ARRAY_INDEX_DEPTH`] a nested `$name(` is scanned as an
-    /// ordinary character rather than recursed into, so pathologically
-    /// deep `$a($b($c(...)))` input degrades gracefully rather than
-    /// overflowing the native stack.
-    fn scan_array_index(&mut self, depth: u32) -> bool {
-        let past_cap = MAX_EXPR_ARRAY_INDEX_DEPTH.exceeded(depth);
-        while self.i < self.b.len() {
-            match self.b[self.i] {
-                b')' => {
-                    self.i += 1;
-                    return true;
-                }
-                b'\\' => self.i = (self.i + 2).min(self.b.len()),
-                b'[' => match command_substitution_end(self.s, self.i) {
-                    Some(end) => self.i = end,
-                    // A `]` in a nested braced/quoted script word cannot
-                    // close the substitution. Delegate that grammar to the
-                    // shared range owner rather than approximating it here.
-                    None => return false,
-                },
-                b'$' if !past_cap => {
-                    self.i += 1;
-                    if self.i < self.b.len() && self.b[self.i] == b'{' {
-                        self.i += 1;
-                        while self.i < self.b.len() && self.b[self.i] != b'}' {
-                            self.i += 1;
-                        }
-                        if self.i < self.b.len() {
-                            self.i += 1;
-                        }
-                    } else {
-                        while self.i < self.b.len() {
-                            let c = self.b[self.i];
-                            if c.is_ascii_alphanumeric() || c == b'_' {
-                                self.i += 1;
-                            } else if c == b':'
-                                && self.i + 1 < self.b.len()
-                                && self.b[self.i + 1] == b':'
-                            {
-                                self.i += 2;
-                            } else {
-                                break;
-                            }
-                        }
-                        if self.i < self.b.len() && self.b[self.i] == b'(' {
-                            self.i += 1;
-                            if !self.scan_array_index(depth + 1) {
-                                return false;
-                            }
-                        }
-                    }
-                }
-                _ => self.i += 1,
-            }
-        }
-        false
     }
 
     fn command(&mut self) -> ExprToken {
@@ -971,6 +900,26 @@ mod tests {
             texts("$a(${b(c)})").first().map(String::as_str),
             Some("$a(${b(c)})")
         );
+    }
+
+    #[test]
+    fn array_index_literal_brace_follows_the_release_rule() {
+        let source = "$a({key})";
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let (tokens, unknown) = tokenise_expr_checked(source, Some(dialect));
+            assert_eq!(
+                tokens.first().map(|token| token.text.as_str()),
+                Some(source)
+            );
+            assert_eq!(unknown, dialect.starts_with("tcl9"), "{dialect}");
+        }
+        for source in [r"$a(\{key\})", "$a(${key})", "$a([format \\{])"] {
+            let (_tokens, unknown) = tokenise_expr_checked(source, Some("tcl9.0"));
+            assert!(
+                !unknown,
+                "Tcl 9 accepts substitution/escaped source: {source}"
+            );
+        }
     }
 
     /// Issue #1601 — the `${…}` closer follows the release's

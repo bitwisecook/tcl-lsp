@@ -728,6 +728,32 @@ mod tests {
     use super::*;
     use crate::{Lexer, SourceMap, Span, TokenType};
 
+    #[test]
+    fn array_index_source_mask_follows_the_release() {
+        let scan = |source: &str, syntax| {
+            scan_array_index(source.as_bytes(), 2, syntax, BracedVarStyle::Tcl9Nesting)
+        };
+
+        // Tcl 9's `TYPE_BAD_ARRAY_INDEX` rejects all of these literal bytes,
+        // while Tcl 8's `Tcl_ParseVarName` passed only `TYPE_CLOSE_PAREN`.
+        for source in ["$a({k})", "$a(\"k\")", "$a((k)", "$a(}k)"] {
+            let modern = scan(source, ArrayIndexSyntax::Tcl9);
+            assert!(modern.invalid.is_some(), "Tcl 9 must reject {source}");
+            assert_eq!(modern.end, ArrayIndexEnd::Closed(source.len()));
+            assert_eq!(scan(source, ArrayIndexSyntax::Tcl8).invalid, None);
+        }
+
+        // The source mask applies only before substitution. An escaped byte or
+        // the value produced by a variable/command substitution is legal.
+        for source in ["$a(\\{k\\})", "$a(${key})", "$a([format \\{])"] {
+            assert_eq!(
+                scan(source, ArrayIndexSyntax::Tcl9).invalid,
+                None,
+                "{source}"
+            );
+        }
+    }
+
     /// The `${…}` close rule (issue #1457). `Tcl_ParseVarName` delimits the
     /// brace form differently in the 8.x family (`tclParse.c(8.6.16):1398` —
     /// first literal `}`) and in 9.x (`tclParse.c(9.0.4):1315` — brace depth

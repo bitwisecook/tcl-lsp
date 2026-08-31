@@ -607,11 +607,11 @@ mod tests {
 
     #[test]
     fn array_index_source_mask_is_tcl9_only() {
-        for byte in [b'(', b'"', b'{', b'}'] {
+        for byte in *b"(\"{}" {
             assert!(ArrayIndexSyntax::Tcl9.rejects_literal(byte));
             assert!(!ArrayIndexSyntax::Tcl8.rejects_literal(byte));
         }
-        for byte in [b'a', b'[', b'$', b'\\'] {
+        for byte in *b"a[$\\" {
             assert!(!ArrayIndexSyntax::Tcl9.rejects_literal(byte));
             assert!(!ArrayIndexSyntax::Tcl8.rejects_literal(byte));
         }

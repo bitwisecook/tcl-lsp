@@ -78,9 +78,9 @@ pub use lexer::{LeadingBom, LexError, LexWarning, Lexer, LexerConfig, UTF8_BOM};
 pub use line_index::{LineIndex, normalise_lone_cr};
 pub use ranges::{
     ArrayIndexEnd, ArrayIndexScan, BracedVarEnd, INVALID_CHARACTER_IN_ARRAY_INDEX,
-    MISSING_CLOSE_BRACE_FOR_VAR, braced_var_name_end, close_quote_offset,
-    command_substitution_end, scan_array_index, word_append_offset, word_closer_offset,
-    word_closer_offset_at, word_end_position, word_span, word_span_at,
+    MISSING_CLOSE_BRACE_FOR_VAR, braced_var_name_end, close_quote_offset, command_substitution_end,
+    scan_array_index, word_append_offset, word_closer_offset, word_closer_offset_at,
+    word_end_position, word_span, word_span_at,
 };
 pub use source_map::SourceMap;
 pub use span::Span;

@@ -463,7 +463,7 @@ fn concat_keeps_backslash_escaped_trailing_space() {
     assert_eq!(result, "a b c"); // plain whitespace is trimmed
 }
 
-/// TclParseBackslash recognises only raw `\<LF>` as a continuation. A source
+/// `TclParseBackslash` recognises only raw `\<LF>` as a continuation. A source
 /// channel may normalise CRLF first, but bytes passed directly to the compiler
 /// and VM retain raw CR/CRLF exactly like `Tcl_EvalObjEx` (issue #1579).
 #[test]

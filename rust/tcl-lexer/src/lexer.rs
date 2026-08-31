@@ -1437,13 +1437,8 @@ impl<'src> Lexer<'src> {
                     // A raw CR is ordinary escaped data, so a following LF is
                     // left for the next iteration to terminate the command.
                     self.pos += 1;
-                    match self.current_char() {
-                        Some(esc) => {
-                            self.pos += u32::try_from(esc.len_utf8()).expect("char len fits u32");
-                        }
-                        None => {
-                            // Trailing backslash at EOF — leave as is.
-                        }
+                    if let Some(esc) = self.current_char() {
+                        self.pos += u32::try_from(esc.len_utf8()).expect("char len fits u32");
                     }
                     // A continuation substitutes to whitespace and keeps
                     // command position; every other escape is word content.
@@ -2222,6 +2217,49 @@ mod tests {
     fn var_array_index_unterminated_tokenises_best_effort() {
         let (rows, _) = var_token_text("$arr(idx");
         assert_eq!(rows[0], (TokenType::Var, "arr(idx".into()));
+    }
+
+    /// Issue #1732 — Tcl 9 rejects a literal brace in an array-index source,
+    /// while the 8.x grammar retains it as ordinary index text. The recovery
+    /// token is intentionally identical on both paths; only the modern path
+    /// carries the fatal compiler-facing warning.
+    #[test]
+    fn array_index_literal_brace_follows_the_release_rule() {
+        let source = "$arr({key})";
+        for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let (tokens, warnings) =
+                Lexer::with_source_map(SourceMap::new(source), LexerConfig::for_dialect(dialect))
+                    .tokenise_all_with_warnings()
+                    .expect("lexes recoverably");
+            let variable = tokens
+                .iter()
+                .find(|token| token.kind == TokenType::Var)
+                .expect("variable token");
+            assert_eq!(SourceMap::new(source).token_text(*variable), "arr({key})");
+            assert_eq!(
+                warnings
+                    .iter()
+                    .any(|warning| warning.message == crate::INVALID_CHARACTER_IN_ARRAY_INDEX),
+                dialect.starts_with("tcl9"),
+                "{dialect}: {warnings:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn array_index_substitution_and_escape_shield_tcl9_source_bytes() {
+        for source in ["$arr(\\{key\\})", "$arr(${key})", "$arr([format \\{])"] {
+            let (_tokens, warnings) =
+                Lexer::with_source_map(SourceMap::new(source), LexerConfig::for_dialect("tcl9.0"))
+                    .tokenise_all_with_warnings()
+                    .expect("lexes");
+            assert!(
+                warnings
+                    .iter()
+                    .all(|warning| warning.message != crate::INVALID_CHARACTER_IN_ARRAY_INDEX),
+                "{source}: {warnings:?}"
+            );
+        }
     }
 
     #[test]
