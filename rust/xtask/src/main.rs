@@ -88,6 +88,7 @@ mod pack_goldens;
 mod registry_oracle;
 mod resolution_drift;
 mod retired_api_gate;
+mod runtime_stdlib;
 mod sslictcl_data;
 mod tcltest_sweep;
 mod tzdata_bundle;
@@ -334,6 +335,10 @@ enum Command {
         max_age_days: Option<u64>,
     },
 
+    /// Verify the embedded Tcl standard-library provenance and byte inventory.
+    #[command(name = "runtime-stdlib")]
+    RuntimeStdlib,
+
     /// Compare the iRules registry with a local BIG-IP schema/man-page
     /// extract; exact source omissions fail, newer registry entries are
     /// reported separately.
@@ -428,6 +433,7 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::NumberDrift { check } => Ok(number_drift::run(check)),
         Command::ResolutionDrift { check } => Ok(resolution_drift::run(check)),
         Command::RetiredApiGate { check } => Ok(retired_api_gate::run(check)),
+        Command::RuntimeStdlib => runtime_stdlib::run(),
         Command::OwnerResolution => owner_resolution::run(),
         Command::PackGoldens { check } => Ok(pack_goldens::run(check)),
         Command::SslictclData {
