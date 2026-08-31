@@ -239,7 +239,7 @@ impl SlotOp {
 
     /// Resolve an exact runtime slot method for `version`.
     ///
-    /// TclOO slot methods do not abbreviate. The miss message uses TclOO's
+    /// `TclOO` slot methods do not abbreviate. The miss message uses `TclOO`'s
     /// no-Oxford-comma method list and is filtered before rendering so Tcl 8.6
     /// never advertises the 9.0-only operations.
     ///

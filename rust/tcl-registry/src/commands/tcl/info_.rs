@@ -95,7 +95,6 @@ const fn properties_sub(detail: &'static str, synopsis: &'static str) -> SubSubC
         options: Some(INFO_PROPERTIES_OPTIONS),
         surface: Some(SpecSurface::TCL90_PLUS),
         lifecycle: Lifecycle::introduced_in("9.0"),
-        ..SubSubCommand::DEFAULT
     }
 }
 
@@ -258,7 +257,7 @@ const INFO_CLASS_SUBS: &[SubSubCommand] = &[
     ),
 ];
 
-/// Which TclOO second-level `info` ensemble is being dispatched.
+/// Which `TclOO` second-level `info` ensemble is being dispatched.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InfoOoEnsembleKind {
     /// `info object subcommand ...`
@@ -306,7 +305,7 @@ impl InfoOoEnsembleKind {
     }
 }
 
-/// The registry-derived, release-filtered operation table for one TclOO
+/// The registry-derived, release-filtered operation table for one `TclOO`
 /// `info` ensemble.
 ///
 /// The registry owns which operations exist; `tcl-cmd-core::ensemble` owns
