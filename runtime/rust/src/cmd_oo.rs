@@ -45,7 +45,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
 use tcl_core_types::RecursionLimit;
-use tcl_registry::commands::tcl::{InfoOoEnsembleKind, info_oo_subcommands};
+use tcl_registry::commands::tcl::{
+    info_oo_subcommands, resolve_info_oo_properties_option, resolve_tcloo_property_kind,
+    resolve_tcloo_property_option, InfoOoEnsembleKind, InfoOoPropertiesOption, TclOoPropertyKind,
+    TclOoPropertyOption,
+};
 
 use crate::interp::{
     obj_bytes, CallMeta, Code, Command, Interp, MethodFrameWhat, Param, ProcFrame,
@@ -649,21 +653,17 @@ fn prop_define(interp: &mut Interp, argv: &[*mut TclObj], use_instance: bool) ->
         let mut getter: Option<Vec<u8>> = None;
         let mut setter: Option<Vec<u8>> = None;
         while i < argv.len() && obj_bytes(argv[i]).first() == Some(&b'-') {
-            let opt = obj_bytes(argv[i]);
-            // Options accept unambiguous prefixes (`-g`/`-k`/`-s`).
-            let optname: &[u8] = match prefix_match(&opt, &[b"-get", b"-kind", b"-set"]) {
-                Some(o) => o,
-                None => {
-                    let mut m = b"bad option \"".to_vec();
-                    m.extend_from_slice(&opt);
-                    m.extend_from_slice(b"\": must be -get, -kind, or -set");
+            let opt_word = obj_bytes(argv[i]);
+            let option = match resolve_tcloo_property_option(&opt_word) {
+                Ok(option) => option,
+                Err(message) => {
                     let mut code = b"TCL LOOKUP INDEX option ".to_vec();
-                    code.extend_from_slice(&opt);
-                    return interp.error_with_code(&m, &code);
+                    code.extend_from_slice(&opt_word);
+                    return interp.error_with_code(&message, &code);
                 }
             };
             if i + 1 >= argv.len() {
-                let what: &[u8] = if optname == b"-kind" {
+                let what: &[u8] = if option == TclOoPropertyOption::Kind {
                     b"kind value"
                 } else {
                     b"body"
@@ -671,38 +671,34 @@ fn prop_define(interp: &mut Interp, argv: &[*mut TclObj], use_instance: bool) ->
                 let mut m = b"missing ".to_vec();
                 m.extend_from_slice(what);
                 m.extend_from_slice(b" to go with ");
-                m.extend_from_slice(optname);
+                m.extend_from_slice(option.name().as_bytes());
                 m.extend_from_slice(b" option");
                 return interp.error_with_code(&m, b"TCL WRONGARGS");
             }
             let val = obj_bytes(argv[i + 1]);
             i += 2;
-            match optname {
-                b"-get" => getter = Some(val),
-                b"-set" => setter = Some(val),
-                b"-kind" => match prefix_match(&val, &[b"readable", b"readwrite", b"writable"]) {
-                    Some(b"readable") => {
+            match option {
+                TclOoPropertyOption::Get => getter = Some(val),
+                TclOoPropertyOption::Set => setter = Some(val),
+                TclOoPropertyOption::Kind => match resolve_tcloo_property_kind(&val) {
+                    Ok(TclOoPropertyKind::Readable) => {
                         kind_ro = true;
                         kind_wo = false;
                     }
-                    Some(b"writable") => {
+                    Ok(TclOoPropertyKind::Writable) => {
                         kind_wo = true;
                         kind_ro = false;
                     }
-                    Some(b"readwrite") => {
+                    Ok(TclOoPropertyKind::ReadWrite) => {
                         kind_ro = false;
                         kind_wo = false;
                     }
-                    _ => {
-                        let mut m = b"bad kind \"".to_vec();
-                        m.extend_from_slice(&val);
-                        m.extend_from_slice(b"\": must be readable, readwrite, or writable");
+                    Err(message) => {
                         let mut code = b"TCL LOOKUP INDEX kind ".to_vec();
                         code.extend_from_slice(&val);
-                        return interp.error_with_code(&m, &code);
+                        return interp.error_with_code(&message, &code);
                     }
                 },
-                _ => unreachable!(),
             }
         }
         let readable = !kind_wo;
@@ -734,17 +730,6 @@ fn prop_define(interp: &mut Interp, argv: &[*mut TclObj], use_instance: bool) ->
     }
     interp.set_result_bytes(b"");
     Code::Ok
-}
-
-/// Unambiguous-prefix match of `arg` against `cands` (Tcl option-table style):
-/// the exact name, else the unique candidate it prefixes, else `None` — the
-/// shared `Tcl_GetIndexFromObjStruct` matcher.
-fn prefix_match<'a>(arg: &[u8], cands: &'a [&'a [u8]]) -> Option<&'a [u8]> {
-    use tcl_cmd_core::prefix::Resolution;
-    match tcl_cmd_core::prefix::scan(cands, arg, false) {
-        Resolution::Exact(i) | Resolution::UniquePrefix(i) => Some(cands[i]),
-        Resolution::Ambiguous | Resolution::NoMatch => None,
-    }
 }
 
 fn property_method_name(prefix: &[u8], prop: &[u8]) -> Vec<u8> {
@@ -951,15 +936,15 @@ fn oxford_join(items: &[Vec<u8>]) -> Vec<u8> {
 fn parse_property_opts(interp: &mut Interp, opts: &[*mut TclObj]) -> Result<(bool, bool), Code> {
     let (mut all, mut writable) = (false, false);
     for &a in opts {
-        match obj_bytes(a).as_slice() {
-            b"-all" => all = true,
-            b"-readable" => writable = false,
-            b"-writable" => writable = true,
-            other => {
-                let mut m = b"bad option \"".to_vec();
-                m.extend_from_slice(other);
-                m.extend_from_slice(b"\": must be -all, -readable, or -writable");
-                return Err(interp.set_error(&m));
+        let word = obj_bytes(a);
+        match resolve_info_oo_properties_option(&word) {
+            Ok(InfoOoPropertiesOption::All) => all = true,
+            Ok(InfoOoPropertiesOption::Readable) => writable = false,
+            Ok(InfoOoPropertiesOption::Writable) => writable = true,
+            Err(message) => {
+                let mut code = b"TCL LOOKUP INDEX option ".to_vec();
+                code.extend_from_slice(&word);
+                return Err(interp.error_with_code(&message, &code));
             }
         }
     }
@@ -6371,6 +6356,47 @@ mod tests {
             ok(i, b"r configure -z ok");
             assert_eq!(i.eval_str(b"r configure -z"), Code::Error);
             assert_eq!(i.result_bytes(), b"property \"-z\" is write only");
+        });
+    }
+
+    #[test]
+    fn tip558_property_and_info_options_match_tcl_prefix_diagnostics() {
+        leak_free(|i| {
+            ok(i, b"oo::class create parent");
+            assert_eq!(
+                i.eval_str(b"oo::configurable create P {property x -}"),
+                Code::Error
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"ambiguous option \"-\": must be -get, -kind, or -set"
+            );
+            assert_eq!(
+                i.eval_str(b"oo::configurable create Q {property x -kind r}"),
+                Code::Error
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"ambiguous kind \"r\": must be readable, readwrite, or writable"
+            );
+
+            ok(
+                i,
+                b"oo::configurable create C {superclass parent; property x}",
+            );
+            ok(i, b"C create o");
+            assert_eq!(ok(i, b"info class properties C -a"), b"-x");
+            assert_eq!(ok(i, b"info object properties o -a"), b"-x");
+            assert_eq!(i.eval_str(b"info class properties C {}"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"ambiguous option \"\": must be -all, -readable, or -writable"
+            );
+            assert_eq!(i.eval_str(b"info object properties o -"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"ambiguous option \"-\": must be -all, -readable, or -writable"
+            );
         });
     }
 
