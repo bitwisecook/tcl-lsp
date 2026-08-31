@@ -86,6 +86,7 @@ import { registerHighlightingHealthChecks } from "./highlightingHealth";
 import { ensureStickyScrollDefaultModel } from "./stickyScrollHealth";
 import { DiffDiagnosticsSuppressor } from "./diffAnalysis";
 import { TCL_LANGUAGE_IDS, isTclLanguage, tclLanguageIdForPath } from "./languageIds";
+import { registerIlxReferenceProvider } from "./ilxReferences";
 import { PackFileExtension, syncPackFileAssociations } from "./packAssociations";
 
 const execFileAsync = promisify(execFile);
@@ -244,6 +245,15 @@ export async function activate(context: ExtensionContext) {
   // `handleDiagnostics` middleware by `buildClientOptions`.
   const diffSuppressor = new DiffDiagnosticsSuppressor();
   context.subscriptions.push(diffSuppressor);
+
+  // iRulesLX: find-references from an extension's JavaScript back to the
+  // iRules that call it (issue #1707). A second reference provider for
+  // `javascript`, deliberately *not* a document-selector entry on the language
+  // client — see ./ilxReferences for why a `.js` file must not become a Tcl
+  // document. `client` is read lazily because it is assigned further down.
+  context.subscriptions.push(
+    registerIlxReferenceProvider(() => client as LanguageClient | undefined),
+  );
 
   // Client options are shared with the browser entry — see ./clientCore.
   let clientOptions = buildClientOptions(diffSuppressor);

@@ -26,6 +26,7 @@ use tcl_registry::{
     lifecycle::Lifecycle,
 };
 
+use crate::callback_coverage::SurfaceRow;
 use crate::util::repo_root;
 use tcl_dialect::model::SpecSurface;
 
@@ -35,7 +36,7 @@ const REPORT_PATH: &str = "docs/generated/callback-surfaces.md";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-enum SurfaceKind {
+pub enum SurfaceKind {
     CommandPrefix,
     BodyScript,
     ReferenceOnly,
@@ -45,7 +46,7 @@ enum SurfaceKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-enum Timing {
+pub enum Timing {
     SameInvocation,
     Deferred,
     ReferenceOnly,
@@ -101,6 +102,12 @@ pub fn run(check: bool) -> Result<ExitCode> {
     rows.sort_by(|a, b| a.id.cmp(&b.id).then(a.surface.cmp(&b.surface)));
     reject_duplicate_ids(&rows)?;
 
+    // Before the projection is written *or* compared: a generated file cannot
+    // tell a retired callback from a lost one, so the authored manifest is
+    // what makes a downgrade fail in write mode too (issue #1706).
+    let view: Vec<SurfaceRow<'_>> = rows.iter().map(surface_row).collect();
+    crate::callback_coverage::enforce(&root, &view)?;
+
     let json = format!("{}\n", serde_json::to_string_pretty(&rows)?);
     let markdown = render_markdown(&rows);
     if check {
@@ -111,6 +118,30 @@ pub fn run(check: bool) -> Result<ExitCode> {
         fs::write(root.join(REPORT_PATH), markdown).context("writing callback inventory report")?;
     }
     Ok(ExitCode::SUCCESS)
+}
+
+/// The row as the authored manifest reads it.
+///
+/// A registry row's id carries the merged dialect list (`fcopy/option
+/// -command value@tcl8.4+…`), which changes whenever a surface reaches one
+/// more profile. The manifest pins owner and location, so the suffix is
+/// stripped here rather than being written into every authored row.
+fn surface_row(row: &InventoryRow) -> SurfaceRow<'_> {
+    let tail = row
+        .id
+        .strip_prefix(&format!("{}/", row.owner))
+        .unwrap_or(&row.id);
+    let location = tail
+        .strip_suffix(&format!("@{}", row.dialects.join("+")))
+        .unwrap_or(tail);
+    SurfaceRow {
+        owner: &row.owner,
+        location,
+        kind: row.kind,
+        timing: row.timing,
+        appended_arity: row.appended_arity.as_deref(),
+        dialects: &row.dialects,
+    }
 }
 
 fn discover_registry_rows() -> Result<Vec<InventoryRow>> {
@@ -131,6 +162,7 @@ fn discover_registry_rows() -> Result<Vec<InventoryRow>> {
             collect_spec(&mut rows, profile.name, name, spec)?;
         }
     }
+    collect_bundled_packs(&mut rows)?;
     Ok(rows
         .into_values()
         .map(|mut row| {
@@ -138,6 +170,33 @@ fn discover_registry_rows() -> Result<Vec<InventoryRow>> {
             row
         })
         .collect())
+}
+
+/// The EDA vendor libraries ship as bundled `SpecTcl` loadables rather than
+/// native specs (AGENTS.md § *Command registry*), so the per-profile stores
+/// above never carry them and a vendor callback would be invisible to this
+/// audit rather than merely unclassified.
+///
+/// Walking the pack-installed store closes that. Four surfaces reach the
+/// inventory only this way today — Vivado's `add_condition` block, UPF's
+/// `create_upf_library -contents` and its `define_power_model` role resolver,
+/// and SDC's `foreach_in_collection` body — and the vendor `-rule_body`
+/// checker procedures stay waived in the coverage manifest, which is only a
+/// waiver worth having because this pass would see the classification arrive.
+fn collect_bundled_packs(rows: &mut BTreeMap<String, InventoryRow>) -> Result<()> {
+    let packs = tcl_spectcl::bundled::load_from(&repo_root().join("specs"));
+    for profile in tcl_dialect::DialectProfile::all() {
+        let registry = tcl_spectcl::bundled::registry_for_dialect_from(profile.name, &packs);
+        let mut names: Vec<_> = registry.command_names().collect();
+        names.sort_unstable();
+        for name in names {
+            let Some(spec) = registry.get(name) else {
+                continue;
+            };
+            collect_spec(rows, profile.name, name, spec)?;
+        }
+    }
+    Ok(())
 }
 
 #[allow(clippy::too_many_lines)]

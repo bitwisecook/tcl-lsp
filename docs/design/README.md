@@ -186,6 +186,11 @@ rule itself, its single Rust home, and its conformance gates live in
 
 ## F5 BIG-IP CLI
 
+- [iruleslx-remote-methods.md](iruleslx-remote-methods.md) — the iRulesLX
+  Tcl ↔ JavaScript symbol model: how an `ILX::call` / `ILX::notify` method word
+  reaches the `ILXServer.addMethod` registration that implements it, the
+  workspace-directory association rule, the JavaScript registration forms that
+  are supported, and the forms that abstain.
 - [contracts/sslictcl-source-data.md](contracts/sslictcl-source-data.md) —
   the embedded SslicTcl source-data layout, provenance/hash schema, offline
   drift gate, explicit refresh command, and release freshness contract.

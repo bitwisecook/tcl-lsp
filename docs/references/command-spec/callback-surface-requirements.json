@@ -1,0 +1,1374 @@
+{
+  "schema_version": 1,
+  "requirements": [
+    {
+      "id": "dialect/ilx-call/method",
+      "family": "dialect",
+      "owner": "ILX::call",
+      "location": "external-method",
+      "kind": "external-dispatch",
+      "timing": "blocking-external-rpc",
+      "appended_arity": null,
+      "dialects": [
+        "f5-irules"
+      ],
+      "source": "F5 iRulesLX ILX::call API reference: METHOD names a JavaScript/Node method, reached by blocking RPC",
+      "oracle": null,
+      "imprecision": null,
+      "notes": "Explicit non-Tcl control for issue #1706: ILX dispatch must never be classified as a Tcl command prefix, and its remote arity stays unknown."
+    },
+    {
+      "id": "dialect/ilx-notify/method",
+      "family": "dialect",
+      "owner": "ILX::notify",
+      "location": "external-method",
+      "kind": "external-dispatch",
+      "timing": "fire-and-forget-external",
+      "appended_arity": null,
+      "dialects": [
+        "f5-irules"
+      ],
+      "source": "F5 iRulesLX ILX::notify API reference: one-way external dispatch to a JavaScript/Node method",
+      "oracle": null,
+      "imprecision": null,
+      "notes": "The fire-and-forget half of the ILX pair."
+    },
+    {
+      "id": "dialect/irules-after/dynamic",
+      "family": "dialect",
+      "owner": "after",
+      "location": "dynamic-arg-role",
+      "kind": "dynamic",
+      "timing": "dynamic",
+      "appended_arity": null,
+      "dialects": [
+        "f5-irules"
+      ],
+      "source": "F5 iRules after: the script word's position depends on whether -periodic and a millisecond count precede it",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "dialect/irules-clientside/script",
+      "family": "dialect",
+      "owner": "clientside",
+      "location": "arg[0]",
+      "kind": "body-script",
+      "timing": "same-invocation",
+      "appended_arity": null,
+      "dialects": [
+        "f5-irules"
+      ],
+      "source": "F5 iRules clientside: the script is evaluated immediately, in the clientside flow context",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "dialect/irules-proc/body",
+      "family": "dialect",
+      "owner": "proc",
+      "location": "arg[2]",
+      "kind": "body-script",
+      "timing": "deferred",
+      "appended_arity": null,
+      "dialects": [
+        "f5-irules"
+      ],
+      "source": "F5 iRules proc: the body is stored on the iRule and run per call",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "dialect/irules-when/dynamic",
+      "family": "dialect",
+      "owner": "when",
+      "location": "dynamic-arg-role",
+      "kind": "dynamic",
+      "timing": "dynamic",
+      "appended_arity": null,
+      "dialects": [
+        "f5-irules"
+      ],
+      "source": "F5 iRules when: the event handler's body position depends on the event and priority words",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "dialect/sdc-foreach-in-collection/body",
+      "family": "dialect",
+      "owner": "foreach_in_collection",
+      "location": "arg[2]",
+      "kind": "body-script",
+      "timing": "same-invocation",
+      "appended_arity": null,
+      "dialects": [
+        "cadence-eda-tcl",
+        "synopsys-eda-tcl",
+        "xilinx-eda-tcl",
+        "mentor-eda-tcl",
+        "intel-quartus-eda-tcl",
+        "microchip-libero-eda-tcl"
+      ],
+      "source": "SDC base `foreach_in_collection var collection body`: the pack declares `arg 2 -role Body` (specs/sdc_base.tclspec l.228-234)",
+      "oracle": null,
+      "imprecision": null,
+      "notes": "A loop body rather than a callback, and same-invocation for that reason \u2014 kept in the manifest because it is the shape a vendor pack most easily loses."
+    },
+    {
+      "id": "dialect/spectcl-command/body",
+      "family": "dialect",
+      "owner": "command",
+      "location": "arg[1]",
+      "kind": "body-script",
+      "timing": "same-invocation",
+      "appended_arity": null,
+      "dialects": [
+        "spectcl"
+      ],
+      "source": "SpecTcl pack DSL (docs/design/spec-packs.md): a `command` declaration's brace body is evaluated as pack declarations",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "dialect/upf-create-upf-library/-contents",
+      "family": "dialect",
+      "owner": "create_upf_library",
+      "location": "option -contents value",
+      "kind": "body-script",
+      "timing": "same-invocation",
+      "appended_arity": null,
+      "dialects": [
+        "cadence-eda-tcl",
+        "synopsys-eda-tcl",
+        "xilinx-eda-tcl",
+        "mentor-eda-tcl",
+        "intel-quartus-eda-tcl",
+        "microchip-libero-eda-tcl"
+      ],
+      "source": "IEEE UPF create_upf_library -contents: the option value is a UPF/Tcl body evaluated in the library's protected namespace; the pack declares it `option -contents -takes upf_commands -role Body` (specs/upf.tclspec l.735-739)",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "dialect/upf-define-power-model/dynamic",
+      "family": "dialect",
+      "owner": "define_power_model",
+      "location": "dynamic-arg-role",
+      "kind": "dynamic",
+      "timing": "dynamic",
+      "appended_arity": null,
+      "dialects": [
+        "cadence-eda-tcl",
+        "synopsys-eda-tcl",
+        "xilinx-eda-tcl",
+        "mentor-eda-tcl",
+        "intel-quartus-eda-tcl",
+        "microchip-libero-eda-tcl"
+      ],
+      "source": "IEEE UPF define_power_model: the body is the last word of whichever option set the call carries, so the pack resolves the role per call (`arg_role_resolver` at specs/upf.tclspec l.815-825)",
+      "oracle": null,
+      "imprecision": null,
+      "notes": "A pack-declared resolver must stay a `dynamic` row for the same reason a native one does."
+    },
+    {
+      "id": "dialect/vivado-add-condition/commands",
+      "family": "dialect",
+      "owner": "add_condition",
+      "location": "arg[1]",
+      "kind": "body-script",
+      "timing": "same-invocation",
+      "appended_arity": null,
+      "dialects": [
+        "xilinx-eda-tcl"
+      ],
+      "source": "Xilinx Vivado add_condition: the trailing `commands` word is Tcl run when the condition is met; the pack declares it `arg 1 -role Body -layout BlockScript` (specs/eda_xilinx.tclspec l.83-89)",
+      "oracle": null,
+      "imprecision": null,
+      "notes": "The EDA vendor libraries are bundled SpecTcl loadables, so this row exists only because the projection walks the pack-installed stores as well as the native ones."
+    },
+    {
+      "id": "expect/exit/-onexit",
+      "family": "expect",
+      "owner": "exit",
+      "location": "option -onexit value",
+      "kind": "command-prefix",
+      "timing": "same-invocation",
+      "appended_arity": "unknown",
+      "dialects": [
+        "expect"
+      ],
+      "source": "Expect exit(1): -onexit installs a handler run at exit; nothing is documented as appended, so the contract stays unknown",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "expect/trap/script",
+      "family": "expect",
+      "owner": "trap",
+      "location": "arg[0]",
+      "kind": "body-script",
+      "timing": "same-invocation",
+      "appended_arity": null,
+      "dialects": [
+        "expect"
+      ],
+      "source": "Expect trap(1): the action is a script evaluated when the trapped signal arrives",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcl/after-cancel/id-or-script",
+      "family": "tcl",
+      "owner": "after cancel",
+      "location": "id-or-script",
+      "kind": "dynamic",
+      "timing": "dynamic",
+      "appended_arity": null,
+      "dialects": [
+        "tcl8.4",
+        "tcl8.5",
+        "tcl8.6",
+        "tcl9.0",
+        "tcl9.1"
+      ],
+      "source": "Tcl after(n) cancel: the first value is either an opaque timer id or the exact script text of a pending handler",
+      "oracle": null,
+      "imprecision": null,
+      "notes": "Catalogue-seeded union: classifying every word as Tcl code would invent references for timer ids."
+    },
+    {
+      "id": "tcl/apply/lambda",
+      "family": "tcl",
+      "owner": "apply",
+      "location": "arg[0]",
+      "kind": "body-script",
+      "timing": "same-invocation",
+      "appended_arity": null,
+      "dialects": [
+        "tcl8.5",
+        "tcl8.6",
+        "tcl9.0",
+        "tcl9.1"
+      ],
+      "source": "Tcl apply(n): the lambda term is applied during this invocation",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcl/chan-copy/-command",
+      "family": "tcl",
+      "owner": "chan copy",
+      "location": "option -command value",
+      "kind": "command-prefix",
+      "timing": "deferred",
+      "appended_arity": "at least 1",
+      "dialects": [
+        "tcl8.5",
+        "tcl8.6",
+        "tcl9.0",
+        "tcl9.1"
+      ],
+      "source": "Tcl chan(n) copy: \"identical to fcopy\" \u2014 the callback takes the count, plus an error message when the copy failed",
+      "oracle": "tclsh9.0: `chan copy $in $out -command cb` calls `cb 197`",
+      "imprecision": null,
+      "notes": "The other half of the #1706 parity control; `chan` itself is 8.5+, so the floor differs from `fcopy` while the contract does not."
+    },
+    {
+      "id": "tcl/chan-create/handler",
+      "family": "tcl",
+      "owner": "chan create",
+      "location": "arg[1]",
+      "kind": "command-prefix",
+      "timing": "same-invocation",
+      "appended_arity": "at least 2",
+      "dialects": [
+        "tcl8.5",
+        "tcl8.6",
+        "tcl9.0",
+        "tcl9.1"
+      ],
+      "source": "Tcl refchan(n): the handler synopsis is `cmdPrefix subcommand channel ?args?` for every method (`cmdPrefix cgetall channel` is the shortest), so at least the subcommand and the channel are appended",
+      "oracle": null,
+      "imprecision": {
+        "issue": "#1706",
+        "reason": "positional command prefixes carry no per-slot timing axis, so the row reports the command-wide DEFERS_BODY answer; the prefix is in fact stored and invoked later"
+      },
+      "notes": "Reflected-channel handler: the prefix is stored on the channel and invoked for every operation on it."
+    },
+    {
+      "id": "tcl/chan-event/script",
+      "family": "tcl",
+      "owner": "chan event",
+      "location": "arg[2]",
+      "kind": "body-script",
+      "timing": "deferred",
+      "appended_arity": null,
+      "dialects": [
+        "tcl8.5",
+        "tcl8.6",
+        "tcl9.0",
+        "tcl9.1"
+      ],
+      "source": "Tcl chan(n) event: \"arranges for the Tcl script script to be called whenever the channel ... becomes readable or writable\"; chan.n defers to fileevent(n) for the semantics",
+      "oracle": "tclsh8.5/8.6/9.0/9.1, `proc p {ch} { chan event $ch readable {error stop}; set ::reached 1 }`: ::reached is set, so the script is stored, not run",
+      "imprecision": null,
+      "notes": "The registered script runs from the event loop at global level, exactly as `fileevent`'s does."
+    },
+    {
+      "id": "tcl/chan-push/handler",
+      "family": "tcl",
+      "owner": "chan push",
+      "location": "arg[1]",
+      "kind": "command-prefix",
+      "timing": "same-invocation",
+      "appended_arity": "at least 2",
+      "dialects": [
+        "tcl8.6",
+        "tcl9.0",
+        "tcl9.1"
+      ],
+      "source": "Tcl transchan(n): the handler synopsis is `cmdPrefix subcommand handle ?args?` for every method (`cmdPrefix clear handle` is the shortest)",
+      "oracle": null,
+      "imprecision": {
+        "issue": "#1706",
+        "reason": "positional command prefixes carry no per-slot timing axis, so the row reports the command-wide DEFERS_BODY answer; the prefix is in fact stored and invoked later"
+      },
+      "notes": "Version-gated control: `chan push` arrived in 8.6, so this row must not reach 8.4/8.5 even though `chan` itself is 8.5+."
+    },
+    {
+      "id": "tcl/coroinject/prefix",
+      "family": "tcl",
+      "owner": "coroinject",
+      "location": "arg[1]",
+      "kind": "command-prefix",
+      "timing": "same-invocation",
+      "appended_arity": "exactly 2",
+      "dialects": [
+        "tcl9.0",
+        "tcl9.1"
+      ],
+      "source": "Tcl coroutine(n) coroinject: \"An additional two arguments are appended ... The first is the name of the command that suspended the coroutine (yield or yieldto), and the second is the argument ... that is the current resumption value\" (coroutine.n l.106-110)",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcl/coroprobe/prefix",
+      "family": "tcl",
+      "owner": "coroprobe",
+      "location": "arg[1]",
+      "kind": "command-prefix",
+      "timing": "same-invocation",
+      "appended_arity": "unknown",
+      "dialects": [
+        "tcl9.0",
+        "tcl9.1"
+      ],
+      "source": "Tcl coroutine(n) coroprobe: the prefix is run inside the coroutine's frame with nothing documented as appended, so the contract stays unknown",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcl/coroutine/body-prefix",
+      "family": "tcl",
+      "owner": "coroutine",
+      "location": "arg[1]",
+      "kind": "command-prefix",
+      "timing": "same-invocation",
+      "appended_arity": "unknown",
+      "dialects": [
+        "tcl8.6",
+        "tcl9.0",
+        "tcl9.1"
+      ],
+      "source": "Tcl coroutine(n): `coroutine name command ?arg...?` calls the command prefix with \"the other remaining arguments\" and nothing of its own, so no appended count is documented and the contract stays unknown",
+      "oracle": null,
+      "imprecision": {
+        "issue": "#1706",
+        "reason": "positional command prefixes carry no per-slot timing axis, so the row reports the command-wide DEFERS_BODY answer; the prefix is in fact stored and invoked later"
+      },
+      "notes": ""
+    },
+    {
+      "id": "tcl/fcopy/-command",
+      "family": "tcl",
+      "owner": "fcopy",
+      "location": "option -command value",
+      "kind": "command-prefix",
+      "timing": "deferred",
+      "appended_arity": "at least 1",
+      "dialects": [
+        "tcl8.4",
+        "tcl8.5",
+        "tcl8.6",
+        "tcl9.0",
+        "tcl9.1"
+      ],
+      "source": "Tcl fcopy(n): \"callback ... is called with the number of bytes written ... If an error occurred ... the error string is passed as a second argument\"",
+      "oracle": "tclsh8.4/8.6: `fcopy $in $out -command cb` calls `cb 206`; copying /dev/zero to /dev/full on 8.6 calls `cb 0 {error writing \"file4\": no space left on device}`",
+      "imprecision": null,
+      "notes": "Parity control for issue #1706: this row and `chan copy -command` must stay identical in kind, timing, and appended arity."
+    },
+    {
+      "id": "tcl/fileevent/script",
+      "family": "tcl",
+      "owner": "fileevent",
+      "location": "arg[2]",
+      "kind": "body-script",
+      "timing": "deferred",
+      "appended_arity": null,
+      "dialects": [
+        "tcl8.4",
+        "tcl8.5",
+        "tcl8.6",
+        "tcl9.0",
+        "tcl9.1"
+      ],
+      "source": "Tcl fileevent(n): \"The script for a file event is executed at global level (outside the context of any Tcl procedure)\"",
+      "oracle": "tclsh8.6.16/9.0.4, `proc p {} { fileevent $ch readable {error stop}; set ::reached 1 }`: ::reached is set (issue #1672 audit)",
+      "imprecision": null,
+      "notes": "`chan event`'s legacy spelling; the two rows must agree."
+    },
+    {
+      "id": "tcl/http-geturl/-command",
+      "family": "tcl",
+      "owner": "http::geturl",
+      "location": "option -command value",
+      "kind": "command-prefix",
+      "timing": "deferred",
+      "appended_arity": "exactly 1",
+      "dialects": [
+        "tcl8.6",
+        "tcl9.0",
+        "tcl9.1"
+      ],
+      "source": "Tcl http(n) -command: \"invoked ... after the HTTP transaction completes\" with the token appended",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcl/http-geturl/-handler",
+      "family": "tcl",
+      "owner": "http::geturl",
+      "location": "option -handler value",
+      "kind": "command-prefix",
+      "timing": "deferred",
+      "appended_arity": "exactly 2",
+      "dialects": [
+        "tcl8.6",
+        "tcl9.0",
+        "tcl9.1"
+      ],
+      "source": "Tcl http(n) -handler: invoked with the socket and the token appended",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcl/http-geturl/-progress",
+      "family": "tcl",
+      "owner": "http::geturl",
+      "location": "option -progress value",
+      "kind": "command-prefix",
+      "timing": "deferred",
+      "appended_arity": "exactly 3",
+      "dialects": [
+        "tcl8.6",
+        "tcl9.0",
+        "tcl9.1"
+      ],
+      "source": "Tcl http(n) -progress: invoked with the token, the expected total size and the current size appended",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcl/interp-alias/dynamic",
+      "family": "tcl",
+      "owner": "interp alias",
+      "location": "dynamic-command-prefix",
+      "kind": "dynamic",
+      "timing": "dynamic",
+      "appended_arity": null,
+      "dialects": [
+        "tcl8.4",
+        "tcl8.5",
+        "tcl8.6",
+        "tcl9.0",
+        "tcl9.1"
+      ],
+      "source": "Tcl interp(n) alias: the target prefix's position depends on which of the query/create forms was called",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcl/interp-bgerror/dynamic",
+      "family": "tcl",
+      "owner": "interp bgerror",
+      "location": "dynamic-command-prefix",
+      "kind": "dynamic",
+      "timing": "dynamic",
+      "appended_arity": null,
+      "dialects": [
+        "tcl8.5",
+        "tcl8.6",
+        "tcl9.0",
+        "tcl9.1"
+      ],
+      "source": "Tcl interp(n) bgerror: the handler is only present in the setting form, so the position is resolver-decided",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcl/interp-limit/-command",
+      "family": "tcl",
+      "owner": "interp limit",
+      "location": "option -command value",
+      "kind": "body-script",
+      "timing": "deferred",
+      "appended_arity": null,
+      "dialects": [
+        "tcl8.5",
+        "tcl8.6",
+        "tcl9.0",
+        "tcl9.1"
+      ],
+      "source": "Tcl interp(n) limit: the callback script is evaluated when the limit is exceeded, in the interpreter that set it",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcl/lsort/-command",
+      "family": "tcl",
+      "owner": "lsort",
+      "location": "option -command value",
+      "kind": "command-prefix",
+      "timing": "same-invocation",
+      "appended_arity": "exactly 2",
+      "dialects": [
+        "tcl8.4",
+        "tcl8.5",
+        "tcl8.6",
+        "tcl9.0",
+        "tcl9.1"
+      ],
+      "source": "Tcl lsort(n) -command: \"evaluate a Tcl script consisting of command with the two elements appended as additional arguments\" (lsort.n l.62-64)",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcl/namespace-ensemble/-unknown",
+      "family": "tcl",
+      "owner": "namespace ensemble",
+      "location": "option -unknown value",
+      "kind": "command-prefix",
+      "timing": "deferred",
+      "appended_arity": "unknown",
+      "dialects": [
+        "tcl8.5",
+        "tcl8.6",
+        "tcl9.0",
+        "tcl9.1"
+      ],
+      "source": "Tcl namespace(n) ensemble: the unknown handler is called with the ensemble command and the unresolved subcommand words; the argument count depends on the call being dispatched, so the contract is deliberately unknown",
+      "oracle": null,
+      "imprecision": null,
+      "notes": "Conservative-by-design control: `unknown` appended arity must stay `unknown` rather than being guessed."
+    },
+    {
+      "id": "tcl/namespace-unknown/handler",
+      "family": "tcl",
+      "owner": "namespace unknown",
+      "location": "arg[0]",
+      "kind": "command-prefix",
+      "timing": "same-invocation",
+      "appended_arity": "at least 1",
+      "dialects": [
+        "tcl8.5",
+        "tcl8.6",
+        "tcl9.0",
+        "tcl9.1"
+      ],
+      "source": "Tcl namespace(n) unknown: \"the full invocation line will be appended to the handler\" (namespace.n l.326)",
+      "oracle": null,
+      "imprecision": {
+        "issue": "#1706",
+        "reason": "positional command prefixes carry no per-slot timing axis, so the row reports the command-wide DEFERS_BODY answer; the prefix is in fact stored and invoked later"
+      },
+      "notes": ""
+    },
+    {
+      "id": "tcl/package-ifneeded/script",
+      "family": "tcl",
+      "owner": "package ifneeded",
+      "location": "arg[2]",
+      "kind": "body-script",
+      "timing": "deferred",
+      "appended_arity": null,
+      "dialects": [
+        "tcl8.4",
+        "tcl8.5",
+        "tcl8.6",
+        "tcl9.0",
+        "tcl9.1"
+      ],
+      "source": "Tcl package(n) ifneeded: the script is stored and evaluated later, when the package is required",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcl/package-unknown/handler",
+      "family": "tcl",
+      "owner": "package unknown",
+      "location": "arg[0]",
+      "kind": "command-prefix",
+      "timing": "same-invocation",
+      "appended_arity": "at least 2",
+      "dialects": [
+        "tcl8.4",
+        "tcl8.5",
+        "tcl8.6",
+        "tcl9.0",
+        "tcl9.1"
+      ],
+      "source": "Tcl package(n) unknown: \"Tcl appends one or more additional arguments giving the desired package name and requirements\" (package.n l.176-178)",
+      "oracle": "tclsh8.4/8.6/9.0/9.1, `package unknown handler; package require nosuchpkg`: the handler is called with two words \u2014 `nosuchpkg {}` on 8.4 and `nosuchpkg 0-` on 8.6/9.0/9.1 \u2014 so the synthesised requirement keeps the appended count at 2 even though package.n's prose says \"only the name will be added\"",
+      "imprecision": {
+        "issue": "#1706",
+        "reason": "positional command prefixes carry no per-slot timing axis, so the row reports the command-wide DEFERS_BODY answer; the prefix is in fact stored and invoked later"
+      },
+      "notes": ""
+    },
+    {
+      "id": "tcl/proc/body",
+      "family": "tcl",
+      "owner": "proc",
+      "location": "arg[2]",
+      "kind": "body-script",
+      "timing": "deferred",
+      "appended_arity": null,
+      "dialects": [
+        "tcl8.4",
+        "tcl8.5",
+        "tcl8.6",
+        "tcl9.0",
+        "tcl9.1"
+      ],
+      "source": "Tcl proc(n): the body is stored and evaluated when the procedure is invoked",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcl/regsub/dynamic",
+      "family": "tcl",
+      "owner": "regsub",
+      "location": "dynamic-command-prefix",
+      "kind": "dynamic",
+      "timing": "dynamic",
+      "appended_arity": null,
+      "dialects": [
+        "tcl8.4",
+        "tcl8.5",
+        "tcl8.6",
+        "tcl9.0",
+        "tcl9.1"
+      ],
+      "source": "Tcl regsub(n) -command (9.0+): the replacement word is a command prefix only under -command, so the role is resolver-decided",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcl/socket/-server",
+      "family": "tcl",
+      "owner": "socket",
+      "location": "option -server value",
+      "kind": "command-prefix",
+      "timing": "deferred",
+      "appended_arity": "exactly 3",
+      "dialects": [
+        "tcl8.4",
+        "tcl8.5",
+        "tcl8.6",
+        "tcl9.0",
+        "tcl9.1"
+      ],
+      "source": "Tcl socket(n): the command prefix is invoked with \"three additional arguments: the name of the new channel, the address, in network address notation, of the client's host, and the client's port number\" (socket.n l.124)",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcl/tcltest-custommatch/prefix",
+      "family": "tcl",
+      "owner": "tcltest::customMatch",
+      "location": "arg[1]",
+      "kind": "command-prefix",
+      "timing": "same-invocation",
+      "appended_arity": "exactly 2",
+      "dialects": [
+        "tcl8.6",
+        "tcl9.0",
+        "tcl9.1"
+      ],
+      "source": "Tcl tcltest(n) customMatch: the script is called with the expected and actual results appended",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcl/trace-add/dynamic",
+      "family": "tcl",
+      "owner": "trace add",
+      "location": "dynamic-command-prefix",
+      "kind": "dynamic",
+      "timing": "dynamic",
+      "appended_arity": null,
+      "dialects": [
+        "tcl8.5",
+        "tcl8.6",
+        "tcl9.0",
+        "tcl9.1"
+      ],
+      "source": "Tcl trace(n) add: the appended-argument contract depends on the trace type and ops words, so the position and arity are resolver-decided",
+      "oracle": null,
+      "imprecision": null,
+      "notes": "Dynamic-by-design control: a resolver must stay an explicit `dynamic` row rather than being flattened into a guessed static position."
+    },
+    {
+      "id": "tcl/trace-remove/reference-only",
+      "family": "tcl",
+      "owner": "trace remove",
+      "location": "reference-only-command-prefix",
+      "kind": "reference-only",
+      "timing": "reference-only",
+      "appended_arity": "type/ops-dependent: exactly 2, exactly 3, exactly 4, or one of [2, 4]",
+      "dialects": [
+        "tcl8.5",
+        "tcl8.6",
+        "tcl9.0",
+        "tcl9.1"
+      ],
+      "source": "Tcl trace(n) remove: the prefix identifies a registration to delete; it is navigable executable text but is neither invoked nor stored",
+      "oracle": null,
+      "imprecision": null,
+      "notes": "Catalogue-seeded row: the registry shape cannot express \"named but never run\", so the classification is audited seed data."
+    },
+    {
+      "id": "tcl/trace-vdelete/reference-only",
+      "family": "tcl",
+      "owner": "trace vdelete",
+      "location": "reference-only-command-prefix",
+      "kind": "reference-only",
+      "timing": "reference-only",
+      "appended_arity": "unknown",
+      "dialects": [
+        "tcl8.4",
+        "tcl8.5",
+        "tcl8.6"
+      ],
+      "source": "Tcl 8.6 trace(n) vdelete: the legacy variable-trace removal form, retired in Tcl 9.0",
+      "oracle": null,
+      "imprecision": null,
+      "notes": "Version-gated control in the other direction: this row must not reach 9.0/9.1."
+    },
+    {
+      "id": "tcllib/bibtex-parse/-command",
+      "family": "tcllib",
+      "owner": "bibtex::parse",
+      "location": "option -command value",
+      "kind": "command-prefix",
+      "timing": "deferred",
+      "appended_arity": "exactly 2",
+      "dialects": [
+        "tcl8.6",
+        "tcl9.0"
+      ],
+      "source": "tcllib bibtex(n): the completion callback is deferred when parsing a channel",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcllib/bibtex-parse/-recordcommand",
+      "family": "tcllib",
+      "owner": "bibtex::parse",
+      "location": "option -recordcommand value",
+      "kind": "command-prefix",
+      "timing": "same-invocation",
+      "appended_arity": "exactly 4",
+      "dialects": [
+        "tcl8.6",
+        "tcl9.0"
+      ],
+      "source": "tcllib bibtex(n): the record callback is called with the record type, key, and the key/value list appended",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcllib/bibtex-parse/dynamic-timing",
+      "family": "tcllib",
+      "owner": "bibtex::parse",
+      "location": "dynamic-script-timing",
+      "kind": "dynamic",
+      "timing": "dynamic",
+      "appended_arity": null,
+      "dialects": [
+        "tcl8.6",
+        "tcl9.0"
+      ],
+      "source": "tcllib bibtex(n): `bibtex::parse` is same-invocation for in-memory text but deferred with -channel, so the timing is resolver-decided",
+      "oracle": null,
+      "imprecision": null,
+      "notes": "Mode-sensitive control: the resolver must stay a `dynamic` row rather than collapsing to whichever mode the static option default names."
+    },
+    {
+      "id": "tcllib/comm-send/-command",
+      "family": "tcllib",
+      "owner": "comm::comm send",
+      "location": "option -command value",
+      "kind": "command-prefix",
+      "timing": "deferred",
+      "appended_arity": "exactly 14",
+      "dialects": [
+        "tcl8.6",
+        "tcl9.0"
+      ],
+      "source": "tcllib comm(n): the asynchronous result callback receives the full result list, which comm re-splits into a fixed word count",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcllib/defer-defer/script",
+      "family": "tcllib",
+      "owner": "defer::defer",
+      "location": "arg[0]",
+      "kind": "body-script",
+      "timing": "deferred",
+      "appended_arity": null,
+      "dialects": [
+        "tcl8.6",
+        "tcl9.0"
+      ],
+      "source": "tcllib defer(n): the script is stored and evaluated when the current scope unwinds",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcllib/fileutil-find/filter",
+      "family": "tcllib",
+      "owner": "fileutil::find",
+      "location": "arg[1]",
+      "kind": "command-prefix",
+      "timing": "same-invocation",
+      "appended_arity": "exactly 1",
+      "dialects": [
+        "tcl8.6",
+        "tcl9.0"
+      ],
+      "source": "tcllib fileutil(n) find: the filter command is called with one file name",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcllib/generator-map/prefix",
+      "family": "tcllib",
+      "owner": "generator map",
+      "location": "arg[0]",
+      "kind": "command-prefix",
+      "timing": "same-invocation",
+      "appended_arity": "unknown",
+      "dialects": [
+        "tcl8.6",
+        "tcl9.0"
+      ],
+      "source": "tcllib generator(n) map: the transform is applied to each generated value; the generator's own arity is not documented, so it stays unknown",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcllib/halfpipe/-write-command",
+      "family": "tcllib",
+      "owner": "tcl::chan::halfpipe",
+      "location": "option -write-command value",
+      "kind": "command-prefix",
+      "timing": "deferred",
+      "appended_arity": "exactly 2",
+      "dialects": [
+        "tcl8.6",
+        "tcl9.0"
+      ],
+      "source": "tcllib virtchannel_base(n) halfpipe: the write callback is called with the channel handle and the written data",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcllib/hook-bind/dynamic",
+      "family": "tcllib",
+      "owner": "hook bind",
+      "location": "dynamic-command-prefix",
+      "kind": "dynamic",
+      "timing": "dynamic",
+      "appended_arity": null,
+      "dialects": [
+        "tcl8.6",
+        "tcl9.0"
+      ],
+      "source": "tcllib hook(n) bind: the binding form takes a prefix while the query forms do not, so the position is resolver-decided",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcllib/logger-walk/prefix",
+      "family": "tcllib",
+      "owner": "logger::walk",
+      "location": "arg[1]",
+      "kind": "command-prefix",
+      "timing": "same-invocation",
+      "appended_arity": "unknown",
+      "dialects": [
+        "tcl8.6",
+        "tcl9.0"
+      ],
+      "source": "tcllib logger(n) walk: the prefix is applied to each service; the appended arguments are undocumented and stay unknown",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcllib/math-calculus-integral/func",
+      "family": "tcllib",
+      "owner": "math::calculus::integral",
+      "location": "arg[3]",
+      "kind": "command-prefix",
+      "timing": "same-invocation",
+      "appended_arity": "exactly 1",
+      "dialects": [
+        "tcl8.6",
+        "tcl9.0"
+      ],
+      "source": "tcllib math::calculus(n) integral: the function is evaluated at one abscissa",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcllib/mime-getbody/-command",
+      "family": "tcllib",
+      "owner": "mime::getbody",
+      "location": "option -command value",
+      "kind": "command-prefix",
+      "timing": "deferred",
+      "appended_arity": "at least 1",
+      "dialects": [
+        "tcl8.6",
+        "tcl9.0"
+      ],
+      "source": "tcllib mime(n) getbody -command: the callback is invoked per chunk with at least the token appended",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcllib/processman-onexit/script",
+      "family": "tcllib",
+      "owner": "processman::onexit",
+      "location": "arg[1]",
+      "kind": "body-script",
+      "timing": "deferred",
+      "appended_arity": null,
+      "dialects": [
+        "tcl8.6",
+        "tcl9.0"
+      ],
+      "source": "tcllib processman(n) onexit: the script is stored against the process and run when it exits",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcllib/smtp-sendmessage/-tlspolicy",
+      "family": "tcllib",
+      "owner": "smtp::sendmessage",
+      "location": "option -tlspolicy value",
+      "kind": "command-prefix",
+      "timing": "same-invocation",
+      "appended_arity": "exactly 2",
+      "dialects": [
+        "tcl8.6",
+        "tcl9.0"
+      ],
+      "source": "tcllib smtp(n) -tlspolicy: called with the SMTP code and diagnostic during the send",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcllib/snit-method/body",
+      "family": "tcllib",
+      "owner": "snit::method",
+      "location": "arg[3]",
+      "kind": "body-script",
+      "timing": "deferred",
+      "appended_arity": null,
+      "dialects": [
+        "tcl8.6",
+        "tcl9.0"
+      ],
+      "source": "tcllib snit(n): the method body is stored on the type and run per call",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcllib/struct-graph-walk/-command",
+      "family": "tcllib",
+      "owner": "struct::graph instance walk",
+      "location": "option -command value",
+      "kind": "command-prefix",
+      "timing": "same-invocation",
+      "appended_arity": "exactly 3",
+      "dialects": [
+        "tcl8.6",
+        "tcl9.0"
+      ],
+      "source": "tcllib struct::graph(n) walk: the command is called with the graph, the direction, and the node",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcllib/struct-list-split/prefix",
+      "family": "tcllib",
+      "owner": "struct::list split",
+      "location": "arg[1]",
+      "kind": "command-prefix",
+      "timing": "same-invocation",
+      "appended_arity": "exactly 1",
+      "dialects": [
+        "tcl8.6",
+        "tcl9.0"
+      ],
+      "source": "tcllib struct::list(n) split: the predicate is called with one element",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcllib/struct-tree-walkproc/dynamic",
+      "family": "tcllib",
+      "owner": "struct::tree instance walkproc",
+      "location": "dynamic-command-prefix",
+      "kind": "dynamic",
+      "timing": "dynamic",
+      "appended_arity": null,
+      "dialects": [
+        "tcl8.6",
+        "tcl9.0"
+      ],
+      "source": "tcllib struct::tree(n) walkproc: the prefix's position depends on the option words that precede it",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tcllib/uevent-bind/prefix",
+      "family": "tcllib",
+      "owner": "uevent::bind",
+      "location": "arg[2]",
+      "kind": "command-prefix",
+      "timing": "same-invocation",
+      "appended_arity": "at least 2",
+      "dialects": [
+        "tcl8.6",
+        "tcl9.0"
+      ],
+      "source": "tcllib uevent(n) bind: the prefix is called with the tag, event, and the event's detail dictionary",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tk/bind/dynamic",
+      "family": "tk",
+      "owner": "bind",
+      "location": "dynamic-arg-role",
+      "kind": "dynamic",
+      "timing": "dynamic",
+      "appended_arity": null,
+      "dialects": [
+        "tk"
+      ],
+      "source": "Tk bind(n): the script word is present only in the binding form, and a leading `+` makes it an append rather than a replacement",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tk/button/-command",
+      "family": "tk",
+      "owner": "button",
+      "location": "option -command value",
+      "kind": "body-script",
+      "timing": "deferred",
+      "appended_arity": null,
+      "dialects": [
+        "tk"
+      ],
+      "source": "Tk button(n) -command: \"specifies a Tcl command to associate with the button ... invoked when mouse button 1 is released\"",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tk/canvas/-xscrollcommand",
+      "family": "tk",
+      "owner": "canvas",
+      "location": "option -xscrollcommand value",
+      "kind": "command-prefix",
+      "timing": "deferred",
+      "appended_arity": "exactly 2",
+      "dialects": [
+        "tk"
+      ],
+      "source": "Tk options(n) -xscrollcommand: \"the widget will generate a Tcl command by concatenating the scroll command and two numbers\" (options.n l.330-338)",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tk/entry/-validatecommand",
+      "family": "tk",
+      "owner": "entry",
+      "location": "option -validatecommand value",
+      "kind": "body-script",
+      "timing": "deferred",
+      "appended_arity": null,
+      "dialects": [
+        "tk"
+      ],
+      "source": "Tk entry(n) -validatecommand: evaluated when the widget's validation triggers fire, with the percent substitutions applied",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tk/menu/-tearoffcommand",
+      "family": "tk",
+      "owner": "menu",
+      "location": "option -tearoffcommand value",
+      "kind": "command-prefix",
+      "timing": "deferred",
+      "appended_arity": "exactly 2",
+      "dialects": [
+        "tk"
+      ],
+      "source": "Tk menu(n) -tearoffcommand: \"the value of this option, followed by ... the name of the menu window, followed by ... the name of the torn off menu window\" (menu.n l.46-51)",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tk/scale/-command",
+      "family": "tk",
+      "owner": "scale",
+      "location": "option -command value",
+      "kind": "command-prefix",
+      "timing": "deferred",
+      "appended_arity": "exactly 1",
+      "dialects": [
+        "tk"
+      ],
+      "source": "Tk scale(n) -command: the prefix is concatenated with the new scale value",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tk/scrollbar/-command",
+      "family": "tk",
+      "owner": "scrollbar",
+      "location": "option -command value",
+      "kind": "command-prefix",
+      "timing": "deferred",
+      "appended_arity": "one of [2, 3]",
+      "dialects": [
+        "tk"
+      ],
+      "source": "Tk scrollbar(n): the prefix is invoked as `prefix moveto fraction` or `prefix scroll number units|pages` (scrollbar.n l.212/223/234)",
+      "oracle": null,
+      "imprecision": null,
+      "notes": "The two documented shapes are why the arity is a closed set rather than a single count."
+    },
+    {
+      "id": "tk/selection-handle/dynamic",
+      "family": "tk",
+      "owner": "selection handle",
+      "location": "dynamic-command-prefix",
+      "kind": "dynamic",
+      "timing": "dynamic",
+      "appended_arity": null,
+      "dialects": [
+        "tk"
+      ],
+      "source": "Tk selection(n) handle: the retrieval command's position depends on the option words that precede it",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tk/text-dump/-command",
+      "family": "tk",
+      "owner": "text dump",
+      "location": "option -command value",
+      "kind": "command-prefix",
+      "timing": "same-invocation",
+      "appended_arity": "exactly 3",
+      "dialects": [
+        "tk"
+      ],
+      "source": "Tk text(n) dump -command: called for each element with the key, value and index appended, during the dump itself",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tk/text-sync/-command",
+      "family": "tk",
+      "owner": "text sync",
+      "location": "option -command value",
+      "kind": "command-prefix",
+      "timing": "deferred",
+      "appended_arity": "exactly 0",
+      "dialects": [
+        "tk"
+      ],
+      "source": "Tk text(n) sync: the command is run once the widget's line metrics are up to date, with nothing appended",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tk/tk_messagebox/-command",
+      "family": "tk",
+      "owner": "tk_messageBox",
+      "location": "option -command value",
+      "kind": "command-prefix",
+      "timing": "deferred",
+      "appended_arity": "unknown",
+      "dialects": [
+        "tk"
+      ],
+      "source": "Tk tk_messageBox(n) -command: invoked when the dialog closes; the appended arguments are platform-dependent and stay unknown",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tk/ttk-treeview-sort/-command",
+      "family": "tk",
+      "owner": "ttk::treeview sort",
+      "location": "option -command value",
+      "kind": "command-prefix",
+      "timing": "same-invocation",
+      "appended_arity": "exactly 2",
+      "dialects": [
+        "tk"
+      ],
+      "source": "Tk ttk_treeview(n) sort: the comparison prefix is called with two item values during the sort",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    },
+    {
+      "id": "tk/wm-protocol/dynamic",
+      "family": "tk",
+      "owner": "wm protocol",
+      "location": "dynamic-arg-role",
+      "kind": "dynamic",
+      "timing": "dynamic",
+      "appended_arity": null,
+      "dialects": [
+        "tk"
+      ],
+      "source": "Tk wm(n) protocol: the handler word is present only in the setting form",
+      "oracle": null,
+      "imprecision": null,
+      "notes": ""
+    }
+  ],
+  "known_gaps": [
+    {
+      "id": "tcl/http-config/-proxyfilter",
+      "owner": "http::config",
+      "location": "option -proxyfilter value",
+      "source": "Tcl http(n) -proxyfilter: the filter command decides whether a request goes through a proxy",
+      "issue": "#1706",
+      "notes": "Called as `$http(-proxyfilter) $host` \u2014 one appended argument \u2014 in library/http/http.tcl (8.6.16 l.944; 9.0.4 l.1299 and l.4967). The registry's http::config spec carries no OptionSpec table at all, so none of its six options has a value descriptor to classify; giving it one is the work this waiver tracks."
+    },
+    {
+      "id": "tcl/http-register/handler",
+      "owner": "http::register",
+      "location": "arg[2]",
+      "source": "Tcl http(n) register: `http::register proto port command` stores the prefix http::geturl opens sockets with",
+      "issue": "#1706",
+      "notes": "library/http/http.tcl builds the call as `[list {*}$defcmd {*}$sockopts {*}$targs {*}$targetAddr]` (9.0.4 l.1407; 8.6.16 l.1112/1140), so host and port are always appended \u2014 at least 2. Classifying it makes the registered head a resolved command reference, and the head real code passes is `::tls::socket` from a package the registry does not model, so W123's unknown-command answer has to be settled before the declaration lands."
+    },
+    {
+      "id": "tcllib/websocket-open/handler",
+      "owner": "websocket::open",
+      "location": "arg[1]",
+      "source": "tcllib websocket(n): `::websocket::open url handler ?options?`",
+      "issue": "#1706",
+      "notes": "The websocket package is registered from a flat name/arity/synopsis table (tcl-registry/src/commands/tcllib/ensembles.rs) with no argument roles, so the handler word has no descriptor to carry a classification. Restructuring that table is what closes this."
+    },
+    {
+      "id": "tcllib/websocket-live/handler",
+      "owner": "websocket::live",
+      "location": "arg[2]",
+      "source": "tcllib websocket(n): `::websocket::live sock path cb`",
+      "issue": "#1706",
+      "notes": "Same flat-table limitation as `websocket::open`."
+    },
+    {
+      "id": "tcllib/ftp-open/-progress",
+      "owner": "ftp::Open",
+      "location": "option -progress value",
+      "source": "tcllib ftp(n): -progress, -output and -command install transfer callbacks on the session",
+      "issue": "#1706",
+      "notes": "`ftp::Open` is registered from the same flat table and declares no options at all, so its three documented callbacks have nowhere to live yet."
+    },
+    {
+      "id": "dialect/vivado-create-qor-check/-rule_body",
+      "owner": "create_qor_check",
+      "location": "option -rule_body value",
+      "source": "Xilinx Vivado create_qor_check -rule_body: names the Tcl procedure the check runs (specs/eda_xilinx.tclspec l.3291)",
+      "issue": "#1706",
+      "notes": "Declared `-takes rule_body` \u2014 a plain value \u2014 in the bundled pack. The sibling `create_drc_check -rule_body` and `create_gui_custom_command -command` are the same shape. No Vivado is installable here, so the prefix-versus-script union stays unverified rather than guessed; the projection does walk the pack-installed stores, so classifying one in the pack closes this waiver."
+    }
+  ]
+}

@@ -354,3 +354,47 @@ fn empty_or_absent_keys_emit_nothing() {
     assert_eq!(settings_from_ini("", Layer::Global), json!({}));
     assert_eq!(settings_from_ini("[global]\n", Layer::Global), json!({}));
 }
+
+#[test]
+fn iruleslx_sections_map_plugins_and_extra_rule_directories() {
+    let ini = concat!(
+        "[iruleslx.plugins]\n",
+        "prod_plugin = workspaces/ws_alpha\n",
+        "other = /abs/ws_beta\n",
+        "\n",
+        "[iruleslx.rules]\n",
+        "prod_plugin =\n",
+        "    irules/http\n",
+        "    irules/tcp\n",
+        "other = a, b\n",
+    );
+    let got = settings_from_ini(ini, Layer::Project);
+    assert_eq!(
+        got["iruleslx"]["plugins"],
+        json!({"prod_plugin": "workspaces/ws_alpha", "other": "/abs/ws_beta"})
+    );
+    // One directory per continuation line, and a comma list for a one-liner —
+    // the same rule `libraryPaths` / `entryPoints` take.
+    assert_eq!(
+        got["iruleslx"]["rules"],
+        json!({"prod_plugin": ["irules/http", "irules/tcp"], "other": ["a", "b"]})
+    );
+}
+
+#[test]
+fn iruleslx_sections_are_absent_when_unconfigured_or_empty() {
+    // No section at all.
+    assert_eq!(settings_from_ini("[project]\n", Layer::Project), json!({}));
+    // A section whose every entry is empty emits nothing rather than an empty
+    // object, so an unconfigured layer cannot mask a configured one below it.
+    assert_eq!(
+        settings_from_ini("[iruleslx.plugins]\np =\n", Layer::Project),
+        json!({})
+    );
+    // `rules` alone is kept in the JSON — dropping a half-declaration is
+    // `parse_ilx_plugins`' job, where the plugin list it needs is in scope.
+    assert_eq!(
+        settings_from_ini("[iruleslx.rules]\np = x\n", Layer::Project)["iruleslx"]["rules"],
+        json!({"p": ["x"]})
+    );
+}

@@ -2240,6 +2240,7 @@ mod tests {
             single_token_word: Vec::new(),
             all_tokens: Vec::new(),
             expand_word: None,
+            synthetic: None,
         }
     }
 

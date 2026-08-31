@@ -839,8 +839,8 @@ xtask-command-backing: ## Verify the WASM runtime backs every core-Tcl registry 
 	@echo "==> Checking WASM command backing coverage is in sync (cargo xtask)"
 	cd $(ROOT) && cargo xtask command-backing --check
 
-xtask-callback-inventory: ## Verify executable/callback registry coverage and generated reports (issue #1706)
-	@echo "==> Checking executable/callback surface inventory (cargo xtask)"
+xtask-callback-inventory: ## Verify executable/callback registry coverage, the authored coverage manifest, and the generated reports (issue #1706)
+	@echo "==> Checking executable/callback surface inventory + coverage manifest (cargo xtask)"
 	cd $(ROOT) && cargo xtask callback-inventory --check
 
 xtask-f5query-builtins-doc: ## Verify docs/references/f5_query/builtins.md documents exactly the registered f5-query builtins (coverage drift gate, issue #1404)

@@ -179,6 +179,35 @@ impl CodegenCtx<'_> {
         self.instructions[pos].push_verbatim = true;
     }
 
+    /// Push a *verbatim* literal **byte for byte** — a value that is already
+    /// final, with no word-level rule left to apply.
+    ///
+    /// [`push_lit_verbatim`](Self::push_lit_verbatim) collapses `\<newline>`
+    /// continuations because its input is a *braced word*, where Tcl really
+    /// does collapse them (tclsh 8.6.16 / 9.0.4: `set {z1\`<newline>`y} B`
+    /// creates the 4-byte name `z1 y`). A resolved **variable name** is not a
+    /// word: a backslash inside `${…}` is an ordinary name byte, so the
+    /// collapse would load a different variable. Verified identical on tclsh
+    /// 8.4.20, 8.5.19, 8.6.16, 9.0.4 and 9.1:
+    ///
+    /// ```text
+    /// set n [format a%c%cb 92 10]   ;# the 4-byte name a\<newline>b
+    /// set $n VALUE
+    /// set {a b} COLLAPSED
+    /// set out ${a\`<newline>`b}
+    /// -> VALUE      (the collapse would have read `a b` and given COLLAPSED)
+    /// ```
+    pub fn push_lit_exact(&mut self, value: &str) {
+        let idx = self.literals.intern(value);
+        let op = if idx < 256 { Op::PUSH1 } else { Op::PUSH4 };
+        let pos = self.emit_comment(
+            op,
+            vec![Operand::Imm(bytecode_imm(idx))],
+            &format!("\"{}\"", esc(value, 40)),
+        );
+        self.instructions[pos].push_verbatim = true;
+    }
+
     /// Push a literal using a fresh slot (no deduplication).
     pub fn push_lit_no_dedup(&mut self, value: &str) {
         let idx = self.literals.register(value);
@@ -330,7 +359,9 @@ impl CodegenCtx<'_> {
             // inside the index would otherwise never expand.
             for part in &parts {
                 match part {
-                    super::helpers::SubstPart::Lit(text) => self.push_lit(text),
+                    // Already decoded by the template parser, so byte-exact —
+                    // see the finished-key arms below.
+                    super::helpers::SubstPart::Lit(text) => self.push_lit_exact(text),
                     super::helpers::SubstPart::Cmd(cmd) => self.emit_inline_cmd_subst(cmd),
                     super::helpers::SubstPart::Var(name) => self.load_var(name),
                 }
@@ -341,16 +372,32 @@ impl CodegenCtx<'_> {
                     i32::try_from(parts.len()).expect("array-key part count fits in i32"),
                 )],
             );
+        } else if has_unescaped_subst(elem) {
+            // A live `$` / `[` the template parser left whole (`a([f])`): only
+            // the VM’s runtime word substitution can resolve it, so this is the
+            // one key shape that still goes out through the substituting push.
+            self.push_lit(elem);
         } else if elem.contains('\\') {
             // Pure literal key carrying backslash escapes (`be(\w\w)`,
             // `be(a\ a)`): a non-braced array index is an ordinary Tcl word, so
             // its escapes are decoded (`\w` → `w`, `\ ` → space) before the
             // element lookup — matching C Tcl. (Braced keys like `set {a($x)} 1`
             // never reach here; `push_var_ref` pushes those literally.)
-            self.push_lit(&tcl_lexer::backslash_subst_in(elem, self.escapes));
+            self.push_lit_exact(&tcl_lexer::backslash_subst_in(elem, self.escapes));
         } else {
-            // Pure literal key (or a key the template parser left whole).
-            self.push_lit(elem);
+            // Pure literal key: finished here, so it is pushed byte-exactly for
+            // the same reason a resolved *name* is (see `push_var_ref`) — the
+            // VM must not substitute it a second time. An index is not a word:
+            // a brace in it is an ordinary key byte, so `subst_word` would strip
+            // it and read the wrong element. tclsh 8.4.20 / 8.5.19 / 8.6.16 all
+            // agree, and the store side already resolves the key this way:
+            //
+            // ```text
+            // set a({a}) BRACED ; set b(\{a\}) ESCBRACE
+            // array names a -> {a} ; array names b -> {a}
+            // set v $b(\{a\}) -> ESCBRACE   (a substituting push read `b(a)`)
+            // ```
+            self.push_lit_exact(elem);
         }
     }
 
@@ -382,12 +429,23 @@ impl CodegenCtx<'_> {
                 );
             }
         } else {
+            // The name is already *resolved* (`parse_simple_var_ref` /
+            // `SubstPart::Var` hand this method a variable name, never a word),
+            // so it goes out verbatim for the same reason a store name does:
+            // the VM must not word-substitute a name a second time and strip
+            // its outer braces — `set {{}} Z; puts ${{}}` reads the variable
+            // `{}` on tclsh 9.0.4 / 9.1 and printed `can't read ""` here
+            // (issue #1602). Only the element key still substitutes.
+            //
+            // Byte-exact, not `push_lit_verbatim`: a resolved name is not a
+            // braced *word*, so its `\<newline>` bytes are name content and
+            // must not collapse — see `push_lit_exact`.
             if let Some((base, elem)) = split_array_ref(name) {
-                self.push_lit(base);
+                self.push_lit_exact(base);
                 self.push_array_key(elem);
                 self.emit(Op::LOAD_ARRAY_STK, vec![]);
             } else {
-                self.push_lit(name);
+                self.push_lit_exact(name);
                 self.emit(Op::LOAD_STK, vec![]);
             }
         }
@@ -432,11 +490,16 @@ impl CodegenCtx<'_> {
     /// Handles literal amounts (immediate or pushed), and variable
     /// amounts (load + incr).  For non-proc contexts, falls back to
     /// `invokeStk` when the amount is large or complex.
-    pub fn emit_incr(&mut self, name: &str, amount: Option<&str>) {
+    ///
+    /// `name` is a [resolved store name](CodegenCtx::store_target) and
+    /// `key_is_literal` its element-key half — the same contract
+    /// [`push_var_ref`](CodegenCtx::push_var_ref) documents, so a name the
+    /// compiler already resolved is never word-substituted again by the VM.
+    pub fn emit_incr(&mut self, name: &str, key_is_literal: bool, amount: Option<&str>) {
         if self.is_proc && !is_qualified(name) {
             self.emit_incr_local(name, amount);
         } else {
-            self.emit_incr_global_or_array(name, amount);
+            self.emit_incr_global_or_array(name, key_is_literal, amount);
         }
     }
 
@@ -496,67 +559,106 @@ impl CodegenCtx<'_> {
         }
     }
 
-    /// `incr` against a global / qualified / array element.
-    fn emit_incr_global_or_array(&mut self, name: &str, amount: Option<&str>) {
-        let arr = split_array_ref(name);
-        match amount {
-            None => {
-                if let Some((base, elem)) = arr {
-                    self.push_lit(base);
-                    self.push_lit(elem);
-                    self.emit(Op::INCR_ARRAY_STK_IMM, vec![Operand::Imm(1)]);
+    /// Push the `incr` target's name halves. A resolved name / array base is a
+    /// finished literal and goes out verbatim (see
+    /// [`push_var_ref`](CodegenCtx::push_var_ref)); an element key keeps the
+    /// substituting `push_lit` path until `key_is_literal` says it is finished
+    /// too.
+    fn push_incr_target(&mut self, name: &str, key_is_literal: bool) {
+        match split_array_ref(name) {
+            Some((base, elem)) => {
+                self.push_lit_exact(base);
+                if key_is_literal {
+                    self.push_lit_exact(elem);
                 } else {
-                    self.push_lit(name);
-                    self.emit(Op::INCR_STK_IMM, vec![Operand::Imm(1)]);
+                    self.push_lit(elem);
                 }
             }
+            None => self.push_lit_exact(name),
+        }
+    }
+
+    /// `incr` against a global / qualified / array element.
+    fn emit_incr_global_or_array(
+        &mut self,
+        name: &str,
+        key_is_literal: bool,
+        amount: Option<&str>,
+    ) {
+        let is_array = split_array_ref(name).is_some();
+        let step = |ctx: &mut Self, imm: i32| {
+            let op = if is_array {
+                Op::INCR_ARRAY_STK_IMM
+            } else {
+                Op::INCR_STK_IMM
+            };
+            ctx.emit(op, vec![Operand::Imm(imm)]);
+        };
+        match amount {
+            None => {
+                self.push_incr_target(name, key_is_literal);
+                step(self, 1);
+            }
             Some(amt) if is_integer_literal(amt) => {
-                if let Some(imm) = self.parse_int_operand(amt) {
-                    if (-128..=127).contains(&imm) {
-                        if let Some((base, elem)) = arr {
-                            self.push_lit(base);
-                            self.push_lit(elem);
-                            self.emit(
-                                Op::INCR_ARRAY_STK_IMM,
-                                vec![Operand::Imm(
-                                    i32::try_from(imm)
-                                        .expect("incr literal fits in i32 after range check"),
-                                )],
-                            );
-                        } else {
-                            self.push_lit(name);
-                            self.emit(
-                                Op::INCR_STK_IMM,
-                                vec![Operand::Imm(
-                                    i32::try_from(imm)
-                                        .expect("incr literal fits in i32 after range check"),
-                                )],
-                            );
-                        }
-                    } else {
-                        self.invoke_incr_fallback(name, amt);
+                match self.parse_int_operand(amt) {
+                    Some(imm) if (-128..=127).contains(&imm) => {
+                        self.push_incr_target(name, key_is_literal);
+                        step(
+                            self,
+                            i32::try_from(imm).expect("incr literal fits in i32 after range check"),
+                        );
                     }
-                } else {
-                    self.invoke_incr_fallback(name, amt);
+                    // Out of the immediate range (or unparseable) — the generic
+                    // `incr` invoke.
+                    _ => self.invoke_incr_fallback(name, key_is_literal, amt),
                 }
             }
             Some(amt) => {
                 let var_ref = parse_simple_var_ref(amt, self.braced_var);
-                if let (None, Some(vr)) = (arr, var_ref) {
-                    self.push_lit(name);
+                if let (false, Some(vr)) = (is_array, var_ref) {
+                    self.push_incr_target(name, key_is_literal);
                     self.load_var(vr);
                     self.emit(Op::INCR_STK, vec![]);
                 } else {
-                    self.invoke_incr_fallback(name, amt);
+                    self.invoke_incr_fallback(name, key_is_literal, amt);
                 }
             }
         }
     }
 
-    /// Fallback: emit `incr name amt` as a generic invokeStk1.
-    fn invoke_incr_fallback(&mut self, name: &str, amt: &str) {
+    /// Fallback: emit `incr name amt` as a generic invokeStk1 — the shape an
+    /// out-of-immediate-range or non-literal amount takes.
+    ///
+    /// The name word must reach the command *already resolved*. Pushing a
+    /// [resolved store name](CodegenCtx::store_target) through the plain
+    /// `push_lit` path sends it back through the VM's `subst_word`, which
+    /// re-substitutes a base whose escapes the compiler has already decoded:
+    /// `incr a\133b\135($i) 999` names the array `a[b]`, and re-substituting
+    /// `a[b]($i)` executed the command `b` and incremented the array `a7`.
+    /// tclsh 8.4.20 / 8.5.19 / 8.6.16 / 9.0.4 / 9.1 all agree:
+    ///
+    /// ```text
+    /// proc b {} { puts "BOOM-b-ran" ; return 7 }
+    /// set i K ; set a\133b\135(K) 5 ; incr a\133b\135($i) 999
+    /// -> array `a[b]` (4 bytes) is `K 1004`, and `b` never runs
+    /// ```
+    ///
+    /// So the halves are pushed separately — the resolved base verbatim, the
+    /// live key through the substituting path — and joined into the one word
+    /// the command takes. A fully resolved name (the scalar case, and any
+    /// braced or escape-only target) is a single verbatim push as before.
+    fn invoke_incr_fallback(&mut self, name: &str, key_is_literal: bool, amt: &str) {
         self.push_lit("incr");
-        self.push_lit(name);
+        match split_array_ref(name) {
+            Some((base, elem)) if !key_is_literal => {
+                self.push_lit_exact(base);
+                self.push_lit_exact("(");
+                self.push_lit(elem);
+                self.push_lit_exact(")");
+                self.emit(Op::STR_CONCAT1, vec![Operand::Imm(4)]);
+            }
+            _ => self.push_lit_exact(name),
+        }
         self.push_lit(amt);
         self.emit_comment(Op::INVOKE_STK1, vec![Operand::Imm(3)], "incr");
     }
@@ -947,7 +1049,7 @@ mod tests {
     fn emit_incr_default_proc() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &["x"], &registry);
-        ctx.emit_incr("x", None);
+        ctx.emit_incr("x", true, None);
         assert_eq!(ctx.instructions[0].op, Op::INCR_SCALAR1_IMM);
         // operands: slot 0, imm 1
         assert_eq!(
@@ -960,7 +1062,7 @@ mod tests {
     fn emit_incr_literal_amount_proc() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &["x"], &registry);
-        ctx.emit_incr("x", Some("5"));
+        ctx.emit_incr("x", true, Some("5"));
         assert_eq!(ctx.instructions[0].op, Op::INCR_SCALAR1_IMM);
         assert_eq!(
             ctx.instructions[0].operands[1],
@@ -972,7 +1074,7 @@ mod tests {
     fn emit_incr_large_amount_proc() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &["x"], &registry);
-        ctx.emit_incr("x", Some("999"));
+        ctx.emit_incr("x", true, Some("999"));
         // Large amount → push_lit + INCR_SCALAR1
         assert_eq!(ctx.instructions[0].op, Op::PUSH1); // push "999"
         assert_eq!(ctx.instructions[1].op, Op::INCR_SCALAR1);
@@ -982,7 +1084,7 @@ mod tests {
     fn emit_incr_default_toplevel() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
-        ctx.emit_incr("x", None);
+        ctx.emit_incr("x", true, None);
         // push "x" then INCR_STK_IMM
         assert_eq!(ctx.instructions[0].op, Op::PUSH1);
         assert_eq!(ctx.instructions[1].op, Op::INCR_STK_IMM);
@@ -992,7 +1094,7 @@ mod tests {
     fn emit_incr_large_amount_toplevel() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
-        ctx.emit_incr("x", Some("999"));
+        ctx.emit_incr("x", true, Some("999"));
         // Large → invokeStk fallback
         assert!(ctx.instructions.iter().any(|i| i.op == Op::INVOKE_STK1));
     }

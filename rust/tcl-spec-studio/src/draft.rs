@@ -64,6 +64,7 @@ use tcl_registry::hover::{
 };
 use tcl_registry::lifecycle::Lifecycle;
 use tcl_registry::presentation::ArgPresentation;
+use tcl_registry::remote_method::{MethodWord, RemoteDispatch, RemoteFamily, RemoteMethodRole};
 use tcl_registry::repeated::RepeatedArgLayout;
 use tcl_registry::representation::RepresentationEffect;
 use tcl_registry::side_effects::SideEffect;
@@ -745,6 +746,48 @@ fn handle_binding_expr(spec: &HandleBindingSpec) -> String {
             |k| format!("Some({})", handle_keyword_expr(k))
         ),
     )
+}
+
+/// The Rust expression for a [`RemoteMethodRole`] reference, wrapped in
+/// `Some(&…)`.
+///
+/// Like [`handle_binding_expr`], the whole descriptor is plain data — two
+/// fieldless-payload enums and a couple of indices — so `&`-borrowing the
+/// struct literal promotes to the `&'static` the field wants and the value
+/// round-trips through the draft (issue #1707).
+fn remote_method_expr(role: RemoteMethodRole) -> String {
+    let inner = match role {
+        RemoteMethodRole::OpensHandle(spec) => format!(
+            "RemoteMethodRole::OpensHandle(RemoteHandleSpec {{ family: {}, scope_arg: {}, \
+             extension_arg: {}, exact_argc: {} }})",
+            remote_family_expr(spec.family),
+            spec.scope_arg,
+            spec.extension_arg,
+            spec.exact_argc,
+        ),
+        RemoteMethodRole::CallsMethod(spec) => format!(
+            "RemoteMethodRole::CallsMethod(RemoteCallSpec {{ family: {}, handle_arg: {}, \
+             method: {}, dispatch: {} }})",
+            remote_family_expr(spec.family),
+            spec.handle_arg,
+            match spec.method {
+                MethodWord::At(index) => format!("MethodWord::At({index})"),
+                MethodWord::AfterOptions(index) => format!("MethodWord::AfterOptions({index})"),
+            },
+            match spec.dispatch {
+                RemoteDispatch::Synchronous => "RemoteDispatch::Synchronous",
+                RemoteDispatch::Notification => "RemoteDispatch::Notification",
+            },
+        ),
+    };
+    format!("Some(&{inner})")
+}
+
+/// The Rust expression for one [`RemoteFamily`] variant.
+fn remote_family_expr(family: RemoteFamily) -> &'static str {
+    match family {
+        RemoteFamily::IRulesLxNode => "RemoteFamily::IRulesLxNode",
+    }
 }
 
 /// The Rust expression for a [`BytePayloadSpec`], wrapped in `Some(…)`.
@@ -1762,6 +1805,16 @@ fn command_advanced(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         "self_receiver_words".into(),
         str_list(spec.self_receiver_words),
     );
+    command_object_facts(d, spec, lost);
+}
+
+/// The object / definition half of the advanced group: what a command
+/// *defines* (a class, an outline symbol, a handle, a remote method) and the
+/// context it defines it in.
+///
+/// Split out of [`command_advanced`] only to keep each within the hundred-line
+/// budget; the two are one pass over one group.
+fn command_object_facts(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert("object_class".into(), object_class(spec.object_class, lost));
     d.insert(
         "defines_symbol".into(),
@@ -1776,6 +1829,11 @@ fn command_advanced(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         "binds_handle".into(),
         spec.binds_handle
             .map_or(Value::Null, |b| json!(handle_binding_expr(b))),
+    );
+    d.insert(
+        "remote_method".into(),
+        spec.remote_method
+            .map_or(Value::Null, |role| json!(remote_method_expr(*role))),
     );
     d.insert(
         "creates_instance_at".into(),

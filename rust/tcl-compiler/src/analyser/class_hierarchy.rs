@@ -76,6 +76,41 @@ pub struct ClassHierarchy {
     pub classes: HashMap<String, ClassDef>,
     /// Class → linearised MRO (including self).
     pub mro_map: HashMap<String, Vec<String>>,
+    /// Class → its owner-resolved **direct** `mixin` edges, in declaration
+    /// order — the same resolution [`Self::mro_map`] linearises through, kept
+    /// so a consumer can tell which *branch* of the call chain a provider was
+    /// reached on without re-resolving the names itself.
+    ///
+    /// C walks each mixin branch with a fresh copy of the dispatch flags, so
+    /// the branch a provider sits on is what decides its export state (see
+    /// [`Self::spine_map`]).
+    pub mixin_map: HashMap<String, Vec<String>>,
+    /// Class → its **mixin-free** linearisation (including self) — the
+    /// `superclass` spine alone, in the order `TclOO`'s call-chain builder
+    /// walks it.
+    ///
+    /// Separate from [`Self::mro_map`] because C's
+    /// `AddSimpleClassChainToCallContext` treats the two paths differently:
+    /// each mixin is entered with a *fresh copy* of the dispatch flags, so a
+    /// mixin that unexports a name empties only its own branch, whereas the
+    /// same word on the spine decides the whole dispatch.  Oracle,
+    /// byte-identical on tclsh 8.6.16 and 9.0.4:
+    ///
+    /// ```tcl
+    /// oo::class create A   { method m {} { return A-m } }
+    /// oo::class create Mix { method m {} { return Mix-m } }
+    /// oo::define Mix { unexport m }
+    /// oo::class create D { superclass A ; mixin Mix }
+    /// [D new] m          ;# -> A-m  (the mixin's unexport did not suppress A's m)
+    /// oo::class create B { superclass A }
+    /// oo::define B { unexport m }
+    /// [B new] m          ;# -> unknown method "m"  (the spine's unexport did)
+    /// ```
+    ///
+    /// Built by the same linearisation owner as `mro_map`, over the same
+    /// resolved superclass edges, so the two orders can never disagree about
+    /// which qualified name a bare `superclass Device` meant.
+    pub spine_map: HashMap<String, Vec<String>>,
     /// Class → direct subclasses.
     pub subclasses: HashMap<String, HashSet<String>>,
     /// Class → all descendants (transitive closure).
@@ -786,6 +821,17 @@ pub fn build_class_hierarchy<S: std::hash::BuildHasher>(
         }
     }
 
+    // The mixin-free spine, from the same resolved `supers_map` and the same
+    // linearisation owner — only the mixin edges are withheld.  Backfilled
+    // identically, so every indexed class has an entry.
+    let no_mixins: HashMap<String, Vec<String>> = HashMap::new();
+    let (mut spine_map, _spine_errors) = build_mro_map(&supers_map, &no_mixins);
+    for qname in classes.keys() {
+        if !spine_map.contains_key(qname) {
+            spine_map.insert(qname.clone(), vec![qname.clone()]);
+        }
+    }
+
     // Build direct-subclass map.  Initialise with empty sets
     // for every class so callers see a non-None entry even when
     // a class has no subclasses.
@@ -848,6 +894,8 @@ pub fn build_class_hierarchy<S: std::hash::BuildHasher>(
     ClassHierarchy {
         classes,
         mro_map,
+        mixin_map: mixins_map,
+        spine_map,
         subclasses: direct_subs,
         transitive_subtypes: transitive,
         method_providers,

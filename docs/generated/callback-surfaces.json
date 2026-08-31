@@ -230,6 +230,26 @@
     "notes": "METHOD names JavaScript/Node extension code. It is one-way external dispatch, not a Tcl CommandPrefix, Tcl body, or Tcl callback reference; remote arity remains unknown."
   },
   {
+    "id": "add_condition/arg[1]@xilinx-eda-tcl",
+    "owner": "add_condition",
+    "surface": "command",
+    "kind": "body-script",
+    "provenance": "Xilinx UG835 2026.1",
+    "dialects": [
+      "xilinx-eda-tcl"
+    ],
+    "lifecycle": "all known owning-package versions",
+    "timing": "same-invocation",
+    "appended_arity": null,
+    "callback_taint_inputs": [],
+    "forms": [
+      "add_condition ?-name name? ?-radix radix? ?-notrace? ?-quiet? ?-verbose? condition_expression commands [all known owning-package versions]"
+    ],
+    "registry_derived": true,
+    "registry_owner": "add_condition",
+    "notes": "static script-body position"
+  },
+  {
     "id": "after cancel/id-or-script",
     "owner": "after cancel",
     "surface": "subcommand-form",
@@ -1311,7 +1331,7 @@
       "xilinx-eda-tcl"
     ],
     "lifecycle": "all known owning-package versions",
-    "timing": "same-invocation",
+    "timing": "deferred",
     "appended_arity": null,
     "callback_taint_inputs": [],
     "forms": [
@@ -2600,6 +2620,31 @@
     "notes": "OptionSpec value descriptor"
   },
   {
+    "id": "create_upf_library/option -contents value@cadence-eda-tcl+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+synopsys-eda-tcl+xilinx-eda-tcl",
+    "owner": "create_upf_library",
+    "surface": "command-option",
+    "kind": "body-script",
+    "provenance": "IEEE 1801-2024 §6.29",
+    "dialects": [
+      "cadence-eda-tcl",
+      "intel-quartus-eda-tcl",
+      "mentor-eda-tcl",
+      "microchip-libero-eda-tcl",
+      "synopsys-eda-tcl",
+      "xilinx-eda-tcl"
+    ],
+    "lifecycle": "all known owning-package versions",
+    "timing": "same-invocation",
+    "appended_arity": null,
+    "callback_taint_inputs": [],
+    "forms": [
+      "create_upf_library upf_library_name -contents {upf_commands} [all known owning-package versions]"
+    ],
+    "registry_derived": true,
+    "registry_owner": "create_upf_library",
+    "notes": "OptionSpec value descriptor"
+  },
+  {
     "id": "defer::autowith/arg[0]@bpf+cadence-eda-tcl+expect+f5-bigip+f5-iapps+f5-irules+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
     "owner": "defer::autowith",
     "surface": "command",
@@ -2712,6 +2757,31 @@
     "registry_derived": true,
     "registry_owner": "defer::with",
     "notes": "static script-body position"
+  },
+  {
+    "id": "define_power_model/dynamic-arg-role@cadence-eda-tcl+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+synopsys-eda-tcl+xilinx-eda-tcl",
+    "owner": "define_power_model",
+    "surface": "command",
+    "kind": "dynamic",
+    "provenance": "IEEE 1801-2024 §6.31",
+    "dialects": [
+      "cadence-eda-tcl",
+      "intel-quartus-eda-tcl",
+      "mentor-eda-tcl",
+      "microchip-libero-eda-tcl",
+      "synopsys-eda-tcl",
+      "xilinx-eda-tcl"
+    ],
+    "lifecycle": "all known owning-package versions",
+    "timing": "dynamic",
+    "appended_arity": null,
+    "callback_taint_inputs": [],
+    "forms": [
+      "define_power_model power_model_name ?-for model_list? ?-implementation? ?-update? ?-complete? {UPF_commands} [all known owning-package versions]"
+    ],
+    "registry_derived": true,
+    "registry_owner": "define_power_model",
+    "notes": "argument-role resolver; executable positions, if any, are invocation-dependent"
   },
   {
     "id": "definition_body/arg[0]@spectcl",
@@ -3623,6 +3693,31 @@
     ],
     "registry_derived": true,
     "registry_owner": "foreachLine",
+    "notes": "static script-body position"
+  },
+  {
+    "id": "foreach_in_collection/arg[2]@cadence-eda-tcl+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+synopsys-eda-tcl+xilinx-eda-tcl",
+    "owner": "foreach_in_collection",
+    "surface": "command",
+    "kind": "body-script",
+    "provenance": "F5",
+    "dialects": [
+      "cadence-eda-tcl",
+      "intel-quartus-eda-tcl",
+      "mentor-eda-tcl",
+      "microchip-libero-eda-tcl",
+      "synopsys-eda-tcl",
+      "xilinx-eda-tcl"
+    ],
+    "lifecycle": "all known owning-package versions",
+    "timing": "same-invocation",
+    "appended_arity": null,
+    "callback_taint_inputs": [],
+    "forms": [
+      "foreach_in_collection var collection body [all known owning-package versions]"
+    ],
+    "registry_derived": true,
+    "registry_owner": "foreach_in_collection",
     "notes": "static script-body position"
   },
   {

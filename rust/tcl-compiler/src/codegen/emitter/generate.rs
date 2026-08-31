@@ -545,12 +545,18 @@ fn emit_block_statements(
                 continue;
             }
         }
-        // Synthetic `<cond>` placeholders get a
+        // Synthetic condition placeholders get a
         // startCommand whose end label is deferred until the
         // ExprCommand in the branch condition has been emitted.
         // The label is placed by `emit_expr` in expressions.rs.
-        if let Statement::Call { command, .. } = stmt
-            && command == "<cond>"
+        // Keyed on the typed marker, not the `<cond>` spelling — that is a
+        // legal Tcl command name a script may define and call (see
+        // `crate::ir::SyntheticMarker`).
+        if let Statement::Call { tokens, .. } = stmt
+            && tokens
+                .as_ref()
+                .and_then(|t| t.synthetic)
+                .is_some_and(|m| m == crate::ir::SyntheticMarker::Condition)
         {
             let cond_label = ctx.fresh_label("cmd_end");
             ctx.pending_cond_end_label = Some(cond_label.clone());

@@ -791,3 +791,135 @@ fn trace_add_variable_write_list_prefix_with_a_dynamic_head_is_not_recorded() {
         "a `[list $cb …]` trace handler is a runtime value, not a static reference"
     );
 }
+
+// The issue #1706 parity control. `fcopy -command` and `chan copy -command`
+// are one contract with two spellings — chan.n says the subcommand is
+// "identical to fcopy" — so a consumer that finds the callback through one and
+// not the other is the drift the coverage gate exists to catch. The manifest
+// pins both rows to the same classification; these prove the pinned
+// classification is what the providers actually act on.
+
+/// `fcopy`'s deferred callback is a call-graph edge and a recorded invocation,
+/// exactly like a same-invocation one: deferral changes *when* the callback
+/// runs, never whether it is a reference.
+#[test]
+fn fcopy_command_option_is_a_callback_edge() {
+    let reg = CommandRegistry::build_default();
+    let src = "proc onCopied {count args} { puts $count }\nproc pump {in out} {\n    fcopy $in $out -command onCopied\n}\n";
+    let g = graphs::call_graph(
+        src,
+        &reg,
+        tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+    );
+    let edges = g["edges"].as_array().expect("edges array");
+    assert!(
+        edges.iter().any(|e| {
+            e["caller"].as_str().unwrap_or("").contains("pump")
+                && e["callee"].as_str().unwrap_or("").contains("onCopied")
+        }),
+        "expected a pump→onCopied edge from `fcopy -command`; got {g}"
+    );
+    let mut a = tcl_compiler::analyser::Analyser::new();
+    assert!(
+        a.analyse(src, "tcl9.0")
+            .command_invocations
+            .iter()
+            .any(|i| i.name == "onCopied" && i.callback_arity.is_some()),
+        "the fcopy callback must be recorded with a callback arity"
+    );
+}
+
+/// The same source with `chan copy` in place of `fcopy`. Both spellings must
+/// answer identically — a difference here is exactly the regression the stale
+/// report in issue #1706 claimed.
+#[test]
+fn chan_copy_command_option_matches_fcopy() {
+    let reg = CommandRegistry::build_default();
+    let src = "proc onCopied {count args} { puts $count }\nproc pump {in out} {\n    chan copy $in $out -command onCopied\n}\n";
+    let g = graphs::call_graph(
+        src,
+        &reg,
+        tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+    );
+    let edges = g["edges"].as_array().expect("edges array");
+    assert!(
+        edges.iter().any(|e| {
+            e["caller"].as_str().unwrap_or("").contains("pump")
+                && e["callee"].as_str().unwrap_or("").contains("onCopied")
+        }),
+        "expected a pump→onCopied edge from `chan copy -command`; got {g}"
+    );
+    let mut a = tcl_compiler::analyser::Analyser::new();
+    assert!(
+        a.analyse(src, "tcl9.0")
+            .command_invocations
+            .iter()
+            .any(|i| i.name == "onCopied" && i.callback_arity.is_some()),
+        "the chan copy callback must be recorded with a callback arity"
+    );
+}
+
+/// Negative half of the parity control, for both spellings: an unknown head is
+/// a typo in either, and a defined one is silent in either. A fresh analyser
+/// per source — the workspace analyser accumulates what it has seen, and the
+/// two sources deliberately name the *same* missing callback.
+#[test]
+fn copy_callbacks_fire_w123_only_when_unknown() {
+    let codes = |src: &str| -> Vec<String> {
+        tcl_compiler::analyser::Analyser::new()
+            .analyse(src, "tcl9.0")
+            .diagnostics
+            .iter()
+            .map(|d| d.code.to_string())
+            .collect()
+    };
+    for bad in [
+        "fcopy $in $out -command noSuchCopyCb\n",
+        "chan copy $in $out -command noSuchCopyCb\n",
+    ] {
+        let got = codes(bad);
+        assert!(
+            got.iter().any(|c| c == "W123"),
+            "an unknown copy-callback head must fire W123 in `{bad}`; got {got:?}"
+        );
+    }
+    for ok in [
+        "proc onCopied {count args} {}\nfcopy $in $out -command onCopied\n",
+        "proc onCopied {count args} {}\nchan copy $in $out -command onCopied\n",
+    ] {
+        let got = codes(ok);
+        assert!(
+            !got.iter().any(|c| c == "W123"),
+            "a defined copy-callback head must not fire W123 in `{ok}`; got {got:?}"
+        );
+    }
+}
+
+/// The version-gated control. `chan push`'s transformation handler is a
+/// positional command prefix, and the subcommand itself only exists from Tcl
+/// 8.6 (transchan(n)). Under 8.5 the availability gate fires (W002) while the
+/// handler stays a navigable reference: a callback the *release* cannot run is
+/// still a callback the *reader* is looking at, and the registry's dialect
+/// floor is what says which of the two answers applies.
+#[test]
+fn chan_push_handler_is_version_gated_but_still_a_reference() {
+    let src = "proc myTransform {args} { }\nproc arm {ch} {\n    chan push $ch myTransform\n}\n";
+    for dialect in ["tcl9.0", "tcl8.5"] {
+        let mut a = tcl_compiler::analyser::Analyser::new();
+        let r = a.analyse(src, dialect);
+        assert!(
+            r.command_invocations
+                .iter()
+                .any(|i| i.name == "myTransform" && i.callback_arity.is_some()),
+            "`chan push`'s handler must be a recorded command-prefix invocation \
+             under {dialect}"
+        );
+        let disabled = r.diagnostics.iter().any(|d| d.code.to_string() == "W002");
+        assert_eq!(
+            disabled,
+            dialect == "tcl8.5",
+            "`chan push` is 8.6+, so only 8.5 may report it disabled; {dialect} \
+             said {disabled}"
+        );
+    }
+}
