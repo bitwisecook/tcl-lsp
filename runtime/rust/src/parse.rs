@@ -292,12 +292,8 @@ fn scan_parts_at_depth(
                 i = scan_var_name(src, i);
                 let name = &src[ns..i];
                 if i < len && src[i] == b'(' {
-                    let scan = tcl_lexer::scan_array_index(
-                        src,
-                        i,
-                        config.array_index,
-                        config.braced_var,
-                    );
+                    let scan =
+                        tcl_lexer::scan_array_index(src, i, config.array_index, config.braced_var);
                     let (ks, ke) = match scan.end {
                         tcl_lexer::ArrayIndexEnd::Closed(end) => (i + 1, end - 1),
                         tcl_lexer::ArrayIndexEnd::Unterminated => (i + 1, len),
@@ -818,7 +814,11 @@ mod tests {
         }
 
         let config = LexerConfig::for_dialect("tcl9.0");
-        for source in [b"$a(\\{key\\})" as &[u8], b"$a(${key})", b"$a([format \\{])"] {
+        for source in [
+            b"$a(\\{key\\})" as &[u8],
+            b"$a(${key})",
+            b"$a([format \\{])",
+        ] {
             let body = scan_parts(source, true, true, true, config);
             assert!(
                 !matches!(body, WordBody::Parts(ref parts) if parts.iter().any(|part| matches!(part, WordPart::ParseError(_)))),
