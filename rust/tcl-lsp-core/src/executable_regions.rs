@@ -217,13 +217,16 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool>
                 let Some(&token) = command.arg_tokens().get(index) else {
                     continue;
                 };
-                if token.kind != TokenType::Str {
-                    continue;
-                }
                 if case_list.is_some_and(|(_, case_index)| case_index == index) {
                     continue;
                 }
-                if let Some((body_start, body_end)) = braced_body_region(self.source, token)
+                let single_token = command
+                    .arg_single_token()
+                    .get(index)
+                    .copied()
+                    .unwrap_or(false);
+                if let Some((body_start, body_end)) =
+                    literal_body_region(self.source, token, single_token)
                     && self.region(
                         body_start,
                         body_end,
@@ -345,6 +348,22 @@ fn case_action_region(source: &str, token: Token) -> Option<(usize, usize)> {
     (start <= end).then_some((start, end))
 }
 
+/// Return a registry-declared body's statically source-mappable script region.
+///
+/// Braced words are literal by Tcl definition. A substitution-free quoted
+/// word is literal as well, provided it contains no backslash sequence whose
+/// decoded value would differ from the written source. Compound quoted words
+/// (`"puts $value"`, `"[build]"`) have multiple lexer fragments and are
+/// deliberately withheld: reparsing their written source would invent a body
+/// that does not exist until the enclosing command performs substitution.
+fn literal_body_region(source: &str, token: Token, single_token: bool) -> Option<(usize, usize)> {
+    match token.kind {
+        TokenType::Str => braced_body_region(source, token),
+        TokenType::Esc if single_token => quoted_literal_body_region(source, token),
+        _ => None,
+    }
+}
+
 /// Return a braced body's verbatim source content, excluding delimiters.
 fn braced_body_region(source: &str, token: Token) -> Option<(usize, usize)> {
     let start = token.span.start() as usize + token.content_offset as usize;
@@ -359,6 +378,33 @@ fn braced_body_region(source: &str, token: Token) -> Option<(usize, usize)> {
     // declining to segment commands, so signature help cannot fall back to
     // the containing command while the caret awaits the body's first command.
     (start <= end && end <= source.len()).then_some((start, end))
+}
+
+/// Return a substitution-free quoted body's verbatim content.
+fn quoted_literal_body_region(source: &str, token: Token) -> Option<(usize, usize)> {
+    if token.kind != TokenType::Esc || token.content_offset != 1 {
+        return None;
+    }
+    let raw_start = token.span.start() as usize;
+    let raw_end = token.span.end() as usize;
+    let bytes = source.as_bytes();
+    if raw_start >= source.len() || raw_end > source.len() || bytes[raw_start] != b'"' {
+        return None;
+    }
+
+    let start = raw_start + 1;
+    // Non-empty quoted ESC tokens exclude the closer from their span. The
+    // lexer's empty-content clamp includes the closer in `""`, so normalize
+    // that one shape back to the same inner-end convention.
+    let end = if raw_end == start + 1 && bytes.get(start) == Some(&b'"') {
+        start
+    } else if bytes.get(raw_end) == Some(&b'"') {
+        raw_end
+    } else {
+        return None;
+    };
+    let content = source.get(start..end)?;
+    (!content.as_bytes().contains(&b'\\')).then_some((start, end))
 }
 
 /// Locate active bracket substitutions inside one token, preserving absolute
@@ -519,6 +565,32 @@ mod tests {
                 )
                 .is_empty(),
                 "dynamic and malformed lists must not expose nested actions: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn quoted_declared_bodies_recurse_only_when_source_mappable() {
+        let dialect =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let literal = "proc p {} \"format {%d} 1\"";
+        assert_eq!(
+            visited_format_heads(literal, dialect),
+            vec![(
+                "format".to_owned(),
+                "format".to_owned(),
+                u32::try_from(literal.find("format").expect("nested head")).unwrap(),
+            )],
+            "a substitution-free quoted body is executable at its written span",
+        );
+
+        for source in [
+            "proc p {} \"format $pattern 1\"",
+            "proc p {} \"format\\ {%d} 1\"",
+        ] {
+            assert!(
+                visited_format_heads(source, dialect).is_empty(),
+                "a substituted or backslash-decoded body is not source-mappable: {source}",
             );
         }
     }

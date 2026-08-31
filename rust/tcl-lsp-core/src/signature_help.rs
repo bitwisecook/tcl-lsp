@@ -884,14 +884,32 @@ mod tests {
     #[test]
     fn empty_registry_declared_scripts_are_nested_cursor_regions() {
         let registry = CommandRegistry::build_default();
-        for src in ["proc p {} {}", "switch value {default {}}"] {
+        for (src, delimiter, occurrence) in [
+            ("proc p {} {}", "{", 2),
+            ("proc p {} \"\"", "\"", 1),
+            ("switch value {default {}}", "{", 2),
+        ] {
             let analysis = analyse(src);
-            let (line, character) = pos_after(src, "{", 2);
+            let (line, character) = pos_after(src, delimiter, occurrence);
             assert!(
                 signature_help(src, line, character, &analysis, Some(&registry)).is_none(),
                 "the containing command signature leaked into an empty script: {src}",
             );
         }
+    }
+
+    #[test]
+    fn substitution_free_quoted_proc_body_is_a_nested_script_region() {
+        let src = "proc p {} \"puts hi\"";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let (line, character) = pos_after(src, "puts ", 1);
+        let help = signature_help(src, line, character, &analysis, Some(&registry))
+            .expect("quoted body command signature");
+        assert!(
+            help.signatures[0].label.starts_with("puts "),
+            "outer proc signature leaked into quoted body: {help:?}",
+        );
     }
 
     #[test]
