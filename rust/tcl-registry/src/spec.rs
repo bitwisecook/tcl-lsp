@@ -3828,20 +3828,14 @@ impl SubCommand {
         word: &str,
         avail: impl Fn(&SubSubCommand) -> bool,
     ) -> Option<&'static SubSubCommand> {
-        if word.is_empty() {
-            return None;
-        }
-        let subs: &'static [SubSubCommand] = self.sub_subcommands;
-        if let Some(exact) = subs.iter().find(|s| s.name == word && avail(s)) {
-            return Some(exact);
-        }
-        let mut hits = subs.iter().filter(|s| s.name.starts_with(word) && avail(s));
-        let first = hits.next()?;
-        // Unique prefix only — bail if a second candidate also matches.
-        if hits.next().is_some() {
-            return None;
-        }
-        Some(first)
+        let available: Vec<&'static SubSubCommand> = self
+            .sub_subcommands
+            .iter()
+            .filter(|sub| avail(sub))
+            .collect();
+        let names: Vec<&'static str> = available.iter().map(|sub| sub.name).collect();
+        tcl_cmd_core::ensemble::resolve_subcommand(&names, word.as_bytes(), true)
+            .map(|index| available[index])
     }
 
     /// Whether `word` resolves to a second-level subcommand of this

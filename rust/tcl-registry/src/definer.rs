@@ -37,6 +37,7 @@
 //! [`CommandSpec::definition_body`]: crate::CommandSpec::definition_body
 
 use crate::arg_role::ArgRole;
+use tcl_dialect::TclVersion;
 use tcl_dialect::model::SpecSurface;
 use tcl_dialect::model::SurfaceQuery;
 use tcl_dialect::model::surface_admits;
@@ -183,6 +184,46 @@ pub enum SlotOp {
     Clear,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct SlotOpSpec {
+    name: &'static str,
+    operation: SlotOp,
+    since_9: bool,
+}
+
+const TCLOO_SLOT_OPERATIONS: &[SlotOpSpec] = &[
+    SlotOpSpec {
+        name: "-append",
+        operation: SlotOp::Append,
+        since_9: false,
+    },
+    SlotOpSpec {
+        name: "-appendifnew",
+        operation: SlotOp::AppendIfNew,
+        since_9: true,
+    },
+    SlotOpSpec {
+        name: "-clear",
+        operation: SlotOp::Clear,
+        since_9: false,
+    },
+    SlotOpSpec {
+        name: "-prepend",
+        operation: SlotOp::Prepend,
+        since_9: true,
+    },
+    SlotOpSpec {
+        name: "-remove",
+        operation: SlotOp::Remove,
+        since_9: true,
+    },
+    SlotOpSpec {
+        name: "-set",
+        operation: SlotOp::Set,
+        since_9: false,
+    },
+];
+
 impl SlotOp {
     /// Parse an explicit slot-operation word, or `None` when `word` is not
     /// one.  Only the **first** argument of a slot call is ever an
@@ -190,14 +231,37 @@ impl SlotOp {
     /// items `a`, `-set`, `b`.
     #[must_use]
     pub fn parse(word: &str) -> Option<Self> {
-        match word {
-            "-set" => Some(Self::Set),
-            "-append" => Some(Self::Append),
-            "-appendifnew" => Some(Self::AppendIfNew),
-            "-prepend" => Some(Self::Prepend),
-            "-remove" => Some(Self::Remove),
-            "-clear" => Some(Self::Clear),
-            _ => None,
+        TCLOO_SLOT_OPERATIONS
+            .iter()
+            .find(|entry| entry.name == word)
+            .map(|entry| entry.operation)
+    }
+
+    /// Resolve an exact runtime slot method for `version`.
+    ///
+    /// `TclOO` slot methods do not abbreviate. The miss message uses `TclOO`'s
+    /// no-Oxford-comma method list and is filtered before rendering so Tcl 8.6
+    /// never advertises the 9.0-only operations.
+    ///
+    /// # Errors
+    /// Tcl's byte-exact `unknown method` message.
+    pub fn resolve_runtime(word: &[u8], version: TclVersion) -> Result<Self, Vec<u8>> {
+        let available: Vec<&SlotOpSpec> = TCLOO_SLOT_OPERATIONS
+            .iter()
+            .filter(|entry| !entry.since_9 || version >= TclVersion::V9_0)
+            .collect();
+        let names: Vec<&str> = available.iter().map(|entry| entry.name).collect();
+        match tcl_cmd_core::prefix::scan(&names, word, true) {
+            tcl_cmd_core::prefix::Resolution::Exact(index) => Ok(available[index].operation),
+            tcl_cmd_core::prefix::Resolution::UniquePrefix(_)
+            | tcl_cmd_core::prefix::Resolution::Ambiguous
+            | tcl_cmd_core::prefix::Resolution::NoMatch => {
+                let mut message = b"unknown method \"".to_vec();
+                message.extend_from_slice(word);
+                message.extend_from_slice(b"\": must be ");
+                message.extend_from_slice(&tcl_cmd_core::prefix::tcloo_choice_list_bytes(&names));
+                Err(message)
+            }
         }
     }
 }

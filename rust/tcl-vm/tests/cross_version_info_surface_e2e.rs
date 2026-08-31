@@ -193,3 +193,66 @@ fn vectors_match_real_tclsh_when_available() {
         eprintln!("skipping: no versioned tclsh binaries found");
     }
 }
+
+const TCL_OO_86_SCRIPT: &str = "oo::class create C {}\n\
+    set o [C new]\n\
+    puts [info object cl $o]\n\
+    catch {info object creationid $o} message\n\
+    puts $message\n\
+    catch {info object properties $o} message\n\
+    puts $message\n\
+    catch {info class definitionnamespace C} message\n\
+    puts $message\n\
+    catch {info object bogus $o} message\n\
+    puts $message\n";
+
+const TCL_OO_90_SCRIPT: &str = "oo::class create C {}\n\
+    set o [C new]\n\
+    puts [info object cl $o]\n\
+    puts [string is integer -strict [info object creationid $o]]\n\
+    puts [info object properties $o]\n\
+    catch {info object bogus $o} message\n\
+    puts $message\n\
+    catch {info class def C nope} message\n\
+    puts $message\n";
+
+#[test]
+fn tcloo_info_ensembles_follow_the_selected_release() {
+    // Exact oracle output from /home/jimd/src/tcl9.0.4 and tclsh 8.6.17.
+    assert_eq!(
+        vm_output(TCL_OO_86_SCRIPT, TclVersion::V8_6),
+        "::C\n\
+unknown or ambiguous subcommand \"creationid\": must be call, class, definition, filters, forward, isa, methods, methodtype, mixins, namespace, variables, or vars\n\
+unknown or ambiguous subcommand \"properties\": must be call, class, definition, filters, forward, isa, methods, methodtype, mixins, namespace, variables, or vars\n\
+unknown or ambiguous subcommand \"definitionnamespace\": must be call, constructor, definition, destructor, filters, forward, instances, methods, methodtype, mixins, subclasses, superclasses, or variables\n\
+unknown or ambiguous subcommand \"bogus\": must be call, class, definition, filters, forward, isa, methods, methodtype, mixins, namespace, variables, or vars"
+    );
+    assert_eq!(
+        vm_output(TCL_OO_90_SCRIPT, TclVersion::V9_0),
+        "::C\n1\n\n\
+unknown or ambiguous subcommand \"bogus\": must be call, class, creationid, definition, filters, forward, isa, methods, methodtype, mixins, namespace, properties, variables, or vars\n\
+unknown or ambiguous subcommand \"def\": must be call, constructor, definition, definitionnamespace, destructor, filters, forward, instances, methods, methodtype, mixins, properties, subclasses, superclasses, or variables"
+    );
+}
+
+#[test]
+fn tcloo_info_vectors_match_real_tclsh_when_available() {
+    for (env, names, script, expected) in [
+        (
+            "TCL_LSP_TCLSH86",
+            &["tclsh8.6"][..],
+            TCL_OO_86_SCRIPT,
+            vm_output(TCL_OO_86_SCRIPT, TclVersion::V8_6),
+        ),
+        (
+            "TCL_LSP_TCLSH90",
+            &["tclsh9.0"][..],
+            TCL_OO_90_SCRIPT,
+            vm_output(TCL_OO_90_SCRIPT, TclVersion::V9_0),
+        ),
+    ] {
+        if let Some(actual) = tclsh_output(env, names, script) {
+            assert_eq!(actual, expected);
+        }
+    }
+}

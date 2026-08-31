@@ -20,6 +20,7 @@
 
 use crate::hooks::InlineCodegenHookId;
 use crate::prelude::*;
+use tcl_dialect::TclVersion;
 use tcl_dialect::model::SpecSurface;
 
 const FORMS: &[FormSpec] = &[FormSpec {
@@ -65,6 +66,35 @@ const fn sub_since(
         surface: Some(surface),
         lifecycle: Lifecycle::introduced_in(since),
         ..SubSubCommand::DEFAULT
+    }
+}
+
+const INFO_PROPERTIES_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-all",
+        detail: "Include inherited properties.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-readable",
+        detail: "List readable properties (the default).",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-writable",
+        detail: "List writable properties.",
+        ..OptionSpec::DEFAULT
+    },
+];
+
+const fn properties_sub(detail: &'static str, synopsis: &'static str) -> SubSubCommand {
+    SubSubCommand {
+        name: "properties",
+        detail,
+        synopsis,
+        options: Some(INFO_PROPERTIES_OPTIONS),
+        surface: Some(SpecSurface::TCL90_PLUS),
+        lifecycle: Lifecycle::introduced_in("9.0"),
     }
 }
 
@@ -129,12 +159,9 @@ const INFO_OBJECT_SUBS: &[SubSubCommand] = &[
         "Report the private namespace of an object.",
         "info object namespace object",
     ),
-    sub_since(
-        "properties",
+    properties_sub(
         "List the declared properties of an object.",
         "info object properties object ?options...?",
-        SpecSurface::TCL90_PLUS,
-        "9.0",
     ),
     sub(
         "variables",
@@ -209,12 +236,9 @@ const INFO_CLASS_SUBS: &[SubSubCommand] = &[
         "List the classes mixed into a class.",
         "info class mixins class",
     ),
-    sub_since(
-        "properties",
+    properties_sub(
         "List the declared properties of a class.",
         "info class properties class ?options...?",
-        SpecSurface::TCL90_PLUS,
-        "9.0",
     ),
     sub(
         "subclasses",
@@ -232,6 +256,112 @@ const INFO_CLASS_SUBS: &[SubSubCommand] = &[
         "info class variables class",
     ),
 ];
+
+/// Which `TclOO` second-level `info` ensemble is being dispatched.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InfoOoEnsembleKind {
+    /// `info object subcommand ...`
+    Object,
+    /// `info class subcommand ...`
+    Class,
+}
+
+/// One option accepted by Tcl 9.0's `info object properties` and
+/// `info class properties` operations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InfoOoPropertiesOption {
+    /// Include inherited properties.
+    All,
+    /// Select readable properties.
+    Readable,
+    /// Select writable properties.
+    Writable,
+}
+
+/// Resolve an `info ... properties` option through the option rows attached
+/// to the registry's `properties` operation.
+///
+/// # Errors
+/// Tcl's byte-exact bad/ambiguous option message.
+pub fn resolve_info_oo_properties_option(word: &[u8]) -> Result<InfoOoPropertiesOption, Vec<u8>> {
+    let names: Vec<&str> = INFO_PROPERTIES_OPTIONS
+        .iter()
+        .map(|option| option.name)
+        .collect();
+    match tcl_cmd_core::prefix::OptionTable::abbreviating("option", &names).index_of(word)? {
+        0 => Ok(InfoOoPropertiesOption::All),
+        1 => Ok(InfoOoPropertiesOption::Readable),
+        2 => Ok(InfoOoPropertiesOption::Writable),
+        _ => unreachable!("the registry declares exactly three info properties options"),
+    }
+}
+
+impl InfoOoEnsembleKind {
+    const fn parent_name(self) -> &'static str {
+        match self {
+            Self::Object => "object",
+            Self::Class => "class",
+        }
+    }
+}
+
+/// The registry-derived, release-filtered operation table for one `TclOO`
+/// `info` ensemble.
+///
+/// The registry owns which operations exist; `tcl-cmd-core::ensemble` owns
+/// exact/unique-prefix resolution and the ensemble-specific `, or` rendering.
+/// Runtime consumers therefore receive one ready-to-dispatch table and never
+/// copy either the operation names or the miss-message list.
+#[derive(Debug, Clone)]
+pub struct InfoOoSubcommands {
+    names: Vec<&'static str>,
+}
+
+impl InfoOoSubcommands {
+    /// Canonical operation names in Tcl's listing order.
+    #[must_use]
+    pub fn names(&self) -> &[&'static str] {
+        &self.names
+    }
+
+    /// Resolve an exact name or unique prefix, returning the canonical name.
+    ///
+    /// # Errors
+    /// The Tcl ensemble miss message, including the release-filtered choices.
+    pub fn resolve(&self, word: &[u8]) -> Result<&'static str, Vec<u8>> {
+        tcl_cmd_core::ensemble::resolve_subcommand(&self.names, word, true)
+            .map(|index| self.names[index])
+            .ok_or_else(|| {
+                tcl_cmd_core::ensemble::unknown_subcommand_message(&self.names, word, true, b"")
+            })
+    }
+}
+
+/// Build the authoritative operation table for `info object` or `info class`
+/// at `version`.
+///
+/// This projects the same [`SubSubCommand`] rows used by diagnostics,
+/// completion, and hover. In particular, Tcl 9.0's `creationid`,
+/// `definitionnamespace`, and `properties` rows disappear on an 8.6 target
+/// before prefix uniqueness or error rendering is decided.
+#[must_use]
+pub fn info_oo_subcommands(kind: InfoOoEnsembleKind, version: TclVersion) -> InfoOoSubcommands {
+    let dialect =
+        Some(crate::model::static_document_context_for(version.dialect_name()).authoring_query());
+    let info = spec();
+    let parent = info
+        .subcommands
+        .iter()
+        .find(|subcommand| subcommand.name == kind.parent_name())
+        .expect("the info spec declares both TclOO ensembles");
+    InfoOoSubcommands {
+        names: parent
+            .available_sub_subcommands(dialect, None)
+            .into_iter()
+            .map(|subcommand| subcommand.name)
+            .collect(),
+    }
+}
 
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
@@ -610,5 +740,147 @@ pub fn spec() -> CommandSpec {
         }),
         forms: FORMS,
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const OBJECT_86: &[&str] = &[
+        "call",
+        "class",
+        "definition",
+        "filters",
+        "forward",
+        "isa",
+        "methods",
+        "methodtype",
+        "mixins",
+        "namespace",
+        "variables",
+        "vars",
+    ];
+    const OBJECT_90: &[&str] = &[
+        "call",
+        "class",
+        "creationid",
+        "definition",
+        "filters",
+        "forward",
+        "isa",
+        "methods",
+        "methodtype",
+        "mixins",
+        "namespace",
+        "properties",
+        "variables",
+        "vars",
+    ];
+    const CLASS_86: &[&str] = &[
+        "call",
+        "constructor",
+        "definition",
+        "destructor",
+        "filters",
+        "forward",
+        "instances",
+        "methods",
+        "methodtype",
+        "mixins",
+        "subclasses",
+        "superclasses",
+        "variables",
+    ];
+    const CLASS_90: &[&str] = &[
+        "call",
+        "constructor",
+        "definition",
+        "definitionnamespace",
+        "destructor",
+        "filters",
+        "forward",
+        "instances",
+        "methods",
+        "methodtype",
+        "mixins",
+        "properties",
+        "subclasses",
+        "superclasses",
+        "variables",
+    ];
+
+    #[test]
+    fn tcloo_info_tables_are_release_filtered_from_registry_rows() {
+        assert_eq!(
+            info_oo_subcommands(InfoOoEnsembleKind::Object, TclVersion::V8_6).names(),
+            OBJECT_86
+        );
+        assert_eq!(
+            info_oo_subcommands(InfoOoEnsembleKind::Object, TclVersion::V9_0).names(),
+            OBJECT_90
+        );
+        assert_eq!(
+            info_oo_subcommands(InfoOoEnsembleKind::Class, TclVersion::V8_6).names(),
+            CLASS_86
+        );
+        assert_eq!(
+            info_oo_subcommands(InfoOoEnsembleKind::Class, TclVersion::V9_0).names(),
+            CLASS_90
+        );
+    }
+
+    #[test]
+    fn tcloo_info_resolution_and_choices_match_tcl_ensembles() {
+        let object = info_oo_subcommands(InfoOoEnsembleKind::Object, TclVersion::V9_0);
+        assert_eq!(object.resolve(b"cl"), Ok("class"));
+        assert_eq!(
+            object.resolve(b"bogus").unwrap_err(),
+            b"unknown or ambiguous subcommand \"bogus\": must be call, class, creationid, definition, filters, forward, isa, methods, methodtype, mixins, namespace, properties, variables, or vars"
+        );
+
+        let class_86 = info_oo_subcommands(InfoOoEnsembleKind::Class, TclVersion::V8_6);
+        let class_90 = info_oo_subcommands(InfoOoEnsembleKind::Class, TclVersion::V9_0);
+        assert_eq!(class_86.resolve(b"def"), Ok("definition"));
+        assert_eq!(
+            class_90.resolve(b"def").unwrap_err(),
+            b"unknown or ambiguous subcommand \"def\": must be call, constructor, definition, definitionnamespace, destructor, filters, forward, instances, methods, methodtype, mixins, properties, subclasses, superclasses, or variables"
+        );
+    }
+
+    #[test]
+    fn tcloo_info_properties_options_use_registry_rows_and_shared_prefixes() {
+        assert_eq!(
+            resolve_info_oo_properties_option(b"-a"),
+            Ok(InfoOoPropertiesOption::All)
+        );
+        assert_eq!(
+            resolve_info_oo_properties_option(b"-r"),
+            Ok(InfoOoPropertiesOption::Readable)
+        );
+        assert_eq!(
+            resolve_info_oo_properties_option(b"-").unwrap_err(),
+            b"ambiguous option \"-\": must be -all, -readable, or -writable"
+        );
+        assert_eq!(
+            resolve_info_oo_properties_option(b"-bogus").unwrap_err(),
+            b"bad option \"-bogus\": must be -all, -readable, or -writable"
+        );
+
+        for subs in [INFO_OBJECT_SUBS, INFO_CLASS_SUBS] {
+            let properties = subs
+                .iter()
+                .find(|subcommand| subcommand.name == "properties")
+                .expect("properties operation");
+            assert_eq!(
+                properties
+                    .options
+                    .expect("registry properties options")
+                    .iter()
+                    .map(|option| option.name)
+                    .collect::<Vec<_>>(),
+                ["-all", "-readable", "-writable"]
+            );
+        }
     }
 }
