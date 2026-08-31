@@ -882,6 +882,19 @@ mod tests {
     }
 
     #[test]
+    fn empty_registry_declared_scripts_are_nested_cursor_regions() {
+        let registry = CommandRegistry::build_default();
+        for src in ["proc p {} {}", "switch value {default {}}"] {
+            let analysis = analyse(src);
+            let (line, character) = pos_after(src, "{", 2);
+            assert!(
+                signature_help(src, line, character, &analysis, Some(&registry)).is_none(),
+                "the containing command signature leaked into an empty script: {src}",
+            );
+        }
+    }
+
+    #[test]
     fn signature_help_is_available_in_proc_header_and_nested_proc_call() {
         let src = concat!(
             "proc helper {value} {}\n",

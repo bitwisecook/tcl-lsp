@@ -339,7 +339,10 @@ fn case_action_region(source: &str, token: Token) -> Option<(usize, usize)> {
     }
     let bytes = source.as_bytes();
     let start = start + usize::from(matches!(bytes.get(start), Some(b'{' | b'"')));
-    (start < end).then_some((start, end))
+    // Empty actions are still executable regions: the cursor between their
+    // delimiters must leave the containing `switch`/`expect` signature before
+    // the user types the action's first command.
+    (start <= end).then_some((start, end))
 }
 
 /// Return a braced body's verbatim source content, excluding delimiters.
@@ -352,7 +355,10 @@ fn braced_body_region(source: &str, token: Token) -> Option<(usize, usize)> {
     } else {
         raw_end
     };
-    (start < end && end <= source.len()).then_some((start, end))
+    // Keep `{}` as a zero-length region. `begin_region` probes it before
+    // declining to segment commands, so signature help cannot fall back to
+    // the containing command while the caret awaits the body's first command.
+    (start <= end && end <= source.len()).then_some((start, end))
 }
 
 /// Locate active bracket substitutions inside one token, preserving absolute
