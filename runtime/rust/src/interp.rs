@@ -39,7 +39,6 @@
 use core::ffi::c_char;
 use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
-use tcl_dialect::model::SurfaceQuery;
 
 use tcl_core_types::RecursionLimit;
 use tcl_runtime_api::guard::{
@@ -1153,9 +1152,9 @@ impl Interp {
         // (9.0.4 `generic/tclBasic.c:1346-1347`), **not** in `Tcl_Init` — so
         // they exist in an interpreter that never sources `init.tcl`.
         // Mirroring that placement is what lets `info patchlevel` answer
-        // without `--init`; `set_startup_globals` re-sets the same pair on the
-        // `Tcl_Init` path, which is idempotent.
-        interp.write_release_globals();
+        // without `--init`. `set_startup_globals` installs that pair together
+        // with the rest of Tcl_CreateInterp's predefined surface.
+        interp.set_startup_globals();
         interp
     }
 
@@ -2077,7 +2076,8 @@ impl Interp {
     /// Set the predefined variables (`tcl_version`/`tcl_platform`/`env`/
     /// `argv`/…) that C installs in `Tcl_CreateInterp`, before `Tcl_Init`.
     pub(crate) fn set_startup_globals(&mut self) {
-        let lib = self.host().env().get("TCL_LIBRARY").unwrap_or_default();
+        let host = self.host();
+        let lib = host.env().get("TCL_LIBRARY").unwrap_or_default();
         let set = |i: &mut Interp, name: &[u8], val: &[u8]| {
             let o = new_string(val);
             if i.var_set(name, o).is_err() {
@@ -2095,65 +2095,48 @@ impl Interp {
         set(self, b"::argv0", b"");
         set(self, b"::argc", b"0");
         set(self, b"::auto_path", b"");
-        // tcl_platform array (the fields init.tcl + tcltest read).
-        for (k, v) in [
-            (&b"platform"[..], &b"unix"[..]),
-            (b"os", b"Linux"),
-            (b"osVersion", b"0"),
-            (b"byteOrder", b"littleEndian"),
-            (b"wordSize", b"8"),
-            (b"pointerSize", b"8"),
-            (b"engine", b"Tcl"),
-            (b"threaded", b"0"),
-            (b"pathSeparator", b":"),
-        ] {
-            let o = new_string(v);
-            if self.var_set_elem(b"tcl_platform", k, o).is_err() {
-                drop_fresh(o);
-            }
-        }
-        // Backend-introspection keys (the test-suite constraint overlay reads
-        // these). The tree-walk runtime targets native or wasm32-wasip*, so the
-        // wasm / WASI facts come from the build's `cfg`; an environment override
-        // (read through the host seam) lets a native binary evaluate another
-        // backend's skip lists.
         {
             use tcl_platform::backend::{self, key};
             let detected = |k: &str, compiled: &str| -> String {
                 backend::override_env_var(k)
-                    .and_then(|var| self.host().env().get(var))
+                    .and_then(|var| host.env().get(var))
                     .filter(|v| !v.is_empty())
                     .unwrap_or_else(|| compiled.to_string())
             };
-            let backend_keys = [
-                (key::RUNTIME, "treewalk".to_string()),
-                (key::RUNTIME_VERSION, env!("CARGO_PKG_VERSION").to_string()),
-                (
-                    key::WASM,
-                    detected(key::WASM, backend::compiled_wasm_spec()),
-                ),
-                (
-                    key::WASI,
-                    detected(key::WASI, backend::compiled_wasi_spec()),
-                ),
-                (
-                    key::WASI_VERSION,
-                    detected(key::WASI_VERSION, backend::compiled_wasi_host()),
-                ),
-                (
-                    key::EBPF,
-                    detected(key::EBPF, backend::compiled_ebpf_spec()),
-                ),
-            ];
-            for (k, v) in backend_keys {
-                let o = new_string(v.as_bytes());
-                if self.var_set_elem(b"tcl_platform", k.as_bytes(), o).is_err() {
+            let wasm = detected(key::WASM, backend::compiled_wasm_spec());
+            let wasi = detected(key::WASI, backend::compiled_wasi_spec());
+            let wasi_version = detected(key::WASI_VERSION, backend::compiled_wasi_host());
+            let ebpf = detected(key::EBPF, backend::compiled_ebpf_spec());
+            let user = host
+                .env()
+                .get("USER")
+                .or_else(|| host.env().get("USERNAME"))
+                .unwrap_or_default();
+            let platform = tcl_platform::bootstrap::Values {
+                // Restricted hosts have no portable uname seam; Tcl's failure
+                // spelling is the empty string, never the former local "0".
+                os_version: "",
+                machine: std::env::consts::ARCH,
+                user: &user,
+                runtime: "treewalk",
+                runtime_version: env!("CARGO_PKG_VERSION"),
+                wasm: &wasm,
+                wasi: &wasi,
+                wasi_version: &wasi_version,
+                ebpf: &ebpf,
+            };
+            for entry in tcl_platform::bootstrap::entries() {
+                let o = new_string(entry.value(&platform).as_bytes());
+                if self
+                    .var_set_elem(b"tcl_platform", entry.name().as_bytes(), o)
+                    .is_err()
+                {
                     drop_fresh(o);
                 }
             }
         }
         // env array from the host environment (no quoting hazards via var_set_elem).
-        let vars = self.host().env().vars();
+        let vars = host.env().vars();
         for (k, v) in vars {
             let o = new_string(v.as_bytes());
             if self.var_set_elem(b"env", k.as_bytes(), o).is_err() {
@@ -5828,9 +5811,9 @@ impl Interp {
         // The whole profile is inherited, not just the release, so a child's
         // command-surface availability gate agrees too (issue #1463).
         child.set_dialect_profile(self.dialect_profile());
-        // A (non-safe) child gets the predefined globals (`tcl_platform`, …) like
-        // a real interpreter. The full `init.tcl` (package/auto-load) is deferred.
-        child.set_startup_globals();
+        // `Interp::new` already gave the child its own predefined globals
+        // (`tcl_platform`, `env`, argv, …). The full `init.tcl`
+        // (package/auto-load) remains deferred.
         // `interp debug -frame` is seeded from the creating interp's
         // `env(TCL_INTERP_DEBUG_FRAME)` (C's `Tcl_CreateChild`).
         if self
@@ -5992,34 +5975,10 @@ impl Interp {
         for name in tcl_registry::safe_interp_hidden_commands() {
             self.hide_command(name.as_bytes());
         }
-        // Remove the host-revealing `tcl_platform` elements (C's `Tcl_MakeSafe`
-        // unsets os/osVersion/machine/user — measured: a safe child on tclsh
-        // 8.6.14 and 9.0.4 keeps only byteOrder/engine/pathSeparator/platform/
-        // pointerSize/wordSize, plus 8.6's `threaded`) plus our
-        // backend-introspection keys, so a safe interp exposes only the
-        // portable subset.
-        //
-        // TODO(ledger B2-platform): this stays a name list because
-        // `tcl_registry::special_vars` models `tcl_platform`'s keys with a
-        // dialect set and a summary but no "scrubbed when the interpreter is
-        // made safe" flag — driving it from there needs a new
-        // `SpecialVarKey` field, which is a table change, not a query. The
-        // command half of row B2 is discharged above.
-        const UNSAFE_PLATFORM: &[&[u8]] = &[
-            b"os",
-            b"osVersion",
-            b"machine",
-            b"user",
-            b"threaded",
-            b"runtime",
-            b"runtimeVersion",
-            b"wasm",
-            b"wasi",
-            b"wasiVersion",
-            b"ebpf",
-        ];
-        for &k in UNSAFE_PLATFORM {
-            self.var_unset_elem(b"tcl_platform", k);
+        // The shared schema owns the portable/host-revealing distinction too,
+        // so installation and safe scrubbing cannot drift independently.
+        for k in tcl_platform::bootstrap::safe_scrub_keys() {
+            self.var_unset_elem(b"tcl_platform", k.as_bytes());
         }
         // A safe interp has no `env` array and no real library/package paths
         // (C's `Tcl_MakeSafe`); the Safe Base re-virtualises an `auto_path`.

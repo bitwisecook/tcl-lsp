@@ -1734,29 +1734,6 @@ impl Vm {
     /// so library scripts (tcltest) that read them at load time work.
     fn bootstrap_globals(&mut self) {
         use tcl_platform::backend::{self, key};
-        let plat = [
-            ("platform", "unix"),
-            ("os", "Linux"),
-            ("osVersion", ""),
-            ("machine", std::env::consts::ARCH),
-            ("byteOrder", "littleEndian"),
-            ("wordSize", "8"),
-            ("pointerSize", "8"),
-            ("pathSeparator", ":"),
-            ("engine", "Tcl"),
-            // Honest default: a bare VM has no thread package. `enable_threads`
-            // (the embedder opting in, e.g. `tcl-vm-cli`) flips this to `1`.
-            ("threaded", "0"),
-            ("user", ""),
-        ];
-        for (k, v) in plat {
-            let _ = self.write_array_raw("tcl_platform", k, Value::string(v));
-        }
-        // Backend-introspection keys (the test-suite constraint overlay reads
-        // these). The bytecode VM is a native interpreter, so the wasm / WASI /
-        // eBPF facts come from the build's `cfg` (empty on a native build) and
-        // may be overridden from the environment to evaluate another backend's
-        // skip lists.
         let detected = |k: &str| -> String {
             backend::override_env_var(k)
                 .and_then(|var| std::env::var(var).ok())
@@ -1771,15 +1748,35 @@ impl Vm {
                     .to_string()
                 })
         };
-        for (k, v) in [
-            (key::RUNTIME, "bytecode".to_string()),
-            (key::RUNTIME_VERSION, env!("CARGO_PKG_VERSION").to_string()),
-            (key::WASM, detected(key::WASM)),
-            (key::WASI, detected(key::WASI)),
-            (key::WASI_VERSION, detected(key::WASI_VERSION)),
-            (key::EBPF, detected(key::EBPF)),
-        ] {
-            let _ = self.write_array_raw("tcl_platform", k, Value::string(v.as_str()));
+        let wasm = detected(key::WASM);
+        let wasi = detected(key::WASI);
+        let wasi_version = detected(key::WASI_VERSION);
+        let ebpf = detected(key::EBPF);
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+        let user = std::env::var("USER")
+            .or_else(|_| std::env::var("USERNAME"))
+            .unwrap_or_default();
+        #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+        let user = String::new();
+        let platform = tcl_platform::bootstrap::Values {
+            // A host without a portable uname seam uses Tcl's documented
+            // failure value.  Crucially, both engines use the same spelling.
+            os_version: "",
+            machine: std::env::consts::ARCH,
+            user: &user,
+            runtime: "bytecode",
+            runtime_version: env!("CARGO_PKG_VERSION"),
+            wasm: &wasm,
+            wasi: &wasi,
+            wasi_version: &wasi_version,
+            ebpf: &ebpf,
+        };
+        for entry in tcl_platform::bootstrap::entries() {
+            let _ = self.write_array_raw(
+                "tcl_platform",
+                entry.name(),
+                Value::string(entry.value(&platform)),
+            );
         }
         // `std::env` is unsupported on wasm32-unknown-unknown (a bare wasm host
         // has no process environment; the std shim panics). The VM runs there —
@@ -3160,32 +3157,6 @@ impl Vm {
     /// Hidden commands move to `hidden_commands`, invocable via
     /// `interp invokehidden` and restorable with `interp expose`.
     fn make_safe(&mut self) {
-        // The host-revealing `tcl_platform` elements (C's `Tcl_MakeSafe` unsets
-        // os/osVersion/machine/user — measured: a safe child on tclsh 8.6.14
-        // and 9.0.4 keeps only byteOrder/engine/pathSeparator/platform/
-        // pointerSize/wordSize, plus 8.6's `threaded`) and our own
-        // backend-introspection keys, so a safe interp exposes only the
-        // portable subset.
-        //
-        // TODO(ledger B2-platform): this stays a name list because
-        // `tcl_registry::special_vars` models `tcl_platform`'s keys with a
-        // dialect set and a summary but no "scrubbed when the interpreter is
-        // made safe" flag — driving it from there needs a new
-        // `SpecialVarKey` field, which is a table change, not a query. The
-        // command half of row B2 is discharged below.
-        const UNSAFE_PLATFORM: &[&str] = &[
-            "os",
-            "osVersion",
-            "machine",
-            "user",
-            "threaded",
-            "runtime",
-            "runtimeVersion",
-            "wasm",
-            "wasi",
-            "wasiVersion",
-            "ebpf",
-        ];
         self.bump_cmd_epoch();
         // The hide list is the registry's `Traits::SAFE_INTERP_HIDDEN` query,
         // not a name list this engine keeps (ledger row B2): C's own set is
@@ -3228,7 +3199,7 @@ impl Vm {
                 }
             }
         }
-        for &k in UNSAFE_PLATFORM {
+        for k in tcl_platform::bootstrap::safe_scrub_keys() {
             let _ = self.unset_one(&format!("tcl_platform({k})"), false);
         }
         // A safe interp has no `env` array and no real library/package paths
