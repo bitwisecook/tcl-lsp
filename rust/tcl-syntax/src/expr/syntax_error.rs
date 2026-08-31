@@ -514,7 +514,9 @@ impl<'a> Scan<'a> {
             // A bareword is a function call only when `(` follows; our lexer
             // cannot tell the two apart, so the check lands here rather than in
             // the lexer (C decides it at `tclCompExpr.c:716-780`).
-            ExprTokenType::Function => self.function_or_bareword(token, at),
+            ExprTokenType::Function | ExprTokenType::Bool => {
+                self.function_boolean_or_bareword(token, at)
+            }
             // The lexer delimits a numeric-looking run without validating it,
             // so a radix-invalid numeral (`0o8`), a bare prefix (`0x`), or a
             // prefix this release lacks (`0d99` before 9.0) arrives as a
@@ -532,8 +534,7 @@ impl<'a> Scan<'a> {
             ExprTokenType::Number
             | ExprTokenType::String
             | ExprTokenType::Variable
-            | ExprTokenType::Command
-            | ExprTokenType::Bool => self.push_operand(at),
+            | ExprTokenType::Command => self.push_operand(at),
             ExprTokenType::Operator => self.operator(token, at),
             ExprTokenType::ParenOpen => self.paren_open(at),
             ExprTokenType::ParenClose => self.paren_close(at),
@@ -559,9 +560,17 @@ impl<'a> Scan<'a> {
         None
     }
 
-    /// An identifier: a function call when `(` follows, else C's bareword error.
-    fn function_or_bareword(&mut self, token: &ExprToken, at: usize) -> Option<ExprSyntaxError> {
+    /// An identifier: a function call when `(` follows, then a boolean literal
+    /// when the shared boolean owner recognises it, else C's bareword error.
+    fn function_boolean_or_bareword(
+        &mut self,
+        token: &ExprToken,
+        at: usize,
+    ) -> Option<ExprSyntaxError> {
         if self.token(self.pos).map(|t| t.kind) != Some(ExprTokenType::ParenOpen) {
+            if crate::boolean::parse_boolean_word(&token.text).is_some() {
+                return self.push_operand(at);
+            }
             return Some(ExprSyntaxError::naming(
                 ExprSyntaxErrorKind::InvalidBareword,
                 at,
@@ -622,7 +631,8 @@ impl<'a> Scan<'a> {
         }
         if self.token(self.pos).map(|t| t.kind) == Some(ExprTokenType::ParenClose) {
             // `()` is an argument list, never a subexpression — and the
-            // argument-list form was consumed by `function_or_bareword`.
+            // argument-list form was consumed by
+            // `function_boolean_or_bareword`.
             return Some(ExprSyntaxError::at(
                 ExprSyntaxErrorKind::EmptySubexpression,
                 self.start_of(self.pos),

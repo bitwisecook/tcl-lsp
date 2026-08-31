@@ -320,8 +320,21 @@ impl<'a> PrattParser<'a> {
             });
         }
 
-        // Boolean literal
-        if tok.kind == ExprTokenType::Bool {
+        // C resolves an identifier followed by `(` as a function before it
+        // tries boolean-word recognition, including a boolean spelling such as
+        // `true(1)`. Keep that precedence while accepting every unique boolean
+        // prefix through the canonical boolean owner (issue #1580).
+        if matches!(tok.kind, ExprTokenType::Bool | ExprTokenType::Function)
+            && self.tokens.get(self.pos + 1).map(|next| next.kind) == Some(ExprTokenType::ParenOpen)
+        {
+            return self.parse_function_call();
+        }
+
+        // Boolean literal. The lexer retains `Bool` for full-word highlighting,
+        // while prefixes arrive as identifier-shaped `Function` tokens.
+        if matches!(tok.kind, ExprTokenType::Bool | ExprTokenType::Function)
+            && crate::boolean::parse_boolean_word(&tok.text).is_some()
+        {
             let tok = self.advance();
             return Ok(ExprNode::Literal {
                 text: tok.text.clone(),
@@ -362,7 +375,8 @@ impl<'a> PrattParser<'a> {
             });
         }
 
-        // Function call: name ( args )
+        // Function call: name ( args ). The parenthesised form was handled
+        // above boolean recognition; an identifier without `(` fails closed.
         if tok.kind == ExprTokenType::Function {
             return self.parse_function_call();
         }

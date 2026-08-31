@@ -88,8 +88,8 @@ pub use structural_index::{
     script_is_complete,
 };
 pub use substitution::{
-    EscapeSegment, backslash_escape_end, backslash_escape_end_in, backslash_subst,
-    backslash_subst_in, split_backslash_escapes, split_backslash_escapes_in,
+    EscapeSegment, backslash_continuation_end, backslash_escape_end, backslash_escape_end_in,
+    backslash_subst, backslash_subst_in, split_backslash_escapes, split_backslash_escapes_in,
 };
 // Re-exported from the foundational dialect crate so existing
 // `tcl_lexer::BracedVarStyle` imports keep working — the enum moved down to

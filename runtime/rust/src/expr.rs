@@ -35,7 +35,7 @@ use core::cmp::Ordering;
 
 use crate::bignum::{self, ArithError};
 use crate::obj::{self, TclObj};
-use tcl_syntax::expr::{eval, BinOp, ExprNode, ExprOps, NumericCompare, UnaryOp};
+use tcl_syntax::expr::{BinOp, ExprNode, ExprOps, NumericCompare, UnaryOp, eval};
 
 /// An expr-evaluation error: Tcl's verbatim message bytes plus an optional
 /// `-errorcode` (a pre-formatted list, e.g. `ARITH DIVZERO {divide by zero}`).
@@ -228,7 +228,7 @@ pub trait ExprCtx {
 /// ([`tcl_syntax::expr::mathfunc`]) — the fallback when a function isn't an
 /// overridable command. `args` are the already-evaluated operands.
 pub fn dispatch_shared(name: &str, args: &[Owned]) -> Result<Owned, ExprError> {
-    use tcl_syntax::expr::mathfunc::{dispatch_with_backend, NumValue};
+    use tcl_syntax::expr::mathfunc::{NumValue, dispatch_with_backend};
     let nums: Option<Vec<NumValue<crate::bignum::TowerMp>>> = args
         .iter()
         .map(|o| crate::bignum::as_math_num(o.ptr()))
@@ -397,10 +397,8 @@ pub fn eval_mathop(
 pub(crate) fn to_bool(o: *mut TclObj) -> Result<bool, ExprError> {
     let bytes = obj::bytes_of(o);
     let s = core::str::from_utf8(&bytes).unwrap_or("");
-    match s.trim().to_ascii_lowercase().as_str() {
-        "1" | "true" | "yes" | "on" => return Ok(true),
-        "0" | "false" | "no" | "off" => return Ok(false),
-        _ => {}
+    if let Some(value) = tcl_syntax::boolean::parse_boolean_word(s.trim()) {
+        return Ok(value);
     }
     // Any number: non-zero ⇒ true. NaN is numeric but not a boolean —
     // tclsh: `expr {NaN ? 1 : 0}` → "floating point value is Not a Number".
@@ -428,7 +426,7 @@ fn bool_obj(b: bool) -> Owned {
 /// Build an object from a literal token: a number (via the shared grammar), a
 /// boolean keyword, else a plain string.
 fn make_literal(text: &str) -> Owned {
-    use tcl_syntax::number::{parse_whole, Number};
+    use tcl_syntax::number::{Number, parse_whole};
     if let Some(n) = parse_whole(text) {
         return Owned::fresh(match n {
             Number::Int(v) => obj::new_wide_int_obj(v),

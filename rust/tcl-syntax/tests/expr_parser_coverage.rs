@@ -675,6 +675,32 @@ fn boolean_literals_case_insensitive() {
 }
 
 #[test]
+fn boolean_literal_prefixes_use_the_canonical_boolean_owner() {
+    for source in [
+        "t", "tr", "tru", "y", "ye", "f", "fa", "n", "of", "TRU", "Of",
+    ] {
+        assert!(
+            tcl_syntax::boolean::parse_boolean_word(source).is_some(),
+            "owner fixture must be a unique prefix: {source}"
+        );
+        assert_eq!(lit_text(&p(source)), source, "{source}");
+    }
+
+    for source in ["o", "maybe", "trueish"] {
+        assert_eq!(
+            tcl_syntax::boolean::parse_boolean_word(source),
+            None,
+            "owner fixture must stay rejected: {source}"
+        );
+        assert!(matches!(p(source), ExprNode::Raw { .. }), "{source}");
+    }
+
+    // C chooses function-call syntax before boolean recognition.
+    assert!(matches!(p("true(1)"), ExprNode::Call { .. }));
+    assert!(matches!(p("tru(1)"), ExprNode::Call { .. }));
+}
+
+#[test]
 fn boolean_under_unary_not() {
     // !true ⇒ Not(Literal "true").
     let n = p("!true");

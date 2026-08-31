@@ -728,22 +728,22 @@ impl<'src> Lexer<'src> {
                 break;
             }
             if ch == '\\' {
+                if crate::substitution::is_line_continuation(self.source(), self.pos as usize) {
+                    // `\<newline>` line continuation (bare-word
+                    // context). At word start → emit the
+                    // continuation as a SEP. Mid-word → stop;
+                    // the iterator re-enters at the backslash.
+                    if self.pos == start_offset {
+                        return self.parse_backslash_newline_sep();
+                    }
+                    break;
+                }
                 match self
                     .source()
                     .as_bytes()
                     .get((self.pos + 1) as usize)
                     .copied()
                 {
-                    Some(b'\n' | b'\r') => {
-                        // `\<newline>` line continuation (bare-word
-                        // context). At word start → emit the
-                        // continuation as a SEP. Mid-word → stop;
-                        // the iterator re-enters at the backslash.
-                        if self.pos == start_offset {
-                            return self.parse_backslash_newline_sep();
-                        }
-                        break;
-                    }
                     Some(_) => {
                         // `\<other>`: consume the pair as literal
                         // content (both the backslash and the
@@ -772,12 +772,8 @@ impl<'src> Lexer<'src> {
     fn parse_backslash_newline_sep(&mut self) -> Token {
         let start = self.pos;
         self.pos += 1; // skip backslash
-        let was_cr = self.current_byte() == Some(b'\r');
         if self.current_byte().is_some() {
             self.pos += 1; // skip the newline char
-        }
-        if was_cr && self.current_byte() == Some(b'\n') {
-            self.pos += 1; // CRLF
         }
         self.make_token(TokenType::Sep, start)
     }
@@ -1561,17 +1557,11 @@ impl<'src> Lexer<'src> {
                 '\\' => {
                     let continuation =
                         crate::substitution::is_line_continuation(self.source(), self.pos as usize);
-                    // Consume the backslash and the next character
-                    // as a pair (CRLF counted as one): skip the
-                    // backslash, then skip the escaped char.
+                    // Consume the backslash and the next character as a pair.
+                    // A raw CR is ordinary escaped data, so a following LF is
+                    // left for the next iteration to terminate the command.
                     self.pos += 1;
                     match self.current_char() {
-                        Some(esc @ ('\n' | '\r')) => {
-                            self.pos += 1;
-                            if esc == '\r' && self.current_byte() == Some(b'\n') {
-                                self.pos += 1;
-                            }
-                        }
                         Some(esc) => {
                             self.pos += u32::try_from(esc.len_utf8()).expect("char len fits u32");
                         }

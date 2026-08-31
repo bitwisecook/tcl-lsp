@@ -27,8 +27,8 @@
 //! Each handler matches the [`BuiltinFn`](crate::interp::BuiltinFn) shape:
 //! `argv[0]` is the command name (Tcl's `objv` convention).
 
-use crate::frame::{split_array_ref, VarError};
-use crate::interp::{drop_fresh, obj_bytes, Code, Interp};
+use crate::frame::{VarError, split_array_ref};
+use crate::interp::{Code, Interp, drop_fresh, obj_bytes};
 use crate::obj::{self, TclObj};
 
 /// Register the starter builtins on a fresh interp.
@@ -822,7 +822,7 @@ fn expr_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return match e.code {
                 Some(code) => interp.error_with_code(&e.msg, &code),
                 None => interp.set_error(&e.msg),
-            }
+            };
         }
     };
     let mut ctx = InterpExprCtx {
@@ -986,6 +986,37 @@ mod tests {
             String::from_utf8_lossy(&i.result_bytes())
         );
         i.result_bytes()
+    }
+
+    #[test]
+    fn raw_cr_escapes_and_boolean_prefixes_match_tcl9() {
+        leak_free(|i| {
+            // TclParseBackslash only collapses backslash-LF. Raw CR and CRLF
+            // handed to the parser remain data; brace words preserve the slash.
+            assert_eq!(ok(i, b"set x \"a\\\rb\"; set x"), b"a\rb");
+            assert_eq!(ok(i, b"set x \"a\\\r\nb\"; set x"), b"a\r\nb");
+            assert_eq!(ok(i, b"set x {a\\\rb}; set x"), b"a\\\rb");
+            assert_eq!(ok(i, b"set x \"a\\\nb\"; set x"), b"a b");
+
+            // ParseLexeme accepts every unique boolean-word prefix as a bare
+            // literal, and boolean contexts consume the same shared owner.
+            for (source, expected) in [
+                (&b"expr {tru}"[..], &b"tru"[..]),
+                (b"expr {y}", b"y"),
+                (b"expr {of}", b"of"),
+                (b"expr {tru ? yes : no}", b"yes"),
+                (b"expr {!of}", b"1"),
+            ] {
+                assert_eq!(
+                    ok(i, source),
+                    expected,
+                    "{}",
+                    String::from_utf8_lossy(source)
+                );
+            }
+            assert_eq!(i.eval_str(b"expr {o}"), Code::Error);
+            assert!(i.result_bytes().starts_with(b"invalid bareword \"o\""));
+        });
     }
 
     #[test]
