@@ -133,7 +133,7 @@ pub enum Command {
     ChildInterp(crate::interp::InterpId),
     /// A `namespace ensemble` — invoking `cmd sub args…` resolves `sub` against
     /// the ensemble's subcommands and dispatches to the mapped target.
-    Ensemble(Rc<EnsembleDef>),
+    Ensemble(Rc<tcl_cmd_core::ensemble::EnsembleToken<EnsembleDef, String>>),
     /// A `TclOO` object or class (`Foo create obj` / `obj method …`): the name
     /// keys into the interp's `oo` state (`OoState::objects`/`classes`).
     /// Invoking it dispatches `method args…` against the object (`oo_dispatch`).
@@ -517,13 +517,15 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // spelling rooted at the caller's current namespace.
     let is_coro = crate::cmd_coro::is_coroutine(vm, &old_key);
     if new_name.is_empty() {
-        vm.delete_prepared_renamed_command(&rename);
+        let trace_handled = vm.delete_prepared_renamed_command(&rename);
         if is_coro {
             crate::cmd_coro::on_command_deleted(vm, &old_key);
         }
         // `rename x {}` is a delete: fire the command's `delete` traces
         // (`callback ::old {} delete`, tclsh-pinned) and drop its traces.
-        vm.on_command_removed(&old_key);
+        if !trace_handled {
+            vm.on_command_removed(&old_key);
+        }
     } else {
         // An unqualified target binds in the current namespace; a qualified one
         // is used as given, normalised to the key form (separator runs
@@ -825,23 +827,6 @@ fn interp_hidectl_cmd(vm: &mut Vm, hide: bool, rest: &[Value]) -> Completion<Val
             "permission denied: safe interpreter cannot {verb} commands"
         ));
     }
-    // The hidden-command token may never carry namespace qualifiers, and only
-    // global-namespace commands can be hidden / exposed-from.
-    if hide {
-        if token.contains("::") {
-            return err("cannot use namespace qualifiers in hidden command token (rename)");
-        }
-        if !is_global_command(&cmd) {
-            return err("can only hide global namespace commands (use rename then hide)");
-        }
-    } else {
-        if cmd.contains("::") {
-            return err("cannot use namespace qualifiers in hidden command token (rename)");
-        }
-        if !is_global_command(&token) {
-            return err("cannot expose to a namespace (use expose to toplevel, then rename)");
-        }
-    }
     if path.is_empty() {
         let result = if hide {
             vm.hide_command(&cmd, &token)
@@ -850,23 +835,15 @@ fn interp_hidectl_cmd(vm: &mut Vm, hide: bool, rest: &[Value]) -> Completion<Val
         };
         match result {
             Ok(()) => ok(Value::empty()),
-            Err(message) => err(message),
+            Err(problem) => problem.into_completion(),
         }
     } else {
         match vm.child_hide(&path, &cmd, &token, hide) {
             Ok(true) => ok(Value::empty()),
             Ok(false) => err(format!("could not find interpreter \"{path}\"")),
-            Err(message) => err(message),
+            Err(problem) => problem.into_completion(),
         }
     }
-}
-
-/// Whether `name` resolves in the global namespace — i.e. it carries no
-/// namespace qualifiers beyond an optional leading `::` run (the shared
-/// separator-run-aware split: `::::foo` is global too, where the old
-/// single-`strip_prefix` misclassified it).
-fn is_global_command(name: &str) -> bool {
-    tcl_cmd_core::namespace::qualifiers(name.as_bytes()).is_empty()
 }
 
 /// `interp invokehidden path ?-namespace ns? ?--? cmd ?arg ...?` — invoke a
@@ -1202,7 +1179,7 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // A namespace-qualified proc name requires its namespace to already exist
     // (C's `TclGetNamespaceForQualName` → `nsPtr == NULL`). An unqualified name
     // lands in the current namespace, which always exists (proc-1.2).
-    if name_s.contains("::") && !vm.namespace_exists(&namespace) {
+    if name_s.contains("::") && !vm.namespace_accepts_command_definition(&namespace, &reg_name) {
         return err(format!(
             "can't create procedure \"{name_s}\": unknown namespace"
         ));
@@ -1280,6 +1257,30 @@ pub(crate) fn options_dict(code: Code, level: i64, extra: &[(&str, Value)]) -> V
 pub(crate) fn err_with_code(message: impl Into<String>, code: &str) -> Completion<Value> {
     let options = options_dict(Code::Error, 0, &[("-errorcode", Value::string(code))]);
     Completion::new(Code::Error, Value::string(message.into()), options)
+}
+
+/// An `ERROR` completion carrying a structured Tcl lookup error code.
+///
+/// Error codes are Tcl lists, not space-delimited diagnostic strings: a
+/// command or subcommand name may itself contain whitespace or list syntax.
+/// Keep the encoding here, at the completion-construction boundary, and use
+/// the shared list owner for quoting each element.
+pub(crate) fn lookup_error(
+    message: impl Into<String>,
+    lookup_kind: &str,
+    name: &str,
+) -> Completion<Value> {
+    let code = tcl_syntax::list::join_list(["TCL", "LOOKUP", lookup_kind, name]);
+    err_with_code(message, &code)
+}
+
+/// The canonical error completion for a failed Tcl command lookup.
+///
+/// Attach this at lookup-producing sites instead of inferring identity from an
+/// arbitrary error message later: a user is allowed to raise the same message
+/// with the ordinary `NONE` error code.
+pub(crate) fn command_lookup_error(name: &str) -> Completion<Value> {
+    lookup_error(format!("invalid command name \"{name}\""), "COMMAND", name)
 }
 
 /// Convert an internal expression/helper failure into its Tcl completion

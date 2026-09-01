@@ -34,7 +34,7 @@ use tcl_runtime_api::{Code, Completion};
 use tcl_syntax::expr::{BinOp, UnaryOp};
 use tcl_syntax::value::string_char_len;
 
-use crate::command::{Command, ProcDef};
+use crate::command::{Command, ProcDef, command_lookup_error};
 use crate::expr;
 use crate::interp::{CmdTraceEntry, CommandSidecarHandle, CommandSidecarKey, Vm, err, ok};
 use crate::value::Value;
@@ -3453,7 +3453,7 @@ impl Vm {
                 }
                 let words = f.stack.split_off(marker);
                 if words.is_empty() {
-                    return Tick::Return(err("invalid command name \"\""));
+                    return Tick::Return(command_lookup_error(""));
                 }
                 match self.dispatch_words(f, &words) {
                     Ok(Some(call)) => return call,
@@ -3980,7 +3980,7 @@ impl Vm {
                         f.stack.push(Value::string(format!("::{origin}")));
                     }
                     _ => {
-                        return Tick::Return(err(format!("invalid command name \"{name}\"")));
+                        return Tick::Return(command_lookup_error(&name));
                     }
                 }
             }
@@ -4508,10 +4508,10 @@ impl Vm {
                     unknown_words.extend_from_slice(words);
                     self.dispatch_words(f, &unknown_words)
                 } else {
-                    Err(err(format!("invalid command name \"{name}\"")))
+                    Err(command_lookup_error(&name))
                 }
             }
-            None => Err(err(format!("invalid command name \"{name}\""))),
+            None => Err(command_lookup_error(&name)),
         }
     }
 
@@ -4791,10 +4791,10 @@ impl Vm {
                     full.extend_from_slice(argv);
                     self.invoke_command("unknown", &full)
                 } else {
-                    err(format!("invalid command name \"{name}\""))
+                    command_lookup_error(name)
                 }
             }
-            None => err(format!("invalid command name \"{name}\"")),
+            None => command_lookup_error(name),
         }
     }
 

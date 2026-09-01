@@ -251,14 +251,29 @@ pub trait Namespaces {
     // `fullName`. These back `namespace exists`/`parent`/`children`.
 
     /// Resolve namespace `name` (qualified or unqualified) from context `cxt` to
-    /// its handle (`Tcl_FindNamespace`), or `None` if no such namespace exists.
+    /// its table handle, or `None` if no such namespace table exists. During
+    /// namespace teardown Tcl can retain that table for command enumeration
+    /// after the public namespace token is dead; consumers requiring a public
+    /// token must also consult [`Namespaces::namespace_is_live`].
     fn find_namespace(&self, cxt: NsId, name: &str) -> Option<NsId>;
+    /// Whether a namespace table handle still denotes a public namespace token.
+    /// Runtimes without a distinct teardown interval use the default.
+    fn namespace_is_live(&self, ns: NsId) -> bool {
+        let _ = ns;
+        true
+    }
     /// The handle of `ns`'s parent (`parentPtr`), or `None` for the global root.
     fn parent(&self, ns: NsId) -> Option<NsId>;
     /// The handles of `ns`'s direct child namespaces (`childTable`) in creation
-    /// order. The shared command core reconstructs Tcl's observable string-hash
-    /// enumeration order from this stable insertion order.
+    /// order.
     fn children(&self, ns: NsId) -> Vec<NsId>;
+    /// The same live children in the observable `Tcl_FirstHashEntry` order of
+    /// Tcl's retained string-key hash table. Adapters that model only a tree may
+    /// use the creation-order default; `TclVM` adapters override this with the
+    /// shared hash-table owner so resize and deletion history is preserved.
+    fn children_hash_order(&self, ns: NsId) -> Vec<NsId> {
+        self.children(ns)
+    }
 
     // -- command enumeration (a namespace's `cmdTable`; backs `info commands`/
     // `info procs`). Direct members only — one level, not descendants — returned

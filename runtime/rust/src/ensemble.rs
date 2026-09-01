@@ -32,6 +32,11 @@
 
 use crate::namespace::NsId;
 
+/// Stable command-token state shared by direct and in-flight ensemble
+/// invocations. The lifecycle implementation is owned by `tcl-cmd-core` so
+/// the native VM and this runtime apply the same Tcl rules.
+pub type EnsembleToken = tcl_cmd_core::ensemble::EnsembleToken<EnsembleConfig, Vec<u8>>;
+
 /// An ensemble `-map`: each entry is `(subcommand, target command prefix words)`.
 pub type EnsembleMap = Vec<(Vec<u8>, Vec<Vec<u8>>)>;
 

@@ -396,6 +396,10 @@ impl Namespaces for Interp {
             .map(|id| NsId(id as u32))
     }
 
+    fn namespace_is_live(&self, ns: NsId) -> bool {
+        self.namespaces().namespace_is_live(ns.0 as usize)
+    }
+
     fn parent(&self, ns: NsId) -> Option<NsId> {
         self.namespaces()
             .parent(ns.0 as usize)
@@ -405,6 +409,14 @@ impl Namespaces for Interp {
     fn children(&self, ns: NsId) -> Vec<NsId> {
         self.namespaces()
             .children(ns.0 as usize)
+            .into_iter()
+            .map(|id| NsId(id as u32))
+            .collect()
+    }
+
+    fn children_hash_order(&self, ns: NsId) -> Vec<NsId> {
+        self.namespaces()
+            .children_hash_order(ns.0 as usize)
             .into_iter()
             .map(|id| NsId(id as u32))
             .collect()

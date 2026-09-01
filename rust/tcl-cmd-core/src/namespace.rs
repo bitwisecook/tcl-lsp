@@ -252,6 +252,7 @@ pub fn import_pattern<O: Namespaces + ?Sized>(
     };
     let source = ops
         .find_namespace_bytes(destination, qualifier)
+        .filter(|source| ops.namespace_is_live(*source))
         .ok_or_else(|| ImportPatternError::Unknown(pattern.to_vec()))?;
     if source == destination {
         let source_name = ops.name_bytes(source);
@@ -413,6 +414,12 @@ pub struct NamespaceLookupError {
 }
 
 impl NamespaceLookupError {
+    /// The byte-exact namespace spelling supplied by the caller.
+    #[must_use]
+    pub fn name(&self) -> &[u8] {
+        &self.name
+    }
+
     /// Tcl's byte-exact `namespace "<name>" not found` result.
     #[must_use]
     pub fn message(&self) -> Vec<u8> {
@@ -426,7 +433,9 @@ impl NamespaceLookupError {
 /// `namespace exists name` over a byte-valued namespace name.
 pub fn exists_bytes<O: ValueOps + Namespaces>(ops: &mut O, name: &[u8]) -> O::Value {
     let cur = Namespaces::current(ops);
-    let present = ops.find_namespace_bytes(cur, name).is_some();
+    let present = ops
+        .find_namespace_bytes(cur, name)
+        .is_some_and(|ns| ops.namespace_is_live(ns));
     ops.new_bool(present)
 }
 
@@ -493,18 +502,13 @@ pub fn children_bytes<O: ValueOps + Namespaces>(
             qualified
         }
     });
-    // Adapters return children in creation order. Rebuild the string-key hash
-    // table C stores them in, including its bucket-chain reversal at a resize,
-    // because Tcl_FirstHashEntry order is observable in this command's list.
+    // Adapters retain the shared string-key hash table because its capacity and
+    // bucket chains survive entry deletion. Tcl_FirstHashEntry order is an
+    // observable part of this command's result.
     let mut names: Vec<Vec<u8>> = ops
-        .children(ns)
+        .children_hash_order(ns)
         .into_iter()
         .map(|child| ops.name_bytes(child))
-        .collect();
-    let order = tcl_string_hash_order(&names);
-    names = order
-        .into_iter()
-        .map(|index| names[index].clone())
         .collect();
     names.retain(|name| {
         qualified
@@ -532,10 +536,28 @@ pub fn children<O: ValueOps + Namespaces>(
         .map_err(|error| CmdError::new(String::from_utf8_lossy(&error.message()).into_owned()))
 }
 
-/// The enumeration order of Tcl's `TCL_STRING_KEYS` hash table after inserting
-/// `names` in the supplied order. Namespace child tables use the simple tail as
-/// their key, start at four buckets, and quadruple at a 3:1 load factor.
-fn tcl_string_hash_order<T: AsRef<[u8]>>(names: &[T]) -> Vec<usize> {
+/// The observable order owner for Tcl's `TCL_STRING_KEYS` hash table.
+///
+/// Namespace adapters keep one instance per namespace instead of reconstructing
+/// it from the live children: Tcl quadruples the bucket array at a 3:1 load
+/// factor and never shrinks it when entries are deleted, while each resize also
+/// reverses bucket chains. Both facts affect `Tcl_FirstHashEntry` order.
+#[derive(Clone, Debug)]
+pub struct TclStringHashOrder {
+    buckets: Vec<Vec<Vec<u8>>>,
+    entries: usize,
+}
+
+impl Default for TclStringHashOrder {
+    fn default() -> Self {
+        Self {
+            buckets: vec![Vec::new(); 4],
+            entries: 0,
+        }
+    }
+}
+
+impl TclStringHashOrder {
     fn hash(bytes: &[u8]) -> usize {
         let mut iter = bytes.iter().copied();
         let mut result = usize::from(iter.next().unwrap_or(0));
@@ -547,26 +569,55 @@ fn tcl_string_hash_order<T: AsRef<[u8]>>(names: &[T]) -> Vec<usize> {
         result
     }
 
-    let mut buckets: Vec<Vec<usize>> = vec![Vec::new(); 4];
-    let mut rebuild_size = 12usize;
-    for (entry, name) in names.iter().enumerate() {
-        let key = tail(name.as_ref());
-        let bucket = hash(key) & (buckets.len() - 1);
-        buckets[bucket].insert(0, entry);
-        if entry + 1 == rebuild_size {
-            let old = std::mem::take(&mut buckets);
-            buckets = vec![Vec::new(); old.len() * 4];
-            for chain in old {
-                for existing in chain {
-                    let key = tail(names[existing].as_ref());
-                    let bucket = hash(key) & (buckets.len() - 1);
-                    buckets[bucket].insert(0, existing);
-                }
+    /// Insert `key`, returning `false` when it already exists.
+    pub fn insert(&mut self, key: &[u8]) -> bool {
+        let bucket = Self::hash(key) & (self.buckets.len() - 1);
+        if self.buckets[bucket].iter().any(|entry| entry == key) {
+            return false;
+        }
+        self.buckets[bucket].insert(0, key.to_vec());
+        self.entries += 1;
+        if self.entries >= self.buckets.len() * 3 {
+            self.rebuild();
+        }
+        true
+    }
+
+    /// Delete `key` without shrinking or rebuilding the bucket array.
+    pub fn remove(&mut self, key: &[u8]) -> bool {
+        let bucket = Self::hash(key) & (self.buckets.len() - 1);
+        let Some(index) = self.buckets[bucket].iter().position(|entry| entry == key) else {
+            return false;
+        };
+        self.buckets[bucket].remove(index);
+        self.entries -= 1;
+        true
+    }
+
+    /// Reset a deleted namespace's table to Tcl's four static buckets.
+    pub fn clear(&mut self) {
+        *self = Self::default();
+    }
+
+    /// Live keys in `Tcl_FirstHashEntry`/`Tcl_NextHashEntry` order.
+    #[must_use]
+    pub fn keys(&self) -> Vec<&[u8]> {
+        self.buckets
+            .iter()
+            .flat_map(|chain| chain.iter().map(Vec::as_slice))
+            .collect()
+    }
+
+    fn rebuild(&mut self) {
+        let old = std::mem::take(&mut self.buckets);
+        self.buckets = vec![Vec::new(); old.len() * 4];
+        for chain in old {
+            for key in chain {
+                let bucket = Self::hash(&key) & (self.buckets.len() - 1);
+                self.buckets[bucket].insert(0, key);
             }
-            rebuild_size *= 4;
         }
     }
-    buckets.into_iter().flatten().collect()
 }
 
 /// Resolve the optional `name` argument to a namespace handle: the current
@@ -581,6 +632,7 @@ fn resolve_target_bytes<O: Namespaces + ?Sized>(
         None => Ok(cur),
         Some(name) => ops
             .find_namespace_bytes(cur, name)
+            .filter(|ns| ops.namespace_is_live(*ns))
             .ok_or_else(|| NamespaceLookupError {
                 name: name.to_vec(),
             }),
@@ -670,24 +722,32 @@ mod tests {
             "::order::nine",
             "::order::ten",
         ];
-        let actual: Vec<_> = tcl_string_hash_order(&names)
+        let mut table = TclStringHashOrder::default();
+        for name in names {
+            assert!(table.insert(tail(name.as_bytes())));
+        }
+        let actual: Vec<_> = table
+            .keys()
             .into_iter()
-            .map(|index| names[index])
+            .map(|key| core::str::from_utf8(key).unwrap())
             .collect();
         assert_eq!(
             actual,
             [
-                "::order::six",
-                "::order::four",
-                "::order::three",
-                "::order::eight",
-                "::order::seven",
-                "::order::nine",
-                "::order::five",
-                "::order::two",
-                "::order::one",
-                "::order::ten",
+                "six", "four", "three", "eight", "seven", "nine", "five", "two", "one", "ten",
             ]
         );
+    }
+
+    #[test]
+    fn tcl_string_hash_order_retains_resize_after_deletion() {
+        let mut table = TclStringHashOrder::default();
+        for index in 0..12 {
+            assert!(table.insert(format!("a{index}").as_bytes()));
+        }
+        for index in [1, 2, 4, 5, 6, 7, 8, 9, 10, 11] {
+            assert!(table.remove(format!("a{index}").as_bytes()));
+        }
+        assert_eq!(table.keys(), [b"a0".as_slice(), b"a3".as_slice()]);
     }
 }
