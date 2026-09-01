@@ -94,7 +94,7 @@ jobs:
   #                    same `tcl-lsp-server` closure, so one flag gates both.
   #   spectcl_compat_changed — SpecTcl or its TclVM/compiler/registry/runtime
   #                    and exact-reference-toolchain closure changed. Runs the
-  #                    non-vacuous 15+3+4+1 compatibility lane.
+  #                    non-vacuous 15+3+4+2+1 compatibility lane.
   channel:
     runs-on: ubuntu-24.04
     permissions:
@@ -781,7 +781,7 @@ jobs:
   # Fail-closed SpecTcl compatibility on every PR that changes its TclVM,
   # compiler, registry, runtime, pack, or exact-reference-toolchain closure.
   # The Make target installs/resolves the manifest-pinned Tcl 9.0 oracle and
-  # runs the 15+3+4 internal cases plus the one real-C-Tcl parse case.
+  # runs the 15+3+4+2 internal cases plus the one real-C-Tcl parse case.
   spectcl-compat:
     needs: [channel]
     runs-on: ubuntu-26.04

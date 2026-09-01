@@ -925,16 +925,17 @@ prep-pr: format codegen ## Fast local gate (format + codegen + lint + typecheck 
 .PHONY: smoke smoke-p test-installer test-exhaustive fuzz test-spectcl-compat
 
 # One fail-closed compatibility lane for the complete SpecTcl contract: legacy
-# 1.x sources through TclVM (15), 2.0 golden upgrades (3), live hook execution
-# (4), and real-C-Tcl parse validity (1). The installer selects release line
-# 9.0, while tcl-dialect's manifest supplies and validates its exact patchlevel.
+# 1.x sources through TclVM (15), 2.0 golden upgrades (3), live 1.x/2.0 hook
+# execution (4), shipped corpus/containment (2), and real-C-Tcl parse validity
+# (1). The installer selects release line 9.0, while tcl-dialect's manifest
+# supplies and validates its exact patchlevel.
 test-spectcl-compat: ensure-tcl90-reference ## Run SpecTcl 1.x/2.0/TclVM/real-Tcl compatibility against the exact pinned Tcl 9.0 oracle
 	@set -eu; \
 		. scripts/dev/tcl-reference-toolchains.sh; \
 		tcl_reference_load_toolchains "$(ROOT)"; \
 		tclsh="$$(tcl_reference_resolve_tclsh 9.0)"; \
 		TCL_LSP_TCLSH90="$$tclsh" TCL_REQUIRE_SPECTCL_COMPAT=1 \
-		cargo test -p tcl-spectcl --test eval_loader --test golden_packs --test pack_source_e2e --test pack_is_real_tcl
+		cargo test -p tcl-spectcl --test eval_loader --test golden_packs --test pack_source_e2e --test spec_corpus --test pack_is_real_tcl
 
 test-installer: ## Test installer platform, UI, and legacy-migration decisions (no network)
 	@bash scripts/install/test_installer.sh

@@ -227,7 +227,7 @@ The project uses GNU Make. Key targets:
 | `make fuzz`        | tcl-fuzz differential campaign (manual-only; see the fuzz-findings skill). |
 | `make test`        | **The CI-mirror test gate** — everything except Emacs: `test-rust` + `test-ext` + `runtime-rust-test` + `zed-query-check`. Use to reproduce CI locally; not required before a PR. |
 | `make test-rust`   | `cargo test --workspace --all-features` — includes the native lsp_e2e suite (`rust/tcl-lsp-server/tests/*_e2e.rs`); skip with `SKIP_TEST_RUST=1` |
-| `make test-spectcl-compat` | Fail-closed SpecTcl compatibility: 15 legacy/TclVM cases + 3 2.0 upgrade goldens + 4 live-source/hook cases + 1 real-C-Tcl parse case, using the manifest-pinned exact Tcl 9.0 reference interpreter. |
+| `make test-spectcl-compat` | Fail-closed SpecTcl compatibility: 15 legacy/TclVM cases + 3 2.0 upgrade goldens + 4 live 1.x/2.0 source/hook cases + 2 shipped corpus/containment cases + 1 real-C-Tcl parse case, using the manifest-pinned exact Tcl 9.0 reference interpreter. |
 | `make test-ext`    | VS Code extension integration tests — the single-root suite **and** the multi-root (`test:multi-folder`) suite (xvfb on headless Linux).  The **browser** extension host is a separate suite: `make lsp-server-wasm` then `cd editors/vscode && npm run test:web` (headless Chromium via `@vscode/test-web`; CI's `test-ext-web` job) |
 | `make lint-py`     | `ruff format --check` + `ruff check` over every tracked `.py` (versions pinned in the Makefile) |
 | `make format-py`   | `ruff format` over every tracked `.py` |

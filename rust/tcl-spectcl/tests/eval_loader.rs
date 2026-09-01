@@ -52,8 +52,8 @@ fn repo_root() -> PathBuf {
 /// [`tcl_spectcl::golden::shipped_packs`] owns, shared with the golden gate
 /// and its regeneration verb so no two of them can disagree about what
 /// "every shipped pack" means.
-fn inventory() -> Vec<PathBuf> {
-    tcl_spectcl::golden::shipped_packs(&repo_root())
+fn inventory() -> Vec<tcl_spectcl::golden::ShippedPackFile> {
+    tcl_spectcl::golden::shipped_pack_inventory(&repo_root())
 }
 
 /// One notice as the comparison sees it. The line is compared too: the
@@ -135,22 +135,6 @@ fn first_diff(a: &str, b: &str) -> String {
     )
 }
 
-/// The dialect a pack's commands are exercised under — the same mapping the
-/// corpus harness uses, so `command_entry_json` resolves the vendor packs
-/// through the profile that actually admits them.
-fn dialect_for(stem: &str) -> &'static str {
-    match stem {
-        "eda_xilinx" | "sdc_base" => "xilinx-eda-tcl",
-        "upf" | "eda_synopsys" => "synopsys-eda-tcl",
-        "eda_microchip" => "microchip-libero-eda-tcl",
-        "eda_cadence" => "cadence-eda-tcl",
-        "eda_quartus" => "intel-quartus-eda-tcl",
-        "eda_mentor" => "mentor-eda-tcl",
-        "irules-http-header" => "f5-irules",
-        _ => "tcl9.1",
-    }
-}
-
 /// Load with the static fast path disabled: every body goes through the
 /// interpreter, including a 20k-line declarative one.
 ///
@@ -196,8 +180,9 @@ fn every_shipped_pack_loads_identically_with_and_without_the_static_fast_path() 
     let mut commands = 0_usize;
     let mut entries = 0_usize;
     let mut notices = 0_usize;
-    for path in files {
-        let source = std::fs::read_to_string(&path).expect("readable pack");
+    for shipped in files {
+        let path = &shipped.path;
+        let source = std::fs::read_to_string(path).expect("readable pack");
         let fast = evaluate_pack(&source);
         let slow = evaluate_through_the_interpreter(&source);
 
@@ -212,11 +197,7 @@ fn every_shipped_pack_loads_identically_with_and_without_the_static_fast_path() 
 
         // Byte-identical `command_entry_json` per declared command, through
         // a real registry, under the pack's own dialect profile.
-        let stem = path
-            .file_stem()
-            .and_then(|stem| stem.to_str())
-            .unwrap_or_default();
-        let dialect = dialect_for(stem);
+        let dialect = shipped.dialect;
         assert_eq!(
             fast.commands.len(),
             slow.commands.len(),

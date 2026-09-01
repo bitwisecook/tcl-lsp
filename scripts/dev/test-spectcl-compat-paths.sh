@@ -55,6 +55,26 @@ fi
 
 echo "SpecTcl compatibility path classifier tests passed"
 
+# The owner target must include the shipped-pack corpus lane directly. The
+# general workspace test job also reaches it today, but relying on that would
+# let a future test partition silently make the focused merge-blocking lane
+# vacuous for production hook installation and invocation.
+spectcl_target=$(awk '
+    /^test-spectcl-compat:/ { in_target = 1 }
+    in_target && /^[A-Za-z0-9_.-]+:/ && $1 != "test-spectcl-compat:" { exit }
+    in_target { print }
+' "$REPO_ROOT/Makefile")
+
+case "$spectcl_target" in
+    *'--test eval_loader'*'--test golden_packs'*'--test pack_source_e2e'*'--test spec_corpus'*'--test pack_is_real_tcl'*) ;;
+    *)
+        echo "test-spectcl-compat must own loader, upgrade, live-hook, shipped-corpus, and real-Tcl cases" >&2
+        exit 1
+        ;;
+esac
+
+echo "SpecTcl compatibility target contract tests passed"
+
 # The repository's existing required check is `pr-gate`, so the separate
 # compatibility job must feed a real failure into that check. A plain `needs`
 # edge is insufficient: Actions skips dependent jobs after a failed need.
