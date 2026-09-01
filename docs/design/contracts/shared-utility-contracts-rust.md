@@ -54,7 +54,7 @@ entry point, or gate moves without this contract being updated.
 | per-command knowledge | `rust/tcl-registry/src/spec.rs`; `rust/tcl-registry/src/hooks.rs`; `rust/tcl-registry/src/registry.rs` | `CommandSpec`; `SubCommand`; `CommandRegistry` | per release/dialect | `xtask-command-backing` |
 | dialect / release facts | `rust/tcl-dialect/src/profile.rs`; `rust/tcl-dialect/src/grammar.rs` | `DialectProfile`; `LexerGrammar`; `find` | the resolved dialect/release axis | `xtask-editor-extensions` |
 | C Tcl conformance oracles | `rust/tcl-test-support/src/lib.rs` | `locate_tclsh`; `available_tclshs`; `run_script`; `locate_source_tree`; `Tclsh`; `TclSourceTree`; `ScriptOutcome` | release line plus exact interpreter/source patchlevel | none |
-| interpreter platform bootstrap | `rust/tcl-platform/src/lib.rs` | `bootstrap::Values`; `bootstrap::entries`; `bootstrap::safe_scrub_keys`; `bootstrap::SHARED_LIBRARY_EXTENSION` | key, safe-scrub, and canonical Unix shared-library suffix invariant; host/build values supplied per engine | none |
+| interpreter platform bootstrap | `rust/tcl-platform/src/lib.rs` | `bootstrap::Values`; `bootstrap::Snapshot`; `bootstrap::snapshot`; `bootstrap::entries`; `bootstrap::HOST_ARRAYS`; `bootstrap::HOST_PATH_GLOBALS`; `bootstrap::safe_scrub_keys`; `bootstrap::SHARED_LIBRARY_EXTENSION` | key, selected-host snapshot, rebootstrap-clear, safe-scrub, and canonical Unix shared-library suffix invariant; runtime identity supplied per engine | none |
 | shared plain types | `rust/tcl-core-types/src/diag_code.rs` | `DiagCode` | invariant | `xtask-diag-tables` |
 <!-- end-owner-resolution-manifest -->
 
@@ -63,8 +63,15 @@ entry point, or gate moves without this contract being updated.
 - `bootstrap::entries` is the one schema for the predefined
   `tcl_platform` array in both interpreters. Constants live in the schema;
   machine, user, operating-system version, engine identity, and backend facts
-  enter through `bootstrap::Values`, so the engines adapt host data without
-  owning another key list.
+  enter through `bootstrap::Values`. `bootstrap::snapshot` captures those
+  values together with the selected host's environment and Tcl library path,
+  so neither engine may read the process host behind an embedder's selected
+  `Host`.
+- `bootstrap::HOST_ARRAYS` and `bootstrap::HOST_PATH_GLOBALS` define the whole
+  stale surface an engine clears before installing a replacement snapshot.
+  `Interp::with_host` avoids a native-host bootstrap entirely; both engines'
+  `set_host` paths replace this surface, and normal children inherit their
+  parent's host before their first bootstrap.
 - `bootstrap::safe_scrub_keys` is derived from those same entries. It follows
   Tcl 9's `Tcl_MakeSafe` distinction: identity-bearing `os`, `osVersion`,
   `machine`, and `user` are removed; portable facts, including `threaded`,
@@ -75,8 +82,8 @@ entry point, or gate moves without this contract being updated.
   command adapter; real `init.tcl` package-index discovery reads it while
   rejecting Windows-only packages.
 
-  Consumers: `tcl-vm::Vm::bootstrap_globals` and
-  `tcl_runtime::Interp::set_startup_globals` install the schema;
+  Consumers: `tcl-vm::Vm::rebootstrap_host_globals` and
+  `tcl_runtime::Interp::rebootstrap_host_globals` install the snapshot;
   each engine's `make_safe` consumes the derived scrub iterator. A fresh
   tree-walk `Interp`, its normal children, and bytecode-VM children all install
   the surface before any `init.tcl` work.

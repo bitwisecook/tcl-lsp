@@ -22,6 +22,7 @@
 //! `tcl-vm`, asserting observable behaviour.
 
 use std::cell::RefCell;
+use std::collections::BTreeMap;
 use std::io::Write;
 use std::rc::Rc;
 
@@ -51,6 +52,90 @@ impl Write for Capture {
     }
     fn flush(&mut self) -> std::io::Result<()> {
         Ok(())
+    }
+}
+
+struct SyntheticHost {
+    clock: SyntheticClock,
+    stdio: SyntheticStdIo,
+    env: SyntheticEnv,
+}
+
+impl SyntheticHost {
+    fn new(entries: &[(&str, &str)]) -> Self {
+        Self {
+            clock: SyntheticClock,
+            stdio: SyntheticStdIo,
+            env: SyntheticEnv(
+                entries
+                    .iter()
+                    .map(|(key, value)| ((*key).to_string(), (*value).to_string()))
+                    .collect(),
+            ),
+        }
+    }
+}
+
+struct SyntheticClock;
+
+impl tcl_platform::Clock for SyntheticClock {
+    fn now_secs(&self) -> i64 {
+        0
+    }
+
+    fn now_millis(&self) -> i128 {
+        0
+    }
+}
+
+struct SyntheticStdIo;
+
+impl tcl_platform::StdIo for SyntheticStdIo {
+    fn write_stdout(&self, _bytes: &[u8]) {}
+
+    fn write_stderr(&self, _bytes: &[u8]) {}
+}
+
+struct SyntheticEnv(BTreeMap<String, String>);
+
+impl tcl_platform::Env for SyntheticEnv {
+    fn get(&self, key: &str) -> Option<String> {
+        self.0.get(key).cloned()
+    }
+
+    fn set(&self, _key: &str, _value: &str) {}
+
+    fn vars(&self) -> Vec<(String, String)> {
+        self.0
+            .iter()
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect()
+    }
+
+    fn cwd(&self) -> Result<String, tcl_platform::HostError> {
+        Ok("/synthetic".to_string())
+    }
+
+    fn chdir(&self, _path: &str) -> Result<(), tcl_platform::HostError> {
+        Ok(())
+    }
+}
+
+impl tcl_platform::Host for SyntheticHost {
+    fn capabilities(&self) -> tcl_platform::Capabilities {
+        tcl_platform::Capabilities::empty()
+    }
+
+    fn clock(&self) -> &dyn tcl_platform::Clock {
+        &self.clock
+    }
+
+    fn stdio(&self) -> &dyn tcl_platform::StdIo {
+        &self.stdio
+    }
+
+    fn env(&self) -> &dyn tcl_platform::Env {
+        &self.env
     }
 }
 
@@ -695,6 +780,60 @@ fn bootstrap_globals_present() {
     out_eq("puts $::tcl_platform(platform)\n", "unix\n");
     out_eq("puts [info exists ::env]\n", "1\n");
     out_eq("puts $::tcl_version\n", "9.0\n");
+}
+
+#[test]
+fn host_rebind_replaces_bytecode_vm_bootstrap_globals() {
+    let mut vm = Vm::new();
+    vm.set_compiler(Box::new(Svc(CommandRegistry::build_default())));
+    vm.set_host(Rc::new(SyntheticHost::new(&[
+        ("USER", "first-user"),
+        ("TCL_LIBRARY", "/first/lib"),
+        ("TCL_WASM_SPEC", "first-wasm"),
+        ("FIRST_ONLY", "stale"),
+    ])));
+    let initial = vm
+        .eval_source(
+            "list $::tcl_platform(user) $::tcl_platform(wasm) \
+             $::tcl_library $::env(FIRST_ONLY)",
+        )
+        .expect("compile initial bootstrap query");
+    assert!(initial.code.is_ok());
+    assert_eq!(
+        initial.result.to_str().as_ref(),
+        "first-user first-wasm /first/lib stale"
+    );
+    let mutated = vm
+        .eval_source(
+            "set ::env(EMBEDDER_STALE) old; \
+             set ::auto_path /old/auto; \
+             set ::tclDefaultLibrary /old/default; \
+             set ::tcl_pkgPath /old/pkg",
+        )
+        .expect("compile stale-global setup");
+    assert!(mutated.code.is_ok());
+
+    vm.set_host(Rc::new(SyntheticHost::new(&[
+        ("USER", "second-user"),
+        ("TCL_LIBRARY", "/second/lib"),
+        ("TCL_WASM_SPEC", "second-wasm"),
+        ("SECOND_ONLY", "fresh"),
+    ])));
+    let rebound = vm
+        .eval_source(
+            "list $::tcl_platform(user) $::tcl_platform(wasm) \
+             $::tcl_library $::env(SECOND_ONLY) \
+             [info exists ::env(FIRST_ONLY)] \
+             [info exists ::env(EMBEDDER_STALE)] \
+             [info exists ::tclDefaultLibrary] \
+             [info exists ::tcl_pkgPath] [llength $::auto_path]",
+        )
+        .expect("compile rebound bootstrap query");
+    assert!(rebound.code.is_ok(), "{}", rebound.result.to_str());
+    assert_eq!(
+        rebound.result.to_str().as_ref(),
+        "second-user second-wasm /second/lib fresh 0 0 0 0 0"
+    );
 }
 
 #[test]

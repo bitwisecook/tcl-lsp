@@ -204,7 +204,13 @@ impl Env for NativeEnv {
     }
 
     fn vars(&self) -> Vec<(String, String)> {
-        let mut map: HashMap<String, String> = std::env::vars().collect();
+        // `Env` is deliberately a Unicode interface. Unix permits arbitrary
+        // bytes in process environment entries, so enumerate with `vars_os`
+        // and omit entries that cannot be represented without changing their
+        // key or value. `std::env::vars` would panic on the first such entry.
+        let mut map: HashMap<String, String> = std::env::vars_os()
+            .filter_map(|(key, value)| Some((key.into_string().ok()?, value.into_string().ok()?)))
+            .collect();
         for (k, v) in self.overrides.borrow().iter() {
             map.insert(k.clone(), v.clone());
         }
@@ -481,5 +487,42 @@ impl Process for NativeProcess {
             stdout: output.stdout,
             stderr: output.stderr,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn native_environment_skips_non_unicode_entries_without_panicking() {
+        use std::os::unix::ffi::OsStringExt;
+
+        const CHILD_MARKER: &str = "TCL_HOST_NATIVE_NON_UNICODE_CHILD";
+        const UNICODE_SENTINEL: &str = "TCL_HOST_NATIVE_UNICODE_SENTINEL";
+        if std::env::var_os(CHILD_MARKER).is_some() {
+            let vars = NativeHost::new().env().vars();
+            assert!(
+                vars.iter()
+                    .any(|(key, value)| { key == UNICODE_SENTINEL && value == "visible" })
+            );
+            return;
+        }
+
+        let executable = std::env::current_exe().expect("current test executable");
+        let invalid_name = std::ffi::OsString::from_vec(b"TCL_HOST_NATIVE_\xff".to_vec());
+        let invalid_value = std::ffi::OsString::from_vec(vec![0xff]);
+        let status = std::process::Command::new(executable)
+            .arg("--exact")
+            .arg("tests::native_environment_skips_non_unicode_entries_without_panicking")
+            .arg("--nocapture")
+            .env(CHILD_MARKER, "1")
+            .env(UNICODE_SENTINEL, "visible")
+            .env(invalid_name, "ignored")
+            .env("TCL_HOST_NATIVE_INVALID_VALUE", invalid_value)
+            .status()
+            .expect("run child test process");
+        assert!(status.success(), "child test process failed: {status}");
     }
 }
