@@ -15,7 +15,7 @@ use tcl_compiler::lambda_literal::split_lambda_literal;
 use tcl_compiler::realm::CommandBindingRealm;
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_dialect::model::SurfaceQuery;
-use tcl_lexer::{Lexer, LexerConfig, SourceMap, Token, TokenType};
+use tcl_lexer::{Lexer, LexerConfig, SourceMap, Token, TokenType, close_quote_offset};
 use tcl_registry::definer::DefinitionBodyGrammar;
 use tcl_registry::{ArgRole, CommandRegistry, ScriptTiming};
 
@@ -393,16 +393,12 @@ fn quoted_literal_body_region(source: &str, token: Token) -> Option<(usize, usiz
     }
 
     let start = raw_start + 1;
-    // Non-empty quoted ESC tokens exclude the closer from their span. The
-    // lexer's empty-content clamp includes the closer in `""`, so normalize
-    // that one shape back to the same inner-end convention.
-    let end = if raw_end == start + 1 && bytes.get(start) == Some(&b'"') {
-        start
-    } else if bytes.get(raw_end) == Some(&b'"') {
-        raw_end
-    } else {
-        return None;
-    };
+    // The shared quote scanner owns close semantics (including escaped quotes
+    // and nested command substitutions). An unterminated opening token runs
+    // through EOF, which is also the provisional inner end signature help
+    // needs while the closing quote is still being typed.
+    let end = close_quote_offset(source, raw_start)
+        .map_or_else(|| (raw_end == source.len()).then_some(raw_end), Some)?;
     let content = source.get(start..end)?;
     (!content.as_bytes().contains(&b'\\')).then_some((start, end))
 }
@@ -582,6 +578,17 @@ mod tests {
                 u32::try_from(literal.find("format").expect("nested head")).unwrap(),
             )],
             "a substitution-free quoted body is executable at its written span",
+        );
+
+        let unterminated = "proc p {} \"format {%d} 1";
+        assert_eq!(
+            visited_format_heads(unterminated, dialect),
+            vec![(
+                "format".to_owned(),
+                "format".to_owned(),
+                u32::try_from(unterminated.find("format").expect("nested head")).unwrap(),
+            )],
+            "an unterminated quoted body remains executable through EOF",
         );
 
         for source in [

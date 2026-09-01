@@ -910,6 +910,16 @@ mod tests {
             help.signatures[0].label.starts_with("puts "),
             "outer proc signature leaked into quoted body: {help:?}",
         );
+
+        let src = "proc p {} \"puts ";
+        let analysis = analyse(src);
+        let (line, character) = pos_after(src, "puts ", 1);
+        let help = signature_help(src, line, character, &analysis, Some(&registry))
+            .expect("unterminated quoted body command signature");
+        assert!(
+            help.signatures[0].label.starts_with("puts "),
+            "outer proc signature leaked into unterminated quoted body: {help:?}",
+        );
     }
 
     #[test]
