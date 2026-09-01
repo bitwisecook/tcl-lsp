@@ -347,6 +347,10 @@ pub trait Host {
 pub mod bootstrap {
     use super::backend;
 
+    /// Shared-library suffix exposed by `info sharedlibextension` for the
+    /// canonical Unix platform both Rust interpreters currently publish.
+    pub const SHARED_LIBRARY_EXTENSION: &str = ".so";
+
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     enum ValueSource {
         Literal(&'static str),

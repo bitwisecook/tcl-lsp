@@ -54,7 +54,7 @@ entry point, or gate moves without this contract being updated.
 | per-command knowledge | `rust/tcl-registry/src/spec.rs`; `rust/tcl-registry/src/hooks.rs`; `rust/tcl-registry/src/registry.rs` | `CommandSpec`; `SubCommand`; `CommandRegistry` | per release/dialect | `xtask-command-backing` |
 | dialect / release facts | `rust/tcl-dialect/src/profile.rs`; `rust/tcl-dialect/src/grammar.rs` | `DialectProfile`; `LexerGrammar`; `find` | the resolved dialect/release axis | `xtask-editor-extensions` |
 | C Tcl conformance oracles | `rust/tcl-test-support/src/lib.rs` | `locate_tclsh`; `available_tclshs`; `run_script`; `locate_source_tree`; `Tclsh`; `TclSourceTree`; `ScriptOutcome` | release line plus exact interpreter/source patchlevel | none |
-| interpreter platform bootstrap | `rust/tcl-platform/src/lib.rs` | `bootstrap::Values`; `bootstrap::entries`; `bootstrap::safe_scrub_keys` | key and safe-scrub policy invariant; host/build values supplied per engine | none |
+| interpreter platform bootstrap | `rust/tcl-platform/src/lib.rs` | `bootstrap::Values`; `bootstrap::entries`; `bootstrap::safe_scrub_keys`; `bootstrap::SHARED_LIBRARY_EXTENSION` | key, safe-scrub, and canonical Unix shared-library suffix invariant; host/build values supplied per engine | none |
 | shared plain types | `rust/tcl-core-types/src/diag_code.rs` | `DiagCode` | invariant | `xtask-diag-tables` |
 <!-- end-owner-resolution-manifest -->
 
@@ -69,6 +69,11 @@ entry point, or gate moves without this contract being updated.
   Tcl 9's `Tcl_MakeSafe` distinction: identity-bearing `os`, `osVersion`,
   `machine`, and `user` are removed; portable facts, including `threaded`,
   remain. The project-specific runtime/WASM/WASI/eBPF facts are also removed.
+- `bootstrap::SHARED_LIBRARY_EXTENSION` is the one suffix exposed by both
+  engines' `info sharedlibextension` implementations. It belongs beside the
+  canonical Unix `tcl_platform(platform)` fact rather than in either engine's
+  command adapter; real `init.tcl` package-index discovery reads it while
+  rejecting Windows-only packages.
 
   Consumers: `tcl-vm::Vm::bootstrap_globals` and
   `tcl_runtime::Interp::set_startup_globals` install the schema;

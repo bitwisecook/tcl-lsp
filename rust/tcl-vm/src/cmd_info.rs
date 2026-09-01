@@ -186,6 +186,12 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         },
         "tclversion" => info_global(vm, rest, "info tclversion", "tcl_version"),
         "patchlevel" => info_global(vm, rest, "info patchlevel", "tcl_patchLevel"),
+        "sharedlibextension" => match rest {
+            [] => ok(Value::string(
+                tcl_platform::bootstrap::SHARED_LIBRARY_EXTENSION,
+            )),
+            _ => err("wrong # args: should be \"info sharedlibextension\""),
+        },
         // `info functions ?pattern?` — the registered `tcl::mathfunc::*` names.
         "functions" => match rest {
             [] => ok(Value::list(
@@ -317,6 +323,15 @@ mod tests {
         assert_eq!(
             missing.result.to_str().as_ref(),
             "can't read \"tcl_patchLevel\": no such variable"
+        );
+    }
+
+    #[test]
+    fn shared_library_extension_comes_from_the_platform_owner() {
+        let mut vm = Vm::new();
+        assert_eq!(
+            info(&mut vm, "sharedlibextension").result.to_str().as_ref(),
+            tcl_platform::bootstrap::SHARED_LIBRARY_EXTENSION
         );
     }
 

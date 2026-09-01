@@ -202,6 +202,34 @@ pub fn locate_tclsh(version: TclVersion) -> Result<Option<Tclsh>, OracleError> {
     Ok(None)
 }
 
+/// Validate the interpreter built inside `source_tree` and require its exact
+/// patch level to match the source headers. Conformance harnesses use this when
+/// the interpreter and library must be one indivisible oracle selection.
+pub fn tclsh_from_source_tree(
+    source_tree: &TclSourceTree,
+    version: TclVersion,
+) -> Result<Tclsh, OracleError> {
+    let path = source_tree.root.join("unix/tclsh");
+    if !path.is_file() {
+        return Err(OracleError::InvalidInterpreter(format!(
+            "{} has no built unix/tclsh",
+            source_tree.root.display()
+        )));
+    }
+    let interpreter =
+        validate_tclsh_with_library(path, version, Some(source_tree.root.join("unix").as_path()))?;
+    if interpreter.patchlevel != source_tree.patchlevel {
+        return Err(OracleError::InvalidInterpreter(format!(
+            "{} reports Tcl {}, but source tree {} is Tcl {}",
+            interpreter.path.display(),
+            interpreter.patchlevel,
+            source_tree.root.display(),
+            source_tree.patchlevel
+        )));
+    }
+    Ok(interpreter)
+}
+
 /// Every available reference interpreter, in release order.
 #[must_use]
 pub fn available_tclshs() -> Vec<Tclsh> {
@@ -223,15 +251,34 @@ pub fn available_tclshs() -> Vec<Tclsh> {
 /// Run a Tcl script through a reference interpreter and preserve its raw byte
 /// channels and exit code.
 pub fn run_script(tclsh: &Path, script: &[u8]) -> Result<ScriptOutcome, OracleError> {
-    let mut child = Command::new(tclsh)
+    run_script_with_library(tclsh, script, None)
+}
+
+fn run_script_with_library(
+    tclsh: &Path,
+    script: &[u8],
+    library_dir: Option<&Path>,
+) -> Result<ScriptOutcome, OracleError> {
+    let mut command = Command::new(tclsh);
+    command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|source| OracleError::Io {
-            action: "spawning tclsh",
-            source,
+        .stderr(Stdio::piped());
+    if let Some(library_dir) = library_dir {
+        let mut paths = vec![library_dir.to_owned()];
+        if let Some(existing) = std::env::var_os("LD_LIBRARY_PATH") {
+            paths.extend(std::env::split_paths(&existing));
+        }
+        let joined = std::env::join_paths(paths).map_err(|source| OracleError::Io {
+            action: "constructing LD_LIBRARY_PATH",
+            source: std::io::Error::new(std::io::ErrorKind::InvalidInput, source),
         })?;
+        command.env("LD_LIBRARY_PATH", joined);
+    }
+    let mut child = command.spawn().map_err(|source| OracleError::Io {
+        action: "spawning tclsh",
+        source,
+    })?;
     child
         .stdin
         .as_mut()
@@ -302,7 +349,19 @@ pub fn locate_source_tree(
 }
 
 fn validate_tclsh(path: PathBuf, version: TclVersion) -> Result<Tclsh, OracleError> {
-    let outcome = run_script(&path, b"puts [info tclversion]\nputs [info patchlevel]\n")?;
+    validate_tclsh_with_library(path, version, None)
+}
+
+fn validate_tclsh_with_library(
+    path: PathBuf,
+    version: TclVersion,
+    library_dir: Option<&Path>,
+) -> Result<Tclsh, OracleError> {
+    let outcome = run_script_with_library(
+        &path,
+        b"puts [info tclversion]\nputs [info patchlevel]\n",
+        library_dir,
+    )?;
     let text = outcome.strict_text().map_err(|message| {
         OracleError::InvalidInterpreter(format!(
             "{} is not a usable tclsh: {message}",
@@ -327,23 +386,31 @@ fn validate_tclsh(path: PathBuf, version: TclVersion) -> Result<Tclsh, OracleErr
 }
 
 fn validate_source_tree(path: &Path, version: TclVersion) -> Result<TclSourceTree, OracleError> {
+    // Resolve a CLI/env relative path while the caller still has its original
+    // working directory. Sweep workers chdir into per-stem sandboxes, so
+    // retaining the relative spelling here would make a valid --tcl-root
+    // disappear as soon as they start.
+    let root = fs::canonicalize(path).map_err(|source| OracleError::Io {
+        action: "canonicalizing Tcl source tree",
+        source,
+    })?;
     for required in ["generic/tcl.h", "library/init.tcl", "tests/all.tcl"] {
-        if !path.join(required).is_file() {
+        if !root.join(required).is_file() {
             return Err(OracleError::InvalidSourceTree(format!(
                 "{} is not a Tcl source tree: missing {required}",
-                path.display()
+                root.display()
             )));
         }
     }
     let header =
-        fs::read_to_string(path.join("generic/tcl.h")).map_err(|source| OracleError::Io {
+        fs::read_to_string(root.join("generic/tcl.h")).map_err(|source| OracleError::Io {
             action: "reading generic/tcl.h",
             source,
         })?;
     let patchlevel = patchlevel_from_header(&header).ok_or_else(|| {
         OracleError::InvalidSourceTree(format!(
             "{} has no TCL_PATCH_LEVEL in generic/tcl.h",
-            path.display()
+            root.display()
         ))
     })?;
     if !patchlevel.starts_with(&format!("{}.", version.version_string()))
@@ -353,14 +420,11 @@ fn validate_source_tree(path: &Path, version: TclVersion) -> Result<TclSourceTre
     {
         return Err(OracleError::InvalidSourceTree(format!(
             "{} contains Tcl {patchlevel}, expected release {}",
-            path.display(),
+            root.display(),
             version.version_string()
         )));
     }
-    Ok(TclSourceTree {
-        patchlevel,
-        root: path.to_path_buf(),
-    })
+    Ok(TclSourceTree { patchlevel, root })
 }
 
 fn patchlevel_from_header(header: &str) -> Option<String> {
@@ -402,7 +466,7 @@ fn which_on_path(name: &str) -> Option<PathBuf> {
 mod tests {
     use super::{patchlevel_from_header, validate_source_tree};
     use std::fs;
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
     use tcl_dialect::TclVersion;
 
     #[test]
@@ -414,6 +478,39 @@ mod tests {
     #[test]
     fn source_tree_validation_checks_release_and_layout() {
         let root = fixture_root("source-tree");
+        write_source_tree(&root);
+
+        let tree = validate_source_tree(&root, TclVersion::V9_0).expect("valid tree");
+        assert_eq!(tree.patchlevel, "9.0.3");
+        assert!(validate_source_tree(&root, TclVersion::V8_6).is_err());
+        fs::remove_dir_all(root).expect("remove fixture");
+    }
+
+    /// `--tcl-root relative/path` is resolved by the controller, before sweep
+    /// workers chdir into their isolated directories. Removing the
+    /// canonicalization makes this assertion retain a relative root and
+    /// reproduces #1736's worker-only miss.
+    #[test]
+    fn source_tree_validation_canonicalizes_a_relative_root() {
+        let cwd = std::env::current_dir().expect("test working directory");
+        let root = cwd
+            .join("target")
+            .join(format!("tcl-test-support-relative-{}", std::process::id()));
+        write_source_tree(&root);
+        let relative = root
+            .strip_prefix(&cwd)
+            .expect("fixture is beneath working directory");
+
+        let tree = validate_source_tree(relative, TclVersion::V9_0).expect("valid relative tree");
+        assert_eq!(
+            tree.root,
+            fs::canonicalize(&root).expect("canonical fixture root")
+        );
+        assert!(tree.root.is_absolute());
+        fs::remove_dir_all(root).expect("remove fixture");
+    }
+
+    fn write_source_tree(root: &Path) {
         fs::create_dir_all(root.join("generic")).expect("generic directory");
         fs::create_dir_all(root.join("library")).expect("library directory");
         fs::create_dir_all(root.join("tests")).expect("tests directory");
@@ -424,11 +521,6 @@ mod tests {
         .expect("version header");
         fs::write(root.join("library/init.tcl"), "").expect("init.tcl");
         fs::write(root.join("tests/all.tcl"), "").expect("all.tcl");
-
-        let tree = validate_source_tree(&root, TclVersion::V9_0).expect("valid tree");
-        assert_eq!(tree.patchlevel, "9.0.3");
-        assert!(validate_source_tree(&root, TclVersion::V8_6).is_err());
-        fs::remove_dir_all(root).expect("remove fixture");
     }
 
     fn fixture_root(tag: &str) -> PathBuf {

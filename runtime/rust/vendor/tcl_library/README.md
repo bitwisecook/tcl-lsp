@@ -1,6 +1,6 @@
 # Vendored Tcl 9 standard library (subset)
 
-These are **unmodified** files from the C Tcl 9.0.3 `library/` tree, vendored so
+These are **unmodified** files from the C Tcl 9.0.4 `library/` tree, vendored so
 the Rust runtime can embed them in the WASM binary (`--features wasm_stdlib`) and
 seed them into the in-memory VFS — letting a self-contained `wasm32-wasip1`
 module bootstrap the real standard library with no host filesystem. See
@@ -21,6 +21,12 @@ the `tcltest` package (determined by tracing the file reads of a native
 The large data trees (`tzdata`, `encoding`, `msgs`) are **not** read by this path
 and are omitted to keep the binary small.
 
+[`manifest.json`](manifest.json) records the upstream tag and commit, each
+source-relative path, its SHA-256 digest, and whether it is part of the embedded
+read-closure. `cargo xtask runtime-stdlib` verifies the manifest, the exact
+`init.tcl` patch requirement, and the `embedded_stdlib.rs` `FILES` table
+offline; it is part of `make rust-check`.
+
 ## Licence
 
 Tcl is distributed under the BSD-style Tcl licence — see
@@ -30,8 +36,6 @@ under that licence.
 
 ## Updating
 
-To re-vendor for a new Tcl version, copy the same file set from
-`tmp/tcl<version>/library/` (fetched by
-`.claude/skills/fetch-tcl-source/fetch_tcl_source.sh`). If a new bootstrap path
-reads additional files, add them here and to the `FILES` table in
-`embedded_stdlib.rs`.
+To re-vendor for a new Tcl version, trace the read-closure from the official
+source tree, copy those files without modification, and update `manifest.json`.
+If the closure changes, update the `FILES` table in `embedded_stdlib.rs` too.

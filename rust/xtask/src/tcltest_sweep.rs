@@ -44,7 +44,7 @@ use anyhow::{Context, Result, bail};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use tcl_dialect::TclVersion;
-use tcl_test_support::{TclSourceTree, locate_source_tree, locate_tclsh};
+use tcl_test_support::{TclSourceTree, locate_source_tree, tclsh_from_source_tree};
 
 use crate::util::{license_banner, repo_root};
 
@@ -178,6 +178,7 @@ const TIERS: &[(u8, &str, &[&str])] = &[
 
 const SCOREBOARD: &str = "docs/design/runtime/rust-vm-tier-parity.md";
 const BASELINE: &str = "tests/baselines/tcl9-tcltest/c-tclsh.ndjson";
+const BACKEND_CONSTRAINTS: &str = "tests/external/backend_constraints.tcl";
 /// Per-stem working directory root (under `target/`, so it's git-ignored). File-
 /// creating tests (`io`, `source`, `fCmd`, …) write here, not into the repo.
 const WORK_DIR: &str = "target/tcltest-sweep-work";
@@ -315,7 +316,25 @@ fn run_one(
     if let Some(pattern) = match_filter {
         cmd.arg("-match").arg(pattern);
     }
+    let overlay = root.join(BACKEND_CONSTRAINTS);
+    let library_path = source_tree.root.join("unix");
+    let dynamic_library_path = std::env::var_os("LD_LIBRARY_PATH").map_or_else(
+        || library_path.clone().into_os_string(),
+        |existing| {
+            std::env::join_paths(
+                std::iter::once(library_path.as_path()).chain(
+                    std::env::split_paths(&existing)
+                        .collect::<Vec<_>>()
+                        .iter()
+                        .map(PathBuf::as_path),
+                ),
+            )
+            .expect("valid LD_LIBRARY_PATH")
+        },
+    );
     cmd.env("TCL_LIBRARY", source_tree.library_dir())
+        .env("TCL_BACKEND_CONSTRAINTS", overlay)
+        .env("LD_LIBRARY_PATH", dynamic_library_path)
         .current_dir(&work);
     let out = cmd.output();
     let duration_s = start.elapsed().as_secs_f64();
@@ -515,21 +534,16 @@ fn selected_stems(stem_filters: &[String]) -> Vec<&str> {
         .collect()
 }
 
-fn source_tree_for_sweep(
-    root: &Path,
-    tcl_root: Option<&Path>,
-    focused: bool,
-) -> Result<TclSourceTree> {
+fn source_tree_for_sweep(root: &Path, tcl_root: Option<&Path>) -> Result<TclSourceTree> {
     let source_tree = locate_source_tree(root, TclVersion::V9_0, tcl_root)?.ok_or_else(|| {
         anyhow::anyhow!(
             "no Tcl 9.0 source tree found; pass --tcl-root, set \
              TCL_LSP_TCL_ROOT90, or fetch the pinned tmp/tcl9.0.4 tree"
         )
     })?;
-    if !focused && source_tree.patchlevel != TclVersion::V9_0.patchlevel() {
+    if source_tree.patchlevel != TclVersion::V9_0.patchlevel() {
         bail!(
-            "a full scoreboard run requires the pinned Tcl {}, but {} contains \
-             Tcl {}; use this tree only with focused --stem runs",
+            "the Tcltest sweep requires the pinned Tcl {}, but {} contains Tcl {}",
             TclVersion::V9_0.patchlevel(),
             source_tree.root.display(),
             source_tree.patchlevel
@@ -545,22 +559,7 @@ fn sweep_reference(
     match_filter: Option<&str>,
     timeout_s: u64,
 ) -> Result<Vec<Record>> {
-    let tclsh = locate_tclsh(TclVersion::V9_0)?.ok_or_else(|| {
-        anyhow::anyhow!(
-            "no reference tclsh9.0 found; set TCL_LSP_TCLSH90 or run \
-             `make ensure-test-deps`"
-        )
-    })?;
-    if tclsh.patchlevel != source_tree.patchlevel {
-        bail!(
-            "reference {} reports Tcl {}, but source tree {} is Tcl {}; \
-             the oracle binary and tests must match",
-            tclsh.path.display(),
-            tclsh.patchlevel,
-            source_tree.root.display(),
-            source_tree.patchlevel
-        );
-    }
+    let tclsh = tclsh_from_source_tree(source_tree, TclVersion::V9_0)?;
     Ok(sweep(
         root,
         source_tree,
@@ -589,7 +588,10 @@ pub fn run(
     let focused = !stem_filters.is_empty() || match_filter.is_some();
     // Explicit stems form a focused run; no stems means the whole ladder.
     let stems = selected_stems(stem_filters);
-    let source_tree = source_tree_for_sweep(&root, tcl_root, focused)?;
+    let source_tree = source_tree_for_sweep(&root, tcl_root)?;
+    if !root.join(BACKEND_CONSTRAINTS).is_file() {
+        bail!("missing default backend constraint overlay {BACKEND_CONSTRAINTS}");
+    }
 
     // Run the reference tclsh (unless VM-only).
     let c_records: Vec<Record> = if backend == Backend::Vm {
@@ -669,5 +671,39 @@ pub fn run(
         std::fs::write(&path, &rendered).with_context(|| format!("writing {}", path.display()))?;
         eprintln!("wrote scoreboard → {SCOREBOARD}");
         Ok(ExitCode::SUCCESS)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const ALLOWED_BACKEND_SKIP_PATTERNS: &[&str] = &[
+        "platform-1.1",
+        "socket-*",
+        "exec-*",
+        "thread-*",
+        "async-*",
+        "fCmd-*",
+        "fileSystem-*",
+    ];
+
+    #[test]
+    fn overlay_only_skips_explicit_backend_cases() {
+        let source = std::fs::read_to_string(repo_root().join(BACKEND_CONSTRAINTS))
+            .expect("checked-in backend overlay");
+        let mut actual = Vec::new();
+        for line in source.lines().map(str::trim) {
+            if let Some(patterns) = line.strip_prefix("lappend exclusions ") {
+                actual.extend(patterns.split_ascii_whitespace());
+            }
+        }
+        actual.sort_unstable();
+        let mut expected = ALLOWED_BACKEND_SKIP_PATTERNS.to_vec();
+        expected.sort_unstable();
+        assert_eq!(actual, expected);
+        for forbidden in ["set-*", "expr-*", "proc-*", "namespace-*", "dict-*"] {
+            assert!(!actual.contains(&forbidden), "semantic skip {forbidden}");
+        }
     }
 }

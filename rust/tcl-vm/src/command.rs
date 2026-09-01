@@ -283,14 +283,18 @@ fn cmd_set(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
-/// `source ?-encoding name? fileName` — read a file and evaluate it as a
-/// script in the current context. The optional `-encoding` flag is accepted
-/// and ignored (files are read as UTF-8).
+/// `source ?-encoding name? ?-nopkg? fileName` — read a file and evaluate it
+/// as a script in the current context. `-encoding` is accepted and ignored
+/// (files are read as UTF-8); Tcl 9's `-nopkg` suppresses package bookkeeping
+/// that this VM does not otherwise perform, so it uses the same read path.
 fn cmd_source(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let path = match args {
         [file] => file.to_str(),
         [flag, _enc, file] if &*flag.to_str() == "-encoding" => file.to_str(),
-        _ => return err("wrong # args: should be \"source ?-encoding name? fileName\""),
+        [flag, file] if &*flag.to_str() == "-nopkg" => file.to_str(),
+        _ => {
+            return err("wrong # args: should be \"source ?-encoding name? ?-nopkg? fileName\"");
+        }
     };
     let contents = match std::fs::read_to_string(&*path) {
         Ok(c) => c,

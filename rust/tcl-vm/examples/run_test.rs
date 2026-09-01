@@ -23,41 +23,74 @@
 //! Usage: `TCL_LIBRARY=.../library cargo run -p tcl-vm --example run_test --
 //! <file.test> [--match <test-glob-list>]`
 //!
-//! The VM has no `init.tcl` bootstrap path, so the real `tcltest.tcl` is sourced
-//! directly (it `package provide`s itself, so the test file's `package require
-//! tcltest` then resolves). Runs on a large-stack worker thread so deep recursion
-//! is a catchable error rather than a native-stack overflow (matching the
-//! `run_script` driver).
+//! The VM sources the selected library's real `init.tcl`, then obtains tcltest
+//! through normal `package require` discovery. Runs on a large-stack worker
+//! thread so deep recursion is a catchable error rather than a native-stack
+//! overflow (matching the `run_script` driver).
 
 use std::io::Write;
 
 use tcl_compiler::cfg_builder::build_cfg_codegen as build_cfg;
 use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::lowering::lower_to_ir_for_bytecode as lower_to_ir;
-use tcl_compiler::lowering::lower_to_ir_traced;
+use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect as lower_to_ir_profile;
+use tcl_compiler::lowering::lower_to_ir_traced_with_dialect;
+use tcl_dialect::{DialectProfile, TclVersion};
 use tcl_registry::CommandRegistry;
 use tcl_vm::{CompileError, CompileService, Vm};
 
 /// The `CompileService` the VM uses for runtime `eval` / command substitution:
 /// the real Rust compiler pipeline (lower → CFG → bytecode).
-struct Svc(CommandRegistry);
+struct Svc {
+    registry: &'static CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    dialect: Option<&'static DialectProfile>,
+}
+
+impl Svc {
+    fn for_profile(profile: &'static DialectProfile) -> Self {
+        Self {
+            registry: tcl_registry::model::static_context_for_profile(profile).commands(),
+            config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+            dialect: Some(profile),
+        }
+    }
+}
+
 impl CompileService for Svc {
     type Module = tcl_bytecode::ModuleAsm;
     fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error(src) {
+        if let Some(msg) =
+            tcl_compiler::lowering::first_fatal_parse_error_with_config(src, self.config)
+        {
             return Err(CompileError(msg));
         }
-        let ir = lower_to_ir(src, &self.0);
+        let ir = lower_to_ir_profile(src, self.registry, self.config, self.dialect);
         let cfg = build_cfg(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.0))
+        Ok(codegen_module(&cfg, &ir, self.registry))
+    }
+    fn compile_for_profile(
+        &self,
+        src: &str,
+        profile: &'static DialectProfile,
+    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        Self::for_profile(profile).compile(src)
     }
     fn compile_traced(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error(src) {
+        if let Some(msg) =
+            tcl_compiler::lowering::first_fatal_parse_error_with_config(src, self.config)
+        {
             return Err(CompileError(msg));
         }
-        let ir = lower_to_ir_traced(src, &self.0);
+        let ir = lower_to_ir_traced_with_dialect(src, self.registry, self.config, self.dialect);
         let cfg = build_cfg(&ir, false);
-        Ok(codegen_module(&cfg, &ir, &self.0))
+        Ok(codegen_module(&cfg, &ir, self.registry))
+    }
+    fn compile_traced_for_profile(
+        &self,
+        src: &str,
+        profile: &'static DialectProfile,
+    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        Self::for_profile(profile).compile_traced(src)
     }
 }
 
@@ -94,19 +127,12 @@ fn run() -> i32 {
             return 2;
         }
     };
-    let lib = std::env::var("TCL_LIBRARY").unwrap_or_default();
-    let tcltest = format!("{lib}/tcltest/tcltest.tcl");
-
-    // Source tcltest directly, then import its exported commands into the global
-    // namespace. A real `.test` file's preamble does
-    // `package require tcltest; namespace import -force ::tcltest::*`, but it
-    // guards on `::tcltest` not already existing — which it does here — so the
-    // driver performs the import the file would otherwise do.
-    let registry = CommandRegistry::build_default();
-    // Optionally source the backend-constraint overlay (after tcltest, before
-    // the test file) so tests the running backend cannot support are skipped.
+    // Optionally source the backend-constraint overlay after tcltest discovery
+    // and before the test file so unsupported host/backend probes are skipped.
     let overlay = match std::env::var("TCL_BACKEND_CONSTRAINTS") {
-        Ok(p) if !p.is_empty() => format!("source {p}\n"),
+        Ok(path) if !path.is_empty() => {
+            format!("source {}\n", tcl_syntax::list::list_element(&path))
+        }
         _ => String::new(),
     };
     // Diagnostic: `TCL_TEST_VERBOSE=1` makes tcltest announce each test as it
@@ -125,26 +151,36 @@ fn run() -> i32 {
             )
         });
     let src = format!(
-        "source {tcltest}\nnamespace import -force ::tcltest::*\n{verbose}{match_config}{overlay}source {}\n",
+        "package require tcltest\nnamespace import -force ::tcltest::*\n{verbose}{match_config}{overlay}source {}\n",
         tcl_syntax::list::list_element(&arguments.testfile)
     );
-    let ir = lower_to_ir(&src, &registry);
-    let cfg = build_cfg(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
+    let profile = DialectProfile::find("tcl9.0").expect("Tcl 9.0 profile exists");
+    let compiler = Svc::for_profile(profile);
+    let asm = match compiler.compile(&src) {
+        Ok(module) => module,
+        Err(error) => {
+            eprintln!("compile error: {}", error.0);
+            return 1;
+        }
+    };
 
     let mut vm = Vm::with_output(Box::new(Stdout));
-    vm.set_compiler(Box::new(Svc(CommandRegistry::build_default())));
-    // Install the autoloader so library procs (word.tcl, …) resolve on demand,
-    // like `tclsh` after `init.tcl`.
-    let init = vm.init_auto_load();
+    vm.set_runtime_version(TclVersion::V9_0);
+    vm.set_compiler(Box::new(Svc::for_profile(profile)));
+    let init = vm.init_library();
     if !init.code.is_ok() {
-        eprintln!("auto-load bootstrap error: {}", init.result.to_str());
+        eprintln!("Tcl library initialisation error: {}", init.result.to_str());
+        return 1;
     }
     let c = vm.run_module(&asm);
     if c.code.is_ok() {
         0
     } else {
-        eprintln!("VM error: {}", c.result.to_str());
+        eprintln!(
+            "VM error: {}\noptions: {}",
+            c.result.to_str(),
+            c.options.to_str()
+        );
         1
     }
 }
@@ -160,13 +196,15 @@ impl Arguments {
         let mut match_filter = None;
         while let Some(option) = args.next() {
             match option.as_str() {
-                "--match" if match_filter.is_none() => {
+                "--match" | "-match" if match_filter.is_none() => {
                     match_filter = Some(
                         args.next()
                             .ok_or_else(|| "--match requires a value".to_owned())?,
                     );
                 }
-                "--match" => return Err("--match may be supplied only once".to_owned()),
+                "--match" | "-match" => {
+                    return Err("--match may be supplied only once".to_owned());
+                }
                 _ => return Err(format!("unknown option {option:?}")),
             }
         }
