@@ -121,6 +121,41 @@ maintainer doesn't have to remember the sequence.  `make publish-vsix` /
 `make publish-openvsx` / `make publish-jetbrains` remain laptop fallbacks if
 a CI publish job fails.
 
+## Linux release portability is an ABI-floor contract
+
+The published Linux targets remain the standard GNU triples:
+`x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, and
+`riscv64gc-unknown-linux-gnu`. Release CI does not inherit the libc of the
+newest general-purpose runner:
+
+- x86_64 and aarch64 build natively inside the architecture-matched UBI 8
+  image and may reference no symbol newer than `GLIBC_2.28`;
+- RISC-V cross-builds on Ubuntu 22.04 with its packaged glibc 2.35 sysroot and
+  may reference no symbol newer than `GLIBC_2.35`. EL8 had no RISC-V release,
+  so imposing its x86/aarch64 floor there would add a custom sysroot without
+  serving a supported distribution.
+
+All three use the current Rust toolchain and ordinary GCC/binutils. There is no
+Zig toolchain or bundled libc. At runtime the binaries use the host's maintained
+glibc, so distro security updates apply without a tcl-lsp rebuild. Alpine and
+other non-glibc systems are not native-binary targets; their packagers can build
+from source, and the separately published WASI server remains available to
+hosts that choose a WebAssembly runtime.
+
+`scripts/verify-glibc-baseline.sh` inspects the versioned ELF imports for all
+four native programs in every Linux matrix leg and again after artifact fan-in.
+`scripts/test-linux-distro-compat.sh` then completes an LSP initialize exchange
+with the exact x86_64 release server in a compact matrix spanning Ubuntu,
+Debian, EL8/Oracle, Amazon Linux, openSUSE, Fedora, and Arch. The tag-only
+`linux-release-portability` job gates native publication and every editor
+package that embeds or downloads those binaries.
+
+The libc choice has no effect on WebAssembly. `lsp-server-wasi`, the browser
+server, the compiler/runtime WASM builds, and their Rust target libraries do
+not link a host libc. Their artifacts and tests remain separate CI jobs; the
+universal VSIX continues to receive its WASI module from `lsp-server-wasi`
+rather than from a Linux build leg.
+
 **Failure mode — a red `build-vsix` ancestor leaves a half-populated
 Release.**  `build-vsix` needs `lsp-server-wasi` (the universal package's
 `server/wasm/` module), `test-ext`, and `test-ext-web`, and
@@ -247,7 +282,8 @@ the secret is reachable by no other job.
 ## What CI may do
 
 * Build every release artefact: the native binaries (`tcl`, `f5-query`,
-  `tcl-lsp-server`, `tcl-mcp`) via `cargo build` / the cross-build targets,
+  `tcl-lsp-server`, `tcl-mcp`) via the architecture-specific glibc ABI-floor
+  jobs described above,
   plus `make build-editor-jetbrains` / `make build-editor-sublime` /
   `make build-editor-zed` / `make package-vsix package-vsix-targets` and
   the Claude-skills zip. The VS Code artefact is seven VSIX packages: one
