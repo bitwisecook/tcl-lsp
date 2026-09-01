@@ -210,7 +210,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: xtask-check xtask-editor-extensions xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle xtask-sslictcl-data xtask-runtime-stdlib tcltest-sweep tcltest-sweep-check xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-api-ownership
 .PHONY: xtask-workflow-sync xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-gen-tmlanguage-keywords xtask-option-registry-drift xtask-callback-inventory
 # Lint / format / typecheck
-.PHONY: lint format lint-ts format-ts typecheck-ts check-rust rust-deny
+.PHONY: lint format lint-ts format-ts typecheck-ts check-rust check-rust-pr _check-rust-pr rust-deny
 .PHONY: build-report-assets build-report-pyz lint-report-ts typecheck-report-ts check-report-assets lint-spec-studio-ts typecheck-spec-studio-ts
 # Coverage
 .PHONY: coverage coverage-ext
@@ -904,7 +904,7 @@ _prep-pr-smoke-tier: smoke
 
 # Rust-side check gate (fmt + clippy + generated-file drift).  Mirrors the
 # pr-gate job in GitHub Actions (ci.yml).
-rust-check: check-rust xtask-check ## Rust fmt + clippy + generated-file drift gates (mirrors the GitHub Actions PR gate)
+rust-check: check-rust-pr xtask-check ## Rust fmt + clippy + generated-file drift gates (mirrors the GitHub Actions PR gate)
 
 # The local pre-push gate: format + codegen + lint/typecheck + the smoke test
 # tier.  Deliberately NOT the full test suite — CI runs the deep suites
@@ -1166,10 +1166,10 @@ server-cross-test-build: ## Cross-build then smoke-test tcl-lsp-server binaries
 ## Tests are NOT included here — run them separately (test-ext, test-rust,
 ## runtime-rust-test, test-emacs) before PR creation.
 
-# Rust: cargo fmt --check + cargo clippy on the root workspace and on each
-# crate excluded from it (the Zed extension and the wasm32 cdylibs, which have
-# their own targets and lockfiles).  Skip with SKIP_CHECK_RUST=1.
-check-rust: ensure-rust-deps ## Rust fmt-check + clippy on the workspace and the excluded wasm/Zed crates
+# CI-facing Rust fast gate: the root workspace plus the standalone runtime.
+# `check-rust` reuses this target before checking the remaining excluded
+# crates, so neither CI nor the broader local gate duplicates these commands.
+check-rust-pr: ensure-rust-deps
 	@set -eu; \
 	if [ -n "$${SKIP_CHECK_RUST:-}" ]; then \
 		echo "==> SKIP_CHECK_RUST set — skipping Rust lint/typecheck"; \
@@ -1185,15 +1185,40 @@ check-rust: ensure-rust-deps ## Rust fmt-check + clippy on the workspace and the
 		echo "       Set SKIP_CHECK_RUST=1 to skip."; \
 		exit 1; \
 	fi; \
+	$(MAKE) --no-print-directory -C $(ROOT) _check-rust-pr
+
+_check-rust-pr:
+	@set -eu; \
 	echo "==> Checking top-level Rust workspace (fmt + clippy)"; \
 	cd $(ROOT); \
 	cargo fmt --all --check; \
 	cargo clippy --workspace --all-targets -- -D warnings; \
 	if [ -f "$(RUNTIME_RUST_DIR)/Cargo.toml" ]; then \
-		echo "==> Checking runtime/rust (fmt)"; \
-		cd $(RUNTIME_RUST_DIR); \
-		cargo fmt --all --check; \
+		echo "==> Checking runtime/rust (fmt + clippy)"; \
+		$(MAKE) --no-print-directory -C $(ROOT) runtime-rust-lint; \
+	fi
+
+# Broader local Rust gate: run the CI-facing workspace/runtime contract above,
+# then every other crate excluded from the root workspace (Zed and the wasm32
+# cdylibs, which have their own targets and lockfiles). Skip with
+# SKIP_CHECK_RUST=1.
+check-rust: ensure-rust-deps ## Rust fmt-check + clippy on the workspace and excluded standalone crates
+	@set -eu; \
+	if [ -n "$${SKIP_CHECK_RUST:-}" ]; then \
+		echo "==> SKIP_CHECK_RUST set — skipping Rust lint/typecheck"; \
+		exit 0; \
 	fi; \
+	if [ -x "$$HOME/.cargo/bin/rustup" ]; then \
+		export PATH="$$HOME/.cargo/bin:$$PATH"; \
+	elif [ -f "$$HOME/.cargo/env" ]; then \
+		. "$$HOME/.cargo/env"; \
+	fi; \
+	if ! command -v cargo >/dev/null 2>&1; then \
+		echo "ERROR: 'cargo' not found on PATH (need a current Rust stable toolchain)."; \
+		echo "       Set SKIP_CHECK_RUST=1 to skip."; \
+		exit 1; \
+	fi; \
+	$(MAKE) --no-print-directory -C $(ROOT) _check-rust-pr; \
 	if [ -f "$(ZED_DIR)/Cargo.toml" ]; then \
 		echo "==> Checking Zed extension (fmt + clippy --target wasm32-wasip2 + host tests)"; \
 		cd $(ZED_DIR); \
@@ -2245,16 +2270,16 @@ distclean: clean ## Remove build artifacts and node_modules
 	rm -f  $(EXT_DIR)/package-lock.json
 
 # Rust runtime port (runtime/rust) — standalone crate, excluded from the root
-# workspace (it is `unsafe`; root forbids `unsafe`). These are the gates the
-# rust-runtime-port doc + runtime/rust/README cite. Not wired into prep-pr: the
-# runtime port is a separate workstream from the LSP/compiler CI.
+# workspace (it is `unsafe`; root forbids `unsafe`). These are the direct gates
+# the rust-runtime-port doc + runtime/rust/README cite. `check-rust` reuses the
+# lint target so the local and CI PR gates cannot drift from this definition.
 RUNTIME_RUST_DIR := $(ROOT)runtime/rust
 
 runtime-rust-test: ## Run the Rust runtime port's cargo test (leak round-trip + unit/parse/eval suite)
 	cd $(RUNTIME_RUST_DIR) && cargo test
 
-runtime-rust-lint: ## Rust runtime port: cargo fmt --check + clippy -D warnings
-	cd $(RUNTIME_RUST_DIR) && cargo fmt --check && cargo clippy --all-targets -- -D warnings
+runtime-rust-lint: ## Rust runtime port: cargo fmt --check + locked clippy -D warnings
+	cd $(RUNTIME_RUST_DIR) && cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings
 
 zed-query-check: ## Validate the generated Zed highlight queries against the pinned tree-sitter grammar
 	cd $(ROOT)rust/zed-query-check && cargo test
