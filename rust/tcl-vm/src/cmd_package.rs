@@ -21,9 +21,13 @@
 
 use std::cmp::Ordering;
 
-use tcl_dialect::{compare_versions as cmp_version, version_satisfies as vsatisfies};
+use tcl_dialect::{
+    PackagePrefer, compare_versions as cmp_version, select_package_version,
+    version_satisfies as vsatisfies,
+};
 use tcl_runtime_api::Completion;
 
+use crate::command::err_with_code;
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
@@ -125,13 +129,7 @@ fn cmd_package(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
             ok(Value::empty())
         }
-        // The VM currently has one deterministic preference policy: newest.
-        "prefer" => match rest {
-            [] => ok(Value::string("latest")),
-            [preference] if &*preference.to_str() == "latest" => ok(Value::string("latest")),
-            [_] => err("bad preference \"stable\": must be latest"),
-            _ => err("wrong # args: should be \"package prefer ?preference?\""),
-        },
+        "prefer" => pkg_prefer(vm, rest),
         other => err(format!("unknown or ambiguous subcommand \"{other}\"")),
     }
 }
@@ -163,6 +161,33 @@ fn pkg_unknown(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     }
 }
 
+fn pkg_prefer(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    match rest {
+        [] => ok(Value::string(preference_name(vm.package_prefer()))),
+        [preference] => match &*preference.to_str() {
+            "latest" => {
+                vm.prefer_latest_packages();
+                ok(Value::string(preference_name(vm.package_prefer())))
+            }
+            // The preference is a monotone Tcl latch: once raised to latest,
+            // asking for stable succeeds but leaves it at latest.
+            "stable" => ok(Value::string(preference_name(vm.package_prefer()))),
+            other => err_with_code(
+                format!("bad preference \"{other}\": must be latest or stable"),
+                &format!("TCL LOOKUP INDEX preference {other}"),
+            ),
+        },
+        _ => err("wrong # args: should be \"package prefer ?preference?\""),
+    }
+}
+
+fn preference_name(preference: PackagePrefer) -> &'static str {
+    match preference {
+        PackagePrefer::Stable => "stable",
+        PackagePrefer::Latest => "latest",
+    }
+}
+
 fn pkg_require(vm: &mut Vm, rest: &[Value], discover: bool) -> Completion<Value> {
     // `-exact NAME VERSION` is the requirement `VERSION-VERSION` — the same
     // rewrite `tclPkg.c`'s `PKG_REQUIRE` arm performs, so exactness needs no
@@ -174,19 +199,37 @@ fn pkg_require(vm: &mut Vm, rest: &[Value], discover: bool) -> Completion<Value>
             "wrong # args: should be \"package require ?-exact? package ?requirement ...?\"",
         );
     };
+    if exact && reqs.len() != 1 {
+        return err(
+            "wrong # args: should be \"package require ?-exact? package ?requirement ...?\"",
+        );
+    }
     let name = name.to_str();
+    let requested: Vec<String> = reqs.iter().map(|r| r.to_str().to_string()).collect();
     let reqs: Vec<String> = if exact {
-        reqs.iter()
-            .map(|r| tcl_dialect::exact_requirement(&r.to_str()))
+        requested
+            .iter()
+            .map(|r| tcl_dialect::exact_requirement(r))
             .collect()
     } else {
-        reqs.iter().map(|r| r.to_str().to_string()).collect()
+        requested.clone()
     };
-    if let Some(version) = satisfying_provided(vm, &name, &reqs) {
-        return ok(Value::string(version));
+    match provided_status(vm, &name, &reqs) {
+        ProvidedStatus::Satisfies(version) => return ok(Value::string(version)),
+        ProvidedStatus::Conflicts(version) => {
+            return version_conflict(&name, &version, &requested, exact);
+        }
+        ProvidedStatus::Absent => {}
     }
     if !discover {
         return err(format!("package {name} is not present"));
+    }
+
+    // A loader already registered for a satisfying version wins before the
+    // last-resort unknown callback. This is the ordinary fast path populated
+    // by pkgIndex.tcl.
+    if let Some(loader) = selected_loader(vm, &name, &reqs) {
+        return evaluate_loader(vm, &name, &loader);
     }
 
     if let Some(prefix) = vm.package_unknown().map(str::to_owned) {
@@ -197,60 +240,115 @@ fn pkg_require(vm: &mut Vm, rest: &[Value], discover: bool) -> Completion<Value>
             callback.push(' ');
             callback.push_str(&tcl_syntax::list::list_element(requirement));
         }
-        match vm.eval_source(&callback) {
-            Ok(completion) if completion.code.is_ok() => {}
-            Ok(completion) => return completion,
-            Err(error) => return err(error.message),
+        let completion = eval_package_script(vm, &callback);
+        if !completion.code.is_ok() {
+            return completion;
         }
     }
 
-    if let Some((version, loader)) = newest_loader(vm, &name, &reqs) {
-        match vm.eval_source(&loader) {
-            Ok(completion) if completion.code.is_ok() => {}
-            Ok(completion) => return completion,
-            Err(error) => return err(error.message),
+    // The callback may provide the package directly or register a suitable
+    // ifneeded script. Re-check both forms, in that order, before failing.
+    match provided_status(vm, &name, &reqs) {
+        ProvidedStatus::Satisfies(version) => return ok(Value::string(version)),
+        ProvidedStatus::Conflicts(version) => {
+            return version_conflict(&name, &version, &requested, exact);
         }
-        if let Some(provided) = satisfying_provided(vm, &name, &reqs) {
-            return ok(Value::string(provided));
-        }
-        return err(format!(
-            "attempt to provide package {name} {version} failed: no version of package {name} provided"
-        ));
+        ProvidedStatus::Absent => {}
+    }
+    if let Some(loader) = selected_loader(vm, &name, &reqs) {
+        return evaluate_loader(vm, &name, &loader);
     }
 
-    if let Some(version) = vm.package_version(&name) {
-        err(format!(
-            "version conflict for package \"{name}\": have {version}"
-        ))
+    err(format!("can't find package {name}"))
+}
+
+enum ProvidedStatus {
+    Absent,
+    Satisfies(String),
+    Conflicts(String),
+}
+
+fn provided_status(vm: &Vm, name: &str, requirements: &[String]) -> ProvidedStatus {
+    let Some(version) = vm.package_version(name).map(str::to_owned) else {
+        return ProvidedStatus::Absent;
+    };
+    if requirements_satisfied(&version, requirements) {
+        ProvidedStatus::Satisfies(version)
     } else {
-        err(format!("can't find package {name}"))
+        ProvidedStatus::Conflicts(version)
     }
 }
 
-fn satisfying_provided(vm: &Vm, name: &str, requirements: &[String]) -> Option<String> {
-    vm.package_version(name)
-        .filter(|version| {
-            requirements.is_empty()
-                || requirements
-                    .iter()
-                    .any(|requirement| vsatisfies(version, requirement))
-        })
-        .map(str::to_owned)
+fn version_conflict(
+    name: &str,
+    have: &str,
+    requested: &[String],
+    exact: bool,
+) -> Completion<Value> {
+    let need = if exact {
+        format!("exactly {}", requested[0])
+    } else {
+        requested.join(" ")
+    };
+    err_with_code(
+        format!("version conflict for package \"{name}\": have {have}, need {need}"),
+        "TCL PACKAGE VERSIONCONFLICT",
+    )
 }
 
-fn newest_loader(vm: &Vm, name: &str, requirements: &[String]) -> Option<(String, String)> {
-    let mut versions = vm.package_ifneeded_versions(name);
-    versions.retain(|version| {
-        requirements.is_empty()
-            || requirements
-                .iter()
-                .any(|requirement| vsatisfies(version, requirement))
-    });
-    versions.sort_by(|left, right| cmp_version(right, left));
-    versions.into_iter().find_map(|version| {
-        vm.package_ifneeded(name, &version)
-            .map(|script| (version, script.to_owned()))
-    })
+struct SelectedLoader {
+    version: String,
+    script: String,
+}
+
+fn selected_loader(vm: &Vm, name: &str, requirements: &[String]) -> Option<SelectedLoader> {
+    let versions = vm.package_ifneeded_versions(name);
+    let requirements: Vec<&str> = requirements.iter().map(String::as_str).collect();
+    let selected = select_package_version(&versions, &requirements, vm.package_prefer())?;
+    let version = versions[selected].clone();
+    vm.package_ifneeded(name, &version)
+        .map(str::to_owned)
+        .map(|script| SelectedLoader { version, script })
+}
+
+/// Package discovery scripts are interpreter-global even when the require was
+/// issued in a proc or namespace. Keeping the frame transition here prevents
+/// the unknown and ifneeded paths from drifting apart.
+fn eval_package_script(vm: &mut Vm, script: &str) -> Completion<Value> {
+    vm.eval_at_level(0, script)
+}
+
+fn evaluate_loader(vm: &mut Vm, name: &str, loader: &SelectedLoader) -> Completion<Value> {
+    let completion = eval_package_script(vm, &loader.script);
+    if !completion.code.is_ok() {
+        return completion;
+    }
+    match vm.package_version(name).map(str::to_owned) {
+        Some(provided) if cmp_version(&provided, &loader.version) == Ordering::Equal => {
+            ok(Value::string(provided))
+        }
+        Some(provided) => err_with_code(
+            format!(
+                "attempt to provide package {name} {} failed: package {name} {provided} provided instead",
+                loader.version
+            ),
+            "TCL PACKAGE WRONGPROVIDE",
+        ),
+        None => err_with_code(
+            format!(
+                "attempt to provide package {name} {} failed: no version of package {name} provided",
+                loader.version
+            ),
+            "TCL PACKAGE UNPROVIDED",
+        ),
+    }
+}
+
+fn requirements_satisfied(version: &str, requirements: &[String]) -> bool {
+    requirements.is_empty()
+        || requirements
+            .iter()
+            .any(|requirement| vsatisfies(version, requirement))
 }
 
 #[cfg(test)]

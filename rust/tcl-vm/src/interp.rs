@@ -31,7 +31,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::io::{self, Write};
 use std::rc::{Rc, Weak};
 use std::sync::atomic::{AtomicU64, Ordering};
-use tcl_dialect::model::SurfaceQuery;
+use tcl_dialect::{PackagePrefer, model::SurfaceQuery};
 
 use tcl_bytecode::{FunctionAsm, ModuleAsm};
 use tcl_core_types::RecursionLimit;
@@ -112,6 +112,23 @@ pub(crate) enum UpvarLinkError {
 /// ordinary Tcl essentially never nests a *computed-command-name* `if`
 /// this deep) usage.
 const CONTROL_FALLBACK_DEPTH_LIMIT: RecursionLimit = RecursionLimit(24);
+
+/// Tcl's initial package-selection policy. Merely defining the environment
+/// variable opts in; its value is intentionally ignored, matching Tcl 9.0.4.
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+fn initial_package_prefer() -> PackagePrefer {
+    if std::env::var_os("TCL_PKG_PREFER_LATEST").is_some() {
+        PackagePrefer::Latest
+    } else {
+        PackagePrefer::Stable
+    }
+}
+
+/// A browser-WASM interpreter has no process environment from which to opt in.
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+fn initial_package_prefer() -> PackagePrefer {
+    PackagePrefer::Stable
+}
 
 /// Native-stack safety net for `TclOO` method dispatch (`cmd_oo.rs::run_step`)
 /// — issue #996.
@@ -645,6 +662,10 @@ pub struct InterpState {
     /// Command prefix invoked by `package require` when no suitable package is
     /// known yet (`package unknown`).
     package_unknown: Option<String>,
+    /// Interpreter-global `package prefer` selection policy. Tcl starts in
+    /// stable mode unless the process opted into latest mode, and the latter
+    /// is a one-way latch for the lifetime of the interpreter.
+    package_prefer: PackagePrefer,
     /// Variable traces, keyed by a resolved-owner key (frame level + name) so a
     /// trace fires regardless of the access path (`upvar` alias, qualified
     /// name, …). Newest trace last; fired newest-first.
@@ -1398,6 +1419,7 @@ impl InterpState {
             packages: HashMap::new(),
             package_ifneeded: HashMap::new(),
             package_unknown: None,
+            package_prefer: initial_package_prefer(),
             var_traces: HashMap::new(),
             cmd_traces: HashMap::new(),
             exec_traces: HashMap::new(),
@@ -4508,6 +4530,17 @@ impl Vm {
 
     pub(crate) fn package_unknown(&self) -> Option<&str> {
         self.package_unknown.as_deref()
+    }
+
+    pub(crate) fn package_prefer(&self) -> PackagePrefer {
+        self.package_prefer
+    }
+
+    /// Raise the package selection policy to `latest`. Tcl deliberately does
+    /// not provide the inverse transition: `package prefer stable` is a no-op
+    /// after this latch has been raised.
+    pub(crate) fn prefer_latest_packages(&mut self) {
+        self.package_prefer = PackagePrefer::Latest;
     }
 
     // -- variable traces (`trace add|remove|info variable`) --

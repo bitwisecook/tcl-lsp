@@ -1127,6 +1127,104 @@ fn package_stubs() {
     );
 }
 
+/// An already-provided incompatible version is terminal. Discovery must not
+/// run a loader or the unknown callback in an attempt to replace it.
+#[test]
+fn package_require_rejects_a_provided_conflict_before_discovery() {
+    out_eq(
+        "set events {}\n\
+         package provide P 2.0\n\
+         package ifneeded P 1.0 {lappend ::events loader; package provide P 1.0}\n\
+         proc discover {name args} {lappend ::events unknown}\n\
+         package unknown discover\n\
+         catch {package require -exact P 1.0} message options\n\
+         puts [list $message [dict get $options -errorcode] $events]\n",
+        "{version conflict for package \"P\": have 2.0, need exactly 1.0} {TCL PACKAGE VERSIONCONFLICT} {}\n",
+    );
+}
+
+/// A known satisfying ifneeded entry is the normal fast path. Inverting these
+/// two stages makes the deliberately-failing unknown callback win instead.
+#[test]
+fn package_require_uses_a_registered_loader_before_unknown() {
+    out_eq(
+        "set events {}\n\
+         package ifneeded P 1.0 {lappend ::events loader; package provide P 1.0}\n\
+         proc discover {name args} {lappend ::events unknown; error UNKNOWN-RAN}\n\
+         package unknown discover\n\
+         puts [list [package require P] $events]\n",
+        "1.0 loader\n",
+    );
+}
+
+/// Both package scripts run at level #0 even when the require originates in a
+/// namespaced proc. The unqualified callback also resolves in the global
+/// namespace, guarding the frame transition as well as variable visibility.
+#[test]
+fn package_unknown_and_loader_scripts_run_in_global_scope() {
+    out_eq(
+        "set events {}\n\
+         proc discover {name args} {\n\
+             lappend ::events unknown-global\n\
+             set ::unknownScope [list [namespace current] [info level] [info exists localOnly]]\n\
+             package ifneeded $name 1.0 {\n\
+                 set ::loaderScope [list [namespace current] [info level] [info exists localOnly]]\n\
+                 package provide P 1.0\n\
+             }\n\
+         }\n\
+         namespace eval N {\n\
+             proc discover {name args} {lappend ::events unknown-namespaced}\n\
+             proc run {} {set localOnly yes; package require P}\n\
+         }\n\
+         package unknown discover\n\
+         puts [list [N::run] $events $unknownScope $loaderScope]\n",
+        "1.0 unknown-global {:: 1 0} {:: 0 0}\n",
+    );
+}
+
+/// Tcl defaults to preferring a stable release over a newer prerelease. The
+/// explicit stable request is a no-op and reports the resulting state.
+#[test]
+fn package_prefer_defaults_to_stable_selection() {
+    out_eq(
+        "set initial [package prefer]\n\
+         set requested [package prefer stable]\n\
+         package ifneeded P 1.2 {package provide P 1.2}\n\
+         package ifneeded P 1.3b1 {package provide P 1.3b1}\n\
+         puts [list $initial $requested [package require P]]\n",
+        "stable stable 1.2\n",
+    );
+}
+
+/// `latest` is a one-way interpreter latch: a later stable request succeeds
+/// but does not lower the policy, and the prerelease is then selected.
+#[test]
+fn package_prefer_latest_is_stateful_and_sticky() {
+    out_eq(
+        "set raised [package prefer latest]\n\
+         set lowered [package prefer stable]\n\
+         package ifneeded P 1.2 {package provide P 1.2}\n\
+         package ifneeded P 1.3b1 {package provide P 1.3b1}\n\
+         puts [list $raised $lowered [package prefer] [package require P]]\n",
+        "latest latest latest 1.3b1\n",
+    );
+}
+
+/// The selected ifneeded version is the contract the loader must fulfil.
+/// Numerically-equivalent spellings are accepted, while a genuinely different
+/// provide receives Tcl's dedicated WRONGPROVIDE result.
+#[test]
+fn package_loader_must_provide_its_selected_version() {
+    out_eq(
+        "package ifneeded Equivalent 1.0 {package provide Equivalent 1.0.0}\n\
+         set equivalent [package require Equivalent]\n\
+         package ifneeded Wrong 1.0 {package provide Wrong 2.0}\n\
+         catch {package require Wrong} message options\n\
+         puts [list $equivalent $message [dict get $options -errorcode]]\n",
+        "1.0.0 {attempt to provide package Wrong 1.0 failed: package Wrong 2.0 provided instead} {TCL PACKAGE WRONGPROVIDE}\n",
+    );
+}
+
 #[test]
 fn linsert_lreplace_inline() {
     out_eq("puts [linsert {a c} 1 b]\n", "a b c\n");
