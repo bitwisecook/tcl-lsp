@@ -129,12 +129,21 @@ fn every_shipped_pack_is_a_tcl_script_a_real_tclsh_accepts() {
         .write_all(DRIVER.as_bytes())
         .expect("write the driver");
     let out = child.wait_with_output().expect("the probed tclsh runs");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        out.status.success(),
+        "{} (Tcl {}) exited with {} before completing the pack parse oracle:\n{}",
+        tclsh.path.display(),
+        tclsh.patchlevel,
+        out.status,
+        stderr
+    );
     let failures = String::from_utf8_lossy(&out.stdout);
     assert!(
         failures.trim().is_empty(),
         "{} (Tcl {}) refuses to source these packs:\n{failures}\n{}",
         tclsh.path.display(),
         tclsh.patchlevel,
-        String::from_utf8_lossy(&out.stderr)
+        stderr
     );
 }

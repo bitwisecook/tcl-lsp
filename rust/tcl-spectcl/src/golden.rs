@@ -66,24 +66,25 @@ use std::path::{Path, PathBuf};
 
 use crate::loader::Pack;
 
-/// The directories, relative to the repository root, that hold every
-/// `.tclspec` the repository ships: the bundled packs and the design's
-/// worked examples.
-///
-/// One inventory, shared by the golden gate, its regeneration verb
-/// (`cargo xtask pack-goldens`) and the fast-path gate, so no two of them can
-/// disagree about what "every shipped pack" means.
-pub const PACK_DIRS: &[&str] = &[
-    "specs",
-    "docs/design/spec-dsl-examples",
-    "docs/design/spec-dsl-examples/external",
-];
+/// The language-neutral owner for the repository-relative directories that
+/// hold every shipped `.tclspec`. CI's changed-path classifier reads this
+/// same manifest, so adding a pack directory cannot silently omit the real
+/// `SpecTcl` execution lane.
+pub const PACK_DIRS_MANIFEST: &str = include_str!("../data/shipped-pack-dirs.txt");
 
-/// Every `.tclspec` under [`PACK_DIRS`], sorted per directory.
+/// Every shipped-pack directory in manifest order.
+pub fn shipped_pack_dirs() -> impl Iterator<Item = &'static str> {
+    PACK_DIRS_MANIFEST
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+}
+
+/// Every `.tclspec` under [`PACK_DIRS_MANIFEST`], sorted per directory.
 #[must_use]
 pub fn shipped_packs(repo_root: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
-    for dir in PACK_DIRS {
+    for dir in shipped_pack_dirs() {
         let Ok(entries) = std::fs::read_dir(repo_root.join(dir)) else {
             continue;
         };

@@ -199,16 +199,22 @@ jobs:
                 rust/f5-xc/* | rust/tcl-bigip/* | rust/tcl-bytecode/* | rust/tcl-cmd-core/* | rust/tcl-compiler/* | rust/tcl-core-types/* | rust/tcl-diagram/* | rust/tcl-dialect/* | rust/tcl-engine-api/* | rust/tcl-engine-tclvm/* | rust/tcl-explorer/* | rust/tcl-host-native/* | rust/tcl-irules/* | rust/tcl-lexer/* | rust/tcl-lsp-core/* | rust/tcl-lsp-db/* | rust/tcl-lsp-server/* | rust/tcl-lsp-server-wasm/* | rust/tcl-lsp-server-wasi/* | rust/tcl-platform/* | rust/tcl-regex/* | rust/tcl-registry/* | rust/tcl-runtime-api/* | rust/tcl-spec-hooks/* | rust/tcl-spectcl/* | rust/tcl-sslictcl/* | rust/tcl-syntax/* | rust/tcl-userdirs/* | rust/tcl-version/* | rust/tcl-vm/* | .cargo/config.toml | scripts/verify-wasm-externref.mjs | Cargo.toml | Cargo.lock | rust-toolchain.toml | Makefile | .github/workflows/ci.yml)
                   lsp_wasm_changed=true ;;
               esac
-              case "$f" in
-                runtime/rust/* | rust/tcl-bytecode/* | rust/tcl-cmd-core/* | rust/tcl-compiler/* | rust/tcl-core-types/* | rust/tcl-dialect/* | rust/tcl-engine-api/* | rust/tcl-engine-tclvm/* | rust/tcl-host-native/* | rust/tcl-lexer/* | rust/tcl-lsp-core/* | rust/tcl-platform/* | rust/tcl-regex/* | rust/tcl-registry/* | rust/tcl-runtime-api/* | rust/tcl-spec-hooks/* | rust/tcl-spectcl/* | rust/tcl-syntax/* | rust/tcl-test-support/* | rust/tcl-userdirs/* | rust/tcl-version/* | rust/tcl-vm/* | .claude/hooks/session-start.sh | .claude/skills/fetch-tcl-source/* | scripts/dev/ensure-test-deps.sh | scripts/dev/tcl-reference-toolchains.sh | scripts/dev/test-reference-tcl-toolchains.sh | .cargo/config.toml | Cargo.toml | Cargo.lock | rust-toolchain.toml | Makefile | .github/workflows/ci.yml)
-                  spectcl_compat_changed=true ;;
-              esac
+              if scripts/dev/spectcl-compat-path.sh "$f"; then
+                spectcl_compat_changed=true
+              else
+                status=$?
+                if [ "$status" -ne 1 ]; then
+                  ok=false
+                  break
+                fi
+              fi
               case "$f" in
                 docs/* | *.md | .claude/* | .gitignore | LICENSE) ;;
                 *) docs_only=false ;;
               esac
             done <<<"$files"
-          else
+          fi
+          if [ "$ok" != "true" ]; then
             python_changed=true
             ext_changed=true
             lsp_wasm_changed=true
@@ -241,7 +247,10 @@ jobs:
     # ancestor through the needs graph).  Those tags are cut from `rust` and
     # gated by the cargo jobs instead.  Runs in full for PRs, rust pushes,
     # stable tags.
-    needs: [channel]
+    # `pr-gate` is already a required status on `rust`. Depending on this
+    # always-present job makes its exact SpecTcl execution result merge-
+    # blocking without a ruleset transition that could deadlock older refs.
+    needs: [channel, spectcl-compat]
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
