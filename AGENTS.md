@@ -213,12 +213,12 @@ The project uses GNU Make. Key targets:
 
 | Target             | Purpose                                  |
 |--------------------|------------------------------------------|
-| `make rust-check`  | **Rust PR gate** — `check-rust` (cargo `fmt --check` + `clippy`) + `xtask-check` (generated-file / docs-index drift gates via `cargo xtask …`). Mirrors the GitHub Actions `pr-gate` job. |
+| `make rust-check`  | **Rust PR gate** — root-workspace and standalone-runtime `fmt --check` + `clippy`, then `xtask-check` generated-file / docs-index drift gates. Mirrors the GitHub Actions `pr-gate` job. |
 | `make check-all`   | **Pre-push gate** — full lint + typecheck across **every** language: TypeScript via ESLint + Prettier + tsc, Rust via `cargo fmt --check` + `cargo clippy`, Python via `ruff` + `ty` + `pyright` (`lint-py` + `typecheck-py`). Run before every push. |
 | `make install-test-deps` | One-shot setup: install **everything** the full test suite needs (the system toolchain — all of `ensure-test-deps`). The target to run on a fresh checkout before running the heavier suites below. Same platform coverage as `ensure-test-deps`. |
 | `make ensure-test-deps` | Install the optional host toolchain (`tclsh9.0`, `node`+`npm`, `kotlinc`, Rust/rustup, Wasmtime, Binaryen, wasi-sdk, emacs, xvfb, …) on Debian/Ubuntu (apt-get), CentOS/RHEL/Rocky/Alma/Fedora (dnf or yum), or macOS (Homebrew). Idempotent. Builds Tcl 9 from `tmp/tcl9.0.4/` since most distros don't package it yet. Skip individual tools with `SKIP_TCLSH=1`, `SKIP_NODE=1`, `SKIP_KOTLINC=1`, `SKIP_RUST=1`, … Run `bash scripts/dev/ensure-test-deps.sh --check` for a non-mutating report, including whether `rustc` satisfies the workspace `rust-version`. |
 | `make ensure-rust-deps` | Install Rust/rustup + the `wasm32-wasip2` target needed by `check-rust` / the WASM build. |
-| `make check-rust`  | Rust format check + clippy across the workspace (and the Zed extension). Skip with `SKIP_CHECK_RUST=1`. |
+| `make check-rust`  | Broader Rust format + clippy gate across the workspace and every excluded crate, reusing the same standalone-runtime gate as `make rust-check`. Skip with `SKIP_CHECK_RUST=1`. |
 | `make prep-pr`     | The standard local gate: auto-formats code, runs codegen, lint/typecheck, and the smoke tier (`make smoke`). Deep suites run in CI — see "Workflow requirements" below. |
 | `make smoke`       | Fast per-module smoke tier (`cargo nextest run --profile smoke`): the `smoke_*` / `*_smoke.rs` subset, seconds warm, reusing the existing dev build. `make smoke-p P=<crate>` scopes it to one crate. |
 | `make test-exhaustive` | Manual-only tier: every `#[ignore]`d corpus sweep / fuzz gate / privileged test (`--run-ignored ignored-only`). Never run automatically. |
