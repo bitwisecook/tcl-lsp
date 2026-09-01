@@ -325,11 +325,11 @@ pub fn locate_source_tree(
 ) -> Result<Option<TclSourceTree>, OracleError> {
     let location = release_location(version);
     if let Some(path) = explicit {
-        return validate_source_tree(path, version).map(Some);
+        return validate_reference_source_tree(path, version).map(Some);
     }
     if let Some(value) = std::env::var_os(location.source_env) {
         let path = PathBuf::from(value);
-        return validate_source_tree(&path, version)
+        return validate_reference_source_tree(&path, version)
             .map(Some)
             .map_err(|error| {
                 OracleError::InvalidOverride(format!(
@@ -498,12 +498,15 @@ fn which_on_path(name: &str) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::{
-        patchlevel_from_header, reference_patchlevel, reference_source_tag,
-        validate_reference_source_tree, validate_source_tree,
+        OracleError, locate_source_tree, patchlevel_from_header, reference_patchlevel,
+        reference_source_tag, validate_reference_source_tree, validate_source_tree,
     };
     use std::fs;
     use std::path::{Path, PathBuf};
+    use std::process::Command;
     use tcl_dialect::TclVersion;
+
+    const SOURCE_ENV_CHILD: &str = "TCL_TEST_SUPPORT_SOURCE_ENV_CHILD";
 
     #[test]
     fn patchlevel_is_read_from_the_c_header() {
@@ -525,7 +528,7 @@ mod tests {
     #[test]
     fn source_tree_validation_checks_release_and_layout() {
         let root = fixture_root("source-tree");
-        write_source_tree(&root);
+        write_source_tree(&root, "9.0.3");
 
         let tree = validate_source_tree(&root, TclVersion::V9_0).expect("valid tree");
         assert_eq!(tree.patchlevel, "9.0.3");
@@ -544,7 +547,7 @@ mod tests {
         let root = cwd
             .join("target")
             .join(format!("tcl-test-support-relative-{}", std::process::id()));
-        write_source_tree(&root);
+        write_source_tree(&root, "9.0.3");
         let relative = root
             .strip_prefix(&cwd)
             .expect("fixture is beneath working directory");
@@ -558,13 +561,123 @@ mod tests {
         fs::remove_dir_all(root).expect("remove fixture");
     }
 
-    fn write_source_tree(root: &Path) {
+    #[test]
+    fn explicit_source_tree_requires_the_pinned_patchlevel() {
+        let stale = fixture_root("explicit-stale");
+        let exact = fixture_root("explicit-exact");
+        let expected = reference_patchlevel(TclVersion::V9_0);
+        write_source_tree(&stale, "9.0.3");
+        write_source_tree(&exact, expected);
+
+        let error = locate_source_tree(Path::new("unused"), TclVersion::V9_0, Some(&stale))
+            .expect_err("a same-release stale explicit source tree must be rejected");
+        assert!(
+            matches!(error, OracleError::InvalidSourceTree(_)),
+            "explicit path keeps its source-tree error semantics: {error}"
+        );
+        let message = error.to_string();
+        assert!(message.contains("Tcl 9.0.3"), "stale patchlevel: {message}");
+        assert!(
+            message.contains(&format!("expected pinned Tcl {expected}")),
+            "manifest-pinned expectation: {message}"
+        );
+
+        let tree = locate_source_tree(Path::new("unused"), TclVersion::V9_0, Some(&exact))
+            .expect("exact explicit source tree is valid")
+            .expect("explicit source tree is present");
+        assert_eq!(tree.patchlevel, expected);
+        assert_eq!(
+            tree.root,
+            fs::canonicalize(&exact).expect("canonical exact fixture")
+        );
+
+        fs::remove_dir_all(stale).expect("remove stale fixture");
+        fs::remove_dir_all(exact).expect("remove exact fixture");
+    }
+
+    /// Environment variables are process-wide. Exercise the override in a
+    /// child test process, following the host-environment regression pattern,
+    /// so parallel tests never observe a temporary `TCL_LSP_TCL_ROOT90`.
+    #[test]
+    fn environment_source_tree_override_requires_the_pinned_patchlevel() {
+        if let Some(mode) = std::env::var_os(SOURCE_ENV_CHILD) {
+            let expected = reference_patchlevel(TclVersion::V9_0);
+            let configured = PathBuf::from(
+                std::env::var_os("TCL_LSP_TCL_ROOT90").expect("child source override"),
+            );
+            let result = locate_source_tree(Path::new("unused"), TclVersion::V9_0, None);
+            match mode.to_str().expect("UTF-8 child mode") {
+                "stale" => {
+                    let error = result
+                        .expect_err("a same-release stale environment source tree is rejected");
+                    assert!(
+                        matches!(error, OracleError::InvalidOverride(_)),
+                        "environment path keeps override error semantics: {error}"
+                    );
+                    let message = error.to_string();
+                    assert!(
+                        message.contains(&format!("TCL_LSP_TCL_ROOT90={}", configured.display())),
+                        "override variable and path context: {message}"
+                    );
+                    assert!(message.contains("Tcl 9.0.3"), "stale patchlevel: {message}");
+                    assert!(
+                        message.contains(&format!("expected pinned Tcl {expected}")),
+                        "manifest-pinned expectation: {message}"
+                    );
+                }
+                "exact" => {
+                    let tree = result
+                        .expect("exact environment source tree is valid")
+                        .expect("environment source tree is present");
+                    assert_eq!(tree.patchlevel, expected);
+                    assert_eq!(
+                        tree.root,
+                        fs::canonicalize(configured).expect("canonical exact fixture")
+                    );
+                }
+                other => panic!("unknown source environment child mode {other}"),
+            }
+            return;
+        }
+
+        let stale = fixture_root("environment-stale");
+        let exact = fixture_root("environment-exact");
+        write_source_tree(&stale, "9.0.3");
+        write_source_tree(&exact, reference_patchlevel(TclVersion::V9_0));
+
+        let executable = std::env::current_exe().expect("current test executable");
+        let run_child = |mode: &str, root: &Path| {
+            Command::new(&executable)
+                .arg("--exact")
+                .arg("tests::environment_source_tree_override_requires_the_pinned_patchlevel")
+                .arg("--nocapture")
+                .env(SOURCE_ENV_CHILD, mode)
+                .env("TCL_LSP_TCL_ROOT90", root)
+                .output()
+                .expect("run source environment child test")
+        };
+        let stale_output = run_child("stale", &stale);
+        let exact_output = run_child("exact", &exact);
+
+        fs::remove_dir_all(stale).expect("remove stale fixture");
+        fs::remove_dir_all(exact).expect("remove exact fixture");
+        for (mode, output) in [("stale", stale_output), ("exact", exact_output)] {
+            assert!(
+                output.status.success(),
+                "{mode} child failed:\nstdout:\n{}\nstderr:\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+    }
+
+    fn write_source_tree(root: &Path, patchlevel: &str) {
         fs::create_dir_all(root.join("generic")).expect("generic directory");
         fs::create_dir_all(root.join("library")).expect("library directory");
         fs::create_dir_all(root.join("tests")).expect("tests directory");
         fs::write(
             root.join("generic/tcl.h"),
-            "# define TCL_PATCH_LEVEL \"9.0.3\"\n",
+            format!("# define TCL_PATCH_LEVEL \"{patchlevel}\"\n"),
         )
         .expect("version header");
         fs::write(root.join("library/init.tcl"), "").expect("init.tcl");
