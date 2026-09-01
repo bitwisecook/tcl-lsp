@@ -1402,10 +1402,16 @@ jobs:
             /bin/bash -lc '
               set -euo pipefail
               apt-get update
+              # Both libc development packages are recommendations rather than
+              # dependencies of the GCC packages, so name them explicitly when
+              # suppressing recommended packages.
               apt-get install -y --no-install-recommends \
-                ca-certificates cmake gcc gcc-riscv64-linux-gnu git make perl pkg-config qemu-user
+                ca-certificates cmake gcc gcc-riscv64-linux-gnu git libc6-dev \
+                libc6-dev-riscv64-cross make perl pkg-config qemu-user
               rm -rf /var/lib/apt/lists/*
               export PATH="/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+              test -f "$(gcc -print-file-name=Scrt1.o)"
+              test -f "$(riscv64-linux-gnu-gcc -print-file-name=Scrt1.o)"
               rustup target add "$TARGET"
               cargo build -p tcl-lsp-server --release --target "$TARGET"
               cargo build -p tcl-mcp --release --target "$TARGET"
