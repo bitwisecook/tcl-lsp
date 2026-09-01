@@ -235,7 +235,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Cleanup
 .PHONY: clean distclean
 # Dep-installer helpers
-.PHONY: ensure-test-deps install-test-deps ensure-tcl-deps ensure-rust-deps ensure-emacs-deps ensure-vscode-test-deps
+.PHONY: ensure-test-deps install-test-deps ensure-tcl-deps ensure-tcl90-reference ensure-rust-deps ensure-emacs-deps ensure-vscode-test-deps
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z][a-zA-Z0-9_-]*:.*?## ' $(MAKEFILE_LIST) | \
@@ -928,8 +928,7 @@ prep-pr: format codegen ## Fast local gate (format + codegen + lint + typecheck 
 # 1.x sources through TclVM (15), 2.0 golden upgrades (3), live hook execution
 # (4), and real-C-Tcl parse validity (1). The installer selects release line
 # 9.0, while tcl-dialect's manifest supplies and validates its exact patchlevel.
-test-spectcl-compat: ## Run SpecTcl 1.x/2.0/TclVM/real-Tcl compatibility against the exact pinned Tcl 9.0 oracle
-	@TCL_LSP_TCL_RELEASES=9.0 $(MAKE) ensure-tcl-deps
+test-spectcl-compat: ensure-tcl90-reference ## Run SpecTcl 1.x/2.0/TclVM/real-Tcl compatibility against the exact pinned Tcl 9.0 oracle
 	@set -eu; \
 		. scripts/dev/tcl-reference-toolchains.sh; \
 		tcl_reference_load_toolchains "$(ROOT)"; \
@@ -1335,6 +1334,12 @@ ensure-tcl-deps: ## Install Tcl shells needed by Tcl/tclpkg tests and bytecode c
 		SKIP_UV=1 \
 		SKIP_TCLLIB=1 \
 		bash $(ROOT)scripts/dev/ensure-test-deps.sh
+
+# Tcl 9.0 is the shared gold-standard reference lane for the deep Rust and
+# SpecTcl suites. The release manifest owns its exact patchlevel and source tag;
+# callers select only the release line through this entry point.
+ensure-tcl90-reference: ## Install the exact manifest-pinned Tcl 9.0 reference interpreter
+	@$(MAKE) TCL_LSP_TCL_RELEASES=9.0 ensure-tcl-deps
 
 ensure-rust-deps: ## Install Rust/rustup + wasm32-wasip2 target needed by check-rust
 	@if [ -n "$${SKIP_CHECK_RUST:-}" ] || [ -n "$${SKIP_RUST:-}" ]; then \

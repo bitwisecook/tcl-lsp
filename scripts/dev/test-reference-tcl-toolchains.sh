@@ -164,4 +164,34 @@ if [ "$("$stale_first/tclsh9.0" <<<'puts [info patchlevel]')" != "9.0.3" ]; then
     exit 1
 fi
 
+# The three real-tclsh conformance binaries in the full Rust partition fail
+# closed after rejecting stale distro interpreters. Keep their CI provisioning
+# on the same Make entry point as SpecTcl so neither lane can silently fall back
+# to an unpinned patchlevel.
+rust_tests_block="$(awk '
+    /^  rust-tests:/ { in_rust_tests = 1 }
+    in_rust_tests && /^  [A-Za-z0-9_-]+:/ && $1 != "rust-tests:" { exit }
+    in_rust_tests { print }
+' "$REPO_ROOT/.github/workflows/ci.yml")"
+case "$rust_tests_block" in
+    *'name: Install exact Tcl 9.0 reference interpreter'*'TCL_LSP_TCL_BIN_DIR: ${{ runner.temp }}/tcl-reference-bin'*'make ensure-tcl90-reference'*'. scripts/dev/tcl-reference-toolchains.sh'*'tcl_reference_resolve_tclsh 9.0'*'TCL_LSP_TCLSH90=%s\n'*'$GITHUB_ENV'*) ;;
+    *)
+        echo "rust-tests must provision and export the exact Tcl 9.0 oracle through ensure-tcl90-reference" >&2
+        exit 1
+        ;;
+esac
+
+tcl90_make_rule="$(awk '
+    /^ensure-tcl90-reference:/ { in_tcl90_rule = 1 }
+    in_tcl90_rule && /^[A-Za-z0-9_.-]+:/ && $1 != "ensure-tcl90-reference:" { exit }
+    in_tcl90_rule { print }
+' "$REPO_ROOT/Makefile")"
+case "$tcl90_make_rule" in
+    *'$(MAKE) TCL_LSP_TCL_RELEASES=9.0 ensure-tcl-deps'*) ;;
+    *)
+        echo "ensure-tcl90-reference must force release 9.0 on the recursive make command line" >&2
+        exit 1
+        ;;
+esac
+
 echo "reference Tcl toolchain shell regression: ok"

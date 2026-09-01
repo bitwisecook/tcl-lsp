@@ -735,6 +735,21 @@ jobs:
         with:
           tool: nextest
 
+      # The real-tclsh conformance binaries fail closed when no manifest-pinned
+      # interpreter is available. Provision the shared Tcl 9.0 gold-standard
+      # lane through the same tool entry point SpecTcl uses; distro Tcl and a
+      # stale system tclsh9.0 must never decide which oracle CI exercises.
+      - name: Install exact Tcl 9.0 reference interpreter
+        if: needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        env:
+          TCL_LSP_TCL_BIN_DIR: ${{ runner.temp }}/tcl-reference-bin
+        run: |
+          make ensure-tcl90-reference
+          . scripts/dev/tcl-reference-toolchains.sh
+          tcl_reference_load_toolchains "$PWD"
+          tclsh="$(tcl_reference_resolve_tclsh 9.0)"
+          printf 'TCL_LSP_TCLSH90=%s\n' "$tclsh" >> "$GITHUB_ENV"
+
       # --no-fail-fast: report every failure, not just the first.
       # Skipped entirely for docs-only changes and already-green tags;
       # downgraded to a cache-warming build (--no-run) on an already-green
