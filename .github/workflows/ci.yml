@@ -1332,9 +1332,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Git rejects the root-owned container's bind-mounted checkout as a
+          # dubious directory. Stamp provenance explicitly instead of letting
+          # tcl-version silently fall back to an empty commit.
+          export GIT_HASH="${GITHUB_SHA:0:8}"
           docker run --rm \
             --env TARGET \
             --env TCL_LSP_VERSION \
+            --env GIT_HASH \
             --env CARGO_HOME=/cargo \
             --env RUSTUP_HOME=/rustup \
             --volume "$GITHUB_WORKSPACE:/work" \
@@ -1357,6 +1362,16 @@ jobs:
               cargo build -p tcl-mcp --release --target "$TARGET"
               cargo build -p tcl-cli --release --target "$TARGET"
               cargo build -p f5-cli --release --target "$TARGET"
+              for binary in \
+                "target/$TARGET/release/tcl-lsp-server" \
+                "target/$TARGET/release/tcl-mcp" \
+                "target/$TARGET/release/tcl" \
+                "target/$TARGET/release/f5-query"; do
+                strings "$binary" | grep -F "+g$GIT_HASH" >/dev/null || {
+                  echo "error: $binary does not contain commit +g$GIT_HASH" >&2
+                  exit 1
+                }
+              done
             '
 
       # Ubuntu 22.04 is the oldest still-supported mainstream RISC-V distro and
@@ -1371,9 +1386,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          export GIT_HASH="${GITHUB_SHA:0:8}"
           docker run --rm \
             --env TARGET \
             --env TCL_LSP_VERSION \
+            --env GIT_HASH \
             --env CARGO_HOME=/cargo \
             --env RUSTUP_HOME=/rustup \
             --env DEBIAN_FRONTEND=noninteractive \
@@ -1394,6 +1411,16 @@ jobs:
               cargo build -p tcl-mcp --release --target "$TARGET"
               cargo build -p tcl-cli --release --target "$TARGET"
               cargo build -p f5-cli --release --target "$TARGET"
+              for binary in \
+                "target/$TARGET/release/tcl-lsp-server" \
+                "target/$TARGET/release/tcl-mcp" \
+                "target/$TARGET/release/tcl" \
+                "target/$TARGET/release/f5-query"; do
+                strings "$binary" | grep -F "+g$GIT_HASH" >/dev/null || {
+                  echo "error: $binary does not contain commit +g$GIT_HASH" >&2
+                  exit 1
+                }
+              done
               scripts/verify-glibc-baseline.sh 2.35 \
                 "target/$TARGET/release/tcl-lsp-server" \
                 "target/$TARGET/release/tcl-mcp" \
