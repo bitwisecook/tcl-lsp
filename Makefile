@@ -930,7 +930,12 @@ prep-pr: format codegen ## Fast local gate (format + codegen + lint + typecheck 
 # 9.0, while tcl-dialect's manifest supplies and validates its exact patchlevel.
 test-spectcl-compat: ## Run SpecTcl 1.x/2.0/TclVM/real-Tcl compatibility against the exact pinned Tcl 9.0 oracle
 	@TCL_LSP_TCL_RELEASES=9.0 $(MAKE) ensure-tcl-deps
-	@TCL_REQUIRE_SPECTCL_COMPAT=1 cargo test -p tcl-spectcl --test eval_loader --test golden_packs --test pack_source_e2e --test pack_is_real_tcl
+	@set -eu; \
+		. scripts/dev/tcl-reference-toolchains.sh; \
+		tcl_reference_load_toolchains "$(ROOT)"; \
+		tclsh="$$(tcl_reference_resolve_tclsh 9.0)"; \
+		TCL_LSP_TCLSH90="$$tclsh" TCL_REQUIRE_SPECTCL_COMPAT=1 \
+		cargo test -p tcl-spectcl --test eval_loader --test golden_packs --test pack_source_e2e --test pack_is_real_tcl
 
 test-installer: ## Test installer platform, UI, and legacy-migration decisions (no network)
 	@bash scripts/install/test_installer.sh

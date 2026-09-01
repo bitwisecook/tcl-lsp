@@ -85,22 +85,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 tcl_reference_load_toolchains "$REPO_ROOT"
 
 TCL_REFERENCE_SOURCE_PARENT="${TCL_LSP_TCL_SOURCE_PARENT:-$REPO_ROOT/tmp}"
-
-# Prefer the first conventional managed bin directory already present on PATH.
-# This matters on hosts whose /usr/bin precedes /usr/local/bin: installing the
-# pinned wrapper later on PATH would leave the stale distro tclsh selected.
-default_tcl_reference_bin_dir() {
-    local directory
-    while IFS= read -r directory; do
-        if [ "$directory" = "${HOME:-}/.local/bin" ] || [ "$directory" = "/usr/local/bin" ]; then
-            printf '%s\n' "$directory"
-            return 0
-        fi
-    done < <(printf '%s\n' "${PATH:-}" | tr ':' '\n')
-    printf '%s\n' /usr/local/bin
-}
-
-TCL_REFERENCE_BIN_DIR="${TCL_LSP_TCL_BIN_DIR:-$(default_tcl_reference_bin_dir)}"
+TCL_REFERENCE_BIN_DIR="$(tcl_reference_bin_dir)"
 
 # Most callers need the whole conformance matrix. Focused CI lanes may select
 # a release-line subset (for example, SpecTcl needs only the pinned 9.0 oracle)
@@ -400,23 +385,6 @@ make_temp_file() {
 # TCL_LIBRARY (also explicitly unset, so a stale global export cannot shadow
 # the version being probed).
 
-# Print the patchlevel reported by $1, or fail when it is not executable or
-# cannot run as a Tcl interpreter.
-tclsh_patchlevel() {
-    local bin="$1"
-    [ -x "$bin" ] || return 1
-    printf 'puts [info patchlevel]\n' \
-        | env -u TCL_LIBRARY "$bin" 2>/dev/null
-}
-
-# True when $1 (a tclsh binary or wrapper) reports exactly patchlevel $2.
-tclsh_reports_patchlevel() {
-    local bin="$1" expected="$2"
-    local actual
-    actual="$(tclsh_patchlevel "$bin")" || return 1
-    [ "$actual" = "$expected" ]
-}
-
 # Install /usr/local/bin/tclsh<tag> as a wrapper execing $target by its real
 # path — see the block comment above ensure_tclsh for why this beats a
 # symlink for the 8.4/8.5 trees (9.0/9.1 would tolerate either).
@@ -455,16 +423,21 @@ ensure_reference_tclsh() {
     local command_name="tclsh${release}"
     local resolved="" actual="" repair=""
 
-    resolved="$(command -v "$command_name" 2>/dev/null || true)"
-    if tclsh_reports_patchlevel "$resolved" "$expected"; then
-        info "$command_name already on PATH at exact reference patchlevel $expected"
+    if resolved="$(tcl_reference_resolve_tclsh "$release")"; then
+        info "$command_name exact reference patchlevel $expected resolved at $resolved"
         return 0
+    else
+        local resolve_status=$?
+        if [ "$resolve_status" -eq 2 ]; then
+            return 1
+        fi
     fi
+    resolved="$(command -v "$command_name" 2>/dev/null || true)"
     if [ -n "$resolved" ]; then
-        actual="$(tclsh_patchlevel "$resolved" 2>/dev/null || true)"
+        actual="$(tcl_reference_tclsh_patchlevel "$resolved" 2>/dev/null || true)"
     fi
 
-    if tclsh_reports_patchlevel "$tclsh_bin" "$expected"; then
+    if tcl_reference_tclsh_reports_patchlevel "$tclsh_bin" "$expected"; then
         repair="would install a wrapper for $tclsh_bin at $link"
     else
         if [ -d "$tree_dir/unix" ]; then
@@ -485,7 +458,7 @@ ensure_reference_tclsh() {
         return 0
     fi
 
-    if ! tclsh_reports_patchlevel "$tclsh_bin" "$expected"; then
+    if ! tcl_reference_tclsh_reports_patchlevel "$tclsh_bin" "$expected"; then
         if [ ! -d "$tree_dir/unix" ]; then
             info "Fetching Tcl $release source ($expected) via fetch-tcl-source skill"
             bash "$REPO_ROOT/.claude/skills/fetch-tcl-source/fetch_tcl_source.sh" "$release"
@@ -507,21 +480,18 @@ ensure_reference_tclsh() {
                 ./configure --disable-shared >/dev/null
             make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)" >/dev/null
         )
-        if ! tclsh_reports_patchlevel "$tclsh_bin" "$expected"; then
+        if ! tcl_reference_tclsh_reports_patchlevel "$tclsh_bin" "$expected"; then
             echo "ERROR: built $tclsh_bin does not report patchlevel $expected" >&2
             return 1
         fi
     fi
 
-    if ! tclsh_reports_patchlevel "$link" "$expected"; then
+    if ! tcl_reference_tclsh_reports_patchlevel "$link" "$expected"; then
         install_reference_tclsh_wrapper "$tclsh_bin" "$link"
         info "Installed $command_name → $link (wraps $tclsh_bin)"
     fi
-    hash -r
-    resolved="$(command -v "$command_name" 2>/dev/null || true)"
-    if ! tclsh_reports_patchlevel "$resolved" "$expected"; then
-        actual="$(tclsh_patchlevel "$resolved" 2>/dev/null || true)"
-        echo "ERROR: installed $link, but PATH still resolves $command_name to ${resolved:-nothing}${actual:+ (Tcl $actual)}" >&2
+    if ! tcl_reference_tclsh_reports_patchlevel "$link" "$expected"; then
+        echo "ERROR: installed $link does not report Tcl $expected" >&2
         return 1
     fi
 }
@@ -540,15 +510,18 @@ ensure_tclsh() {
         if ! tcl_reference_patchlevel "$release" >/dev/null; then
             return 1
         fi
-        command_name="tclsh${release}"
-        resolved="$(command -v "$command_name" 2>/dev/null || true)"
-        expected="$(tcl_reference_patchlevel "$release")"
-        if ! tclsh_reports_patchlevel "$resolved" "$expected"; then
+        if resolved="$(tcl_reference_resolve_tclsh "$release")"; then
+            :
+        else
+            local resolve_status=$?
+            if [ "$resolve_status" -eq 2 ]; then
+                return 1
+            fi
             all_ready=0
         fi
     done <<< "$requested"
     if [ "$all_ready" -eq 1 ]; then
-        info "requested tclsh exact reference patchlevels already on PATH"
+        info "requested tclsh exact reference patchlevels already resolved"
         return 0
     fi
 

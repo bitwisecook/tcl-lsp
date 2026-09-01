@@ -45,12 +45,18 @@ fi
 
 write_fake_tclsh() {
     local name="$1" patchlevel="$2"
+    write_fake_tclsh_at "$fake_bin" "$name" "$patchlevel"
+}
+
+write_fake_tclsh_at() {
+    local directory="$1" name="$2" patchlevel="$3"
+    mkdir -p "$directory"
     {
         printf '#!/bin/sh\n'
         printf 'while IFS= read -r _line; do :; done\n'
         printf "printf '%%s\\n' '%s'\n" "$patchlevel"
-    } > "$fake_bin/$name"
-    chmod 0755 "$fake_bin/$name"
+    } > "$directory/$name"
+    chmod 0755 "$directory/$name"
 }
 
 write_exact_matrix() {
@@ -63,10 +69,16 @@ write_exact_matrix() {
 
 run_check() {
     env \
+        -u TCL_LSP_TCLSH84 \
+        -u TCL_LSP_TCLSH85 \
+        -u TCL_LSP_TCLSH86 \
+        -u TCL_LSP_TCLSH90 \
+        -u TCL_LSP_TCLSH91 \
         HOME="$fake_home" \
-        PATH="$fake_bin:/usr/bin:/bin" \
+        PATH="${REFERENCE_TEST_PATH:-$fake_bin:/usr/bin:/bin}" \
         TCL_LSP_TCL_SOURCE_PARENT="$source_parent" \
-        TCL_LSP_TCL_BIN_DIR="$install_dir" \
+        TCL_LSP_TCL_BIN_DIR="${REFERENCE_TEST_INSTALL_DIR:-$install_dir}" \
+        TCL_LSP_TCL_RELEASES="${REFERENCE_TEST_RELEASES:-}" \
         SKIP_PYTHON_TK=1 \
         SKIP_NODE=1 \
         SKIP_KOTLINC=1 \
@@ -113,7 +125,7 @@ fi
 write_fake_tclsh tclsh9.0 "$tcl90_patchlevel"
 exact_output="$(run_check 2>&1)"
 case "$exact_output" in
-    *"requested tclsh exact reference patchlevels already on PATH"*) ;;
+    *"requested tclsh exact reference patchlevels already resolved"*) ;;
     *)
         echo "exact reference matrix did not take the all-ready path" >&2
         printf '%s\n' "$exact_output" >&2
@@ -122,6 +134,33 @@ case "$exact_output" in
 esac
 if [ -e "$install_dir" ]; then
     echo "exact --check mutated the fake installation prefix" >&2
+    exit 1
+fi
+
+# A stale system-style command may precede the exact managed wrapper. The
+# resolver must deliberately choose the known wrapper instead of either
+# overwriting the stale installation or failing because `command -v` still
+# names it.
+stale_first="$fixture/usr-bin"
+managed_after="$fixture/managed-bin"
+write_fake_tclsh_at "$stale_first" tclsh9.0 9.0.3
+write_fake_tclsh_at "$managed_after" tclsh9.0 "$tcl90_patchlevel"
+managed_output="$({
+    REFERENCE_TEST_PATH="$stale_first:$managed_after:/usr/bin:/bin" \
+        REFERENCE_TEST_INSTALL_DIR="$managed_after" \
+        REFERENCE_TEST_RELEASES=9.0 \
+        run_check
+} 2>&1)"
+case "$managed_output" in
+    *"requested tclsh exact reference patchlevels already resolved"*) ;;
+    *)
+        echo "exact managed wrapper after a stale PATH entry was not selected" >&2
+        printf '%s\n' "$managed_output" >&2
+        exit 1
+        ;;
+esac
+if [ "$("$stale_first/tclsh9.0" <<<'puts [info patchlevel]')" != "9.0.3" ]; then
+    echo "managed-wrapper resolution mutated the stale system-style interpreter" >&2
     exit 1
 fi
 
