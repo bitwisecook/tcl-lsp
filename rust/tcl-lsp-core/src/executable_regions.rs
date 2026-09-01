@@ -15,7 +15,7 @@ use tcl_compiler::lambda_literal::split_lambda_literal;
 use tcl_compiler::realm::CommandBindingRealm;
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_dialect::model::SurfaceQuery;
-use tcl_lexer::{Lexer, LexerConfig, SourceMap, Token, TokenType};
+use tcl_lexer::{Lexer, LexerConfig, SourceMap, Token, TokenType, close_quote_offset};
 use tcl_registry::definer::DefinitionBodyGrammar;
 use tcl_registry::{ArgRole, CommandRegistry, ScriptTiming};
 
@@ -33,6 +33,33 @@ pub(crate) enum ExecutableContext {
     Direct,
     /// A registry-declared body, case action, definition body, or lambda body.
     PotentialBody,
+}
+
+/// The deepest statically executable source region containing a cursor.
+///
+/// `start` follows the delimiter that introduced the region. `depth` is the
+/// lexer nesting depth required to interpret its prefix with the same grammar
+/// as [`visit_executable_commands`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ExecutableRegion {
+    pub(crate) start: usize,
+    pub(crate) depth: u32,
+}
+
+struct RegionProbe {
+    cursor: usize,
+    best: Option<ExecutableRegion>,
+}
+
+impl RegionProbe {
+    fn consider(&mut self, start: usize, end: usize, depth: u32) {
+        if start <= self.cursor
+            && self.cursor <= end
+            && self.best.is_none_or(|best| depth > best.depth)
+        {
+            self.best = Some(ExecutableRegion { start, depth });
+        }
+    }
 }
 
 /// Visit every statically locatable command that Tcl can execute from
@@ -58,8 +85,43 @@ pub(crate) fn visit_executable_commands(
         availability,
         identities,
         visitor,
+        region_probe: None,
     };
     let _ = walk.region(0, source.len(), 0, None, ExecutableContext::Direct);
+}
+
+/// Return the innermost registry-declared executable region containing
+/// `cursor`.
+///
+/// This is the cursor-oriented counterpart to [`visit_executable_commands`]:
+/// it follows the exact same body, clause-list, lambda, definition-member, and
+/// command-substitution metadata. Consumers therefore do not need to infer
+/// script bodies from brace characters or command names.
+pub(crate) fn innermost_executable_region_at(
+    source: &str,
+    config: LexerConfig,
+    registry: &CommandRegistry,
+    availability: Option<SurfaceQuery<'_>>,
+    identities: &CommandBindingRealm,
+    cursor: usize,
+) -> Option<ExecutableRegion> {
+    if cursor > source.len() {
+        return None;
+    }
+    let mut probe = RegionProbe { cursor, best: None };
+    let mut visitor =
+        |_command: &SegmentedCommand, _head: HeadWords<'_>, _context: ExecutableContext| false;
+    let mut walk = ExecutableWalker {
+        source,
+        config,
+        registry,
+        availability,
+        identities,
+        visitor: &mut visitor,
+        region_probe: Some(&mut probe),
+    };
+    let _ = walk.region(0, source.len(), 0, None, ExecutableContext::Direct);
+    probe.best
 }
 
 struct ExecutableWalker<'a, F> {
@@ -69,11 +131,22 @@ struct ExecutableWalker<'a, F> {
     availability: Option<SurfaceQuery<'a>>,
     identities: &'a CommandBindingRealm,
     visitor: &'a mut F,
+    region_probe: Option<&'a mut RegionProbe>,
 }
 
 impl<F: FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool>
     ExecutableWalker<'_, F>
 {
+    fn begin_region(&mut self, start: usize, end: usize, depth: u32) -> bool {
+        if MAX_EXECUTABLE_REGION_DEPTH.exceeded(depth) || start > end || end > self.source.len() {
+            return false;
+        }
+        if let Some(probe) = self.region_probe.as_deref_mut() {
+            probe.consider(start, end, depth);
+        }
+        start < end
+    }
+
     fn region(
         &mut self,
         start: usize,
@@ -82,7 +155,7 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool>
         grammar: Option<&'static DefinitionBodyGrammar>,
         context: ExecutableContext,
     ) -> bool {
-        if MAX_EXECUTABLE_REGION_DEPTH.exceeded(depth) || start >= end || end > self.source.len() {
+        if !self.begin_region(start, end, depth) {
             return false;
         }
         let commands = segment_commands_with_offset_and_config(
@@ -144,13 +217,16 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool>
                 let Some(&token) = command.arg_tokens().get(index) else {
                     continue;
                 };
-                if token.kind != TokenType::Str {
-                    continue;
-                }
                 if case_list.is_some_and(|(_, case_index)| case_index == index) {
                     continue;
                 }
-                if let Some((body_start, body_end)) = braced_body_region(self.source, token)
+                let single_token = command
+                    .arg_single_token()
+                    .get(index)
+                    .copied()
+                    .unwrap_or(false);
+                if let Some((body_start, body_end)) =
+                    literal_body_region(self.source, token, single_token)
                     && self.region(
                         body_start,
                         body_end,
@@ -266,7 +342,26 @@ fn case_action_region(source: &str, token: Token) -> Option<(usize, usize)> {
     }
     let bytes = source.as_bytes();
     let start = start + usize::from(matches!(bytes.get(start), Some(b'{' | b'"')));
-    (start < end).then_some((start, end))
+    // Empty actions are still executable regions: the cursor between their
+    // delimiters must leave the containing `switch`/`expect` signature before
+    // the user types the action's first command.
+    (start <= end).then_some((start, end))
+}
+
+/// Return a registry-declared body's statically source-mappable script region.
+///
+/// Braced words are literal by Tcl definition. A substitution-free quoted
+/// word is literal as well, provided it contains no backslash sequence whose
+/// decoded value would differ from the written source. Compound quoted words
+/// (`"puts $value"`, `"[build]"`) have multiple lexer fragments and are
+/// deliberately withheld: reparsing their written source would invent a body
+/// that does not exist until the enclosing command performs substitution.
+fn literal_body_region(source: &str, token: Token, single_token: bool) -> Option<(usize, usize)> {
+    match token.kind {
+        TokenType::Str => braced_body_region(source, token),
+        TokenType::Esc if single_token => quoted_literal_body_region(source, token),
+        _ => None,
+    }
 }
 
 /// Return a braced body's verbatim source content, excluding delimiters.
@@ -279,7 +374,33 @@ fn braced_body_region(source: &str, token: Token) -> Option<(usize, usize)> {
     } else {
         raw_end
     };
-    (start < end && end <= source.len()).then_some((start, end))
+    // Keep `{}` as a zero-length region. `begin_region` probes it before
+    // declining to segment commands, so signature help cannot fall back to
+    // the containing command while the caret awaits the body's first command.
+    (start <= end && end <= source.len()).then_some((start, end))
+}
+
+/// Return a substitution-free quoted body's verbatim content.
+fn quoted_literal_body_region(source: &str, token: Token) -> Option<(usize, usize)> {
+    if token.kind != TokenType::Esc || token.content_offset != 1 {
+        return None;
+    }
+    let raw_start = token.span.start() as usize;
+    let raw_end = token.span.end() as usize;
+    let bytes = source.as_bytes();
+    if raw_start >= source.len() || raw_end > source.len() || bytes[raw_start] != b'"' {
+        return None;
+    }
+
+    let start = raw_start + 1;
+    // The shared quote scanner owns close semantics (including escaped quotes
+    // and nested command substitutions). An unterminated opening token runs
+    // through EOF, which is also the provisional inner end signature help
+    // needs while the closing quote is still being typed.
+    let end = close_quote_offset(source, raw_start)
+        .map_or_else(|| (raw_end == source.len()).then_some(raw_end), Some)?;
+    let content = source.get(start..end)?;
+    (!content.as_bytes().contains(&b'\\')).then_some((start, end))
 }
 
 /// Locate active bracket substitutions inside one token, preserving absolute
@@ -440,6 +561,43 @@ mod tests {
                 )
                 .is_empty(),
                 "dynamic and malformed lists must not expose nested actions: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn quoted_declared_bodies_recurse_only_when_source_mappable() {
+        let dialect =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let literal = "proc p {} \"format {%d} 1\"";
+        assert_eq!(
+            visited_format_heads(literal, dialect),
+            vec![(
+                "format".to_owned(),
+                "format".to_owned(),
+                u32::try_from(literal.find("format").expect("nested head")).unwrap(),
+            )],
+            "a substitution-free quoted body is executable at its written span",
+        );
+
+        let unterminated = "proc p {} \"format {%d} 1";
+        assert_eq!(
+            visited_format_heads(unterminated, dialect),
+            vec![(
+                "format".to_owned(),
+                "format".to_owned(),
+                u32::try_from(unterminated.find("format").expect("nested head")).unwrap(),
+            )],
+            "an unterminated quoted body remains executable through EOF",
+        );
+
+        for source in [
+            "proc p {} \"format $pattern 1\"",
+            "proc p {} \"format\\ {%d} 1\"",
+        ] {
+            assert!(
+                visited_format_heads(source, dialect).is_empty(),
+                "a substituted or backslash-decoded body is not source-mappable: {source}",
             );
         }
     }

@@ -265,6 +265,11 @@ pub fn registry_for_dialect_profile(
 /// ```
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// The shared Tcl qualified-name canonicaliser, re-exported for LSP hosts that
+/// must normalise command names before passing provider options into this
+/// crate. The semantic owner remains `tcl-syntax::naming`.
+pub use tcl_syntax::naming::normalise_qualified_name as normalise_qualified_command_name;
+
 #[cfg(test)]
 mod dialect_ingress_tests {
 
