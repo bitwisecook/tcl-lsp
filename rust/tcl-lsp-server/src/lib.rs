@@ -14112,6 +14112,7 @@ impl Backend {
         // longest-prefix resolution at read time.  A single-root / no-folder
         // session skips this — the global pull above is the whole story.
         if !folders.is_empty() {
+            let primary_folder = folders.first().cloned();
             let items: Vec<ConfigurationItem> = folders
                 .iter()
                 .map(|f| ConfigurationItem {
@@ -14140,8 +14141,51 @@ impl Backend {
                     })
                     .collect();
                 self.apply_folder_configs(parsed).await;
+            } else {
+                // The unscoped pull succeeded, so retain its global/editor
+                // layer, but the primary project's higher-precedence INI
+                // exclusion must not disappear merely because the scoped pull
+                // failed. Patch only that root's override into the last good
+                // folder chain; sibling values remain isolated and intact.
+                self.apply_primary_project_signature_fallback(
+                    primary_folder.as_ref(),
+                    &primary_project,
+                )
+                .await;
             }
         }
+    }
+
+    /// Preserve the primary project's signature exclusion when a scoped
+    /// configuration pull fails, without replacing any last-known sibling
+    /// folder settings.
+    async fn apply_primary_project_signature_fallback(
+        &self,
+        primary_folder: Option<&Uri>,
+        primary_project: &serde_json::Value,
+    ) {
+        let Some(primary_folder) = primary_folder else {
+            return;
+        };
+        let project_override = signature_help_disabled_commands(primary_project);
+        let mut parsed = self.folder_configs.lock().await.clone();
+        if let Some((_, config)) = parsed
+            .iter_mut()
+            .find(|(folder, _)| folder == primary_folder)
+        {
+            config.signature_help_disabled_commands = project_override;
+        } else if let Some(commands) = project_override {
+            parsed.push((
+                primary_folder.clone(),
+                FolderConfig {
+                    signature_help_disabled_commands: Some(commands),
+                    ..FolderConfig::default()
+                },
+            ));
+        } else {
+            return;
+        }
+        self.apply_folder_configs(parsed).await;
     }
 
     /// The whole `didChangeConfiguration` reload pipeline, run **once** for a
@@ -14344,14 +14388,8 @@ impl Backend {
         // project's exclusions cannot bleed into a sibling root. An absent
         // section means the list was removed from every fallback layer; reset
         // unconditionally rather than latching stale exclusions after an edit.
-        let commands = signature_fallback_cfg
-            .get("signatureHelp")
-            .and_then(serde_json::Value::as_object)
-            .and_then(|signature_help| signature_help.get("disabledCommands"))
-            .and_then(serde_json::Value::as_array)
-            .map_or(&[][..], Vec::as_slice);
         *self.signature_help_disabled_commands.lock().await =
-            normalise_disabled_signature_commands(commands);
+            signature_help_disabled_commands(signature_fallback_cfg).unwrap_or_default();
         // `tclLsp.xcDiagnostics.enabled` is a dedicated config section (the
         // shipped VS Code setting "XC Migration: Enabled"), not a `features.*`
         // key, so it must be mapped onto the `xcDiagnostics` feature toggle
@@ -22564,6 +22602,13 @@ fn normalise_disabled_signature_commands(values: &[serde_json::Value]) -> Vec<St
     commands
 }
 
+fn signature_help_disabled_commands(cfg: &serde_json::Value) -> Option<Vec<String>> {
+    cfg.get("signatureHelp")
+        .and_then(|section| section.get("disabledCommands"))
+        .and_then(serde_json::Value::as_array)
+        .map(|commands| normalise_disabled_signature_commands(commands))
+}
+
 fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
     let obj = cfg.as_object()?;
     let mut fc = FolderConfig::default();
@@ -22612,13 +22657,7 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
                 .collect(),
         );
     }
-    if let Some(commands) = obj
-        .get("signatureHelp")
-        .and_then(|section| section.get("disabledCommands"))
-        .and_then(serde_json::Value::as_array)
-    {
-        fc.signature_help_disabled_commands = Some(normalise_disabled_signature_commands(commands));
-    }
+    fc.signature_help_disabled_commands = signature_help_disabled_commands(cfg);
     parse_folder_diagnostics(obj, &mut fc);
     // `tclLsp.libraryPaths` per-folder override.
     if let Some(paths) = obj
@@ -33406,6 +33445,70 @@ mod tests {
                 .await
                 .is_empty(),
             "a sibling without an exclusion inherits only global/editor layers",
+        );
+    }
+
+    #[tokio::test]
+    async fn scoped_pull_failure_keeps_primary_project_signature_exclusions_isolated() {
+        let backend = test_backend();
+        let folder_a = Uri::from_str("file:///proj-a").unwrap();
+        let folder_b = Uri::from_str("file:///proj-b").unwrap();
+        let file_a = Uri::from_str("file:///proj-a/file.tcl").unwrap();
+        let file_b = Uri::from_str("file:///proj-b/file.tcl").unwrap();
+        *backend.workspace_folders.lock().await = vec![folder_a.clone(), folder_b.clone()];
+        *backend.signature_help_disabled_commands.lock().await = vec!["::format".to_owned()];
+
+        // A prior successful scoped pull for the sibling must survive a later
+        // scoped-request failure while the primary's project INI is recovered.
+        backend
+            .apply_folder_configs(vec![(
+                folder_b,
+                FolderConfig {
+                    signature_help_disabled_commands: Some(vec!["::incr".to_owned()]),
+                    ..FolderConfig::default()
+                },
+            )])
+            .await;
+        backend
+            .apply_primary_project_signature_fallback(
+                Some(&folder_a),
+                &serde_json::json!({
+                    "signatureHelp": { "disabledCommands": ["set"] }
+                }),
+            )
+            .await;
+
+        assert_eq!(
+            backend
+                .resolved_signature_help_disabled_commands(&file_a)
+                .await,
+            vec!["::set".to_owned()],
+            "the primary root keeps its project exclusion after a scoped pull failure",
+        );
+        assert_eq!(
+            backend
+                .resolved_signature_help_disabled_commands(&file_b)
+                .await,
+            vec!["::incr".to_owned()],
+            "the fallback must preserve and not overwrite a sibling's last scoped value",
+        );
+
+        backend
+            .apply_primary_project_signature_fallback(Some(&folder_a), &serde_json::json!({}))
+            .await;
+        assert_eq!(
+            backend
+                .resolved_signature_help_disabled_commands(&file_a)
+                .await,
+            vec!["::format".to_owned()],
+            "removing the project setting restores global/editor inheritance",
+        );
+        assert_eq!(
+            backend
+                .resolved_signature_help_disabled_commands(&file_b)
+                .await,
+            vec!["::incr".to_owned()],
+            "clearing the primary override must still leave the sibling untouched",
         );
     }
 
