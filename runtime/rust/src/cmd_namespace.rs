@@ -208,8 +208,8 @@ fn ns_exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
         return interp.wrong_args(b"namespace exists name");
     }
-    let name = String::from_utf8_lossy(&obj_bytes(argv[2])).into_owned();
-    let v = tcl_cmd_core::namespace::exists(interp, &name);
+    let name = obj_bytes(argv[2]);
+    let v = tcl_cmd_core::namespace::exists_bytes(interp, &name);
     interp.set_result(v);
     Code::Ok
 }
@@ -220,15 +220,13 @@ fn ns_parent(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() > 3 {
         return interp.wrong_args(b"namespace parent ?name?");
     }
-    let name = argv
-        .get(2)
-        .map(|&a| String::from_utf8_lossy(&obj_bytes(a)).into_owned());
-    match tcl_cmd_core::namespace::parent(interp, name.as_deref()) {
+    let name = argv.get(2).map(|&arg| obj_bytes(arg));
+    match tcl_cmd_core::namespace::parent_bytes(interp, name.as_deref()) {
         Ok(v) => {
             interp.set_result(v);
             Code::Ok
         }
-        Err(e) => interp.set_error(e.message().as_bytes()),
+        Err(error) => interp.set_error(&error.message()),
     }
 }
 
@@ -238,18 +236,14 @@ fn ns_children(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() > 4 {
         return interp.wrong_args(b"namespace children ?name? ?pattern?");
     }
-    let name = argv
-        .get(2)
-        .map(|&a| String::from_utf8_lossy(&obj_bytes(a)).into_owned());
-    let pattern = argv
-        .get(3)
-        .map(|&a| String::from_utf8_lossy(&obj_bytes(a)).into_owned());
-    match tcl_cmd_core::namespace::children(interp, name.as_deref(), pattern.as_deref()) {
+    let name = argv.get(2).map(|&arg| obj_bytes(arg));
+    let pattern = argv.get(3).map(|&arg| obj_bytes(arg));
+    match tcl_cmd_core::namespace::children_bytes(interp, name.as_deref(), pattern.as_deref()) {
         Ok(v) => {
             interp.set_result(v);
             Code::Ok
         }
-        Err(e) => interp.set_error(e.message().as_bytes()),
+        Err(error) => interp.set_error(&error.message()),
     }
 }
 
@@ -535,10 +529,7 @@ fn dest_has_own(interp: &Interp, dest: NsId, simple: &[u8]) -> bool {
 /// pattern or text can only match byte-identically, handled by the equality
 /// fallback).
 fn glob_match_bytes(pattern: &[u8], text: &[u8]) -> bool {
-    match (core::str::from_utf8(pattern), core::str::from_utf8(text)) {
-        (Ok(p), Ok(t)) => tcl_syntax::glob::string_match(p, t),
-        _ => pattern == text,
-    }
+    tcl_syntax::glob::string_match_bytes(pattern, text)
 }
 
 /// Set the interp result to a Tcl list of the given byte strings.
@@ -2352,6 +2343,78 @@ mod tests {
                 tcl_cmd_core::namespace::origin(i, &String::from_utf8_lossy(raw)),
                 None
             );
+        });
+    }
+
+    /// #1613: an embedder can supply a plain string whose bytes are not UTF-8.
+    /// Drive the real `namespace` adapter with such objects rather than using a
+    /// script-created byte array (whose string shimmer is valid UTF-8), so any
+    /// lossy `&str` hop makes these two distinct namespace names disappear or
+    /// collide.
+    #[test]
+    fn byte_valued_namespace_navigation_uses_the_embedder_bytes_verbatim() {
+        fn invoke(interp: &mut Interp, words: &[&[u8]]) -> Code {
+            let argv: Vec<*mut crate::obj::TclObj> = words
+                .iter()
+                .map(|word| crate::obj::new_string_bytes(word))
+                .collect();
+            let code = super::namespace_cmd(interp, &argv);
+            for object in argv {
+                super::drop_fresh(object);
+            }
+            code
+        }
+
+        leak_free(|interp| {
+            let parent = b"::raw\xff";
+            let sibling = b"::raw\xfe";
+            let child = b"::raw\xff::child\xfd";
+            {
+                let mut namespaces = interp.namespaces_mut();
+                namespaces.ensure_namespace(crate::namespace::GLOBAL, parent);
+                namespaces.ensure_namespace(crate::namespace::GLOBAL, sibling);
+                namespaces.ensure_namespace(crate::namespace::GLOBAL, child);
+            }
+
+            assert_eq!(invoke(interp, &[b"namespace", b"exists", parent]), Code::Ok);
+            assert_eq!(interp.result_bytes(), b"1");
+            assert_eq!(
+                invoke(interp, &[b"namespace", b"exists", sibling]),
+                Code::Ok
+            );
+            assert_eq!(interp.result_bytes(), b"1");
+
+            assert_eq!(invoke(interp, &[b"namespace", b"parent", child]), Code::Ok);
+            assert_eq!(interp.result_bytes(), parent);
+
+            assert_eq!(
+                invoke(interp, &[b"namespace", b"children", parent]),
+                Code::Ok
+            );
+            assert_eq!(interp.result_bytes(), child);
+            assert_eq!(
+                invoke(interp, &[b"namespace", b"children", parent, child]),
+                Code::Ok
+            );
+            assert_eq!(interp.result_bytes(), child);
+
+            // Established invalid-byte glob policy: identity is defined, while
+            // wildcard interpretation is reserved for valid UTF-8 strings.
+            assert_eq!(
+                invoke(interp, &[b"namespace", b"children", parent, b"*"]),
+                Code::Ok
+            );
+            assert_eq!(interp.result_bytes(), b"");
+
+            let missing = b"::missing\xff";
+            assert_eq!(
+                invoke(interp, &[b"namespace", b"parent", missing]),
+                Code::Error
+            );
+            let mut message = b"namespace \"".to_vec();
+            message.extend_from_slice(missing);
+            message.extend_from_slice(b"\" not found");
+            assert_eq!(interp.result_bytes(), message);
         });
     }
 

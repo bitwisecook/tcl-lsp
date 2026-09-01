@@ -5643,7 +5643,7 @@ impl Vm {
     ) -> Result<(), UpvarLinkError> {
         let (other_base, other_key) =
             elem_ref(other).map_or((other, None), |(base, key)| (base, Some(key)));
-        if !self.var_parent_exists(other_base) {
+        if !self.var_parent_exists_from(target_level, other_base) {
             return Err(UpvarLinkError::TargetNamespace);
         }
 
@@ -5726,10 +5726,20 @@ impl Vm {
     /// collapses colon runs (`a:::b` → `a::b`) and preserves a trailing run as
     /// the empty variable name (`foo:::` → `foo::`).
     fn canonical_var_name(&self, name: &str) -> String {
+        self.canonical_var_name_from(name, self.current_level())
+    }
+
+    /// Canonicalise a written variable name in the namespace belonging to
+    /// explicit frame `level`. This is the frame-addressed half of the shared
+    /// variable resolver: `upvar 1 rel::x` resolves `rel` in the caller's
+    /// namespace, not the active callee's, and the same rule reaches scalar and
+    /// array-element storage through [`Self::locate_from`].
+    fn canonical_var_name_from(&self, name: &str, level: usize) -> String {
         if !tcl_syntax::naming::is_qualified(name.as_bytes()) {
             return name.to_owned();
         }
-        tcl_syntax::naming::qualify(self.current_ns(), name)
+        let namespace = self.ns_stack.get(level).map_or("", String::as_str);
+        tcl_syntax::naming::qualify(namespace, name)
     }
 
     /// Validate the namespace portion of a qualified variable write.  Tcl's
@@ -5753,11 +5763,19 @@ impl Vm {
     /// Whether the parent namespace of a variable base exists. Element syntax
     /// is removed before qualification, so `v(x::y)` keeps `::` as key data.
     pub(crate) fn var_parent_exists(&self, name: &str) -> bool {
+        self.var_parent_exists_from(self.current_level(), name)
+    }
+
+    /// [`Self::var_parent_exists`] in the namespace context of explicit frame
+    /// `level`. Target validation and target lookup must use the same context;
+    /// otherwise `upvar` can validate one namespace and install a link into
+    /// another.
+    fn var_parent_exists_from(&self, level: usize, name: &str) -> bool {
         let base = tcl_syntax::naming::split_element_ref(name).map_or(name, |(base, _)| base);
         if !tcl_syntax::naming::is_qualified(base.as_bytes()) {
             return true;
         }
-        let rooted = self.canonical_var_name(base);
+        let rooted = self.canonical_var_name_from(base, level);
         let (parent, _) = tcl_syntax::naming::key_holder_and_tail(&rooted);
         self.namespace_exists(parent.strip_prefix("::").unwrap_or(parent))
     }
@@ -5767,7 +5785,7 @@ impl Vm {
     /// are canonicalised once at this boundary; link targets are already
     /// internal keys and must not be qualified again.
     fn locate_from(&self, name: &str, start: usize) -> (usize, String) {
-        let canonical = self.canonical_var_name(name);
+        let canonical = self.canonical_var_name_from(name, start);
         let stripped = canonical.strip_prefix("::").unwrap_or(&canonical);
         let qualified = tcl_syntax::naming::is_qualified(canonical.as_bytes());
         let level = if qualified { 0 } else { start };

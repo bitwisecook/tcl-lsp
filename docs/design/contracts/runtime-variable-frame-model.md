@@ -110,6 +110,10 @@ frame target is canonicalised to the global namespace at the link site.
 * `#N` — absolute, counting from the global frame (`#0`).
 * `N` — relative, N frames up from the current (default `1`).
 * The target frame must exist (`upvar 3` from level 1 is an error).
+* A relative-qualified target name is resolved in the **target frame's**
+  namespace, not the active callee's. Thus `::B::inner` executing
+  `upvar 1 rel::x y` for a caller in `::A` links `y` to `::A::rel::x`; the
+  same rule applies to `rel::array(key)` and to deeper numeric levels.
 * `uplevel L {script}` sets the *active call frame* to frame `L` for the
   duration of `script`, then restores it. Both backends switch the current
   namespace with the frame (`tcl-vm::eval_at_level`, `runtime`'s

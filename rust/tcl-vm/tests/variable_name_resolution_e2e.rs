@@ -16,7 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Variable-name resolution on the compiled path — issues #1602, #1616, #1578.
+//! Variable-name resolution on the compiled path — issues #1602, #1616, #1578,
+//! #1745.
 //!
 //! One rule underlies the first two: **a variable name is the name word's
 //! substituted *value*, resolved exactly once.** The compiled path used to get
@@ -472,6 +473,42 @@ puts "literal-key=[lindex [array names r] 0]"
                   z(b)c get=a 1 b 2 names=a b size=2\n\
                   z(b)c after=b 2\n\
                   literal-key=$i",
+    },
+    // -- #1745: explicit-frame names use the target frame's namespace. --
+    Vector {
+        name: "relative-qualified upvar targets use the caller frame namespace",
+        script: r#"namespace eval A {
+    namespace eval rel { variable x A; variable arr; set arr(k) AK }
+    proc outer {} { ::B::inner }
+}
+namespace eval B {
+    namespace eval rel { variable x B; variable arr; set arr(k) BK }
+    proc inner {} {
+        upvar 1 rel::x scalar rel::arr(k) element
+        set scalar AS
+        set element AE
+        list $scalar $element
+    }
+}
+puts [list [::A::outer] $::A::rel::x $::A::rel::arr(k) $::B::rel::x $::B::rel::arr(k)]
+namespace eval C { proc middle {} { ::B::deep } }
+namespace eval A { proc deep_outer {} { ::C::middle } }
+namespace eval B { proc deep {} { upvar 2 rel::x target; append target -DEEP } }
+puts [list [::A::deep_outer] $::A::rel::x $::B::rel::x]
+namespace eval A2 { proc outer {} { ::B2::inner } }
+namespace eval B2 {
+    namespace eval rel { variable x B }
+    proc inner {} { upvar 1 rel::x y }
+}
+puts "missing=[catch {::A2::outer} message]:$message:$::errorCode"
+"#,
+        // Tcl 9.0.4 exact oracle; this frame rule is release-invariant.
+        want_8x: "{AS AE} AS AE B BK\n\
+                  AS-DEEP AS-DEEP B\n\
+                  missing=1:can't access \"rel::x\": parent namespace doesn't exist:TCL LOOKUP VARNAME rel::x",
+        want_90: "{AS AE} AS AE B BK\n\
+                  AS-DEEP AS-DEEP B\n\
+                  missing=1:can't access \"rel::x\": parent namespace doesn't exist:TCL LOOKUP VARNAME rel::x",
     },
     // -- #1582 / #1588: `upvar` resolves semantic homes before shape checks. --
     Vector {
