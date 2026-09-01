@@ -247,12 +247,24 @@ jobs:
     # ancestor through the needs graph).  Those tags are cut from `rust` and
     # gated by the cargo jobs instead.  Runs in full for PRs, rust pushes,
     # stable tags.
-    # `pr-gate` is already a required status on `rust`. Depending on this
-    # always-present job makes its exact SpecTcl execution result merge-
-    # blocking without a ruleset transition that could deadlock older refs.
+    # `pr-gate` is already a required status on `rust`. Run even when a needed
+    # job failed, then fail explicitly below: Actions otherwise skips a job
+    # whose dependency failed, and a skipped required check does not propagate
+    # the SpecTcl failure as a red `pr-gate` verdict.
+    if: ${{ always() }}
     needs: [channel, spectcl-compat]
     runs-on: ubuntu-26.04
     steps:
+      - name: Propagate prerequisite gate failures
+        env:
+          CHANNEL_RESULT: ${{ needs.channel.result }}
+          SPECTCL_COMPAT_RESULT: ${{ needs.spectcl-compat.result }}
+        run: |
+          if [ "$CHANNEL_RESULT" != success ] || [ "$SPECTCL_COMPAT_RESULT" != success ]; then
+            echo "channel=$CHANNEL_RESULT spectcl-compat=$SPECTCL_COMPAT_RESULT" >&2
+            exit 1
+          fi
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1

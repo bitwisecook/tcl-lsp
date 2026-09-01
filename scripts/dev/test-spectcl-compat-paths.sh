@@ -8,6 +8,7 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 CLASSIFIER=$SCRIPT_DIR/spectcl-compat-path.sh
+REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)
 
 expect_relevant() {
     if ! "$CLASSIFIER" "$1"; then
@@ -53,3 +54,38 @@ else
 fi
 
 echo "SpecTcl compatibility path classifier tests passed"
+
+# The repository's existing required check is `pr-gate`, so the separate
+# compatibility job must feed a real failure into that check. A plain `needs`
+# edge is insufficient: Actions skips dependent jobs after a failed need.
+# Keep this small textual contract beside the classifier contract so changing
+# either half of the merge-blocking lane is caught by `make rust-check`.
+pr_gate_block=$(awk '
+    /^  pr-gate:/ { in_pr_gate = 1 }
+    in_pr_gate && /^  [A-Za-z0-9_-]+:/ && $1 != "pr-gate:" { exit }
+    in_pr_gate { print }
+' "$REPO_ROOT/.github/workflows/ci.yml")
+
+case "$pr_gate_block" in
+    *'if: ${{ always() }}'*) ;;
+    *)
+        echo "pr-gate must run under always() so failed prerequisites are propagated" >&2
+        exit 1
+        ;;
+esac
+case "$pr_gate_block" in
+    *'needs: [channel, spectcl-compat]'*) ;;
+    *)
+        echo "pr-gate must depend on channel and spectcl-compat" >&2
+        exit 1
+        ;;
+esac
+case "$pr_gate_block" in
+    *'CHANNEL_RESULT: ${{ needs.channel.result }}'*'SPECTCL_COMPAT_RESULT: ${{ needs.spectcl-compat.result }}'*'if [ "$CHANNEL_RESULT" != success ] || [ "$SPECTCL_COMPAT_RESULT" != success ]; then'*'exit 1'*) ;;
+    *)
+        echo "pr-gate must explicitly fail when a prerequisite gate fails" >&2
+        exit 1
+        ;;
+esac
+
+echo "SpecTcl merge-blocking gate contract tests passed"
