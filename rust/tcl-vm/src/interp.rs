@@ -1942,72 +1942,45 @@ impl Vm {
     /// the `tcl_platform`/`env` arrays and the `argv`/`argv0`/`argc` scalars,
     /// so library scripts (tcltest) that read them at load time work.
     fn bootstrap_globals(&mut self) {
-        use tcl_platform::backend::{self, key};
-        let detected = |k: &str| -> String {
-            backend::override_env_var(k)
-                .and_then(|var| std::env::var(var).ok())
-                .unwrap_or_else(|| {
-                    match k {
-                        key::WASM => backend::compiled_wasm_spec(),
-                        key::WASI => backend::compiled_wasi_spec(),
-                        key::WASI_VERSION => backend::compiled_wasi_host(),
-                        key::EBPF => backend::compiled_ebpf_spec(),
-                        _ => "",
-                    }
-                    .to_string()
-                })
-        };
-        let webassembly_level = detected(key::WASM);
-        let interface_level = detected(key::WASI);
-        let interface_host = detected(key::WASI_VERSION);
-        let bpf_level = detected(key::EBPF);
-        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-        let user = std::env::var("USER")
-            .or_else(|_| std::env::var("USERNAME"))
-            .unwrap_or_default();
-        #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
-        let user = String::new();
-        let platform = tcl_platform::bootstrap::Values {
-            // A host without a portable uname seam uses Tcl's documented
-            // failure value.  Crucially, both engines use the same spelling.
-            os_version: "",
-            machine: std::env::consts::ARCH,
-            user: &user,
-            runtime: "bytecode",
-            runtime_version: env!("CARGO_PKG_VERSION"),
-            wasm: &webassembly_level,
-            wasi: &interface_level,
-            wasi_version: &interface_host,
-            ebpf: &bpf_level,
-        };
-        for entry in tcl_platform::bootstrap::entries() {
-            let _ = self.write_array_raw(
-                "tcl_platform",
-                entry.name(),
-                Value::string(entry.value(&platform)),
-            );
-        }
-        // `std::env` is unsupported on wasm32-unknown-unknown (a bare wasm host
-        // has no process environment; the std shim panics). The VM runs there —
-        // e.g. the pure-data coroutine VM on wasm — with an empty `env` array.
-        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-        for (k, v) in std::env::vars() {
-            let _ = self.write_array_raw("env", &k, Value::string(v));
-        }
+        self.rebootstrap_host_globals();
         self.write_scalar_raw("argv", Value::list(Vec::new()));
         self.write_scalar_raw("argv0", Value::string("tcltest"));
         self.write_scalar_raw("argc", Value::int(0));
         self.write_release_globals();
         self.write_scalar_raw("tcl_interactive", Value::int(0));
-        // `tcl_library` is the directory holding the script library; C Tcl's
-        // init derives it from `$env(TCL_LIBRARY)` (set when the caller points
-        // the VM at a real library tree). Library scripts (tcltest) read it at
-        // load time, so default it to "" rather than leaving it unset.
-        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-        let tcl_library = std::env::var("TCL_LIBRARY").unwrap_or_default();
-        #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
-        let tcl_library = String::new();
-        self.write_scalar_raw("tcl_library", Value::string(tcl_library));
+    }
+
+    fn unset_global_raw(&mut self, name: &str) {
+        let key = name.strip_prefix("::").unwrap_or(name);
+        if let Some(global) = self.frames.first_mut() {
+            global.locals.remove(key);
+            global.consts.remove(key);
+        }
+    }
+
+    fn rebootstrap_host_globals(&mut self) {
+        let snapshot = tcl_platform::bootstrap::snapshot(
+            &*self.host_rc(),
+            "bytecode",
+            env!("CARGO_PKG_VERSION"),
+        );
+        for name in tcl_platform::bootstrap::HOST_ARRAYS {
+            self.unset_global_raw(name);
+        }
+        for name in tcl_platform::bootstrap::HOST_PATH_GLOBALS {
+            self.unset_global_raw(name);
+        }
+        self.ensure_array("::tcl_platform")
+            .expect("fresh tcl_platform array");
+        self.ensure_array("::env").expect("fresh env array");
+        self.write_scalar_raw("::tcl_library", Value::string(snapshot.tcl_library()));
+        self.write_scalar_raw("::auto_path", Value::list(Vec::new()));
+        for (name, value) in snapshot.platform() {
+            let _ = self.write_array_raw("::tcl_platform", name, Value::string(value.as_str()));
+        }
+        for (name, value) in snapshot.environment() {
+            let _ = self.write_array_raw("::env", name, Value::string(value.as_str()));
+        }
     }
 
     /// Install the on-demand autoloader: `unknown` / `auto_load` /
@@ -2193,6 +2166,10 @@ impl Vm {
     /// the WASM-posture "unsupported" paths natively.
     pub fn set_host(&mut self, host: Rc<dyn Host>) {
         self.host = host;
+        self.rebootstrap_host_globals();
+        if self.is_safe {
+            self.scrub_host_globals_for_safe();
+        }
     }
 
     pub(crate) fn register(&mut self, name: &str, f: BuiltinFn) {
@@ -3643,15 +3620,18 @@ impl Vm {
                 }
             }
         }
-        for k in tcl_platform::bootstrap::safe_scrub_keys() {
-            let _ = self.unset_one(&format!("tcl_platform({k})"), false);
-        }
-        // A safe interp has no `env` array and no real library/package paths
-        // (C's `Tcl_MakeSafe`); the Safe Base re-virtualises an `auto_path`.
-        for v in ["env", "tcl_library", "tclDefaultLibrary", "tcl_pkgPath"] {
-            let _ = self.unset_one(v, false);
-        }
+        self.scrub_host_globals_for_safe();
         self.is_safe = true;
+    }
+
+    fn scrub_host_globals_for_safe(&mut self) {
+        for key in tcl_platform::bootstrap::safe_scrub_keys() {
+            let _ = self.unset_one(&format!("::tcl_platform({key})"), false);
+        }
+        let _ = self.unset_one("::env", false);
+        for name in tcl_platform::bootstrap::HOST_PATH_GLOBALS {
+            let _ = self.unset_one(&format!("::{name}"), false);
+        }
     }
 
     /// Evaluate `script` in the interpreter `id` (`interp eval path …` /

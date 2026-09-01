@@ -92,6 +92,9 @@ jobs:
   #                    scripted LSP sessions targeted, while failing safe when
   #                    path detection is ambiguous.  Both transports sit on the
   #                    same `tcl-lsp-server` closure, so one flag gates both.
+  #   spectcl_compat_changed — SpecTcl or its TclVM/compiler/registry/runtime
+  #                    and exact-reference-toolchain closure changed. Runs the
+  #                    non-vacuous 15+3+4+2+1 compatibility lane.
   channel:
     runs-on: ubuntu-24.04
     permissions:
@@ -103,6 +106,7 @@ jobs:
       python_changed: ${{ steps.paths.outputs.python_changed }}
       ext_changed: ${{ steps.paths.outputs.ext_changed }}
       lsp_wasm_changed: ${{ steps.paths.outputs.lsp_wasm_changed }}
+      spectcl_compat_changed: ${{ steps.paths.outputs.spectcl_compat_changed }}
       docs_only: ${{ steps.paths.outputs.docs_only }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -179,6 +183,7 @@ jobs:
           python_changed=false
           ext_changed=false
           lsp_wasm_changed=false
+          spectcl_compat_changed=false
           docs_only=true
           if [ "$ok" = "true" ]; then
             while IFS= read -r f; do
@@ -194,24 +199,36 @@ jobs:
                 rust/f5-xc/* | rust/tcl-bigip/* | rust/tcl-bytecode/* | rust/tcl-cmd-core/* | rust/tcl-compiler/* | rust/tcl-core-types/* | rust/tcl-diagram/* | rust/tcl-dialect/* | rust/tcl-engine-api/* | rust/tcl-engine-tclvm/* | rust/tcl-explorer/* | rust/tcl-host-native/* | rust/tcl-irules/* | rust/tcl-lexer/* | rust/tcl-lsp-core/* | rust/tcl-lsp-db/* | rust/tcl-lsp-server/* | rust/tcl-lsp-server-wasm/* | rust/tcl-lsp-server-wasi/* | rust/tcl-platform/* | rust/tcl-regex/* | rust/tcl-registry/* | rust/tcl-runtime-api/* | rust/tcl-spec-hooks/* | rust/tcl-spectcl/* | rust/tcl-sslictcl/* | rust/tcl-syntax/* | rust/tcl-userdirs/* | rust/tcl-version/* | rust/tcl-vm/* | .cargo/config.toml | scripts/verify-wasm-externref.mjs | Cargo.toml | Cargo.lock | rust-toolchain.toml | Makefile | .github/workflows/ci.yml)
                   lsp_wasm_changed=true ;;
               esac
+              if scripts/dev/spectcl-compat-path.sh "$f"; then
+                spectcl_compat_changed=true
+              else
+                status=$?
+                if [ "$status" -ne 1 ]; then
+                  ok=false
+                  break
+                fi
+              fi
               case "$f" in
                 docs/* | *.md | .claude/* | .gitignore | LICENSE) ;;
                 *) docs_only=false ;;
               esac
             done <<<"$files"
-          else
+          fi
+          if [ "$ok" != "true" ]; then
             python_changed=true
             ext_changed=true
             lsp_wasm_changed=true
+            spectcl_compat_changed=true
             docs_only=false
           fi
           {
             echo "python_changed=$python_changed"
             echo "ext_changed=$ext_changed"
             echo "lsp_wasm_changed=$lsp_wasm_changed"
+            echo "spectcl_compat_changed=$spectcl_compat_changed"
             echo "docs_only=$docs_only"
           } >>"$GITHUB_OUTPUT"
-          echo "python_changed=$python_changed ext_changed=$ext_changed lsp_wasm_changed=$lsp_wasm_changed docs_only=$docs_only"
+          echo "python_changed=$python_changed ext_changed=$ext_changed lsp_wasm_changed=$lsp_wasm_changed spectcl_compat_changed=$spectcl_compat_changed docs_only=$docs_only"
 
   # Fast PR gate.  Runs on every PR and every push.  Covers the Rust fast
   # checks through the central `make rust-check` contract: root and standalone
@@ -230,9 +247,24 @@ jobs:
     # ancestor through the needs graph).  Those tags are cut from `rust` and
     # gated by the cargo jobs instead.  Runs in full for PRs, rust pushes,
     # stable tags.
-    needs: [channel]
+    # `pr-gate` is already a required status on `rust`. Run even when a needed
+    # job failed, then fail explicitly below: Actions otherwise skips a job
+    # whose dependency failed, and a skipped required check does not propagate
+    # the SpecTcl failure as a red `pr-gate` verdict.
+    if: ${{ always() }}
+    needs: [channel, spectcl-compat]
     runs-on: ubuntu-26.04
     steps:
+      - name: Propagate prerequisite gate failures
+        env:
+          CHANNEL_RESULT: ${{ needs.channel.result }}
+          SPECTCL_COMPAT_RESULT: ${{ needs.spectcl-compat.result }}
+        run: |
+          if [ "$CHANNEL_RESULT" != success ] || [ "$SPECTCL_COMPAT_RESULT" != success ]; then
+            echo "channel=$CHANNEL_RESULT spectcl-compat=$SPECTCL_COMPAT_RESULT" >&2
+            exit 1
+          fi
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
@@ -703,6 +735,21 @@ jobs:
         with:
           tool: nextest
 
+      # The real-tclsh conformance binaries fail closed when no manifest-pinned
+      # interpreter is available. Provision the shared Tcl 9.0 gold-standard
+      # lane through the same tool entry point SpecTcl uses; distro Tcl and a
+      # stale system tclsh9.0 must never decide which oracle CI exercises.
+      - name: Install exact Tcl 9.0 reference interpreter
+        if: needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        env:
+          TCL_LSP_TCL_BIN_DIR: ${{ runner.temp }}/tcl-reference-bin
+        run: |
+          make ensure-tcl90-reference
+          . scripts/dev/tcl-reference-toolchains.sh
+          tcl_reference_load_toolchains "$PWD"
+          tclsh="$(tcl_reference_resolve_tclsh 9.0)"
+          printf 'TCL_LSP_TCLSH90=%s\n' "$tclsh" >> "$GITHUB_ENV"
+
       # --no-fail-fast: report every failure, not just the first.
       # Skipped entirely for docs-only changes and already-green tags;
       # downgraded to a cache-warming build (--no-run) on an already-green
@@ -730,6 +777,29 @@ jobs:
       - name: cargo test --doc
         if: needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
         run: cargo test --workspace --all-features --doc --no-fail-fast
+
+  # Fail-closed SpecTcl compatibility on every PR that changes its TclVM,
+  # compiler, registry, runtime, pack, or exact-reference-toolchain closure.
+  # The Make target installs/resolves the manifest-pinned Tcl 9.0 oracle and
+  # runs the 15+3+4+2 internal cases plus the one real-C-Tcl parse case.
+  spectcl-compat:
+    needs: [channel]
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Set up Rust
+        if: needs.channel.outputs.spectcl_compat_changed == 'true' && needs.channel.outputs.already_green != 'true'
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        with:
+          toolchain: stable
+          cache-key: spectcl-compat
+
+      - name: Run exact SpecTcl 1.x + 2.0 + real-Tcl compatibility gate
+        if: needs.channel.outputs.spectcl_compat_changed == 'true' && needs.channel.outputs.already_green != 'true'
+        run: make test-spectcl-compat
 
   # The heavy VM-simulation suites, split out to run concurrently with
   # `rust-tests` (see that job's header).  Doctests are covered there.
@@ -1183,7 +1253,7 @@ jobs:
     # whose SHA was never tested (or whose green is stale) runs everything
     # here in full.  cargo-deny always runs regardless.
     needs:
-      [channel, pr-gate, rust-tests, rust-tests-heavy, lsp-server-wasm, lsp-e2e, cargo-deny, python]
+      [channel, pr-gate, rust-tests, rust-tests-heavy, spectcl-compat, lsp-server-wasm, lsp-e2e, cargo-deny, python]
     runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload

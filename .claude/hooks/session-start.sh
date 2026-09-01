@@ -37,6 +37,9 @@ fi
 
 ARCH="$(uname -m)"
 REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
+# shellcheck source=../../scripts/dev/tcl-reference-toolchains.sh
+. "${REPO_ROOT}/scripts/dev/tcl-reference-toolchains.sh"
+tcl_reference_load_toolchains "$REPO_ROOT"
 
 # Pinned toolchain versions. Bump these when new stable releases land.
 WASMTIME_VERSION="47.0.3"
@@ -537,15 +540,17 @@ install_remaining_test_deps() {
 # (The project retired Python: there is no pyproject.toml / uv.lock, so there
 # is no venv to create — the old `uv sync --extra dev` step was removed.)
 #
-# ensure-test-deps builds tclsh9.0 with ``--disable-shared`` and installs
-# only the ``tclsh`` binary (no ``make install``), so the script library
-# is never laid down at the binary's compiled-in prefix.  Exporting
+# ensure-test-deps builds the pinned tclsh9.0 with ``--disable-shared`` and
+# installs a wrapper (no ``make install``), so the script library is never
+# laid down at the binary's compiled-in prefix. Exporting
 # TCL_LIBRARY to the source ``library/`` lets the moved binary find
 # init.tcl etc.  Verified harmless to tclsh8.6 — Tcl falls back to its
 # own bootstrap when the pointed-at library version mismatches.
 # ---------------------------------------------------------------------------
 setup_tcl_library() {
-    local tcl_lib="${REPO_ROOT}/tmp/tcl9.0.4/library"
+    local tcl_patchlevel
+    tcl_patchlevel="$(tcl_reference_patchlevel 9.0)"
+    local tcl_lib="${REPO_ROOT}/tmp/tcl${tcl_patchlevel}/library"
     if [ ! -f "${tcl_lib}/init.tcl" ]; then
         echo "session-start: Tcl 9 library not found at ${tcl_lib} — skipping TCL_LIBRARY" >&2
         return 0

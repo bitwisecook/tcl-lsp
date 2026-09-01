@@ -345,7 +345,22 @@ pub trait Host {
 /// portable defaults, and the safe-interpreter scrub policy in this leaf crate
 /// prevents a runtime from silently acquiring a different platform surface.
 pub mod bootstrap {
-    use super::backend;
+    use super::{Host, backend};
+
+    /// Arrays whose complete contents come from the selected host bootstrap.
+    pub const HOST_ARRAYS: &[&str] = &["tcl_platform", "env"];
+
+    /// Scalars and path variables invalidated when the selected host changes.
+    ///
+    /// `tcl_library` and `auto_path` are reinstalled from the new snapshot;
+    /// the other two are populated by `init.tcl` and must not retain an old
+    /// host's library search path.
+    pub const HOST_PATH_GLOBALS: &[&str] = &[
+        "tcl_library",
+        "auto_path",
+        "tclDefaultLibrary",
+        "tcl_pkgPath",
+    ];
 
     /// Shared-library suffix exposed by `info sharedlibextension` for the
     /// canonical Unix platform both Rust interpreters currently publish.
@@ -381,6 +396,38 @@ pub mod bootstrap {
         pub wasi: &'a str,
         pub wasi_version: &'a str,
         pub ebpf: &'a str,
+    }
+
+    /// Owned host-derived values installed into a fresh or rebound interpreter.
+    ///
+    /// Both native engines consume this snapshot.  Host environment reads,
+    /// backend override selection, platform values, and library-path selection
+    /// therefore happen once, before either engine clears its old globals.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct Snapshot {
+        platform: Vec<(&'static str, String)>,
+        environment: Vec<(String, String)>,
+        tcl_library: String,
+    }
+
+    impl Snapshot {
+        /// Canonical `tcl_platform` element/value pairs.
+        #[must_use]
+        pub fn platform(&self) -> &[(&'static str, String)] {
+            &self.platform
+        }
+
+        /// The selected host's complete Unicode environment view.
+        #[must_use]
+        pub fn environment(&self) -> &[(String, String)] {
+            &self.environment
+        }
+
+        /// The selected host's Tcl script-library directory.
+        #[must_use]
+        pub fn tcl_library(&self) -> &str {
+            &self.tcl_library
+        }
     }
 
     /// One canonical `tcl_platform` element and its safe-interpreter policy.
@@ -461,6 +508,52 @@ pub mod bootstrap {
     #[must_use]
     pub fn entries() -> &'static [Entry] {
         ENTRIES
+    }
+
+    /// Capture every host-derived bootstrap value for one interpreter engine.
+    #[must_use]
+    pub fn snapshot(host: &dyn Host, runtime: &str, runtime_version: &str) -> Snapshot {
+        use backend::key;
+
+        let detected = |name: &str, compiled: &str| -> String {
+            backend::override_env_var(name)
+                .and_then(|variable| host.env().get(variable))
+                .filter(|value| !value.is_empty())
+                .unwrap_or_else(|| compiled.to_string())
+        };
+        let webassembly_level = detected(key::WASM, backend::compiled_wasm_spec());
+        let interface_level = detected(key::WASI, backend::compiled_wasi_spec());
+        let interface_host = detected(key::WASI_VERSION, backend::compiled_wasi_host());
+        let bpf_level = detected(key::EBPF, backend::compiled_ebpf_spec());
+        let user = host
+            .env()
+            .get("USER")
+            .or_else(|| host.env().get("USERNAME"))
+            .unwrap_or_default();
+        let values = Values {
+            os_version: "",
+            machine: std::env::consts::ARCH,
+            user: &user,
+            runtime,
+            runtime_version,
+            wasm: &webassembly_level,
+            wasi: &interface_level,
+            wasi_version: &interface_host,
+            ebpf: &bpf_level,
+        };
+        let platform = entries()
+            .iter()
+            .copied()
+            .map(|entry| (entry.name(), entry.value(&values).to_string()))
+            .collect();
+        let mut environment = host.env().vars();
+        environment.sort_unstable();
+        let tcl_library = host.env().get("TCL_LIBRARY").unwrap_or_default();
+        Snapshot {
+            platform,
+            environment,
+            tcl_library,
+        }
     }
 
     /// Keys removed when an interpreter becomes safe, derived from [`entries`].

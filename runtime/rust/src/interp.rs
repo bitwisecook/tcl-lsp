@@ -1079,26 +1079,32 @@ fn install_number_syntax(version: tcl_dialect::TclVersion) {
     tcl_syntax::number::set_runtime_syntax(version.number_syntax());
 }
 
+fn default_host() -> Rc<dyn tcl_platform::Host> {
+    #[cfg(not(target_arch = "wasm32"))]
+    let host = Rc::new(tcl_host_native::NativeHost::new()) as Rc<dyn tcl_platform::Host>;
+    #[cfg(all(target_arch = "wasm32", target_os = "wasi"))]
+    let host = Rc::new(crate::host_wasm::WasiHost::new()) as Rc<dyn tcl_platform::Host>;
+    #[cfg(all(target_arch = "wasm32", not(target_os = "wasi")))]
+    let host = Rc::new(crate::host_wasm::BrowserHost::new()) as Rc<dyn tcl_platform::Host>;
+    host
+}
+
 impl Interp {
     /// Create an interp: global frame, the built-in command set, an empty
     /// result, and the predefined variables that C installs in
     /// `Tcl_CreateInterp`.
     pub fn new() -> Interp {
+        Self::with_host(default_host())
+    }
+
+    /// Create an interpreter whose first bootstrap reads from `host`.
+    ///
+    /// Restricted and synthetic embedders should prefer this constructor so
+    /// no process-host values are ever installed, even transiently.
+    pub fn with_host(host: Rc<dyn tcl_platform::Host>) -> Interp {
         let result = obj::new_obj();
         // SAFETY: `result` is freshly created; the interp takes the owning ref.
         unsafe { obj::incr_ref_count(result) };
-        // The default capability host. Native builds get the full-capability
-        // std-backed `NativeHost`. The `wasm32-wasip1` build gets `WasiHost`
-        // (stdout/stderr reach WASI `fd_write`, so `puts` is visible — the
-        // AOT-script target). The `wasm32-unknown-unknown` build gets the
-        // placeholder `BrowserHost` (mandatory caps stubbed, no fs/sockets/process)
-        // so the runtime links — a real browser host plugs into the same trait.
-        #[cfg(not(target_arch = "wasm32"))]
-        let host: Rc<dyn tcl_platform::Host> = Rc::new(tcl_host_native::NativeHost::new());
-        #[cfg(all(target_arch = "wasm32", target_os = "wasi"))]
-        let host: Rc<dyn tcl_platform::Host> = Rc::new(crate::host_wasm::WasiHost::new());
-        #[cfg(all(target_arch = "wasm32", not(target_os = "wasi")))]
-        let host: Rc<dyn tcl_platform::Host> = Rc::new(crate::host_wasm::BrowserHost::new());
         let mut guards = GuardManager::default();
         // Object dispatch still has mutation sites spread through the TclOO
         // engine. Fail closed until those sites have one mutation owner. The
@@ -1199,6 +1205,11 @@ impl Interp {
     pub fn set_host(&self, host: Rc<dyn tcl_platform::Host>) {
         self.invalidate_interpreter_policy();
         *self.0.host.borrow_mut() = host;
+        let mut interp = self.clone();
+        interp.rebootstrap_host_globals();
+        if interp.is_safe.get() {
+            interp.scrub_host_globals_for_safe();
+        }
     }
 
     // -- emulated Tcl release -------------------------------------------------
@@ -2165,15 +2176,12 @@ impl Interp {
     /// Set the predefined variables (`tcl_version`/`tcl_platform`/`env`/
     /// `argv`/…) that C installs in `Tcl_CreateInterp`, before `Tcl_Init`.
     pub(crate) fn set_startup_globals(&mut self) {
-        let host = self.host();
-        let lib = host.env().get("TCL_LIBRARY").unwrap_or_default();
         let set = |i: &mut Interp, name: &[u8], val: &[u8]| {
             let o = new_string(val);
             if i.var_set(name, o).is_err() {
                 drop_fresh(o);
             }
         };
-        set(self, b"::tcl_library", lib.as_bytes());
         // `tcl_version`/`tcl_patchLevel` are NOT set here: C sets them in
         // `Tcl_CreateInterp`, and so does this runtime (see `Interp::new`).
         // Re-derived rather than re-literalled so a non-9.0
@@ -2183,54 +2191,44 @@ impl Interp {
         set(self, b"::argv", b"");
         set(self, b"::argv0", b"");
         set(self, b"::argc", b"0");
-        set(self, b"::auto_path", b"");
-        {
-            use tcl_platform::backend::{self, key};
-            let detected = |k: &str, compiled: &str| -> String {
-                backend::override_env_var(k)
-                    .and_then(|var| host.env().get(var))
-                    .filter(|v| !v.is_empty())
-                    .unwrap_or_else(|| compiled.to_string())
-            };
-            let webassembly_level = detected(key::WASM, backend::compiled_wasm_spec());
-            let interface_level = detected(key::WASI, backend::compiled_wasi_spec());
-            let interface_host = detected(key::WASI_VERSION, backend::compiled_wasi_host());
-            let bpf_level = detected(key::EBPF, backend::compiled_ebpf_spec());
-            let user = host
-                .env()
-                .get("USER")
-                .or_else(|| host.env().get("USERNAME"))
-                .unwrap_or_default();
-            let platform = tcl_platform::bootstrap::Values {
-                // Restricted hosts have no portable uname seam; Tcl's failure
-                // spelling is the empty string, never the former local "0".
-                os_version: "",
-                machine: std::env::consts::ARCH,
-                user: &user,
-                runtime: "treewalk",
-                runtime_version: env!("CARGO_PKG_VERSION"),
-                wasm: &webassembly_level,
-                wasi: &interface_level,
-                wasi_version: &interface_host,
-                ebpf: &bpf_level,
-            };
-            for entry in tcl_platform::bootstrap::entries() {
-                let o = new_string(entry.value(&platform).as_bytes());
-                if self
-                    .var_set_elem(b"tcl_platform", entry.name().as_bytes(), o)
-                    .is_err()
-                {
-                    drop_fresh(o);
-                }
-            }
+        self.rebootstrap_host_globals();
+    }
+
+    fn set_global_raw(&mut self, name: &[u8], value: &[u8]) {
+        let object = new_string(value);
+        if self.var_set_at(name, object, 0).is_err() {
+            drop_fresh(object);
         }
-        // env array from the host environment (no quoting hazards via var_set_elem).
-        let vars = host.env().vars();
-        for (k, v) in vars {
-            let o = new_string(v.as_bytes());
-            if self.var_set_elem(b"env", k.as_bytes(), o).is_err() {
-                drop_fresh(o);
-            }
+    }
+
+    fn set_global_element_raw(&mut self, name: &[u8], key: &[u8], value: &[u8]) {
+        let object = new_string(value);
+        if self.var_set_elem_at(name, key, object, 0).is_err() {
+            drop_fresh(object);
+        }
+    }
+
+    /// Replace the complete host-derived bootstrap surface without firing Tcl
+    /// variable traces between its clear and install phases.
+    fn rebootstrap_host_globals(&mut self) {
+        let snapshot =
+            tcl_platform::bootstrap::snapshot(&*self.host(), "treewalk", env!("CARGO_PKG_VERSION"));
+        for name in tcl_platform::bootstrap::HOST_ARRAYS {
+            self.var_unset_at(format!("::{name}").as_bytes(), 0);
+        }
+        for name in tcl_platform::bootstrap::HOST_PATH_GLOBALS {
+            self.var_unset_at(format!("::{name}").as_bytes(), 0);
+        }
+        self.ensure_array(b"::tcl_platform")
+            .expect("fresh tcl_platform array");
+        self.ensure_array(b"::env").expect("fresh env array");
+        self.set_global_raw(b"::tcl_library", snapshot.tcl_library().as_bytes());
+        self.set_global_raw(b"::auto_path", b"");
+        for (name, value) in snapshot.platform() {
+            self.set_global_element_raw(b"::tcl_platform", name.as_bytes(), value.as_bytes());
+        }
+        for (name, value) in snapshot.environment() {
+            self.set_global_element_raw(b"::env", name.as_bytes(), value.as_bytes());
         }
     }
 
@@ -6149,7 +6147,7 @@ impl Interp {
             self.interp_counter.set(self.interp_counter.get() + 1);
             n.into_bytes()
         });
-        let mut child = Interp::new();
+        let mut child = Interp::with_host(self.host());
         // A child interpreter is another interpreter of the *same* Tcl build,
         // not a different release — C compiles one library in, so every child
         // reports and behaves as its parent's release. Inherited before the
@@ -6594,21 +6592,7 @@ impl Interp {
         for name in tcl_registry::safe_interp_hidden_commands() {
             self.hide_command(name.as_bytes(), name.as_bytes());
         }
-        // The shared schema owns the portable/host-revealing distinction too,
-        // so installation and safe scrubbing cannot drift independently.
-        for k in tcl_platform::bootstrap::safe_scrub_keys() {
-            self.var_unset_elem(b"tcl_platform", k.as_bytes());
-        }
-        // A safe interp has no `env` array and no real library/package paths
-        // (C's `Tcl_MakeSafe`); the Safe Base re-virtualises an `auto_path`.
-        for v in [
-            &b"env"[..],
-            b"tcl_library",
-            b"tclDefaultLibrary",
-            b"tcl_pkgPath",
-        ] {
-            self.var_unset(v);
-        }
+        self.scrub_host_globals_for_safe();
         // A safe interp's `clock` is aliased to the parent's, so date/time
         // formatting works without the child reaching the timezone files.
         self.ns_register(
@@ -6619,6 +6603,20 @@ impl Interp {
             },
         );
         self.is_safe.set(true);
+    }
+
+    fn scrub_host_globals_for_safe(&mut self) {
+        // The shared schema owns the portable/host-revealing distinction too,
+        // so installation and safe scrubbing cannot drift independently.
+        for key in tcl_platform::bootstrap::safe_scrub_keys() {
+            self.var_unset_elem(b"::tcl_platform", key.as_bytes());
+        }
+        self.var_unset(b"::env");
+        // A safe interp has no real library/package paths. The Safe Base may
+        // re-virtualise `auto_path` after this scrub.
+        for name in tcl_platform::bootstrap::HOST_PATH_GLOBALS {
+            self.var_unset(format!("::{name}").as_bytes());
+        }
     }
 
     /// Whether this interp is safe (`interp issafe`).
@@ -8139,6 +8137,95 @@ mod tests {
     use super::*;
     use crate::counters;
 
+    struct SyntheticHost {
+        clock: SyntheticClock,
+        stdio: SyntheticStdIo,
+        env: SyntheticEnv,
+    }
+
+    impl SyntheticHost {
+        fn new(entries: &[(&str, &str)]) -> Self {
+            Self {
+                clock: SyntheticClock,
+                stdio: SyntheticStdIo,
+                env: SyntheticEnv(RefCell::new(
+                    entries
+                        .iter()
+                        .map(|(key, value)| ((*key).to_string(), (*value).to_string()))
+                        .collect(),
+                )),
+            }
+        }
+    }
+
+    struct SyntheticClock;
+
+    impl tcl_platform::Clock for SyntheticClock {
+        fn now_secs(&self) -> i64 {
+            0
+        }
+
+        fn now_millis(&self) -> i128 {
+            0
+        }
+    }
+
+    struct SyntheticStdIo;
+
+    impl tcl_platform::StdIo for SyntheticStdIo {
+        fn write_stdout(&self, _bytes: &[u8]) {}
+
+        fn write_stderr(&self, _bytes: &[u8]) {}
+    }
+
+    struct SyntheticEnv(RefCell<std::collections::BTreeMap<String, String>>);
+
+    impl tcl_platform::Env for SyntheticEnv {
+        fn get(&self, key: &str) -> Option<String> {
+            self.0.borrow().get(key).cloned()
+        }
+
+        fn set(&self, key: &str, value: &str) {
+            self.0
+                .borrow_mut()
+                .insert(key.to_string(), value.to_string());
+        }
+
+        fn vars(&self) -> Vec<(String, String)> {
+            self.0
+                .borrow()
+                .iter()
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect()
+        }
+
+        fn cwd(&self) -> Result<String, tcl_platform::HostError> {
+            Ok("/synthetic".to_string())
+        }
+
+        fn chdir(&self, _path: &str) -> Result<(), tcl_platform::HostError> {
+            Ok(())
+        }
+    }
+
+    impl tcl_platform::Host for SyntheticHost {
+        fn capabilities(&self) -> tcl_platform::Capabilities {
+            tcl_platform::Capabilities::empty()
+        }
+
+        fn clock(&self) -> &dyn tcl_platform::Clock {
+            &self.clock
+        }
+
+        fn stdio(&self) -> &dyn tcl_platform::StdIo {
+            &self.stdio
+        }
+
+        fn env(&self) -> &dyn tcl_platform::Env {
+            &self.env
+        }
+    }
+
     const GUARDED_IDENTITY: GuardIdentity = GuardIdentity::new(1, 71);
 
     fn guarded_builtin(interp: &mut Interp, _argv: &[*mut TclObj]) -> Code {
@@ -8220,6 +8307,69 @@ mod tests {
     }
 
     #[test]
+    fn selected_host_bootstrap_and_rebind_replace_all_host_globals() {
+        counters::reset();
+        {
+            let first = Rc::new(SyntheticHost::new(&[
+                ("USER", "first-user"),
+                ("TCL_LIBRARY", "/first/lib"),
+                ("TCL_WASM_SPEC", "first-wasm"),
+                ("FIRST_ONLY", "stale"),
+            ]));
+            let mut interp = Interp::with_host(first);
+            assert_eq!(
+                interp.host().capabilities(),
+                tcl_platform::Capabilities::empty()
+            );
+            assert_eq!(
+                ok(
+                    &mut interp,
+                    b"list $::tcl_platform(user) $::tcl_platform(wasm) \
+                      $::tcl_library $::env(FIRST_ONLY)"
+                ),
+                b"first-user first-wasm /first/lib stale"
+            );
+            ok(
+                &mut interp,
+                b"set ::env(EMBEDDER_STALE) old; \
+                  set ::tcl_platform(user) old; \
+                  set ::auto_path /old/auto; \
+                  set ::tclDefaultLibrary /old/default; \
+                  set ::tcl_pkgPath /old/pkg",
+            );
+
+            interp.set_host(Rc::new(SyntheticHost::new(&[
+                ("USER", "second-user"),
+                ("TCL_LIBRARY", "/second/lib"),
+                ("TCL_WASM_SPEC", "second-wasm"),
+                ("SECOND_ONLY", "fresh"),
+            ])));
+            assert_eq!(
+                ok(
+                    &mut interp,
+                    b"list $::tcl_platform(user) $::tcl_platform(wasm) \
+                      $::tcl_library $::env(SECOND_ONLY) \
+                      [info exists ::env(FIRST_ONLY)] \
+                      [info exists ::env(EMBEDDER_STALE)] \
+                      [info exists ::tclDefaultLibrary] \
+                      [info exists ::tcl_pkgPath] [llength $::auto_path]"
+                ),
+                b"second-user second-wasm /second/lib fresh 0 0 0 0 0"
+            );
+            assert_eq!(
+                ok(
+                    &mut interp,
+                    b"interp create child; child eval {list $::tcl_platform(user) \
+                      $::tcl_library $::env(SECOND_ONLY)}"
+                ),
+                b"second-user /second/lib fresh"
+            );
+        }
+        assert_eq!(counters::finalize(), 0);
+        assert_eq!(counters::double_free_count(), 0);
+    }
+
+    #[test]
     fn child_and_safe_platform_schemas_come_from_the_shared_owner() {
         leak_free(|i| {
             let mut child_keys = tcl_platform::bootstrap::entries()
@@ -8250,6 +8400,15 @@ mod tests {
                 safe_keys.join(" ").as_bytes()
             );
             assert!(safe_keys.contains(&"threaded"));
+            assert_eq!(
+                ok(
+                    i,
+                    b"safe eval {list [info exists ::env] \
+                      [info exists ::tcl_library] [info exists ::auto_path] \
+                      [info exists ::tclDefaultLibrary] [info exists ::tcl_pkgPath]}"
+                ),
+                b"0 0 0 0 0"
+            );
         });
     }
 

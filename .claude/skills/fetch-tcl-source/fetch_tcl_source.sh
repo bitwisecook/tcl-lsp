@@ -52,46 +52,16 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-TMP_DIR="$REPO_ROOT/tmp"
+TMP_DIR="${TCL_LSP_TCL_SOURCE_PARENT:-$REPO_ROOT/tmp}"
 CODELOAD_BASE="https://codeload.github.com/tcltk/tcl/tar.gz/refs/tags"
 TK_CODELOAD_BASE="https://codeload.github.com/tcltk/tk/tar.gz/refs/tags"
+# shellcheck source=../../../scripts/dev/tcl-reference-toolchains.sh
+. "$REPO_ROOT/scripts/dev/tcl-reference-toolchains.sh"
+tcl_reference_load_toolchains "$REPO_ROOT"
 
-# Version → (full patch version, GitHub tag)
-# Update these when new patch releases come out.
-declare -A LATEST_VERSIONS=(
-    [8.4]="8.4.20"
-    [8.5]="8.5.19"
-    [8.6]="8.6.16"
-    [9.0]="9.0.4"
-    [9.1]="9.1b0"
-)
-
-declare -A GITHUB_TAGS=(
-    [8.4]="core-8-4-20"
-    [8.5]="core-8-5-19"
-    [8.6]="core-8-6-16"
-    [9.0]="core-9-0-4"
-    [9.1]="core-9-1-b0"
-)
-
-# Tk's tags follow the identical `core-M-N-P` scheme as Tcl's, verified
-# against `git ls-remote --tags https://github.com/tcltk/tk` — every tag
-# below exists on the Tk repo too, so Tk tracks the same version/tag maps.
-declare -A TK_LATEST_VERSIONS=(
-    [8.4]="8.4.20"
-    [8.5]="8.5.19"
-    [8.6]="8.6.16"
-    [9.0]="9.0.4"
-    [9.1]="9.1b0"
-)
-
-declare -A TK_GITHUB_TAGS=(
-    [8.4]="core-8-4-20"
-    [8.5]="core-8-5-19"
-    [8.6]="core-8-6-16"
-    [9.0]="core-9-0-4"
-    [9.1]="core-9-1-b0"
-)
+# Tcl and Tk share these verified `core-M-N-P` tags. The language-neutral
+# manifest in tcl-dialect is the sole patchlevel/tag owner; this fetcher
+# only consumes it.
 
 # Normalise user input
 normalise_version() {
@@ -115,8 +85,9 @@ show_status() {
     echo "Tcl source trees in $TMP_DIR/:"
     echo ""
     local found=0
-    for major_minor in 8.4 8.5 8.6 9.0 9.1; do
-        local full="${LATEST_VERSIONS[$major_minor]}"
+    while IFS= read -r major_minor; do
+        local full
+        full="$(tcl_reference_patchlevel "$major_minor")"
         local dir="$TMP_DIR/tcl${full}"
         if [[ -d "$dir/generic" ]] && [[ -d "$dir/tests" ]]; then
             local test_count
@@ -126,15 +97,16 @@ show_status() {
         else
             echo "  tcl${full}/  [missing]"
         fi
-    done
+    done < <(tcl_reference_releases)
     echo ""
     echo "$found of 5 Tcl versions present."
     echo ""
     echo "Tk source trees in $TMP_DIR/:"
     echo ""
     local tk_found=0
-    for major_minor in 8.4 8.5 8.6 9.0 9.1; do
-        local full="${TK_LATEST_VERSIONS[$major_minor]}"
+    while IFS= read -r major_minor; do
+        local full
+        full="$(tcl_reference_patchlevel "$major_minor")"
         local dir="$TMP_DIR/tk${full}"
         if [[ -d "$dir/generic" ]] && [[ -d "$dir/tests" ]]; then
             local test_count
@@ -144,7 +116,7 @@ show_status() {
         else
             echo "  tk${full}/  [missing]"
         fi
-    done
+    done < <(tcl_reference_releases)
     echo ""
     echo "$tk_found of 5 Tk versions present."
 }
@@ -152,8 +124,9 @@ show_status() {
 # Fetch one version by downloading the GitHub codeload tarball.
 fetch_version() {
     local major_minor="$1"
-    local full="${LATEST_VERSIONS[$major_minor]}"
-    local tag="${GITHUB_TAGS[$major_minor]}"
+    local full tag
+    full="$(tcl_reference_patchlevel "$major_minor")"
+    tag="$(tcl_reference_source_tag "$major_minor")"
     local target_dir="$TMP_DIR/tcl${full}"
     local url="${CODELOAD_BASE}/${tag}"
 
@@ -167,7 +140,7 @@ fetch_version() {
 
     local tmp_tarball
     tmp_tarball="$(mktemp -p "$TMP_DIR" "tcl${full}.XXXXXX.tar.gz")"
-    trap "rm -f '$tmp_tarball'" RETURN
+    trap 'rm -f "$tmp_tarball"' RETURN
 
     echo "  Downloading tcl ${full} source tarball ..."
     local got_tarball=0
@@ -224,8 +197,9 @@ fetch_version() {
 # fetch_version above, against the tcltk/tk repo, landing at tmp/tk<full>/.
 fetch_tk_version() {
     local major_minor="$1"
-    local full="${TK_LATEST_VERSIONS[$major_minor]}"
-    local tag="${TK_GITHUB_TAGS[$major_minor]}"
+    local full tag
+    full="$(tcl_reference_patchlevel "$major_minor")"
+    tag="$(tcl_reference_source_tag "$major_minor")"
     local target_dir="$TMP_DIR/tk${full}"
     local url="${TK_CODELOAD_BASE}/${tag}"
 
@@ -239,7 +213,7 @@ fetch_tk_version() {
 
     local tmp_tarball
     tmp_tarball="$(mktemp -p "$TMP_DIR" "tk${full}.XXXXXX.tar.gz")"
-    trap "rm -f '$tmp_tarball'" RETURN
+    trap 'rm -f "$tmp_tarball"' RETURN
 
     echo "  Downloading tk ${full} source tarball ..."
     local got_tarball=0
@@ -323,21 +297,21 @@ case "$1" in
     all)
         echo "Fetching all Tcl source trees to $TMP_DIR/"
         echo ""
-        for v in 8.4 8.5 8.6 9.0 9.1; do
+        while IFS= read -r v; do
             echo "=== Tcl $v ==="
             fetch_version "$v"
             echo ""
-        done
+        done < <(tcl_reference_releases)
         show_status
         ;;
     tkall)
         echo "Fetching all Tk source trees to $TMP_DIR/"
         echo ""
-        for v in 8.4 8.5 8.6 9.0 9.1; do
+        while IFS= read -r v; do
             echo "=== Tk $v ==="
             fetch_tk_version "$v"
             echo ""
-        done
+        done < <(tcl_reference_releases)
         show_status
         ;;
     tk*)

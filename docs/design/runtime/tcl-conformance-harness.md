@@ -35,11 +35,11 @@ release lines are hard errors. Source trees are validated from
 `generic/tcl.h` plus the required `library/init.tcl` and `tests/all.tcl` files;
 interpreters are validated using both `info tclversion` and `info patchlevel`.
 
-The interpreter and source tree must have the same exact patchlevel for a C
-comparison. A full scoreboard run additionally requires the patchlevel pinned
-by `TclVersion::V9_0`. Focused `--stem` runs may use another 9.0 patchlevel,
-provided the source and interpreter match, so a locally installed Tcl can be
-used for rapid diagnosis without rewriting the committed baseline.
+The interpreter and source tree must both match the exact reference patchlevel
+pinned by `TclVersion::V9_0`, including for focused `--stem` runs. Explicit
+`--tcl-root` and `TCL_LSP_TCL_ROOT90` overrides select a location, not a
+different oracle version; a same-release stale tree is rejected rather than
+silently changing the comparison baseline.
 
 ## Focused and full execution
 

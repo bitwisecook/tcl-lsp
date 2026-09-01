@@ -18,9 +18,9 @@ reference C `tclsh`, and read the parity scoreboard?
   at `tmp/tcl9.0.4/`. On the web harness the SessionStart hook fetches it;
   locally run `bash
   .claude/skills/fetch-tcl-source/fetch_tcl_source.sh 9.0`.
-- A focused run may instead use another Tcl 9.0 patchlevel with `--tcl-root`
-  or `TCL_LSP_TCL_ROOT90`. The matching source and interpreter patchlevels
-  must be identical.
+- A focused run may select another location for the pinned Tcl 9.0.4 tree with
+  `--tcl-root` or `TCL_LSP_TCL_ROOT90`. Overrides must still match the exact
+  patchlevel in the central reference-toolchain manifest.
 - A versioned `tclsh9.0` must be on `PATH`, or set `TCL_LSP_TCLSH90` to the
   executable. `make ensure-test-deps` installs the pinned reference build.
 - `timeout` (coreutils) must be on `PATH`; the sweep runs each file under it so
@@ -34,9 +34,9 @@ The `run_test` example sources the real `tcltest.tcl`, then the test file, and
 lets tcltest print its `Total N Passed X Skipped Y Failed Z` summary:
 
 ```
-TCL_LIBRARY=~/src/tcl9.0.3/library \
+TCL_LIBRARY=~/src/tcl9.0.4/library \
   cargo run -p tcl-vm --example run_test -- \
-  ~/src/tcl9.0.3/tests/<stem>.test --match '<test-id-glob>'
+  ~/src/tcl9.0.4/tests/<stem>.test --match '<test-id-glob>'
 ```
 
 `<stem>` is the file stem (e.g. `llength`, `interp`, `coroutine`). Omit
@@ -49,8 +49,8 @@ analogue is `runtime/rust`'s `run_script --init`.
 Run the same file through the C oracle to compare:
 
 ```
-TCL_LIBRARY=~/src/tcl9.0.3/library tclsh9.0 \
-  ~/src/tcl9.0.3/tests/<stem>.test -match '<test-id-glob>'
+TCL_LIBRARY=~/src/tcl9.0.4/library tclsh9.0 \
+  ~/src/tcl9.0.4/tests/<stem>.test -match '<test-id-glob>'
 ```
 
 ### Run the whole sweep + regenerate the scoreboard
@@ -70,9 +70,9 @@ tcltest-sweep …`):
   runs do not rewrite the committed scoreboard).
 - `--match <glob-list>` — restrict each selected stem to Tcltest IDs matching
   the Tcl glob/list. It requires at least one `--stem`.
-- `--tcl-root <path>` — use an explicit source tree. Without it, discovery
-  checks `TCL_LSP_TCL_ROOT90`, the pinned repository tree, matching sibling
-  checkouts, and `$HOME/src/tcl9.0*`.
+- `--tcl-root <path>` — use an explicit source tree at the exact manifest-pinned
+  patchlevel. Without it, discovery checks `TCL_LSP_TCL_ROOT90`, the pinned
+  repository tree, matching sibling checkouts, and `$HOME/src/tcl9.0*`.
 - `--backend vm` — re-run only the VM, reading the C column from the cached
   baseline (faster; skips `tclsh`).
 - `--timeout <secs>` — per-file budget (default 120).
@@ -96,7 +96,7 @@ Each stem's VM result is classified against its C reference:
 
 ## How to tell it worked
 
-`cargo xtask tcltest-sweep --backend both --tcl-root ~/src/tcl9.0.3 --stem
+`cargo xtask tcltest-sweep --backend both --tcl-root ~/src/tcl9.0.4 --stem
 join` prints:
 
 ```

@@ -138,6 +138,13 @@ fn child_and_safe_platform_schemas_come_from_the_shared_owner() {
     assert!(ok, "safe child schema query failed: {out}");
     assert_eq!(out, safe_keys.join(" "));
     assert!(safe_keys.contains(&"threaded"));
+
+    let (ok, out) = run("interp create -safe safe\n\
+         puts [safe eval {list [info exists ::env] \
+           [info exists ::tcl_library] [info exists ::auto_path] \
+           [info exists ::tclDefaultLibrary] [info exists ::tcl_pkgPath]}]\n");
+    assert!(ok, "safe child path query failed: {out}");
+    assert_eq!(out, "0 0 0 0 0");
 }
 
 /// A compile service pinned to one resolved profile, as `tclvm` wires it.
