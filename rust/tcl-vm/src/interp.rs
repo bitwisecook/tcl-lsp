@@ -45,7 +45,7 @@ use tcl_runtime_api::{
 };
 use tcl_syntax::expr::{eval, parse_expr};
 
-use crate::command::{BuiltinFn, Command, EnsembleDef, ProcDef, register_builtins};
+use crate::command::{BuiltinFn, Command, EnsembleDef, ProcDef, err_with_code, register_builtins};
 use crate::error::TclError;
 use crate::expr::ExprEval;
 use crate::frame::{CallFrame, Local};
@@ -3456,46 +3456,69 @@ impl Vm {
         let params = &argv[..nparams];
         let sub = argv[nparams].to_str().to_string();
         let rest = &argv[nparams + 1..];
-        let mut subs: Vec<String> = match &e.subcommands {
-            Some(list) => list.clone(),
-            None => self.exported_command_tails(&e.namespace),
-        };
-        for (k, _) in &e.map {
-            if !subs.contains(k) {
-                subs.push(k.clone());
+        let mut reparsed = false;
+        loop {
+            let mut subs: Vec<String> = match &e.subcommands {
+                Some(list) => list.clone(),
+                None => self.exported_command_tails(&e.namespace),
+            };
+            for (key, _) in &e.map {
+                if !subs.contains(key) {
+                    subs.push(key.clone());
+                }
             }
-        }
-        subs.sort();
-        subs.dedup();
-        match tcl_cmd_core::ensemble::resolve_subcommand(&subs, sub.as_bytes(), e.prefixes) {
-            Some(index) => {
+            subs.sort();
+            subs.dedup();
+            if let Some(index) =
+                tcl_cmd_core::ensemble::resolve_subcommand(&subs, sub.as_bytes(), e.prefixes)
+            {
                 let resolved = &subs[index];
-                let mut full: Vec<Value> = match e
-                    .map
-                    .iter()
-                    .find(|(k, _)| k == resolved)
-                    .map(|(_, words)| words)
-                {
-                    Some(words) => words.clone(),
-                    None => vec![Value::string(if e.namespace.is_empty() {
-                        resolved.clone()
-                    } else {
-                        format!("{}::{resolved}", e.namespace)
-                    })],
-                };
+                let mapped = e.map.iter().find(|(key, _)| key == resolved);
+                let mut full: Vec<Value> = mapped.map_or_else(
+                    || {
+                        vec![Value::string(if e.namespace.is_empty() {
+                            format!("::{resolved}")
+                        } else {
+                            format!("::{}::{resolved}", e.namespace)
+                        })]
+                    },
+                    |(_, words)| words.clone(),
+                );
                 full.extend_from_slice(params);
                 full.extend_from_slice(rest);
                 let target = full[0].to_str().to_string();
-                self.invoke_command(&target, &full[1..])
+                let target_was_missing = mapped.is_none()
+                    && self
+                        .resolve_command_fqn(self.current_ns(), &target)
+                        .is_none();
+                let completion = self.invoke_command(&target, &full[1..]);
+                if target_was_missing
+                    && completion.code == Code::Error
+                    && completion.result.to_str().as_ref()
+                        == format!("invalid command name \"{target}\"")
+                {
+                    return err_with_code(
+                        format!("invalid command name \"{resolved}\""),
+                        &format!("TCL LOOKUP COMMAND {resolved}"),
+                    );
+                }
+                return completion;
             }
-            None if e.unknown.is_some() => {
-                let mut full = e.unknown.clone().unwrap_or_default();
-                full.push(Value::string(ens_name));
-                full.extend_from_slice(argv);
-                let target = full[0].to_str().to_string();
-                self.invoke_command(&target, &full[1..])
+            if let Some(handler) = &e.unknown
+                && !reparsed
+            {
+                reparsed = true;
+                let mut replacement = match self.ensemble_unknown(ens_name, handler, argv) {
+                    Ok(Some(prefix)) => prefix,
+                    Ok(None) => continue,
+                    Err(completion) => return completion,
+                };
+                replacement.extend_from_slice(params);
+                replacement.extend_from_slice(rest);
+                let target = replacement[0].to_str().to_string();
+                return self.invoke_command(&target, &replacement[1..]);
             }
-            None => err(String::from_utf8_lossy(
+            return err(String::from_utf8_lossy(
                 &tcl_cmd_core::ensemble::unknown_subcommand_message(
                     &subs,
                     sub.as_bytes(),
@@ -3503,8 +3526,36 @@ impl Vm {
                     display_namespace(&e.namespace).as_bytes(),
                 ),
             )
-            .into_owned()),
+            .into_owned());
         }
+    }
+
+    /// Invoke an ensemble's `-unknown` prefix. A successful empty list asks the
+    /// caller to reparse once; a non-empty list is its replacement command
+    /// prefix. The handler sees the ensemble's fully-qualified command name.
+    fn ensemble_unknown(
+        &mut self,
+        ens_name: &str,
+        handler: &[Value],
+        argv: &[Value],
+    ) -> Result<Option<Vec<Value>>, Completion<Value>> {
+        let mut full = handler.to_vec();
+        let ensemble_fqn = self
+            .resolve_command_fqn(self.current_ns(), ens_name)
+            .map_or_else(|| ens_name.to_owned(), |key| display_namespace(&key));
+        full.push(Value::string(ensemble_fqn));
+        full.extend_from_slice(argv);
+        let target = full[0].to_str().to_string();
+        let completion = self.invoke_command(&target, &full[1..]);
+        if !completion.code.is_ok() {
+            return Err(completion);
+        }
+        let prefix = completion
+            .result
+            .as_list()
+            .map_err(|problem| err(problem.message))?
+            .to_vec();
+        Ok((!prefix.is_empty()).then_some(prefix))
     }
 
     /// Dispatch a child-as-command call (`$child sub ?arg …?`): the `interp`
@@ -4389,17 +4440,25 @@ impl Vm {
     /// Delete namespace `canonical` (no leading `::`) and every descendant,
     /// removing their commands/procs, namespace variables, export patterns, and
     /// interned ids. Returns `false` (deleting nothing) when the namespace does
-    /// not exist — the caller reports `unknown namespace`. The global namespace
-    /// (`""`) is never deletable.
+    /// not exist — the caller reports `unknown namespace`. Deleting the global
+    /// namespace tears down its full tree but leaves the root handle available
+    /// for the active command to return through, matching `namespace delete ::`.
     pub(crate) fn delete_namespace(&mut self, canonical: &str) -> bool {
         // Callers pass the canonical form; still normalise separator runs so
         // `namespace delete a:::b` removes `a::b` (tclsh8.6-verified).
         let canonical: &str = &canonical_ns_name(canonical);
-        if canonical.is_empty() || !self.namespaces.contains(canonical) {
+        let deleting_root = canonical.is_empty();
+        if !deleting_root && !self.namespaces.contains(canonical) {
             return false;
         }
-        let prefix = format!("{canonical}::");
-        let in_tree = |k: &str| k == canonical || k.starts_with(&prefix);
+        let prefix = (!deleting_root).then(|| format!("{canonical}::"));
+        let in_tree = |key: &str| {
+            deleting_root
+                || key == canonical
+                || prefix
+                    .as_deref()
+                    .is_some_and(|prefix| key.starts_with(prefix))
+        };
         // C deletes the namespace's ensembles *first* (`Tcl_DeleteNamespace`,
         // `tclNamesp.c:944-959`: `while (nsPtr->ensembles != NULL)` →
         // `Tcl_DeleteCommandFromToken`). An ensemble command is owned by the
@@ -4414,7 +4473,10 @@ impl Vm {
             .commands
             .iter()
             .filter(|(key, command)| {
-                key.starts_with(&prefix)
+                deleting_root
+                    || prefix
+                        .as_deref()
+                        .is_some_and(|prefix| key.starts_with(prefix))
                     || matches!(command, Command::Ensemble(def) if in_tree(&def.namespace))
             })
             .map(|(key, _)| key.clone())
@@ -4433,11 +4495,19 @@ impl Vm {
         self.builtin_identities
             .retain(|k, _| !removed_commands.contains(k));
         if let Some(g) = self.frames.first_mut() {
-            g.locals.retain(|k, _| !k.starts_with(&prefix));
+            g.locals.retain(|key, _| {
+                !deleting_root
+                    && prefix
+                        .as_deref()
+                        .is_none_or(|prefix| !key.starts_with(prefix))
+            });
         }
         self.namespaces.retain(|n| !in_tree(n));
         self.ns_exports.retain(|k, _| !in_tree(k));
         self.ns_intern.retain(|k, _| !in_tree(k));
+        if deleting_root {
+            self.ns_intern.insert(String::new(), ROOT_NS);
+        }
         // `TclTeardownNamespace` resets the namespace's own parameters
         // (`tclNamesp.c:1148-1165`): it drops its `namespace path`
         // (`UnlinkNsPath`), frees its `namespace unknown` handler, and then
@@ -4461,14 +4531,17 @@ impl Vm {
         } else {
             format!("{parent}::")
         };
-        self.namespaces
+        let mut children: Vec<(u32, String)> = self
+            .namespaces
             .iter()
             .filter(|ns| {
                 ns.strip_prefix(&prefix)
                     .is_some_and(|rest| !rest.is_empty() && !rest.contains("::"))
             })
-            .cloned()
-            .collect()
+            .filter_map(|name| self.ns_intern.get(name).map(|id| (id.0, name.clone())))
+            .collect();
+        children.sort_by_key(|(id, _)| *id);
+        children.into_iter().map(|(_, name)| name).collect()
     }
 
     /// Record a provided package version.
@@ -5496,8 +5569,11 @@ impl Vm {
                 // A namespace-scoped `Link` is a real cell in the namespace's
                 // table — see `namespace_var_exists` for why C's
                 // `CompiledLocal` exclusion does not apply to it.
-                .filter(|(_, l)| {
-                    matches!(l, Local::Scalar(_) | Local::Array(_) | Local::Link { .. })
+                .filter(|(_, local)| {
+                    matches!(
+                        local,
+                        Local::Undefined | Local::Scalar(_) | Local::Array(_) | Local::Link { .. }
+                    )
                 })
                 .filter_map(|(key, _)| direct_member_tail(key, canonical).map(str::to_owned))
                 .collect()
@@ -5521,6 +5597,19 @@ impl Vm {
                     name: target.to_owned(),
                 },
             );
+        }
+    }
+
+    /// Materialise an unset namespace-variable cell in the global storage
+    /// frame. `variable name` creates this table entry even without assigning a
+    /// value: namespace introspection sees it while `info exists` remains false.
+    pub(crate) fn declare_namespace_variable(&mut self, key: &str) {
+        let key = key.strip_prefix("::").unwrap_or(key);
+        if let Some(global) = self.frames.first_mut() {
+            global
+                .locals
+                .entry(key.to_owned())
+                .or_insert(Local::Undefined);
         }
     }
 
@@ -5554,7 +5643,7 @@ impl Vm {
     ) -> Result<(), UpvarLinkError> {
         let (other_base, other_key) =
             elem_ref(other).map_or((other, None), |(base, key)| (base, Some(key)));
-        if !self.var_parent_exists(other_base) {
+        if !self.var_parent_exists_from(target_level, other_base) {
             return Err(UpvarLinkError::TargetNamespace);
         }
 
@@ -5637,10 +5726,20 @@ impl Vm {
     /// collapses colon runs (`a:::b` → `a::b`) and preserves a trailing run as
     /// the empty variable name (`foo:::` → `foo::`).
     fn canonical_var_name(&self, name: &str) -> String {
+        self.canonical_var_name_from(name, self.current_level())
+    }
+
+    /// Canonicalise a written variable name in the namespace belonging to
+    /// explicit frame `level`. This is the frame-addressed half of the shared
+    /// variable resolver: `upvar 1 rel::x` resolves `rel` in the caller's
+    /// namespace, not the active callee's, and the same rule reaches scalar and
+    /// array-element storage through [`Self::locate_from`].
+    fn canonical_var_name_from(&self, name: &str, level: usize) -> String {
         if !tcl_syntax::naming::is_qualified(name.as_bytes()) {
             return name.to_owned();
         }
-        tcl_syntax::naming::qualify(self.current_ns(), name)
+        let namespace = self.ns_stack.get(level).map_or("", String::as_str);
+        tcl_syntax::naming::qualify(namespace, name)
     }
 
     /// Validate the namespace portion of a qualified variable write.  Tcl's
@@ -5664,11 +5763,19 @@ impl Vm {
     /// Whether the parent namespace of a variable base exists. Element syntax
     /// is removed before qualification, so `v(x::y)` keeps `::` as key data.
     pub(crate) fn var_parent_exists(&self, name: &str) -> bool {
+        self.var_parent_exists_from(self.current_level(), name)
+    }
+
+    /// [`Self::var_parent_exists`] in the namespace context of explicit frame
+    /// `level`. Target validation and target lookup must use the same context;
+    /// otherwise `upvar` can validate one namespace and install a link into
+    /// another.
+    fn var_parent_exists_from(&self, level: usize, name: &str) -> bool {
         let base = tcl_syntax::naming::split_element_ref(name).map_or(name, |(base, _)| base);
         if !tcl_syntax::naming::is_qualified(base.as_bytes()) {
             return true;
         }
-        let rooted = self.canonical_var_name(base);
+        let rooted = self.canonical_var_name_from(base, level);
         let (parent, _) = tcl_syntax::naming::key_holder_and_tail(&rooted);
         self.namespace_exists(parent.strip_prefix("::").unwrap_or(parent))
     }
@@ -5678,7 +5785,7 @@ impl Vm {
     /// are canonicalised once at this boundary; link targets are already
     /// internal keys and must not be qualified again.
     fn locate_from(&self, name: &str, start: usize) -> (usize, String) {
-        let canonical = self.canonical_var_name(name);
+        let canonical = self.canonical_var_name_from(name, start);
         let stripped = canonical.strip_prefix("::").unwrap_or(&canonical);
         let qualified = tcl_syntax::naming::is_qualified(canonical.as_bytes());
         let level = if qualified { 0 } else { start };
@@ -6947,7 +7054,6 @@ impl Namespaces for Vm {
     // here regardless, because this only ever probes `frames.first()` — the
     // global frame — and a proc's locals live in its own frame.
     //
-    // `Undefined` stays excluded: that is a materialised-but-unset cell.
     fn namespace_var_exists(&self, ns: NsId, simple: &str) -> bool {
         let canonical = self.ns_name(ns);
         let key = if canonical.is_empty() {
@@ -6958,7 +7064,7 @@ impl Namespaces for Vm {
         self.frames.first().is_some_and(|frame| {
             matches!(
                 frame.locals.get(&key),
-                Some(Local::Scalar(_) | Local::Array(_) | Local::Link { .. })
+                Some(Local::Undefined | Local::Scalar(_) | Local::Array(_) | Local::Link { .. })
             )
         })
     }

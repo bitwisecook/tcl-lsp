@@ -255,7 +255,9 @@ pub trait Namespaces {
     fn find_namespace(&self, cxt: NsId, name: &str) -> Option<NsId>;
     /// The handle of `ns`'s parent (`parentPtr`), or `None` for the global root.
     fn parent(&self, ns: NsId) -> Option<NsId>;
-    /// The handles of `ns`'s direct child namespaces (`childTable`).
+    /// The handles of `ns`'s direct child namespaces (`childTable`) in creation
+    /// order. The shared command core reconstructs Tcl's observable string-hash
+    /// enumeration order from this stable insertion order.
     fn children(&self, ns: NsId) -> Vec<NsId>;
 
     // -- command enumeration (a namespace's `cmdTable`; backs `info commands`/

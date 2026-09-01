@@ -523,13 +523,6 @@ impl Namespaces {
         &mut self.arena[ns].vars
     }
 
-    /// The simple (unqualified) name of `ns` — its last component (`::a::b` →
-    /// `b`); empty for the global namespace. C's `Namespace.name`.
-    #[must_use]
-    pub(crate) fn simple_name(&self, ns: NsId) -> Vec<u8> {
-        self.arena[ns].name.clone()
-    }
-
     /// The fully-qualified name of `ns` (`::a::b`; global is `::`).
     #[must_use]
     pub fn qualified_name(&self, ns: NsId) -> Vec<u8> {
@@ -628,7 +621,9 @@ impl Namespaces {
     /// `ns`'s direct child namespaces (`namespace children`).
     #[must_use]
     pub fn children(&self, ns: NsId) -> Vec<NsId> {
-        self.arena[ns].children.values().copied().collect()
+        let mut children: Vec<NsId> = self.arena[ns].children.values().copied().collect();
+        children.sort_unstable();
+        children
     }
 
     /// `ns`'s `namespace unknown` handler, if one is set (an empty/`None` handler

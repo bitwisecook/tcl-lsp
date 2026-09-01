@@ -208,8 +208,8 @@ fn ns_exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
         return interp.wrong_args(b"namespace exists name");
     }
-    let name = String::from_utf8_lossy(&obj_bytes(argv[2])).into_owned();
-    let v = tcl_cmd_core::namespace::exists(interp, &name);
+    let name = obj_bytes(argv[2]);
+    let v = tcl_cmd_core::namespace::exists_bytes(interp, &name);
     interp.set_result(v);
     Code::Ok
 }
@@ -220,15 +220,13 @@ fn ns_parent(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() > 3 {
         return interp.wrong_args(b"namespace parent ?name?");
     }
-    let name = argv
-        .get(2)
-        .map(|&a| String::from_utf8_lossy(&obj_bytes(a)).into_owned());
-    match tcl_cmd_core::namespace::parent(interp, name.as_deref()) {
+    let name = argv.get(2).map(|&arg| obj_bytes(arg));
+    match tcl_cmd_core::namespace::parent_bytes(interp, name.as_deref()) {
         Ok(v) => {
             interp.set_result(v);
             Code::Ok
         }
-        Err(e) => interp.set_error(e.message().as_bytes()),
+        Err(error) => interp.set_error(&error.message()),
     }
 }
 
@@ -238,18 +236,14 @@ fn ns_children(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() > 4 {
         return interp.wrong_args(b"namespace children ?name? ?pattern?");
     }
-    let name = argv
-        .get(2)
-        .map(|&a| String::from_utf8_lossy(&obj_bytes(a)).into_owned());
-    let pattern = argv
-        .get(3)
-        .map(|&a| String::from_utf8_lossy(&obj_bytes(a)).into_owned());
-    match tcl_cmd_core::namespace::children(interp, name.as_deref(), pattern.as_deref()) {
+    let name = argv.get(2).map(|&arg| obj_bytes(arg));
+    let pattern = argv.get(3).map(|&arg| obj_bytes(arg));
+    match tcl_cmd_core::namespace::children_bytes(interp, name.as_deref(), pattern.as_deref()) {
         Ok(v) => {
             interp.set_result(v);
             Code::Ok
         }
-        Err(e) => interp.set_error(e.message().as_bytes()),
+        Err(error) => interp.set_error(&error.message()),
     }
 }
 
@@ -277,38 +271,21 @@ fn ns_tail(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// Only `-command` resolution is implemented (variables aren't ns-scoped yet);
 /// `-variable` always yields the empty string.
 fn ns_which(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    let mut want_variable = false;
-    let mut name: Option<Vec<u8>> = None;
-    // The flags accept unambiguous prefix abbreviations (`-var`, `-com`), as
-    // Tcl's option table does; a non-flag argument (or one after another flag)
-    // is the name. Only one name is allowed.
-    for &a in &argv[2..] {
-        let b = obj_bytes(a);
-        let is_flag = b.first() == Some(&b'-') && name.is_none();
-        if is_flag && b.len() > 1 && b"-command".starts_with(b.as_slice()) {
-            // -command (default behaviour)
-        } else if is_flag && b.len() > 1 && b"-variable".starts_with(b.as_slice()) {
-            want_variable = true;
-        } else {
-            if name.is_some() {
-                return interp.wrong_args(b"namespace which ?-command? ?-variable? name");
-            }
-            name = Some(b);
-        }
-    }
-    let Some(name) = name else {
+    let args: Vec<Vec<u8>> = argv[2..].iter().map(|&arg| obj_bytes(arg)).collect();
+    let Some((kind, name_index)) = tcl_cmd_core::namespace::which_request(&args) else {
         return interp.wrong_args(b"namespace which ?-command? ?-variable? name");
     };
-    if want_variable {
+    let name = &args[name_index];
+    if kind == tcl_cmd_core::namespace::WhichKind::Variable {
         // `-variable` through the shared `Tcl_FindNamespaceVar` core — the
         // 8.x global-fallback candidate is a release axis, so the profile
         // goes with it.
         let profile = interp.dialect_profile();
-        let fqn = tcl_cmd_core::namespace::variable_fqn_bytes(interp, &name, profile);
+        let fqn = tcl_cmd_core::namespace::variable_fqn_bytes(interp, name, profile);
         interp.set_result_bytes(&fqn.unwrap_or_default());
     } else {
         // `-command` via the shared `Namespaces` resolution core.
-        let fqn = tcl_cmd_core::namespace::which_command_bytes(interp, &name);
+        let fqn = tcl_cmd_core::namespace::which_command_bytes(interp, name);
         interp.set_result_bytes(&fqn.unwrap_or_default());
     }
     Code::Ok
@@ -390,47 +367,19 @@ fn ns_import(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return Code::Ok;
     }
     for pat in &patterns {
-        // An empty pattern is rejected outright (C's `Tcl_Import`).
-        if pat.is_empty() {
-            return interp.set_error(b"empty import pattern");
-        }
-        // Split into the source-namespace qualifier and the simple glob tail.
-        // C distinguishes the two ways a pattern can fail to name another
-        // namespace: no qualifier at all (`pattern == simplePattern`) reports
-        // a *missing* source namespace, a qualifier that resolves back to the
-        // importing namespace reports the self-import.
-        let q = match tcl_cmd_core::namespace::qualifier(pat) {
-            tcl_cmd_core::namespace::Qualifier::Absolute(q)
-            | tcl_cmd_core::namespace::Qualifier::Relative(q) => q,
-            tcl_cmd_core::namespace::Qualifier::Unqualified => {
-                let mut m = b"no namespace specified in import pattern \"".to_vec();
-                m.extend_from_slice(pat);
-                m.push(b'"');
-                return interp.set_error(&m);
-            }
+        let destination = tcl_runtime_api::Namespaces::current(interp);
+        let validated = match tcl_cmd_core::namespace::import_pattern(interp, destination, pat) {
+            Ok(validated) => validated,
+            Err(problem) => return interp.set_error(&problem.message()),
         };
-        let tail_pat = tcl_cmd_core::namespace::tail(pat);
-        let Some(src_ns) = interp.namespaces().find_namespace(dest, q) else {
-            let mut m = b"unknown namespace in import pattern \"".to_vec();
-            m.extend_from_slice(pat);
-            m.push(b'"');
-            return interp.set_error(&m);
-        };
-        // Importing from one's own namespace is meaningless (C's `Tcl_Import`):
-        // the message names the source namespace by its simple name.
-        if src_ns == dest {
-            let mut m = b"import pattern \"".to_vec();
-            m.extend_from_slice(pat);
-            m.extend_from_slice(b"\" tries to import from namespace \"");
-            m.extend_from_slice(&interp.namespaces().simple_name(src_ns));
-            m.extend_from_slice(b"\" into itself");
-            return interp.set_error(&m);
-        }
+        let src_ns = validated.source.0 as usize;
+        let tail_pat = validated.tail;
         // Collect the matching, exported source commands first (borrow ends).
         let src_fqn = interp.namespaces().qualified_name(src_ns);
         let mut to_import: Vec<Vec<u8>> = Vec::new();
         for name in interp.visible_command_names_in(src_ns) {
-            if glob_match_bytes(tail_pat, &name) && interp.namespaces().is_exported(src_ns, &name) {
+            if glob_match_bytes(&tail_pat, &name) && interp.namespaces().is_exported(src_ns, &name)
+            {
                 to_import.push(name);
             }
         }
@@ -580,10 +529,7 @@ fn dest_has_own(interp: &Interp, dest: NsId, simple: &[u8]) -> bool {
 /// pattern or text can only match byte-identically, handled by the equality
 /// fallback).
 fn glob_match_bytes(pattern: &[u8], text: &[u8]) -> bool {
-    match (core::str::from_utf8(pattern), core::str::from_utf8(text)) {
-        (Ok(p), Ok(t)) => tcl_syntax::glob::string_match(p, t),
-        _ => pattern == text,
-    }
+    tcl_syntax::glob::string_match_bytes(pattern, text)
 }
 
 /// Set the interp result to a Tcl list of the given byte strings.
@@ -1013,7 +959,10 @@ fn ens_exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 /// Parse a `-map` dict (`sub {target prefix} …`) into (subcommand, prefix-words).
 fn parse_map(bytes: &[u8], map_ns: &[u8]) -> Result<EnsembleMap, Vec<u8>> {
-    let kvs = crate::parse::split_list(bytes).map_err(|e| e.message().to_vec())?;
+    let kvs = crate::parse::split_list(bytes).map_err(|error| {
+        tcl_cmd_core::dict::worded_parse_error(&String::from_utf8_lossy(error.message()))
+            .into_bytes()
+    })?;
     if kvs.len() % 2 != 0 {
         return Err(b"missing value to go with key".to_vec());
     }
@@ -1035,6 +984,8 @@ fn parse_map(bytes: &[u8], map_ns: &[u8]) -> Result<EnsembleMap, Vec<u8>> {
             None => map.push((pair[0].clone(), prefix)),
         }
     }
+    tcl_cmd_core::ensemble::validate_map_targets(&map)
+        .map_err(|error| error.into_message().into_bytes())?;
     Ok(map)
 }
 
@@ -1186,6 +1137,84 @@ mod tests {
             assert_eq!(i.result_bytes(), b"::n::gv");
             assert_eq!(i.eval_str(b"namespace which -variable ::n::nope"), Code::Ok);
             assert_eq!(i.result_bytes(), b"");
+        });
+    }
+
+    /// Tcl 9.0.4 oracle vectors from issue #1584. These exercise the runtime
+    /// adapter through the same shared namespace grammar as the bytecode VM.
+    #[test]
+    fn namespace_issue_1584_oracle_vectors() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval declared {variable only
+                      list [namespace which -variable only] [info vars] [info exists only]}"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"::declared::only only 0");
+
+            for script in [
+                &b"namespace which -zork puts"[..],
+                b"namespace which -command puts extra",
+            ] {
+                assert_eq!(i.eval_str(script), Code::Error);
+                assert_eq!(
+                    i.result_bytes(),
+                    b"wrong # args: should be \"namespace which ?-command? ?-variable? name\""
+                );
+            }
+
+            assert_eq!(
+                i.eval_str(b"namespace eval self {namespace import ::self::*}"),
+                Code::Error
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"import pattern \"::self::*\" tries to import from namespace \"self\" into itself"
+            );
+            assert_eq!(
+                i.eval_str(b"namespace eval dest {namespace import ::nosuch::*}"),
+                Code::Error
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"unknown namespace in import pattern \"::nosuch::*\""
+            );
+
+            for script in [&b"namespace origin"[..], b"namespace origin set extra"] {
+                assert_eq!(i.eval_str(script), Code::Error);
+                assert_eq!(
+                    i.result_bytes(),
+                    b"wrong # args: should be \"namespace origin name\""
+                );
+            }
+
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval order {}
+                      foreach n {one two three four five six seven eight nine ten} {
+                          namespace eval ::order::$n {}
+                      }
+                      namespace children ::order"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"::order::six ::order::four ::order::three ::order::eight \
+                  ::order::seven ::order::nine ::order::five ::order::two \
+                  ::order::one ::order::ten"
+            );
+        });
+
+        // The active command survives long enough to return even though the
+        // global namespace and command table have been torn down.
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"namespace delete ::"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"");
+            assert_eq!(i.eval_str(b"puts hi"), Code::Error);
+            assert_eq!(i.result_bytes(), b"invalid command name \"puts\"");
         });
     }
 
@@ -1518,6 +1547,69 @@ mod tests {
                 b"unknown or ambiguous subcommand \"set\": must be go"
             );
             i.eval_str(b"unset v");
+        });
+    }
+
+    /// Tcl 9.0.4 oracle vectors from issue #1583: dict validation, callback
+    /// prefix redispatch/reparse, and the user-facing default target name.
+    #[test]
+    fn ensemble_issue_1583_oracle_vectors() {
+        leak_free(|i| {
+            for (script, message) in [
+                (
+                    &b"namespace ensemble create -map {go}"[..],
+                    &b"missing value to go with key"[..],
+                ),
+                (
+                    b"namespace ensemble create -map {go {}}",
+                    b"ensemble subcommand implementations must be non-empty lists",
+                ),
+                (
+                    b"set badmap \"go \\{\"; namespace ensemble create -map $badmap",
+                    b"unmatched open brace in dict",
+                ),
+            ] {
+                assert_eq!(i.eval_str(script), Code::Error);
+                assert_eq!(i.result_bytes(), message);
+            }
+
+            assert_eq!(
+                i.eval_str(
+                    b"proc uh {ens args} {return [list list REPLACED $ens]}
+                      namespace eval se5 {
+                          namespace ensemble create -command ::se5 -subcommands {} -unknown ::uh
+                      }
+                      ::se5 nope 1 2"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"REPLACED ::se5 1 2");
+
+            assert_eq!(
+                i.eval_str(
+                    b"proc define {ens args} {
+                          namespace eval se6 {
+                              proc nope args {return DEFINED}; namespace export nope
+                          }
+                          return {}
+                      }
+                      namespace eval se6 {
+                          namespace ensemble create -command ::se6 -unknown ::define
+                      }
+                      ::se6 nope"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"DEFINED");
+
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval k1 {namespace ensemble create -subcommands ghost}
+                      ::k1 ghost"
+                ),
+                Code::Error
+            );
+            assert_eq!(i.result_bytes(), b"invalid command name \"ghost\"");
         });
     }
 
@@ -2251,6 +2343,78 @@ mod tests {
                 tcl_cmd_core::namespace::origin(i, &String::from_utf8_lossy(raw)),
                 None
             );
+        });
+    }
+
+    /// #1613: an embedder can supply a plain string whose bytes are not UTF-8.
+    /// Drive the real `namespace` adapter with such objects rather than using a
+    /// script-created byte array (whose string shimmer is valid UTF-8), so any
+    /// lossy `&str` hop makes these two distinct namespace names disappear or
+    /// collide.
+    #[test]
+    fn byte_valued_namespace_navigation_uses_the_embedder_bytes_verbatim() {
+        fn invoke(interp: &mut Interp, words: &[&[u8]]) -> Code {
+            let argv: Vec<*mut crate::obj::TclObj> = words
+                .iter()
+                .map(|word| crate::obj::new_string_bytes(word))
+                .collect();
+            let code = super::namespace_cmd(interp, &argv);
+            for object in argv {
+                super::drop_fresh(object);
+            }
+            code
+        }
+
+        leak_free(|interp| {
+            let parent = b"::raw\xff";
+            let sibling = b"::raw\xfe";
+            let child = b"::raw\xff::child\xfd";
+            {
+                let mut namespaces = interp.namespaces_mut();
+                namespaces.ensure_namespace(crate::namespace::GLOBAL, parent);
+                namespaces.ensure_namespace(crate::namespace::GLOBAL, sibling);
+                namespaces.ensure_namespace(crate::namespace::GLOBAL, child);
+            }
+
+            assert_eq!(invoke(interp, &[b"namespace", b"exists", parent]), Code::Ok);
+            assert_eq!(interp.result_bytes(), b"1");
+            assert_eq!(
+                invoke(interp, &[b"namespace", b"exists", sibling]),
+                Code::Ok
+            );
+            assert_eq!(interp.result_bytes(), b"1");
+
+            assert_eq!(invoke(interp, &[b"namespace", b"parent", child]), Code::Ok);
+            assert_eq!(interp.result_bytes(), parent);
+
+            assert_eq!(
+                invoke(interp, &[b"namespace", b"children", parent]),
+                Code::Ok
+            );
+            assert_eq!(interp.result_bytes(), child);
+            assert_eq!(
+                invoke(interp, &[b"namespace", b"children", parent, child]),
+                Code::Ok
+            );
+            assert_eq!(interp.result_bytes(), child);
+
+            // Established invalid-byte glob policy: identity is defined, while
+            // wildcard interpretation is reserved for valid UTF-8 strings.
+            assert_eq!(
+                invoke(interp, &[b"namespace", b"children", parent, b"*"]),
+                Code::Ok
+            );
+            assert_eq!(interp.result_bytes(), b"");
+
+            let missing = b"::missing\xff";
+            assert_eq!(
+                invoke(interp, &[b"namespace", b"parent", missing]),
+                Code::Error
+            );
+            let mut message = b"namespace \"".to_vec();
+            message.extend_from_slice(missing);
+            message.extend_from_slice(b"\" not found");
+            assert_eq!(interp.result_bytes(), message);
         });
     }
 

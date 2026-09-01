@@ -92,6 +92,24 @@ pub enum SharedOption {
     Unknown,
 }
 
+/// Enforce C's invariant that every ensemble `-map` implementation is a
+/// non-empty command-prefix list. Callers parse and canonicalise their dict
+/// through the shared value seam (or a byte-native dict representation), then
+/// hand the resulting entries here before storing them.
+///
+/// # Errors
+/// `ensemble subcommand implementations must be non-empty lists` when any
+/// target prefix is empty.
+pub fn validate_map_targets<K, V>(map: &[(K, Vec<V>)]) -> Result<(), crate::CmdError> {
+    if map.iter().any(|(_, prefix)| prefix.is_empty()) {
+        Err(crate::CmdError::new(
+            "ensemble subcommand implementations must be non-empty lists",
+        ))
+    } else {
+        Ok(())
+    }
+}
+
 /// A resolved `namespace ensemble create` option (the index into
 /// [`CREATE_OPTIONS`], named).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

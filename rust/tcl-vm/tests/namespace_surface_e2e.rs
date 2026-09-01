@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! `namespace` command-surface regression vectors (issues #1442, #1446,
-//! #1451, #1453, #1463).
+//! #1451, #1453, #1463, #1583, #1584).
 //!
 //! Every expectation is pinned byte-for-byte against tclsh 8.6.16 *and*
 //! tclsh 9.0.4 unless a `9.0:` comment records a deliberate release
@@ -193,6 +193,30 @@ fn which_variable_global_fallback_is_a_release_axis() {
 }
 
 #[test]
+fn declared_but_unset_namespace_variables_are_introspectable() {
+    // Tcl 9.0.4: `variable only` materialises an unset varTable cell. Both
+    // namespace introspection surfaces see it; `info exists` still says 0.
+    assert_eq!(
+        run("namespace eval declared {variable only
+             list [namespace which -variable only] [info vars] [info exists only]}"),
+        "::declared::only only 0"
+    );
+}
+
+#[test]
+fn namespace_which_validates_its_positional_option_shape() {
+    let usage = "wrong # args: should be \"namespace which ?-command? ?-variable? name\"";
+    assert_eq!(run("catch {namespace which -zork puts} m; set m"), usage);
+    assert_eq!(
+        run("catch {namespace which -command puts extra} m; set m"),
+        usage
+    );
+    // With one word there is no option position: even an option-looking word
+    // is the command name, and an unresolved command produces the empty value.
+    assert_eq!(run("namespace which -command"), "");
+}
+
+#[test]
 fn origin_follows_import_chains() {
     // tclsh 8.6.16 / 9.0.4 (`NamespaceOriginCmd` → `TclGetOriginalCommand`).
     assert_eq!(
@@ -360,6 +384,18 @@ fn only_the_first_word_is_the_import_flag() {
     );
 }
 
+#[test]
+fn namespace_import_rejects_self_and_unknown_sources() {
+    assert_eq!(
+        run("namespace eval self {catch {namespace import ::self::*} m; set m}"),
+        "import pattern \"::self::*\" tries to import from namespace \"self\" into itself"
+    );
+    assert_eq!(
+        run("namespace eval dest {catch {namespace import ::nosuch::*} m; set m}"),
+        "unknown namespace in import pattern \"::nosuch::*\""
+    );
+}
+
 // #1451 — namespace teardown (`TclTeardownNamespace`, tclNamesp.c:1084)
 
 #[test]
@@ -464,6 +500,42 @@ fn namespace_path_checks_that_every_entry_exists() {
              namespace eval o {namespace path ::a; catch {namespace path {::a ::nope}}\n\
              namespace path}"),
         "::a"
+    );
+}
+
+#[test]
+fn namespace_delete_accepts_the_global_root() {
+    // Tcl 9.0.4 accepts the command and tears down the tree.
+    assert_eq!(run("namespace delete ::"), "");
+    assert_eq!(
+        run("namespace delete ::
+             puts hi"),
+        "invalid command name \"puts\""
+    );
+}
+
+#[test]
+fn namespace_origin_reports_its_own_usage_for_both_bad_arities() {
+    let usage = "wrong # args: should be \"namespace origin name\"";
+    assert_eq!(run("catch {namespace origin} m; set m"), usage);
+    assert_eq!(run("catch {namespace origin set extra} m; set m"), usage);
+}
+
+#[test]
+fn namespace_children_matches_tcls_string_hash_iteration_order() {
+    let setup = "namespace eval order {}
+                 foreach n {one two three four five six seven eight nine ten} {
+                     namespace eval ::order::$n {}
+                 }\n";
+    assert_eq!(
+        run(&format!("{setup}namespace children ::order")),
+        "::order::six ::order::four ::order::three ::order::eight \
+         ::order::seven ::order::nine ::order::five ::order::two \
+         ::order::one ::order::ten"
+    );
+    assert_eq!(
+        run(&format!("{setup}namespace children ::order ::order::t*")),
+        "::order::three ::order::two ::order::ten"
     );
 }
 
@@ -817,6 +889,57 @@ fn ensemble_subcommand_scan_matches_c_on_the_empty_word() {
              catch {::ab5 {}} m; set m"
         ),
         "unknown subcommand \"\": must be go"
+    );
+}
+
+#[test]
+fn ensemble_map_validation_matches_tcl_dict_and_target_errors() {
+    assert_eq!(
+        run("catch {namespace ensemble create -map {go}} m; set m"),
+        "missing value to go with key"
+    );
+    assert_eq!(
+        run("catch {namespace ensemble create -map {go {}}} m; set m"),
+        "ensemble subcommand implementations must be non-empty lists"
+    );
+    assert_eq!(
+        run("set badmap \"go \\{\"
+             catch {namespace ensemble create -map $badmap} m; set m"),
+        "unmatched open brace in dict"
+    );
+}
+
+#[test]
+fn ensemble_unknown_result_is_redispatched_as_a_command_prefix() {
+    assert_eq!(
+        run("proc uh {ens args} {return [list list REPLACED $ens]}
+             namespace eval se5 {
+                 namespace ensemble create -command ::se5 -subcommands {} -unknown ::uh
+             }
+             ::se5 nope 1 2"),
+        "REPLACED ::se5 1 2"
+    );
+    // An empty successful result requests one reparse, so a command exported
+    // by the callback becomes visible to the same ensemble invocation.
+    assert_eq!(
+        run("proc define {ens args} {
+                 namespace eval se6 {proc nope args {return DEFINED}; namespace export nope}
+                 return {}
+             }
+             namespace eval se6 {namespace ensemble create -command ::se6 -unknown ::define}
+             ::se6 nope"),
+        "DEFINED"
+    );
+}
+
+#[test]
+fn ensemble_default_target_miss_names_the_rewritten_subcommand() {
+    assert_eq!(
+        run(
+            "namespace eval k1 {namespace ensemble create -subcommands ghost}
+             catch {::k1 ghost} m; set m"
+        ),
+        "invalid command name \"ghost\""
     );
 }
 
