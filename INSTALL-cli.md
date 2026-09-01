@@ -10,8 +10,10 @@ curl -fsSL https://raw.githubusercontent.com/bitwisecook/tcl-lsp/rust/scripts/in
   | TCL_LSP_VERSION=v2.1.19 sh
 ```
 
-Works on macOS and Linux (x86_64, arm64, and riscv64 on Linux).
-Re-run the same line to update.
+Works on macOS and glibc-based Linux (x86_64, arm64, and riscv64 on Linux).
+The x86_64 and arm64 binaries require glibc 2.28 or newer; RISC-V requires
+glibc 2.35 or newer. Alpine and other non-glibc systems build the native CLIs
+from source. Re-run the same line to update.
 
 To inspect first, or run unattended:
 

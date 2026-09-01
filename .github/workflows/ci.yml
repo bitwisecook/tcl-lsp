@@ -1250,12 +1250,14 @@ jobs:
           gh release upload "$tag" install.sh --clobber
 
   # ---------------------------------------------------------------------
-  # build-server-matrix — cross-compile the native `tcl-lsp-server` for every
-  # supported platform.  Each runner builds its host's target triples (with
-  # cross-linkers for the foreign Linux arches), smoke-tests the native one,
-  # and uploads the binaries preserving `target/<triple>/release/`.  build-vsix
-  # downloads them all and packages both the untargeted universal VSIX and
-  # six platform-targeted VSIXes (one per vsce --target platform).
+  # build-server-matrix — compile the four native programs for every supported
+  # platform. Linux x86_64 and aarch64 build natively inside UBI 8 to retain a
+  # GLIBC_2.28 ABI floor; RISC-V uses an Ubuntu 22.04 container's glibc 2.35
+  # cross sysroot because EL8 did not ship a RISC-V architecture. No Zig or
+  # separately downloaded libc is involved. Each leg smoke-tests its binary
+  # and uploads it preserving `target/<triple>/release/`. build-vsix downloads
+  # them all and packages both the untargeted universal VSIX and six
+  # platform-targeted VSIXes.
   #
   # Per the no-marketplace-tokens invariant this uses only GitHub's built-in
   # token — nothing is published to a marketplace here.
@@ -1284,14 +1286,18 @@ jobs:
           - os: ubuntu-24.04
             id: linux-x64
             target: x86_64-unknown-linux-gnu
-          - os: ubuntu-24.04
+            ubi8: true
+            glibc_max: "2.28"
+          - os: ubuntu-24.04-arm
             id: linux-arm64
             target: aarch64-unknown-linux-gnu
-            cross: gcc-aarch64-linux-gnu
+            ubi8: true
+            glibc_max: "2.28"
           - os: ubuntu-24.04
             id: linux-riscv64
             target: riscv64gc-unknown-linux-gnu
-            cross: gcc-riscv64-linux-gnu
+            riscv_glibc: true
+            glibc_max: "2.35"
           - os: windows-latest
             id: win32-x64
             target: x86_64-pc-windows-msvc
@@ -1312,17 +1318,123 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Install Linux cross-linker
-        if: matrix.cross
+      # Use the runner's architecture-matched UBI image, so x86_64 and aarch64
+      # both link against the maintained EL8 glibc 2.28 ABI without a cross
+      # sysroot. The Rust installation is supplied by the pinned setup action;
+      # only the distro C toolchain lives in the container. aarch64 overrides
+      # the local-development cross-linker from .cargo/config.toml with native
+      # `gcc`/`ar`.
+      - name: Build GNU/Linux binaries against glibc 2.28
+        if: matrix.ubi8
+        env:
+          TARGET: ${{ matrix.target }}
+          TCL_LSP_VERSION: ${{ github.ref_name }}
+        shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ${{ matrix.cross }} qemu-user
+          set -euo pipefail
+          # Git rejects the root-owned container's bind-mounted checkout as a
+          # dubious directory. Stamp provenance explicitly instead of letting
+          # tcl-version silently fall back to an empty commit.
+          export GIT_HASH="${GITHUB_SHA:0:8}"
+          docker run --rm \
+            --env TARGET \
+            --env TCL_LSP_VERSION \
+            --env GIT_HASH \
+            --env CARGO_HOME=/cargo \
+            --env RUSTUP_HOME=/rustup \
+            --volume "$GITHUB_WORKSPACE:/work" \
+            --volume "$HOME/.cargo:/cargo" \
+            --volume "$HOME/.rustup:/rustup" \
+            --workdir /work \
+            registry.access.redhat.com/ubi8/ubi-minimal:8.10 \
+            /bin/bash -lc '
+              set -euo pipefail
+              microdnf install -y binutils cmake gcc gcc-c++ git make perl pkgconf-pkg-config
+              microdnf clean all
+              export PATH="/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+              if [[ "$TARGET" == aarch64-unknown-linux-gnu ]]; then
+                export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=gcc
+                export CC_aarch64_unknown_linux_gnu=gcc
+                export AR_aarch64_unknown_linux_gnu=ar
+              fi
+              rustup target add "$TARGET"
+              cargo build -p tcl-lsp-server --release --target "$TARGET"
+              cargo build -p tcl-mcp --release --target "$TARGET"
+              cargo build -p tcl-cli --release --target "$TARGET"
+              cargo build -p f5-cli --release --target "$TARGET"
+              for binary in \
+                "target/$TARGET/release/tcl-lsp-server" \
+                "target/$TARGET/release/tcl-mcp" \
+                "target/$TARGET/release/tcl" \
+                "target/$TARGET/release/f5-query"; do
+                strings "$binary" | grep -F "+g$GIT_HASH" >/dev/null || {
+                  echo "error: $binary does not contain commit +g$GIT_HASH" >&2
+                  exit 1
+                }
+              done
+            '
+
+      # Ubuntu 22.04 is the oldest still-supported mainstream RISC-V distro and
+      # ships a complete glibc 2.35 cross toolchain. Keep it inside a container
+      # rather than pinning the outer GitHub runner to an aging image. The QEMU
+      # handshake runs in the same container so it uses that matching sysroot.
+      - name: Build RISC-V GNU/Linux binaries against glibc 2.35
+        if: matrix.riscv_glibc
+        env:
+          TARGET: ${{ matrix.target }}
+          TCL_LSP_VERSION: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_HASH="${GITHUB_SHA:0:8}"
+          docker run --rm \
+            --env TARGET \
+            --env TCL_LSP_VERSION \
+            --env GIT_HASH \
+            --env CARGO_HOME=/cargo \
+            --env RUSTUP_HOME=/rustup \
+            --env DEBIAN_FRONTEND=noninteractive \
+            --volume "$GITHUB_WORKSPACE:/work" \
+            --volume "$HOME/.cargo:/cargo" \
+            --volume "$HOME/.rustup:/rustup" \
+            --workdir /work \
+            docker.io/library/ubuntu:22.04 \
+            /bin/bash -lc '
+              set -euo pipefail
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                ca-certificates cmake gcc gcc-riscv64-linux-gnu git make perl pkg-config qemu-user
+              rm -rf /var/lib/apt/lists/*
+              export PATH="/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+              rustup target add "$TARGET"
+              cargo build -p tcl-lsp-server --release --target "$TARGET"
+              cargo build -p tcl-mcp --release --target "$TARGET"
+              cargo build -p tcl-cli --release --target "$TARGET"
+              cargo build -p f5-cli --release --target "$TARGET"
+              for binary in \
+                "target/$TARGET/release/tcl-lsp-server" \
+                "target/$TARGET/release/tcl-mcp" \
+                "target/$TARGET/release/tcl" \
+                "target/$TARGET/release/f5-query"; do
+                strings "$binary" | grep -F "+g$GIT_HASH" >/dev/null || {
+                  echo "error: $binary does not contain commit +g$GIT_HASH" >&2
+                  exit 1
+                }
+              done
+              scripts/verify-glibc-baseline.sh 2.35 \
+                "target/$TARGET/release/tcl-lsp-server" \
+                "target/$TARGET/release/tcl-mcp" \
+                "target/$TARGET/release/tcl" \
+                "target/$TARGET/release/f5-query"
+              make server-cross-test
+            '
 
       # Stamp the release version into every user-facing binary. The
       # tcl-version crate prefers this over `git describe`; without it a tag
       # build would still be correct, but this avoids depending on the checkout
       # having tags fetched.
       - name: Cross-compile native binaries (server + mcp + CLIs)
+        if: matrix.ubi8 != true && matrix.riscv_glibc != true
         env:
           TCL_LSP_VERSION: ${{ github.ref_name }}
         shell: bash
@@ -1336,10 +1448,23 @@ jobs:
           cargo build -p tcl-cli --release --target "$t"
           cargo build -p f5-cli --release --target "$t"
 
+      - name: Verify GNU/Linux glibc ABI ceiling
+        if: matrix.glibc_max
+        shell: bash
+        run: |
+          set -euo pipefail
+          t="${{ matrix.target }}"
+          scripts/verify-glibc-baseline.sh "${{ matrix.glibc_max }}" \
+            "target/$t/release/tcl-lsp-server" \
+            "target/$t/release/tcl-mcp" \
+            "target/$t/release/tcl" \
+            "target/$t/release/f5-query"
+
       # scripts/test-cross-server.sh tests whatever is already built and skips
       # absent triples loudly, so each per-triple leg smoke-tests just its own
       # binary (natively or under QEMU where runnable).
       - name: Smoke-test built binaries
+        if: matrix.riscv_glibc != true
         shell: bash
         run: make server-cross-test
 
@@ -1365,6 +1490,55 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  # The per-architecture ELF gates above catch ABI drift at the producer. This
+  # fan-in repeats them over the uploaded release bytes, then starts the exact
+  # x86_64 server across a compact matrix of maintained glibc distributions.
+  # WASI/browser-WASM artefacts are produced by separate jobs and intentionally
+  # do not participate in a host-libc contract.
+  linux-release-portability:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [create-release, build-server-matrix]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Download server-matrix binaries
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: server-bins-*
+          path: target
+          merge-multiple: true
+
+      - name: Verify Linux release ABI ceilings
+        shell: bash
+        run: |
+          set -euo pipefail
+          # upload-artifact intentionally normalises file modes. Restore the
+          # executable bit before both the ELF gate and the distro handshake.
+          chmod +x \
+            target/{x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu,riscv64gc-unknown-linux-gnu}/release/{tcl-lsp-server,tcl-mcp,tcl,f5-query}
+          for triple in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu; do
+            scripts/verify-glibc-baseline.sh 2.28 \
+              "target/$triple/release/tcl-lsp-server" \
+              "target/$triple/release/tcl-mcp" \
+              "target/$triple/release/tcl" \
+              "target/$triple/release/f5-query"
+          done
+          scripts/verify-glibc-baseline.sh 2.35 \
+            target/riscv64gc-unknown-linux-gnu/release/tcl-lsp-server \
+            target/riscv64gc-unknown-linux-gnu/release/tcl-mcp \
+            target/riscv64gc-unknown-linux-gnu/release/tcl \
+            target/riscv64gc-unknown-linux-gnu/release/f5-query
+
+      - name: Test the release server across supported Linux distributions
+        env:
+          CONTAINER_ENGINE: docker
+        run: scripts/test-linux-distro-compat.sh target/x86_64-unknown-linux-gnu/release/tcl-lsp-server
+
   # Publish the standalone native binaries as per-triple release assets
   # (`<name>-<triple>[.exe]` for tcl-lsp-server, tcl-mcp, tcl, f5-query), so
   # `install.sh` fetches a prebuilt binary for the host platform.
@@ -1380,7 +1554,7 @@ jobs:
   # covered automatically.
   publish-native-binaries:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [create-release, build-server-matrix]
+    needs: [create-release, build-server-matrix, linux-release-portability]
     runs-on: ubuntu-24.04
     permissions:
       contents: write # gh release upload
@@ -1439,7 +1613,7 @@ jobs:
     # the module; this one downloads its `wasi-module` artifact rather than
     # re-linking wasm32-wasip1 here, the same way it takes the native binaries
     # from `build-server-matrix` instead of cross-compiling them itself.
-    needs: [create-release, test-ext, test-ext-web, build-server-matrix, lsp-server-wasi]
+    needs: [create-release, test-ext, test-ext-web, build-server-matrix, linux-release-portability, lsp-server-wasi]
     runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload
@@ -1646,7 +1820,7 @@ jobs:
   # binaries rather than cross-compiling again — same source build-vsix uses.
   build-jetbrains:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [create-release, build-server-matrix]
+    needs: [create-release, build-server-matrix, linux-release-portability]
     runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload
@@ -1709,7 +1883,7 @@ jobs:
     # release will carry so plugin.py verifies its download against a digest
     # that travelled inside the package rather than one served from the same
     # release as the binary.
-    needs: [create-release, build-server-matrix]
+    needs: [create-release, build-server-matrix, linux-release-portability]
     runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload
