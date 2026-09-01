@@ -80,6 +80,40 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# shellcheck source=tcl-reference-toolchains.sh
+. "$SCRIPT_DIR/tcl-reference-toolchains.sh"
+tcl_reference_load_toolchains "$REPO_ROOT"
+
+TCL_REFERENCE_SOURCE_PARENT="${TCL_LSP_TCL_SOURCE_PARENT:-$REPO_ROOT/tmp}"
+
+# Prefer the first conventional managed bin directory already present on PATH.
+# This matters on hosts whose /usr/bin precedes /usr/local/bin: installing the
+# pinned wrapper later on PATH would leave the stale distro tclsh selected.
+default_tcl_reference_bin_dir() {
+    local directory
+    while IFS= read -r directory; do
+        if [ "$directory" = "${HOME:-}/.local/bin" ] || [ "$directory" = "/usr/local/bin" ]; then
+            printf '%s\n' "$directory"
+            return 0
+        fi
+    done < <(printf '%s\n' "${PATH:-}" | tr ':' '\n')
+    printf '%s\n' /usr/local/bin
+}
+
+TCL_REFERENCE_BIN_DIR="${TCL_LSP_TCL_BIN_DIR:-$(default_tcl_reference_bin_dir)}"
+
+# Most callers need the whole conformance matrix. Focused CI lanes may select
+# a release-line subset (for example, SpecTcl needs only the pinned 9.0 oracle)
+# without duplicating any patchlevel or source-tag facts.
+requested_tcl_releases() {
+    if [ -z "${TCL_LSP_TCL_RELEASES:-}" ]; then
+        tcl_reference_releases
+        return
+    fi
+    printf '%s\n' "$TCL_LSP_TCL_RELEASES" \
+        | tr ', ' '\n' \
+        | awk 'NF && !seen[$0]++ { print }'
+}
 
 WASMTIME_VERSION="43.0.1"
 WASI_SDK_VERSION="25.0"
@@ -330,11 +364,14 @@ ensure_download_tools() {
 install_symlink() {
     local source="$1"
     local dest="$2"
-    if [ "$OS" = "Darwin" ]; then
-        mkdir -p "$(dirname "$dest")"
+    local parent
+    parent="$(dirname "$dest")"
+    if { [ -d "$parent" ] && [ -w "$parent" ]; } \
+        || { [ ! -e "$parent" ] && [ -w "$(dirname "$parent")" ]; }; then
+        mkdir -p "$parent"
         ln -sfn "$source" "$dest"
     else
-        $SUDO mkdir -p "$(dirname "$dest")"
+        $SUDO mkdir -p "$parent"
         $SUDO ln -sfn "$source" "$dest"
     fi
 }
@@ -348,10 +385,10 @@ make_temp_file() {
 
 # ---------------------------------------------------------------- tclsh
 
-# The 8.4/8.5/9.1 reference interpreters (design doc §7.1: "close the binary
-# gap first") aren't packaged by any distro or Homebrew, so they're always
-# built from the source trees the fetch-tcl-source skill lays down at
-# tmp/tcl<version>/, the same way tclsh9.0 already is below.
+# The exact reference patchlevels are owned by tcl-dialect's manifest and
+# loaded above. Distro/Homebrew names are insufficient: a present tclsh9.0 can
+# still be an older 9.0.3 build. Every release is therefore probed before the
+# all-ready return and repaired from its pinned source tree when necessary.
 #
 # Unlike 9.0/9.1 (which embed their script library via zipfs and run fine
 # from anywhere), an 8.4/8.5 tclsh only finds init.tcl via a path relative
@@ -360,25 +397,23 @@ make_temp_file() {
 # itself. `install_reference_tclsh_wrapper` installs a thin wrapper script
 # that execs the tree's real `tclsh` by absolute path instead, which keeps
 # the relative library search intact regardless of the caller's
-# TCL_LIBRARY (also explicitly unset, so a stale global export such as
-# setup_tcl_library's tcl9.0.4 pin can't shadow the wrong version in).
-declare -A TCL_EXTRA_PATCHLEVEL=(
-    [8.4]="8.4.20"
-    [8.5]="8.5.19"
-    [9.1]="9.1b0"
-)
-declare -A TCL_EXTRA_TREE=(
-    [8.4]="tcl8.4.20"
-    [8.5]="tcl8.5.19"
-    [9.1]="tcl9.1b0"
-)
+# TCL_LIBRARY (also explicitly unset, so a stale global export cannot shadow
+# the version being probed).
+
+# Print the patchlevel reported by $1, or fail when it is not executable or
+# cannot run as a Tcl interpreter.
+tclsh_patchlevel() {
+    local bin="$1"
+    [ -x "$bin" ] || return 1
+    printf 'puts [info patchlevel]\n' \
+        | env -u TCL_LIBRARY "$bin" 2>/dev/null
+}
 
 # True when $1 (a tclsh binary or wrapper) reports exactly patchlevel $2.
 tclsh_reports_patchlevel() {
     local bin="$1" expected="$2"
-    [ -x "$bin" ] || return 1
     local actual
-    actual="$(printf 'puts [info patchlevel]\n' | env -u TCL_LIBRARY "$bin" 2>/dev/null)"
+    actual="$(tclsh_patchlevel "$bin")" || return 1
     [ "$actual" = "$expected" ]
 }
 
@@ -387,7 +422,7 @@ tclsh_reports_patchlevel() {
 # symlink for the 8.4/8.5 trees (9.0/9.1 would tolerate either).
 install_reference_tclsh_wrapper() {
     local target="$1" dest="$2"
-    local tmp
+    local tmp parent
     tmp="$(mktemp)"
     {
         printf '#!/bin/sh\n'
@@ -395,45 +430,77 @@ install_reference_tclsh_wrapper() {
         printf 'exec "%s" "$@"\n' "$target"
     } > "$tmp"
     chmod 0755 "$tmp"
-    $SUDO install -m 0755 "$tmp" "$dest"
+    parent="$(dirname "$dest")"
+    if { [ -d "$parent" ] && [ -w "$parent" ]; } \
+        || { [ ! -e "$parent" ] && [ -w "$(dirname "$parent")" ]; }; then
+        mkdir -p "$parent"
+        install -m 0755 "$tmp" "$dest"
+    else
+        $SUDO mkdir -p "$parent"
+        $SUDO install -m 0755 "$tmp" "$dest"
+    fi
     rm -f "$tmp"
 }
 
-# Build (idempotently) one of the extra reference interpreters — 8.4, 8.5,
-# or 9.1 — from its fetched source tree, mirroring the tclsh9.0 recipe
-# further down (configure --disable-shared && make in <tree>/unix), and
-# expose it as /usr/local/bin/tclsh<tag>. Skips the build when
-# <tree>/unix/tclsh already reports the expected patchlevel, and skips the
-# PATH wrapper when it already resolves to the same patchlevel.
-build_extra_tclsh() {
-    local tag="$1"
-    local expected="${TCL_EXTRA_PATCHLEVEL[$tag]}"
-    local tree_dir="$REPO_ROOT/tmp/${TCL_EXTRA_TREE[$tag]}"
+# Build (idempotently) any reference interpreter from its pinned source tree
+# and expose it through the managed bin directory. This one path owns all five
+# axes, so 8.6 and 9.0 cannot silently retain weaker distro-only semantics.
+ensure_reference_tclsh() {
+    local release="$1"
+    local expected
+    expected="$(tcl_reference_patchlevel "$release")"
+    local tree_dir="$TCL_REFERENCE_SOURCE_PARENT/tcl${expected}"
     local tclsh_bin="$tree_dir/unix/tclsh"
-    local link="/usr/local/bin/tclsh${tag}"
+    local link="$TCL_REFERENCE_BIN_DIR/tclsh${release}"
+    local command_name="tclsh${release}"
+    local resolved="" actual="" repair=""
+
+    resolved="$(command -v "$command_name" 2>/dev/null || true)"
+    if tclsh_reports_patchlevel "$resolved" "$expected"; then
+        info "$command_name already on PATH at exact reference patchlevel $expected"
+        return 0
+    fi
+    if [ -n "$resolved" ]; then
+        actual="$(tclsh_patchlevel "$resolved" 2>/dev/null || true)"
+    fi
 
     if tclsh_reports_patchlevel "$tclsh_bin" "$expected"; then
-        info "tclsh${tag} already built (${expected}) at $tclsh_bin"
+        repair="would install a wrapper for $tclsh_bin at $link"
     else
-        if [ "$CHECK_ONLY" -eq 1 ]; then
-            if [ -d "$tree_dir/unix" ]; then
-                note_missing "tclsh${tag} (would build ${expected} from $tree_dir)"
-            else
-                note_missing "tclsh${tag} (would fetch source via fetch-tcl-source skill, then build)"
-            fi
-            return 0
+        if [ -d "$tree_dir/unix" ]; then
+            repair="would build from $tree_dir, then install a wrapper at $link"
+        else
+            repair="would fetch $expected, build it, then install a wrapper at $link"
         fi
+    fi
+
+    if [ "$CHECK_ONLY" -eq 1 ]; then
+        if [ -n "$actual" ]; then
+            note_missing "$command_name $expected (found $actual at $resolved; $repair)"
+        elif [ -n "$resolved" ]; then
+            note_missing "$command_name $expected (unusable interpreter at $resolved; $repair)"
+        else
+            note_missing "$command_name $expected ($repair)"
+        fi
+        return 0
+    fi
+
+    if ! tclsh_reports_patchlevel "$tclsh_bin" "$expected"; then
         if [ ! -d "$tree_dir/unix" ]; then
-            info "Fetching Tcl ${tag} source via fetch-tcl-source skill"
-            bash "$REPO_ROOT/.claude/skills/fetch-tcl-source/fetch_tcl_source.sh" "$tag"
+            info "Fetching Tcl $release source ($expected) via fetch-tcl-source skill"
+            bash "$REPO_ROOT/.claude/skills/fetch-tcl-source/fetch_tcl_source.sh" "$release"
         fi
         if ! command -v gcc >/dev/null 2>&1 && ! command -v cc >/dev/null 2>&1; then
             case "$PKG" in
                 apt-get) run_install "C toolchain (apt)" build-essential ;;
                 dnf|yum) run_install "C toolchain (dnf)" gcc make ;;
+                brew)
+                    echo "ERROR: a C compiler is required to build Tcl $expected" >&2
+                    return 1
+                    ;;
             esac
         fi
-        info "Building tclsh${tag} (${expected}) from $tree_dir"
+        info "Building $command_name ($expected) from $tree_dir"
         (
             cd "$tree_dir/unix"
             CFLAGS="-O2 -fcommon -Wno-implicit-int -Wno-implicit-function-declaration" \
@@ -446,109 +513,64 @@ build_extra_tclsh() {
         fi
     fi
 
-    if [ "$CHECK_ONLY" -eq 1 ]; then
-        if ! tclsh_reports_patchlevel "$link" "$expected"; then
-            note_missing "tclsh${tag} on PATH (would install a wrapper at $link)"
-        fi
-        return 0
-    fi
     if ! tclsh_reports_patchlevel "$link" "$expected"; then
         install_reference_tclsh_wrapper "$tclsh_bin" "$link"
-        info "Installed tclsh${tag} → $link (wraps $tclsh_bin)"
+        info "Installed $command_name → $link (wraps $tclsh_bin)"
     fi
-}
-
-# Build all three extra reference interpreters. Called from both the
-# Homebrew and Linux branches of ensure_tclsh below — building from source
-# is platform-independent once a C toolchain is present.
-ensure_extra_tclsh_versions() {
-    local tag
-    for tag in 8.4 8.5 9.1; do
-        build_extra_tclsh "$tag"
-    done
+    hash -r
+    resolved="$(command -v "$command_name" 2>/dev/null || true)"
+    if ! tclsh_reports_patchlevel "$resolved" "$expected"; then
+        actual="$(tclsh_patchlevel "$resolved" 2>/dev/null || true)"
+        echo "ERROR: installed $link, but PATH still resolves $command_name to ${resolved:-nothing}${actual:+ (Tcl $actual)}" >&2
+        return 1
+    fi
 }
 
 ensure_tclsh() {
     if [ "${SKIP_TCLSH:-}" = "1" ]; then info "SKIP_TCLSH=1 — skipping tclsh"; return 0; fi
-    if command -v tclsh9.0 >/dev/null 2>&1 && command -v tclsh8.6 >/dev/null 2>&1 \
-        && command -v tclsh8.4 >/dev/null 2>&1 && command -v tclsh8.5 >/dev/null 2>&1 \
-        && command -v tclsh9.1 >/dev/null 2>&1; then
-        info "tclsh8.4/8.5/8.6/9.0/9.1 already on PATH"
+    local release command_name resolved expected
+    local all_ready=1
+    local requested
+    requested="$(requested_tcl_releases)"
+    if [ -z "$requested" ]; then
+        echo "ERROR: TCL_LSP_TCL_RELEASES selected no Tcl release lines" >&2
+        return 1
+    fi
+    while IFS= read -r release; do
+        if ! tcl_reference_patchlevel "$release" >/dev/null; then
+            return 1
+        fi
+        command_name="tclsh${release}"
+        resolved="$(command -v "$command_name" 2>/dev/null || true)"
+        expected="$(tcl_reference_patchlevel "$release")"
+        if ! tclsh_reports_patchlevel "$resolved" "$expected"; then
+            all_ready=0
+        fi
+    done <<< "$requested"
+    if [ "$all_ready" -eq 1 ]; then
+        info "requested tclsh exact reference patchlevels already on PATH"
         return 0
     fi
 
-    # Linux distro packages cover tclsh 8.6 well; 9.0 isn't packaged on
-    # most distros yet so we build it from the source tree the
-    # SessionStart hook drops at tmp/tcl9.0.4/.  macOS Homebrew has both.
-    # 8.4/8.5/9.1 are never packaged anywhere, so they're always built.
-    if [ "$PKG" = "brew" ]; then
-        if ! command -v tclsh9.0 >/dev/null 2>&1; then
-            run_install "Tcl 9 (Homebrew)" tcl-tk
-        fi
-        if ! command -v tclsh8.6 >/dev/null 2>&1; then
-            run_install "Tcl 8.6 (Homebrew)" tcl-tk@8
-        fi
-        ensure_extra_tclsh_versions
-        return 0
-    fi
-
-    # Linux: distro tclsh8.6 + source build for 9.0
-    if ! command -v tclsh8.6 >/dev/null 2>&1; then
-        case "$PKG" in
-            apt-get) run_install "Tcl 8.6 (apt)" tcl8.6 ;;
-            dnf|yum) run_install "Tcl 8.6 (dnf)" tcl tcl-devel ;;
-        esac
-    fi
-
-    if ! command -v tclsh9.0 >/dev/null 2>&1; then
-        local tcl_src="$REPO_ROOT/tmp/tcl9.0.4"
-        if [ "$CHECK_ONLY" -eq 1 ]; then
-            if [ -d "$tcl_src/unix" ]; then
-                note_missing "tclsh9.0 (would build from source at $tcl_src)"
-            else
-                note_missing "tclsh9.0 (would fetch source via fetch-tcl-source skill, then build)"
-            fi
-            return 0
-        fi
-        if [ ! -d "$tcl_src/unix" ]; then
-            info "Fetching Tcl 9.0 source via fetch-tcl-source skill"
-            bash "$REPO_ROOT/.claude/skills/fetch-tcl-source/fetch_tcl_source.sh" 9.0
-        fi
-        # Need a C toolchain to compile.
-        if ! command -v gcc >/dev/null 2>&1 && ! command -v cc >/dev/null 2>&1; then
-            case "$PKG" in
-                apt-get) run_install "C toolchain (apt)" build-essential ;;
-                dnf|yum) run_install "C toolchain (dnf)" gcc make ;;
-            esac
-        fi
-        info "Building Tcl 9.0 from $tcl_src"
-        (
-            cd "$tcl_src/unix"
-            ./configure --prefix="$REPO_ROOT/tmp/tcl9-prefix" --disable-shared >/dev/null
-            make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)" >/dev/null
-        )
-        $SUDO install -m 0755 "$tcl_src/unix/tclsh" /usr/local/bin/tclsh9.0
-        info "Installed tclsh9.0 → /usr/local/bin/tclsh9.0"
-    fi
+    while IFS= read -r release; do
+        ensure_reference_tclsh "$release"
+    done <<< "$requested"
 
     # The irule_test framework + cli_venv tests look for ``tclsh`` (no
-    # version suffix).  Add a symlink to tclsh9.0 (or 8.6) when nothing
-    # provides it; distro packages sometimes leave that alternative
-    # unset.
-    if ! command -v tclsh >/dev/null 2>&1; then
-        local target=""
-        if command -v tclsh8.6 >/dev/null 2>&1; then
-            target="$(command -v tclsh8.6)"
-        elif command -v tclsh9.0 >/dev/null 2>&1; then
-            target="$(command -v tclsh9.0)"
-        fi
+    # version suffix). Add a symlink to the exact 9.0 reference when nothing
+    # provides it. --check only reports this repair; it never mutates the host.
+    if printf '%s\n' "$requested" | grep -qx 9.0 && ! command -v tclsh >/dev/null 2>&1; then
+        local target
+        target="$(command -v tclsh9.0 2>/dev/null || true)"
         if [ -n "$target" ]; then
-            $SUDO ln -sfn "$target" /usr/local/bin/tclsh
-            info "Symlinked tclsh → $target"
+            if [ "$CHECK_ONLY" -eq 1 ]; then
+                note_missing "tclsh (would symlink $TCL_REFERENCE_BIN_DIR/tclsh to $target)"
+            else
+                install_symlink "$target" "$TCL_REFERENCE_BIN_DIR/tclsh"
+                info "Symlinked tclsh → $target"
+            fi
         fi
     fi
-
-    ensure_extra_tclsh_versions
 }
 
 # ---------------------------------------------------------------- tcllib source

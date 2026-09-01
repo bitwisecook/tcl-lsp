@@ -80,7 +80,7 @@ The current owners and their semantic axes are:
 | iRules `when EVENT` blocks | `tcl_syntax::event_handler::{event_handlers, script_commands}` for supplied script regions + `tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver`, with `tcl_irules::when_blocks` wrapper | caller-supplied `LexerConfig`; offset-keyed resolved command identity at the top-level iRules boundary |
 | Per-command knowledge | `tcl-registry::CommandSpec` and descriptors | per release/dialect |
 | Dialect / release facts | `tcl-dialect::DialectProfile` | resolved profile axis |
-| C Tcl conformance oracles | `tcl-test-support` | release line plus exact interpreter/source patchlevel |
+| C Tcl conformance oracles | `tcl-dialect` reference-toolchain manifest + `tcl-test-support` | pinned patchlevel/source tag per release; exact interpreter/source provenance |
 | Interpreter platform bootstrap / safe scrub / shared-library suffix | `tcl-platform::bootstrap` | selected-host snapshot plus build values; invariant key, rebootstrap-clear, safe policy, and canonical Unix suffix |
 
 Run `cargo xtask owner-resolution` (included in `make rust-check`) after
@@ -187,8 +187,10 @@ To bump any of these versions, edit the pinned variables at the top of
 [`.claude/hooks/session-start.sh`](.claude/hooks/session-start.sh)
 (`WASMTIME_VERSION`, `BINARYEN_VERSION`, `WASI_SDK_VERSION`, `TCLLIB_TAG` /
 `TCLLIB_VERSION`; Rust tracks the floating `stable` channel via
-`RUST_TOOLCHAIN` and needs no version bump) and, for Tcl, the version/tag maps in
-[`.claude/skills/fetch-tcl-source/fetch_tcl_source.sh`](.claude/skills/fetch-tcl-source/fetch_tcl_source.sh).
+`RUST_TOOLCHAIN` and needs no version bump). Tcl reference patchlevels and
+source tags are owned by
+[`rust/tcl-dialect/data/reference-toolchains.tsv`](rust/tcl-dialect/data/reference-toolchains.tsv);
+the fetch skill and host installer consume that manifest.
 
 ### Version requirements — sources of truth and update checklist
 
@@ -225,6 +227,7 @@ The project uses GNU Make. Key targets:
 | `make fuzz`        | tcl-fuzz differential campaign (manual-only; see the fuzz-findings skill). |
 | `make test`        | **The CI-mirror test gate** — everything except Emacs: `test-rust` + `test-ext` + `runtime-rust-test` + `zed-query-check`. Use to reproduce CI locally; not required before a PR. |
 | `make test-rust`   | `cargo test --workspace --all-features` — includes the native lsp_e2e suite (`rust/tcl-lsp-server/tests/*_e2e.rs`); skip with `SKIP_TEST_RUST=1` |
+| `make test-spectcl-compat` | Fail-closed SpecTcl compatibility: 15 legacy/TclVM cases + 3 2.0 upgrade goldens + 4 live-source/hook cases + 1 real-C-Tcl parse case, using the manifest-pinned exact Tcl 9.0 reference interpreter. |
 | `make test-ext`    | VS Code extension integration tests — the single-root suite **and** the multi-root (`test:multi-folder`) suite (xvfb on headless Linux).  The **browser** extension host is a separate suite: `make lsp-server-wasm` then `cd editors/vscode && npm run test:web` (headless Chromium via `@vscode/test-web`; CI's `test-ext-web` job) |
 | `make lint-py`     | `ruff format --check` + `ruff check` over every tracked `.py` (versions pinned in the Makefile) |
 | `make format-py`   | `ruff format` over every tracked `.py` |

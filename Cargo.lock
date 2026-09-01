@@ -4599,6 +4599,7 @@ dependencies = [
  "tcl-registry",
  "tcl-spec-hooks",
  "tcl-syntax",
+ "tcl-test-support",
  "tcl-userdirs",
  "xxhash-rust",
 ]

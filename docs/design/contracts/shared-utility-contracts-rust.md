@@ -52,11 +52,28 @@ entry point, or gate moves without this contract being updated.
 | iRules execution boundaries and placement | `rust/tcl-syntax/src/event_handler.rs`; `rust/tcl-registry/src/events.rs`; `rust/tcl-registry/src/registry.rs`; `rust/tcl-irules/src/when_block.rs`; `rust/tcl-irules/src/executable.rs` | `event_handlers`; `event_handlers_with_head_predicate`; `script_commands`; `top_level_when_handlers_with_registry_and_head_resolver`; `IrulesDeclarationArguments`; `IrulesExecutionContext`; `IrulesCommandPlacement`; `IrulesTopLevelDeclaration`; `IrulesTopLevelEffect`; `CommandRegistry::irules_command_placement`; `CommandRegistry::irules_event_declaration`; `CommandRegistry::irules_top_level_declaration`; `CommandRegistry::irules_top_level_declaration_shape`; `CommandRegistry::irules_top_level_effect`; `when_blocks`; `irules_executable_commands` | caller-supplied `LexerConfig`; offset-keyed resolved command identity; exact single-braced declaration body; declaration-only top level; known-event roots; call-reachable procedure bodies; stateful priority (`0..=1000`, default 500) | `xtask-gen-ai-diagnostics` |
 | text similarity | `rust/tcl-compiler/src/text.rs` | `edit_distance`; `rank_suggestions`; `rank_containment_suggestions` | invariant | none |
 | per-command knowledge | `rust/tcl-registry/src/spec.rs`; `rust/tcl-registry/src/hooks.rs`; `rust/tcl-registry/src/registry.rs` | `CommandSpec`; `SubCommand`; `CommandRegistry` | per release/dialect | `xtask-command-backing` |
-| dialect / release facts | `rust/tcl-dialect/src/profile.rs`; `rust/tcl-dialect/src/grammar.rs` | `DialectProfile`; `LexerGrammar`; `find` | the resolved dialect/release axis | `xtask-editor-extensions` |
-| C Tcl conformance oracles | `rust/tcl-test-support/src/lib.rs` | `locate_tclsh`; `available_tclshs`; `run_script`; `locate_source_tree`; `Tclsh`; `TclSourceTree`; `ScriptOutcome` | release line plus exact interpreter/source patchlevel | none |
+| dialect / release facts | `rust/tcl-dialect/src/profile.rs`; `rust/tcl-dialect/src/grammar.rs`; `rust/tcl-dialect/src/version.rs`; `rust/tcl-dialect/data/reference-toolchains.tsv` | `DialectProfile`; `LexerGrammar`; `TclVersion`; `TclVersion::patchlevel`; `TclVersion::reference_source_tag`; `find` | the resolved dialect/release axis plus exact pinned reference patchlevel/source tag | `xtask-editor-extensions` |
+| C Tcl conformance oracles | `rust/tcl-test-support/src/lib.rs` | `reference_patchlevel`; `reference_source_tag`; `locate_tclsh`; `available_tclshs`; `run_script`; `locate_source_tree`; `Tclsh`; `TclSourceTree`; `ScriptOutcome` | exact interpreter/source agreement and provenance for the selected release line | none |
 | interpreter platform bootstrap | `rust/tcl-platform/src/lib.rs` | `bootstrap::Values`; `bootstrap::Snapshot`; `bootstrap::snapshot`; `bootstrap::entries`; `bootstrap::HOST_ARRAYS`; `bootstrap::HOST_PATH_GLOBALS`; `bootstrap::safe_scrub_keys`; `bootstrap::SHARED_LIBRARY_EXTENSION` | key, selected-host snapshot, rebootstrap-clear, safe-scrub, and canonical Unix shared-library suffix invariant; runtime identity supplied per engine | none |
 | shared plain types | `rust/tcl-core-types/src/diag_code.rs` | `DiagCode` | invariant | `xtask-diag-tables` |
 <!-- end-owner-resolution-manifest -->
+
+### `tcl-dialect` + `tcl-test-support` — C Tcl reference toolchains
+
+- The `tcl-dialect/data/reference-toolchains.tsv` manifest is the
+  language-neutral owner for the five pinned C Tcl patchlevels and their
+  upstream Tcl/Tk source tags. `tcl-dialect` generates `TclVersion`'s release
+  facts from it at build time; `tcl-test-support` reuses those APIs for oracle
+  provenance, while the POSIX shell adapter under `scripts/dev` supplies the
+  same rows to ensure-test-deps, the source-fetch skill, and remote-session
+  bootstrap.
+- Default/PATH oracle resolution requires the exact pinned patchlevel and
+  records the interpreter's reported value as provenance. An explicitly
+  paired source-tree interpreter may name another patchlevel on the same
+  release line, but its binary and `generic/tcl.h` must agree exactly.
+- The check-tcl-reference-toolchains Make target runs the hermetic
+  stale-interpreter regression (including `/bin/sh` adapter execution) and the
+  Rust all-axis release-fact test.
 
 ### `tcl-platform` — predefined platform surface
 

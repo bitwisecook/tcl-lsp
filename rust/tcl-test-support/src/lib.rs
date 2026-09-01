@@ -31,6 +31,18 @@ use std::process::{Command, Stdio};
 
 use tcl_dialect::TclVersion;
 
+/// Exact upstream patchlevel pinned for one C Tcl reference release.
+#[must_use]
+pub fn reference_patchlevel(version: TclVersion) -> &'static str {
+    version.patchlevel()
+}
+
+/// Upstream Tcl/Tk source tag pinned for one C Tcl reference release.
+#[must_use]
+pub fn reference_source_tag(version: TclVersion) -> &'static str {
+    version.reference_source_tag()
+}
+
 /// A successfully validated Tcl interpreter.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Tclsh {
@@ -216,8 +228,12 @@ pub fn tclsh_from_source_tree(
             source_tree.root.display()
         )));
     }
-    let interpreter =
-        validate_tclsh_with_library(path, version, Some(source_tree.root.join("unix").as_path()))?;
+    let interpreter = validate_tclsh_with_library(
+        path,
+        version,
+        &source_tree.patchlevel,
+        Some(source_tree.root.join("unix").as_path()),
+    )?;
     if interpreter.patchlevel != source_tree.patchlevel {
         return Err(OracleError::InvalidInterpreter(format!(
             "{} reports Tcl {}, but source tree {} is Tcl {}",
@@ -326,8 +342,8 @@ pub fn locate_source_tree(
 
     let pinned = repo_root
         .join("tmp")
-        .join(format!("tcl{}", version.patchlevel()));
-    if let Ok(tree) = validate_source_tree(&pinned, version) {
+        .join(format!("tcl{}", reference_patchlevel(version)));
+    if let Ok(tree) = validate_reference_source_tree(&pinned, version) {
         return Ok(Some(tree));
     }
 
@@ -341,20 +357,37 @@ pub fn locate_source_tree(
     candidates.sort_by(|left, right| right.cmp(left));
     candidates.dedup();
     for candidate in candidates {
-        if let Ok(tree) = validate_source_tree(&candidate, version) {
+        if let Ok(tree) = validate_reference_source_tree(&candidate, version) {
             return Ok(Some(tree));
         }
     }
     Ok(None)
 }
 
+fn validate_reference_source_tree(
+    path: &Path,
+    version: TclVersion,
+) -> Result<TclSourceTree, OracleError> {
+    let tree = validate_source_tree(path, version)?;
+    let expected = reference_patchlevel(version);
+    if tree.patchlevel != expected {
+        return Err(OracleError::InvalidSourceTree(format!(
+            "{} contains Tcl {}, expected pinned Tcl {expected}",
+            tree.root.display(),
+            tree.patchlevel
+        )));
+    }
+    Ok(tree)
+}
+
 fn validate_tclsh(path: PathBuf, version: TclVersion) -> Result<Tclsh, OracleError> {
-    validate_tclsh_with_library(path, version, None)
+    validate_tclsh_with_library(path, version, reference_patchlevel(version), None)
 }
 
 fn validate_tclsh_with_library(
     path: PathBuf,
     version: TclVersion,
+    expected_patchlevel: &str,
     library_dir: Option<&Path>,
 ) -> Result<Tclsh, OracleError> {
     let outcome = run_script_with_library(
@@ -371,9 +404,9 @@ fn validate_tclsh_with_library(
     let mut lines = text.lines();
     let reported_version = lines.next().unwrap_or_default();
     let patchlevel = lines.next().unwrap_or_default().to_owned();
-    if reported_version != version.version_string() || patchlevel.is_empty() {
+    if reported_version != version.version_string() || patchlevel != expected_patchlevel {
         return Err(OracleError::InvalidInterpreter(format!(
-            "{} reports Tcl {reported_version} {patchlevel}, expected {}",
+            "{} reports Tcl {reported_version} {patchlevel}, expected Tcl {} {expected_patchlevel}",
             path.display(),
             version.version_string()
         )));
@@ -464,7 +497,10 @@ fn which_on_path(name: &str) -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::{patchlevel_from_header, validate_source_tree};
+    use super::{
+        patchlevel_from_header, reference_patchlevel, reference_source_tag,
+        validate_reference_source_tree, validate_source_tree,
+    };
     use std::fs;
     use std::path::{Path, PathBuf};
     use tcl_dialect::TclVersion;
@@ -475,6 +511,17 @@ mod tests {
         assert_eq!(patchlevel_from_header(header).as_deref(), Some("9.0.4"));
     }
 
+    /// Every dialect release exposes the reference facts consumed by oracle
+    /// discovery; the manifest/build adapter in `tcl-dialect` guarantees the
+    /// table has exactly one row per enum axis.
+    #[test]
+    fn reference_release_facts_cover_every_dialect_axis() {
+        for version in TclVersion::ALL {
+            assert_eq!(reference_patchlevel(version), version.patchlevel());
+            assert!(reference_source_tag(version).starts_with("core-"));
+        }
+    }
+
     #[test]
     fn source_tree_validation_checks_release_and_layout() {
         let root = fixture_root("source-tree");
@@ -482,6 +529,7 @@ mod tests {
 
         let tree = validate_source_tree(&root, TclVersion::V9_0).expect("valid tree");
         assert_eq!(tree.patchlevel, "9.0.3");
+        assert!(validate_reference_source_tree(&root, TclVersion::V9_0).is_err());
         assert!(validate_source_tree(&root, TclVersion::V8_6).is_err());
         fs::remove_dir_all(root).expect("remove fixture");
     }

@@ -22,6 +22,12 @@
 
 use crate::DialectProfile;
 
+mod reference_toolchains {
+    include!(concat!(env!("OUT_DIR"), "/reference_toolchains.rs"));
+}
+
+use reference_toolchains::{REFERENCE_PATCHLEVELS, REFERENCE_SOURCE_TAGS};
+
 /// How Tcl converts a Unicode string representation to binary bytes.
 ///
 /// Tcl 8.x keeps the historic one-byte conversion: each character contributes
@@ -147,6 +153,16 @@ impl TclVersion {
     /// than rebuilding the vocabulary beside their own parser.
     pub const ALL: [Self; 5] = [Self::V8_4, Self::V8_5, Self::V8_6, Self::V9_0, Self::V9_1];
 
+    const fn reference_index(self) -> usize {
+        match self {
+            Self::V8_4 => 0,
+            Self::V8_5 => 1,
+            Self::V8_6 => 2,
+            Self::V9_0 => 3,
+            Self::V9_1 => 4,
+        }
+    }
+
     /// Compatibility parser for a dialect name at an external boundary.
     ///
     /// Typed compiler and registry paths use [`Self::from_profile`]. An
@@ -263,13 +279,18 @@ impl TclVersion {
     /// suffix is a legitimate version, not a display decoration.
     #[must_use]
     pub fn patchlevel(self) -> &'static str {
-        match self {
-            Self::V8_4 => "8.4.20",
-            Self::V8_5 => "8.5.19",
-            Self::V8_6 => "8.6.16",
-            Self::V9_0 => "9.0.4",
-            Self::V9_1 => "9.1b0",
-        }
+        REFERENCE_PATCHLEVELS[self.reference_index()]
+    }
+
+    /// Upstream Tcl/Tk source tag pinned for this release's conformance
+    /// toolchain.
+    ///
+    /// The language-neutral manifest beside this crate owns the tag together
+    /// with [`Self::patchlevel`]. Test discovery and shell setup consume this
+    /// release fact instead of maintaining their own Tcl/Tk tag maps.
+    #[must_use]
+    pub fn reference_source_tag(self) -> &'static str {
+        REFERENCE_SOURCE_TAGS[self.reference_index()]
     }
 
     /// The core packages a bare interpreter of this release pre-provides —
@@ -317,20 +338,20 @@ impl TclVersion {
     #[must_use]
     pub const fn core_provided_packages(self) -> &'static [CorePackage] {
         const TCL_8_4: &[CorePackage] = &[CorePackage::core("Tcl", "8.4")];
-        const TCL_8_5: &[CorePackage] = &[CorePackage::core("Tcl", "8.5.19")];
+        const TCL_8_5: &[CorePackage] = &[CorePackage::core("Tcl", REFERENCE_PATCHLEVELS[1])];
         const TCL_8_6: &[CorePackage] = &[
-            CorePackage::core("Tcl", "8.6.16"),
+            CorePackage::core("Tcl", REFERENCE_PATCHLEVELS[2]),
             CorePackage::tcloo("TclOO", "1.1.0"),
         ];
         const TCL_9_0: &[CorePackage] = &[
-            CorePackage::core("Tcl", "9.0.4"),
-            CorePackage::core("tcl", "9.0.4"),
+            CorePackage::core("Tcl", REFERENCE_PATCHLEVELS[3]),
+            CorePackage::core("tcl", REFERENCE_PATCHLEVELS[3]),
             CorePackage::tcloo("TclOO", "1.3.1"),
             CorePackage::tcloo("tcl::oo", "1.3.1"),
         ];
         const TCL_9_1: &[CorePackage] = &[
-            CorePackage::core("Tcl", "9.1b0"),
-            CorePackage::core("tcl", "9.1b0"),
+            CorePackage::core("Tcl", REFERENCE_PATCHLEVELS[4]),
+            CorePackage::core("tcl", REFERENCE_PATCHLEVELS[4]),
             CorePackage::tcloo("TclOO", "1.3.1"),
             CorePackage::tcloo("tcl::oo", "1.3.1"),
         ];

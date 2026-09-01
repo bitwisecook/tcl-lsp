@@ -42,6 +42,11 @@ use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
+use tcl_dialect::TclVersion;
+use tcl_test_support::{locate_tclsh, reference_patchlevel};
+
+const REQUIRE_VAR: &str = "TCL_REQUIRE_SPECTCL_COMPAT";
+
 /// Absorb the vocabulary, recurse into the bodies the loader executes, and
 /// report only what Tcl could not parse.
 const DRIVER: &str = r#"
@@ -84,33 +89,20 @@ fn repo_root() -> PathBuf {
         .to_path_buf()
 }
 
-/// The first interpreter on `PATH` that runs and reports a usable release.
-///
-/// The pack syntax is plain Tcl, so any modern interpreter is a fair judge;
-/// 9.x is preferred only because it is what the packs target. Follows the
-/// house pattern of `tcl-registry`'s dialect oracle: probe, do not assume —
-/// the `rust-tests` CI job installs Rust and nextest, not Tcl.
-fn find_tclsh() -> Option<&'static str> {
-    ["tclsh9.1", "tclsh9.0", "tclsh8.6", "tclsh"]
-        .into_iter()
-        .find(|candidate| {
-            Command::new(candidate)
-                .arg("-")
-                .stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status()
-                .is_ok_and(|status| status.success())
-        })
-}
-
 #[test]
 fn every_shipped_pack_is_a_tcl_script_a_real_tclsh_accepts() {
-    let Some(tclsh) = find_tclsh() else {
+    let tclsh = locate_tclsh(TclVersion::V9_0)
+        .unwrap_or_else(|error| panic!("could not resolve the exact Tcl 9.0 oracle: {error}"));
+    let Some(tclsh) = tclsh else {
+        assert!(
+            std::env::var_os(REQUIRE_VAR).is_none(),
+            "{REQUIRE_VAR}=1 requires tclsh9.0 at the pinned Tcl {} patchlevel",
+            reference_patchlevel(TclVersion::V9_0)
+        );
         eprintln!(
-            "skipping the real-tclsh pack gate: no working tclsh on PATH. \
-             `make ensure-test-deps` installs the interpreters; CI runs this \
-             gate on the jobs that have them."
+            "skipping the real-tclsh pack check: no exact Tcl {} tclsh9.0 on PATH. \
+             `make test-spectcl-compat` installs and requires the pinned oracle.",
+            reference_patchlevel(TclVersion::V9_0)
         );
         return;
     };
@@ -122,7 +114,7 @@ fn every_shipped_pack_is_a_tcl_script_a_real_tclsh_accepts() {
         "the inventory must cover the shipped packs"
     );
 
-    let mut child = Command::new(tclsh)
+    let mut child = Command::new(&tclsh.path)
         .arg("-")
         .args(packs.iter().map(|p| p.as_os_str()))
         .stdin(Stdio::piped())
@@ -140,7 +132,9 @@ fn every_shipped_pack_is_a_tcl_script_a_real_tclsh_accepts() {
     let failures = String::from_utf8_lossy(&out.stdout);
     assert!(
         failures.trim().is_empty(),
-        "{tclsh} refuses to source these packs:\n{failures}\n{}",
+        "{} (Tcl {}) refuses to source these packs:\n{failures}\n{}",
+        tclsh.path.display(),
+        tclsh.patchlevel,
         String::from_utf8_lossy(&out.stderr)
     );
 }
