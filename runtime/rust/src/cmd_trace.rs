@@ -1240,6 +1240,234 @@ mod tests {
         });
     }
 
+    #[test]
+    fn parent_teardown_reaches_each_child_after_parent_commands() {
+        // Tcl drains a parent's owned ensembles while both namespace tokens are
+        // live, marks only that parent dying for its ordinary command traces,
+        // and reaches each child ensemble through a separate recursive delete.
+        // Exact Tcl 9.0.4 oracle result.
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"set seen {}
+                      proc ensdeleted {tag old new op} {
+                          lappend ::seen [list $tag [namespace exists ::P] \
+                                               [namespace exists ::P::C]]
+                      }
+                      proc cmddeleted {old new op} {
+                          lappend ::seen [list PC [namespace exists ::P] \
+                                               [namespace exists ::P::C] \
+                                               [info commands ::CE]]
+                      }
+                      namespace eval ::P {
+                          namespace ensemble create -command ::PE
+                          proc p {} {}
+                          namespace eval C {
+                              namespace ensemble create -command ::CE
+                          }
+                      }
+                      trace add command ::PE delete [list ensdeleted P]
+                      trace add command ::P::p delete cmddeleted
+                      trace add command ::CE delete [list ensdeleted C]
+                      namespace delete ::P
+                      set seen"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"{P 1 1} {PC 0 1 ::CE} {C 0 1}");
+        });
+    }
+
+    #[test]
+    fn namespace_teardown_does_not_resurrect_a_dying_namespace() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"set seen {}
+                      proc cb {old new op} {
+                          lappend ::seen [namespace exists ::N]
+                          set c [catch {
+                              namespace eval ::N {proc q {} {return Q}}
+                          } m]
+                          lappend ::seen $c $m [namespace exists ::N] \
+                              [info commands ::N::q]
+                      }
+                      namespace eval N {proc p {} {return P}}
+                      trace add command ::N::p delete cb
+                      namespace delete ::N
+                      list $seen [namespace exists ::N] [info commands ::N::q]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"{0 1 {can't create namespace \"::N\": already exists} 0 {}} 0 {}"
+            );
+        });
+    }
+
+    #[test]
+    fn retained_dying_namespace_handle_is_not_publicly_live() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"set seen {}
+                      proc cb {old new op} {
+                          proc ::N::q {} {
+                              set c [catch {namespace parent {}} m o]
+                              list [namespace current] [namespace exists {}] \
+                                  $c $m [dict get $o -errorcode]
+                          }
+                          set ::seen [::N::q]
+                      }
+                      namespace eval N {proc p {} {return P}}
+                      trace add command ::N::p delete cb
+                      namespace delete ::N
+                      list $seen [namespace exists ::N] \
+                          [info commands ::N::q]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"{::N 0 1 {namespace \"\" not found in \"::N\"} \
+                  {TCL LOOKUP NAMESPACE {}}} 0 {}"
+            );
+        });
+    }
+
+    #[test]
+    fn retained_namespace_handle_remains_dead_after_deletion_returns() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval N {
+                          proc p {} {
+                              namespace delete ::N
+                              set code [catch {namespace parent {}} message options]
+                              list [namespace current] [namespace exists {}] \
+                                  $code $message [dict get $options -errorcode]
+                          }
+                          p
+                      }"
+                ),
+                Code::Ok
+            );
+            // Exact Tcl 9.0.4 oracle: the retained token still names `::N`,
+            // but relative public lookup cannot treat it as a live namespace.
+            assert_eq!(
+                i.result_bytes(),
+                b"::N 0 1 {namespace \"\" not found in \"::N\"} \
+                  {TCL LOOKUP NAMESPACE {}}"
+            );
+        });
+    }
+
+    #[test]
+    fn recreated_namespace_does_not_revive_a_retained_dead_token() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval N {
+                          proc p {} {
+                              namespace delete ::N
+                              namespace eval ::N {}
+                              set old [list [namespace current] \
+                                  [namespace exists {}] [namespace exists ::N]]
+                              set old_code [catch {namespace parent {}} \
+                                  old_message old_options]
+                              set new_code [catch {namespace parent ::N} new_message]
+                              list $old $old_code $old_message \
+                                  [dict get $old_options -errorcode] \
+                                  $new_code $new_message
+                          }
+                          p
+                      }"
+                ),
+                Code::Ok
+            );
+            // Exact Tcl 9.0.4 oracle: the recreated spelling is live through
+            // absolute lookup, but the old activation retains its dead token.
+            assert_eq!(
+                i.result_bytes(),
+                b"{::N 0 1} 1 {namespace \"\" not found in \"::N\"} \
+                  {TCL LOOKUP NAMESPACE {}} 0 ::"
+            );
+        });
+    }
+
+    #[test]
+    fn namespace_teardown_sweeps_callback_created_commands_and_imports() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"set seen {}
+                      proc qdel {old new op} {
+                          set c [catch {$old} result]
+                          lappend ::seen [list qdel $old $c $result]
+                      }
+                      proc cb {old new op} {
+                          proc ::N::q {} {return Q}
+                          trace add command ::N::q delete qdel
+                          namespace eval ::I {namespace import ::N::q}
+                          lappend ::seen [list callback [namespace exists ::N] \
+                              [::N::q] [::I::q] [namespace origin ::I::q]]
+                      }
+                      namespace eval I {}
+                      namespace eval N {
+                          namespace export q
+                          proc p {} {return P}
+                      }
+                      trace add command ::N::p delete cb
+                      namespace delete ::N
+                      set first $seen
+                      set absent [list [namespace exists ::N] \
+                          [info commands ::N::q] [info commands ::I::q] \
+                          [namespace eval I {namespace import}]]
+                      namespace eval N {proc q {} {return NEW}}
+                      rename ::N::q {}
+                      list $first $absent $seen [namespace exists ::N] \
+                          [info commands ::I::q]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"{{callback 0 Q Q ::N::q} {qdel ::N::q 0 Q}} \
+                  {0 {} {} {}} \
+                  {{callback 0 Q Q ::N::q} {qdel ::N::q 0 Q}} 1 {}"
+            );
+        });
+    }
+
+    #[test]
+    fn descendant_delete_callback_creates_a_fresh_visible_namespace_tree() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"proc cb {old new op} {
+                          namespace eval ::N::C::X {
+                              proc p {} {return P}
+                          }
+                      }
+                      namespace eval ::N::C {
+                          namespace export q
+                          proc q {} {return Q}
+                      }
+                      namespace eval ::I {namespace import ::N::C::q}
+                      trace add command ::N::C::q delete cb
+                      namespace delete ::N
+                      list [namespace exists ::N] \
+                          [info commands ::N::C::X::p] [::N::C::X::p] \
+                          [info commands ::I::q] \
+                          [namespace eval I {namespace import}]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"1 ::N::C::X::p P {} {}");
+        });
+    }
+
     /// C tears a namespace down one entity at a time, completing each
     /// variable's whole trace list before the next, so **interleaved**
     /// registrations still fire as contiguous per-variable groups. This is the

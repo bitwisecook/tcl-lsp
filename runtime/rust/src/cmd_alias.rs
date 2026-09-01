@@ -34,7 +34,7 @@
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
-use crate::interp::{obj_bytes, Code, Interp};
+use crate::interp::{obj_bytes, Code, CommandVisibilityOp, Interp};
 use crate::list;
 use crate::namespace::RenameOutcome;
 use crate::obj::{self, TclObj};
@@ -159,8 +159,8 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 None => not_found_path(interp, &path),
             }
         }
-        b"hide" => interp_hidectl(interp, argv, HideOp::Hide),
-        b"expose" => interp_hidectl(interp, argv, HideOp::Expose),
+        b"hide" => interp_hidectl(interp, argv, CommandVisibilityOp::Hide),
+        b"expose" => interp_hidectl(interp, argv, CommandVisibilityOp::Expose),
         b"invokehidden" => interp_invokehidden(interp, argv),
         b"limit" => interp_limit(interp, argv),
         b"marktrusted" => interp_marktrusted(interp, argv),
@@ -330,12 +330,6 @@ fn not_found_path(interp: &mut Interp, path: &[Vec<u8>]) -> Code {
     interp.set_error(&m)
 }
 
-#[derive(Clone, Copy)]
-enum HideOp {
-    Hide,
-    Expose,
-}
-
 /// `interp limit path limitType ?-option value …?` — query/configure the
 /// `commands` or `time` limit on a child interp.
 fn interp_limit(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -416,21 +410,29 @@ fn is_global_command(name: &[u8]) -> bool {
 
 /// `interp hide|expose path cmdName` — move a command into/out of the hidden
 /// table of the named (or current, when path is `{}`) interpreter.
-fn interp_hidectl(interp: &mut Interp, argv: &[*mut TclObj], op: HideOp) -> Code {
+fn interp_hidectl(interp: &mut Interp, argv: &[*mut TclObj], op: CommandVisibilityOp) -> Code {
     // `interp hide   path cmdName     ?hiddenCmdName?`
     // `interp expose path hiddenName  ?cmdName?`
     if argv.len() != 4 && argv.len() != 5 {
         return match op {
-            HideOp::Hide => interp.wrong_args(b"interp hide path cmdName ?hiddenCmdName?"),
-            HideOp::Expose => interp.wrong_args(b"interp expose path hiddenCmdName ?cmdName?"),
+            CommandVisibilityOp::Hide => {
+                interp.wrong_args(b"interp hide path cmdName ?hiddenCmdName?")
+            }
+            CommandVisibilityOp::Expose => {
+                interp.wrong_args(b"interp expose path hiddenCmdName ?cmdName?")
+            }
         };
     }
     // A safe interpreter may not touch the hidden-command table of itself or
     // any of its children (the check is on the *executing* interp).
     if interp.is_safe() {
         return interp.set_error(match op {
-            HideOp::Hide => b"permission denied: safe interpreter cannot hide commands",
-            HideOp::Expose => b"permission denied: safe interpreter cannot expose commands",
+            CommandVisibilityOp::Hide => {
+                b"permission denied: safe interpreter cannot hide commands"
+            }
+            CommandVisibilityOp::Expose => {
+                b"permission denied: safe interpreter cannot expose commands"
+            }
         });
     }
     let path = interp_path(argv[2]);
@@ -443,7 +445,7 @@ fn interp_hidectl(interp: &mut Interp, argv: &[*mut TclObj], op: HideOp) -> Code
     // The hidden-command token may never carry namespace qualifiers, and only
     // global-namespace commands can be hidden / exposed-from.
     match op {
-        HideOp::Hide => {
+        CommandVisibilityOp::Hide => {
             if token.windows(2).any(|w| w == b"::") {
                 return interp.set_error(
                     b"cannot use namespace qualifiers in hidden command token (rename)",
@@ -454,7 +456,7 @@ fn interp_hidectl(interp: &mut Interp, argv: &[*mut TclObj], op: HideOp) -> Code
                     .set_error(b"can only hide global namespace commands (use rename then hide)");
             }
         }
-        HideOp::Expose => {
+        CommandVisibilityOp::Expose => {
             if cmd.windows(2).any(|w| w == b"::") {
                 return interp.set_error(
                     b"cannot use namespace qualifiers in hidden command token (rename)",
@@ -472,17 +474,13 @@ fn interp_hidectl(interp: &mut Interp, argv: &[*mut TclObj], op: HideOp) -> Code
     // command-surface setup. Exposure remains a separate operation with its
     // existing hidden-command error behaviour.
     let moved = interp.with_child_path(&path, |c| match op {
-        HideOp::Hide => c.hide_command(&cmd),
-        HideOp::Expose => c.expose_command(&cmd),
+        CommandVisibilityOp::Hide => c.hide_command(&cmd, &token),
+        CommandVisibilityOp::Expose => c.expose_command(&cmd, &token),
     });
     let Some(moved) = moved else {
         return not_found_path(interp, &path);
     };
-    if matches!(op, HideOp::Hide) && !moved {
-        return interp.unknown_command(&cmd);
-    }
-    interp.set_result_bytes(b"");
-    Code::Ok
+    interp.finish_command_visibility(op, &cmd, &token, moved)
 }
 
 /// `interp invokehidden path ?-opt ...? cmdName ?arg ...?` — invoke a hidden
@@ -903,12 +901,50 @@ mod tests {
             assert_eq!(i.eval_str(b"interp hidden {}"), Code::Ok);
             assert_eq!(i.result_bytes(), b"visible");
             assert_eq!(i.eval_str(b"interp hide {} visible"), Code::Error);
-            assert_eq!(i.result_bytes(), b"unknown command \"visible\"");
+            assert_eq!(
+                i.result_bytes(),
+                b"hidden command named \"visible\" already exists"
+            );
             assert_eq!(i.eval_str(b"interp invokehidden {} visible"), Code::Ok);
             assert_eq!(i.result_bytes(), b"visible");
             assert_eq!(i.eval_str(b"interp expose {} visible"), Code::Ok);
             assert_eq!(i.eval_str(b"visible"), Code::Ok);
             assert_eq!(i.result_bytes(), b"visible");
+
+            // Destination conflicts are diagnosed before either table is
+            // mutated. Both the source command and existing destination keep
+            // their identities and remain callable.
+            assert_eq!(
+                i.eval_str(
+                    b"proc p {} {return P}
+                      interp hide {} p held
+                      proc q {} {return Q}
+                      set c [catch {interp hide {} q held} m o]
+                      list $c $m [dict get $o -errorcode] [q] \
+                           [interp invokehidden {} held] [interp hidden {}]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"1 {hidden command named \"held\" already exists} \
+                  {TCL HIDE ALREADY_HIDDEN} Q P held"
+            );
+
+            assert_eq!(
+                i.eval_str(
+                    b"proc E {} {return E}
+                      set c [catch {interp expose {} held E} m o]
+                      list $c $m [dict get $o -errorcode] [E] \
+                           [interp invokehidden {} held] [interp hidden {}]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"1 {exposed command \"E\" already exists} \
+                  {TCL EXPOSE COMMAND_EXISTS} E P held"
+            );
 
             // Release-hidden builtins are absent from both rename and hide;
             // neither operation may make an 8.5+ command callable in 8.4.
@@ -920,6 +956,81 @@ mod tests {
             );
             assert_eq!(i.eval_str(b"interp hide {} lassign"), Code::Error);
             assert_eq!(i.result_bytes(), b"unknown command \"lassign\"");
+        });
+    }
+
+    #[test]
+    fn visibility_failures_match_direct_and_child_oracles() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"set out {}
+                      foreach script {
+                          {interp hide {} nosuch}
+                          {interp expose {} nosuch}
+                      } {
+                          catch $script m o
+                          lappend out $m [dict get $o -errorcode]
+                      }
+                      proc held {} {return OLD}
+                      interp hide {} held
+                      proc held {} {return NEW}
+                      catch {interp hide {} held} m o
+                      lappend out $m [dict get $o -errorcode]
+                      proc E {} {return OLD}
+                      interp hide {} E
+                      proc E {} {return NEW}
+                      catch {interp expose {} E} m o
+                      lappend out $m [dict get $o -errorcode]
+                      set out"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"{unknown command \"nosuch\"} {TCL LOOKUP COMMAND nosuch} \
+                  {unknown hidden command \"nosuch\"} \
+                  {TCL LOOKUP HIDDENTOKEN nosuch} \
+                  {hidden command named \"held\" already exists} \
+                  {TCL HIDE ALREADY_HIDDEN} \
+                  {exposed command \"E\" already exists} \
+                  {TCL EXPOSE COMMAND_EXISTS}"
+            );
+        });
+
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"set c [interp create]
+                      set out {}
+                      foreach subcommand {hide expose} {
+                          catch [list $c $subcommand nosuch] m o
+                          lappend out $m [dict get $o -errorcode]
+                      }
+                      $c eval {proc held {} {return OLD}}
+                      $c hide held
+                      $c eval {proc held {} {return NEW}}
+                      catch [list $c hide held] m o
+                      lappend out $m [dict get $o -errorcode]
+                      $c eval {proc E {} {return OLD}}
+                      $c hide E
+                      $c eval {proc E {} {return NEW}}
+                      catch [list $c expose E] m o
+                      lappend out $m [dict get $o -errorcode]
+                      set out"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"{unknown command \"nosuch\"} {TCL LOOKUP COMMAND nosuch} \
+                  {unknown hidden command \"nosuch\"} \
+                  {TCL LOOKUP HIDDENTOKEN nosuch} \
+                  {hidden command named \"held\" already exists} \
+                  {TCL HIDE ALREADY_HIDDEN} \
+                  {exposed command \"E\" already exists} \
+                  {TCL EXPOSE COMMAND_EXISTS}"
+            );
         });
     }
 

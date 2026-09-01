@@ -483,6 +483,243 @@ fn deleting_a_namespace_deletes_its_ensembles() {
 }
 
 #[test]
+fn namespace_owned_ensemble_trace_precedes_the_dying_marker() {
+    // Tcl_DeleteNamespace drains nsPtr->ensembles before setting NS_DYING.
+    // A global command owned by ::N therefore remains visible as an ensemble
+    // while its delete trace also sees the namespace token as live; both are
+    // absent once namespace deletion returns. Exact Tcl 9.0.4 oracle result.
+    assert_eq!(
+        run("set seen {}
+             proc observe {old new op} {
+                 lappend ::seen [list [namespace exists ::N] $old \
+                     [info commands $old] [namespace ensemble exists $old]]
+             }
+             namespace eval N {namespace ensemble create -command ::E}
+             trace add command ::E delete observe
+             namespace delete ::N
+             list $seen [namespace exists ::N] [info commands ::E]"),
+        "{{1 ::E ::E 1}} 0 {}"
+    );
+}
+
+#[test]
+fn namespace_owned_ensembles_retire_live_heads_in_creation_order() {
+    // Tcl_CreateEnsemble pushes each token at the head of nsPtr->ensembles and
+    // Tcl_DeleteNamespace removes one live head at a time. A delete callback's
+    // newly-created ensemble is consequently the next head, ahead of the older
+    // token that was already waiting. Exact Tcl 9.0.4 oracle result.
+    assert_eq!(
+        run("set seen {}
+             proc deleted {old new op} {
+                 lappend ::seen [namespace tail $old]
+                 if {[namespace tail $old] eq \"E2\"} {
+                     namespace eval ::N {
+                         namespace ensemble create -command ::E3
+                     }
+                     trace add command ::E3 delete deleted
+                 }
+             }
+             namespace eval ::N {
+                 namespace ensemble create -command ::E1
+                 namespace ensemble create -command ::E2
+             }
+             trace add command ::E1 delete deleted
+             trace add command ::E2 delete deleted
+             namespace delete ::N
+             set seen"),
+        "E2 E3 E1"
+    );
+}
+
+#[test]
+fn parent_teardown_reaches_each_child_after_parent_commands() {
+    // Tcl drains a parent's owned ensembles while both namespace tokens are
+    // live, then marks only the parent dying and retires its ordinary command
+    // table. The child remains live until its own recursive ensemble phase.
+    // Exact Tcl 9.0.4 oracle result.
+    assert_eq!(
+        run("set seen {}
+             proc ensdeleted {tag old new op} {
+                 lappend ::seen [list $tag [namespace exists ::P] \
+                                      [namespace exists ::P::C]]
+             }
+             proc cmddeleted {old new op} {
+                 lappend ::seen [list PC [namespace exists ::P] \
+                                      [namespace exists ::P::C] \
+                                      [info commands ::CE]]
+             }
+             namespace eval ::P {
+                 namespace ensemble create -command ::PE
+                 proc p {} {}
+                 namespace eval C {
+                     namespace ensemble create -command ::CE
+                 }
+             }
+             trace add command ::PE delete [list ensdeleted P]
+             trace add command ::P::p delete cmddeleted
+             trace add command ::CE delete [list ensdeleted C]
+             namespace delete ::P
+             set seen"),
+        "{P 1 1} {PC 0 1 ::CE} {C 0 1}"
+    );
+}
+
+#[test]
+fn child_namespace_teardown_uses_tcl_string_hash_order() {
+    // TclDeleteNamespaceChildren snapshots the parent's childTable with
+    // Tcl_FirstHashEntry/Tcl_NextHashEntry, not namespace creation order.
+    // Each child's owned ensemble makes that recursive order observable. Exact
+    // Tcl 9.0.4 oracle result.
+    assert_eq!(
+        run("set seen {}
+             proc deleted {tag old new op} {lappend ::seen $tag}
+             foreach n {one two three four five six seven eight nine ten} {
+                 namespace eval ::P::$n \
+                     [list namespace ensemble create -command ::E_$n]
+                 trace add command ::E_$n delete [list deleted $n]
+             }
+             namespace delete ::P
+             set seen"),
+        "six four three eight seven nine five two one ten"
+    );
+}
+
+#[test]
+fn deleting_a_namespace_fully_retires_its_visible_ensemble_once() {
+    // The ensemble lives in the global command table but is owned by ::N.
+    // Namespace teardown fires and removes its delete trace. A later, distinct
+    // ::E lifecycle must not inherit that trace. Exact Tcl 9.0.4 oracle result.
+    assert_eq!(
+        run("set hits {}
+             proc deleted {old new op} {lappend ::hits [list $old $new $op]}
+             namespace eval N {
+                 proc x args {return OLD}
+                 namespace ensemble create -command ::E -map {x ::N::x}
+             }
+             trace add command ::E delete deleted
+             namespace delete ::N
+             set first $hits
+             namespace eval N {
+                 proc x args {return NEW}
+                 namespace ensemble create -command ::E -map {x ::N::x}
+             }
+             rename ::E {}
+             list $first $hits"),
+        "{{::E {} delete}} {{::E {} delete}}"
+    );
+}
+
+#[test]
+fn deleting_a_namespace_fully_retires_ordinary_commands_once() {
+    // Ordinary namespace members use the same command-token deletion
+    // lifecycle as explicitly renamed commands. The trace fires once during
+    // teardown and cannot attach to a later command at the vacated name.
+    // Exact Tcl 9.0.4 oracle result.
+    assert_eq!(
+        run("set hits {}
+             proc deleted {old new op} {lappend ::hits [list $old $new $op]}
+             namespace eval N {proc p {} {}}
+             trace add command ::N::p delete deleted
+             namespace delete ::N
+             set first $hits
+             namespace eval N {proc p {} {}}
+             rename ::N::p {}
+             list $first $hits"),
+        "{{::N::p {} delete}} {{::N::p {} delete}}"
+    );
+}
+
+#[test]
+fn namespace_delete_marks_the_namespace_dying_before_command_traces() {
+    // The namespace token is already non-existent, but the dying command is
+    // still visible during its delete trace. A callback may replace and invoke
+    // that command; the replacement remains in the dying table only until
+    // teardown finishes. Exact Tcl 9.0.4 oracle result.
+    assert_eq!(
+        run("set seen {}
+             proc deleted {old new op} {
+                 lappend ::seen [list before [namespace exists ::N] \
+                                      [info commands $old]]
+                 proc $old {} {return NEW}
+                 lappend ::seen [list after [namespace exists ::N] \
+                                      [info commands $old] \
+                                      [namespace exists ::N] [$old]]
+             }
+             namespace eval N {proc p {} {return OLD}}
+             trace add command ::N::p delete deleted
+             namespace delete ::N
+             set seen"),
+        "{before 0 ::N::p} {after 0 ::N::p 0 NEW}"
+    );
+    assert_eq!(
+        run("set hits 0
+             proc deleted {old new op} {incr ::hits; proc $old {} {return NEW}}
+             namespace eval N {proc p {} {return OLD}}
+             trace add command ::N::p delete deleted
+             namespace delete ::N
+             set after [info commands ::N::p]
+             namespace eval N {proc p {} {return LATER}}
+             rename ::N::p {}
+             list $after $hits"),
+        "{} 1"
+    );
+
+    // Re-entering the exact dying namespace may provide a temporary frame to
+    // the callback, but it cannot resurrect the namespace token. Exact Tcl
+    // 9.0.4 oracle result.
+    assert_eq!(
+        run("set seen {}
+             proc deleted {old new op} {
+                 namespace eval ::N {lappend ::seen [namespace exists ::N]}
+             }
+             namespace eval N {proc p {} {}}
+             trace add command ::N::p delete deleted
+             namespace delete ::N
+             list $seen [namespace exists ::N]"),
+        "0 0"
+    );
+}
+
+#[test]
+fn namespace_exists_uses_namespace_name_canonicalisation() {
+    // A trailing separator run belongs to namespace-name grammar and drops;
+    // it must not be preserved as the empty command tail. Exact Tcl 9.0.4
+    // oracle result (and a regression for namespace_colon_runs_e2e).
+    assert_eq!(
+        run("namespace eval c9::: {}
+             list [namespace exists ::c9] [namespace exists c9:::]"),
+        "1 1"
+    );
+}
+
+#[test]
+fn namespace_delete_retires_callback_created_hidden_ensemble_imports() {
+    // The callback creates a namespace-owned ensemble, imports it, and moves
+    // that import to the hidden table. Namespace teardown must revisit the
+    // live command/ensemble frontier and retire the hidden import through its
+    // source token's normal import graph. Exact Tcl 9.0.4 oracle result.
+    assert_eq!(
+        run("namespace export E
+             proc target {} {return TARGET}
+             proc late {old new op} {
+                 namespace eval ::N {
+                     namespace ensemble create -command ::E -map {x ::target}
+                 }
+                 namespace eval ::I {namespace import ::E}
+                 interp hide {} ::I::E held
+             }
+             namespace eval ::N {proc p {} {}}
+             trace add command ::N::p delete late
+             namespace delete ::N
+             set c [catch {interp invokehidden {} held x} m o]
+             list [info commands ::E] [interp hidden {}] \
+                  [info commands ::I::E] $c $m [dict get $o -errorcode]"),
+        "{} {} {} 1 {invalid hidden command name \"held\"} \
+         {TCL LOOKUP HIDDENTOKEN held}"
+    );
+}
+
+#[test]
 fn namespace_path_checks_that_every_entry_exists() {
     // (d) `NamespacePathCmd` resolves each entry with
     // `TclGetNamespaceFromObj` before installing the path.
@@ -536,6 +773,19 @@ fn namespace_children_matches_tcls_string_hash_iteration_order() {
     assert_eq!(
         run(&format!("{setup}namespace children ::order ::order::t*")),
         "::order::three ::order::two ::order::ten"
+    );
+}
+
+#[test]
+fn namespace_children_retains_tcls_hash_capacity_after_deletion() {
+    assert_eq!(
+        run("namespace eval p {}
+             foreach n {a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11} {
+                 namespace eval ::p::$n {}
+             }
+             foreach i {1 2 4 5 6 7 8 9 10 11} {namespace delete ::p::a$i}
+             namespace children ::p"),
+        "::p::a0 ::p::a3"
     );
 }
 
@@ -616,6 +866,22 @@ fn ensemble_create_accepts_parameters_and_threads_them() {
 }
 
 #[test]
+fn ensemble_wrong_args_list_quotes_the_command_and_parameters() {
+    // The usage prefix is a Tcl list of command/parameter words, not a string
+    // joined with spaces. Exact Tcl 9.0.4 oracle result.
+    assert_eq!(
+        run("namespace eval {E space} {
+                 namespace ensemble create -command {::E space} \
+                     -parameters {{a b}}
+             }
+             catch {{::E space}} m o
+             list $m [dict get $o -errorcode]"),
+        "{wrong # args: should be \"{::E space} {a b} subcommand ?arg ...?\"} \
+         {TCL WRONGARGS}"
+    );
+}
+
+#[test]
 fn ensemble_create_checks_pair_arity_before_option_words() {
     // C: `if (objc & 1)` fires before any `Tcl_GetIndexFromObj`
     // (tclEnsemble.c:192), so an odd tail is `wrong # args`, never `bad option`.
@@ -665,6 +931,549 @@ fn configuring_an_imported_ensemble_updates_the_origin() {
     assert_eq!(
         run(&format!("{setup}namespace origin ::T::ens")),
         "::S::ens"
+    );
+}
+
+#[test]
+fn imported_ensemble_tracks_atomic_replacement_but_not_true_deletion() {
+    // Tcl_CreateObjCommand-style replacement keeps the source table token, so
+    // an existing import observes the new implementation and retains its
+    // provenance. Exact Tcl 9.0.4 oracle result.
+    assert_eq!(
+        run("proc tgt_old args {return OLD}
+             proc tgt_new args {return NEW}
+             namespace eval S {
+                 namespace export E
+                 namespace ensemble create -command ::S::E -map {x ::tgt_old}
+             }
+             namespace eval I {namespace import ::S::E}
+             namespace eval S {
+                 namespace ensemble create -command ::S::E -map {x ::tgt_new}
+             }
+             list [::I::E x] [namespace origin ::I::E] \
+                  [namespace ensemble configure ::I::E -map]"),
+        "NEW ::S::E {x ::tgt_new}"
+    );
+
+    // A true source deletion removes the import. Recreating an unrelated
+    // command at the old source name does not resurrect it; configure and
+    // invocation retain their distinct Tcl LOOKUP messages. Exact 9.0.4.
+    assert_eq!(
+        run("proc tgt_old args {return OLD}
+             proc tgt_new args {return NEW}
+             namespace eval S {
+                 namespace export E
+                 namespace ensemble create -command ::S::E -map {x ::tgt_old}
+             }
+             namespace eval I {namespace import ::S::E}
+             rename ::S::E {}
+             set before [list [info commands ::I::E] \
+                              [namespace ensemble exists ::I::E]]
+             set cc [catch {namespace ensemble configure ::I::E} cm co]
+             set ic [catch {::I::E x} im io]
+             namespace eval S {
+                 namespace ensemble create -command ::S::E -map {x ::tgt_new}
+             }
+             list $before $cc $cm [dict get $co -errorcode] \
+                  $ic $im [dict get $io -errorcode] \
+                  [info commands ::I::E] [namespace ensemble exists ::I::E]"),
+        "{{} 0} 1 {unknown command \"::I::E\"} {TCL LOOKUP COMMAND ::I::E} \
+         1 {invalid command name \"::I::E\"} {TCL LOOKUP COMMAND ::I::E} {} 0"
+    );
+}
+
+#[test]
+fn transitive_import_tracks_an_intermediate_replacement_and_deletion() {
+    // Replacing an imported binding turns that name into a real command token.
+    // Its downstream imports immediately observe the new implementation and
+    // origin; deleting that new source token then removes them. Exact Tcl
+    // 9.0.4 oracle result.
+    assert_eq!(
+        run("namespace eval S {proc p {} {return S}; namespace export p}
+             namespace eval A {namespace import ::S::p; namespace export p}
+             namespace eval B {namespace import ::A::p}
+             proc ::A::p {} {return A}
+             set before [list [::B::p] [namespace origin ::B::p]]
+             rename ::A::p {}
+             list $before [info commands ::B::p]"),
+        "{A ::A::p} {}"
+    );
+}
+
+#[test]
+fn deleting_an_imported_intermediate_retires_its_downstream_imports() {
+    // A::p is still an imported command token here. Deleting it retires B::p,
+    // which imports that immediate token, without retiring the upstream S::p
+    // implementation. Exact Tcl 9.0.4 oracle result.
+    assert_eq!(
+        run("namespace eval S {proc p {} {return S}; namespace export p}
+             namespace eval A {namespace import ::S::p; namespace export p}
+             namespace eval B {namespace import ::A::p}
+             rename ::A::p {}
+             list [info commands ::A::p] [info commands ::B::p] \
+                  [::S::p] [namespace origin ::S::p]"),
+        "{} {} S ::S::p"
+    );
+}
+
+#[test]
+fn import_delete_trace_can_reimport_the_same_origin_at_the_same_name() {
+    // The callback creates a new imported command token whose name and origin
+    // equal the dying token's. Stable binding identity, rather than provenance
+    // equality alone, keeps that replacement alive. Exact Tcl 9.0.4 oracle.
+    assert_eq!(
+        run("namespace eval S {proc p {} {return S}; namespace export p}
+             namespace eval A {namespace import ::S::p}
+             proc reimport {old new op} {
+                 namespace eval ::A {namespace import -force ::S::p}
+             }
+             trace add command ::A::p delete reimport
+             rename ::A::p {}
+             list [info commands ::A::p] [::A::p] \
+                  [namespace origin ::A::p]"),
+        "::A::p S ::S::p"
+    );
+}
+
+#[test]
+fn import_delete_retires_the_exact_generation_after_trace_relocation() {
+    // The delete callback can move the dying imported token. Retirement
+    // follows its stable generation, including relocated trace sidecars, and
+    // leaves neither spelling callable. Exact Tcl 9.0.4 oracle result.
+    assert_eq!(
+        run("proc move {old new op} {rename $old ::I::q}
+             namespace eval S {proc p {} {return S}; namespace export p}
+             namespace eval I {namespace import ::S::p}
+             trace add command ::I::p delete move
+             rename ::S::p {}
+             namespace eval I {
+                 set code [catch {q} message options]
+                 list [info commands ::I::p] [info commands ::I::q] \
+                      $code $message [dict get $options -errorcode]
+             }"),
+        "{} {} 1 {invalid command name \"q\"} {TCL LOOKUP COMMAND q}"
+    );
+
+    // Hidden and exposed domains carry that same generation. The callback's
+    // double relocation leaves neither a hidden token nor the exposed global
+    // command behind. Exact Tcl 9.0.4 oracle result.
+    assert_eq!(
+        run("proc move {old new op} {
+                 interp hide {} $old held
+                 interp expose {} held q
+             }
+             namespace eval S {proc p {} {return S}; namespace export p}
+             namespace eval I {namespace import ::S::p}
+             trace add command ::I::p delete move
+             rename ::S::p {}
+             set code [catch {q} message options]
+             list [info commands ::I::p] [info commands ::q] \
+                  [interp hidden {}] $code $message \
+                  [dict get $options -errorcode]"),
+        "{} {} {} 1 {invalid command name \"q\"} {TCL LOOKUP COMMAND q}"
+    );
+}
+
+#[test]
+fn interp_hide_and_expose_failures_keep_typed_tcl_identities() {
+    // Exercise the current interpreter, a named child, and the child's own
+    // command entry point. Names with spaces also prove that lookup codes are
+    // encoded as Tcl lists rather than joined diagnostic strings. Exact Tcl
+    // 9.0.4 oracle result.
+    assert_eq!(
+        run("proc outcome script {
+                 set code [catch {uplevel 1 $script} message options]
+                 list $code $message [dict get $options -errorcode]
+             }
+             set out {}
+             lappend out [outcome {interp hide {} {not here}}]
+             lappend out [outcome {interp expose {} {not hidden}}]
+             proc p {} {return P}
+             interp hide {} p held
+             proc q {} {return Q}
+             lappend out [outcome {interp hide {} q held}]
+             lappend out [outcome {interp expose {} held q}]
+             interp create kid
+             lappend out [outcome {interp hide kid {not here}}]
+             lappend out [outcome {interp expose kid {not hidden}}]
+             kid eval {
+                 proc p {} {return P}
+                 interp hide {} p held
+                 proc q {} {return Q}
+             }
+             lappend out [outcome {interp hide kid q held}]
+             lappend out [outcome {interp expose kid held q}]
+             lappend out [outcome {kid hide {not here}}]
+             lappend out [outcome {kid expose {not hidden}}]
+             kid eval {
+                 proc a {} {return A}
+                 interp hide {} a
+                 proc a {} {return NEW}
+             }
+             lappend out [outcome {kid hide a}]
+             lappend out [outcome {kid expose a}]
+             set out"),
+        "{1 {unknown command \"not here\"} {TCL LOOKUP COMMAND {not here}}} \
+         {1 {unknown hidden command \"not hidden\"} {TCL LOOKUP HIDDENTOKEN {not hidden}}} \
+         {1 {hidden command named \"held\" already exists} {TCL HIDE ALREADY_HIDDEN}} \
+         {1 {exposed command \"q\" already exists} {TCL EXPOSE COMMAND_EXISTS}} \
+         {1 {unknown command \"not here\"} {TCL LOOKUP COMMAND {not here}}} \
+         {1 {unknown hidden command \"not hidden\"} {TCL LOOKUP HIDDENTOKEN {not hidden}}} \
+         {1 {hidden command named \"held\" already exists} {TCL HIDE ALREADY_HIDDEN}} \
+         {1 {exposed command \"q\" already exists} {TCL EXPOSE COMMAND_EXISTS}} \
+         {1 {unknown command \"not here\"} {TCL LOOKUP COMMAND {not here}}} \
+         {1 {unknown hidden command \"not hidden\"} {TCL LOOKUP HIDDENTOKEN {not hidden}}} \
+         {1 {hidden command named \"a\" already exists} {TCL HIDE ALREADY_HIDDEN}} \
+         {1 {exposed command \"a\" already exists} {TCL EXPOSE COMMAND_EXISTS}}"
+    );
+}
+
+#[test]
+fn interp_visibility_qualifier_validation_is_shared_by_every_entry_form() {
+    // The one-word `$child` shorthand uses that word for both roles. Hide
+    // diagnoses the hidden-token role first; expose diagnoses its visible
+    // destination first. Explicit forms also validate each distinct role.
+    // Exact Tcl 9.0.4 oracle result.
+    assert_eq!(
+        run("proc outcome script {
+                 set code [catch {uplevel 1 $script} message options]
+                 list $code $message [dict get $options -errorcode]
+             }
+             proc p {} {return P}
+             namespace eval N {proc p {} {return NP}}
+             interp create kid
+             kid eval {
+                 proc p {} {return P}
+                 namespace eval N {proc p {} {return NP}}
+             }
+             list \
+                 [outcome {interp hide {} N::p}] \
+                 [outcome {interp expose {} N::p}] \
+                 [outcome {interp hide kid N::p}] \
+                 [outcome {interp expose kid N::p}] \
+                 [outcome {kid hide N::p}] \
+                 [outcome {kid expose N::p}] \
+                 [outcome {interp hide kid p N::held}] \
+                 [outcome {interp expose kid N::held q}] \
+                 [outcome {interp hide kid N::p held}] \
+                 [outcome {interp expose kid held N::q}]"),
+        "{1 {cannot use namespace qualifiers in hidden command token (rename)} \
+             {TCL VALUE HIDDENTOKEN}} \
+         {1 {cannot expose to a namespace (use rename then expose)} \
+             {TCL EXPOSE NON_GLOBAL}} \
+         {1 {cannot use namespace qualifiers in hidden command token (rename)} \
+             {TCL VALUE HIDDENTOKEN}} \
+         {1 {cannot expose to a namespace (use rename then expose)} \
+             {TCL EXPOSE NON_GLOBAL}} \
+         {1 {cannot use namespace qualifiers in hidden command token (rename)} \
+             {TCL VALUE HIDDENTOKEN}} \
+         {1 {cannot expose to a namespace (use rename then expose)} \
+             {TCL EXPOSE NON_GLOBAL}} \
+         {1 {cannot use namespace qualifiers in hidden command token (rename)} \
+             {TCL VALUE HIDDENTOKEN}} \
+         {1 {cannot use namespace qualifiers in hidden command token (rename)} \
+             {TCL VALUE HIDDENTOKEN}} \
+         {1 {can only hide global namespace commands (use rename then hide)} \
+             {TCL HIDE NON_GLOBAL}} \
+         {1 {cannot expose to a namespace (use rename then expose)} \
+             {TCL EXPOSE NON_GLOBAL}}"
+    );
+}
+
+#[test]
+fn imported_binding_delete_trace_runs_before_unlink_and_is_reentrant() {
+    // The imported binding remains in its namespace table while its delete
+    // trace runs. Exact Tcl 9.0.4 oracle result.
+    assert_eq!(
+        run("set seen {}
+             proc observed {old new op} {lappend ::seen [info commands $old]}
+             namespace eval S {proc p {} {return S}; namespace export p}
+             namespace eval I {namespace import ::S::p}
+             trace add command ::I::p delete observed
+             rename ::S::p {}
+             set seen"),
+        "::I::p"
+    );
+
+    // A delete trace may replace the imported binding. The outer source
+    // deletion must not unlink that newly-created real command. Exact Tcl
+    // 9.0.4 oracle result.
+    assert_eq!(
+        run("proc replace {old new op} {proc $old {} {return REPLACED}}
+             namespace eval S {proc p {} {return S}; namespace export p}
+             namespace eval I {namespace import ::S::p}
+             trace add command ::I::p delete replace
+             rename ::S::p {}
+             list [::I::p] [namespace origin ::I::p]"),
+        "REPLACED ::I::p"
+    );
+}
+
+#[test]
+fn import_delete_traces_are_depth_first_with_visible_ancestors() {
+    // Deleting imported A::p traces A first, then recursively B, while both
+    // bindings remain visible through B's callback. Exact Tcl 9.0.4 oracle.
+    assert_eq!(
+        run("set seen {}
+             proc observed {old new op} {
+                 lappend ::seen [list $old [info commands ::A::p] \
+                                      [info commands ::B::p]]
+             }
+             namespace eval S {proc p {} {return S}; namespace export p}
+             namespace eval A {namespace import ::S::p; namespace export p}
+             namespace eval B {namespace import ::A::p}
+             trace add command ::A::p delete observed
+             trace add command ::B::p delete observed
+             rename ::A::p {}
+             set seen"),
+        "{::A::p ::A::p ::B::p} {::B::p ::A::p ::B::p}"
+    );
+
+    // A real source trace runs before its import cascade, with source/import
+    // bindings still visible. Exact Tcl 9.0.4 oracle.
+    assert_eq!(
+        run("set seen {}
+             proc observed {old new op} {
+                 lappend ::seen [list $old [info commands ::S::p] \
+                                      [info commands ::A::p]]
+             }
+             namespace eval S {proc p {} {return S}; namespace export p}
+             namespace eval A {namespace import ::S::p}
+             trace add command ::S::p delete observed
+             trace add command ::A::p delete observed
+             rename ::S::p {}
+             set seen"),
+        "{::S::p ::S::p ::A::p} {::A::p ::S::p ::A::p}"
+    );
+
+    // Direct ImportRefs are linked newest-first, independent of map iteration.
+    assert_eq!(
+        run("set seen {}
+             proc observed {old new op} {lappend ::seen $old}
+             namespace eval S {proc p {} {return S}; namespace export p}
+             namespace eval A {namespace import ::S::p}
+             namespace eval B {namespace import ::S::p}
+             trace add command ::A::p delete observed
+             trace add command ::B::p delete observed
+             rename ::S::p {}
+             set seen"),
+        "::B::p ::A::p"
+    );
+}
+
+#[test]
+fn namespace_import_rejects_a_cycle_before_mutating_the_graph() {
+    // Without -force, Tcl diagnoses the occupied destination before walking
+    // the prospective source chain. The import graph is unchanged.
+    assert_eq!(
+        run("namespace eval S {proc p {} {return S}; namespace export p}
+             namespace eval A {namespace import ::S::p; namespace export p}
+             namespace eval B {namespace import ::A::p; namespace export p}
+             set code [catch {
+                 namespace eval S {namespace import ::B::p}
+             } message options]
+             list $code $message [dict get $options -errorcode] \
+                  [namespace origin ::S::p] [namespace origin ::A::p] \
+                  [namespace origin ::B::p]"),
+        "1 {can't import command \"p\": already exists} \
+         {TCL IMPORT OVERWRITE} ::S::p ::S::p ::S::p"
+    );
+
+    // Tcl_Import walks the source import chain before a forced overwrite and
+    // rejects an edge back to the destination token. Exact Tcl 9.0.4 oracle:
+    // the error is structured and all three pre-existing bindings survive.
+    assert_eq!(
+        run("namespace eval S {proc p {} {return S}; namespace export p}
+             namespace eval A {namespace import ::S::p; namespace export p}
+             namespace eval B {namespace import ::A::p; namespace export p}
+             set code [catch {
+                 namespace eval S {namespace import -force ::B::p}
+             } message options]
+             list $code $message [dict get $options -errorcode] \
+                  [namespace origin ::S::p] [namespace origin ::A::p] \
+                  [namespace origin ::B::p]"),
+        "1 {import pattern \"::B::p\" would create a loop containing command \"::S::p\"} \
+         {TCL IMPORT LOOP} ::S::p ::S::p ::S::p"
+    );
+
+    // Retirement is consequently finite and removes only the selected import.
+    assert_eq!(
+        run("namespace eval S {proc p {} {return S}; namespace export p}
+             namespace eval A {namespace import ::S::p; namespace export p}
+             namespace eval B {namespace import ::A::p}
+             rename ::B::p {}
+             list [info commands ::S::p] [info commands ::A::p] \
+                  [info commands ::B::p]"),
+        "::S::p ::A::p {}"
+    );
+}
+
+#[test]
+fn dying_namespace_handles_are_rejected_during_command_delete_traces() {
+    // Tcl marks an ordinary namespace token dead before retiring member
+    // commands. Parent/children must therefore use the same lifecycle-aware
+    // handle lookup as exists, while the command token remains observable.
+    // Exact Tcl 9.0.4 oracle result.
+    assert_eq!(
+        run("set seen {}
+             proc deleted {old new op} {
+                 set pc [catch {namespace parent ::N} pm po]
+                 set cc [catch {namespace children ::N} cm co]
+                 lappend ::seen [list [namespace exists ::N] \
+                     [info commands $old] $pc $pm [dict get $po -errorcode] \
+                     $cc $cm [dict get $co -errorcode]]
+             }
+             namespace eval N {proc p {} {}}
+             trace add command ::N::p delete deleted
+             namespace delete ::N
+             set seen"),
+        "{0 ::N::p 1 {namespace \"::N\" not found} {TCL LOOKUP NAMESPACE ::N} 1 \
+         {namespace \"::N\" not found} {TCL LOOKUP NAMESPACE ::N}}"
+    );
+}
+
+#[test]
+fn retained_namespace_handle_remains_dead_after_deletion_returns() {
+    // Deletion unlinks the namespace name but an active proc retains the old
+    // token. Its display name survives; name-based lookup through that token
+    // must remain dead after teardown has finished. Exact Tcl 9.0.4 oracle.
+    assert_eq!(
+        run("namespace eval N {
+                 proc p {} {
+                     namespace delete ::N
+                     set code [catch {namespace parent {}} message options]
+                     list [namespace current] [namespace exists {}] $code \
+                          $message [dict get $options -errorcode]
+                 }
+                 p
+             }"),
+        "::N 0 1 {namespace \"\" not found in \"::N\"} {TCL LOOKUP NAMESPACE {}}"
+    );
+}
+
+#[test]
+fn recreated_namespace_does_not_revive_a_retained_dead_token() {
+    // A recreated spelling is a fresh namespace token. The old activation
+    // continues to name (and reject lookup through) its deleted identity while
+    // absolute lookup reaches the new live token. Exact Tcl 9.0.4 oracle.
+    assert_eq!(
+        run("namespace eval N {
+                 proc p {} {
+                     namespace delete ::N
+                     namespace eval ::N {}
+                     set old [list [namespace current] [namespace exists {}] \
+                                  [namespace exists ::N]]
+                     set old_code [catch {namespace parent {}} old_message old_options]
+                     set new_code [catch {namespace parent ::N} new_message]
+                     list $old $old_code $old_message \
+                          [dict get $old_options -errorcode] $new_code $new_message
+                 }
+                 p
+             }"),
+        "{::N 0 1} 1 {namespace \"\" not found in \"::N\"} \
+         {TCL LOOKUP NAMESPACE {}} 0 ::"
+    );
+}
+
+#[test]
+fn import_created_by_a_source_delete_trace_joins_the_old_token_cascade() {
+    // The source remains importable during its delete trace. The resulting
+    // alias references the dying token and is recursively retired afterwards.
+    // Exact Tcl 9.0.4 oracle result.
+    assert_eq!(
+        run("proc create_import {old new op} {
+                 namespace eval ::A {namespace import ::S::p}
+             }
+             namespace eval S {proc p {} {return S}; namespace export p}
+             trace add command ::S::p delete create_import
+             rename ::S::p {}
+             list [info commands ::S::p] [info commands ::A::p]"),
+        "{} {}"
+    );
+}
+
+#[test]
+fn imported_ensemble_keeps_source_identity_across_hide_and_expose() {
+    let setup = "proc tgt_old args {return OLD}
+                 namespace eval S {
+                     namespace ensemble create -command ::E -map {x ::tgt_old}
+                 }
+                 namespace export E
+                 namespace eval I {namespace import ::E}
+                 interp hide {} ::E held
+                 proc ::E args {return REPLACEMENT}\n";
+    // A visible same-name replacement must not capture the import whose real
+    // source is the hidden token. Exact Tcl 9.0.4 oracle result.
+    assert_eq!(
+        run(&format!(
+            "{setup}list [::I::E x] [namespace origin ::I::E] \
+             [namespace ensemble configure ::I::E -map] \
+             [namespace ensemble exists ::I::E]"
+        )),
+        "OLD ::held {x ::tgt_old} 1"
+    );
+    assert_eq!(
+        run(&format!(
+            "{setup}interp expose {{}} held E2
+             list [::I::E x] [namespace origin ::I::E] \
+                  [namespace ensemble configure ::I::E -map] [::E2 x]"
+        )),
+        "OLD ::E2 {x ::tgt_old} OLD"
+    );
+}
+
+#[test]
+fn command_lookup_codes_are_attached_only_by_real_lookup_failures() {
+    // Message text is not identity: a user-generated error that happens to use
+    // Tcl's lookup wording keeps NONE, while the bootstrap `unknown` path for a
+    // true miss carries the command name in TCL LOOKUP COMMAND. Exact 9.0.4.
+    assert_eq!(
+        run(
+            "set fc [catch {error {invalid command name \"fabricated\"}} fm fo]
+             set mc [catch {definitely_missing} mm mo]
+             list $fc $fm [dict get $fo -errorcode] \
+                  $mc $mm [dict get $mo -errorcode]"
+        ),
+        "1 {invalid command name \"fabricated\"} NONE \
+         1 {invalid command name \"definitely_missing\"} \
+         {TCL LOOKUP COMMAND definitely_missing}"
+    );
+}
+
+#[test]
+fn lookup_error_codes_quote_dynamic_names_as_list_elements() {
+    // Error codes are four-element Tcl lists even when the looked-up name is
+    // not itself a valid bare list element. Exact Tcl 9.0.4 oracle results.
+    assert_eq!(
+        run("catch {namespace origin {not here}} m o
+             list $m [dict get $o -errorcode] \
+                  [llength [dict get $o -errorcode]]"),
+        "{invalid command name \"not here\"} \
+         {TCL LOOKUP COMMAND {not here}} 4"
+    );
+    assert_eq!(
+        run("namespace eval E {
+                 proc go {} {}
+                 namespace export go
+                 namespace ensemble create -command ::ens
+             }
+             catch {::ens {not here}} m o
+             list $m [dict get $o -errorcode] \
+                  [llength [dict get $o -errorcode]]"),
+        "{unknown or ambiguous subcommand \"not here\": must be go} \
+         {TCL LOOKUP SUBCOMMAND {not here}} 4"
+    );
+    assert_eq!(
+        run("namespace eval A {
+                 catch {namespace parent {not here}} pm po
+                 catch {namespace children {also not here}} cm co
+                 list $pm [dict get $po -errorcode] \
+                      $cm [dict get $co -errorcode]
+             }"),
+        "{namespace \"not here\" not found in \"::A\"} \
+         {TCL LOOKUP NAMESPACE {not here}} \
+         {namespace \"also not here\" not found in \"::A\"} \
+         {TCL LOOKUP NAMESPACE {also not here}}"
     );
 }
 
@@ -798,9 +1607,10 @@ fn ensemble_configure_reads_and_writes_the_config_table() {
     // `-namespace` is readable but never writable.
     assert_eq!(
         run(&format!(
-            "{setup}catch {{namespace ensemble configure ::ab5 -namespace ::e5}} m; set m"
+            "{setup}catch {{namespace ensemble configure ::ab5 -namespace ::e5}} m o
+             list $m [dict get $o -errorcode]"
         )),
-        "option -namespace is read-only"
+        "{option -namespace is read-only} {TCL ENSEMBLE READ_ONLY}"
     );
     // `-command` is create-only, so it is not in the configure table.
     assert_eq!(
@@ -841,6 +1651,13 @@ fn ensemble_dispatch_messages_match_c() {
     assert_eq!(
         run(&format!("{two}catch {{::ab8 zz}} m; set m")),
         "unknown or ambiguous subcommand \"zz\": must be bar, or baz"
+    );
+    assert_eq!(
+        run(&format!(
+            "{two}catch {{::ab8 zz}} m o; list $m [dict get $o -errorcode]"
+        )),
+        "{unknown or ambiguous subcommand \"zz\": must be bar, or baz} \
+         {TCL LOOKUP SUBCOMMAND zz}"
     );
     // `-prefixes 0` drops the "or ambiguous" half.
     let exact = "namespace eval e9 {namespace export *; proc bar {} {}; proc baz {} {}\n\
@@ -930,6 +1747,211 @@ fn ensemble_unknown_result_is_redispatched_as_a_command_prefix() {
              ::se6 nope"),
         "DEFINED"
     );
+    // Reparse reads the live ensemble configuration, not the dispatch-time
+    // snapshot. Tcl 9.0.4 makes a map installed by the callback visible now.
+    assert_eq!(
+        run("proc target args {return TARGET}
+             proc repair {ens args} {
+                 namespace ensemble configure $ens -map {nope ::target}; return {}
+             }
+             namespace eval se7 {
+                 namespace ensemble create -command ::se7 -unknown ::repair
+             }
+             ::se7 nope"),
+        "TARGET"
+    );
+}
+
+#[test]
+fn ensemble_unknown_nonempty_prefix_uses_live_parameter_count() {
+    // A non-empty replacement prefix uses the post-callback `-parameters`
+    // layout too. `missing` becomes the live parameter and `ARG` the live
+    // subcommand, so Tcl splices `missing` rather than the old trailing ARG.
+    // Exact Tcl 9.0.4 oracle result.
+    assert_eq!(
+        run("proc reroute {ens args} {
+                 namespace ensemble configure $ens -parameters {p}
+                 return [list list PREFIX]
+             }
+             namespace eval LP {
+                 namespace ensemble create -command ::LP -subcommands {} \
+                     -unknown ::reroute
+             }
+             ::LP missing ARG"),
+        "PREFIX missing"
+    );
+}
+
+#[test]
+fn ensemble_unknown_exceptional_codes_and_malformed_results_match_c() {
+    // TCL_ERROR propagates unchanged. The other exceptional callback codes
+    // are invalid ensemble results and are converted to UNKNOWN_RESULT using
+    // Tcl's completion-code names (or the integer for a custom code). Exact
+    // Tcl 9.0.4 oracle result.
+    assert_eq!(
+        run("set bad_code error
+             proc exceptional {ens args} {return -code $::bad_code VALUE}
+             namespace eval UC {
+                 namespace ensemble create -command ::UC -subcommands {} \
+                     -unknown ::exceptional
+             }
+             set results {}
+             foreach code {error break continue return 7} {
+                 set bad_code $code
+                 set c [catch {::UC nope ARG} m o]
+                 lappend results [list $c $m [dict get $o -errorcode]]
+             }
+             set results"),
+        "{1 VALUE NONE} \
+         {1 {unknown subcommand handler returned bad code: break} \
+            {TCL ENSEMBLE UNKNOWN_RESULT}} \
+         {1 {unknown subcommand handler returned bad code: continue} \
+            {TCL ENSEMBLE UNKNOWN_RESULT}} \
+         {1 {unknown subcommand handler returned bad code: return} \
+            {TCL ENSEMBLE UNKNOWN_RESULT}} \
+         {1 {unknown subcommand handler returned bad code: 7} \
+            {TCL ENSEMBLE UNKNOWN_RESULT}}"
+    );
+
+    // A successful callback result is parsed as a Tcl list. Preserve the list
+    // parser's VALUE code and the ensemble-specific errorInfo frame. Exact
+    // Tcl 9.0.4 oracle result.
+    assert_eq!(
+        run("proc malformed {ens args} {return [string index {{}} 0]}
+             namespace eval UML {
+                 namespace ensemble create -command ::UML -subcommands {} \
+                     -unknown ::malformed
+             }
+             catch {::UML nope} m o
+             list $m [dict get $o -errorcode] \
+                  [expr {[string first \
+                      {while parsing result of ensemble unknown subcommand handler} \
+                      [dict get $o -errorinfo]] >= 0}]"),
+        "{unmatched open brace in list} {TCL VALUE LIST BRACE} 1"
+    );
+}
+
+#[test]
+fn ensemble_unknown_retains_the_live_command_token() {
+    assert_eq!(
+        run("proc target args {return TARGET}
+             namespace eval ER {
+                 proc repair {ens args} {
+                     namespace ensemble configure $ens -map {nope ::target}
+                     rename $ens ::ER2
+                     return {}
+                 }
+                 namespace ensemble create -command ::ER -unknown ::ER::repair
+             }
+             list [::ER nope] [namespace ensemble configure ::ER2 -map] [::ER2 nope]"),
+        "TARGET {nope ::target} TARGET"
+    );
+
+    assert_eq!(
+        run("set seen {}
+             proc target args {return TARGET}
+             proc repair {ens args} {
+                 set ::seen $ens
+                 namespace ensemble configure $ens -map {nope ::target}
+                 return {}
+             }
+             namespace eval S {
+                 namespace export E
+                 namespace ensemble create -command E -unknown ::repair
+             }
+             namespace eval I {namespace import ::S::E}
+             list [::I::E nope] $seen [namespace origin ::I::E]"),
+        "TARGET ::S::E ::S::E"
+    );
+
+    assert_eq!(
+        run("proc target args {return TARGET}
+             proc replace {ens args} {
+                 rename $ens {}
+                 namespace ensemble create -command $ens -map {nope ::target}
+                 return \\{
+             }
+             namespace eval D {
+                 namespace ensemble create -command E -unknown ::replace
+             }
+             set c [catch {::D::E nope} m o]
+             list $c $m [dict get $o -errorcode] [::D::E nope]"),
+        "1 {unknown subcommand handler deleted its ensemble} {TCL ENSEMBLE UNKNOWN_DELETED} TARGET"
+    );
+
+    assert_eq!(
+        run("proc target args {return TARGET}
+             set seen {}
+             proc hide_repair {ens args} {
+                 namespace ensemble configure $ens -map {nope ::target} -unknown ::hidden_repair
+                 interp hide {} $ens heldE
+                 return {}
+             }
+             proc hidden_repair {ens args} {
+                 set ::seen $ens
+                 return [list ::target]
+             }
+             namespace ensemble create -command ::EH -unknown ::hide_repair
+             set first [::EH nope]
+             set seen {}
+             set second [interp invokehidden {} heldE other]
+             list $first $second $seen [info commands ::EH] [interp hidden {}]"),
+        "TARGET TARGET ::heldE {} heldE"
+    );
+
+    assert_eq!(
+        run("proc zap {ens args} {namespace delete ::ND; return {}}
+             namespace eval ND {
+                 namespace ensemble create -command ::NDE -unknown ::zap
+             }
+             set c [catch {::NDE nope} m o]
+             list $c $m [dict get $o -errorcode] [info commands ::NDE]"),
+        "1 {unknown subcommand handler deleted its ensemble} {TCL ENSEMBLE UNKNOWN_DELETED} {}"
+    );
+
+    // A hidden real ensemble still belongs to its implementation namespace.
+    // Deleting that subtree retires the hidden token and every import of it;
+    // the active unknown callback observes the token's deleted state. Exact
+    // Tcl 9.0.4 oracle result.
+    assert_eq!(
+        run(
+            "proc hidden_zap {ens args} {namespace delete ::HD; return {}}
+             namespace eval HD {
+                 namespace ensemble create -command ::HDE -unknown ::hidden_zap
+             }
+             namespace export HDE
+             namespace eval HI {namespace import ::HDE}
+             interp hide {} ::HDE heldHDE
+             set c [catch {interp invokehidden {} heldHDE nope} m o]
+             list $c $m [dict get $o -errorcode] [interp hidden {}] \
+                  [info commands ::HI::HDE] \
+                  [namespace ensemble exists ::HI::HDE]"
+        ),
+        "1 {unknown subcommand handler deleted its ensemble} \
+         {TCL ENSEMBLE UNKNOWN_DELETED} {} {} 0"
+    );
+}
+
+#[test]
+fn ensemble_unknown_deleted_seeds_the_handler_errorinfo_frame() {
+    // Tcl seeds this special context before the ordinary command-invocation
+    // machinery appends its enclosing frame. Exact Tcl 9.0.4 oracle result.
+    assert_eq!(
+        run("proc target args {return TARGET}
+             proc replace {ens args} {
+                 rename $ens {}
+                 namespace ensemble create -command $ens -map {nope ::target}
+                 return \\{
+             }
+             namespace eval D {
+                 namespace ensemble create -command E -unknown ::replace
+             }
+             catch {::D::E nope} message options
+             split [dict get $options -errorinfo] [format %c 10]"),
+        "{unknown subcommand handler deleted its ensemble} \
+         {    (ensemble unknown subcommand handler)} \
+         {    invoked from within} {\"::D::E nope\"}"
+    );
 }
 
 #[test]
@@ -940,6 +1962,22 @@ fn ensemble_default_target_miss_names_the_rewritten_subcommand() {
              catch {::k1 ghost} m; set m"
         ),
         "invalid command name \"ghost\""
+    );
+
+    // The ensemble rewrites only the default target's result spelling. A
+    // custom `unknown` command owns all completion options, even if it chooses
+    // Tcl's ordinary invalid-command message. Exact Tcl 9.0.4 oracle result.
+    assert_eq!(
+        run("proc ::unknown {cmd args} {
+                 return -code error -errorcode {CUSTOM USER} \
+                     \"invalid command name \\\"$cmd\\\"\"
+             }
+             namespace eval E {
+                 namespace ensemble create -command ::E -subcommands x
+             }
+             catch {::E x} m o
+             list $m [dict get $o -errorcode]"),
+        "{invalid command name \"x\"} {CUSTOM USER}"
     );
 }
 
