@@ -105,8 +105,9 @@ and a value the C code merely *read* keeps its spelling — `0x10` stays
 `Tcl_ListObjGetElements` parsed it. Inbound, `Value::Int` becomes an `Int`
 rep with no string, `Value::List` a list of objects, `Value::Dict` the flat
 key/value list a Tcl dict is. Text is Tcl's modified UTF-8 (an interior NUL
-is `C0 80`) so a string rep is always a valid C string; the interface's
-strings are ordinary Rust text.
+is `C0 80`) so a string rep is always a valid C string, and every C string
+the shim reads — a result, an error-code element, a `Tcl_UtfNcmp` operand —
+is decoded the same way; the interface's strings are ordinary Rust text.
 
 The string rep is generated lazily by `Tcl_GetString` and cached; the
 pointer it returns is valid until the object is mutated or freed, the same
@@ -175,26 +176,38 @@ results and errors, not loop completion codes, and adding them would be a
 Tcl-shaped wart on a value interface.
 
 Command-table changes made *during* an invocation — a factory command
-calling `Tcl_CreateObjCommand`, or `Tcl_DeleteCommand` on a sibling — cannot
-touch the engine, which is busy invoking. They queue, and `Interp::eval`
-(compile a parameterless unit, invoke, `sync`) applies them afterwards; a
-host driving the engine directly calls `sync` itself. `Tcl_DeleteCommand`
-runs the delete procedure immediately and its `Deleted` change reaches the
-engine as `Engine::remove_command`; a deleted command whose `ShimCommand`
-is still registered (between deletion and sync) answers with the
-`invalid command name` error and its `TCL LOOKUP COMMAND` code. Dropping
-the `InterpState` runs every remaining delete procedure, as deleting a C
-Tcl interpreter does.
+calling `Tcl_CreateObjCommand`, or `Tcl_DeleteCommand` on a sibling — are
+queued in the state and published through the engine's **registration
+door** the moment the C procedure returns: `ShimCommand` implements
+`HostCommand::invoke_with_registrar`, and the `CommandRegistrar` the engine
+passes is live for that call, so `factory x; x` works within one script.
+An engine that does not open the door (the trait method has a default) is
+still correct, only later: `Interp::eval` (compile a parameterless unit,
+invoke, `sync`) applies what is left afterwards, and a host driving the
+engine directly calls `sync` itself. `Tcl_DeleteCommand` runs the delete
+procedure immediately and its `Deleted` change reaches the engine as
+`remove_command`; deleting the very command that is executing is safe
+because the engine holds its own reference for the call. Dropping the
+`InterpState` runs every remaining delete procedure, as deleting a C Tcl
+interpreter does.
 
 ### What the interface needed
 
-Two changes, both engine-neutral:
+Three changes, all engine-neutral:
 
 - **`Engine::remove_command(name) -> Result<bool, EngineError>`** — the
   other half of `define_command`. Default implementation declines with
   `Unsupported`, so an engine that cannot unregister says so rather than
   leaving a command callable; the tclvm engine implements it with
   `Vm::remove_command`.
+- **`CommandRegistrar` and `HostCommand::invoke_with_registrar`** — the
+  registration half of the engine, opened to a host command for the
+  duration of its invocation (exactly `define_command` and
+  `remove_command`, nothing that reaches the interpreter). Defaulted, so
+  every existing host command is unchanged; the tclvm engine implements it
+  over the `&mut Vm` its native-command seam already hands over. What it
+  buys is factories: a command that creates commands, which C extensions
+  do routinely and the hook host's emitter verbs never did.
 - **The tclvm engine now passes a host command's `Script { message, code }`
   error through verbatim**, with the `-errorcode` in the completion options,
   instead of rendering it as `error: <message>`. A `catch` in Tcl therefore

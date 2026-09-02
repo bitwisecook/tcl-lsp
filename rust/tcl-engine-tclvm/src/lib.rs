@@ -31,6 +31,7 @@
 //! | [`Engine::compile`] | [`Vm::define_procedure`] — one compile, then bytecode |
 //! | [`Engine::invoke`] | [`Vm::invoke_command`] — the public call path |
 //! | [`Engine::define_command`] | [`Vm::register_native_command`] — stateful host commands |
+//! | [`CommandRegistrar`] during an invocation | the `&mut Vm` the native-command seam hands over |
 //! | [`Engine::restrict_commands`] | [`Vm::retain_commands`] — a closed whitelist |
 //! | [`Budget::commands`] | [`Vm::set_command_limit`] — enforced, not merely stored |
 //! | [`Budget::wall_clock`] | [`Vm::set_wall_clock_budget`] |
@@ -46,6 +47,7 @@
 //! Values cross as structure, never as text: a `words` list arrives as a Tcl
 //! list value and a `ctx` dict as a Tcl dict value, both built directly.
 
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use tcl_compiler::cfg_builder::build_cfg_codegen;
@@ -55,7 +57,9 @@ use tcl_compiler::lowering::{
     lower_to_ir_for_bytecode_with_dialect, lower_to_ir_traced_with_dialect,
 };
 use tcl_dialect::DialectProfile;
-use tcl_engine_api::{Budget, BudgetKind, CompileUnit, Engine, EngineError, HostCommand, Value};
+use tcl_engine_api::{
+    Budget, BudgetKind, CommandRegistrar, CompileUnit, Engine, EngineError, HostCommand, Value,
+};
 use tcl_registry::CommandRegistry;
 use tcl_vm::{Code, CompileError, CompileService, Completion, NativeCommand, Vm};
 
@@ -142,16 +146,72 @@ impl VmHandle {
     }
 }
 
+/// The names registered through [`Engine::define_command`] — shared with
+/// every [`HostCommandShim`] so a command registered from inside another's
+/// invocation is kept by a later [`Engine::restrict_commands`] too.
+type HostCommandNames = Rc<RefCell<Vec<String>>>;
+
 /// Adapts a [`HostCommand`] to the VM's [`NativeCommand`], converting values
 /// at the boundary in both directions.
 struct HostCommandShim {
     command: Rc<dyn HostCommand>,
+    host_commands: HostCommandNames,
+}
+
+/// The registration door a host command gets while it runs: the VM the
+/// native-command seam already hands over, plus the engine's name list.
+struct VmRegistrar<'a> {
+    vm: &'a mut Vm,
+    host_commands: HostCommandNames,
+}
+
+impl CommandRegistrar for VmRegistrar<'_> {
+    fn define_command(
+        &mut self,
+        name: &str,
+        command: Rc<dyn HostCommand>,
+    ) -> Result<(), EngineError> {
+        define_host_command(self.vm, &self.host_commands, name, command);
+        Ok(())
+    }
+
+    fn remove_command(&mut self, name: &str) -> Result<bool, EngineError> {
+        Ok(remove_host_command(self.vm, &self.host_commands, name))
+    }
+}
+
+fn define_host_command(
+    vm: &mut Vm,
+    host_commands: &HostCommandNames,
+    name: &str,
+    command: Rc<dyn HostCommand>,
+) {
+    vm.register_native_command(
+        name,
+        Rc::new(HostCommandShim {
+            command,
+            host_commands: Rc::clone(host_commands),
+        }),
+    );
+    host_commands.borrow_mut().push(name.to_owned());
+}
+
+fn remove_host_command(vm: &mut Vm, host_commands: &HostCommandNames, name: &str) -> bool {
+    host_commands.borrow_mut().retain(|command| command != name);
+    vm.remove_command(name)
 }
 
 impl NativeCommand for HostCommandShim {
-    fn invoke(&self, _vm: &mut Vm, arguments: &[tcl_vm::Value]) -> Completion<tcl_vm::Value> {
+    fn invoke(&self, vm: &mut Vm, arguments: &[tcl_vm::Value]) -> Completion<tcl_vm::Value> {
         let arguments: Vec<Value> = arguments.iter().map(from_vm_value).collect();
-        match self.command.invoke(&arguments) {
+        let mut registrar = VmRegistrar {
+            vm,
+            host_commands: Rc::clone(&self.host_commands),
+        };
+        match self
+            .command
+            .invoke_with_registrar(&mut registrar, &arguments)
+        {
             Ok(result) => Completion::new(
                 Code::Ok,
                 to_vm_value(&result),
@@ -221,9 +281,10 @@ pub struct TclVmEngine {
     budget: Budget,
     /// Mints the internal procedure name each compiled unit is defined as.
     units: u32,
-    /// Command names registered through [`Engine::define_command`], kept so a
-    /// later [`Engine::restrict_commands`] does not remove them.
-    host_commands: Vec<String>,
+    /// Command names registered through [`Engine::define_command`] or a
+    /// running command's registrar, kept so a later
+    /// [`Engine::restrict_commands`] does not remove them.
+    host_commands: HostCommandNames,
     /// The procedures compiled units were defined as — likewise kept, since a
     /// unit compiled before the whitelist was applied must still be callable
     /// after it.
@@ -246,7 +307,7 @@ impl TclVmEngine {
             vm,
             budget: Budget::default(),
             units: 0,
-            host_commands: Vec::new(),
+            host_commands: Rc::new(RefCell::new(Vec::new())),
             unit_commands: Vec::new(),
         }
     }
@@ -299,19 +360,16 @@ impl Engine for TclVmEngine {
         name: &str,
         command: Rc<dyn HostCommand>,
     ) -> Result<(), EngineError> {
-        self.vm
-            .register_native_command(name, Rc::new(HostCommandShim { command }));
-        self.host_commands.push(name.to_owned());
+        define_host_command(&mut self.vm, &self.host_commands, name, command);
         Ok(())
     }
 
     fn remove_command(&mut self, name: &str) -> Result<bool, EngineError> {
-        self.host_commands.retain(|command| command != name);
-        Ok(self.vm.remove_command(name))
+        Ok(remove_host_command(&mut self.vm, &self.host_commands, name))
     }
 
     fn restrict_commands(&mut self, allowed: &[&str]) -> Result<(), EngineError> {
-        let host_commands = self.host_commands.clone();
+        let host_commands = self.host_commands.borrow().clone();
         let unit_commands = self.unit_commands.clone();
         self.vm.retain_commands(&|name| {
             allowed.contains(&name)

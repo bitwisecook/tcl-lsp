@@ -57,7 +57,7 @@ use std::ffi::c_int;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
 
-use tcl_engine_api::{CompileUnit, Engine, EngineError, HostCommand, Value};
+use tcl_engine_api::{CommandRegistrar, CompileUnit, Engine, EngineError, HostCommand, Value};
 
 pub use obj::{Obj, ObjRef, TclError};
 pub use state::{CommandChange, InitProc, InterpState};
@@ -117,6 +117,30 @@ struct ShimCommand {
 }
 
 impl ShimCommand {
+    /// Publish the command-table changes the C code queued (a factory's
+    /// `Tcl_CreateObjCommand`, a `Tcl_DeleteCommand`) through `registrar`.
+    fn publish(
+        state: &Rc<InterpState>,
+        registrar: &mut dyn CommandRegistrar,
+    ) -> Result<Vec<CommandChange>, EngineError> {
+        let changes = state.take_pending();
+        for change in &changes {
+            match change {
+                CommandChange::Created(name) => {
+                    let command = Rc::new(ShimCommand {
+                        state: Rc::clone(state),
+                        name: name.clone(),
+                    });
+                    registrar.define_command(name, command)?;
+                }
+                CommandChange::Deleted(name) => {
+                    registrar.remove_command(name)?;
+                }
+            }
+        }
+        Ok(changes)
+    }
+
     fn lookup_error(&self) -> EngineError {
         EngineError::Script {
             message: format!("invalid command name \"{}\"", self.name),
@@ -128,6 +152,20 @@ impl ShimCommand {
 }
 
 impl HostCommand for ShimCommand {
+    /// With the engine's door open, changes the C code made to the command
+    /// table are published before the calling script's next statement — so
+    /// `factory x; x` works. An engine that does not open the door leaves
+    /// them to [`Interp::sync`].
+    fn invoke_with_registrar(
+        &self,
+        registrar: &mut dyn CommandRegistrar,
+        arguments: &[Value],
+    ) -> Result<Value, EngineError> {
+        let answer = self.invoke(arguments);
+        Self::publish(&self.state, registrar)?;
+        answer
+    }
+
     fn invoke(&self, arguments: &[Value]) -> Result<Value, EngineError> {
         let Some(entry) = self.state.command(&self.name) else {
             return Err(self.lookup_error());
@@ -202,6 +240,24 @@ fn panic_text(payload: &(dyn std::any::Any + Send)) -> String {
     )
 }
 
+/// An engine's own registration methods as the door a running command sees,
+/// so [`Interp::sync`] and an in-invocation publish share one code path.
+struct EngineDoor<'a, E: Engine>(&'a mut E);
+
+impl<E: Engine> CommandRegistrar for EngineDoor<'_, E> {
+    fn define_command(
+        &mut self,
+        name: &str,
+        command: Rc<dyn HostCommand>,
+    ) -> Result<(), EngineError> {
+        self.0.define_command(name, command)
+    }
+
+    fn remove_command(&mut self, name: &str) -> Result<bool, EngineError> {
+        self.0.remove_command(name)
+    }
+}
+
 /// A shim interpreter: an engine plus the `Tcl_Interp` state C code sees.
 ///
 /// Generic over the engine rather than boxing a trait object because
@@ -270,26 +326,13 @@ impl<E: Engine> Interp<E> {
     /// Apply the command-table changes C code has made since the last sync
     /// to the engine, returning them.
     ///
-    /// [`Self::eval`] and [`Self::load_static`] call this; a host that drives
-    /// the engine directly calls it after any invocation that might have
-    /// created or deleted commands.
+    /// [`Self::load_static`] calls this, and [`Self::eval`] does afterwards
+    /// as a backstop. During an invocation the engine's registration door
+    /// ([`CommandRegistrar`]) publishes changes as they happen, so a host
+    /// driving the engine directly only needs this after a change made
+    /// outside any invocation.
     pub fn sync(&mut self) -> Result<Vec<CommandChange>, EngineError> {
-        let changes = self.state.take_pending();
-        for change in &changes {
-            match change {
-                CommandChange::Created(name) => {
-                    let command = Rc::new(ShimCommand {
-                        state: Rc::clone(&self.state),
-                        name: name.clone(),
-                    });
-                    self.engine.define_command(name, command)?;
-                }
-                CommandChange::Deleted(name) => {
-                    self.engine.remove_command(name)?;
-                }
-            }
-        }
-        Ok(changes)
+        ShimCommand::publish(&self.state, &mut EngineDoor(&mut self.engine))
     }
 
     /// Run `script` on the engine as a parameterless unit and sync afterwards.

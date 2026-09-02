@@ -38,7 +38,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use tcl_cmd_core::prefix::{self, Resolution};
 use tcl_syntax::list;
 
-use crate::obj::{Obj, ObjRef, TclError};
+use crate::obj::{Obj, ObjRef, TclError, decode_bytes};
 use crate::state::{CmdDeleteProc, InterpState, ObjCmdProc};
 
 /// `TCL_OK`.
@@ -114,7 +114,8 @@ unsafe fn obj<'a>(obj: *mut Obj) -> &'a Obj {
     unsafe { obj.as_ref() }.expect("a NULL Tcl_Obj pointer")
 }
 
-/// Text from a C string, or `""` for NULL.
+/// Text from a C string, or `""` for NULL — decoded as Tcl's modified UTF-8,
+/// so an interior NUL spelled `C0 80` is a NUL again on the Rust side.
 ///
 /// # Safety
 ///
@@ -124,7 +125,7 @@ unsafe fn c_text<'a>(text: *const c_char) -> std::borrow::Cow<'a, str> {
         return std::borrow::Cow::Borrowed("");
     }
     // SAFETY: the caller guarantees a terminated string.
-    unsafe { CStr::from_ptr(text) }.to_string_lossy()
+    std::borrow::Cow::Owned(decode_bytes(unsafe { CStr::from_ptr(text) }.to_bytes()))
 }
 
 /// Bytes from a C pointer and a `Tcl_Size` length, `-1` meaning
@@ -985,7 +986,12 @@ pub unsafe extern "C" fn tcl_utf_ncmp(s1: *const c_char, s2: *const c_char, n: u
 
 #[cfg(test)]
 mod tests {
-    use super::{TCL_OK, take_panic, tcl_get_string, tcl_utf_ncmp, wrap_to_i32};
+    use super::{
+        TCL_OK, take_panic, tcl_get_string, tcl_new_string_obj, tcl_num_utf_chars, tcl_utf_ncmp,
+        tclshim_set_result_string, wrap_to_i32,
+    };
+    use crate::obj::ObjRef;
+    use crate::state::InterpState;
 
     #[test]
     fn a_panic_at_the_boundary_is_parked_not_propagated() {
@@ -1006,6 +1012,30 @@ mod tests {
         assert_eq!(wrap_to_i32(2_147_483_648), -2_147_483_648);
         assert_eq!(wrap_to_i32(-2_147_483_647), -2_147_483_647);
         assert_eq!(wrap_to_i32(7), 7);
+    }
+
+    /// An interior NUL is `C0 80` on the C side and a NUL on ours, in both
+    /// directions, and compares as one character.
+    #[test]
+    fn modified_utf8_nul_round_trips_through_every_door() {
+        let bytes = c"a\xC0\x80b";
+        // SAFETY: the literal is terminated; `length` -1 reads to it.
+        let raw = unsafe { tcl_new_string_obj(bytes.as_ptr(), -1) };
+        // SAFETY: `raw` is a live object from the line above.
+        let obj = unsafe { ObjRef::adopt(raw) };
+        assert_eq!(obj.get().text(), "a\0b");
+        let state = InterpState::new();
+        // SAFETY: a live state; the literal is terminated.
+        unsafe {
+            tclshim_set_result_string(std::ptr::from_ref(&state).cast_mut(), bytes.as_ptr());
+        }
+        assert_eq!(state.result().get().text(), "a\0b");
+        // SAFETY: both literals are terminated.
+        unsafe {
+            assert_eq!(tcl_utf_ncmp(bytes.as_ptr(), c"a\xC0\x80b".as_ptr(), 3), 0);
+            assert_eq!(tcl_utf_ncmp(bytes.as_ptr(), c"a\xC0\x80c".as_ptr(), 3), -1);
+            assert_eq!(tcl_num_utf_chars(bytes.as_ptr(), -1), 3);
+        }
     }
 
     #[test]

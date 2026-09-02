@@ -79,6 +79,15 @@ impl TclError {
         Self::with_code(MESSAGE, list::join_list(["ARITH", "IOVERFLOW", MESSAGE]))
     }
 
+    /// The NaN domain error, as `Tcl_GetDoubleFromObj` and
+    /// `Tcl_GetBooleanFromObj` both report it.
+    fn nan() -> Self {
+        Self::with_code(
+            "floating point value is Not a Number",
+            "TCL VALUE DOUBLE NAN",
+        )
+    }
+
     fn list(error: ListError, text: &str) -> Self {
         let kind = match error {
             ListError::UnmatchedBrace => "BRACE",
@@ -127,7 +136,8 @@ fn encode_text(text: &str) -> Box<[u8]> {
     bytes.into_boxed_slice()
 }
 
-fn decode_bytes(bytes: &[u8]) -> String {
+/// Decode string-rep bytes, restoring interior NULs from `C0 80`.
+pub(crate) fn decode_bytes(bytes: &[u8]) -> String {
     let text = String::from_utf8_lossy(bytes);
     if bytes.windows(2).any(|pair| pair == [0xC0, 0x80]) {
         // Rare path: restore the interior NULs the encoding spelled out.
@@ -287,32 +297,26 @@ impl Obj {
                 radix,
                 digits,
             }) => Ok(big_to_double(negative, radix, &digits)),
-            Some(Number::Nan { .. }) => Err(TclError::with_code(
-                "floating point value is Not a Number",
-                "TCL VALUE DOUBLE NAN",
-            )),
+            Some(Number::Nan { .. }) => Err(TclError::nan()),
             None => Err(TclError::expected("floating-point number", &text)),
         }
     }
 
-    /// The value as a boolean — `Tcl_GetBooleanFromObj`, which accepts the
-    /// boolean words and any number (non-zero is true).
+    /// The value as a boolean — `Tcl_GetBooleanFromObj`: the boolean words,
+    /// or any number compared against zero, with `NaN` a domain error.
     pub fn get_boolean(&self) -> Result<bool, TclError> {
         match &*self.rep.borrow() {
             Rep::Int(value) => return Ok(*value != 0),
+            Rep::Double(value) if value.is_nan() => return Err(TclError::nan()),
             Rep::Double(value) => return Ok(*value != 0.0),
             Rep::None | Rep::List(_) | Rep::Index(_) => {}
         }
         let text = self.text();
-        if let Some(value) = tcl_syntax::boolean::parse_boolean_strict(&text) {
-            return Ok(value);
+        if matches!(number::parse_whole(&text), Some(Number::Nan { .. })) {
+            return Err(TclError::nan());
         }
-        match number::parse_whole(&text) {
-            Some(Number::Int(value)) => Ok(value != 0),
-            Some(Number::Double(value)) => Ok(value != 0.0),
-            Some(Number::Big { .. } | Number::Nan { .. }) => Ok(true),
-            None => Err(TclError::expected("boolean value", &text)),
-        }
+        tcl_syntax::boolean::truthiness(&text)
+            .ok_or_else(|| TclError::expected("boolean value", &text))
     }
 
     /// Install a rep parsed from the string rep: the string stays
@@ -601,6 +605,21 @@ mod tests {
             Obj::from_text("1.5")
                 .get_boolean()
                 .expect("numbers are booleans")
+        );
+        assert_eq!(
+            Obj::from_text("NaN")
+                .get_boolean()
+                .expect_err("NaN")
+                .code
+                .as_deref(),
+            Some("TCL VALUE DOUBLE NAN")
+        );
+        assert_eq!(
+            Obj::double(f64::NAN)
+                .get_boolean()
+                .expect_err("NaN rep")
+                .message,
+            "floating point value is Not a Number"
         );
         assert_eq!(
             Obj::from_text("").get_boolean().expect_err("empty").message,

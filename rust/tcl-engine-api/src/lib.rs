@@ -93,6 +93,43 @@ pub struct CompileUnit<'a> {
 pub trait HostCommand {
     /// Run the command with the call's arguments (the command name excluded).
     fn invoke(&self, arguments: &[Value]) -> Result<Value, EngineError>;
+
+    /// Run the command with the engine's registration door open.
+    ///
+    /// An engine calls this rather than [`Self::invoke`], passing a
+    /// [`CommandRegistrar`] that is live for the duration of the call, so a
+    /// host command that *creates* commands (a factory, a C extension's
+    /// `Tcl_CreateObjCommand` from inside a command procedure) can publish
+    /// them before the calling script's next statement runs. The default
+    /// ignores the door and runs [`Self::invoke`], so a command that only
+    /// answers is unaffected.
+    fn invoke_with_registrar(
+        &self,
+        registrar: &mut dyn CommandRegistrar,
+        arguments: &[Value],
+    ) -> Result<Value, EngineError> {
+        let _ = registrar;
+        self.invoke(arguments)
+    }
+}
+
+/// The registration half of an engine, opened to a host command while it
+/// runs ([`HostCommand::invoke_with_registrar`]).
+///
+/// Exactly [`Engine::define_command`] and [`Engine::remove_command`], and
+/// nothing else: a running command may change what is callable next, but it
+/// still cannot reach the interpreter.
+pub trait CommandRegistrar {
+    /// Register a host command under `name`, replacing any existing command
+    /// of that name.
+    fn define_command(
+        &mut self,
+        name: &str,
+        command: Rc<dyn HostCommand>,
+    ) -> Result<(), EngineError>;
+
+    /// Remove a host command, reporting whether one of that name existed.
+    fn remove_command(&mut self, name: &str) -> Result<bool, EngineError>;
 }
 
 /// What an engine must not let a body exceed.
