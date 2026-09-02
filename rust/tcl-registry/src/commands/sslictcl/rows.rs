@@ -38,7 +38,7 @@ fn text(
     super::statement(name, Arity::exact(1), summary, synopsis, snippet)
 }
 
-/// One `arg_values` table per closed domain: the field is `'static`, so the
+/// One `arg_values` table per value domain: the field is `'static`, so the
 /// tables are consts rather than a parameter the helper wraps.
 const BOOL_ARG: &[(u8, &[ArgValue])] = &[(0, values::BOOLS)];
 const CLIENT_ARG: &[(u8, &[ArgValue])] = &[(0, values::CLIENTS)];
@@ -46,10 +46,19 @@ const STATUS_ARG: &[(u8, &[ArgValue])] = &[(0, values::STATUSES)];
 const SEVERITY_ARG: &[(u8, &[ArgValue])] = &[(0, values::SEVERITIES)];
 const GRADE_ARG: &[(u8, &[ArgValue])] = &[(0, values::GRADES)];
 const SCHEMA_ARG: &[(u8, &[ArgValue])] = &[(0, values::TESTSSL_SCHEMAS)];
-/// Offered, not closed: the loader normalises documented aliases onto these.
 const PROTOCOL_VERSION_ARG: &[(u8, &[ArgValue])] = &[(0, values::PROTOCOL_VERSIONS)];
 
-/// A row whose one argument is drawn from a closed value set.
+/// A row whose one argument is drawn from an **exhaustive, exact-match** value
+/// set, so a literal outside it is invalid (W127).
+///
+/// Only `schema` qualifies. Every other enumerated domain is matched
+/// case-insensitively by the loader (`ValueDomain::Bool`, `Client`, `Status`,
+/// `Severity`, `Grade` all lower- or upper-case the word before comparing), and
+/// `closed_value_args` is an exact-match check — so closing one of those would
+/// report `enabled TRUE`, which the loader accepts, as invalid. Those use
+/// [`offered`] instead: the canonical spellings still complete, and the
+/// authoritative domain check stays with the loader, which reports `SSLIC1009`
+/// ranged over the exact word.
 fn closed(
     name: &'static str,
     summary: &'static str,
@@ -58,8 +67,22 @@ fn closed(
     set: &'static [(u8, &'static [ArgValue])],
 ) -> CommandSpec {
     CommandSpec {
-        arg_values: set,
         closed_value_args: &[0],
+        ..offered(name, summary, synopsis, snippet, set)
+    }
+}
+
+/// A row whose one argument has a canonical spelling set worth completing, but
+/// whose legal set is wider than those spellings — see [`closed`].
+fn offered(
+    name: &'static str,
+    summary: &'static str,
+    synopsis: &'static [&'static str],
+    snippet: &'static str,
+    set: &'static [(u8, &'static [ArgValue])],
+) -> CommandSpec {
+    CommandSpec {
+        arg_values: set,
         ..text(name, summary, synopsis, snippet)
     }
 }
@@ -71,7 +94,7 @@ fn boolean(
     synopsis: &'static [&'static str],
     snippet: &'static str,
 ) -> CommandSpec {
-    closed(name, summary, synopsis, snippet, BOOL_ARG)
+    offered(name, summary, synopsis, snippet, BOOL_ARG)
 }
 
 /// `predicate SCRIPT` — the one row whose word is a script.
@@ -219,11 +242,11 @@ fn testssl_import_rows() -> Vec<CommandSpec> {
 /// The rows of a `trust-program NAME { … }` block.
 fn trust_program_rows() -> Vec<CommandSpec> {
     vec![
-        closed(
+        offered(
             "client",
             "Name the root program the enclosing trust program restates.",
             &["client name"],
-            "The set is closed: a root program the vocabulary has no name for cannot be restated without a vocabulary revision, which is the point — a grader must know whose trust it is modelling.",
+            "A closed set matched case-insensitively (the loader also accepts the dataset's `open-jdk` spelling for `openjdk`). A root program the vocabulary has no name for cannot be restated without a vocabulary revision, which is the point — a grader must know whose trust it is modelling.",
             CLIENT_ARG,
         ),
         text(
@@ -304,11 +327,11 @@ fn anchor_rows() -> Vec<CommandSpec> {
 /// The rows of a `protocol VERSION { … }` block — `status` is shared with `cipher`.
 fn protocol_rows() -> Vec<CommandSpec> {
     vec![
-        closed(
+        offered(
             "status",
             "Rate the enclosing protocol version or cipher suite.",
             &["status recommended|acceptable|deprecated|prohibited"],
-            "One word from a closed set. The same word rates a `protocol` and a `cipher`, which is why it is one row and not two.",
+            "One word from a closed set, matched case-insensitively. The same word rates a `protocol` and a `cipher`, which is why it is one row and not two.",
             STATUS_ARG,
         ),
         text(
@@ -393,11 +416,11 @@ fn chain_rows() -> Vec<CommandSpec> {
 /// The rows of a `check ID { … }` block.
 fn check_rows() -> Vec<CommandSpec> {
     vec![
-        closed(
+        offered(
             "severity",
             "State how a failure of the enclosing check is reported.",
             &["severity info|warning|error|critical"],
-            "One word from a closed set. `critical` overrides the graded result rather than contributing to it.",
+            "One word from a closed set, matched case-insensitively. `critical` overrides the graded result rather than contributing to it.",
             SEVERITY_ARG,
         ),
         text(
@@ -454,11 +477,11 @@ fn check_rows() -> Vec<CommandSpec> {
 
 /// The one row of a `grade { … }` block.
 fn grade_rows() -> Vec<CommandSpec> {
-    vec![closed(
+    vec![offered(
         "minimum",
         "State the lowest grade the enclosing policy accepts.",
         &["minimum A+|A|B|C|D|E|F"],
-        "One word from a closed set, best (`A+`) to worst (`F`). An endpoint graded below it fails its policy.",
+        "One word from a closed set, best (`A+`) to worst (`F`) and matched case-insensitively. `T`, `M`, and the unknown grade are estimator outcomes, not declarable floors. An endpoint graded below the floor fails its policy.",
         GRADE_ARG,
     )]
 }

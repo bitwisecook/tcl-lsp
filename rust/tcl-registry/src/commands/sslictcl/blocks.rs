@@ -252,7 +252,7 @@ fn policy_blocks() -> Vec<CommandSpec> {
             hover(
                 "Declare one check of the enclosing policy.",
                 &["check id { … }"],
-                "A closed block. `severity` and `message` say how a failure is reported; the `require-*` / `forbid-*` / `min-*` members state the condition declaratively; `predicate` states one that the declarative members cannot, as a braced script the loader retains verbatim and never evaluates.",
+                "A closed block, and a conjunction: every populated member must hold, and a failing check yields exactly one finding identified by `(check id, endpoint)`. `severity` and `message` say how that failure is reported; the `require-*` / `forbid-*` / `min-*` members state the condition declaratively; `predicate` states one that the declarative members cannot, as a braced script the loader retains verbatim and never evaluates. The id `grade` is reserved — the grade rule already emits its finding under it.",
                 "check strong-keys {\n    severity warning\n    message {RSA keys must be at least 3072 bits}\n    min-key-bits 3072\n}",
             ),
         ),

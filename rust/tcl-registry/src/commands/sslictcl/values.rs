@@ -16,13 +16,20 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The closed value domains of the `SslicTcl` vocabulary.
+//! The enumerated value domains of the `SslicTcl` vocabulary.
 //!
-//! Each table is the exhaustive legal set for the argument it is attached to,
-//! so the rows carrying it also list that index in `closed_value_args` and a
-//! literal outside the set is reported (W127). The one deliberate exception is
-//! [`PROTOCOL_VERSIONS`], which lists the canonical spellings as completion
-//! hints while the loader also accepts aliases — an open set.
+//! Each table is the **canonical** spelling set for the argument it is
+//! attached to — what completion offers, and what
+//! `tcl_sslictcl::vocabulary::ValueDomain` names.
+//!
+//! Only [`TESTSSL_SCHEMAS`] is also marked `closed_value_args`, because only
+//! its domain is an exact-match literal. Every other domain here is matched
+//! **case-insensitively** by the loader, and `closed_value_args` is an
+//! exact-match check, so closing one of them would report `enabled TRUE` — a
+//! value the loader accepts — as invalid (W127). The authoritative domain
+//! check stays with the loader, which reports `SSLIC1009` ranged over the
+//! exact word. [`PROTOCOL_VERSIONS`] is wider still: the loader normalises
+//! documented aliases onto the canonical spellings.
 
 use crate::hover::ArgValue;
 
@@ -106,7 +113,8 @@ pub(super) const PROTOCOL_VERSIONS: &[ArgValue] = &[
     value("tls1.3", "TLS 1.3"),
 ];
 
-/// The one legal `schema` value of a `testssl-import` block.
+/// The one legal `schema` value of a `testssl-import` block — the only
+/// exact-match domain in the vocabulary, and so the only closed one.
 pub(super) const TESTSSL_SCHEMAS: &[ArgValue] = &[value(
     "1",
     "the only schema version this vocabulary defines",

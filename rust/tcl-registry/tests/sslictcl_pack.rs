@@ -349,11 +349,18 @@ fn a_predicate_body_is_not_a_declaration_block() {
     assert!(spec.arity.accepts(1) && !spec.arity.accepts(2));
 }
 
-/// The closed value domains are closed, and the deliberately open one is not.
+/// The enumerated value domains offer exactly their canonical spellings, and
+/// only the one exact-match domain is marked closed.
+///
+/// `closed_value_args` is an exact-match check (W127), while the loader
+/// matches every enumerated domain but `schema` case-insensitively — so
+/// closing one of those would report `enabled TRUE`, which the loader accepts,
+/// as invalid. `rust/tcl-sslictcl/tests/registry_pack_drift.rs` pins the
+/// spellings themselves against the loader's own parsers.
 #[test]
-fn closed_value_domains_are_closed() {
+fn enumerated_value_domains_offer_their_canonical_spellings() {
     let reg = static_context_for("sslictcl").commands();
-    let closed: &[(&str, &[&str])] = &[
+    let offered: &[(&str, &[&str])] = &[
         (
             "enabled",
             &["true", "false", "yes", "no", "on", "off", "1", "0"],
@@ -375,17 +382,24 @@ fn closed_value_domains_are_closed() {
         ),
         ("severity", &["info", "warning", "error", "critical"]),
         ("minimum", &["A+", "A", "B", "C", "D", "E", "F"]),
-        ("schema", &["1"]),
+        (
+            "protocol",
+            &["ssl2", "ssl3", "tls1.0", "tls1.1", "tls1.2", "tls1.3"],
+        ),
+        (
+            "protocols",
+            &["ssl2", "ssl3", "tls1.0", "tls1.1", "tls1.2", "tls1.3"],
+        ),
     ];
-    for &(word, expected) in closed {
+    for &(word, expected) in offered {
         let spec = reg.get(word).expect("registered statement");
-        assert_eq!(
-            spec.closed_value_args,
-            &[0],
-            "{word}: argument 0 is an exhaustive set"
-        );
         let values: Vec<&str> = spec.arg_values_at(0).iter().map(|v| v.value).collect();
-        assert_eq!(values, expected, "{word}: the value set");
+        assert_eq!(values, expected, "{word}: the offered value set");
+        assert!(
+            spec.closed_value_args.is_empty(),
+            "{word}: the loader's legal set is wider than the canonical \
+             spellings, so an exact-match closed set would misreport it"
+        );
     }
     // Every BOOL row shares one table, so a new spelling lands everywhere.
     for boolean in [
@@ -399,22 +413,21 @@ fn closed_value_domains_are_closed() {
         "require-hsts",
     ] {
         let spec = reg.get(boolean).expect("registered statement");
-        assert_eq!(spec.closed_value_args, &[0], "{boolean}");
         assert_eq!(spec.arg_values_at(0).len(), 8, "{boolean}: eight spellings");
+        assert!(spec.closed_value_args.is_empty(), "{boolean}");
     }
-    // The protocol-version domain is offered but deliberately open: the
-    // loader normalises documented aliases onto the canonical spellings.
-    for open in ["protocol", "protocols"] {
-        let spec = reg.get(open).expect("registered statement");
-        let values: Vec<&str> = spec.arg_values_at(0).iter().map(|v| v.value).collect();
+    // `schema` is the one exact-match domain, and so the one closed argument.
+    let schema = reg.get("schema").expect("registered statement");
+    assert_eq!(schema.closed_value_args, &[0]);
+    let values: Vec<&str> = schema.arg_values_at(0).iter().map(|v| v.value).collect();
+    assert_eq!(values, ["1"]);
+    // No other row closes an argument.
+    for spec in tcl_registry::commands::sslictcl::sslictcl_command_specs() {
         assert_eq!(
-            values,
-            ["ssl2", "ssl3", "tls1.0", "tls1.1", "tls1.2", "tls1.3"],
-            "{open}"
-        );
-        assert!(
             spec.closed_value_args.is_empty(),
-            "{open}: aliases are accepted, so the set is not closed"
+            spec.name != "schema",
+            "{}: only `schema` is an exact-match domain",
+            spec.name
         );
     }
 }

@@ -4632,6 +4632,7 @@ dependencies = [
  "tcl-compiler",
  "tcl-core-types",
  "tcl-lexer",
+ "tcl-registry",
  "tcl-syntax",
  "x509-parser",
 ]
