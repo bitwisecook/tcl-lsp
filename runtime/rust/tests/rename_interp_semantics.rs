@@ -157,3 +157,41 @@ fn interp_target_of_a_same_interp_alias_is_the_empty_path() {
         b"alias \"nosuch\" in path \"\" not found".as_slice()
     );
 }
+
+/// item 5: `interp invokehidden`'s `-namespace`/`-global` options establish
+/// the evaluation context (resolved from the **global** namespace regardless
+/// of the caller's current one, C's `TCL_GLOBAL_ONLY`), and an unrecognized
+/// option is a hard error rather than a silently-skipped no-op. There is no
+/// mutual-exclusion refusal for passing both — the issue's own claim of a
+/// `cannot use -global option and -namespace option together` error does not
+/// hold against either tclsh 8.6.16 or 9.0.4; the last option given simply
+/// wins, same as tclsh.
+///
+/// tclsh9.0.4:
+///   interp hide {} pwd
+///   catch {interp invokehidden {} -bogus pwd} e
+///   => bad option "-bogus": must be -global, -namespace, or --
+///   namespace eval ::ns5 { interp invokehidden {} -namespace bar pwd }
+///   namespace children :: bar     ;# => ::bar      (created at the global root)
+///   namespace children ::ns5      ;# => {}          (not under ::ns5)
+#[test]
+fn invokehidden_rejects_unknown_options_and_namespace_is_global_anchored() {
+    let mut interp = Interp::new();
+    assert_eq!(interp.eval_str(b"interp hide {} pwd"), Code::Ok);
+    assert_eq!(
+        interp.eval_str(b"catch {interp invokehidden {} -bogus pwd} e; set e"),
+        Code::Ok
+    );
+    assert_eq!(
+        interp.result_bytes(),
+        b"bad option \"-bogus\": must be -global, -namespace, or --".as_slice()
+    );
+    assert_eq!(
+        interp.eval_str(b"namespace eval ::ns5 { interp invokehidden {} -namespace bar pwd }"),
+        Code::Ok
+    );
+    assert_eq!(interp.eval_str(b"namespace children :: bar"), Code::Ok);
+    assert_eq!(interp.result_bytes(), b"::bar".as_slice());
+    assert_eq!(interp.eval_str(b"namespace children ::ns5"), Code::Ok);
+    assert_eq!(interp.result_bytes(), b"".as_slice());
+}

@@ -531,29 +531,66 @@ fn interp_hidectl(interp: &mut Interp, argv: &[*mut TclObj], op: CommandVisibili
     interp.finish_command_visibility(op, &cmd, &token, moved)
 }
 
-/// `interp invokehidden path ?-opt ...? cmdName ?arg ...?` — invoke a hidden
-/// command in the named (or current) interpreter.
+/// `interp invokehidden path ?-namespace ns? ?-global? ?--? cmdName ?arg
+/// ...?` — invoke a hidden command in the named (or current) interpreter, in
+/// the `-namespace`/`-global` evaluation context when given.
+///
+/// C's `ChildInvokeHidden` (`tclInterp.c`) takes the *last* of `-global`
+/// (`::`) / `-namespace ns` given, not a mutual-exclusion refusal — passing
+/// both is legal on tclsh 8.6.16/9.0.4, the last one simply wins (issue
+/// #1412's own item 5 claimed a `cannot use -global option and -namespace
+/// option together` error exists; it does not, on either release). An
+/// unrecognized option is a hard `bad option` error rather than the previous
+/// silent skip. `-namespace`'s namespace is resolved from the **global**
+/// namespace regardless of the caller's current one, matching
+/// `TCL_GLOBAL_ONLY` (tclsh-pinned: `-namespace bar` from inside `::foo`
+/// still names `::bar`, not `::foo::bar`).
+///
+/// Simplification: unlike C's `Tcl_GetIndexFromObj`, this does not accept an
+/// *abbreviated* option name (`-g` for `-global`) — only the three exact
+/// spellings.
 fn interp_invokehidden(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    const USAGE: &[u8] = b"interp invokehidden path ?-namespace ns? ?-global? ?--? cmd ?arg ..?";
     if argv.len() < 4 {
-        return interp.wrong_args(b"interp invokehidden path ?-opt? cmd ?arg ...?");
+        return interp.wrong_args(USAGE);
     }
     let path = interp_path(argv[2]);
-    // Skip leading option flags (`-namespace ns`, `-global`).
+    let mut ns_name: Option<Vec<u8>> = None;
     let mut i = 3;
     while i < argv.len() {
-        match obj_bytes(argv[i]).as_slice() {
-            b"-global" => i += 1,
-            b"-namespace" => i += 2,
+        let opt = obj_bytes(argv[i]);
+        if opt.first() != Some(&b'-') {
+            break;
+        }
+        match opt.as_slice() {
+            b"-global" => {
+                ns_name = Some(b"::".to_vec());
+                i += 1;
+            }
+            b"-namespace" => {
+                i += 1;
+                if i == argv.len() {
+                    // C: "there must be more arguments" — stop scanning
+                    // options and fall through to the arg-count check below.
+                    break;
+                }
+                ns_name = Some(obj_bytes(argv[i]));
+                i += 1;
+            }
             b"--" => {
                 i += 1;
                 break;
             }
-            s if s.starts_with(b"-") => i += 1,
-            _ => break,
+            _ => {
+                let mut m = b"bad option \"".to_vec();
+                m.extend_from_slice(&opt);
+                m.extend_from_slice(b"\": must be -global, -namespace, or --");
+                return interp.set_error(&m);
+            }
         }
     }
     if i >= argv.len() {
-        return interp.wrong_args(b"interp invokehidden path ?-opt? cmd ?arg ...?");
+        return interp.wrong_args(USAGE);
     }
     if interp.is_safe() {
         return interp.set_error(b"not allowed to invoke hidden commands from safe interpreter");
@@ -565,10 +602,17 @@ fn interp_invokehidden(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         unsafe { obj::incr_ref_count(a) };
         hidden_argv.push(a);
     }
-    // Run in the addressed interp (the current one for an empty path), copying
-    // its result back up the path.
+    // Run in the addressed interp (the current one for an empty path), in the
+    // requested namespace context if any, copying its result back up the path.
     let code = match interp.with_child_path(&path, |c| {
-        (c.invoke_hidden(&cmd, &hidden_argv), c.result_bytes())
+        let saved_ns = c.current_ns();
+        if let Some(name) = &ns_name {
+            let target = c.ensure_global_namespace(name);
+            c.set_current_ns(target);
+        }
+        let result = (c.invoke_hidden(&cmd, &hidden_argv), c.result_bytes());
+        c.set_current_ns(saved_ns);
+        result
     }) {
         Some((code, res)) => {
             interp.set_result_bytes(&res);

@@ -2135,6 +2135,16 @@ impl Interp {
         self.current_ns.get()
     }
 
+    /// Set the current namespace context directly, with no frame push and no
+    /// restore-on-return of its own — the caller saves/restores
+    /// [`Self::current_ns`] around whatever it runs. Used by `interp
+    /// invokehidden`'s `-global`/`-namespace` evaluation-context switch
+    /// (issue #1412 item 5), which invokes one command rather than evaluating
+    /// a script body, so it needs no `namespace eval`-style frame.
+    pub(crate) fn set_current_ns(&self, ns: NsId) {
+        self.current_ns.set(ns);
+    }
+
     /// Enter a **compiled activation** — the eval-loop activation a generated
     /// function or ABI dispatch stands in for.
     ///
@@ -3637,6 +3647,17 @@ impl Interp {
         self.namespaces
             .borrow_mut()
             .ensure_namespace(self.current_ns.get(), name)
+    }
+
+    /// Resolve (creating if needed) a namespace by name, anchored at the
+    /// **global** namespace regardless of the current one — C's
+    /// `TclGetNamespaceForQualName(..., TCL_GLOBAL_ONLY |
+    /// TCL_CREATE_NS_IF_UNKNOWN)`. Used by `interp invokehidden -namespace`
+    /// (issue #1412 item 5): `-namespace bar` names `::bar` even when called
+    /// from inside another namespace (tclsh 9.0.4-pinned).
+    pub(crate) fn ensure_global_namespace(&mut self, name: &[u8]) -> NsId {
+        self.invalidate_command_environment();
+        self.namespaces.borrow_mut().ensure_namespace(GLOBAL, name)
     }
 
     /// Delete the namespace `ns` (by id), e.g. an OO object's instance namespace
