@@ -97,24 +97,26 @@ fn boolean(
     offered(name, summary, synopsis, snippet, BOOL_ARG)
 }
 
-/// `predicate SCRIPT` — the one row whose word is a script.
+/// `predicate SCRIPT` — the one row whose word is script-shaped.
 ///
-/// Modelled exactly as a `SpecTcl` hook body is: the word is a body so it
-/// folds and is not painted as data, and the row carries **no**
-/// `definition_body`, so the walker drops out of declaration context for it.
-/// Unlike a hook, this script is never evaluated at all — the loader retains
-/// it verbatim.
+/// [`ArgRole::OpaqueScript`], not `Body`: the loader stores the braced word's
+/// exact inner text and neither parses, analyses, nor runs it, so calling it a
+/// body would put a never-executed word into the reference graph, the
+/// call-hierarchy, the callback-surface inventory, and the unresolved-command
+/// pass. The role still folds like a body — that is the difference between it
+/// and a plain `Value` — and the row carries **no** `definition_body`, so the
+/// definition-body walker drops out of declaration context for it too.
 fn predicate() -> CommandSpec {
     CommandSpec {
         traits: Traits::CREATES_BARRIER
             .union(Traits::NEVER_INLINE_BODY)
             .union(Traits::LANGUAGE_KEYWORD),
-        arg_roles: &[(0, ArgRole::Body)],
+        arg_roles: &[(0, ArgRole::OpaqueScript)],
         ..text(
             "predicate",
             "State a check condition the declarative members cannot express.",
             &["predicate { … }"],
-            "One braced word, retained verbatim and **never evaluated** — not at load time, not at check time. It exists so a document can record a condition the vocabulary has no member for without the vocabulary growing an evaluator.",
+            "One braced word, retained verbatim and **never evaluated** — not at load time, not at check time. It folds like a body and is analysed like data: no reference, call-hierarchy, or callback surface is claimed for it. It exists so a document can record a condition the vocabulary has no member for without the vocabulary growing an evaluator.",
         )
     }
 }

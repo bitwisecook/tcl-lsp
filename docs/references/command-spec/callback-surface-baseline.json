@@ -782,10 +782,6 @@
       "location": "arg[1]"
     },
     {
-      "owner": "predicate",
-      "location": "arg[0]"
-    },
-    {
       "owner": "protocol",
       "location": "arg[1]"
     },

@@ -1925,11 +1925,14 @@ fn sslictcl_declaration_words_are_context_sensitive() {
     assert!(tcl_registry::definer::SSLICTCL_ENDPOINT_GRAMMAR.is_member("hostname"));
 }
 
-/// A `predicate` body is not a declaration block: its statement carries no
-/// grammar, so the walk drops out of declaration context and does not paint
-/// the script's words as members of the enclosing `check`.
+/// A `predicate` body is neither a declaration block nor executable Tcl.
+///
+/// Its statement carries no grammar, so the walk drops out of declaration
+/// context; and its word is `ArgRole::OpaqueScript` rather than `Body`, so
+/// nothing descends into it at all — the words inside are data, not commands
+/// and not member rows.
 #[test]
-fn sslictcl_predicate_bodies_are_not_declaration_blocks() {
+fn sslictcl_predicate_bodies_are_opaque_data() {
     let src = "policy baseline {\n\
                \x20   check bespoke {\n\
                \x20       severity warning\n\
@@ -1944,6 +1947,16 @@ fn sslictcl_predicate_bodies_are_not_declaration_blocks() {
         "the predicate statement itself is a keyword: {:?}",
         decode(src, "sslictcl"),
     );
+    // Nothing inside is painted as a declaration row or as a command: the
+    // `severity` on line 4 is a real member row, the one on line 5 is inside
+    // the retained script and must not be.
+    let inside = decode(src, "sslictcl")
+        .into_iter()
+        .find(|t| t.line == 4 && t.character == 12);
+    assert!(
+        inside.as_ref().is_none_or(|t| t.ttype != "keyword"),
+        "a word inside a retained predicate must not paint as a keyword: {inside:?}",
+    );
     let spec = static_context_for("sslictcl")
         .commands()
         .get("predicate")
@@ -1952,5 +1965,10 @@ fn sslictcl_predicate_bodies_are_not_declaration_blocks() {
         spec.definition_body.is_none(),
         "a predicate body carries no member grammar, so nothing inside it is \
          painted as a declaration row"
+    );
+    assert_eq!(
+        spec.arg_role_at(0),
+        Some(tcl_registry::ArgRole::OpaqueScript),
+        "the braced word is retained data, not an analysed body"
     );
 }

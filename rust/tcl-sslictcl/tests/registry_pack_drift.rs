@@ -184,11 +184,11 @@ fn key_and_body_words_claim_their_roles() {
 }
 
 /// A `SCRIPT` member is retained verbatim and never evaluated, so its spec
-/// carries a `Body` role — the word folds and is not painted as data — and
-/// **no** grammar, so the walker drops out of declaration context for it and
-/// nothing inside is painted as a member row.
+/// carries [`ArgRole::OpaqueScript`] — script-shaped data that folds like a
+/// body and that nothing analyses — and **no** grammar, so the definition-body
+/// walker drops out of declaration context for it too.
 #[test]
-fn script_members_are_bodies_without_a_grammar() {
+fn script_members_are_opaque_not_bodies() {
     let registry = pack();
     let mut seen = 0usize;
     for declaration in all_declarations() {
@@ -205,9 +205,17 @@ fn script_members_are_bodies_without_a_grammar() {
             );
             assert_eq!(
                 spec.arg_role_at(0),
-                Some(ArgRole::Body),
-                "`{}`'s script word is a body",
+                Some(ArgRole::OpaqueScript),
+                "`{}` is retained data, not an analysed body",
                 member.name
+            );
+            assert!(
+                !ArgRole::OpaqueScript.carries_script(),
+                "nothing may descend into a retained predicate"
+            );
+            assert!(
+                ArgRole::OpaqueScript.folds_as_block(),
+                "a reader still collapses it"
             );
         }
     }

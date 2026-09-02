@@ -189,6 +189,23 @@ pub fn member_body_indices_in(
     grammar.member_body_indices_in(command, args, dialect)
 }
 
+/// Braced-block argument indices for a member call under `grammar` — the
+/// words a **reader** collapses, which is [`member_body_indices_in`] plus
+/// every member word that is a braced block without being executable
+/// (`ArgRole::OpaqueScript`).
+///
+/// Folding reads this; a walker that descends into code reads
+/// [`member_body_indices_in`].
+#[must_use]
+pub fn member_block_indices_in(
+    grammar: &DefinitionBodyGrammar,
+    command: &str,
+    args: &[&str],
+    dialect: Option<SurfaceQuery<'_>>,
+) -> Vec<usize> {
+    grammar.member_block_indices_in(command, args, dialect)
+}
+
 /// Parameter-list argument indices for a member call under `grammar` (a
 /// `method`/`typemethod`/`constructor`'s `{a b}` word).  A wrapper member
 /// (`self method …`, itcl `public method …`) nests.

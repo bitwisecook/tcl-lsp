@@ -230,11 +230,16 @@ table a second time, in the shape the editor surfaces read:
   literal outside the set is reported (W127). `VERSION` is the one deliberate
   exception: the canonical spellings are offered as completions while the
   loader also accepts documented aliases, so the argument is *not* closed.
-- **`predicate SCRIPT`** is modelled like a SpecTcl hook body — `arg_roles`
-  `&[(0, ArgRole::Body)]` and **no** `definition_body` — so the shared
-  definition-body walker drops out of declaration context for it and nothing
-  inside is painted as a member row. Unlike a hook it is never evaluated at
-  all.
+- **`predicate SCRIPT`** carries `ArgRole::OpaqueScript`, not `Body`, and
+  **no** `definition_body`. `Body` means "executable Tcl a consumer must
+  descend into", which is the one thing the vocabulary guarantees this word is
+  not: calling it a body put a never-executed word into the reference graph,
+  the call-hierarchy, the unresolved-command pass, and the generated
+  callback-surface inventory. The opaque role keeps what a *reader* wants —
+  `ArgRole::folds_as_block` is true, so it still folds — while
+  `ArgRole::carries_script` is false, so no analysis enters it, and the missing
+  grammar keeps the definition-body walker out of declaration context for it
+  as well.
 
 `rust/tcl-sslictcl/tests/registry_pack_drift.rs` walks [`DECLARATIONS`] and
 asserts the pack matches it in both directions: every declared word has a spec,

@@ -1172,10 +1172,15 @@ impl DefinitionBodyGrammar {
         Some(&self.members[idx])
     }
 
-    /// Body argument indices for a concrete definition-member invocation.
+    /// Body argument indices for a concrete definition-member invocation —
+    /// the words a consumer walking **executable code** must descend into.
     ///
     /// Handles flat members, prefix wrappers, wrapper block forms, and
     /// flag-keyed getter/setter bodies from this grammar's structural data.
+    ///
+    /// Deliberately narrower than [`Self::member_block_indices_in`]: a member
+    /// word that is script-*shaped* data ([`ArgRole::OpaqueScript`]) is a
+    /// block a reader folds, not code an analysis enters.
     #[must_use]
     pub fn member_body_indices_in(
         &self,
@@ -1183,31 +1188,68 @@ impl DefinitionBodyGrammar {
         args: &[&str],
         dialect: Option<SurfaceQuery<'_>>,
     ) -> Vec<usize> {
+        self.member_indices_where(keyword, args, dialect, ArgRole::carries_script)
+    }
+
+    /// Braced-block argument indices for a concrete definition-member
+    /// invocation — the words a **reader** can collapse.
+    ///
+    /// [`Self::member_body_indices_in`] plus every member word that is a
+    /// braced block without being executable, so folding covers a retained
+    /// script (`SslicTcl`'s `predicate`) without any consumer deciding for
+    /// itself what counts as one.
+    #[must_use]
+    pub fn member_block_indices_in(
+        &self,
+        keyword: &str,
+        args: &[&str],
+        dialect: Option<SurfaceQuery<'_>>,
+    ) -> Vec<usize> {
+        self.member_indices_where(keyword, args, dialect, ArgRole::folds_as_block)
+    }
+
+    /// The shared walk behind [`Self::member_body_indices_in`] and
+    /// [`Self::member_block_indices_in`]: `admit` selects which roles count.
+    fn member_indices_where(
+        &self,
+        keyword: &str,
+        args: &[&str],
+        dialect: Option<SurfaceQuery<'_>>,
+        admit: fn(ArgRole) -> bool,
+    ) -> Vec<usize> {
         let Some(member) = self.member(keyword) else {
             return Vec::new();
         };
         if member.unavailable_option_for(args, dialect).is_some() {
             return Vec::new();
         }
+        let selected = |member: &'static MemberSpec| -> Vec<usize> {
+            let mut out: Vec<usize> = ArgRole::ALL
+                .iter()
+                .filter(|role| admit(**role))
+                .flat_map(|&role| {
+                    member
+                        .indices_for_call_in(args, dialect, role)
+                        .filter(|&index| index < args.len())
+                })
+                .collect();
+            out.sort_unstable();
+            out.dedup();
+            out
+        };
         match member.kind {
-            MemberKind::Flat => member
-                .indices_for_call_in(args, dialect, ArgRole::Body)
-                .filter(|&index| index < args.len())
-                .collect(),
+            MemberKind::Flat => selected(member),
             MemberKind::Wrapper => {
                 let Some((inner, rest)) = args.split_first() else {
                     return Vec::new();
                 };
                 if self.member(inner).is_some() {
-                    self.member_body_indices_in(inner, rest, dialect)
+                    self.member_indices_where(inner, rest, dialect, admit)
                         .into_iter()
                         .map(|index| index + 1)
                         .collect()
                 } else if member.wrapper_block_body {
-                    member
-                        .indices_for_call_in(args, dialect, ArgRole::Body)
-                        .filter(|&index| index < args.len())
-                        .collect()
+                    selected(member)
                 } else {
                     Vec::new()
                 }
@@ -2379,6 +2421,9 @@ const SSLICTCL_BLOCK_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::Body)];
 /// A nested named-block member row: `anchor SHA256 { … }`, `check ID { … }`.
 const SSLICTCL_NAMED_BLOCK_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::Name), (1, ArgRole::Body)];
 
+/// A member row whose one word is a retained, never-evaluated script.
+const SSLICTCL_OPAQUE_SCRIPT_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::OpaqueScript)];
+
 /// The rows of a `certificate NAME { … }` block.
 const SSLICTCL_CERTIFICATE_MEMBERS: &[MemberSpec] = &[
     MemberSpec::keyword_only("pem"),
@@ -2465,8 +2510,8 @@ const SSLICTCL_POLICY_MEMBERS: &[MemberSpec] = &[
 ];
 
 /// The rows of a `check ID { … }` block. `predicate` carries a braced script
-/// that the loader retains verbatim and never evaluates, so it is a plain
-/// keyword row here and its own statement claims the body role.
+/// the loader retains verbatim and never evaluates, so its word is an
+/// [`ArgRole::OpaqueScript`]: it folds like a body, and no analysis enters it.
 const SSLICTCL_CHECK_MEMBERS: &[MemberSpec] = &[
     MemberSpec::keyword_only("severity"),
     MemberSpec::keyword_only("message"),
@@ -2477,7 +2522,7 @@ const SSLICTCL_CHECK_MEMBERS: &[MemberSpec] = &[
     MemberSpec::keyword_only("min-key-bits"),
     MemberSpec::keyword_only("require-hsts"),
     MemberSpec::keyword_only("min-hsts-max-age"),
-    MemberSpec::keyword_only("predicate"),
+    MemberSpec::flat("predicate", SSLICTCL_OPAQUE_SCRIPT_ROLES),
 ];
 
 /// The one row of a `grade { … }` block.

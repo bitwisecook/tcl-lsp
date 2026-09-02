@@ -334,18 +334,33 @@ fn block_statements_claim_their_body_word() {
     assert!(header.arity.accepts(1) && !header.arity.accepts(2));
 }
 
-/// `predicate { … }` is modelled like a `SpecTcl` hook body: a body word with
-/// **no** grammar, so the walker drops out of declaration context for it. It
-/// goes further than a hook — the loader never evaluates it at all.
+/// `predicate { … }` carries `ArgRole::OpaqueScript` and **no** grammar: it
+/// folds like a body, nothing descends into it, and the definition-body walker
+/// drops out of declaration context for it.
 #[test]
-fn a_predicate_body_is_not_a_declaration_block() {
+fn a_predicate_body_is_opaque_and_not_a_declaration_block() {
     let reg = static_context_for("sslictcl").commands();
     let spec = reg.get("predicate").expect("predicate is a statement");
     assert!(
         spec.definition_body.is_none(),
         "a predicate body is not a declaration block"
     );
-    assert_eq!(spec.arg_role_at(0), Some(ArgRole::Body));
+    assert_eq!(spec.arg_role_at(0), Some(ArgRole::OpaqueScript));
+    assert!(
+        !ArgRole::OpaqueScript.carries_script(),
+        "the loader never evaluates it, so no analysis may claim it does"
+    );
+    assert!(
+        ArgRole::OpaqueScript.folds_as_block(),
+        "a reader still collapses the braced word"
+    );
+    // The one word in the whole pack that is script-shaped.
+    let opaque: Vec<&str> = tcl_registry::commands::sslictcl::sslictcl_command_specs()
+        .iter()
+        .filter(|spec| spec.arg_role_at(0) == Some(ArgRole::OpaqueScript))
+        .map(|spec| spec.name)
+        .collect();
+    assert_eq!(opaque, ["predicate"]);
     assert!(spec.arity.accepts(1) && !spec.arity.accepts(2));
 }
 

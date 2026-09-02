@@ -8659,26 +8659,6 @@
     "notes": "static script-body position"
   },
   {
-    "id": "predicate/arg[0]@sslictcl",
-    "owner": "predicate",
-    "surface": "command",
-    "kind": "body-script",
-    "provenance": "SslicTcl (docs/design/sslictcl-vocabulary.md)",
-    "dialects": [
-      "sslictcl"
-    ],
-    "lifecycle": "all known owning-package versions",
-    "timing": "same-invocation",
-    "appended_arity": null,
-    "callback_taint_inputs": [],
-    "forms": [
-      "predicate { … }"
-    ],
-    "registry_derived": true,
-    "registry_owner": "predicate",
-    "notes": "static script-body position"
-  },
-  {
     "id": "proc/arg[2]@bpf+cadence-eda-tcl+expect+f5-bigip+f5-iapps+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+sslictcl+synopsys-eda-tcl+tcl8.4+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
     "owner": "proc",
     "surface": "command",
