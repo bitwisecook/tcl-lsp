@@ -591,11 +591,7 @@ mod tests {
         );
         assert_eq!(
             parts(b"a[clock seconds]b", nine()),
-            vec![
-                text(b"a"),
-                WordPart::Command(b"clock seconds"),
-                text(b"b")
-            ]
+            vec![text(b"a"), WordPart::Command(b"clock seconds"), text(b"b")]
         );
         assert_eq!(
             parts(b"$arr($i)", nine()),
@@ -633,7 +629,10 @@ mod tests {
         assert_eq!(parts(b"${a\\}b}", nine()), vec![scalar(b"a\\}b")]);
         // 8.x closes at the first `}`; the rest of the template is text, and
         // its escapes decode with it (`\}` → `}`).
-        assert_eq!(parts(b"${a\\}b}", eight()), vec![scalar(b"a\\"), text(b"b}")]);
+        assert_eq!(
+            parts(b"${a\\}b}", eight()),
+            vec![scalar(b"a\\"), text(b"b}")]
+        );
     }
 
     /// An unterminated `${…}` is C's error, not a name that runs to end of
@@ -736,10 +735,7 @@ mod tests {
     /// `\U`, so `\x4142` is `B` under 8.5 and `A42` from 8.6.
     #[test]
     fn literal_runs_decode_under_the_releases_escape_grammar() {
-        let with = |escapes| LexerConfig {
-            escapes,
-            ..nine()
-        };
+        let with = |escapes| LexerConfig { escapes, ..nine() };
         for (escapes, hex, wide) in [
             (EscapeSyntax::Tcl84, &b"B"[..], &b"U0001F600"[..]),
             (EscapeSyntax::Tcl86, b"A42", "\u{FFFD}".as_bytes()),
