@@ -18,10 +18,12 @@
 
 //! Dockerfile generation for Tcl projects.
 //!
-//! Generates production-ready
-//! Dockerfiles that install a specific Tcl version, download the `tcl` CLI
-//! zipapp, and wire `tcl pkg sync` / `tcl venv create`. Also exposes recipe
-//! lookup helpers for AI skills composing custom Dockerfiles.
+//! Generates production-ready Dockerfiles that install a specific Tcl version,
+//! download the **native** `tcl` CLI binary for the target architecture from a
+//! GitHub release, verify it against the release's `SHA256SUMS`, and wire
+//! `tcl pkg install --frozen` / `tcl venv create`. Nothing in the generated
+//! image needs a Python interpreter. Also exposes recipe lookup helpers for AI
+//! skills composing custom Dockerfiles.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -32,8 +34,22 @@ pub const SUPPORTED_TCL_VERSIONS: [&str; 4] = ["8.4", "8.5", "8.6", "9.0"];
 pub const DEFAULT_TCL_VERSION: &str = "8.6";
 pub const DEFAULT_BASE_IMAGE: &str = "debian:bookworm-slim";
 
-const TCL_CLI_URL_PREFIX: &str = "https://github.com/bitwisecook/tcl-lsp/releases/download/v";
-const DEFAULT_CLI_VERSION: &str = "1.6.0";
+/// The GitHub repository the release assets are published from.
+pub const RELEASE_REPO: &str = "bitwisecook/tcl-lsp";
+
+/// The version `tcl-version` stamps when the checkout has no reachable tag.
+/// It names no release, so it can never be pinned in a generated Dockerfile.
+const MANIFEST_PLACEHOLDER_VERSION: &str = "0.1.0";
+
+/// Docker's `TARGETARCH` (and the `uname -m` spelling it degrades to under the
+/// classic builder) mapped to the Rust target triple the release assets are
+/// named for. Keep in sync with the Linux legs of `build-server-matrix` in
+/// `.github/workflows/ci.yml`.
+pub const RELEASE_TRIPLES: &[(&str, &str, &str)] = &[
+    ("amd64", "x86_64", "x86_64-unknown-linux-gnu"),
+    ("arm64", "aarch64", "aarch64-unknown-linux-gnu"),
+    ("riscv64", "riscv64", "riscv64gc-unknown-linux-gnu"),
+];
 
 // Map well-known image prefixes to recipe families.
 const IMAGE_FAMILY: &[(&str, &str)] = &[
@@ -75,9 +91,12 @@ fn family_versions(family: &str) -> Option<&'static [(&'static str, &'static str
     }
 }
 
-const PYTHON_INSTALL_DEBIAN: &str = "RUN apt-get update && apt-get install -y --no-install-recommends \\\n        python3 curl ca-certificates && \\\n    rm -rf /var/lib/apt/lists/*";
-const PYTHON_INSTALL_ALPINE: &str = "RUN apk add --no-cache python3 curl";
-const PYTHON_INSTALL_REDHAT: &str = "RUN dnf install -y python3 curl && dnf clean all";
+// Fetching and verifying the release asset needs curl, a trust store, and
+// sha256sum/awk (already in coreutils everywhere below).
+const CLI_PREREQ_DEBIAN: &str = "RUN apt-get update && apt-get install -y --no-install-recommends \\\n        ca-certificates curl && \\\n    rm -rf /var/lib/apt/lists/*";
+// `dnf install curl` on an image carrying curl-minimal is a package swap, not
+// an install — guard on the binary so a present curl is left alone.
+const CLI_PREREQ_REDHAT: &str = "RUN if ! command -v curl >/dev/null 2>&1; then dnf install -y curl; fi && \\\n    dnf install -y ca-certificates && \\\n    dnf clean all";
 
 fn strip_registry(image: &str) -> String {
     let parts: Vec<&str> = image.split('/').collect();
@@ -128,23 +147,138 @@ pub fn tcl_install_recipe(image: &str, tcl_version: &str) -> Result<String, TclP
         })
 }
 
-/// Return the Dockerfile snippet that installs Python 3 on `image`.
-pub fn python_install_recipe(image: &str) -> Result<String, TclPkgError> {
+/// Return the Dockerfile snippet that installs what fetching and verifying the
+/// native `tcl` release asset needs on `image`: curl and a CA bundle.
+///
+/// Alpine is rejected. Every published Linux `tcl` asset is glibc-linked — the
+/// release matrix has no musl leg — and `gcompat` does not close the gap
+/// (`fcntl64` and `__res_init` are not among the symbols it re-exports, so the
+/// binary dies in the dynamic loader). A Tcl-only Alpine image is still fine:
+/// drop the CLI verbs (`--no-packages`, no `--venv`) and nothing is fetched.
+pub fn cli_prereq_recipe(image: &str) -> Result<String, TclPkgError> {
     match detect_image_family(image).as_str() {
-        "debian" => Ok(PYTHON_INSTALL_DEBIAN.to_string()),
-        "alpine" => Ok(PYTHON_INSTALL_ALPINE.to_string()),
-        "redhat" => Ok(PYTHON_INSTALL_REDHAT.to_string()),
+        "debian" => Ok(CLI_PREREQ_DEBIAN.to_string()),
+        "redhat" => Ok(CLI_PREREQ_REDHAT.to_string()),
+        "alpine" => Err(docker_error(
+            "the native tcl CLI has no musl release asset, so it cannot run on \
+             alpine (its glibc shim is missing fcntl64 and __res_init). Use a \
+             glibc base image (debian, ubuntu, fedora, rockylinux, …), or build \
+             a Tcl-only alpine image with --no-packages and no --venv.",
+        )),
         family => Err(docker_error(format!(
-            "no Python install recipe for image family: {family}"
+            "no tcl CLI prerequisite recipe for image family: {family}"
         ))),
     }
 }
 
-/// Return the GitHub release URL for the `tcl` CLI zipapp.
+/// The image families a generated Dockerfile can install the native `tcl` CLI
+/// on, sorted. Every family in [`available_recipes`] can still install Tcl
+/// itself; only these can also carry the CLI.
 #[must_use]
-pub fn tcl_cli_download_url(cli_version: Option<&str>) -> String {
-    let version = cli_version.unwrap_or(DEFAULT_CLI_VERSION);
-    format!("{TCL_CLI_URL_PREFIX}{version}/tcl-{version}.pyz")
+pub fn cli_capable_families() -> Vec<String> {
+    ["debian", "redhat"].map(ToString::to_string).to_vec()
+}
+
+/// The release version a generated Dockerfile pins by default.
+///
+/// Derived from the version stamped into this binary, so a generated image
+/// installs the CLI line that generated it. Build metadata (`+g<hash>`,
+/// `.dirty`) and the `git describe` distance (`-<n>`) are stripped, leaving the
+/// tag the build descends from: `2.2.1-7+gc1a17793` pins `2.2.1`.
+///
+/// `None` when the build carries no release base at all — a tagless checkout
+/// stamps the workspace manifest's placeholder, which names no release. The
+/// generated Dockerfile then resolves the newest release at build time instead
+/// of pinning a tag that was never published.
+#[must_use]
+pub fn default_cli_version() -> Option<String> {
+    release_base(tcl_version::VERSION)
+}
+
+/// Reduce a stamped version to the release tag it descends from.
+fn release_base(version: &str) -> Option<String> {
+    let base = version.split('+').next().unwrap_or(version);
+    let base = base.strip_suffix("-dirty").unwrap_or(base);
+    // `git describe` counts commits since the tag: `2.2.1-7` came from `v2.2.1`.
+    let base = match base.rsplit_once('-') {
+        Some((tag, distance))
+            if !distance.is_empty() && distance.chars().all(|c| c.is_ascii_digit()) =>
+        {
+            tag
+        }
+        _ => base,
+    };
+    (!base.is_empty() && base != MANIFEST_PLACEHOLDER_VERSION).then(|| base.to_string())
+}
+
+/// Normalise a release version for the `TCL_LSP_VERSION` build argument: no
+/// leading `v` (the fetch step adds it back when it builds the tag).
+fn normalise_cli_version(version: &str) -> String {
+    version.trim().trim_start_matches('v').to_string()
+}
+
+/// Return the Dockerfile snippet that downloads the native `tcl` CLI for the
+/// build's target architecture and verifies it against the release's
+/// `SHA256SUMS` before installing it at `/usr/local/bin/tcl`.
+///
+/// `cli_version` pins a release; `None` defers to [`default_cli_version`], and
+/// when that is also `None` the emitted `TCL_LSP_VERSION` build argument is
+/// empty and the snippet resolves the newest release itself. Either way the
+/// version stays overridable at build time with
+/// `docker build --build-arg TCL_LSP_VERSION=…`.
+///
+/// The trust model mirrors `scripts/tcl-mcp`: an asset missing from
+/// `SHA256SUMS`, or one whose hash does not match, fails the build rather than
+/// landing an unverified binary in the image.
+#[must_use]
+pub fn tcl_cli_install_recipe(cli_version: Option<&str>) -> String {
+    let pinned = cli_version
+        .map(normalise_cli_version)
+        .or_else(default_cli_version)
+        .unwrap_or_default();
+
+    let arch_cases = RELEASE_TRIPLES
+        .iter()
+        .map(|(target_arch, uname, triple)| {
+            // The two spellings coincide on some architectures (riscv64);
+            // emitting both would be a duplicate `case` pattern.
+            let pattern = if target_arch == uname {
+                (*target_arch).to_string()
+            } else {
+                format!("{target_arch} | {uname}")
+            };
+            format!("        {pattern}) triple=\"{triple}\" ;; \\")
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    format!(
+        "ARG TCL_LSP_VERSION={pinned}\n\
+         ARG TARGETARCH\n\
+         RUN set -eu; \\\n\
+         \x20   arch=\"${{TARGETARCH:-$(uname -m)}}\"; \\\n\
+         \x20   case \"$arch\" in \\\n\
+         {arch_cases}\n\
+         \x20       *) echo \"no tcl release asset for $arch\" >&2; exit 1 ;; \\\n\
+         \x20   esac; \\\n\
+         \x20   if [ -n \"${{TCL_LSP_VERSION:-}}\" ]; then \\\n\
+         \x20       tag=\"v${{TCL_LSP_VERSION#v}}\"; \\\n\
+         \x20   else \\\n\
+         \x20       tag=\"$(curl -fsSL \"https://api.github.com/repos/{RELEASE_REPO}/releases?per_page=1\" \\\n\
+         \x20           | grep -m1 '\"tag_name\"' \\\n\
+         \x20           | sed -E 's/.*\"tag_name\": *\"([^\"]+)\".*/\\1/')\"; \\\n\
+         \x20       [ -n \"$tag\" ] || {{ echo \"cannot resolve the latest {RELEASE_REPO} release\" >&2; exit 1; }}; \\\n\
+         \x20   fi; \\\n\
+         \x20   base=\"https://github.com/{RELEASE_REPO}/releases/download/$tag\"; \\\n\
+         \x20   curl -fsSL \"$base/tcl-$triple\" -o /usr/local/bin/tcl; \\\n\
+         \x20   curl -fsSL \"$base/SHA256SUMS\" -o /tmp/SHA256SUMS; \\\n\
+         \x20   want=\"$(awk -v a=\"tcl-$triple\" '$2 == a || $2 == \"*\"a {{ print $1; exit }}' /tmp/SHA256SUMS)\"; \\\n\
+         \x20   [ -n \"$want\" ] || {{ echo \"tcl-$triple is not listed in $tag SHA256SUMS\" >&2; exit 1; }}; \\\n\
+         \x20   echo \"$want  /usr/local/bin/tcl\" | sha256sum -c -; \\\n\
+         \x20   rm -f /tmp/SHA256SUMS; \\\n\
+         \x20   chmod +x /usr/local/bin/tcl; \\\n\
+         \x20   tcl --version"
+    )
 }
 
 /// Return `{family: [versions]}` for all known recipe families (sorted).
@@ -223,15 +357,12 @@ pub fn generate_dockerfile(spec: &DockerfileSpec) -> Result<String, TclPkgError>
     lines.push(String::new());
 
     if needs_cli {
-        lines.push("# Install Python 3 (required by the tcl CLI tool)".to_string());
-        lines.push(python_install_recipe(&spec.base_image)?);
+        lines.push("# Fetch and verify the native tcl CLI release asset".to_string());
+        lines.push(cli_prereq_recipe(&spec.base_image)?);
         lines.push(String::new());
 
-        let url = tcl_cli_download_url(spec.cli_version.as_deref());
-        lines.push("# Download the tcl CLI zipapp from GitHub releases".to_string());
-        lines.push(format!(
-            "RUN curl -fSL \"{url}\" \\\n        -o /usr/local/bin/tcl.pyz && \\\n    chmod +x /usr/local/bin/tcl.pyz"
-        ));
+        lines.push("# Install the native tcl CLI from a verified release asset".to_string());
+        lines.push(tcl_cli_install_recipe(spec.cli_version.as_deref()));
         lines.push(String::new());
     }
 
@@ -261,7 +392,7 @@ pub fn generate_dockerfile(spec: &DockerfileSpec) -> Result<String, TclPkgError>
         let venv_abs = format!("{}/.venv", spec.workdir);
         lines.push("# Create Tcl virtual environment".to_string());
         lines.push(format!(
-            "RUN python3 /usr/local/bin/tcl.pyz venv create .venv --tcl {}",
+            "RUN tcl venv create .venv --tcl {}",
             spec.tcl_version
         ));
         lines.push(format!("ENV TCLLIBPATH=\"{venv_abs}/lib\""));
@@ -276,10 +407,7 @@ pub fn generate_dockerfile(spec: &DockerfileSpec) -> Result<String, TclPkgError>
         } else {
             lines.push("# Install Tcl packages from lockfile".to_string());
         }
-        lines.push(
-            "RUN if [ -f tclpkg.lock ]; then python3 /usr/local/bin/tcl.pyz pkg install --frozen; fi"
-                .to_string(),
-        );
+        lines.push("RUN if [ -f tclpkg.lock ]; then tcl pkg install --frozen; fi".to_string());
         lines.push(String::new());
     }
 
@@ -389,15 +517,86 @@ mod tests {
     }
 
     #[test]
-    fn cli_url() {
+    fn default_version_strips_describe_and_build_metadata() {
+        assert_eq!(release_base("2.2.1+gc1a17793").as_deref(), Some("2.2.1"));
+        assert_eq!(release_base("2.2.1-7+gc1a17793").as_deref(), Some("2.2.1"));
         assert_eq!(
-            tcl_cli_download_url(None),
-            "https://github.com/bitwisecook/tcl-lsp/releases/download/v1.6.0/tcl-1.6.0.pyz"
+            release_base("2.2.1+gc1a17793.dirty").as_deref(),
+            Some("2.2.1")
         );
-        assert_eq!(
-            tcl_cli_download_url(Some("2.0.0")),
-            "https://github.com/bitwisecook/tcl-lsp/releases/download/v2.0.0/tcl-2.0.0.pyz"
+        assert_eq!(release_base("2.2.1-dirty").as_deref(), Some("2.2.1"));
+        // A real pre-release segment is part of the tag, not a describe count.
+        assert_eq!(release_base("2.3.0-rc1").as_deref(), Some("2.3.0-rc1"));
+        // The manifest placeholder names no release, so nothing is pinned.
+        assert_eq!(release_base("0.1.0+gc1a17793"), None);
+    }
+
+    #[test]
+    fn cli_install_recipe_pins_and_verifies() {
+        let recipe = tcl_cli_install_recipe(Some("2.2.1"));
+        assert!(recipe.starts_with("ARG TCL_LSP_VERSION=2.2.1\nARG TARGETARCH\n"));
+        // A caller-supplied `v` prefix must not double up in the tag.
+        assert!(tcl_cli_install_recipe(Some("v2.2.1")).starts_with("ARG TCL_LSP_VERSION=2.2.1\n"));
+        assert!(
+            recipe
+                .contains("base=\"https://github.com/bitwisecook/tcl-lsp/releases/download/$tag\"")
         );
+        assert!(recipe.contains("$base/tcl-$triple"));
+        assert!(recipe.contains("$base/SHA256SUMS"));
+        assert!(recipe.contains("sha256sum -c -"));
+        assert!(recipe.contains("chmod +x /usr/local/bin/tcl"));
+        assert!(recipe.ends_with("tcl --version"));
+        for (target_arch, _, triple) in RELEASE_TRIPLES {
+            assert!(recipe.contains(triple), "{triple} missing from arch case");
+            assert!(recipe.contains(target_arch));
+        }
+        // Nothing Python-shaped survives.
+        assert!(!recipe.contains("python"));
+        assert!(!recipe.contains(".pyz"));
+    }
+
+    #[test]
+    fn cli_install_recipe_without_a_pin_resolves_the_latest_release() {
+        // `tcl_cli_install_recipe(None)` follows the build's own version, which
+        // varies; drive the empty-pin shape through the shared formatter.
+        let recipe = tcl_cli_install_recipe(Some(""));
+        assert!(recipe.starts_with("ARG TCL_LSP_VERSION=\n"));
+        assert!(recipe.contains("api.github.com/repos/bitwisecook/tcl-lsp/releases?per_page=1"));
+    }
+
+    #[test]
+    fn cli_prereqs_carry_no_python() {
+        for image in ["debian:bookworm-slim", "fedora:39"] {
+            let recipe = cli_prereq_recipe(image).unwrap();
+            assert!(recipe.contains("curl"), "{image}: no curl");
+            assert!(!recipe.contains("python"), "{image}: still installs python");
+        }
+    }
+
+    #[test]
+    fn alpine_cannot_carry_the_glibc_cli() {
+        let err = cli_prereq_recipe("alpine:3.19").unwrap_err().to_string();
+        assert!(err.contains("musl"), "unhelpful alpine error: {err}");
+        assert!(
+            err.contains("--no-packages"),
+            "no escape hatch named: {err}"
+        );
+
+        // Asking for the CLI on alpine fails ...
+        let with_cli = DockerfileSpec {
+            base_image: "alpine:3.19".to_string(),
+            ..Default::default()
+        };
+        assert!(generate_dockerfile(&with_cli).is_err());
+
+        // ... but a Tcl-only alpine image still generates.
+        let tcl_only = DockerfileSpec {
+            install_packages: false,
+            ..with_cli
+        };
+        let out = generate_dockerfile(&tcl_only).unwrap();
+        assert!(out.contains("RUN apk add --no-cache tcl"));
+        assert!(!out.contains("ARG TCL_LSP_VERSION"));
     }
 
     #[test]
@@ -425,5 +624,50 @@ mod tests {
         assert!(out.contains("WORKDIR /app"));
         assert!(out.contains("COPY . ."));
         assert!(out.trim_end().ends_with("CMD [\"tclsh\"]"));
+        // No CLI verbs are used, so no CLI is fetched.
+        assert!(!out.contains("ARG TCL_LSP_VERSION"));
+    }
+
+    #[test]
+    fn generate_installs_the_native_cli() {
+        let spec = DockerfileSpec {
+            cli_version: Some("2.2.1".to_string()),
+            create_venv: true,
+            entrypoint: Some("main.tcl".to_string()),
+            ..Default::default()
+        };
+        let out = generate_dockerfile(&spec).unwrap();
+        assert!(out.contains("ARG TCL_LSP_VERSION=2.2.1"));
+        assert!(out.contains("triple=\"x86_64-unknown-linux-gnu\""));
+        assert!(out.contains("sha256sum -c -"));
+        assert!(out.contains("RUN tcl venv create .venv --tcl 8.6"));
+        assert!(out.contains("RUN if [ -f tclpkg.lock ]; then tcl pkg install --frozen; fi"));
+        assert!(out.trim_end().ends_with("CMD [\"tclsh\", \"main.tcl\"]"));
+        assert!(
+            !out.to_lowercase().contains("python"),
+            "generated Dockerfile still mentions Python:\n{out}"
+        );
+        assert!(!out.contains(".pyz"));
+    }
+
+    #[test]
+    fn generate_carries_no_python_on_any_family() {
+        for image in ["debian:bookworm-slim", "fedora:39"] {
+            for version in SUPPORTED_TCL_VERSIONS {
+                let spec = DockerfileSpec {
+                    base_image: image.to_string(),
+                    tcl_version: version.to_string(),
+                    cli_version: Some("2.2.1".to_string()),
+                    create_venv: true,
+                    ..Default::default()
+                };
+                let out = generate_dockerfile(&spec).unwrap();
+                assert!(
+                    !out.to_lowercase().contains("python"),
+                    "{image} tcl {version} still mentions Python"
+                );
+                assert!(out.contains("ARG TCL_LSP_VERSION=2.2.1"));
+            }
+        }
     }
 }

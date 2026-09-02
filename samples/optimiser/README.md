@@ -12,7 +12,7 @@ produces from a single input file.
 | `profile_standard.tcl` | Output at **standard** — readability + constant folding |
 | `profile_full.tcl` | Output at **full** — all passes, single pass |
 | `profile_aggressive.tcl` | Output at **aggressive** — all passes, multi-pass to fixpoint |
-| `deep_pipeline.tcl` | Deep multi-pass stress sample — layered so each optimisation exposes the next (5+ passes, interprocedural folding). Runs on C Tcl 9; `tests/test_optimiser_deep_sample.py` proves the optimised / formatted / minified forms all stay behaviourally identical. |
+| `deep_pipeline.tcl` | Deep multi-pass stress sample — layered so each optimisation exposes the next (5+ passes, interprocedural folding). Runs on C Tcl 9; the optimised / formatted / minified forms all print the same line (see its header comment). |
 
 ## Profiles
 
@@ -121,19 +121,13 @@ source text reaches a fixpoint (no further changes).
 ## Regenerating samples
 
 ```bash
-uv run python -c "
-from server._codes_init import *
-from shared.optimisation_profiles import profile_to_disabled, OptimisationProfile
-from compiler.optimiser import optimise_source, optimise_source_multipass
-
-source = open('samples/optimiser/input.tcl').read()
-for p in [OptimisationProfile.READABILITY, OptimisationProfile.STANDARD, OptimisationProfile.FULL]:
-    disabled = profile_to_disabled(p)
-    result, _ = optimise_source(source, disabled=disabled)
-    open(f'samples/optimiser/profile_{p.value}.tcl', 'w').write(result)
-
-disabled = profile_to_disabled(OptimisationProfile.AGGRESSIVE)
-result, _, _ = optimise_source_multipass(source, disabled=disabled)
-open('samples/optimiser/profile_aggressive.tcl', 'w').write(result)
-"
+for p in readability standard full aggressive; do
+    tcl opt --profile "$p" samples/optimiser/input.tcl \
+        > "samples/optimiser/profile_$p.tcl"
+done
 ```
+
+The committed outputs predate the Rust optimiser and have not been
+regenerated: it is deliberately more conservative on some passes (O114's
+`incr` rewrite, for one, now needs the target proven `TclType::Int`), so
+re-running the loop above will not reproduce them byte-for-byte.

@@ -1,10 +1,11 @@
 name: CodeQL
 
 # Static-analysis for the languages whose source ships in this repo and
-# runs on user machines: Python (LSP server / zipapps) and TypeScript
-# (VS Code extension).  CodeQL's `actions` query pack also lints the
-# workflows themselves, catching expression-injection and similar
-# mistakes before they reach rust.
+# runs on user machines: Python (the BIG-IP report generator and its
+# `.pyz`, plus the Sublime Text plugin — the LSP server itself is Rust
+# now) and TypeScript (VS Code extension).  CodeQL's `actions` query pack
+# also lints the workflows themselves, catching expression-injection and
+# similar mistakes before they reach rust.
 #
 # Rust (editors/zed) is intentionally excluded.  CodeQL Rust support is
 # still maturing, and the extension cross-compiles to `wasm32-wasip2`
