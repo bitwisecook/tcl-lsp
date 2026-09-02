@@ -26,9 +26,14 @@
 //! already inlined to `loadStk`, so only `${…}` and `[…]` trigger here.
 //!
 //! Scope: `${name}` variable substitution and `[script]` command
-//! substitution (via the injected `CompileService`). Backslash decoding and
-//! array-element substitution are not yet implemented (a `\X` only escapes the next
-//! char from being mis-read as a substitution trigger; it is not decoded).
+//! substitution (via the injected `CompileService`), plus backslash decoding
+//! of the literal runs between them.
+//!
+//! The word decomposition itself is **not** implemented here: this module is a
+//! consumer of `tcl_lexer::word_parts`, the one owner shared with
+//! `runtime/rust` and (next lane) the compiler's segmenter. The compiled-word
+//! convention — a bare `$` is data, `${…}` and `[…]` substitute — is the
+//! owner's `SubstFlags::compiled_word()` rather than a private scanner.
 
 use tcl_runtime_api::Code;
 
@@ -38,32 +43,29 @@ use crate::error::TclError;
 use crate::interp::Vm;
 use crate::value::Value;
 
-/// Find the matching `]` for the command substitution opening at `b[start]`,
-/// honouring nested `[...]`, brace groups, and backslash escapes.
+/// Index of the `]` closing the command substitution opening at `b[start]`,
+/// or `None`.
+///
+/// The search is the shared owner's
+/// ([`word_parts::command_subst_close`](tcl_lexer::word_parts::command_subst_close),
+/// over `tcl_lexer::command_substitution_end`), which is brace-, quote- **and**
+/// comment-aware because the substituted text is a script: a `]` written
+/// inside `{…}`, inside a `"…"` word, or after a `#` at command position does
+/// not close the substitution. This VM's private copy handled only braces, so
+/// `subst {[list "a]b"]}` stopped at the quoted `]` — `tclsh` 8.6.16 and 9.0.4
+/// both give `a\]b`.
+///
+/// The owner reports one byte *past* the `]`; the callers here index the `]`
+/// itself, so this adapter steps back.
 fn command_end(b: &[u8], start: usize) -> Option<usize> {
-    let mut i = start + 1;
-    let mut depth = 1usize;
-    let mut brace = 0usize;
-    while i < b.len() {
-        match b[i] {
-            b'\\' => {
-                i += 2;
-                continue;
-            }
-            b'{' => brace += 1,
-            b'}' if brace > 0 => brace -= 1,
-            b'[' if brace == 0 => depth += 1,
-            b']' if brace == 0 => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(i);
-                }
-            }
-            _ => {}
-        }
-        i += 1;
-    }
-    None
+    tcl_lexer::word_parts::command_subst_close(
+        b,
+        start,
+        tcl_lexer::word_parts::SubstFlags::default(),
+        tcl_lexer::LexerConfig::default(),
+    )
+    .ok()
+    .map(|end| end - 1)
 }
 
 /// If `word` is a single balanced brace group spanning the whole word
@@ -446,66 +448,50 @@ struct VarRef<'a> {
 }
 
 /// Parse a `$`-variable reference starting at `s[at]` (`$name`, `${name}`,
-/// `$name(idx)`).
+/// `$name(idx)`) — a `&str` adapter over the shared owner
+/// [`word_parts::scan_var_ref`](tcl_lexer::word_parts::scan_var_ref).
 ///
-/// `braced_var` is the release's `${…}` close rule, resolved through the one
-/// shared owner: the 8.x family ends the name at the first literal `}` while
-/// 9.x counts nested braces and skips `\X` pairs, so `subst {${a{b}c}}` errors
-/// on `a{b` under 8.6 and reads `a{b}c` under 9.0 (issue #1457). Hard-coding
-/// either rule gives the wrong answer on the other release.
+/// Both release axes ride on the owner: the `${…}` close rule (8.x ends the
+/// name at the first literal `}`, 9.x counts nesting and skips `\X`, so
+/// `subst {${a{b}c}}` reads `a{b` on 8.6 and `a{b}c` on 9.0 — issue #1457)
+/// and the array-index source mask (issue #1732).
 ///
 /// `Ok(None)` means "not a variable reference" — the `$` is literal text. An
-/// **unterminated** `${…}` is different: it is C's
-/// [`MISSING_CLOSE_BRACE_FOR_VAR`] error, not a literal `$`, so it returns
-/// `Err`. Raising it here (rather than at the top of `subst`) reproduces C's
-/// left-to-right evaluation, where earlier command substitutions in the same
-/// template have already run and kept their side effects — verified against
-/// both oracles.
+/// unterminated form is different: it is one of C's parse errors (`missing
+/// close-brace for variable name`, `missing )`, `invalid character in array
+/// index`), so it returns `Err`. Raising it here rather than at the top of
+/// `subst` reproduces C's left-to-right substitution, where earlier command
+/// substitutions in the same template have already run and kept their side
+/// effects — verified against both oracles.
 fn parse_var_ref_parts(
     s: &str,
     at: usize,
     braced_var: BracedVarStyle,
     array_index: ArrayIndexSyntax,
 ) -> Result<Option<VarRef<'_>>, TclError> {
-    let b = s.as_bytes();
-    let n = b.len();
-    if b.get(at + 1) == Some(&b'{') {
-        let close = match tcl_lexer::braced_var_name_end(b, at + 2, braced_var) {
-            tcl_lexer::BracedVarEnd::Closed(close) => close,
-            tcl_lexer::BracedVarEnd::Unterminated => {
-                return Err(TclError::new(tcl_lexer::MISSING_CLOSE_BRACE_FOR_VAR));
-            }
-        };
-        return Ok(Some(VarRef {
-            base: &s[at + 2..close],
-            index: None,
-            next: close + 1,
-        }));
-    }
-    let start = at + 1;
-    let j = tcl_core_types::naming::scan_var_name_end(b, start);
-    if j == start {
-        return Ok(None);
-    }
-    // Optional array index `(...)`.
-    if j < n && b[j] == b'(' {
-        let scan = tcl_lexer::scan_array_index(b, j, array_index, braced_var);
-        if scan.invalid.is_some() {
-            return Err(TclError::new(tcl_lexer::INVALID_CHARACTER_IN_ARRAY_INDEX));
+    let config = tcl_lexer::LexerConfig {
+        braced_var,
+        array_index,
+        ..tcl_lexer::LexerConfig::default()
+    };
+    match tcl_lexer::word_parts::scan_var_ref(s.as_bytes(), at, config) {
+        Ok(None) => Ok(None),
+        // The owner returns byte sub-slices of the same buffer; `s` is a
+        // `&str` and every boundary the scan reports is a delimiter or an
+        // ASCII name byte, so the ranges are always char boundaries.
+        Ok(Some(raw)) => {
+            let span = |sub: &[u8]| -> &str {
+                let start = sub.as_ptr() as usize - s.as_bytes().as_ptr() as usize;
+                &s[start..start + sub.len()]
+            };
+            Ok(Some(VarRef {
+                base: span(raw.name),
+                index: raw.index.map(span),
+                next: raw.next,
+            }))
         }
-        if let tcl_lexer::ArrayIndexEnd::Closed(close) = scan.end {
-            return Ok(Some(VarRef {
-                base: &s[start..j],
-                index: Some(&s[j + 1..close - 1]),
-                next: close,
-            }));
-        }
+        Err(message) => Err(TclError::new(message)),
     }
-    Ok(Some(VarRef {
-        base: &s[start..j],
-        index: None,
-        next: j,
-    }))
 }
 
 /// Substitute a literal word, returning its value. Pure single `${…}` / `[…]`
@@ -559,70 +545,76 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
     {
         return read_var(vm, &word[2..close]);
     }
-    // No substitution triggers: the literal is its own value.
+    // No substitution triggers: a `PUSH` literal with no `${…}` and no `[…]`
+    // left in it *is* its value, escapes included. The codegen has already
+    // decoded this word's source escapes once, so decoding again would eat the
+    // backslashes it produced — `set body "list e\\n} f\\$} "` is 15
+    // characters on both oracles, and a second decode makes it 13.
+    //
+    // This is also where issue #1646 is *not*. `set n [string length "x\$y"]`
+    // answers 4 where both oracles say 3, but the divergence is upstream: the
+    // compiler emits the literal `x\$y` for that word where the value is
+    // `x$y`, and the identical `set body …` word above proves the VM's rule is
+    // the right one — a blanket decode here fixes the first vector by breaking
+    // the second. The fix belongs in the compiler's literal emission for a
+    // word nested in a bracket word (`rust/tcl-compiler`), not in the word
+    // decomposer; see `docs/design/lanes/wasm-native-lowering.md`
+    // § `r10-word-parts`.
     if !word.contains("${") && !word.contains('[') {
         return Ok(Value::string(word));
     }
 
-    // General scan: copy literal runs (backslash-decoded), substituting `${…}`
-    // and `[…]`. Literal runs carry escapes the codegen left to prevent re-
-    // substitution (`\$`/`\[`) or genuine escapes (`\n`, `\t`, …); decode them.
-    let escapes = vm.escape_syntax();
+    // General scan, through the shared owner: literal runs (backslash-decoded)
+    // interleaved with `${…}` and `[…]` substitutions.
+    //
+    // `SubstFlags::compiled_word()` is the codegen's convention — a surviving
+    // bare `$` is data, because every real variable reference was either
+    // inlined to `loadStk` or normalised to `${name}` — and the release axes
+    // (the `${…}` close rule, #1568; the escape grammar, #1479) ride on the
+    // `LexerConfig`. The scan replaces a hand-rolled loop that carried its own
+    // second copy of the `${…}` close rule and its own bracket search.
+    let config = tcl_lexer::LexerConfig {
+        braced_var,
+        array_index: vm.array_index_syntax(),
+        escapes: vm.escape_syntax(),
+        ..tcl_lexer::LexerConfig::default()
+    };
+    let flags = tcl_lexer::word_parts::SubstFlags::compiled_word();
+    let parts = match tcl_lexer::word_parts::decompose(b, flags, config) {
+        tcl_lexer::word_parts::WordBody::Literal(bytes) => {
+            return Ok(Value::string(String::from_utf8_lossy(bytes)));
+        }
+        tcl_lexer::word_parts::WordBody::Parts(parts) => parts,
+    };
     let mut out = String::with_capacity(n);
-    let mut i = 0usize;
-    let mut lit = 0usize;
-    while i < n {
-        match b[i] {
-            // `\X` is a literal escape, not a trigger; skip it in the scan (it
-            // is decoded with the surrounding literal run when copied).
-            b'\\' => i = (i + 2).min(n),
-            b'$' if i + 1 < n && b[i + 1] == b'{' => {
-                out.push_str(&tcl_syntax::backslash::decode_in(&word[lit..i], escapes));
-                // Same release-aware close rule as the whole-word fast path
-                // above — the second of this function's two hard-coded 8.x
-                // copies (issue #1568).
-                match tcl_lexer::braced_var_name_end(b, i + 2, braced_var) {
-                    tcl_lexer::BracedVarEnd::Closed(close) => {
-                        let v = read_var(vm, &word[i + 2..close])?;
-                        out.push_str(&v.to_str());
-                        i = close + 1;
-                    }
-                    // C raises `missing close-brace for variable name` here,
-                    // and both `subst` engines now do (issue #1457).
-                    //
-                    // Note this is a *parse* error, not an evaluation one, and
-                    // C reports it before the command runs at all: it parses
-                    // every word of a command before evaluating any of them.
-                    // So no earlier `[…]` in the same word has run when this
-                    // fires — `puts "[side]pre${abc"` never calls `side` on
-                    // 8.6.16 or 9.0.4, and does not here either. (An earlier
-                    // revision of this comment claimed the opposite, reasoning
-                    // from left-to-right *evaluation*; the behaviour was right
-                    // and the justification wrong. Pinned by
-                    // `unterminated_braced_var_in_a_compiled_word_is_a_parse_error`,
-                    // which also records why no vector reaches *this* arm: the
-                    // compiler rejects such source before the VM sees it.)
-                    tcl_lexer::BracedVarEnd::Unterminated => {
-                        return Err(TclError::new(tcl_lexer::MISSING_CLOSE_BRACE_FOR_VAR));
-                    }
-                }
-                lit = i;
+    for part in parts {
+        match part {
+            tcl_lexer::word_parts::WordPart::Text(bytes) => {
+                out.push_str(&String::from_utf8_lossy(&bytes));
             }
-            b'[' => {
-                if let Some(end) = command_end(b, i) {
-                    out.push_str(&tcl_syntax::backslash::decode_in(&word[lit..i], escapes));
-                    let v = eval_subst(vm, &word[i + 1..end])?;
-                    out.push_str(&v.to_str());
-                    i = end + 1;
-                    lit = i;
-                } else {
-                    i += 1;
-                }
+            tcl_lexer::word_parts::WordPart::Variable(var) => {
+                // `bare_var_refs` is off, so the only spelling that reaches
+                // here is `${name}`, which carries no array index.
+                let name = String::from_utf8_lossy(var.name).into_owned();
+                out.push_str(&read_var(vm, &name)?.to_str());
             }
-            _ => i += 1,
+            tcl_lexer::word_parts::WordPart::Command(script) => {
+                let inner = String::from_utf8_lossy(script).into_owned();
+                out.push_str(&eval_subst(vm, &inner)?.to_str());
+            }
+            // C reports a parse error before the command runs at all: it
+            // parses every word of a command before evaluating any of them, so
+            // no earlier `[…]` in this word has run when this fires —
+            // `puts "[side]pre${abc"` never calls `side` on 8.6.16 or 9.0.4,
+            // and does not here either. (Pinned by
+            // `unterminated_braced_var_in_a_compiled_word_is_a_parse_error`,
+            // which also records why no vector reaches this arm today: the
+            // compiler rejects such source before the VM sees it.)
+            tcl_lexer::word_parts::WordPart::ParseError(message) => {
+                return Err(TclError::new(message));
+            }
         }
     }
-    out.push_str(&tcl_syntax::backslash::decode_in(&word[lit..n], escapes));
     Ok(Value::string(out))
 }
 
