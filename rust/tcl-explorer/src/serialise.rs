@@ -346,9 +346,76 @@ fn serialise_wasm_with_options(
                 })
             }
         };
+        let mut plan = plan;
+        if let Value::Object(map) = &mut plan {
+            map.insert(
+                "nativeLowering".to_owned(),
+                serialise_native_tier(&wasm.native),
+            );
+        }
         header.insert("codegenPlan".to_owned(), plan);
     }
     Value::Array(entries)
+}
+
+/// The native tier's per-function lowering and elision record: which
+/// functions lowered, why the others declined, and per statement how it was
+/// lowered and every cell-framing decision taken for it. Stable spellings
+/// throughout.
+fn serialise_native_tier(report: &tcl_compiler::native_lowering::NativeTierReport) -> Value {
+    use tcl_compiler::native_lowering::{FunctionStatus, StatementOutcome};
+    let functions: serde_json::Map<String, Value> = report
+        .functions
+        .iter()
+        .map(|(name, function)| {
+            let (status, reason, detail) = match &function.status {
+                FunctionStatus::Lowered => ("lowered", Value::Null, Value::Null),
+                FunctionStatus::Declined(decline) => (
+                    "declined",
+                    json!(decline.as_str()),
+                    decline.detail().map_or(Value::Null, |detail| json!(detail)),
+                ),
+            };
+            let statements: Vec<Value> = function
+                .statements
+                .iter()
+                .map(|statement| {
+                    let reason = match statement.outcome {
+                        StatementOutcome::EvalSource(reason) => json!(reason.as_str()),
+                        _ => Value::Null,
+                    };
+                    json!({
+                        "node": statement.node.as_ref().map(|node| node.path().to_vec()),
+                        "instruction": statement.instruction,
+                        "outcome": statement.outcome.as_str(),
+                        "reason": reason,
+                        "representations": statement.representations,
+                        "cells": statement.cells.iter().map(|cell| json!({
+                            "place": cell.place,
+                            "access": cell.access.as_str(),
+                            "storage": cell.storage.storage.as_str(),
+                            "storageReason": cell.storage.reason.as_str(),
+                            "barrier": cell.barrier.as_str(),
+                            "shadowed": cell.shadowed,
+                        })).collect::<Vec<_>>(),
+                    })
+                })
+                .collect();
+            (
+                name.clone(),
+                json!({
+                    "status": status,
+                    "reason": reason,
+                    "detail": detail,
+                    "statements": statements,
+                }),
+            )
+        })
+        .collect();
+    json!({
+        "enabled": report.enabled,
+        "functions": Value::Object(functions),
+    })
 }
 
 fn serialise_wasm_region_plan(availability: &MixedRegionPlanAvailability) -> (Value, Value, Value) {
@@ -3295,6 +3362,35 @@ mod tests {
         );
         assert_eq!(plan["nativeI64Add"]["frameElided"], true);
         assert_eq!(plan["nativeI64Add"]["closedProgramStatements"], 4);
+    }
+
+    #[test]
+    fn wasm_view_exposes_the_native_tier_lowering_record() {
+        use tcl_compiler::codegen::wasm::WasmCompileOptions;
+
+        let result = run_pipeline("set a 1\nincr a\nputs $a\n", "tcl9.0");
+        let off = serialise_result(&result)["wasm"].clone();
+        let off_plan = &off.as_array().expect("WASM entries")[0]["codegenPlan"];
+        assert_eq!(off_plan["nativeLowering"]["enabled"], false);
+
+        let wasm = serialise_wasm_with_options(&result, WasmCompileOptions::hosted().native_tier());
+        let plan = &wasm.as_array().expect("WASM entries")[0]["codegenPlan"];
+        let native = &plan["nativeLowering"];
+        assert_eq!(native["enabled"], true);
+        let top = &native["functions"]["::top"];
+        assert_eq!(top["status"], "lowered");
+        let statements = top["statements"].as_array().expect("statement records");
+        assert!(statements.iter().any(|statement| {
+            statement["instruction"] == "execute-lowered"
+                && statement["outcome"] == "native"
+                && statement["cells"][0]["access"] == "write"
+                && statement["cells"][0]["storage"] == "cell"
+                && statement["cells"][0]["storageReason"] == "top-level-global"
+                && statement["cells"][0]["barrier"] == "elided:no-trace-reaches-cell"
+        }));
+        assert!(statements.iter().any(|statement| {
+            statement["instruction"] == "invoke" && statement["outcome"] == "native-intrinsic"
+        }));
     }
 
     #[test]

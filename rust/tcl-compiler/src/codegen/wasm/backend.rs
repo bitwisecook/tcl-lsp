@@ -45,13 +45,11 @@ use std::collections::{HashMap, HashSet};
 
 use tcl_lexer::Span;
 use tcl_registry::hooks::LoweringHookId;
-use tcl_registry::{CommandRegistry, IntrinsicId, SemanticOperationId, TclType};
+use tcl_registry::{CommandRegistry, SemanticOperationId, TclType};
 use tcl_syntax::expr::{BinOp, ExprNode};
 
-use crate::codegen::cmd_subst::{is_pure_cmd_subst, parse_cmd_parts};
 use crate::codegen::emit::Emit;
 use crate::codegen::structured;
-use crate::codegen::values::whole_var_reference;
 use crate::command_binding::{
     Binding, BindingKind, CommandBinding, ModuleCommandMutations, analyse_command_binding,
     scan_module_command_mutations,
@@ -60,7 +58,11 @@ use crate::common_aot_plan::semantic_operation_binding_is_trusted;
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::{Module, Procedure, Statement};
 use crate::mixed_region_plan::GuardedSelectionEvidence;
+use crate::native_lowering::{
+    FunctionDecline, FunctionReport, LoweringInput, NativeTierReport, lower_function,
+};
 use crate::registry_invocation::{RegistryInvocationResolution, resolve_command_tokens};
+use crate::semantic_optimisation::SemanticOptimisationConfig;
 use tcl_runtime_api::codegen_abi::{
     CodegenAbiImportId, CodegenAbiValueType, WASM32_CODEGEN_DATA_START, WASM32_COMPLETION_ALIGN,
     WASM32_COMPLETION_CODE_OFFSET, WASM32_COMPLETION_OPTIONS_OFFSET,
@@ -70,6 +72,7 @@ use tcl_runtime_api::codegen_abi::{
 use super::leaf_invoke::{
     WasmInvokeNode, WasmLeafInvokeDecline, WasmLeafInvokePlan, WasmWordPlan, select_leaf_invocation,
 };
+use super::native_emit::{self, ConstantPool, NativeImports};
 use super::pipeline::{WasmCompileOptions, WasmNativeI64AddSelection};
 use super::semantic_plan::WasmGenericInvokePlan;
 use crate::backend_registry::SelectionFacts;
@@ -464,12 +467,9 @@ impl WasmEmitter {
             self.push_i32(i64::from(slot));
             self.call(aot.local_get);
         } else {
-            // `tcl_codegen_var_get` reads a variable under its exact name, so a
-            // spelling that may be an array element (`$a(b)`) must not reach it
-            // — the general leaf-invocation path resolves that shape properly.
-            if name.contains('(') {
-                return false;
-            }
+            // A direct procedure's expression reads only its formal
+            // parameters (`direct_expr_supported`), so the name is exactly
+            // the cell's name; no compatibility-text spelling is reparsed.
             self.push_text_pair(name);
             self.call(aot.var_get);
         }
@@ -496,43 +496,6 @@ impl WasmEmitter {
             }
             _ => false,
         }
-    }
-
-    fn emit_word_value(&mut self, word: &str, statement: &Statement) -> bool {
-        if let Some(name) = whole_var_reference(word) {
-            return self.emit_var_get(name);
-        }
-        if !is_pure_cmd_subst(word) {
-            return !word.bytes().any(|b| matches!(b, b'$' | b'[' | b'\\')) && self.box_value(word);
-        }
-        let parts = parse_cmd_parts(word);
-        let Some((head, false)) = parts.first() else {
-            return false;
-        };
-        let key = span_command_key(statement.span(), head);
-        let Some(target) = self.facts.direct_calls.get(&key).cloned() else {
-            return false;
-        };
-        if !self.direct_procs.contains(&target) {
-            return false;
-        }
-        if self.procedure_arity.get(&target).copied() != Some(parts.len() - 1) {
-            return false;
-        }
-        for (arg, braced) in &parts[1..] {
-            if *braced {
-                if !self.box_value(arg) {
-                    return false;
-                }
-            } else if !self.emit_word_value(arg, statement) {
-                return false;
-            }
-        }
-        let Some(index) = self.proc_indices.get(&target).copied() else {
-            return false;
-        };
-        self.call(index);
-        true
     }
 
     fn emit_proc_prelude(&mut self, proc: &Procedure) {
@@ -612,9 +575,7 @@ impl WasmEmitter {
                 self.push(WasmOp::Return);
                 true
             }
-            Statement::Call {
-                span, args, tokens, ..
-            } => {
+            Statement::Call { span, .. } => {
                 // Each alternative must be transactional. A `try_*` may emit
                 // part of its sequence before hitting a word it cannot prove
                 // and declining — `try_emit_direct_operation` boxes leading
@@ -625,9 +586,8 @@ impl WasmEmitter {
                 // the body and its operands stranded on the stack, producing a
                 // module wasmtime rejects with "values remaining on stack at
                 // end of block".
-                self.attempt(|emitter| {
-                    emitter.try_emit_direct_operation(*span, statement, args, tokens.as_ref())
-                }) || self.attempt(|emitter| emitter.try_emit_leaf_invocation(*span))
+                self.attempt(|emitter| emitter.try_emit_direct_operation(*span))
+                    || self.attempt(|emitter| emitter.try_emit_leaf_invocation(*span))
             }
             _ => false,
         }
@@ -635,13 +595,7 @@ impl WasmEmitter {
 
     /// The narrow direct specialisations that beat generic argv invocation
     /// when the binding lattice proves the command is still its builtin.
-    fn try_emit_direct_operation(
-        &mut self,
-        span: Span,
-        statement: &Statement,
-        args: &[String],
-        tokens: Option<&crate::ir::CommandTokens>,
-    ) -> bool {
+    fn try_emit_direct_operation(&mut self, span: Span) -> bool {
         let Some(aot) = self.general_imports().aot else {
             return false;
         };
@@ -663,18 +617,10 @@ impl WasmEmitter {
                 self.emit_completion_dispatch();
                 true
             }
-            SemanticOperationId::Intrinsic(IntrinsicId::ChannelWrite)
-                if args.len() == 1
-                    && !tokens.is_some_and(|tokens| tokens.arg_is_braced_literal(0))
-                    && (whole_var_reference(&args[0]).is_some() || is_pure_cmd_subst(&args[0])) =>
-            {
-                if !self.emit_word_value(&args[0], statement) {
-                    return false;
-                }
-                self.call(aot.puts);
-                self.emit_completion_dispatch();
-                true
-            }
+            // The `puts` fast path that reparsed compatibility text is
+            // retired (issue #1772): the leaf-invocation path below evaluates
+            // its words structurally, and the native tier owns the
+            // channel-write intrinsic.
             SemanticOperationId::Invoke
             | SemanticOperationId::Intrinsic(_)
             | SemanticOperationId::StructuredLowering(_) => false,
@@ -1831,10 +1777,16 @@ pub(super) fn emit_wasm(
     registry: &CommandRegistry,
     options: WasmCompileOptions,
     mode: WasmEmissionMode<'_>,
-) -> WasmModule {
+) -> (WasmModule, NativeTierReport) {
     let analysis = (matches!(mode, WasmEmissionMode::General)
         && options.analysis_specialisations())
     .then_some((unit, registry));
+    let native = (matches!(mode, WasmEmissionMode::General) && options.native_tier_enabled())
+        .then_some(NativeTier {
+            unit,
+            registry,
+            config: options.semantic_optimisations(),
+        });
     codegen(
         &unit.ir_module,
         &unit.source,
@@ -1842,11 +1794,51 @@ pub(super) fn emit_wasm(
         options.is_standalone(),
         options.initialise_library(),
         analysis,
+        native,
         mode,
     )
 }
 
+/// The native tier's inputs, present only when the pipeline selected it.
+#[derive(Clone, Copy)]
+struct NativeTier<'a> {
+    unit: &'a CompilationUnit,
+    registry: &'a CommandRegistry,
+    config: SemanticOptimisationConfig,
+}
+
+impl NativeTier<'_> {
+    /// Lower one function unit through NLIR, or the typed reason it stays on
+    /// the legacy structured path.
+    fn lower(
+        &self,
+        function: &FunctionUnit,
+        top_level: bool,
+    ) -> Result<(crate::native_lowering::ir::NativeFunction, FunctionReport), FunctionDecline> {
+        let facts = &function.semantic_facts;
+        let executable = facts
+            .executable()
+            .function()
+            .ok_or(FunctionDecline::NoExecutableFunction)?;
+        let hints = std::collections::BTreeMap::new();
+        let input = LoweringInput {
+            registry: self.registry,
+            context: facts.context(),
+            function: executable,
+            source: &self.unit.source,
+            module: &self.unit.ir_module,
+            config: self.config,
+            escape: None,
+            top_level,
+            entry_assumption: facts.dispatch_entry_assumption(),
+            type_hints: &hints,
+        };
+        lower_function(&input)
+    }
+}
+
 /// Shared implementation for hosted, linked, and standalone packaging.
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 fn codegen(
     module: &Module,
     source: &str,
@@ -1854,13 +1846,20 @@ fn codegen(
     standalone: bool,
     init: bool,
     analysis: Option<(&CompilationUnit, &CommandRegistry)>,
+    native: Option<NativeTier<'_>>,
     mode: WasmEmissionMode<'_>,
-) -> WasmModule {
+) -> (WasmModule, NativeTierReport) {
     let mut wasm = WasmModule::new();
+    let mut report = NativeTierReport {
+        enabled: native.is_some(),
+        functions: std::collections::BTreeMap::new(),
+    };
     if emit_special_mode(&mut wasm, data_base, mode) {
-        return wasm;
+        return (wasm, report);
     }
     let imports = add_general_imports(&mut wasm, analysis.is_some());
+    let native_imports: Option<NativeImports> =
+        native.map(|_| native_emit::add_native_imports(&mut wasm, &mut add_codegen_import));
 
     // Standalone: the interp-bootstrap imports `_start` drives. Added after the
     // ABI imports so the ABI indices in `Imports` are unchanged.
@@ -1905,10 +1904,35 @@ fn codegen(
         procedures_by_span,
         facts: top_facts,
     };
-    // The top-level script.
-    structured::walk(&mut emitter, &module.top_level, source);
-    let top = emitter.finish_function("::top", "top", None);
-    wasm.functions.push(top);
+    // The top-level script: the native tier when it lowers, else the legacy
+    // structured walk with the typed reason recorded.
+    let lowered_top = native.map(|tier| tier.lower(&tier.unit.top_level, true));
+    match (lowered_top, native_imports) {
+        (Some(Ok((function, function_report))), Some(native_imports)) => {
+            report.functions.insert("::top".to_owned(), function_report);
+            let top = native_emit::emit_function(
+                "::top",
+                "native-top",
+                &function,
+                native_imports,
+                ConstantPool {
+                    data: &mut emitter.data,
+                    offset: &mut emitter.data_offset,
+                },
+            );
+            wasm.functions.push(top);
+        }
+        (lowered, _) => {
+            if let Some(Err(reason)) = lowered {
+                report
+                    .functions
+                    .insert("::top".to_owned(), FunctionReport::declined(reason));
+            }
+            structured::walk(&mut emitter, &module.top_level, source);
+            let top = emitter.finish_function("::top", "top", None);
+            wasm.functions.push(top);
+        }
+    }
 
     // Each user-defined proc body becomes its own WASM function, driven through
     // the same structured walk (its body is already lowered IR with absolute
@@ -1917,6 +1941,36 @@ fn codegen(
     // backend (`codegen/emitter/mod.rs`). Emitted in qualified-name order so the
     // module bytes are deterministic (`procedures` is a hash map).
     for proc in procs {
+        let lowered = native.and_then(|tier| {
+            let unit = tier.unit.procedures.get(&proc.qualified_name)?;
+            Some(tier.lower(unit, false))
+        });
+        match (lowered, native_imports) {
+            (Some(Ok((function, function_report))), Some(native_imports)) => {
+                report
+                    .functions
+                    .insert(proc.qualified_name.clone(), function_report);
+                let func = native_emit::emit_function(
+                    &proc.qualified_name,
+                    "native-proc",
+                    &function,
+                    native_imports,
+                    ConstantPool {
+                        data: &mut emitter.data,
+                        offset: &mut emitter.data_offset,
+                    },
+                );
+                wasm.functions.push(func);
+                continue;
+            }
+            (Some(Err(reason)), _) => {
+                report.functions.insert(
+                    proc.qualified_name.clone(),
+                    FunctionReport::declined(reason),
+                );
+            }
+            _ => {}
+        }
         let direct = emitter.direct_procs.contains(&proc.qualified_name);
         emitter.mode = if direct {
             FunctionMode::DirectProc
@@ -1960,7 +2014,7 @@ fn codegen(
             .push(start_function(create, set_current, init_library, top_idx));
     }
 
-    wasm
+    (wasm, report)
 }
 
 fn emit_special_mode(wasm: &mut WasmModule, data_base: i64, mode: WasmEmissionMode<'_>) -> bool {

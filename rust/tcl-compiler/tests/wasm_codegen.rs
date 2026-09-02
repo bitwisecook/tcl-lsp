@@ -161,12 +161,16 @@ puts [add $e $f]
     );
     assert!(wat.contains(r#""tcl_codegen_local_bind""#), "{wat}");
     assert!(wat.contains(r#""tcl_codegen_expr_add""#), "{wat}");
-    assert!(wat.contains(r#""tcl_codegen_puts""#), "{wat}");
     assert!(wat.contains(r#""tcl_codegen_proc_register""#), "{wat}");
     assert_eq!(eval_fallbacks(&wat), 0, "{wat}");
-    // Every statement has a proven direct form, so nothing needs the generic
-    // prebuilt-argv path either.
-    assert_eq!(import_calls(&wat, "tcl_invoke_argv"), 0, "{wat}");
+    // The procedure and both assignments have proven direct forms. The
+    // analysis tier's `puts` fast path re-parsed compatibility text (issue
+    // #1772) and is retired with the direct `[add …]` call it carried, so the
+    // last statement is two generic prebuilt-argv invocations — the nested
+    // `add` and the `puts`; the native tier lowers the latter to its `Puts`
+    // intrinsic and P5 gives the former its table-installed direct call.
+    assert_eq!(import_calls(&wat, "tcl_invoke_argv"), 2, "{wat}");
+    assert_eq!(import_calls(&wat, "tcl_codegen_puts"), 0, "{wat}");
     assert_eq!(&module.to_bytes()[0..4], b"\0asm");
 }
 

@@ -29,6 +29,7 @@ mod backend;
 mod encoding;
 mod ir;
 mod leaf_invoke;
+mod native_emit;
 mod pipeline;
 mod semantic_plan;
 

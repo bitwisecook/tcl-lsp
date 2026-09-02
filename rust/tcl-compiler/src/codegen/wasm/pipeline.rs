@@ -47,6 +47,7 @@ use crate::native_integer_proof::{
     NativeAddDecision, NativeAddExecution, NativeAddResult, NativeIntegerPolicy,
     NativeIntegerProof, prove_native_integer_adds,
 };
+use crate::native_lowering::NativeTierReport;
 use crate::semantic_analysis::{ExecutableAnalysisAvailability, MixedRegionPlanAvailability};
 use crate::semantic_optimisation::{SemanticOptimisationConfig, SemanticOptimisationPassId};
 use crate::target_contract::{
@@ -149,6 +150,19 @@ impl WasmCompileOptions {
         self
     }
 
+    /// The native tier: lower every function through NLIR
+    /// (`crate::native_lowering`) with representation inference,
+    /// trace-barrier elision, and cell demotion, and emit it natively. This is
+    /// what `tcl compwasm`, the Explorer, and the tier harness's native plan
+    /// use; it is shorthand for the four explicit passes it enables.
+    #[must_use]
+    pub const fn native_tier(self) -> Self {
+        self.with_semantic_optimisation(SemanticOptimisationPassId::NativeLowering)
+            .with_semantic_optimisation(SemanticOptimisationPassId::RepresentationInference)
+            .with_semantic_optimisation(SemanticOptimisationPassId::TraceBarrierElision)
+            .with_semantic_optimisation(SemanticOptimisationPassId::CellDemotion)
+    }
+
     /// Return a copy that explicitly enables one semantic/AOT optimisation pass.
     ///
     /// This affects only optional specialisation. Generic argv invocation and
@@ -196,6 +210,14 @@ impl WasmCompileOptions {
             && self
                 .semantic_optimisations
                 .is_enabled(SemanticOptimisationPassId::LegacyAnalysisSpecialisation)
+    }
+
+    /// Whether the native tier's lowering may replace general emission.
+    pub(super) const fn native_tier_enabled(self) -> bool {
+        matches!(self.plan_policy, WasmPlanPolicy::SemanticFirst)
+            && self
+                .semantic_optimisations
+                .is_enabled(SemanticOptimisationPassId::NativeLowering)
     }
 
     pub(super) const fn common_aot_environment(self) -> CommonAotEnvironment {
@@ -432,6 +454,8 @@ pub struct WasmCompilation {
     pub module: WasmModule,
     /// Selected semantic or general plan.
     pub plan: WasmCodegenPlan,
+    /// The native tier's per-function lowering and elision record.
+    pub native: NativeTierReport,
 }
 
 impl Deref for WasmCompilation {
@@ -497,17 +521,19 @@ pub fn compile_wasm(
         .semantic_facts
         .mixed_plan_with_optimisations(options.semantic_optimisations());
     if let Some(native) = select_native_i64_add_plan(unit, registry, options) {
+        let (module, report) = backend::emit_wasm(
+            unit,
+            registry,
+            options,
+            WasmEmissionMode::NativeI64Add(&native),
+        );
         return WasmCompilation {
-            module: backend::emit_wasm(
-                unit,
-                registry,
-                options,
-                WasmEmissionMode::NativeI64Add(&native),
-            ),
+            module,
             plan: WasmCodegenPlan::NativeI64Add {
                 native,
                 region_plan,
             },
+            native: report,
         };
     }
     let (semantic_plan, evidence) = match select_semantic_plan(unit, options) {
@@ -546,9 +572,11 @@ pub fn compile_wasm(
                     WasmEmissionMode::GuardedIntrinsic { plan, evidence }
                 })
         });
+    let (module, native) = backend::emit_wasm(unit, registry, options, mode);
     WasmCompilation {
-        module: backend::emit_wasm(unit, registry, options, mode),
+        module,
         plan: evidence,
+        native,
     }
 }
 
@@ -899,9 +927,117 @@ fn selection_facts(function: &ExecutableFunction) -> SelectionFacts<'_> {
 mod tests {
     use super::super::{ValType, WasmOp};
     use super::*;
+    use tcl_runtime_api::codegen_abi::CodegenAbiImportId;
 
     fn unit(source: &str, registry: &CommandRegistry) -> CompilationUnit {
         CompilationUnit::build_for_dialect(source, registry, false, "tcl8.6")
+    }
+
+    /// Count the `call` sites reaching one runtime import.
+    fn calls_to(module: &WasmModule, import: CodegenAbiImportId) -> usize {
+        let Some(index) = module
+            .imports
+            .iter()
+            .position(|candidate| candidate.name == import.descriptor().name)
+        else {
+            return 0;
+        };
+        module
+            .functions
+            .iter()
+            .flat_map(|function| &function.body)
+            .filter(|instruction| {
+                instruction.op == WasmOp::Call
+                    && super::super::encoding::decode_leb128_unsigned(&instruction.operands)
+                        == index as u64
+            })
+            .count()
+    }
+
+    #[test]
+    fn the_native_tier_emits_the_t0_program_without_source_or_expression_rungs() {
+        use crate::native_lowering::FunctionStatus;
+        let registry = CommandRegistry::build_default();
+        let unit = CompilationUnit::build_for_dialect(
+            "set x 10\nset y 3\nset z [expr {$x * $y + 7}]\nincr z -1\nputs $z\n",
+            &registry,
+            false,
+            "tcl9.0",
+        );
+        let output = compile_wasm(
+            &unit,
+            &registry,
+            WasmCompileOptions::standalone(true).native_tier(),
+        );
+        assert!(output.native.enabled);
+        assert_eq!(
+            output.native.function("::top").map(|report| &report.status),
+            Some(&FunctionStatus::Lowered)
+        );
+        assert_eq!(calls_to(&output.module, CodegenAbiImportId::EvalCode), 0);
+        assert_eq!(calls_to(&output.module, CodegenAbiImportId::ExprBool), 0);
+        assert_eq!(calls_to(&output.module, CodegenAbiImportId::InvokeArgv), 0);
+        assert_eq!(calls_to(&output.module, CodegenAbiImportId::Puts), 1);
+        assert_eq!(
+            calls_to(&output.module, CodegenAbiImportId::ActivationEnter),
+            1
+        );
+        let top = output
+            .module
+            .functions
+            .iter()
+            .find(|function| function.name == "::top")
+            .expect("native top");
+        assert_eq!(top.kind, "native-top");
+        let native_ops = top
+            .body
+            .iter()
+            .filter(|instruction| {
+                matches!(
+                    instruction.op,
+                    WasmOp::I64Add | WasmOp::I64Mul | WasmOp::I64Sub
+                )
+            })
+            .count();
+        assert!(native_ops >= 3, "{native_ops} native i64 operations");
+        // The binary encodes and every function still validates its shape.
+        let mut module = output.module;
+        assert_eq!(&module.to_bytes()[..4], b"\0asm");
+    }
+
+    #[test]
+    fn the_native_tier_records_a_declined_function_and_keeps_the_legacy_walk() {
+        use crate::native_lowering::{FunctionDecline, FunctionStatus};
+        let registry = CommandRegistry::build_default();
+        let unit = CompilationUnit::build_for_dialect(
+            "foreach x {a b} {puts $x}\n",
+            &registry,
+            false,
+            "tcl9.0",
+        );
+        let output = compile_wasm(&unit, &registry, WasmCompileOptions::hosted().native_tier());
+        assert_eq!(
+            output.native.function("::top").map(|report| &report.status),
+            Some(&FunctionStatus::Declined(
+                FunctionDecline::UnloweredInstruction("operand-expression")
+            ))
+        );
+        assert!(calls_to(&output.module, CodegenAbiImportId::EvalCode) >= 1);
+    }
+
+    #[test]
+    fn the_native_tier_is_off_by_default() {
+        let registry = CommandRegistry::build_default();
+        let unit = unit("set a 1\nputs $a\n", &registry);
+        let output = compile_wasm(&unit, &registry, WasmCompileOptions::hosted());
+        assert!(!output.native.enabled);
+        assert!(output.native.functions.is_empty());
+        assert!(!WasmCompileOptions::hosted().native_tier_enabled());
+        assert!(
+            WasmCompileOptions::hosted()
+                .native_tier()
+                .native_tier_enabled()
+        );
     }
 
     #[test]

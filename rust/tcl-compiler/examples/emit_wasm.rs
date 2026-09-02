@@ -18,7 +18,7 @@
 
 //! Emit a Tcl script's AOT WASM module (`::top` + procs) to a file.
 //!
-//! Usage: `emit_wasm [--standalone] <script-file> <out.wasm>`
+//! Usage: `emit_wasm [--standalone] [--init] [--analysis] [--native] [--wat] <script-file> <out.wasm>`
 //!
 //! The emitted module imports the codegen ABI (`tcl_eval`, `tcl_obj_new_string`,
 //! `tcl_expr_bool`, `tcl_obj_release`) and its linear `memory` from module
@@ -40,10 +40,18 @@ use tcl_registry::CommandRegistry;
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let (standalone, init, analysis, wat, rest): (bool, bool, bool, bool, Vec<&String>) = {
+    let (standalone, init, analysis, native, wat, rest): (
+        bool,
+        bool,
+        bool,
+        bool,
+        bool,
+        Vec<&String>,
+    ) = {
         let mut standalone = false;
         let mut init = false;
         let mut analysis = false;
+        let mut native = false;
         let mut wat = false;
         let mut rest = Vec::new();
         for a in &args {
@@ -54,18 +62,20 @@ fn main() {
                     init = true;
                     standalone = true;
                 }
-                // Opt into the analysis-derived specialisation tier (off by default).
+                // Opt into the legacy analysis-derived specialisation tier.
                 "--analysis" => analysis = true,
+                // Opt into the native tier (NLIR lowering and native emission).
+                "--native" => native = true,
                 // Also write `<out>.wat` next to the binary.
                 "--wat" => wat = true,
                 _ => rest.push(a),
             }
         }
-        (standalone, init, analysis, wat, rest)
+        (standalone, init, analysis, native, wat, rest)
     };
     let [script_path, out_path] = rest.as_slice() else {
         eprintln!(
-            "usage: emit_wasm [--standalone] [--init] [--analysis] [--wat] <script-file> <out.wasm>"
+            "usage: emit_wasm [--standalone] [--init] [--analysis] [--native] [--wat] <script-file> <out.wasm>"
         );
         std::process::exit(2);
     };
@@ -79,6 +89,11 @@ fn main() {
     };
     let options = if analysis {
         options.with_semantic_optimisation(SemanticOptimisationPassId::LegacyAnalysisSpecialisation)
+    } else {
+        options
+    };
+    let options = if native {
+        options.native_tier()
     } else {
         options
     };

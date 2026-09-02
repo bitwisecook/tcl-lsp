@@ -96,17 +96,21 @@ enum Plan {
     Default,
     /// The opt-in analysis-derived specialisation tier.
     Analysis,
+    /// The native tier (P3): NLIR lowering, representation inference,
+    /// trace-barrier elision, and native emission.
+    Native,
 }
 
 impl Plan {
-    /// Both plans, in the order the golden table records them.
-    const ALL: [Self; 2] = [Self::Default, Self::Analysis];
+    /// Every plan, in the order the golden table records them.
+    const ALL: [Self; 3] = [Self::Default, Self::Analysis, Self::Native];
 
     /// The name used in the golden table, the divergence ledger, and messages.
     const fn as_str(self) -> &'static str {
         match self {
             Self::Default => "default",
             Self::Analysis => "analysis",
+            Self::Native => "native",
         }
     }
 
@@ -119,6 +123,7 @@ impl Plan {
             Self::Analysis => options.with_semantic_optimisation(
                 SemanticOptimisationPassId::LegacyAnalysisSpecialisation,
             ),
+            Self::Native => options.native_tier(),
         }
     }
 }
@@ -150,28 +155,21 @@ struct ExpectedDivergence {
 }
 
 /// The complete ledger of known divergences: 34/36 on the default plan,
-/// 30/36 on the analysis plan.
+/// 35/36 on the analysis plan, 35/36 on the native plan.
 ///
 /// The default-tier pair are **runtime** defects that the compiled path merely
-/// exposes. The analysis-tier additions are all one **codegen** defect, §2.2's
-/// `puts` compatibility-text reparse.
+/// exposes; the one row shared by every plan is the wasm build's missing
+/// `coroutine`.
 ///
-/// §2.2 of the plan document records 29/36 for the analysis plan and lists
-/// `50_catch_error` alongside these. It is no longer here: the P1 lane's
-/// "a compiled activation is an eval-loop activation" change closed §2.2's
-/// second defect, and this suite's stale-entry check is what caught the
-/// ledger row going out of date the moment it did. The plan document's table
-/// is the older reading.
+/// §2.2 of the plan document records 29/36 for the analysis plan: its second
+/// defect (`50_catch_error`) closed with the P1 lane's "a compiled activation
+/// is an eval-loop activation" change, and its first — the `puts` fast path
+/// re-parsing compatibility text (issue #1772: `11_while_loop`, `20_lists`,
+/// `24_regex`, `41_upvar`, `70_var_traces`) — closed when P3 retired that path
+/// from `codegen/wasm/backend.rs`. This suite's stale-entry check is what
+/// caught each ledger row going out of date the moment it did. The plan
+/// document's table is the older reading.
 const EXPECTED_DIVERGENCES: &[ExpectedDivergence] = &[
-    ExpectedDivergence {
-        tier: "t7-dynamic",
-        name: "70_var_traces",
-        plan: Plan::Analysis,
-        why: "issue #1772: the script's final `puts \"$a $b $c\"` is a quoted \
-              word with three substitutions, and the analysis tier's `puts` \
-              fast path re-parses its compatibility text into a bogus variable \
-              name, so `::top` stops after the first line. Fixed in P3.",
-    },
     ExpectedDivergence {
         tier: "t7-dynamic",
         name: "73_coroutine",
@@ -187,34 +185,12 @@ const EXPECTED_DIVERGENCES: &[ExpectedDivergence] = &[
         why: "same missing wasm `coroutine` support as the default plan. P9.",
     },
     ExpectedDivergence {
-        tier: "t1-expr-control",
-        name: "11_while_loop",
-        plan: Plan::Analysis,
-        why: "§2.2 defect 1 — the `puts` fast path re-parses compatibility \
-              text. `try_emit_direct_operation` admits `ChannelWrite` whenever \
-              `whole_var_reference` succeeds, and for a quoted word with two \
-              substitutions that helper strips the outer `${`…`}` and returns a \
-              bogus name, so the emitted var-get fails and `::top` stops \
-              silently. Fixed in P3 (structured `WordExpr`, \
-              `whole_var_reference` retired from codegen).",
-    },
-    ExpectedDivergence {
-        tier: "t2-values",
-        name: "20_lists",
-        plan: Plan::Analysis,
-        why: "§2.2 defect 1, same `puts` compatibility-text reparse. P3.",
-    },
-    ExpectedDivergence {
-        tier: "t2-values",
-        name: "24_regex",
-        plan: Plan::Analysis,
-        why: "§2.2 defect 1, same `puts` compatibility-text reparse. P3.",
-    },
-    ExpectedDivergence {
-        tier: "t4-scopes",
-        name: "41_upvar",
-        plan: Plan::Analysis,
-        why: "§2.2 defect 1, same `puts` compatibility-text reparse. P3.",
+        tier: "t7-dynamic",
+        name: "73_coroutine",
+        plan: Plan::Native,
+        why: "same missing wasm `coroutine` support as the default plan: the \
+              native tier hands the script's argv to the runtime unchanged and \
+              the runtime declines it. P9.",
     },
 ];
 
@@ -548,6 +524,11 @@ fn default_plan_samples_reproduce_the_tclsh_oracles() {
 #[test]
 fn analysis_plan_samples_reproduce_the_tclsh_oracles() {
     check_plan(Plan::Analysis);
+}
+
+#[test]
+fn native_plan_samples_reproduce_the_tclsh_oracles() {
+    check_plan(Plan::Native);
 }
 
 /// Render the current framing budgets as the golden table's exact bytes.

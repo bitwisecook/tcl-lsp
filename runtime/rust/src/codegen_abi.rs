@@ -414,7 +414,7 @@ static CURRENT_INTERP: core::sync::atomic::AtomicPtr<Interp> =
     core::sync::atomic::AtomicPtr::new(ptr::null_mut());
 
 /// Borrow the current interp pointer (null when unset).
-fn current_interp() -> *mut Interp {
+pub(crate) fn current_interp() -> *mut Interp {
     #[cfg(not(target_arch = "wasm32"))]
     {
         CURRENT_INTERP.with(Cell::get)
