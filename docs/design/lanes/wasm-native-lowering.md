@@ -181,3 +181,105 @@ regenerated, and this lane's ledger cannot be re-measured, until `e422f4b0`'s
 `debug_assert` is fixed — `samples/wasm/budgets.tsv` as committed is the
 `4a0b9d58` measurement and will need a reviewed regeneration once P2 is green
 again.
+
+## p1-runtime-abi
+
+Status: **all five deliverables landed.** Every commit kept
+`make runtime-rust-test` and `make runtime-rust-lint` green, plus
+`cargo test -p tcl-runtime-api` for the descriptor changes.
+
+### Done
+
+1. **Activation accounting** (`2d2aec37`) — fixes §2.2's live defect.
+   `tcl_invoke_argv` / `tcl_intrinsic_invoke_argv` dispatched at
+   `eval_depth == 0`, so a dispatched `catch` had the outermost-eval rule fire
+   *inside* its body and lost its `-errorcode`. Both now hold an activation
+   across dispatch (`AbiActivation`), so today's generated code is correct
+   without emitter changes; the guard's `Drop` subsumes the ad-hoc
+   `publish_error_if_uncaught` call, which is removed.
+2. **Numeric write-back, typed value ABI, boolean owner** (landed inside
+   `4a0b9d58`, see *Notes* below) — `bignum::read` caches the parsed rep back
+   onto the object exactly as `TclParseNumber` does (in place, string rep
+   kept); `obj::may_cache_parsed_rep` owns the "may we" question (a plain
+   string, or any unshared object). New `runtime/rust/src/typed_value.rs` is
+   the one owner of "read this object as an integer / double / boolean", with
+   C's messages and `-errorcode`s. Closes #1425's runtime half: the four
+   private boolean word tables (`value_ops::as_bool`,
+   `cmd_namespace::parse_bool`, `interp::parse_truth`, `cmd_dict`'s tower-less
+   `dict_filter_bool`) are gone, all routed through `tcl_syntax::boolean`.
+3. **Expression AST cache** (`ea486a3e`) — `TCL_EXPR_TYPE` holds the parsed,
+   validated `ExprNode` behind an `Rc` plus the release it was admitted under.
+   A twenty-iteration `while` now parses its condition once.
+4. **Real indexed slots** (`baeb9634`) — `VarTable` cells live in a
+   slot-indexed array with an ordered name → slot side table; cells are
+   reserved, never removed, so an `unset` and re-created variable refills the
+   same cell. `compiled_slots_and_named_access_share_one_cell` stays green.
+5. **Per-cell trace bit** (`d6cd19f7`) — derived from the trace set and cached
+   on the cell against a variable-trace epoch bumped in the existing
+   `invalidate_guard_domain(VariableTrace)` chokepoint.
+
+### New ABI (descriptor in `tcl-runtime-api`, export in `runtime/rust`, test through the C ABI)
+
+```text
+tcl_codegen_activation_enter()                          -> i32   ActivationEnter
+tcl_codegen_activation_leave(code: i32)                          ActivationLeave
+tcl_value_new_double(value: f64)                        -> i32   ValueNewDouble
+tcl_value_new_bool(value: i32)                          -> i32   ValueNewBool
+tcl_value_get_wide_int(obj: i32, out: i32)              -> i32   ValueGetWideInt
+tcl_value_get_double(obj: i32, out: i32)                -> i32   ValueGetDouble
+tcl_value_get_bool(obj: i32, out: i32)                  -> i32   ValueGetBool
+tcl_codegen_slot_bind(slot, name_ptr, name_len, value)  -> i32   SlotBind
+tcl_codegen_slot_set(slot: i32, value: i32)             -> i32   SlotSet
+tcl_codegen_slot_get(slot: i32)                         -> i32   SlotGet
+tcl_codegen_slot_incr_i64(slot: i32, delta: i64, out)   -> i32   SlotIncrI64
+tcl_codegen_slot_append(slot: i32, value: i32)          -> i32   SlotAppend
+tcl_codegen_slot_lappend(slot: i32, value: i32)         -> i32   SlotLappend
+tcl_codegen_var_traced(name_ptr: i32, name_len: i32)    -> i32   VarTraced
+tcl_codegen_slot_traced(slot: i32)                      -> i32   SlotTraced
+```
+
+`CodegenAbiValueType` gains `F64` for `tcl_value_new_double`; the one-line arm
+this needs in `codegen/wasm/backend.rs`'s `abi_value_type` is the lane's only
+edit outside its own files. Status constants: `TCL_VALUE_GET_OK` = 0,
+`TCL_VALUE_GET_ERROR` = 1 (the interpreter carries the Tcl error, the out
+storage is untouched). The `tcl_codegen_local_bind/set/get` spellings keep
+working and address the same indexed cell.
+
+### Decisions
+
+- **Write-back caches on a plain string or any unshared object.** C converts in
+  place regardless of refcount because the string rep is kept; that reasoning
+  holds for those two shapes. A *shared* object already carrying a list/dict
+  rep is left alone rather than having that rep freed under its other holders.
+- **The ABI contributes addressing, never semantics.** `slot_incr_i64`,
+  `slot_append` and `slot_lappend` run the runtime's own `incr`/`append`/
+  `lappend` over a prebuilt argv, so bignum promotion, copy-on-write growth,
+  `const`, write traces and every error message are interpreted Tcl's.
+- **The trace bit is derived and epoch-validated, not hand-maintained.** Seven
+  sites mutate the trace list; a bit set and cleared at each could drift, and a
+  wrong "untraced" is a silently missed trace.
+- **The expression cache only shimmers a plain string** that already carries its
+  spelling, and a reader takes an owning `Rc` before evaluating (a `[cmd]`
+  substitution can shimmer the very object the AST hangs on).
+- `eval_expr_obj` keeps its `&[u8]` signature: its only caller is `lseq`'s
+  shared-core `decode` callback, which hands over bytes, so there is no object
+  to cache on.
+
+### Notes and remaining
+
+- **Deliverable 2's diff is inside commit `4a0b9d58`**, not a `wip(p1-…)`
+  commit: it was staged in the index when that commit was made during a
+  session interruption. The code is intact and green; the history just
+  mislabels it.
+- Two stale test expectations (`parse`/`subst` nested array index) were red at
+  the branch head and are fixed in `4af373e7` — the scanner already matched
+  `tclsh9.0`; the expectations predated #1741.
+- **Found, not fixed (out of lane):** `fire_var_trace` resolves its identity
+  from the access spelling, so a write through an `upvar` alias does not fire
+  the target's trace — `tclsh9.0` counts 2 firings for the
+  `upvar 0 loc alias; trace add variable loc write …` probe, the runtime 1.
+  `vars::trace_home` (added here) is the resolution a fix would use.
+- Not attempted, deferred to a later P1 slice: the small-int cache and
+  `tcl_codegen_literal_table` (§4.1), the intrinsic table (§4.2),
+  `tcl_codegen_proc_define_native` and the shared function table (§4.4), and
+  `CmdArena`-backed command handles (§4.4).
