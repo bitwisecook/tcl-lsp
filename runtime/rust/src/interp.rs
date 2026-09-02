@@ -3471,7 +3471,10 @@ impl Interp {
         if order.is_empty() {
             return false;
         }
-        let propagate = op == b"read" || op == b"write";
+        // C aborts the chain on the first callback error for every op *except*
+        // unset — "ignore errors in unset traces" (tclTrace.c 9.0.4:2600). An
+        // `array` trace's error therefore fails the `array` subcommand.
+        let propagate = op != b"unset";
         // Preserve the result object across the callbacks.
         let saved = self.result.get();
         unsafe { obj::incr_ref_count(saved) };
@@ -3560,10 +3563,15 @@ impl Interp {
     /// throw the callback's trace away, leaving `errorInfo` as the bare
     /// `can't set "x": …` line (issue #1633's errorInfo row).
     pub(crate) fn var_trace_error(&mut self, name: &[u8], op: &[u8], reason: &[u8]) -> Code {
-        let (verb, word): (&[u8], &[u8]) = match op {
-            b"read" => (b"read", b"READ"),
-            b"array" => (b"trace array", b"ARRAY"),
-            _ => (b"set", b"WRITE"),
+        // C's `TclCallVarTraces` verb table (tclTrace.c 9.0.4:2668-2681). The
+        // `-errorcode` is *not* set there but by the access that failed, and
+        // only `TclPtrGetVarIdx`/`TclPtrSetVarIdx` do so — `TclCheckArrayTraces`
+        // has no such tail, so an `array` trace error keeps whatever
+        // `-errorcode` the callback left (tclsh: `NONE` for a bare `error`).
+        let (verb, word): (&[u8], Option<&[u8]>) = match op {
+            b"read" => (b"read", Some(b"READ")),
+            b"array" => (b"trace array", None),
+            _ => (b"set", Some(b"WRITE")),
         };
         let mut msg = b"can't ".to_vec();
         msg.extend_from_slice(verb);
@@ -3572,13 +3580,46 @@ impl Interp {
         msg.extend_from_slice(b"\": ");
         msg.extend_from_slice(reason);
         self.set_result_bytes(&msg);
-        let mut code = b"TCL ".to_vec();
-        code.extend_from_slice(word);
-        code.extend_from_slice(b" VARNAME");
-        let mut exc = self.exc.borrow_mut();
-        exc.code = code;
-        exc.code_explicit = false;
+        if let Some(word) = word {
+            let mut code = b"TCL ".to_vec();
+            code.extend_from_slice(word);
+            code.extend_from_slice(b" VARNAME");
+            let mut exc = self.exc.borrow_mut();
+            exc.code = code;
+            exc.code_explicit = false;
+        }
         Code::Error
+    }
+
+    /// Fire `name`'s `array` traces — C's `TclCheckArrayTraces`, which every
+    /// `array` subcommand reaches through `LocateArray` (tclVar.c:330-350).
+    /// `Some(Code::Error)` when a callback errored and the subcommand must
+    /// fail with `can't trace array "name": <msg>` (`LocateArray` passes
+    /// `leaveErrMsg` 1), else `None`.
+    ///
+    /// C gates on `TclIsVarArray(varPtr) || TclIsVarUndefined(varPtr)`, so an
+    /// `array` trace fires for an array or for a variable that does not exist
+    /// yet, and never for a scalar — nor for an array *element*, which is not
+    /// an array however it was spelled or aliased. Ordinary element reads and
+    /// writes do not fire it at all: it is the `array` command's own hook.
+    pub(crate) fn fire_array_trace(&mut self, name: &[u8]) -> Option<Code> {
+        if self.traces.borrow().traces.is_empty() {
+            return None;
+        }
+        let (base, elem) = crate::frame::split_array_ref(name);
+        if elem.is_some() || (!self.var_is_array(&base) && self.var_exists(&base)) {
+            return None;
+        }
+        if !self.fire_var_trace(&base, None, b"array") {
+            return None;
+        }
+        let msg = self
+            .traces
+            .borrow_mut()
+            .pending_err
+            .take()
+            .unwrap_or_default();
+        Some(self.var_trace_error(&base, b"array", &msg))
     }
 
     /// Fire `var`'s `op` traces; on a read/write callback error return the

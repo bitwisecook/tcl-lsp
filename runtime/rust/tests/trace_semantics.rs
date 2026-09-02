@@ -591,3 +591,88 @@ fn a_whole_array_unset_fires_each_elements_own_traces_too() {
          = elements only\nR1 b2 p unset\nR2 b2 q unset"
     );
 }
+
+// -- #1569: `array` traces, which neither engine ever dispatched ------------
+
+/// C's `LocateArray` fires `TclCheckArrayTraces` at the top of every `array`
+/// subcommand, so each one invokes the callback exactly once as
+/// `<name> {} array` — while an ordinary element read or write fires nothing.
+/// The gate is `TclIsVarArray(varPtr) || TclIsVarUndefined(varPtr)`: an
+/// undefined variable fires, a scalar never does, and an unknown subcommand
+/// errors at the index lookup before `LocateArray` runs.
+///
+/// tclsh 8.6.16 and 9.0.4 print the transcript below (restricted to the
+/// subcommands this build has — 8.6 has no `for`/`default`, and the runtime has
+/// no search subcommands yet).
+#[test]
+fn every_array_subcommand_fires_the_array_trace_once() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc A {n1 n2 op} { lappend ::log [list A $n1 $n2 $op] }\n\
+         array set arr {k 1}\n\
+         trace add variable arr array A\n\
+         foreach sub {{names arr} {size arr} {get arr} {exists arr}} {\n\
+         \x20   lappend ::log \"= array $sub\"\n\
+         \x20   catch {array {*}$sub}\n\
+         }\n\
+         lappend ::log {= array set}\n\
+         array set arr {j 2}\n\
+         lappend ::log {= array unset}\n\
+         array unset arr k\n\
+         lappend ::log {= plain read/write}\n\
+         set arr(j) 5\n\
+         set q $arr(j)\n\
+         lappend ::log {= undefined var}\n\
+         trace add variable novar array A\n\
+         array names novar\n\
+         array exists novar\n\
+         lappend ::log {= scalar}\n\
+         set sc 1\n\
+         trace add variable sc array A\n\
+         catch {array names sc}\n\
+         lappend ::log {= unknown subcommand}\n\
+         catch {array bogus arr}\n\
+         lappend ::log {= via upvar alias}\n\
+         upvar #0 arr al\n\
+         array names al\n\
+         join $::log \\n",
+    );
+    assert_eq!(
+        got,
+        "= array names arr\nA arr {} array\n\
+         = array size arr\nA arr {} array\n\
+         = array get arr\nA arr {} array\n\
+         = array exists arr\nA arr {} array\n\
+         = array set\nA arr {} array\n\
+         = array unset\nA arr {} array\n\
+         = plain read/write\n\
+         = undefined var\nA novar {} array\nA novar {} array\n\
+         = scalar\n\
+         = unknown subcommand\n\
+         = via upvar alias\nA al {} array"
+    );
+}
+
+/// An `array` trace whose callback errors fails the subcommand:
+/// `LocateArray` passes `leaveErrMsg` 1, so `TclCallVarTraces`'s error tail
+/// runs with the `array` verb — `can't trace array "arr": …`, an
+/// `(array trace on "arr")` errorInfo frame, and the callback's own
+/// `-errorcode` (there is no `Tcl_SetErrorCode` on this path, unlike the read
+/// and write ones). Identical at 8.6.16 and 9.0.4.
+#[test]
+fn an_array_trace_error_fails_the_subcommand_with_cs_verb() {
+    let got = transcript(
+        "proc AE {n1 n2 op} { error \"aboom\" }\n\
+         array set arr {k 1}\n\
+         trace add variable arr array AE\n\
+         set c [catch {array names arr} m]\n\
+         set out \"$c|$m|$::errorCode|$::errorInfo\"",
+    );
+    assert_eq!(
+        got,
+        "1|can't trace array \"arr\": aboom|NONE|\
+         aboom\n    while executing\n\"error \"aboom\" \"\n\
+         \x20   (procedure \"AE\" line 1)\n    invoked from within\n\"AE arr {} array\"\n\
+         \x20   (array trace on \"arr\")\n    invoked from within\n\"array names arr\""
+    );
+}

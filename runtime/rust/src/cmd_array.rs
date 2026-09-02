@@ -31,11 +31,71 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"array", array_cmd);
 }
 
+/// This build's `array` subcommands, in the order the unknown-subcommand
+/// message lists them, each with the `argv` index its array name sits at —
+/// `array default <sub> <name>` names its array one word later than the rest.
+///
+/// One table, two consumers: the message below and [`array_name_index`], which
+/// is what makes the variable's `array` traces fire for every subcommand. A
+/// subcommand added to the message without a row here would silently stop
+/// being trace-visible.
+const SUBCOMMANDS: &[(&[u8], usize)] = &[
+    (b"default", 3),
+    (b"exists", 2),
+    (b"for", 2),
+    (b"get", 2),
+    (b"names", 2),
+    (b"set", 2),
+    (b"size", 2),
+    (b"unset", 2),
+];
+
+/// The `argv` index of `sub`'s array name, or `None` when `sub` is not a
+/// subcommand of this build — C resolves the subcommand index *before* calling
+/// `LocateArray`, so an unknown subcommand fires no trace.
+fn array_name_index(sub: &[u8]) -> Option<usize> {
+    SUBCOMMANDS
+        .iter()
+        .find(|(name, _)| *name == sub)
+        .map(|(_, index)| *index)
+}
+
+/// `unknown or ambiguous subcommand "x": must be a, b, or c`, over the same
+/// table.
+fn unknown_subcommand(interp: &mut Interp, sub: &[u8]) -> Code {
+    let mut m = b"unknown or ambiguous subcommand \"".to_vec();
+    m.extend_from_slice(sub);
+    m.extend_from_slice(b"\": must be ");
+    for (i, (name, _)) in SUBCOMMANDS.iter().enumerate() {
+        if i > 0 {
+            m.extend_from_slice(b", ");
+        }
+        if i + 1 == SUBCOMMANDS.len() {
+            m.extend_from_slice(b"or ");
+        }
+        m.extend_from_slice(name);
+    }
+    interp.set_error(&m)
+}
+
 fn array_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
         return interp.wrong_args(b"array subcommand arrayName ?arg ...?");
     }
     let sub = obj_bytes(argv[1]);
+    // C's `LocateArray` (tclVar.c:330-350) sits at the top of every `array`
+    // subcommand and fires the variable's `array` traces before the subcommand
+    // reads anything — `array names`, `array get`, `array set`, `array exists`
+    // and the rest each fire exactly one `<name> {} array` callback, while an
+    // ordinary `$arr(k)` read or `set arr(k)` write fires none. This is that
+    // one site (issue #1569), not a per-subcommand branch: the array command
+    // owns the hook, so the only per-subcommand fact it needs is where the
+    // array name is.
+    if let Some(name_obj) = array_name_index(&sub).and_then(|i| argv.get(i)) {
+        if let Some(code) = interp.fire_array_trace(&obj_bytes(*name_obj)) {
+            return code;
+        }
+    }
     let sub_str = String::from_utf8_lossy(&sub);
     // The read-side + `unset` are the shared `tcl_cmd_core::array` core (over
     // this runtime's `VarStore`/`Frames`/`ValueOps`); a fresh-or-borrowed result
@@ -56,14 +116,7 @@ fn array_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"set" => array_set(interp, argv, &name),
         b"for" => array_for(interp, argv),
         b"default" => array_default(interp, argv),
-        other => {
-            let mut m = b"unknown or ambiguous subcommand \"".to_vec();
-            m.extend_from_slice(other);
-            m.extend_from_slice(
-                b"\": must be default, exists, for, get, names, set, size, or unset",
-            );
-            interp.set_error(&m)
-        }
+        other => unknown_subcommand(interp, other),
     }
 }
 
