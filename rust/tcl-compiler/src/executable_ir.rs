@@ -2146,18 +2146,28 @@ pub fn build_linear_executable_ir(
     }
     let mut builder = FunctionBuilder::new(function);
     let entry = builder.new_block();
-    let (tail, completion) = builder.emit_script(
+    // The function body's own last statement returns the function completion
+    // directly, so a straight-line body keeps exactly the block shape it had
+    // before structured control became executable.
+    let tail = builder.emit_script(
         registry,
         context,
         script,
         &[],
         entry,
         ControlContext::FUNCTION_BODY,
+        true,
     )?;
-    let Some(completion) = completion else {
-        return Err(SourceCompatibilityDecline::EmptyScript);
-    };
-    builder.terminate(tail, ExecutableTerminator::ReturnCompletion(completion));
+    match tail {
+        ScriptTail::Returns => {}
+        ScriptTail::Falls {
+            block,
+            completion: Some(completion),
+        } => builder.terminate(block, ExecutableTerminator::ReturnCompletion(completion)),
+        ScriptTail::Falls {
+            completion: None, ..
+        } => return Err(SourceCompatibilityDecline::EmptyScript),
+    }
     let executable = ExecutableFunction::new(function, entry, builder.blocks);
     debug_assert!(
         executable.validate().is_ok(),
@@ -2216,6 +2226,32 @@ impl ControlContext {
     }
 }
 
+/// Where control goes after one emitted statement.
+enum StatementTail {
+    /// Normal completion continues at this still-unterminated block.
+    Falls {
+        /// Block reached on normal completion.
+        block: ExecutableBlockId,
+        /// Completion the statement produced.
+        completion: CompletionId,
+    },
+    /// The statement was the function body's tail and returned its completion.
+    Returns,
+}
+
+/// Where control goes after one emitted script.
+enum ScriptTail {
+    /// Normal completion continues at this still-unterminated block.
+    Falls {
+        /// Block reached on normal completion.
+        block: ExecutableBlockId,
+        /// Completion of the last statement, or `None` for an empty script.
+        completion: Option<CompletionId>,
+    },
+    /// The script was the function body and its tail returned.
+    Returns,
+}
+
 struct FunctionBuilder {
     allocator: IdAllocator,
     blocks: Vec<ExecutableBlock>,
@@ -2244,6 +2280,26 @@ impl FunctionBuilder {
 
     fn terminate(&mut self, block: ExecutableBlockId, terminator: ExecutableTerminator) {
         self.blocks[block.index()].terminator = Some(terminator);
+    }
+
+    /// Terminate `block` on `completion`, either returning it from the
+    /// function — the tail statement of the function body — or dispatching it
+    /// onwards.
+    fn finish(
+        &mut self,
+        block: ExecutableBlockId,
+        completion: CompletionId,
+        control: ControlContext,
+        tail: bool,
+    ) -> StatementTail {
+        if tail {
+            self.terminate(block, ExecutableTerminator::ReturnCompletion(completion));
+            return StatementTail::Returns;
+        }
+        StatementTail::Falls {
+            block: self.dispatch(block, completion, control),
+            completion,
+        }
     }
 
     /// Terminate `block` by dispatching `completion`, and return the block
@@ -2287,11 +2343,30 @@ impl FunctionBuilder {
         ok
     }
 
+    /// Emit an interior script of a structured region. Only the function body
+    /// itself can return its tail, so this always falls through to a block.
+    fn emit_nested(
+        &mut self,
+        registry: &CommandRegistry,
+        context: Option<SemanticContext>,
+        script: &Script,
+        path: &[u32],
+        block: ExecutableBlockId,
+        control: ControlContext,
+    ) -> Result<ExecutableBlockId, SourceCompatibilityDecline> {
+        match self.emit_script(registry, context, script, path, block, control, false)? {
+            ScriptTail::Falls { block, .. } => Ok(block),
+            ScriptTail::Returns => {
+                unreachable!("only the function body's own tail returns its completion")
+            }
+        }
+    }
+
     /// Emit every statement of `script` starting at the empty block `block`.
     ///
-    /// Returns the still-unterminated block where normal completion continues
-    /// and the completion of the last statement emitted, or `None` when the
-    /// script was empty.
+    /// `tail` marks the function body itself, whose last statement returns the
+    /// function's completion instead of dispatching it onwards.
+    #[allow(clippy::too_many_arguments)]
     fn emit_script(
         &mut self,
         registry: &CommandRegistry,
@@ -2300,23 +2375,41 @@ impl FunctionBuilder {
         path: &[u32],
         block: ExecutableBlockId,
         control: ControlContext,
-    ) -> Result<(ExecutableBlockId, Option<CompletionId>), SourceCompatibilityDecline> {
+        tail: bool,
+    ) -> Result<ScriptTail, SourceCompatibilityDecline> {
         let mut current = block;
         let mut last = None;
         for (statement_index, statement) in script.statements.iter().enumerate() {
             let node = child_node(path, statement_index);
-            let (next, completion) =
-                self.emit_statement(registry, context, statement, &node, current, control)?;
-            current = next;
-            last = Some(completion);
             // A retained `return` ends the sequence: what follows it in the
             // same script is unreachable, exactly as the source-faithful
             // lowering already recorded.
-            if matches!(statement, Statement::Return { .. }) {
+            let terminates = matches!(statement, Statement::Return { .. });
+            let is_last = terminates || statement_index + 1 == script.statements.len();
+            let statement_tail = tail && is_last;
+            match self.emit_statement(
+                registry,
+                context,
+                statement,
+                &node,
+                current,
+                control,
+                statement_tail,
+            )? {
+                StatementTail::Returns => return Ok(ScriptTail::Returns),
+                StatementTail::Falls { block, completion } => {
+                    current = block;
+                    last = Some(completion);
+                }
+            }
+            if terminates {
                 break;
             }
         }
-        Ok((current, last))
+        Ok(ScriptTail::Falls {
+            block: current,
+            completion: last,
+        })
     }
 
     fn emit_statement(
@@ -2327,7 +2420,8 @@ impl FunctionBuilder {
         node: &NodeId,
         block: ExecutableBlockId,
         control: ControlContext,
-    ) -> Result<(ExecutableBlockId, CompletionId), SourceCompatibilityDecline> {
+        tail: bool,
+    ) -> Result<StatementTail, SourceCompatibilityDecline> {
         let source = SourceSite::source(statement.span());
         if let Some(descriptor) = lowered_operation_descriptor(statement) {
             let completion = self.allocator.completion();
@@ -2342,10 +2436,12 @@ impl FunctionBuilder {
                     source,
                 }),
             );
-            return Ok((self.dispatch(block, completion, control), completion));
+            return Ok(self.finish(block, completion, control, tail));
         }
         if structured_region_projection(statement).is_some() {
-            return self.emit_structured_region(registry, context, statement, node, block, control);
+            return self.emit_structured_region(
+                registry, context, statement, node, block, control, tail,
+            );
         }
         if let Some(descriptor) = opaque_region_descriptor(statement) {
             let completion = self.allocator.completion();
@@ -2359,11 +2455,14 @@ impl FunctionBuilder {
                     source,
                 }),
             );
-            return Ok((self.dispatch(block, completion, control), completion));
+            return Ok(self.finish(block, completion, control, tail));
         }
-        self.emit_call(registry, context, statement, node, block, control, source)
+        self.emit_call(
+            registry, context, statement, node, block, control, source, tail,
+        )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn emit_call(
         &mut self,
         registry: &CommandRegistry,
@@ -2373,7 +2472,8 @@ impl FunctionBuilder {
         block: ExecutableBlockId,
         control: ControlContext,
         source: SourceSite,
-    ) -> Result<(ExecutableBlockId, CompletionId), SourceCompatibilityDecline> {
+        tail: bool,
+    ) -> Result<StatementTail, SourceCompatibilityDecline> {
         let statement_index = node.path().last().copied().unwrap_or(0) as usize;
         let source_call = source_call(statement, statement_index)?;
         let words = exact_words(
@@ -2399,20 +2499,24 @@ impl FunctionBuilder {
             node: node.clone(),
             source,
         });
+        let stage_count = stages.len();
         let mut current = block;
-        let mut last = None;
-        for stage in stages {
+        let mut outcome = None;
+        for (index, stage) in stages.into_iter().enumerate() {
             let completion = stage.completion();
             for instruction in stage.into_instructions() {
                 self.push(current, instruction);
             }
-            current = self.dispatch(current, completion, control);
-            last = Some(completion);
+            let is_last = index + 1 == stage_count;
+            match self.finish(current, completion, control, tail && is_last) {
+                StatementTail::Returns => return Ok(StatementTail::Returns),
+                StatementTail::Falls { block, completion } => {
+                    current = block;
+                    outcome = Some(StatementTail::Falls { block, completion });
+                }
+            }
         }
-        Ok((
-            current,
-            last.expect("a call always plans at least one stage"),
-        ))
+        Ok(outcome.expect("a call always plans at least one stage"))
     }
 
     fn emit_structured_region(
@@ -2423,7 +2527,8 @@ impl FunctionBuilder {
         node: &NodeId,
         block: ExecutableBlockId,
         control: ControlContext,
-    ) -> Result<(ExecutableBlockId, CompletionId), SourceCompatibilityDecline> {
+        tail: bool,
+    ) -> Result<StatementTail, SourceCompatibilityDecline> {
         match statement {
             Statement::If {
                 clauses, else_body, ..
@@ -2436,6 +2541,7 @@ impl FunctionBuilder {
                 node,
                 block,
                 control,
+                tail,
             ),
             Statement::While {
                 condition,
@@ -2458,6 +2564,7 @@ impl FunctionBuilder {
                 node,
                 block,
                 control,
+                tail,
             ),
             Statement::For {
                 init,
@@ -2482,11 +2589,12 @@ impl FunctionBuilder {
                 node,
                 block,
                 control,
+                tail,
             ),
             Statement::Foreach {
                 iterators, body, ..
             } => self.emit_cursor_loop(
-                registry, context, statement, iterators, body, node, block, control,
+                registry, context, statement, iterators, body, node, block, control, tail,
             ),
             Statement::Catch {
                 body,
@@ -2503,6 +2611,7 @@ impl FunctionBuilder {
                 node,
                 block,
                 control,
+                tail,
             ),
             Statement::Try {
                 body,
@@ -2519,6 +2628,7 @@ impl FunctionBuilder {
                 node,
                 block,
                 control,
+                tail,
             ),
             Statement::Switch {
                 subject,
@@ -2545,6 +2655,7 @@ impl FunctionBuilder {
                 node,
                 block,
                 control,
+                tail,
             ),
             _ => unreachable!("structured_region_projection selected a non-structured statement"),
         }
@@ -2558,7 +2669,8 @@ impl FunctionBuilder {
         node: &NodeId,
         join: ExecutableBlockId,
         control: ControlContext,
-    ) -> (ExecutableBlockId, CompletionId) {
+        tail: bool,
+    ) -> StatementTail {
         let (descriptor, kind) = structured_region_projection(statement)
             .expect("only a projected statement reaches region completion");
         let completion = self.allocator.completion();
@@ -2573,7 +2685,7 @@ impl FunctionBuilder {
                 source: SourceSite::source(statement.span()),
             }),
         );
-        (self.dispatch(join, completion, control), completion)
+        self.finish(join, completion, control, tail)
     }
 
     fn emit_condition(
@@ -2614,7 +2726,8 @@ impl FunctionBuilder {
         node: &NodeId,
         block: ExecutableBlockId,
         control: ControlContext,
-    ) -> Result<(ExecutableBlockId, CompletionId), SourceCompatibilityDecline> {
+        tail: bool,
+    ) -> Result<StatementTail, SourceCompatibilityDecline> {
         let join = self.new_block();
         let mut current = block;
         for (index, clause) in clauses.iter().enumerate() {
@@ -2637,20 +2750,18 @@ impl FunctionBuilder {
                 },
             );
             let path = child_path(node, u32::try_from(index).unwrap_or(u32::MAX));
-            let (tail, _) =
-                self.emit_script(registry, context, &clause.body, &path, body_entry, control)?;
-            self.terminate(tail, ExecutableTerminator::Goto(join));
+            let flow = self.emit_nested(registry, context, &clause.body, &path, body_entry, control)?;
+            self.terminate(flow, ExecutableTerminator::Goto(join));
             current = next_test;
         }
         if let Some(else_body) = else_body {
             let path = child_path(node, u32::try_from(clauses.len()).unwrap_or(u32::MAX));
-            let (tail, _) =
-                self.emit_script(registry, context, else_body, &path, current, control)?;
-            self.terminate(tail, ExecutableTerminator::Goto(join));
+            let flow = self.emit_nested(registry, context, else_body, &path, current, control)?;
+            self.terminate(flow, ExecutableTerminator::Goto(join));
         } else {
             self.terminate(current, ExecutableTerminator::Goto(join));
         }
-        Ok(self.complete_region(statement, node, join, control))
+        Ok(self.complete_region(statement, node, join, control, tail))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -2663,12 +2774,13 @@ impl FunctionBuilder {
         node: &NodeId,
         block: ExecutableBlockId,
         control: ControlContext,
-    ) -> Result<(ExecutableBlockId, CompletionId), SourceCompatibilityDecline> {
+        tail: bool,
+    ) -> Result<StatementTail, SourceCompatibilityDecline> {
         let mut current = block;
         if let Some(init) = parts.init {
             let path = child_path(node, LOOP_INIT_SLOT);
-            let (tail, _) = self.emit_script(registry, context, init, &path, current, control)?;
-            current = tail;
+            let flow = self.emit_nested(registry, context, init, &path, current, control)?;
+            current = flow;
         }
         let header = self.new_block();
         self.terminate(current, ExecutableTerminator::Goto(header));
@@ -2699,7 +2811,7 @@ impl FunctionBuilder {
         };
         let body_control = control.loop_body(exit, continue_target);
         let path = child_path(node, LOOP_BODY_SLOT);
-        let (tail, _) = self.emit_script(
+        let flow = self.emit_nested(
             registry,
             context,
             parts.body,
@@ -2708,15 +2820,14 @@ impl FunctionBuilder {
             body_control,
         )?;
         if let Some(next) = parts.next {
-            self.terminate(tail, ExecutableTerminator::Goto(continue_target));
+            self.terminate(flow, ExecutableTerminator::Goto(continue_target));
             let path = child_path(node, LOOP_NEXT_SLOT);
-            let (next_tail, _) =
-                self.emit_script(registry, context, next, &path, continue_target, control)?;
-            self.terminate(next_tail, ExecutableTerminator::Goto(header));
+            let next_flow = self.emit_nested(registry, context, next, &path, continue_target, control)?;
+            self.terminate(next_flow, ExecutableTerminator::Goto(header));
         } else {
-            self.terminate(tail, ExecutableTerminator::Goto(header));
+            self.terminate(flow, ExecutableTerminator::Goto(header));
         }
-        Ok(self.complete_region(statement, node, exit, control))
+        Ok(self.complete_region(statement, node, exit, control, tail))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -2730,7 +2841,8 @@ impl FunctionBuilder {
         node: &NodeId,
         block: ExecutableBlockId,
         control: ControlContext,
-    ) -> Result<(ExecutableBlockId, CompletionId), SourceCompatibilityDecline> {
+        tail: bool,
+    ) -> Result<StatementTail, SourceCompatibilityDecline> {
         let source = SourceSite::source(statement.span());
         let mut current = block;
         let mut groups = Vec::with_capacity(iterators.len());
@@ -2787,10 +2899,9 @@ impl FunctionBuilder {
         );
         let body_control = control.loop_body(exit, header);
         let path = child_path(node, LOOP_BODY_SLOT);
-        let (tail, _) =
-            self.emit_script(registry, context, body, &path, body_entry, body_control)?;
-        self.terminate(tail, ExecutableTerminator::Goto(header));
-        Ok(self.complete_region(statement, node, exit, control))
+        let flow = self.emit_nested(registry, context, body, &path, body_entry, body_control)?;
+        self.terminate(flow, ExecutableTerminator::Goto(header));
+        Ok(self.complete_region(statement, node, exit, control, tail))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -2805,12 +2916,13 @@ impl FunctionBuilder {
         node: &NodeId,
         block: ExecutableBlockId,
         control: ControlContext,
-    ) -> Result<(ExecutableBlockId, CompletionId), SourceCompatibilityDecline> {
+        tail: bool,
+    ) -> Result<StatementTail, SourceCompatibilityDecline> {
         let source = SourceSite::source(statement.span());
         let handler = self.new_block();
         let join = self.new_block();
         let path = child_path(node, LOOP_BODY_SLOT);
-        let (tail, _) = self.emit_script(
+        let flow = self.emit_nested(
             registry,
             context,
             body,
@@ -2818,7 +2930,7 @@ impl FunctionBuilder {
             block,
             ControlContext::caught_body(handler),
         )?;
-        self.terminate(tail, ExecutableTerminator::Goto(join));
+        self.terminate(flow, ExecutableTerminator::Goto(join));
 
         let caught = self.allocator.completion();
         self.push(
@@ -2851,7 +2963,7 @@ impl FunctionBuilder {
             current = self.dispatch(current, completion, control);
         }
         self.terminate(current, ExecutableTerminator::Goto(join));
-        Ok(self.complete_region(statement, node, join, control))
+        Ok(self.complete_region(statement, node, join, control, tail))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -2866,13 +2978,14 @@ impl FunctionBuilder {
         node: &NodeId,
         block: ExecutableBlockId,
         control: ControlContext,
-    ) -> Result<(ExecutableBlockId, CompletionId), SourceCompatibilityDecline> {
+        tail: bool,
+    ) -> Result<StatementTail, SourceCompatibilityDecline> {
         let source = SourceSite::source(statement.span());
         let dispatch_block = self.new_block();
         let finally_entry = self.new_block();
         let join = self.new_block();
         let path = child_path(node, LOOP_BODY_SLOT);
-        let (tail, _) = self.emit_script(
+        let flow = self.emit_nested(
             registry,
             context,
             body,
@@ -2880,7 +2993,7 @@ impl FunctionBuilder {
             block,
             ControlContext::caught_body(dispatch_block),
         )?;
-        self.terminate(tail, ExecutableTerminator::Goto(finally_entry));
+        self.terminate(flow, ExecutableTerminator::Goto(finally_entry));
 
         let caught = self.allocator.completion();
         self.push(
@@ -2894,7 +3007,9 @@ impl FunctionBuilder {
         // Every handler's abnormal completion also runs `finally`, so handler
         // bodies unwind into the same finally edge as the body.
         let handler_control = ControlContext::caught_body(finally_entry);
-        let handler_entries = self.emit_try_handlers(
+        // `emit_try_handlers` returns the cases already in ascending code
+        // order, one entry per code, each the first clause that code tries.
+        let cases = self.emit_try_handlers(
             registry,
             context,
             handlers,
@@ -2904,14 +3019,6 @@ impl FunctionBuilder {
             finally_entry,
             handler_control,
         )?;
-        let mut cases = Vec::new();
-        for (code, target) in handler_entries {
-            if cases.iter().any(|case: &CompletionCase| case.code == code) {
-                continue;
-            }
-            cases.push(CompletionCase { code, target });
-        }
-        cases.sort_by_key(|case| case.code.as_int());
         self.terminate(
             dispatch_block,
             ExecutableTerminator::CompletionSwitch {
@@ -2922,24 +3029,32 @@ impl FunctionBuilder {
             },
         );
 
-        let finally_tail = if let Some(finally_body) = finally_body {
+        let finally_flow = if let Some(finally_body) = finally_body {
             let path = child_path(node, TRY_FINALLY_SLOT);
-            let (tail, _) = self.emit_script(
+            self.emit_nested(
                 registry,
                 context,
                 finally_body,
                 &path,
                 finally_entry,
                 ControlContext::caught_body(join),
-            )?;
-            tail
+            )?
         } else {
             finally_entry
         };
-        self.terminate(finally_tail, ExecutableTerminator::Goto(join));
-        Ok(self.complete_region(statement, node, join, control))
+        self.terminate(finally_flow, ExecutableTerminator::Goto(join));
+        Ok(self.complete_region(statement, node, join, control, tail))
     }
 
+    #[allow(clippy::too_many_arguments)]
+    /// Emit the `on`/`trap` handler clauses and return, per completion code,
+    /// the first handler entry that code should try.
+    ///
+    /// Clauses are tried in source order: a `trap` whose `-errorcode` prefix
+    /// does not match falls to the next clause selecting the same code, and
+    /// only an unmatched *last* clause reaches `finally_entry`. A clause after
+    /// an unconditional one for the same code can never run, so it is not
+    /// emitted at all.
     #[allow(clippy::too_many_arguments)]
     fn emit_try_handlers(
         &mut self,
@@ -2951,19 +3066,37 @@ impl FunctionBuilder {
         source: &SourceSite,
         finally_entry: ExecutableBlockId,
         control: ControlContext,
-    ) -> Result<Vec<(CompletionCode, ExecutableBlockId)>, SourceCompatibilityDecline> {
-        let mut entries = Vec::new();
+    ) -> Result<Vec<CompletionCase>, SourceCompatibilityDecline> {
+        let mut reachable: Vec<(usize, CompletionCode, bool)> = Vec::new();
+        let mut settled: BTreeSet<i64> = BTreeSet::new();
         for (index, handler) in handlers.iter().enumerate() {
             let Some(code) = try_handler_code(handler) else {
                 continue;
             };
-            let body = resolve_try_fallthrough(handlers, index);
+            if settled.contains(&code.as_int()) {
+                continue;
+            }
+            let conditional = handler.trap_pattern.is_some();
+            if !conditional {
+                settled.insert(code.as_int());
+            }
+            reachable.push((index, code, conditional));
+        }
+
+        // Build in reverse so each clause knows where a failed match falls.
+        let mut next_for_code: BTreeMap<i64, ExecutableBlockId> = BTreeMap::new();
+        for (index, code, _) in reachable.iter().copied().rev() {
+            let handler = &handlers[index];
+            let no_match = next_for_code
+                .get(&code.as_int())
+                .copied()
+                .unwrap_or(finally_entry);
             let entry = self.new_block();
             let mut current = entry;
             if let Some(prefix) = handler.trap_pattern.clone() {
                 // A `trap` selector narrows an error by its `-errorcode`
-                // prefix; the parse is the registry-owned one lowering already
-                // performed, never a local re-parse of the handler grammar.
+                // prefix; the prefix is the registry-owned parse lowering
+                // already performed, never a local re-parse of the grammar.
                 let value = self.allocator.value();
                 let completion = self.allocator.completion();
                 self.push(
@@ -2986,7 +3119,7 @@ impl FunctionBuilder {
                     ExecutableTerminator::Branch {
                         condition: value,
                         then_target: matched,
-                        else_target: finally_entry,
+                        else_target: no_match,
                     },
                 );
                 current = matched;
@@ -3011,14 +3144,20 @@ impl FunctionBuilder {
                 current = self.dispatch(current, completion, control);
             }
             let path = child_path(node, TRY_HANDLER_SLOT + u32::try_from(index).unwrap_or(0));
-            let (tail, _) = self.emit_script(registry, context, body, &path, current, control)?;
-            self.terminate(tail, ExecutableTerminator::Goto(finally_entry));
-            entries.push((code, entry));
+            let body = resolve_try_fallthrough(handlers, index);
+            let flow = self.emit_nested(registry, context, body, &path, current, control)?;
+            self.terminate(flow, ExecutableTerminator::Goto(finally_entry));
+            next_for_code.insert(code.as_int(), entry);
         }
-        Ok(entries)
+        Ok(next_for_code
+            .into_iter()
+            .map(|(code, target)| CompletionCase {
+                code: CompletionCode::from_int(i32::try_from(code).unwrap_or(i32::MAX)),
+                target,
+            })
+            .collect())
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn emit_switch(
         &mut self,
         registry: &CommandRegistry,
@@ -3028,8 +3167,8 @@ impl FunctionBuilder {
         node: &NodeId,
         block: ExecutableBlockId,
         control: ControlContext,
-    ) -> Result<(ExecutableBlockId, CompletionId), SourceCompatibilityDecline> {
-        let source = SourceSite::source(statement.span());
+        tail: bool,
+    ) -> Result<StatementTail, SourceCompatibilityDecline> {
         let subject_value = self.allocator.value();
         let subject_completion = self.allocator.completion();
         self.push(
@@ -3093,19 +3232,17 @@ impl FunctionBuilder {
                 continue;
             };
             let path = child_path(node, u32::try_from(index).unwrap_or(u32::MAX));
-            let (tail, _) = self.emit_script(registry, context, body, &path, entry, control)?;
-            self.terminate(tail, ExecutableTerminator::Goto(join));
+            let flow = self.emit_nested(registry, context, body, &path, entry, control)?;
+            self.terminate(flow, ExecutableTerminator::Goto(join));
         }
         if let Some(default_body) = parts.default_body {
             let path = child_path(node, SWITCH_DEFAULT_SLOT);
-            let (tail, _) =
-                self.emit_script(registry, context, default_body, &path, current, control)?;
-            self.terminate(tail, ExecutableTerminator::Goto(join));
+            let flow = self.emit_nested(registry, context, default_body, &path, current, control)?;
+            self.terminate(flow, ExecutableTerminator::Goto(join));
         } else {
             self.terminate(current, ExecutableTerminator::Goto(join));
         }
-        let _ = source;
-        Ok(self.complete_region(statement, node, join, control))
+        Ok(self.complete_region(statement, node, join, control, tail))
     }
 }
 
@@ -3282,8 +3419,13 @@ fn structured_region_projection(
                 )
             })
         }
-        Statement::Catch { .. } => Some((LoweringHookId::Catch, StructuredRegionKind::Catch)),
-        Statement::Try { .. } => Some((LoweringHookId::Try, StructuredRegionKind::Try)),
+        // An empty guarded body has no abrupt edge for a handler to join, so
+        // there is nothing for the completion-class projection to describe.
+        Statement::Catch { body, .. } => (!body.statements.is_empty())
+            .then_some((LoweringHookId::Catch, StructuredRegionKind::Catch)),
+        Statement::Try { body, .. } => {
+            (!body.statements.is_empty()).then_some((LoweringHookId::Try, StructuredRegionKind::Try))
+        }
         Statement::Switch { .. } => Some((LoweringHookId::Switch, StructuredRegionKind::Switch)),
         Statement::AssignConst { .. }
         | Statement::AssignExpr { .. }

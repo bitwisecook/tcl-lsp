@@ -3334,12 +3334,21 @@ mod tests {
                 .iter()
                 .map(|region| region["node"].clone())
                 .collect::<Vec<_>>(),
-            vec![json!([0]), json!([1]), json!([2]), json!([3])]
+            vec![
+                json!([0]),
+                json!([1]),
+                json!([2]),
+                // The `if` body's invocation is a region nested under the
+                // structured region's node.
+                json!([2, 0, 0]),
+                json!([3])
+            ]
         );
         assert_eq!(regions[0]["selectedKind"], "generic-prebuilt-argv");
         assert_eq!(regions[1]["selectedKind"], "lowered");
-        assert_eq!(regions[2]["selectedKind"], "opaque");
+        assert_eq!(regions[2]["selectedKind"], "structured");
         assert_eq!(regions[3]["selectedKind"], "generic-prebuilt-argv");
+        assert_eq!(regions[4]["selectedKind"], "generic-prebuilt-argv");
         assert!(regions[1]["slowPath"].is_null());
         assert!(regions[2]["slowPath"].is_null());
     }

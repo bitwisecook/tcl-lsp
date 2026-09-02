@@ -14,7 +14,7 @@ Branch: `claude/wasm-codegen-architecture-5exvpu`.
 |---|---|---|---|
 | `p0-harness` | P0 tier harness + runtime unit suite in CI | `rust/tcl-compiler/tests/wasm_tiers.rs`, `rust/tcl-compiler/tests/common/wasm_link.rs`, `samples/wasm/budgets.tsv`, `.github/workflows/ci.yml`, `scripts/dev/runtime-rust-path.sh`, `runtime/rust/examples/run_script.rs`, `runtime/rust/tests/run_script_builtin_surface.rs` | **done** — see below |
 | `p1-runtime-abi` | P1 runtime ABI v2 groundwork | `runtime/rust/src/{codegen_abi,frame,vars,interp,obj,bignum,builtins,expr}.rs`, `rust/tcl-runtime-api/src/codegen_abi.rs` | open |
-| `p2-executable-ir` | P2 executable IR total | `rust/tcl-compiler/src/executable_ir.rs` and its consumers | open |
+| `p2-executable-ir` | P2 executable IR total | `rust/tcl-compiler/src/executable_ir.rs` and its consumers | landed (see below) |
 | `p3-native-lowering` | P3 NLIR + native T0/T1 | new `rust/tcl-compiler/src/native_lowering/`, `codegen/wasm/backend.rs` | blocked on P1, P2 |
 
 ## Decisions
@@ -283,3 +283,118 @@ working and address the same indexed cell.
   `tcl_codegen_literal_table` (§4.1), the intrinsic table (§4.2),
   `tcl_codegen_proc_define_native` and the shared function table (§4.4), and
   `CmdArena`-backed command handles (§4.4).
+
+## p2-executable-ir
+
+**Goal.** Make the executable semantic IR total for structured control flow so
+P3's native lowering has real edges to work with, without changing any
+consumer's observable output where it already had a precise answer.
+
+**Owner files.** `rust/tcl-compiler/src/executable_ir.rs` and its consumers
+(`semantic_analysis.rs`, `world_state_ssa.rs`, `mixed_region_plan.rs`,
+`dispatch_proof.rs`, `codegen/wasm/{semantic_plan,pipeline}.rs`),
+`rust/bpf-tcl-ir/src/semantic_bridge.rs`, `rust/tcl-explorer/src/serialise.rs`,
+`rust/tcl-registry/src/completion.rs`.
+
+### Design decisions
+
+- **The builder is block-oriented, not stage-oriented.** `FunctionBuilder`
+  allocates empty blocks in ID order (which is the deterministic vector
+  position validation requires) and `dispatch()` terminates a block on one
+  completion, returning the block where normal completion continues. Every
+  instruction is still the last in its own block, which is what
+  `require_normal_availability` needs to prove a value available.
+- **`CompletionSwitch` *is* `DispatchCompletion`.** The plan named a
+  `DispatchCompletion { ok, break_target, continue_target, unwind }`
+  terminator; the existing `CompletionSwitch` expresses exactly that and every
+  consumer already understands it, so a `ControlContext` decides which arms a
+  switch gets instead. `Break`/`Continue` arms exist only inside a loop body;
+  the default joins a `catch`/`try` handler or leaves the function. "Any non-OK
+  code unwinds" is a graph fact rather than a backend convention.
+- **`break`/`continue` are never recognised by name.** They arrive as ordinary
+  invocations whose completion code the graph routes, so nothing in this lane
+  matches a command spelling.
+- **`CompleteStructuredRegion` sits at the region's *exit*, not its entry.** A
+  region's completion becomes available where its interior edges join, so that
+  is where the instruction that defines it belongs. It doubles as the
+  completion-φ for the region and as its stable identity for
+  `RegionPlan::Structured`, provenance, and Explorer serialisation.
+- **`JoinCompletion` is the completion-φ for a handler.** `catch` and `try`
+  join many abrupt edges carrying different completion IDs; without it a
+  handler could not name the triple it received.
+- **Handler and arm grammar is never re-parsed here.** `Statement::Try`
+  already carries the registry-owned `kind`/`match_arg`/`trap_pattern`
+  decomposition and `Statement::Switch` its `arms`/`mode`/`nocase`/
+  `patterns_braced`; the projection consumes those. The one new registry
+  helper is `tcl_registry::completion::completion_code_selector`, which owns
+  the `ok`/`error`/`return`/`break`/`continue`/integer selector spelling.
+- **`CellReference`, not `Place`.** Binding a name to a `crate::place::Place`
+  needs the scope declarations a `ResolveContext` carries, and the executable
+  builder is handed a `Script` and a registry context only. `CellReference`
+  is the exact retained name split by the shared `tcl_syntax` array rule, with
+  the base name as the world subject so an element write is seen by a
+  whole-array read. A consumer that owns a scope context binds it to a `Place`
+  itself.
+- **A footprint must be recomputable from the statement.** `validate()`
+  recomputes `LoweredFootprint` and rejects a retained one that disagrees, so
+  no consumer can be handed a footprint the IR does not prove. That rules out
+  using the registry variable scanner (which needs a `CommandRegistry`) inside
+  the footprint, so a substituted operand held as exact text reports unbounded
+  reads rather than a guessed list; a parsed `ExprNode` still yields its exact
+  read set through `ExprNode::vars()`.
+
+### What became precise
+
+| Construct | Projection |
+|---|---|
+| `if`/`elseif`/`else` | `EvaluateExpr` condition per clause, `Branch` per decision, all arms join at the region completion |
+| `while` | header with `EvaluateExpr`, `Branch` to body or exit, explicit back edge; `break` → exit, `continue` → header |
+| `for` | `init` before the header, `continue` → the `next` script, which flows to the header |
+| `foreach`/`lmap` | `EvaluateExpr` per iterator list, then an `IterateLists` header declaring each group's per-iteration loop-variable cell writes and producing the boolean the `Branch` tests |
+| `catch` | body emitted with every abrupt code joining one handler; handler is `JoinCompletion` + `WriteCompletionCell` for the result/options cells, then continues at the region join with code 0 |
+| `try` | `JoinCompletion` then a completion-class `CompletionSwitch` to handler entries; a literal `trap` selector adds an `EvaluateExpr { TrapPrefix }` `-errorcode` test; `finally` runs on the normal, handled, and unhandled edges alike |
+| `switch` | `EvaluateExpr` subject, one `MatchPattern` per arm honouring `-exact`/`-glob`/`-regexp`/`--` and `patterns_braced`, real body blocks, `-` fallthrough arms branching to one shared body |
+| `set`/`incr`/`expr`/`return` | exact `LoweredFootprint` — written cells, read cells, unbounded-read and runs-commands flags, completion set (`{Ok}` for a constant assignment) — projected by world SSA into `VariableStore`-scoped intents |
+
+### What stayed opaque, and why
+
+- `Block` and `UpFrame` (inlined `eval`/`uplevel` bodies): splicing them is only
+  sound when the body is straight-line and frame-shift-free, which is a
+  separate analysis, so they keep their world barrier.
+- `dict for`/`dict map` and Tcl 9's `array for`: their cursors iterate a
+  dictionary or an array, not the Tcl list `IterateLists` models.
+- Any structured statement the source-faithful lowering could not decompose
+  (a dynamic handler body, a malformed clause) already arrives as a `Barrier`
+  or keeps its opaque region.
+- Trace callbacks and fallback invocation remain non-edges: a cell write
+  records a *use* of the variable-trace domain and the contents/absence
+  lattice decides whether a callback runs there, exactly as it already does
+  for a variable read.
+
+### `return -code`
+
+`return -code error oops` never reaches this IR as a `Statement::Return`: the
+`return` lowering hook emits a `Barrier` for any option-bearing form, so it
+arrives as a generic invocation. Its exact completion set is already the
+registry's (`ExactReturnCompletion` on the invocation's `CompletionDescriptor`),
+and the graph dispatches whatever that set contains — a `return -code break`
+inside a loop therefore reaches the loop's break target through the ordinary
+completion switch, with no command-name recognition anywhere. A plain retained
+`Statement::Return` carries no `-code`/`-level` field to project; its footprint
+records the completion set `{Return}`, or `{Error, Return}` when its operand can
+fail.
+
+### Known follow-ups
+
+- **Dispatch narrowing.** A completion switch currently names `Ok`, the loop
+  control codes where a loop encloses the site, and a default. The registry's
+  `CompletionDescriptor` on a resolved invocation already bounds the codes it
+  can produce, so an edge for a code the callee cannot produce could be pruned.
+  That is P7's `Dispatch` narrowing, deliberately not done here.
+- **`try` handler fallthrough duplicates its body.** A `-` handler shares the
+  next clause's body; the shared body is emitted once per sharing clause under
+  a distinct node path, so one source script maps to more than one executable
+  node. That is honest (the code really does run on each path) but it means a
+  node path is no longer a bijection with a source statement inside a `try`.
+- **`Block`/`UpFrame` straight-line splice.** Deliberately not attempted: it
+  needs a frame-shift and scope analysis this lane does not own.

@@ -1194,7 +1194,11 @@ mod tests {
             vec![
                 (&[0][..], "generic-prebuilt-argv"),
                 (&[1][..], "lowered"),
-                (&[2][..], "opaque"),
+                // The `if` is projected into executable edges, so it plans as a
+                // structured region and the invocation in its body is a region
+                // of its own nested under it.
+                (&[2][..], "structured"),
+                (&[2, 0, 0][..], "generic-prebuilt-argv"),
                 (&[3][..], "generic-prebuilt-argv"),
             ]
         );

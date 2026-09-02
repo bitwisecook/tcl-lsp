@@ -1464,7 +1464,7 @@ fn apply_instruction<'f>(
         // A condition or operand containing a command substitution still
         // widens, exactly as a word evaluation does.
         ExecutableInstruction::EvaluateExpr { expr, .. } => {
-            if executable_expr_world_hazard(state, expr) && !state.fully_widened() {
+            if executable_expr_world_hazard(expr) && !state.fully_widened() {
                 Arc::make_mut(state).widen_all(site);
             }
             None
@@ -1479,12 +1479,8 @@ fn apply_instruction<'f>(
 
 /// Whether evaluating a structured-control operand can run commands that
 /// change mutable world contents.
-fn executable_expr_world_hazard(
-    state: &Arc<WorldContents>,
-    expr: &crate::executable_ir::ExecutableExpr,
-) -> bool {
+fn executable_expr_world_hazard(expr: &crate::executable_ir::ExecutableExpr) -> bool {
     use crate::executable_ir::ExecutableExpr;
-    let _ = state;
     match expr {
         ExecutableExpr::Condition { expr, .. } => !expr.command_texts().is_empty(),
         ExecutableExpr::Operand { text, braced } => !*braced && text.contains('['),
