@@ -22,11 +22,11 @@
 //! The issue asked for `ambient_package NAME VERSION -dialects {…}` — a
 //! flag narrowing a pack-wide claim to some of the file's dialects. 2.0
 //! states the same fact where it belongs instead, as an `ambient` placement
-//! **inside** the environment that has the package, and a version several
-//! environments share is an ordinary Tcl variable substituted into each
-//! row. This file is the acceptance: one pack, two environments, one
-//! variable, and a version floor that reaches a document resolved to the
-//! first environment and not the second.
+//! **inside** the environment that has the package. The block body is an
+//! evaluated script, so a version several environments share is an ordinary
+//! Tcl variable substituted into each row. This file is the acceptance: one
+//! pack, two environments, one variable, and a version floor that reaches a
+//! document resolved to the first environment and not the second.
 //!
 //! It runs in its own test binary on purpose. Environment registration is
 //! process-global, and `publish_pack_set` in a sibling file retires what
@@ -39,30 +39,26 @@ use tcl_spectcl::{Tier, evaluate_pack};
 
 /// A pack declaring one Tk version and two environments: one that has Tk
 /// ambient at that version, one that says nothing about Tk at all.
-const PACK: &str = "speclib ambientpack 2.0 {\n\
-                    set tkver 8.6\n\
-                    environment ambientpack-shell \"\n\
-                    display_name {Ambientpack Shell}\n\
-                    core tcl 8.6\n\
-                    ambient Tk $tkver\n\
-                    \"\n\
-                    environment ambientpack-plain {\n\
-                    \x20   display_name {Ambientpack Plain}\n\
-                    \x20   core tcl 8.6\n\
-                    }\n\
-                    }\n";
+const PACK: &str = "speclib ambientpack 2.0 {\n\nset tkver 8.6\n\nenvironment ambientpack-shell {\n    display_name {Ambientpack Shell}\n    core tcl 8.6\n    ambient Tk $tkver\n}\n\nenvironment ambientpack-plain {\n    display_name {Ambientpack Plain}\n    core tcl 8.6\n}\n\n}\n";
 
 /// `-placeholder` on `entry` arrived in Tk 8.7, so a document with a Tk
 /// floor of 8.6 draws W136 and one with no floor at all draws nothing.
 const DOCUMENT: &str = "entry .e -placeholder hi\n";
 
 fn version_gate_codes(source: &str, environment: &str) -> Vec<String> {
+    version_gate_diagnostics(source, environment)
+        .into_iter()
+        .map(|(code, _)| code)
+        .collect()
+}
+
+fn version_gate_diagnostics(source: &str, environment: &str) -> Vec<(String, String)> {
     Analyser::new()
         .analyse(source, environment)
         .diagnostics
         .iter()
         .filter(|diagnostic| matches!(diagnostic.code.as_str(), "W135" | "W136" | "W139"))
-        .map(|diagnostic| diagnostic.code.to_string())
+        .map(|diagnostic| (diagnostic.code.to_string(), diagnostic.message.clone()))
         .collect()
 }
 
@@ -115,6 +111,16 @@ fn an_environment_scoped_ambient_version_floors_only_its_own_environment() {
         version_gate_codes(DOCUMENT, "ambientpack-plain").is_empty(),
         "an environment with no Tk placement has no Tk floor: {:?}",
         version_gate_codes(DOCUMENT, "ambientpack-plain")
+    );
+
+    // And the diagnostic names the environment the author declared, not
+    // the permissive profile a pack-declared environment falls back to.
+    let messages = version_gate_diagnostics(DOCUMENT, "ambientpack-shell");
+    assert!(
+        messages
+            .iter()
+            .any(|(_, message)| message.contains("ambientpack-shell ships Tk 8.6")),
+        "the guarantor is the declared shell: {messages:?}"
     );
 
     // The same placement decides the *other* ambient question — whether the

@@ -25,17 +25,18 @@ file is written for?
 
 Declare each shell as an `environment`, and put an `ambient` row in the one
 that has the library. A shared version is an ordinary Tcl variable — a pack
-is a Tcl program, so you set it once and substitute it where it is needed.
+is a Tcl program and an `environment` body is a script, so you set it once
+and substitute it where it is needed.
 
 ```tcl
 speclib mypack 2.0 {
     set tkver 8.6
 
-    environment mypack-shell "
+    environment mypack-shell {
         display_name {Mypack Shell}
         core         tcl 8.6
         ambient      Tk $tkver
-    "
+    }
 
     environment mypack-plain {
         display_name {Mypack Plain}
@@ -46,10 +47,11 @@ speclib mypack 2.0 {
 
 Two details are worth knowing:
 
-1. **Quote the body when a row uses a variable.** `{ … }` is Tcl's literal,
-   here as everywhere else, so `$tkver` inside a braced environment body
-   stays a dollar sign. The braced form is right for the second environment,
-   which substitutes nothing.
+1. **The body is a script, so ordinary Tcl works in it.** Variables
+   substitute, and a repetitive ladder can be a `foreach` — the same as
+   inside a `command` block. What each row *means* is still decided by the
+   environment reader, so a misspelt row is rejected however it was
+   produced.
 2. **`ambient_package` is the wrong tool for this.** That row floors its
    package for *every* document the pack is active in, and it has no
    scoping flag. Writing `ambient_package Tk 8.6 -dialects {mypack-shell}`

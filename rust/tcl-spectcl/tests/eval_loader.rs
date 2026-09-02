@@ -347,14 +347,7 @@ fn a_command_body_may_template_its_own_rows() {
 /// say (issue #1643).
 #[test]
 fn a_variable_substitutes_into_rows_at_every_scope() {
-    let source = "speclib versioned 2.0 {\n\
-                  set tkver 8.6\n\
-                  environment probe-shell \"\ncore tcl 8.6\nambient Tk $tkver\n\"\n\
-                  command demo {\n\
-                  \x20   arity 1\n\
-                  \x20   available \"package Tk $tkver-\"\n\
-                  }\n\
-                  }\n";
+    let source = "speclib versioned 2.0 {\n\nset tkver 8.6\n\nenvironment probe-shell {\n    core tcl 8.6\n    ambient Tk $tkver\n}\n\ncommand demo {\n    arity 1\n    available \"package Tk $tkver-\"\n}\n\n}\n";
     let pack = evaluate_pack(source);
     assert!(pack.load_error.is_none(), "{:#?}", pack.notices);
 
@@ -396,6 +389,107 @@ fn a_variable_substitutes_into_rows_at_every_scope() {
             .any(|notice| notice.message.contains("$tkver")),
         "nothing reports the unsubstituted spelling: {:?}",
         pack.notices
+    );
+}
+
+/// An `environment` body is an evaluated **script**, exactly as a `command`
+/// body is: a `foreach` inside it registers one row per iteration, and an
+/// `if` decides whether a row is registered at all.
+///
+/// This is what makes the block the answer to #1643 rather than a second
+/// declarative dialect — the author writes ordinary Tcl, and the block
+/// reader still owns what every row it produced means.
+#[test]
+fn an_environment_body_runs_as_a_program() {
+    let source = "speclib looped 2.0 {\n\nset shipped 1\n\nenvironment looped-shell {\n    core tcl 8.6\n    foreach suffix {aaa bbb ccc} {\n        file_extension $suffix\n    }\n    if {$shipped} {\n        ambient looplib 1.5\n    }\n}\n\n}\n";
+    let pack = evaluate_pack(source);
+    assert!(pack.load_error.is_none(), "{:#?}", pack.notices);
+    assert!(pack.notices.is_empty(), "{:#?}", pack.notices);
+
+    let environment = pack
+        .environments
+        .iter()
+        .find(|environment| environment.id == "looped-shell")
+        .expect("the environment block loads");
+    let extensions: Vec<&str> = environment
+        .file_extensions
+        .iter()
+        .map(|claim| claim.extension.as_ref())
+        .collect();
+    assert_eq!(
+        extensions,
+        vec!["aaa", "bbb", "ccc"],
+        "the loop registered one row per iteration"
+    );
+    assert!(
+        environment
+            .placements
+            .iter()
+            .any(|row| row.package == "looplib" && row.ambient),
+        "the `if` registered its row: {:?}",
+        environment.placements
+    );
+}
+
+/// The block readers keep every notice they had, reached through the
+/// evaluated path.
+///
+/// An `environment` body is a script now, but it is still *that* block's
+/// body: an unknown row is semantic-class and rejects the whole block, a
+/// reserved compiled name is refused, and a `dialect` whose axes reproduce
+/// a compiled release is sent back to `environment`. None of that moved
+/// into the evaluator.
+#[test]
+fn the_block_readers_still_report_from_the_evaluated_path() {
+    let unknown = evaluate_pack(
+        "speclib probe 2.0 {\n\nenvironment probe-shell {\n    core tcl 8.6\n    invented_row yes\n}\n\n}\n",
+    );
+    assert!(
+        unknown.environments.is_empty(),
+        "an unknown row rejects the block"
+    );
+    assert!(
+        unknown
+            .notices
+            .iter()
+            .any(|notice| notice.message.contains("invented_row")),
+        "{:?}",
+        unknown.notices
+    );
+
+    let reserved =
+        evaluate_pack("speclib probe 2.0 {\n\nenvironment tcl8.6 {\n    core tcl 8.6\n}\n\n}\n");
+    assert!(reserved.environments.is_empty());
+    assert!(
+        reserved
+            .notices
+            .iter()
+            .any(|notice| notice.message.contains("compiled environment name")),
+        "{:?}",
+        reserved.notices
+    );
+
+    let missing_body = evaluate_pack("speclib probe 2.0 {\n\nenvironment probe-shell\n\n}\n");
+    assert!(missing_body.environments.is_empty());
+    assert!(
+        missing_body
+            .notices
+            .iter()
+            .any(|notice| notice.message.contains("has no `{ … }` block")),
+        "{:?}",
+        missing_body.notices
+    );
+
+    let classified =
+        evaluate_pack("speclib probe 2.0 {\n\ndialect probe-lang {\n    release tcl9.0\n}\n\n}\n");
+    assert!(classified.dialects.is_empty());
+    assert!(
+        classified
+            .notices
+            .iter()
+            .any(|notice| notice.message.contains("not a new dialect")),
+        "{:?}",
+        classified.notices
     );
 }
 

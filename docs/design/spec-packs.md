@@ -747,19 +747,20 @@ dialect and not that one* — and proposed spelling it as a flag,
 
 **What to write.** State the placement inside the environment that has
 the package, with `environment NAME { ambient PACKAGE VERSION }` (the
-redesign document's §6.2). A pack is an evaluated Tcl program, so a
-version several environments share is written once as an ordinary
-variable and substituted into each row — there is no scoping vocabulary
-to learn, and nothing says the package is ambient anywhere it is not:
+redesign document's §6.2). An `environment` body is an evaluated script,
+exactly as a `command` body is, so a version several environments share
+is written once as an ordinary variable and a repetitive ladder is an
+ordinary `foreach` — there is no scoping vocabulary to learn, and nothing
+says the package is ambient anywhere it is not:
 
 ```tcl
 speclib mypack 2.0 {
     set tkver 8.6
 
-    environment mypack-shell "
+    environment mypack-shell {
         core    tcl 8.6
         ambient Tk $tkver
-    "
+    }
 
     environment mypack-plain {
         core tcl 8.6
@@ -772,10 +773,10 @@ never asked for a `package require Tk`; one that resolves to
 `mypack-plain` gets neither. Both answers come from the same placement,
 so they cannot drift apart.
 
-Note the quotes. A `{ … }` word is Tcl's literal, and the loader reads it
-as one: a variable inside a braced environment body stays a dollar sign,
-exactly as it would anywhere else in Tcl. Quote the body — or build it —
-when a row needs substitution.
+The block reader is still the single owner of what a row *means*: the
+body decides which rows are registered, and `environment_block` decides
+whether each one is valid. An unknown row is semantic-class vocabulary
+and rejects the whole block however it was produced.
 
 **Why the flag is refused rather than read.** Two reasons, both from the
 model rather than from taste:

@@ -55,10 +55,16 @@ speclib <pack-name> <dsl-version> {
 }
 ```
 
-A pack is **one Tcl script, read from the CST and never executed.** Every
-declaration is `word word…` with braced words for blocks and prose — the
-loader walks the parse tree. The only Tcl that is ever *evaluated* is a
-hook body, and only at query time, in the sandbox described below.
+A pack is **one Tcl program, evaluated in a sandbox** (design E): the
+declarations below are the registration commands it calls, and a
+straight-line pack — which is what nearly every pack is — registers
+exactly the statements it is written as. Every declaration is
+`word word…` with braced words for blocks and prose, and the blocks that
+have a body (`command`, `subcommand`, `environment`, `dialect`) run that
+body as a script, so a variable, a `foreach`, or an `if` works inside
+them. What each row *means* is still decided by that row's own reader,
+never by the program. Hook bodies are the one Tcl evaluated later, at
+query time, in the sandbox described below.
 
 `speclib`'s version is the **DSL vocabulary version**, not the library's:
 it gates hard breaks (a word whose *meaning* changed), never additions.

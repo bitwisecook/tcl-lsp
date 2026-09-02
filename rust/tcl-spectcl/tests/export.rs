@@ -388,6 +388,36 @@ fn a_shared_environment_version_expands_to_the_version() {
         !exported.contains("libver"),
         "the variable itself does not survive the expansion: {exported}"
     );
+    // The `foreach` inside the block expanded into one row per iteration,
+    // and the loop itself is gone — a block body is a program, and its
+    // expansion is what it registered.
+    for suffix in ["envp", "envs"] {
+        assert!(
+            rows.iter()
+                .any(|row| row == &format!("file_extension {suffix}")),
+            "the loop registered `file_extension {suffix}`: {exported}"
+        );
+    }
+    assert!(
+        !exported.contains("foreach"),
+        "the expansion carries rows, not the loop: {exported}"
+    );
+}
+
+/// A canonical `environment` block — one already written the way the
+/// renderer writes it — exports back to itself, byte for byte.
+///
+/// The evaluated block body must not cost the round trip its fixed point:
+/// export is how an author reads what a pack registered, and a canonical
+/// pack that came back reshaped would make every diff noise.
+#[test]
+fn a_canonical_environment_block_round_trips_byte_identically() {
+    let source = "speclib canon 2.0 {\n\nenvironment canon-shell {\n    display_name {Canon Shell}\n    core tcl 8.6\n    ambient canonlib 2.4\n    alias canon\n}\n\n}\n";
+    let pack = evaluate_pack(source);
+    assert!(pack.load_error.is_none(), "{:#?}", pack.notices);
+    assert_eq!(pack.environments.len(), 1, "{:#?}", pack.notices);
+    let exported = export_pack_reporting(&pack).0;
+    assert_eq!(exported, source, "canonical source is its own expansion");
 }
 
 /// The 2.0 word batch (P2-H): `provides`, `co_provides`,

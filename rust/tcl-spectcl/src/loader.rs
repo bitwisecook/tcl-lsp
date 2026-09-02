@@ -1064,7 +1064,34 @@ fn empty_pack() -> Pack {
 /// so the identity is the pair).
 fn read_environment(pack: &mut Pack, stmt: &Stmt, log: &mut Log) {
     log.v20(stmt.line, "environment");
-    let Some(environment) = environment_block::parse(stmt, log) else {
+    push_environment(pack, environment_block::parse(stmt, log), stmt.line, log);
+}
+
+/// [`read_environment`] from an already-read row list — the seam the
+/// evaluation loader enters through, having run the block body as a script.
+///
+/// A pack is a Tcl program, so `environment NAME { … ambient Tk $v … }`
+/// substitutes exactly as a `command` body does. Both entries meet the same
+/// parser, the same validation, and the same redeclare rule; only where the
+/// rows came from differs.
+fn read_environment_rows(pack: &mut Pack, stmt: &Stmt, rows: Option<&[Stmt]>, log: &mut Log) {
+    log.v20(stmt.line, "environment");
+    push_environment(
+        pack,
+        environment_block::parse_rows(stmt, rows, log),
+        stmt.line,
+        log,
+    );
+}
+
+/// Keep an accepted environment block, or report the redeclaration.
+fn push_environment(
+    pack: &mut Pack,
+    environment: Option<PackEnvironment>,
+    line: u32,
+    log: &mut Log,
+) {
+    let Some(environment) = environment else {
         return;
     };
     if pack
@@ -1073,7 +1100,7 @@ fn read_environment(pack: &mut Pack, stmt: &Stmt, log: &mut Log) {
         .any(|prior| prior.id == environment.id && prior.extends == environment.extends)
     {
         log.say(
-            stmt.line,
+            line,
             format!(
                 "`environment {}` redeclared; the first is kept",
                 environment.id
@@ -1081,6 +1108,36 @@ fn read_environment(pack: &mut Pack, stmt: &Stmt, log: &mut Log) {
         );
     } else {
         pack.environments.push(environment);
+    }
+}
+
+/// Read one `dialect NAME { … }` declaration from its already-read rows.
+///
+/// The dialect twin of [`read_environment_rows`], and reached the same two
+/// ways: the literal reader splits the braced body, the evaluation loader
+/// runs it as a script.
+fn read_dialect_rows(pack: &mut Pack, stmt: &Stmt, rows: Option<&[Stmt]>, log: &mut Log) {
+    log.v20(stmt.line, "dialect");
+    push_dialect(
+        pack,
+        dialect_block::parse_rows(stmt, rows, log),
+        stmt.line,
+        log,
+    );
+}
+
+/// Keep an accepted dialect block, or report the redeclaration.
+fn push_dialect(pack: &mut Pack, dialect: Option<PackDialect>, line: u32, log: &mut Log) {
+    let Some(dialect) = dialect else {
+        return;
+    };
+    if pack.dialects.iter().any(|prior| prior.name == dialect.name) {
+        log.say(
+            line,
+            format!("`dialect {}` redeclared; the first is kept", dialect.name),
+        );
+    } else {
+        pack.dialects.push(dialect);
     }
 }
 
@@ -1187,16 +1244,7 @@ fn apply_pack_stmt(pack: &mut Pack, tables: &mut PackTables, stmt: &Stmt, log: &
         "environment" => read_environment(pack, stmt, log),
         "dialect" => {
             log.v20(stmt.line, "dialect");
-            if let Some(dialect) = dialect_block::parse(stmt, log) {
-                if pack.dialects.iter().any(|prior| prior.name == dialect.name) {
-                    log.say(
-                        stmt.line,
-                        format!("`dialect {}` redeclared; the first is kept", dialect.name),
-                    );
-                } else {
-                    pack.dialects.push(dialect);
-                }
-            }
+            push_dialect(pack, dialect_block::parse(stmt, log), stmt.line, log);
         }
         "command" => return true,
         _ => log.unknown_property(stmt),

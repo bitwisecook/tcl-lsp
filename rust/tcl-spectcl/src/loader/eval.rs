@@ -194,8 +194,6 @@ const ROW_WORDS: &[&str] = &[
     "ambient_package",
     "provides",
     "co_provides",
-    "environment",
-    "dialect",
     // command scope
     "dialects",
     "available",
@@ -395,11 +393,34 @@ struct StagedCommand {
     body: Option<Vec<Node>>,
 }
 
+/// One `environment` / `dialect` declaration captured at pack scope, with
+/// its body evaluated as a script.
+///
+/// A pack is a Tcl program, so these blocks are programs too: a version
+/// shared by several environments is an ordinary variable substituted into
+/// each `ambient` row, and a repetitive ladder is a `foreach` (issue
+/// #1643). Only the rows the body registered are kept — the block's own
+/// reader (`environment_block` / `dialect_block`) is still the single
+/// owner of what a row means.
+#[derive(Debug)]
+struct StagedBlock {
+    /// `environment` or `dialect`.
+    word: &'static str,
+    /// The declaration's own words — the block word, the name, and any
+    /// flag — with the body word left out.
+    head: Vec<Word>,
+    line: u32,
+    /// `None` when no `{ … }` body word was found, which the block reader
+    /// reports as the brace-on-the-next-line mistake.
+    body: Option<Vec<Node>>,
+}
+
 /// One captured top-level statement.
 #[derive(Debug)]
 enum PackNode {
     Row(Stmt),
     Command(StagedCommand),
+    Block(StagedBlock),
 }
 
 /// What scope the evaluation is currently capturing into.
@@ -407,6 +428,11 @@ enum PackNode {
 enum ScopeKind {
     Command,
     Subcommand,
+    /// An `environment` or `dialect` body. Its rows are whatever the block
+    /// reader accepts, so nothing is dispatched specially inside it — an
+    /// unknown word is captured like any other row and the block reader
+    /// decides, which is what makes those rows semantic-class by scope.
+    Block,
 }
 
 /// One body block as the file spells it, for line-exact evaluation.
@@ -550,6 +576,22 @@ impl Skeleton {
         let body_stmts = block(body);
         index.record_rows(&body_stmts);
         for stmt in &body_stmts {
+            // `environment` / `dialect` bodies are evaluated like a
+            // `command` body, so they need the same verbatim record: the
+            // physical lines their rows report, and the rows themselves for
+            // the ones that substitute nothing.
+            if let word @ ("environment" | "dialect") = stmt.word_text(0) {
+                let word = if word == "environment" {
+                    "environment"
+                } else {
+                    "dialect"
+                };
+                if let Some(block_body) = stmt.words.iter().skip(2).find(|word| word.braced) {
+                    index.record_rows(&block(block_body));
+                    index.record(word, stmt.word_text(1), stmt, block_body);
+                }
+                continue;
+            }
             if stmt.word_text(0) != "command" {
                 continue;
             }
@@ -1038,6 +1080,106 @@ fn stage_subcommand(
     Ok(())
 }
 
+/// The `environment` / `dialect` handler: at pack scope the declaration's
+/// body is **evaluated**, in a fresh block scope, exactly as a `command`
+/// body is. Anywhere else it is a plain row, which replays to the ordinary
+/// unknown-property notice.
+fn block_handler(word: &'static str, state: &Rc<RefCell<State>>, fast_path: bool) -> WordHandler {
+    let state = Rc::clone(state);
+    Rc::new(move |ctx: &mut PackEvalCtx<'_>, args: &[String]| {
+        let line = state.borrow().absolute_line(ctx.line());
+        if !state.borrow().scopes.is_empty() {
+            let mut st = state.borrow_mut();
+            let stmt = st.captured(word, args, line);
+            st.push_node(Node::Row(stmt));
+            return Ok(None);
+        }
+        let name = args.first().cloned().unwrap_or_default();
+        // Evaluation loses per-word braced-ness, so the body is the first
+        // blockish word after the name — the same reconstruction
+        // `command` makes, and the reason `-extend` never has to be
+        // special-cased here.
+        let body_at = args
+            .iter()
+            .enumerate()
+            .skip(1)
+            .find(|(_, arg)| blockish(arg))
+            .map(|(index, _)| index);
+        let head: Vec<Word> = std::iter::once(synth_word(word, line))
+            .chain(
+                args.iter()
+                    .enumerate()
+                    .filter(|(index, _)| Some(*index) != body_at)
+                    .map(|(_, arg)| synth_word(arg, line)),
+            )
+            .collect();
+        let Some(body_at) = body_at else {
+            state
+                .borrow_mut()
+                .pack_nodes
+                .push(PackNode::Block(StagedBlock {
+                    word,
+                    head,
+                    line,
+                    body: None,
+                }));
+            return Ok(None);
+        };
+        let body = {
+            let mut st = state.borrow_mut();
+            match st.verbatim.take(word, &name, line) {
+                Some(verbatim) => BodyText {
+                    text: verbatim.text,
+                    base: verbatim.body_line,
+                    verbatim: true,
+                },
+                None => BodyText {
+                    text: args[body_at].clone(),
+                    base: line,
+                    verbatim: false,
+                },
+            }
+        };
+        stage_block(interpreted(ctx, fast_path), &state, word, head, line, &body)?;
+        Ok(None)
+    })
+}
+
+/// Evaluate one `environment` / `dialect` body in a fresh block scope and
+/// stage the declaration. Shared by the host command and the static driver,
+/// so the two evaluation paths cannot drift.
+fn stage_block(
+    drive: Drive<'_, '_>,
+    state: &Rc<RefCell<State>>,
+    word: &'static str,
+    head: Vec<Word>,
+    line: u32,
+    body: &BodyText,
+) -> Result<(), String> {
+    {
+        let mut st = state.borrow_mut();
+        st.scopes.push((ScopeKind::Block, Vec::new()));
+        st.base_lines.push(body.base);
+    }
+    let outcome = run_body(drive, state, body);
+    let nodes = {
+        let mut st = state.borrow_mut();
+        st.base_lines.pop();
+        st.scopes.pop().map(|(_, nodes)| nodes).unwrap_or_default()
+    };
+    outcome?;
+    state
+        .borrow_mut()
+        .pack_nodes
+        .push(PackNode::Block(StagedBlock {
+            word,
+            head,
+            line,
+            body: Some(nodes),
+        }));
+    Ok(())
+}
+
 /// The `include` handler (2.0, Q6): valid only as a literal pack-scope
 /// row; the resolved fragment evaluates in place with provenance
 /// inherited, under the determinism contract's content-hash cycle key.
@@ -1305,6 +1447,48 @@ fn drive_static(
                 let words: Vec<&str> = stmt.words.iter().skip(1).map(|w| w.text.as_str()).collect();
                 stage_include(drive.reborrow(), state, &words, stmt.line)?;
             }
+            head @ ("environment" | "dialect") if at_pack => {
+                let word = if head == "environment" {
+                    "environment"
+                } else {
+                    "dialect"
+                };
+                // The body is the first braced word past the name, which is
+                // index 2 for a declaration and 3 for `-extend`.
+                let body_at = stmt
+                    .words
+                    .iter()
+                    .enumerate()
+                    .skip(2)
+                    .find(|(_, word)| word.braced)
+                    .map(|(index, _)| index);
+                let head_words: Vec<Word> = stmt
+                    .words
+                    .iter()
+                    .enumerate()
+                    .filter(|(index, _)| Some(*index) != body_at)
+                    .map(|(_, word)| word.clone())
+                    .collect();
+                let Some(body_at) = body_at else {
+                    state
+                        .borrow_mut()
+                        .pack_nodes
+                        .push(PackNode::Block(StagedBlock {
+                            word,
+                            head: head_words,
+                            line: stmt.line,
+                            body: None,
+                        }));
+                    continue;
+                };
+                let body = &stmt.words[body_at];
+                let block = BodyText {
+                    text: body.text.clone(),
+                    base: body.line,
+                    verbatim: true,
+                };
+                stage_block(drive.reborrow(), state, word, head_words, stmt.line, &block)?;
+            }
             _ => state.borrow_mut().push_node(Node::Row(stmt.clone())),
         }
     }
@@ -1419,6 +1603,11 @@ pub fn evaluate_pack_in(
     vocabulary.push(("subcommand", subcommand_handler(&state, fast_path)));
     vocabulary.push(("available?", available_handler(&state)));
     vocabulary.push(("include", include_handler(&state, fast_path)));
+    vocabulary.push((
+        "environment",
+        block_handler("environment", &state, fast_path),
+    ));
+    vocabulary.push(("dialect", block_handler("dialect", &state, fast_path)));
     let unknown = unknown_handler(&state);
 
     let outcome = pack_eval::run_pack_program(source, &vocabulary, &unknown, &options.config);
@@ -1702,9 +1891,13 @@ fn replay(state: State, options: &EvalOptions) -> Pack {
     // commands are staged separately and built in pass 2.
     let mut tables = PackTables::default();
     for node in &state.pack_nodes {
-        if let PackNode::Row(stmt) = node {
-            let is_command = apply_pack_stmt(&mut pack, &mut tables, stmt, &mut log);
-            debug_assert!(!is_command, "a raw `command` row cannot reach pack scope");
+        match node {
+            PackNode::Row(stmt) => {
+                let is_command = apply_pack_stmt(&mut pack, &mut tables, stmt, &mut log);
+                debug_assert!(!is_command, "a raw `command` row cannot reach pack scope");
+            }
+            PackNode::Block(staged) => apply_block(&mut pack, staged, &mut log),
+            PackNode::Command(_) => {}
         }
     }
 
@@ -1756,6 +1949,40 @@ fn replay(state: State, options: &EvalOptions) -> Pack {
     pack
 }
 
+/// Replay one evaluated `environment` / `dialect` declaration through its
+/// own block reader.
+///
+/// The reader owns every validation and notice; all this does is hand it
+/// the header and the rows the body registered, so a block written with a
+/// variable or a loop is read by exactly the code a longhand one is.
+fn apply_block(pack: &mut Pack, staged: &StagedBlock, log: &mut Log) {
+    let head = Stmt {
+        words: staged.head.clone(),
+        line: staged.line,
+    };
+    let rows = staged.body.as_deref().map(row_stmts);
+    if staged.word == "environment" {
+        super::read_environment_rows(pack, &head, rows.as_deref(), log);
+    } else {
+        super::read_dialect_rows(pack, &head, rows.as_deref(), log);
+    }
+}
+
+/// A block body's staged nodes as row statements.
+///
+/// Every node is a row: `subcommand` only opens a scope inside a `command`
+/// body, so nothing nested can reach here, and a `command` written inside
+/// a block is captured as an ordinary row for the block reader to reject.
+fn row_stmts(nodes: &[Node]) -> Vec<Stmt> {
+    nodes
+        .iter()
+        .map(|node| match node {
+            Node::Row(stmt) => stmt.clone(),
+            Node::Sub(sub) => capture_stmt("subcommand", std::slice::from_ref(&sub.name), sub.line),
+        })
+        .collect()
+}
+
 /// The staged top-level nodes as canonical registrations.
 fn record_nodes(nodes: &[PackNode]) -> Vec<Registration> {
     nodes
@@ -1777,6 +2004,15 @@ fn record_nodes(nodes: &[PackNode]) -> Vec<Registration> {
                     Some(body) => Registration::block(head, record_body(body), staged.line),
                 }
             }
+            PackNode::Block(staged) => match &staged.body {
+                // Same rule as `command`: a declaration that never opened a
+                // block exports as the row it was, so the reload reports the
+                // identical missing-block notice.
+                None => Registration::row_words(staged.head.clone(), staged.line),
+                Some(body) => {
+                    Registration::block(staged.head.clone(), record_body(body), staged.line)
+                }
+            },
         })
         .collect()
 }
