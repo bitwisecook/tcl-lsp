@@ -72,6 +72,7 @@ The current owners and their semantic axes are:
 | Numbers | `tcl-syntax::number` | `NumberSyntax` per release |
 | Backslash escapes | shared lexer/syntax decoder | `LexerGrammar::escapes` per release |
 | Quotes, braces, word spans | `tcl-lexer::ranges` | close rule per release; tmsh mode per dialect |
+| Word substitution components | `tcl-lexer::word_parts` | `LexerConfig` per release; compiled-word `$` spelling |
 | Indices | `tcl-cmd-core::index` | grammar-parameterised; number axis |
 | Option words / subcommands | `tcl-cmd-core::prefix` + `tcl-cmd-core::ensemble` + registry tables | release/dialect surface |
 | Expr grammar / evaluation | `tcl-syntax::expr` + `RuntimeExprSurface` | per release |

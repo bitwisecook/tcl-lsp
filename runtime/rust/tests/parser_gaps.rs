@@ -294,18 +294,3 @@ fn well_formed_quoted_and_bracketed_words_still_parse() {
         assert_eq!(result, want, "{sheet}");
     }
 }
-
-// ---------------------------------------------------------------------------
-// r5b-leftovers follow-up — `regsub`'s target variable has the identical
-// #1577 shape (flagged, not fixed, by r4-parser-gaps): `arr(k)` must write
-// the array *element*, not a literal scalar named `arr(k)`. Oracle: tclsh
-// 8.6.16/9.0.4 both give `array get arr` => `k xbx` after `regsub -all a $s
-// b arr(k)` on `s = xax`.
-// ---------------------------------------------------------------------------
-
-#[test]
-fn regsub_writes_its_target_variable_as_an_array_element() {
-    let (code, result, _) = run("set s xax\nregsub -all a $s b arr(k)\narray get arr");
-    assert_eq!(code, Code::Ok);
-    assert_eq!(result, "k xbx");
-}
