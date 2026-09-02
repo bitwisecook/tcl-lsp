@@ -777,6 +777,84 @@ count fitting no window at all stays an ordinary E002/E003.
   DSL for the private-library path. `tcl spec build` pre-warms the same
   cache — an optimisation, never a requirement.
 
+### Editor registration of pack-claimed file extensions
+
+A pack's `file_extension NAME -dialect D` row (and the `file_extensions` of a
+pack-declared `environment` block) routes the extension server-side the moment
+the pack is discovered. The editor is a step behind: it learns its
+extension-to-language mapping from a static manifest written long before the
+user's pack existed, so the file opens as plain text and the language client
+never attaches (issue #1626).
+
+The server closes that gap by *advertising* the pairs. `pack_file_extensions`
+appears on the `tcl-lsp.getEffectiveConfig` result and again in the
+`tcl-lsp/specPacksReloaded` notification, which is sent once a reload has
+fully landed — a client cannot derive that moment for itself. Each row carries
+the extension, the claiming pack, the dialect, and the **existing** editor
+language id the extension should ride, because no editor can mint a new
+language id at runtime.
+
+Registration is therefore a per-editor problem, and reversibility is the hard
+half: reconciliation has to delete as well as add, so "did we write this"
+must be answerable exactly.
+
+#### VS Code
+
+The advertised set is projected into **workspace-scoped**
+`files.associations`, and the entries the extension owns are remembered in
+workspace state as `{glob: languageId}` — the value written, not just the key.
+An entry is ours only while the configuration still says what we last wrote
+there, so a user who retargets `*.foo` by hand takes ownership permanently: it
+is neither rewritten nor retired. Globs are case-folded per character
+(`*.[fF][oO][oO]`), matching the server's case-insensitive routing.
+Already-open documents are flipped onto the new language with
+`setTextDocumentLanguage`, but only for the associations reconciliation
+actually owns.
+
+#### JetBrains
+
+`FileTypeManager` associations are **IDE-global** — there is no
+workspace-scoped layer to write into — so the JetBrains half (issue #1650)
+keeps its own ledger instead of relying on a scope to contain the damage.
+
+- **What is registered.** Each advertised row maps onto a file type the plugin
+  already contributes: `language_id` `tcl-irule` selects the **iRule** type,
+  every other id (including plain `tcl`) selects **Tcl**. Association happens
+  through `FileTypeManager.associate` with an `ExtensionFileNameMatcher`, on
+  the event dispatch thread inside a write action; the platform fires its own
+  file-types-changed event from there, so editors already showing a
+  newly-associated file re-detect without further help.
+- **The ownership ledger.** The application-level `TclLspPackAssociations`
+  state persists `{extension: fileTypeName}` for the associations *the plugin
+  itself installed*. An association is retired only when the extension is no
+  longer claimed **and** the IDE still reports exactly the file type the ledger
+  records. Anything else — an extension the plugin never claimed, or one whose
+  association the user has since changed — is dropped from the ledger and left
+  alone.
+- **Manual associations win.** Before claiming an extension the plugin asks
+  `FileTypeManager.getFileTypeByExtension`. If anything already owns it, the
+  claim is skipped and never recorded, so a later pack removal cannot delete a
+  user's mapping. That covers a user who mapped the extension to the plugin's
+  own Tcl type by hand: the plugin did not install it, so the plugin will not
+  remove it.
+- **Restart survival.** The ledger is persisted, and IDE file-type
+  associations persist on their own, so nothing is torn down at shutdown. The
+  first report of the next session is what retires an association whose pack
+  has gone: the extension is absent from the claim set, the recorded file type
+  still matches, so it is removed.
+- **Multi-project.** Associations are global but claims are per project. The
+  service keeps one claim set per open project and registers their **union**;
+  an association is retired only when no open project still claims it. If two
+  projects map the same extension to different file types the plain **Tcl**
+  type wins — both file types use the same language, so it is the safe
+  superset. A project that has not started its server yet contributes nothing,
+  so at startup an association can briefly retire and return; the file type
+  settles as soon as that project's server reports.
+- **Attachment follows the claim.** The plugin decides whether to start the
+  language server from the file's extension, so a dynamically-claimed
+  extension is added to that set too — otherwise the file would open as Tcl
+  and still get no server.
+
 ### Workspace trust: the setting is gated, the workspace tier is not
 
 VS Code's untrusted-workspace mode splits the loading rules above in two,

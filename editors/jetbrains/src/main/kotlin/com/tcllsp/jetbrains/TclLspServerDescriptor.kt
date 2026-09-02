@@ -25,10 +25,16 @@ import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.SystemInfo
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.platform.lsp.api.Lsp4jClient
+import com.intellij.platform.lsp.api.LspServerListener
+import com.intellij.platform.lsp.api.LspServerNotificationsHandler
 import com.intellij.platform.lsp.api.ProjectWideLspServerDescriptor
 import com.intellij.util.system.CpuArch
+import com.tcllsp.jetbrains.packs.TclLsp4jClient
+import com.tcllsp.jetbrains.packs.TclLspPackAssociations
 import com.tcllsp.jetbrains.settings.TclLspSettings
 import org.eclipse.lsp4j.ConfigurationItem
+import org.eclipse.lsp4j.InitializeResult
 import java.io.File
 import java.net.JarURLConnection
 import java.nio.file.Paths
@@ -40,6 +46,22 @@ class TclLspServerDescriptor(project: Project) :
 
     override fun isSupportedFile(file: VirtualFile): Boolean =
         TclFileType.isSupported(file)
+
+    // Pack-declared file extensions (issue #1650). The push is the main path:
+    // the server sends `tcl-lsp/specPacksReloaded` after every reload, this
+    // client is installed before the server process starts, so the startup
+    // reload is never missed.
+    override fun createLsp4jClient(handler: LspServerNotificationsHandler): Lsp4jClient =
+        TclLsp4jClient(handler, project)
+
+    // The pull half, for the case where a reload had already settled before
+    // anything was listening — a server restarted under a live IDE, say.
+    // Reconciliation is idempotent, so a redundant one costs a comparison.
+    override val lspServerListener: LspServerListener = object : LspServerListener {
+        override fun serverInitialized(params: InitializeResult) {
+            TclLspPackAssociations.getInstance().pull(project)
+        }
+    }
 
     override fun createCommandLine(): GeneralCommandLine {
         val settings = TclLspSettings.getInstance()

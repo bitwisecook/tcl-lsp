@@ -20,6 +20,7 @@ package com.tcllsp.jetbrains
 
 import com.intellij.openapi.fileTypes.LanguageFileType
 import com.intellij.openapi.vfs.VirtualFile
+import com.tcllsp.jetbrains.packs.PackClaimedExtensions
 import javax.swing.Icon
 
 class TclFileType private constructor() : LanguageFileType(TclLanguage) {
@@ -62,10 +63,15 @@ class TclFileType private constructor() : LanguageFileType(TclLanguage) {
         )
         // @generated:supported-extensions:end
 
+        // The statically contributed extensions, plus whatever a discovered
+        // SpecTcl pack claims and the plugin has managed to associate with one
+        // of its file types (issue #1650). Without the second half a
+        // pack-claimed file would open as Tcl and still get no language
+        // server, since this is what decides whether to start one.
         @JvmStatic
         fun isSupported(file: VirtualFile): Boolean {
             val ext = file.extension?.lowercase() ?: return false
-            return ext in SUPPORTED_EXTENSIONS
+            return ext in SUPPORTED_EXTENSIONS || PackClaimedExtensions.contains(ext)
         }
     }
 }
