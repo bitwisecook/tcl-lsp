@@ -92,6 +92,7 @@ fn section_to_category(section: &str) -> &'static str {
         "shimmer" => "performance",
         "taint" => "taint",
         "irules" | "bigip" => "irules",
+        "sslictcl" => "security",
         "irules_variable" => "thread_safety",
         // warning / variable / hint / tclpkg / tk → style (tk is overridden below).
         _ => "style",

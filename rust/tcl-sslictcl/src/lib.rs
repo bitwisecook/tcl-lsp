@@ -30,7 +30,10 @@ pub use dataset::{
     DatasetError, ProgramAnchor, TrustProgramSnapshot, canonical_dataset_json,
     compile_trust_snapshots,
 };
-pub use dsl::{DslDocument, DslError, DslNotice, load};
+pub use dsl::{
+    DslDiagnostic, DslDocument, DslError, DslLoad, DslNotice, DslSeverity, load,
+    load_with_diagnostics,
+};
 pub use estimate::{Estimate, EstimateFinding, EstimateInput, Grade, estimate};
 pub use key::{KeyMatch, KeyMatchStatus, evaluate_private_key_match, private_key_spki_sha256};
 pub use model::{

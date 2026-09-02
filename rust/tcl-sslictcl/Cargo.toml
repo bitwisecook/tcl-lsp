@@ -15,7 +15,9 @@ authors.workspace = true
 
 [dependencies]
 tcl-compiler = { path = "../tcl-compiler" }
+tcl-core-types = { path = "../tcl-core-types" }
 tcl-lexer = { path = "../tcl-lexer" }
+tcl-syntax = { path = "../tcl-syntax" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 base64 = "0.23"

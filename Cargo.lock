@@ -4618,7 +4618,9 @@ dependencies = [
  "serde_json",
  "sha2 0.11.0",
  "tcl-compiler",
+ "tcl-core-types",
  "tcl-lexer",
+ "tcl-syntax",
  "x509-parser",
 ]
 
