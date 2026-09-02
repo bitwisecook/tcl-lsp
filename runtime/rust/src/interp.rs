@@ -2174,12 +2174,7 @@ impl Interp {
             return false;
         }
         let (base, _) = crate::frame::split_array_ref(name);
-        let (access_ns, access_frame_level, base) = crate::vars::trace_home(
-            &self.frames.borrow(),
-            &self.namespaces.borrow(),
-            self.current_ns.get(),
-            &base,
-        );
+        let (access_ns, access_frame_level, base) = self.trace_identity(&base);
         self.traces
             .borrow()
             .traces
@@ -2956,29 +2951,21 @@ impl Interp {
         )
     }
 
-    /// The `(home namespace, simple base name)` a variable trace on `base`
-    /// should be keyed by — see
-    /// [`crate::vars::home_namespace_and_base`]. Registration uses this so a
-    /// trace matches every spelling that resolves to the same variable.
-    pub(crate) fn trace_var_key(&self, base: &[u8]) -> (Option<NsId>, Vec<u8>) {
-        crate::vars::home_namespace_and_base(
+    /// The `(home namespace, home frame level, simple name)` identity a variable
+    /// trace on `base` belongs to.
+    ///
+    /// Registration and firing both key on this, so every spelling that
+    /// resolves to the one cell shares one trace list — including an `upvar`
+    /// alias, whose level can only be read off the *resolved* place (issue
+    /// #1633's `upvar` row). C gets this for free: there the alias and its
+    /// target are the same `Var`, and the trace list hangs off that `Var`.
+    pub(crate) fn trace_identity(&self, base: &[u8]) -> (Option<NsId>, Option<usize>, Vec<u8>) {
+        crate::vars::trace_home(
             &self.frames.borrow(),
             &self.namespaces.borrow(),
             self.current_ns.get(),
             base,
         )
-    }
-
-    pub(crate) fn local_trace_level(&self, base: &[u8]) -> Option<usize> {
-        if tcl_syntax::naming::is_qualified(base) {
-            return None;
-        }
-        let frames = self.frames.borrow();
-        let level = frames.current_level();
-        if level == 0 || !frames.in_proc() || frames.current_is_link(base) {
-            return None;
-        }
-        Some(level)
     }
 
     /// Drop every variable trace tied to call-frame `level` (the frame is being
@@ -3058,18 +3045,19 @@ impl Interp {
         // C resolves the `Var`, fires its traces, and only then frees it.
         let (base, elem) = crate::frame::split_array_ref(name);
         let traced = !self.traces.borrow().traces.is_empty();
-        let key = traced.then(|| (self.trace_var_key(&base), self.local_trace_level(&base)));
+        let key = traced.then(|| self.trace_identity(&base));
         let existed = crate::vars::unset(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
             self.current_ns.get(),
             name,
         );
-        if let (true, Some(((access_ns, resolved_base), access_frame_level))) = (existed, key) {
+        if let (true, Some((access_ns, access_frame_level, resolved_base))) = (existed, key) {
             self.fire_var_trace_resolved(
                 access_ns,
                 access_frame_level,
                 &resolved_base,
+                &base,
                 elem.as_deref(),
                 b"unset",
             );
@@ -3104,8 +3092,8 @@ impl Interp {
     /// `unset name(key)` — returns whether it existed.
     pub(crate) fn var_unset_elem(&mut self, name: &[u8], key: &[u8]) -> bool {
         // Resolved before the removal — see [`Self::var_unset`].
-        let trace_key = (!self.traces.borrow().traces.is_empty())
-            .then(|| (self.trace_var_key(name), self.local_trace_level(name)));
+        let trace_key =
+            (!self.traces.borrow().traces.is_empty()).then(|| self.trace_identity(name));
         let existed = crate::vars::unset_elem(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
@@ -3113,12 +3101,12 @@ impl Interp {
             name,
             key,
         );
-        if let (true, Some(((access_ns, resolved_base), access_frame_level))) = (existed, trace_key)
-        {
+        if let (true, Some((access_ns, access_frame_level, resolved_base))) = (existed, trace_key) {
             self.fire_var_trace_resolved(
                 access_ns,
                 access_frame_level,
                 &resolved_base,
+                name,
                 Some(key),
                 b"unset",
             );
@@ -3145,19 +3133,26 @@ impl Interp {
         // Resolve the access to the same `(home, simple name)` key registration
         // used, so a trace matches every spelling of the variable it is on
         // (`::v` vs `v`, and the 8.x namespace-scope fallback) — issue #1328.
-        let access_frame_level = self.local_trace_level(base);
-        let (access_ns, base) = self.trace_var_key(base);
-        self.fire_var_trace_resolved(access_ns, access_frame_level, &base, elem, op)
+        let (access_ns, access_frame_level, resolved) = self.trace_identity(base);
+        self.fire_var_trace_resolved(access_ns, access_frame_level, &resolved, base, elem, op)
     }
 
     /// [`Self::fire_var_trace`] with the `(home, simple name)` key already
     /// resolved — for `unset`, which must resolve *before* it removes the
     /// variable (resolution can depend on the cell existing).
+    ///
+    /// `base` is the resolved cell's simple name (what traces match on);
+    /// `reported` is the spelling the access used, which is what the callback
+    /// is handed as `name1` — C passes the caller's `part1` straight through
+    /// (`TclCallVarTraces`), so `set alias 5` through an `upvar` reports
+    /// `alias` and `set ::n::v 1` reports `::n::v`.
+    #[allow(clippy::too_many_arguments)]
     fn fire_var_trace_resolved(
         &mut self,
         access_ns: Option<NsId>,
         access_frame_level: Option<usize>,
         base: &[u8],
+        reported: &[u8],
         elem: Option<&[u8]>,
         op: &[u8],
     ) -> bool {
@@ -3199,7 +3194,7 @@ impl Interp {
             // called with the single `rwua` letter (C's `TCL_TRACE_OLD_STYLE`).
             let op_word = tcl_cmd_core::trace::callback_op_word(&op_name, old_style);
             let args = crate::list::new_list_obj(&[
-                new_string(base),
+                new_string(reported),
                 new_string(elem.unwrap_or(b"")),
                 new_string(op_word.as_bytes()),
             ]);
@@ -4638,8 +4633,7 @@ impl Interp {
         // Same `(home, simple name)` key registration and firing use — a
         // literal `::errorInfo` here would miss every trace now that traces
         // are keyed by the resolved variable rather than the spelling.
-        let (access_ns, base) = self.trace_var_key(b"::errorInfo");
-        let access_frame_level = self.local_trace_level(b"::errorInfo");
+        let (access_ns, access_frame_level, base) = self.trace_identity(b"::errorInfo");
         self.traces.borrow().traces.iter().any(|t| {
             crate::cmd_trace::matches(t, &base, None, b"write", access_ns, access_frame_level)
         })

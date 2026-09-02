@@ -252,46 +252,19 @@ fn resolve_at(frames: &FrameStack, ns: &Namespaces, name: &[u8], level: usize) -
     }
 }
 
-/// Resolve a variable's home plus the **simple** (unqualified) name it is
-/// filed under there.
-///
-/// A variable trace must be keyed by the variable it resolves to, not by the
-/// spelling used to register it: C Tcl hangs the trace off the `Var` struct
-/// (`tclTrace.c`'s `TraceVarProc`), so `trace add variable ::v write …`
-/// fires for a later `set v X` in the global namespace, and — under the 8.x
-/// namespace-scope fallback — for a `set v X` inside `namespace eval` that
-/// reaches the same global.  Keying on the raw spelling instead makes a trace
-/// silently miss (issue #1328).
-///
-/// Returning both halves from the one `resolve` call keeps registration and
-/// firing on exactly the same rule, including the dialect-gated fallback.
-pub(crate) fn home_namespace_and_base(
-    frames: &FrameStack,
-    ns: &Namespaces,
-    current_ns: NsId,
-    name: &[u8],
-) -> (Option<NsId>, Vec<u8>) {
-    match resolve(frames, ns, current_ns, name) {
-        Resolved::Place(p) => match p.home {
-            VarHome::Namespace(id) => (Some(id), p.name),
-            VarHome::Frame(_) => (None, p.name),
-        },
-        // Unresolvable (a qualified name into a missing namespace): keep the
-        // caller's spelling so `trace info` still round-trips it.
-        Resolved::NoNamespace => (None, name.to_vec()),
-    }
-}
-
 /// The `(home namespace, home frame level, simple name)` identity a variable
 /// trace on `name` belongs to, following `global`/`variable`/`upvar` links to
 /// the concrete cell.
 ///
-/// This is [`home_namespace_and_base`] without the loss: that helper reports a
-/// frame home as `None` and leaves the level to be recomputed from the *access*
-/// spelling, which cannot see through a link. Reading the level off the
-/// resolved place is what lets a trace question about an `upvar` alias answer
-/// for the variable the alias actually names — the identity C Tcl has for free,
-/// because there the alias and its target are one `Var`.
+/// A trace must be keyed by the variable it resolves to, not by the spelling
+/// used to register it: C Tcl hangs the trace off the `Var` struct
+/// (`tclTrace.c`'s `TraceVarProc`), so `trace add variable ::v write …` fires
+/// for a later `set v X` in the global namespace and — under the 8.x
+/// namespace-scope fallback — for a `set v X` inside `namespace eval` that
+/// reaches the same global (issue #1328). Reading the frame level off the
+/// resolved place is what extends that to an `upvar` alias, whose home frame
+/// the access spelling cannot see (issue #1633's `upvar` row). Registration and
+/// firing share this one `resolve` call, including the dialect-gated fallback.
 pub(crate) fn trace_home(
     frames: &FrameStack,
     ns: &Namespaces,

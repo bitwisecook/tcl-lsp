@@ -739,9 +739,13 @@ mod tests {
             i.eval_str(b"set a1 foo; trace add variable ::a1 write log; set a1 X");
             i.eval_str(b"set a2 foo; trace add variable a2 write log; set ::a2 X");
             assert_eq!(i.eval_str(b"set ::fired"), Code::Ok);
+            // `name1` is the *access* spelling, not the resolved name: C
+            // hands the callback the caller's `part1` unchanged
+            // (`TclCallVarTraces`). tclsh 8.6.16/9.0.4 both print
+            // `a1:write ::a2:write` for this sheet.
             assert_eq!(
                 i.result_bytes(),
-                b"a1:write a2:write",
+                b"a1:write ::a2:write",
                 "both spellings must fire"
             );
             i.eval_str(b"unset -nocomplain ::fired ::a1 ::a2");

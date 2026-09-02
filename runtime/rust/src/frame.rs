@@ -618,16 +618,6 @@ impl FrameStack {
             .is_some_and(|i| self.frames[i].is_proc)
     }
 
-    /// Whether `name` is bound to a link (`global`/`upvar`/`variable`) in the
-    /// active frame — used to decide if a variable trace on an unqualified name
-    /// is frame-local (it is not when the name links to an outer variable, which
-    /// outlives this frame).
-    pub(crate) fn current_is_link(&self, name: &[u8]) -> bool {
-        self.index_of_level(self.active_level)
-            .and_then(|i| self.frames[i].table.cell(name))
-            .is_some_and(|c| matches!(c, Var::Link(_)))
-    }
-
     /// The true top-of-stack level (`framePtr`), independent of any `uplevel`
     /// redirection of the active level.
     pub fn top_level(&self) -> usize {

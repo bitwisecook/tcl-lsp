@@ -489,6 +489,23 @@ fn trace_var_add_remove(interp: &mut Interp, argv: &[*mut TclObj], is_add: bool)
     )
 }
 
+/// The resolved `(home namespace, home frame level, simple base, element)` a
+/// `trace info|remove variable name` question is about.
+///
+/// C looks the variable up and walks *that* `Var`'s trace list, so every
+/// spelling of the one cell — `v` and `::v`, an `upvar` alias and its target —
+/// sees the same traces. Matching the registration spelling textually instead
+/// makes `trace info variable alias` report nothing for a trace the very next
+/// `set alias` fires.
+fn var_trace_query(
+    interp: &Interp,
+    name: &[u8],
+) -> (Option<NsId>, Option<usize>, Vec<u8>, Option<Vec<u8>>) {
+    let (base, elem) = split_array_ref(name);
+    let (ns, frame_level, base) = interp.trace_identity(&base);
+    (ns, frame_level, base, elem)
+}
+
 /// Install or remove one variable trace, shared by `trace add|remove variable`
 /// and the deprecated `trace variable`/`trace vdelete` forms — which C
 /// implements by rewriting them into the modern ones. `old_style` records the
@@ -516,17 +533,19 @@ fn var_trace_apply(
         if let Err(e) = vivify {
             return trace_var_error(interp, &name, e);
         }
-        let frame_level = interp.local_trace_level(&base);
         // Key the trace by the variable it *resolves to*, not by the spelling
         // used to register it, so `trace add variable ::v write …` fires for a
         // later `set v X` in the same namespace — and, under the 8.x
         // namespace-scope fallback, for a write from inside `namespace eval`
         // that reaches that same global (issue #1328).  C hangs the trace off
-        // the `Var` struct, so every spelling resolving to it fires.
+        // the `Var` struct, so every spelling resolving to it fires — including
+        // an `upvar` alias, whose home frame is only visible on the resolved
+        // place (issue #1633's `upvar` row).
         //
-        // `name` keeps the original spelling: `trace info` / `trace remove`
-        // match textually in C too.
-        let (ns, base) = interp.trace_var_key(&base);
+        // `name` keeps the original spelling for diagnostics only; the
+        // `trace info` / `trace remove` match is the same resolved identity,
+        // because C looks the variable up and walks *that* `Var`'s list.
+        let (ns, frame_level, base) = interp.trace_identity(&base);
         interp.traces.borrow_mut().traces.push(VarTrace {
             name,
             base,
@@ -539,6 +558,7 @@ fn var_trace_apply(
         });
         interp.invalidate_guard_domain(tcl_runtime_api::guard::GuardDomain::VariableTrace);
     } else {
+        let (q_ns, q_level, q_base, q_elem) = var_trace_query(interp, &name);
         let pos = interp
             .traces
             .borrow()
@@ -549,7 +569,12 @@ fn var_trace_apply(
             // is oldest-first, hence `rposition`. `old_style` is deliberately
             // absent from the match, as C masks `TCL_TRACE_OLD_STYLE` out
             // here. Issue #1440.
-            .rposition(|t| t.name == name && t.ops == ops && t.command == command);
+            .rposition(|t| {
+                same_variable(t, &q_base, q_ns, q_level)
+                    && t.elem == q_elem
+                    && t.ops == ops
+                    && t.command == command
+            });
         if let Some(i) = pos {
             interp.traces.borrow_mut().traces.remove(i);
             interp.invalidate_guard_domain(tcl_runtime_api::guard::GuardDomain::VariableTrace);
@@ -566,9 +591,10 @@ fn trace_var_info(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.wrong_args(b"trace info variable name");
     }
     let name = obj_bytes(argv[3]);
+    let (q_ns, q_level, q_base, q_elem) = var_trace_query(interp, &name);
     let mut entries: Vec<*mut TclObj> = Vec::new();
     for t in interp.traces.borrow().traces.iter().rev() {
-        if t.name != name {
+        if !same_variable(t, &q_base, q_ns, q_level) || t.elem != q_elem {
             continue;
         }
         let op_objs: Vec<*mut TclObj> = t.ops.iter().map(|o| new_string(o)).collect();
@@ -617,9 +643,10 @@ fn legacy_var_info(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.wrong_args(b"trace vinfo name");
     }
     let name = obj_bytes(argv[2]);
+    let (q_ns, q_level, q_base, q_elem) = var_trace_query(interp, &name);
     let mut entries: Vec<*mut TclObj> = Vec::new();
     for t in interp.traces.borrow().traces.iter().rev() {
-        if t.name != name {
+        if !same_variable(t, &q_base, q_ns, q_level) || t.elem != q_elem {
             continue;
         }
         let letters = new_string(core_trace::legacy_ops_letters(&t.ops).as_bytes());
