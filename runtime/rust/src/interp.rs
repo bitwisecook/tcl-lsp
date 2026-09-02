@@ -1036,14 +1036,6 @@ fn check_debug_opt(opt: *mut TclObj) -> Result<(), Vec<u8>> {
     Err(m)
 }
 
-/// Whether `bytes` is a truthy boolean literal (for the `-frame` latch).
-fn parse_truth(bytes: &[u8]) -> bool {
-    matches!(
-        bytes.to_ascii_lowercase().as_slice(),
-        b"1" | b"true" | b"yes" | b"on"
-    )
-}
-
 /// Parse an `interp limit` integer option value (`expected integer but got "X"`).
 fn parse_limit_int(bytes: &[u8]) -> Result<i64, Vec<u8>> {
     if let Ok(s) = std::str::from_utf8(bytes) {
@@ -6200,7 +6192,7 @@ impl Interp {
         // `env(TCL_INTERP_DEBUG_FRAME)` (C's `Tcl_CreateChild`).
         if self
             .var_get_elem(b"env", b"TCL_INTERP_DEBUG_FRAME")
-            .map(|o| parse_truth(&obj_bytes(o)))
+            .map(|o| crate::typed_value::boolean(o).unwrap_or(false))
             .unwrap_or(false)
         {
             child.0.debug_frame.set(true);
@@ -6679,7 +6671,7 @@ impl Interp {
             }
             _ => {
                 check_debug_opt(opts[0])?;
-                if parse_truth(&obj_bytes(opts[1])) {
+                if crate::typed_value::boolean(opts[1]).map_err(|e| e.message)? {
                     self.invalidate_interpreter_policy();
                     self.debug_frame.set(true);
                 }

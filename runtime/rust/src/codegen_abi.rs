@@ -154,6 +154,12 @@ pub const TCL_INVOKE_ABI_NULL_WORD: i32 = -5;
 /// its output storage before taking the exact generic slow path.
 pub const TCL_INTRINSIC_ABI_DECLINED: i32 = 1;
 
+/// A `tcl_value_get_*` read succeeded and wrote its `out` storage.
+pub const TCL_VALUE_GET_OK: i32 = 0;
+/// A `tcl_value_get_*` read failed: the current interpreter carries the Tcl
+/// error (C's message and `-errorcode`) and `out` is untouched.
+pub const TCL_VALUE_GET_ERROR: i32 = 1;
+
 #[cfg(target_arch = "wasm32")]
 const _: () = {
     assert!(core::mem::size_of::<TclCompletionAbi>() == WASM32_COMPLETION_SIZE as usize);
@@ -498,6 +504,138 @@ pub extern "C" fn tcl_value_new_wide_int(value: i64) -> *mut TclObj {
     // allocation failure, which `incr_ref_count` accepts defensively).
     unsafe { obj::incr_ref_count(object) };
     object
+}
+
+/// `tcl_value_new_double(value) -> obj` — materialise a native `f64` at a Tcl
+/// value boundary with one generated-code-owned (`+1`) reference.
+///
+/// The double half of [`tcl_value_new_wide_int`]: the object begins with the
+/// `TCL_DOUBLE_TYPE` internal rep and no string rep, so a value that never
+/// crosses a string boundary never pays for one.
+#[no_mangle]
+pub extern "C" fn tcl_value_new_double(value: f64) -> *mut TclObj {
+    let object = obj::new_double_obj(value);
+    // SAFETY: a freshly constructed live object (or null on allocation
+    // failure, which `incr_ref_count` accepts defensively).
+    unsafe { obj::incr_ref_count(object) };
+    object
+}
+
+/// `tcl_value_new_bool(value) -> obj` — materialise a native boolean as the
+/// Tcl integer `0`/`1`, with one generated-code-owned (`+1`) reference.
+///
+/// Tcl booleans *are* integer objects (C's `Tcl_NewBooleanObj`), so this is
+/// [`tcl_value_new_wide_int`] with C's normalisation of any non-zero input to
+/// `1` — the spelling `expr` and `string is boolean` both produce.
+#[no_mangle]
+pub extern "C" fn tcl_value_new_bool(value: i32) -> *mut TclObj {
+    let object = obj::new_boolean_obj(value);
+    // SAFETY: a freshly constructed live object.
+    unsafe { obj::incr_ref_count(object) };
+    object
+}
+
+/// Report a failed typed read on the current interpreter, exactly as the
+/// corresponding `Tcl_Get*FromObj` does: C's message as the interpreter result,
+/// C's `-errorcode`. Returns the ABI's error status.
+///
+/// # Safety
+/// `interp` must be the live current interpreter.
+unsafe fn typed_read_error(interp: *mut Interp, error: &crate::typed_value::TypedError) -> i32 {
+    // SAFETY: forwarded per this function's contract.
+    unsafe { (*interp).error_with_code(&error.message, error.code) };
+    TCL_VALUE_GET_ERROR
+}
+
+/// `tcl_value_get_wide_int(value, out) -> status` — read a boxed Tcl value as a
+/// native `i64` (`Tcl_GetWideIntFromObj`).
+///
+/// [`TCL_VALUE_GET_OK`] means `*out` was written. [`TCL_VALUE_GET_ERROR`] means
+/// the current interpreter carries a Tcl error — C's exact message and
+/// `-errorcode` (`expected integer but got …` / `TCL VALUE NUMBER`, a
+/// double-typed object's `TCL VALUE INTEGER`, or `integer value too large to
+/// represent` / `ARITH IOVERFLOW`) — and `*out` is untouched, so generated code
+/// treats it as an aborting error for the enclosing command.
+///
+/// A successful read **caches the parsed rep onto `value`**, so reading the same
+/// object in a loop parses its spelling once. The string rep is kept: `"0x10"`
+/// reads as 16 and still prints `0x10`.
+///
+/// `value` is borrowed; the caller keeps its reference.
+///
+/// # Safety
+/// `value` must be a live object with a caller-owned reference, and `out` must
+/// be writable, properly aligned `i64` storage.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_value_get_wide_int(value: *mut TclObj, out: *mut i64) -> i32 {
+    let interp = current_interp();
+    if value.is_null() || out.is_null() || interp.is_null() {
+        return TCL_VALUE_GET_ERROR;
+    }
+    match crate::typed_value::wide_int(value) {
+        Ok(parsed) => {
+            // SAFETY: `out` is writable aligned storage per the contract.
+            unsafe { out.write(parsed) };
+            TCL_VALUE_GET_OK
+        }
+        // SAFETY: `interp` is the live current interpreter.
+        Err(error) => unsafe { typed_read_error(interp, &error) },
+    }
+}
+
+/// `tcl_value_get_double(value, out) -> status` — read a boxed Tcl value as a
+/// native `f64` (`Tcl_GetDoubleFromObj`), with the same status contract and the
+/// same write-back as [`tcl_value_get_wide_int`]. An integer or bignum widens;
+/// `NaN` is a value here, not an error (only the boolean context refuses it).
+///
+/// # Safety
+/// `value` must be a live object with a caller-owned reference, and `out` must
+/// be writable, properly aligned `f64` storage.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_value_get_double(value: *mut TclObj, out: *mut f64) -> i32 {
+    let interp = current_interp();
+    if value.is_null() || out.is_null() || interp.is_null() {
+        return TCL_VALUE_GET_ERROR;
+    }
+    match crate::typed_value::double(value) {
+        Ok(parsed) => {
+            // SAFETY: `out` is writable aligned storage per the contract.
+            unsafe { out.write(parsed) };
+            TCL_VALUE_GET_OK
+        }
+        // SAFETY: `interp` is the live current interpreter.
+        Err(error) => unsafe { typed_read_error(interp, &error) },
+    }
+}
+
+/// `tcl_value_get_bool(value, out) -> status` — read a boxed Tcl value in
+/// **boolean context** (`Tcl_GetBooleanFromObj`), writing `0`/`1`.
+///
+/// This is the acceptor behind `if`, `while`, and `expr`'s `?:`/`&&`/`||`/`!`:
+/// a boolean word by unique case-insensitive prefix (`tru`, `ye`, `of`; the
+/// ambiguous `o` is refused), else any number compared against zero. The words
+/// come from [`tcl_syntax::boolean`], the shared owner every boolean acceptor in
+/// this tree uses, so compiled code cannot drift from interpreted code. `NaN` is
+/// C's `floating point value is Not a Number` domain error.
+///
+/// # Safety
+/// `value` must be a live object with a caller-owned reference, and `out` must
+/// be writable, properly aligned `i32` storage.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_value_get_bool(value: *mut TclObj, out: *mut i32) -> i32 {
+    let interp = current_interp();
+    if value.is_null() || out.is_null() || interp.is_null() {
+        return TCL_VALUE_GET_ERROR;
+    }
+    match crate::typed_value::boolean(value) {
+        Ok(parsed) => {
+            // SAFETY: `out` is writable aligned storage per the contract.
+            unsafe { out.write(i32::from(parsed)) };
+            TCL_VALUE_GET_OK
+        }
+        // SAFETY: `interp` is the live current interpreter.
+        Err(error) => unsafe { typed_read_error(interp, &error) },
+    }
 }
 
 /// Release one generated operand-stack value.
@@ -2099,6 +2237,212 @@ mod tests {
             release_words(&words);
             tcl_runtime_set_current_interp(ptr::null_mut());
             tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    /// Read one typed scalar through the C ABI, returning the status and the
+    /// value written (untouched storage on a refusal).
+    unsafe fn get_wide(value: *mut TclObj) -> (i32, i64) {
+        let mut out: i64 = i64::MIN;
+        // SAFETY: `value` is live and `out` is local aligned storage.
+        let status = unsafe { tcl_value_get_wide_int(value, &mut out) };
+        (status, out)
+    }
+
+    unsafe fn get_double(value: *mut TclObj) -> (i32, f64) {
+        let mut out: f64 = f64::NAN;
+        // SAFETY: `value` is live and `out` is local aligned storage.
+        let status = unsafe { tcl_value_get_double(value, &mut out) };
+        (status, out)
+    }
+
+    unsafe fn get_bool(value: *mut TclObj) -> (i32, i32) {
+        let mut out: i32 = -1;
+        // SAFETY: `value` is live and `out` is local aligned storage.
+        let status = unsafe { tcl_value_get_bool(value, &mut out) };
+        (status, out)
+    }
+
+    /// A successful typed read caches the parsed rep onto the object — C's
+    /// `TclParseNumber` write-back — and keeps the spelling, so a hot loop
+    /// parses once and `puts` still prints what the script wrote.
+    #[test]
+    fn typed_value_reads_cache_the_parsed_rep_and_keep_the_spelling() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+
+            let decimal = owned_word(b"12");
+            assert!((*decimal).type_ptr.is_null(), "starts as a plain string");
+            assert_eq!(get_wide(decimal), (TCL_VALUE_GET_OK, 12));
+            assert!(
+                std::ptr::eq((*decimal).type_ptr, &obj::TCL_INT_TYPE),
+                "the parsed integer rep is cached back onto the object"
+            );
+            assert_eq!(obj_bytes(decimal), b"12", "the spelling survives");
+
+            // A radix spelling keeps its own text, exactly as in C Tcl.
+            let hex = owned_word(b"0x10");
+            assert_eq!(get_wide(hex), (TCL_VALUE_GET_OK, 16));
+            assert!(std::ptr::eq((*hex).type_ptr, &obj::TCL_INT_TYPE));
+            assert_eq!(obj_bytes(hex), b"0x10");
+
+            let scientific = owned_word(b"1e3");
+            assert_eq!(get_double(scientific), (TCL_VALUE_GET_OK, 1000.0));
+            assert!(std::ptr::eq((*scientific).type_ptr, &obj::TCL_DOUBLE_TYPE));
+            assert_eq!(obj_bytes(scientific), b"1e3");
+
+            // Now that it carries a double rep, the integer read reports C's
+            // double-branch wording and code (`tclObj.c`).
+            assert_eq!(get_wide(scientific).0, TCL_VALUE_GET_ERROR);
+            assert_eq!(
+                (*interp).result_bytes(),
+                b"expected integer but got \"1e3\""
+            );
+            assert_eq!((*interp).error_code(), b"TCL VALUE INTEGER");
+
+            release_words(&[decimal, hex, scientific]);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    /// Beyond-wide integers and non-numbers report C's exact message and
+    /// `-errorcode` through the interpreter, leaving the out storage untouched.
+    #[test]
+    fn typed_value_reads_report_overflow_and_non_numbers_like_c() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+
+            // `tclsh9.0`: `string repeat a [expr {2**200}]` →
+            // "integer value too large to represent" / ARITH IOVERFLOW.
+            let huge = owned_word(b"99999999999999999999999");
+            let (status, untouched) = get_wide(huge);
+            assert_eq!(status, TCL_VALUE_GET_ERROR);
+            assert_eq!(untouched, i64::MIN, "the out storage is left alone");
+            assert_eq!(
+                (*interp).result_bytes(),
+                b"integer value too large to represent"
+            );
+            assert_eq!((*interp).error_code(), b"ARITH IOVERFLOW");
+            // The same value still widens to a double.
+            assert_eq!(get_double(huge), (TCL_VALUE_GET_OK, 1e23));
+
+            let word = owned_word(b"abc");
+            assert_eq!(get_wide(word).0, TCL_VALUE_GET_ERROR);
+            assert_eq!(
+                (*interp).result_bytes(),
+                b"expected integer but got \"abc\""
+            );
+            assert_eq!((*interp).error_code(), b"TCL VALUE NUMBER");
+            assert_eq!(get_double(word).0, TCL_VALUE_GET_ERROR);
+            assert_eq!(
+                (*interp).result_bytes(),
+                b"expected floating-point number but got \"abc\""
+            );
+            assert!(
+                (*word).type_ptr.is_null(),
+                "a refused read caches nothing onto the object"
+            );
+
+            // C renders a well-formed multi-token value as `a list`.
+            let listy = owned_word(b"a b");
+            assert_eq!(get_bool(listy).0, TCL_VALUE_GET_ERROR);
+            assert_eq!(
+                (*interp).result_bytes(),
+                b"expected boolean value but got a list"
+            );
+
+            release_words(&[huge, word, listy]);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    /// The boolean read is the boolean-*context* acceptor over
+    /// `tcl_syntax::boolean`'s one word table: unique prefixes resolve, the
+    /// ambiguous `o` does not, and any number compares against zero.
+    #[test]
+    fn typed_value_boolean_read_uses_the_shared_word_table() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+
+            for (spelling, expected) in [
+                (&b"tru"[..], 1),
+                (b"t", 1),
+                (b"ye", 1),
+                (b"YES", 1),
+                (b"of", 0),
+                (b"n", 0),
+                (b"2", 1),
+                (b"-1", 1),
+                (b"0.0", 0),
+                (b"0x0", 0),
+            ] {
+                let value = owned_word(spelling);
+                assert_eq!(
+                    get_bool(value),
+                    (TCL_VALUE_GET_OK, expected),
+                    "{:?}",
+                    String::from_utf8_lossy(spelling)
+                );
+                release_words(&[value]);
+            }
+
+            // `on`/`off` share the prefix `o`, so tclsh rejects it.
+            let ambiguous = owned_word(b"o");
+            assert_eq!(get_bool(ambiguous).0, TCL_VALUE_GET_ERROR);
+            assert_eq!(
+                (*interp).result_bytes(),
+                b"expected boolean value but got \"o\""
+            );
+
+            // `tclsh9.0`: `expr {NaN ? 1 : 0}` is a domain error, not truthy.
+            let nan = owned_word(b"NaN");
+            assert_eq!(get_bool(nan).0, TCL_VALUE_GET_ERROR);
+            assert_eq!(
+                (*interp).result_bytes(),
+                b"floating point value is Not a Number"
+            );
+            assert_eq!(
+                get_double(nan).0,
+                TCL_VALUE_GET_OK,
+                "a double read accepts NaN"
+            );
+
+            release_words(&[ambiguous, nan]);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    /// The native constructors produce owned, typed objects whose string rep is
+    /// materialised only on demand.
+    #[test]
+    fn native_double_and_boolean_values_are_owned_and_typed() {
+        leak_free(|| unsafe {
+            let double = tcl_value_new_double(1.5);
+            assert_eq!((*double).ref_count, 1, "generated code owns the result");
+            assert!(std::ptr::eq((*double).type_ptr, &obj::TCL_DOUBLE_TYPE));
+            assert!((*double).bytes.is_null(), "doubles begin without text");
+            assert_eq!(obj_bytes(double), b"1.5");
+            assert!(
+                std::ptr::eq((*double).type_ptr, &obj::TCL_DOUBLE_TYPE),
+                "materialising the text keeps the double internal rep"
+            );
+            tcl_obj_release(double);
+
+            // C's `Tcl_NewBooleanObj` normalises any non-zero input to 1.
+            let truthy = tcl_value_new_bool(7);
+            assert_eq!((*truthy).ref_count, 1);
+            assert_eq!(obj_bytes(truthy), b"1");
+            tcl_obj_release(truthy);
+
+            let falsy = tcl_value_new_bool(0);
+            assert_eq!(obj_bytes(falsy), b"0");
+            tcl_obj_release(falsy);
         });
     }
 

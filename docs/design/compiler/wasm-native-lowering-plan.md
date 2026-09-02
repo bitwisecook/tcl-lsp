@@ -543,28 +543,44 @@ P0–P1 are independent of each other and can run as parallel lanes. P2 gates
 P3 onwards. P4–P7 are largely independent once P3 has landed. P8 needs P5
 and P6.
 
-## 8. Open-issue roll-in
+## 8. Open-issue roll-in: PR buckets and owners
 
-Every open issue labelled `wasm-runtime`, `runtime`, `tclvm`, or `compiler`
-was read for this plan. The table in §7 assigns each one a phase; the
-remaining open items and why they are or are not in scope:
+Every open issue was read in full for this section. Issues are grouped into
+PR-sized buckets that share an owner module and a test surface, so one lane
+can land each as a single reviewable PR. `wasm-runtime`/`runtime` issues are
+`runtime/rust`; `tclvm`-only issues are the bytecode VM and are out of this
+programme unless a shared owner is named.
 
-- **In scope, correctness before speed** (fix in the phase that first depends
-  on the behaviour): #1633, #1569, #1574, #1575, #1577, #1425, #1432, #1428,
-  #1382, #1581, #1576, #1586, #1646, #1607, #1412, #1751, #1752, #1753,
-  #1755, #1763, #1764, #1750, #1765, #1594, #1598, #1732, #1603, #1648.
-- **Infrastructure**: #1768 (runtime unit suite in CI; without it P1's
-  runtime changes have no gate), #1589, #1716.
-- **Analyser-side, feeds the TclOO proofs**: #1703, #1704 (callback-prefix
-  tracking so a stored `[list $obj method]` prefix does not force a `Full`
-  frame on the object), #1655.
-- **Out of scope for this programme**: #1734, #1714, #1712, #1710, #1708,
-  #1693, #1685, #1684, #1678, #1650, #1643, #1631, #1599, #1570 (clippy in
-  `cmd_fs.rs`, fix opportunistically in P1), #1543, #1524, #1473, #1372.
+| Bucket | Issues | Owner module | Phase | Agent |
+|---|---|---|---|---|
+| **R1 activation and completion** | #1773 (eval-depth `-errorcode` loss), #1750 counterpart check that `-errorstack` reaches the ABI options dict | `codegen_abi.rs`, `interp.rs` eval loop | P1 (in flight) | Opus |
+| **R2 typed values and boolean owner** | #1425 (boolean words via `tcl_syntax::boolean`), numeric write-back, `tcl_value_*` getters | `obj.rs`, `bignum.rs`, `expr.rs`, `value_ops.rs`, `cmd_namespace.rs` | P1 (in flight) | Opus |
+| **R3 numeric tower parity** | #1428 (`0 ** -1`, exponent ceiling via `number_tower`), #1382 (`entier`/`int`/`wide` bignum path for float operands in the shared `mathfunc`), #1432 (one `rand`/`srand` owner next to `mathfunc::dispatch`), #1581 (errorCode taxonomy: `ARITH IOVERFLOW`, `TCL VALUE DOUBLE NAN`, boolean-context codes, 8.6 `IllegalExprOperandType` wording — needs an error channel on `mathfunc::dispatch`, so it lands last) | `tcl-syntax` `number_tower`/`mathfunc`, `runtime/rust` `cmd_mathfunc.rs`/`bignum.rs`, `tcl-vm` `cmd_math.rs`/`expr.rs` for the shared halves | after P1 | Opus (shared-owner change touches both engines) |
+| **R4 word-parser gaps** | #1576 (unterminated `{` must raise `missing close-brace`), #1586 (unterminated `${` in script words: consume `braced_var_name_end`), #1577 (`lassign`/`catch`/`regexp`/`scan`/`binary scan`/`foreach` must resolve `arr(k)` element targets) | `runtime/rust/src/parse.rs`, the var-write sites in `cmd_list.rs`/`cmd_error.rs`/`cmd_regex.rs`/`cmd_scan.rs`/`cmd_binary.rs`/`cmd_control.rs` | after P1 | Sonnet (oracle-driven, mechanical) |
+| **R5 trace semantics** | #1633 runtime rows (`incr` read trace, write-trace `errorInfo` frame, `trace info` during firing, command-delete trace recreating the command, unset trace reviving the variable), #1574 (per-cell re-entrancy unit), #1575 (proc-frame teardown unset traces, per-element firing on whole-array unset), #1569 (`array` traces) | `cmd_trace.rs`, `interp.rs` firing sites, `frame.rs` | after P1 (same files as the trace bit) | Opus |
+| **R6 command-table and namespace lifecycle** | #1412 (rename onto occupied destination, proc re-homing, `interp` subcommand list, `hide`/`expose`, `invokehidden` flags), #1751 (retain deleted namespace tables while active), #1752 (Tcl hash order during teardown), #1763 (command-trace sidecars by token), #1764 (TclOO identity across deferred deletion) | `namespace.rs`, `cmd_namespace.rs`, `cmd_alias.rs`, `cmd_trace.rs`, `cmd_oo.rs` | P6/P8 prerequisite; independent of P1–P3 | Opus, two PRs: #1412 alone, then the four lifecycle issues together |
+| **R7 option tables** | #1607 (~78 hand-spelled `bad option` sites, per ensemble family) | every `cmd_*.rs`, VM siblings | any time after P1; also the intrinsic table's subcommand parsing (P4) | Sonnet, one PR per family |
+| **R8 output encoding** | #1598 (byte-valued characters rendered through UTF-8 on `puts`/error text) | `cmd_chan.rs` write path, VM channel layer | P9 | Sonnet |
+| **R9 infrastructure** | #1768 (runtime unit suite in CI), #1589 (`run_script` builtins), #1716 (macOS wasm32-capable clang probe), #1570 (clippy in `cmd_fs.rs`) | `ci.yml`, `Makefile`, `scripts/dev/ensure-test-deps.sh`, examples | P0 (in flight, #1716 and #1570 absorbed) | Opus |
+| **C1 codegen defects** | #1772 (`puts` fast path reparses compatibility text), #1774 (emitted proc functions never executed) | `codegen/wasm/backend.rs`, ABI proc table | P3 / P5 | Fable |
+| **C2 TclOO callback prefixes** | #1703, #1704 (method callback prefixes in `CommandPrefix` slots; one-hop stored prefixes) | `analyser/`, LSP navigation | feeds P8's "does a stored prefix force a `Full` frame" proof; not on the WASM critical path | Opus, separate PR |
 
-New issues to file from this review: the `puts` compatibility-text defect,
-the `tcl_invoke_argv` eval-depth defect, and "emitted proc functions are
-never executed" (all §2), plus one tracking issue per phase.
+Verified against the linked runtime while bucketing: #1732's 9.x array-index
+rule is already correct in `runtime/rust` (merged via #1741; only the VM half
+was reopened), while #1576, #1428, #1382, and #1577 all still reproduce
+exactly as filed.
+
+**tclvm-only, out of this programme**: #1755, #1753, #1750 (VM half), #1594,
+#1646, #1603, #1648 (fix in flight as #1754), #1765, #1732 (VM half). Where
+one of these names a shared owner (`number_tower`, `mathfunc`, the namespace
+token model), the bucket above that touches the shared crate keeps the VM
+green but does not take on the VM-only behaviour.
+
+**Not wasm work**: #1734, #1714, #1712, #1710, #1708, #1693, #1685, #1684,
+#1678, #1655, #1650, #1643, #1631, #1599, #1543, #1524, #1473, #1372.
+
+Closing rule for every bucket: the PR closes its issues with a short root
+cause and fix statement per issue.
 
 ## 9. Corpus evidence
 

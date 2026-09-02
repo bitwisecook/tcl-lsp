@@ -368,28 +368,7 @@ fn dict_filter_bool(o: *mut TclObj) -> Result<bool, Vec<u8>> {
 
 #[cfg(not(have_tommath))]
 fn dict_filter_bool(o: *mut TclObj) -> Result<bool, Vec<u8>> {
-    use tcl_syntax::number::{parse_whole, Number};
-    let bytes = obj_bytes(o);
-    let s = core::str::from_utf8(&bytes).unwrap_or("");
-    let trimmed = s.trim();
-    match trimmed.to_ascii_lowercase().as_str() {
-        "1" | "true" | "yes" | "on" => return Ok(true),
-        "0" | "false" | "no" | "off" => return Ok(false),
-        _ => {}
-    }
-    if let Some(n) = parse_whole(trimmed) {
-        match n {
-            Number::Int(v) => return Ok(v != 0),
-            Number::Double(d) => return Ok(d != 0.0),
-            // A bignum is zero iff every magnitude digit is `0`.
-            Number::Big { digits, .. } => return Ok(digits.bytes().any(|b| b != b'0')),
-            // NaN is not a valid Tcl boolean — fall through to the error.
-            Number::Nan { .. } => {}
-        }
-    }
-    let mut m = b"expected boolean value but got ".to_vec();
-    m.extend_from_slice(tcl_syntax::list::describe_bad_value(s).as_bytes());
-    Err(m)
+    crate::typed_value::boolean(o).map_err(|e| e.message)
 }
 
 // -- variable-mutating subcommands (copy-on-write) -------------------------

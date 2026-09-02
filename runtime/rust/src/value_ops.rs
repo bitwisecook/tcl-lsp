@@ -141,22 +141,14 @@ impl ValueOps for Interp {
         }
     }
 
+    /// Boolean context (`Tcl_GetBooleanFromObj`) through the runtime's one
+    /// typed-read owner, so the shared command logic accepts exactly the words
+    /// `if`/`expr` do — prefixes included (`tru`, `ye`, `of`), the ambiguous
+    /// `o` refused — and reads a typed rep when the object carries one.
     fn as_bool(&mut self, v: &*mut TclObj) -> Result<bool, ValueError> {
-        let bytes = obj_bytes(*v);
-        let s = String::from_utf8_lossy(&bytes);
-        let t = s.trim();
-        if let Some(num) = number::parse_whole(t) {
-            return Ok(match num {
-                Number::Int(n) => n != 0,
-                Number::Double(f) => f != 0.0,
-                _ => true,
-            });
-        }
-        match t.to_ascii_lowercase().as_str() {
-            "true" | "yes" | "on" => Ok(true),
-            "false" | "no" | "off" => Ok(false),
-            _ => Err(ValueError::NotBoolean(s.into_owned())),
-        }
+        crate::typed_value::boolean(*v).map_err(|_| {
+            ValueError::NotBoolean(String::from_utf8_lossy(&obj_bytes(*v)).into_owned())
+        })
     }
 
     /// Bignum-aware integer addition (the `incr` step) — overrides the default's

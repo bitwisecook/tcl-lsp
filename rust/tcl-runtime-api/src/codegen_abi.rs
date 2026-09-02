@@ -30,6 +30,9 @@ pub enum CodegenAbiValueType {
     I32,
     /// A WASM i64 scalar, used for guard tokens and stable identity values.
     I64,
+    /// A WASM f64 scalar — the native representation of a Tcl double at a
+    /// typed-value boundary.
+    F64,
 }
 
 /// One compiler/runtime import descriptor.
@@ -65,6 +68,7 @@ const I64_I32_I32_I32: &[CodegenAbiValueType] = &[
     CodegenAbiValueType::I32,
     CodegenAbiValueType::I32,
 ];
+const F64: &[CodegenAbiValueType] = &[CodegenAbiValueType::F64];
 const NONE: &[CodegenAbiValueType] = &[];
 
 const fn tcl_import(
@@ -159,6 +163,23 @@ pub enum CodegenAbiImportId {
     VarGetElement,
     /// Join evaluated word parts into one owned Tcl value.
     WordConcat,
+    /// Materialise a native `f64` as an owned Tcl double.
+    ValueNewDouble,
+    /// Materialise a native boolean as an owned Tcl boolean (an integer `0`/`1`).
+    ValueNewBool,
+    /// Read a Tcl value as a native `i64`, writing it through an out pointer.
+    ///
+    /// Parameters are the borrowed value handle and an `i64` out pointer; the
+    /// i32 result is `0` on success, `1` when the runtime set a Tcl error on
+    /// the interpreter and left the out storage untouched. A successful read
+    /// caches the parsed internal rep onto the value.
+    ValueGetWideInt,
+    /// Read a Tcl value as a native `f64` — [`Self::ValueGetWideInt`]'s
+    /// contract over an `f64` out pointer.
+    ValueGetDouble,
+    /// Read a Tcl value in boolean context — [`Self::ValueGetWideInt`]'s
+    /// contract over an `i32` (`0`/`1`) out pointer.
+    ValueGetBool,
     /// Enter a compiled activation, so compiled code counts as an eval-loop
     /// activation for the outermost-eval error-publication rule.
     ///
@@ -225,6 +246,11 @@ impl CodegenAbiImportId {
                 parameters: I32_I32,
                 results: I32,
             },
+            Self::ValueNewDouble => tcl_import("tcl_value_new_double", F64, I32),
+            Self::ValueNewBool => tcl_import("tcl_value_new_bool", I32, I32),
+            Self::ValueGetWideInt => tcl_import("tcl_value_get_wide_int", I32_I32, I32),
+            Self::ValueGetDouble => tcl_import("tcl_value_get_double", I32_I32, I32),
+            Self::ValueGetBool => tcl_import("tcl_value_get_bool", I32_I32, I32),
             Self::ActivationEnter => tcl_import("tcl_codegen_activation_enter", NONE, I32),
             Self::ActivationLeave => tcl_import("tcl_codegen_activation_leave", I32, NONE),
         }
@@ -405,6 +431,38 @@ mod tests {
             assert_eq!(descriptor.name, name, "{id:?}");
             assert_eq!(descriptor.parameters, parameters, "{id:?}");
             assert_eq!(descriptor.results, results, "{id:?}");
+        }
+    }
+
+    #[test]
+    fn typed_value_imports_carry_native_scalars_and_an_out_pointer_status() {
+        use CodegenAbiValueType::{F64, I32};
+
+        let new_double = CodegenAbiImportId::ValueNewDouble.descriptor();
+        assert_eq!(new_double.name, "tcl_value_new_double");
+        assert_eq!(new_double.parameters, &[F64][..]);
+        assert_eq!(new_double.results, &[I32][..]);
+
+        let new_bool = CodegenAbiImportId::ValueNewBool.descriptor();
+        assert_eq!(new_bool.name, "tcl_value_new_bool");
+        assert_eq!(new_bool.parameters, &[I32][..]);
+        assert_eq!(new_bool.results, &[I32][..]);
+
+        // Every getter is (value handle, out pointer) -> status, so generated
+        // code has one shape to lower for all three.
+        for (id, name) in [
+            (
+                CodegenAbiImportId::ValueGetWideInt,
+                "tcl_value_get_wide_int",
+            ),
+            (CodegenAbiImportId::ValueGetDouble, "tcl_value_get_double"),
+            (CodegenAbiImportId::ValueGetBool, "tcl_value_get_bool"),
+        ] {
+            let descriptor = id.descriptor();
+            assert_eq!(descriptor.module, "tcl", "{id:?}");
+            assert_eq!(descriptor.name, name, "{id:?}");
+            assert_eq!(descriptor.parameters, &[I32, I32][..], "{id:?}");
+            assert_eq!(descriptor.results, &[I32][..], "{id:?}");
         }
     }
 

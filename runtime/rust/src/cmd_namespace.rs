@@ -857,12 +857,9 @@ fn apply_ensemble_option(
             cfg.unknown = crate::parse::split_list(val).map_err(|e| e.message().to_vec())?;
         }
         SharedOption::Prefixes => {
-            cfg.prefixes = parse_bool(val).ok_or_else(|| {
-                let mut m = b"expected boolean value but got \"".to_vec();
-                m.extend_from_slice(val);
-                m.push(b'"');
-                m
-            })?;
+            // The one typed-read owner, so `-prefixes tru` / `-prefixes 2`
+            // are accepted here exactly as `tclsh9.0` accepts them.
+            cfg.prefixes = crate::typed_value::boolean_bytes(val).map_err(|e| e.message)?;
         }
     }
     Ok(())
@@ -1065,15 +1062,6 @@ fn qualify_in_ns(ns: &[u8], target: &[u8]) -> Vec<u8> {
     out
 }
 
-/// Tcl boolean literal (`Tcl_GetBoolean`) for `-prefixes`.
-fn parse_bool(bytes: &[u8]) -> Option<bool> {
-    match bytes.to_ascii_lowercase().as_slice() {
-        b"1" | b"true" | b"yes" | b"on" => Some(true),
-        b"0" | b"false" | b"no" | b"off" => Some(false),
-        _ => None,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::counters;
@@ -1116,6 +1104,50 @@ mod tests {
             // Back at top level current is global again.
             assert_eq!(i.eval_str(b"namespace current"), Code::Ok);
             assert_eq!(i.result_bytes(), b"::");
+        });
+    }
+
+    /// `-prefixes` reads its value through the runtime's one boolean acceptor,
+    /// so every spelling `tclsh9.0` accepts here is accepted (issue #1425's
+    /// runtime half): a unique word prefix, and any number against zero. Only
+    /// the ambiguous `o` — shared by `on` and `off` — is refused.
+    #[test]
+    fn ensemble_prefixes_accepts_every_boolean_spelling_tclsh_does() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval ens { proc bar {} {}; namespace export bar; \
+                      namespace ensemble create }"
+                ),
+                Code::Ok
+            );
+            for (spelling, expected) in [
+                (&b"tru"[..], b"1".as_slice()),
+                (b"ye", b"1"),
+                (b"of", b"0"),
+                (b"2", b"1"),
+                (b"0.0", b"0"),
+            ] {
+                let mut script = b"namespace ensemble configure ::ens -prefixes ".to_vec();
+                script.extend_from_slice(spelling);
+                assert_eq!(
+                    i.eval_str(&script),
+                    Code::Ok,
+                    "{}: {}",
+                    String::from_utf8_lossy(spelling),
+                    String::from_utf8_lossy(&i.result_bytes())
+                );
+                assert_eq!(
+                    i.eval_str(b"namespace ensemble configure ::ens -prefixes"),
+                    Code::Ok
+                );
+                assert_eq!(i.result_bytes(), expected);
+            }
+            assert_eq!(
+                i.eval_str(b"namespace ensemble configure ::ens -prefixes o"),
+                Code::Error
+            );
+            assert_eq!(i.result_bytes(), b"expected boolean value but got \"o\"");
         });
     }
 

@@ -138,6 +138,9 @@ pub mod state_traits;
 // the Tcl regex engine's C symbols, so C Tcl code/extensions link against it.
 pub mod regex_capi;
 pub mod subst;
+/// The one owner of "read this object as an integer / double / boolean", with
+/// C Tcl's write-back, boolean-word table, and error text.
+mod typed_value;
 /// `ValueOps` impl binding `tcl-cmd-core`'s portable command logic to `*mut
 /// TclObj` (the value seam).
 pub mod value_ops;

@@ -1640,6 +1640,7 @@ const fn abi_value_type(value: CodegenAbiValueType) -> ValType {
     match value {
         CodegenAbiValueType::I32 => ValType::I32,
         CodegenAbiValueType::I64 => ValType::I64,
+        CodegenAbiValueType::F64 => ValType::F64,
     }
 }
 
