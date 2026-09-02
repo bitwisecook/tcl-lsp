@@ -405,6 +405,16 @@ then the profile compiled into the server. Repeat the row across a
 pack's files and the highest version wins, so merge order cannot lower a
 floor.
 
+The row is **unscoped**: it floors its package for every document the
+pack is active in. To say a package is ambient under one of a pack's
+environments and not another, write the placement inside that
+environment — `environment NAME { ambient PACKAGE VERSION }` (2.0) —
+and share a version between environments with an ordinary Tcl variable.
+`ambient_package NAME VERSION -dialects {…}` is not vocabulary; the row
+is dropped whole rather than applied everywhere, because dropping only
+the flag would leave the wider claim standing. See
+[`spec-packs.md`](../spec-packs.md), "Scoping an ambient package".
+
 ### Block statements
 
 Ten properties take a braced block instead of a value, and each may

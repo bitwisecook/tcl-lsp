@@ -105,7 +105,7 @@ use tcl_dialect::model::SpecSurface;
 /// The evaluation loader's own version, part of the snapshot cache key: a
 /// change to how evaluation captures or replays invalidates every cached
 /// evaluated snapshot exactly once, independent of the vocabulary version.
-pub const LOADER_EVAL_VERSION: u32 = 1;
+pub const LOADER_EVAL_VERSION: u32 = 2;
 
 /// How to evaluate a pack: the provenance tier gating registrations (E-R2)
 /// and the sandbox budget.
@@ -665,12 +665,19 @@ impl State {
     /// otherwise. Inside an included fragment the verbatim index (which
     /// describes the root file) is not consulted, so a line-number
     /// coincidence cannot substitute the wrong statement.
+    ///
+    /// The verbatim statement stands in only when it **substitutes
+    /// nothing**. A row built from a variable or a command substitution has
+    /// values the source text does not spell, and replaying
+    /// `ambient Tk $tkver` verbatim would hand the reader the dollar sign
+    /// instead of the version (issue #1643).
     fn captured(&mut self, word: &str, args: &[String], line: u32) -> Stmt {
         if self.in_include {
             return capture_stmt(word, args, line);
         }
         self.verbatim
             .row(word, args.len(), line)
+            .filter(substitution_free)
             .unwrap_or_else(|| capture_stmt(word, args, line))
     }
 }
@@ -1215,6 +1222,21 @@ fn static_stmt(stmt: &Stmt) -> bool {
     {
         return false;
     }
+    substitution_free(stmt)
+}
+
+/// Whether every word of `stmt` means, as written, exactly what evaluating
+/// it would yield: a braced word is its own value, and an unbraced one is
+/// only when it carries no substitution.
+///
+/// Two readers share it. The static fast path uses it to decide a statement
+/// can be captured without an interpreter at all, and [`State::captured`]
+/// uses it to decide the file's own bytes may stand in for the evaluated
+/// invocation. Both are the same question — "would replaying the source
+/// text reproduce the values?" — and answering it in one place is what
+/// stops the fast path and the interpreter path from disagreeing about a
+/// row that substitutes.
+fn substitution_free(stmt: &Stmt) -> bool {
     stmt.words.iter().all(|word| {
         word.braced
             || !(word.text.contains('$') || word.text.contains('[') || word.text.contains('\\'))

@@ -254,15 +254,20 @@ fn count(registrations: &[tcl_spectcl::Registration]) -> usize {
 /// The fixture packs written as *programs* — the shape gate B exists for.
 fn templated() -> Vec<(&'static str, String)> {
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/templated");
-    ["fleet.tclspec", "rows.tclspec", "table.tclspec"]
-        .into_iter()
-        .map(|name| {
-            (
-                name,
-                std::fs::read_to_string(dir.join(name)).expect("a templated fixture"),
-            )
-        })
-        .collect()
+    [
+        "fleet.tclspec",
+        "rows.tclspec",
+        "table.tclspec",
+        "environments.tclspec",
+    ]
+    .into_iter()
+    .map(|name| {
+        (
+            name,
+            std::fs::read_to_string(dir.join(name)).expect("a templated fixture"),
+        )
+    })
+    .collect()
 }
 
 /// Gate B: `export(evaluate_pack(src))` is canonical source whose reload is
@@ -324,7 +329,7 @@ fn round_trip_gate_b_a_templated_pack_exports_as_its_expansion() {
         commands += evaluated.commands.len();
     }
     println!("export gate B: {packs} templated packs, {commands} expanded commands");
-    assert!(packs >= 3, "only {packs} templated packs exported");
+    assert!(packs >= 4, "only {packs} templated packs exported");
     assert!(commands >= 9, "only {commands} expanded commands");
 }
 
@@ -346,6 +351,43 @@ fn the_expansion_names_every_registration_the_loop_made() {
     // The `speclib` header is the pack's own, not the newest vocabulary:
     // raising a declared vocabulary is `spec upgrade`'s job, not export's.
     assert!(exported.starts_with("speclib fleet 2.0 {\n"), "{exported}");
+}
+
+/// The expansion of a pack that shares one version between its
+/// environments carries the **version**, not the variable (issue #1643).
+///
+/// Gate B already proves the export reloads to the evaluated snapshot, but
+/// two empty environment lists would satisfy that as happily as two
+/// correct ones — an unsubstituted `$libver` rejects the block, and the
+/// rejection round-trips. So the assertion here is on the text.
+#[test]
+fn a_shared_environment_version_expands_to_the_version() {
+    let source = std::fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/templated/environments.tclspec"),
+    )
+    .expect("the environments fixture");
+    let pack = evaluate_pack(&source);
+    assert!(pack.load_error.is_none(), "{:#?}", pack.notices);
+    assert_eq!(pack.environments.len(), 2, "{:#?}", pack.environments);
+
+    let exported = export_pack_reporting(&pack).0;
+    let rows: Vec<String> = exported
+        .lines()
+        .map(|line| line.split_whitespace().collect::<Vec<_>>().join(" "))
+        .collect();
+    assert!(
+        rows.iter().any(|row| row == "ambient envlib 3.2"),
+        "the ambient row carries the version: {exported}"
+    );
+    assert!(
+        rows.iter().any(|row| row == "hosted envlib 3.2-"),
+        "and so does the hosted one: {exported}"
+    );
+    assert!(
+        !exported.contains("libver"),
+        "the variable itself does not survive the expansion: {exported}"
+    );
 }
 
 /// The 2.0 word batch (P2-H): `provides`, `co_provides`,

@@ -1318,12 +1318,52 @@ pub const NEWEST_VOCABULARY_VERSION: &str = "2.0";
 /// safer-looking result" the contract forbids.
 const NEWEST_SUPPORTED_MAJOR: u32 = 2;
 
+/// The scoping flag issue #1643 proposed for `ambient_package`, recognised
+/// only so it can be **refused**.
+///
+/// The issue predates `SpecTcl` 2.0. It asked for
+/// `ambient_package NAME VERSION -dialects {…}` so a pack could say a
+/// library is ambient under one of its dialects and not another; 2.0
+/// answers the same question with `environment NAME { ambient PACKAGE
+/// VERSION }`, which states the placement *inside* the environment it
+/// belongs to instead of flag-scoping a global claim, and a version shared
+/// by several environments is an ordinary Tcl variable substituted into
+/// each row.
+///
+/// The flag is not carried as a second spelling of that, for two reasons
+/// the model does not let us wish away:
+///
+/// - **Desugaring it is not available.** A `-dialects` list naming a
+///   compiled environment (`tcl8.6`, `f5-irules`) desugars to
+///   `environment NAME -extend { ambient … }`, and §6.4's trust lattice
+///   forbids exactly that for the workspace and studio tiers most packs
+///   come from (`registration::untrusted_compiled_extension`). The sugar
+///   would work for bundled packs and fail the whole registration for
+///   everyone else.
+/// - **It would fork the floor model.** A scoped row kept in the pack's own
+///   ambient table reports as `PackAmbient` (a pack the workspace owns);
+///   the same claim written as a placement reports as the environment's own
+///   pin. One question with two answers, differing only in how it was
+///   spelled, is the parallel table the redesign set out to remove.
+///
+/// So the word is refused, and the row goes with it. Dropping only the flag
+/// would leave the *unscoped* claim standing — the pack would floor the
+/// package in every dialect, including the ones it just said the package is
+/// absent from, which is §6.1's fail-closed rule read backwards.
+const AMBIENT_SCOPE_FLAG: &str = "-dialects";
+
 /// `ambient_package NAME VERSION` — one package the pack's dialect provides
 /// without a `package require`.
 ///
 /// Both words are required. A row naming no version is dropped rather than
 /// defaulted: an ambient package with no version would floor at nothing, which
 /// is what the row exists to stop being the case.
+///
+/// The row is **unscoped by construction**: it floors its package for every
+/// document the pack is active in. Scoping the claim to some of a pack's
+/// environments is what `environment NAME { ambient PACKAGE VERSION }`
+/// (`SpecTcl` 2.0 §6.2) says, and [`AMBIENT_SCOPE_FLAG`] is refused here
+/// rather than read — see that constant for why.
 fn ambient_package_row(stmt: &Stmt, log: &mut Log) -> Option<AmbientPackage> {
     let name = stmt.word_text(1);
     if name.is_empty() {
@@ -1335,6 +1375,26 @@ fn ambient_package_row(stmt: &Stmt, log: &mut Log) -> Option<AmbientPackage> {
         log.say(
             stmt.line,
             format!("`ambient_package {name}` needs the version the runtime provides; dropped"),
+        );
+        return None;
+    }
+    if stmt
+        .words
+        .iter()
+        .skip(3)
+        .any(|word| word.text == AMBIENT_SCOPE_FLAG)
+    {
+        log.say_classified(
+            stmt.line,
+            VocabularyClass::Semantic,
+            format!(
+                "`ambient_package {name}` uses `{AMBIENT_SCOPE_FLAG}`, which is not \
+                 SpecTcl vocabulary; the whole row is dropped rather than applied \
+                 to every dialect, because a reader that ignored the scoping would \
+                 floor {name} where the pack says it is absent (design §6.1). Write \
+                 `environment NAME {{ ambient {name} {version} }}` for each \
+                 environment the package is ambient in"
+            ),
         );
         return None;
     }
@@ -7602,6 +7662,52 @@ mod tests {
             "{:?}",
             older.notices
         );
+    }
+
+    /// Issue #1643 asked for `ambient_package NAME VERSION -dialects {…}`.
+    /// The flag is refused, and — the point of the test — it takes the row
+    /// with it.
+    ///
+    /// Dropping the flag alone would leave the claim *unscoped*, flooring
+    /// the package in every dialect including the ones the pack just said
+    /// it is absent from. That is §6.1's fail-closed rule read backwards,
+    /// so the row fails closed instead, and the notice names the 2.0
+    /// spelling that says the same thing properly.
+    #[test]
+    fn an_ambient_package_row_scoped_with_dialects_fails_closed() {
+        for declared in ["1.2", "2.0"] {
+            let pack = evaluate_pack(&format!(
+                "speclib probe {declared} {{\n \
+                 ambient_package Tk 8.6 -dialects {{tcl8.6}}\n \
+                 ambient_package Itcl 4.0\n \
+                 command demo {{ arity 1 }}\n}}"
+            ));
+            let named: Vec<&str> = pack.ambient_packages.iter().map(|row| row.name).collect();
+            assert_eq!(
+                named,
+                vec!["Itcl"],
+                "the scoped row is dropped whole, the unscoped one is untouched ({declared})"
+            );
+            let scoping = pack
+                .notices
+                .iter()
+                .find(|n| n.message.contains("-dialects"))
+                .unwrap_or_else(|| {
+                    panic!("a notice names the flag ({declared}): {:?}", pack.notices)
+                });
+            assert_eq!(
+                scoping.class,
+                VocabularyClass::Semantic,
+                "an availability-narrowing word is semantic ({declared})"
+            );
+            assert!(
+                scoping
+                    .message
+                    .contains("environment NAME { ambient Tk 8.6 }"),
+                "the notice names the 2.0 spelling ({declared}): {}",
+                scoping.message
+            );
+        }
     }
 
     /// `display_name` and `file_extension` are pack-level metadata: names

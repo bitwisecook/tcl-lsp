@@ -37,6 +37,7 @@
 
 use std::path::{Path, PathBuf};
 
+use tcl_dialect::model::{Placement, SpecProvider};
 use tcl_spectcl::loader::{EvalOptions, Notice, Pack, evaluate_pack, evaluate_pack_with};
 use tcl_spectcl::{LoadError, Tier};
 
@@ -332,6 +333,70 @@ fn a_command_body_may_template_its_own_rows() {
     let command = pack.command("lsortish").expect("loads");
     let options: Vec<&str> = command.spec.options.iter().map(|o| o.name).collect();
     assert_eq!(options, vec!["-ascii", "-dictionary", "-integer", "-real"]);
+}
+
+/// A variable set once and substituted into rows reaches the model as its
+/// **value**, at pack scope and inside a declaration body alike.
+///
+/// The capture layer prefers the file's own bytes to the evaluated
+/// invocation whenever the source statement at that line has the same
+/// shape, because evaluation loses per-word braced-ness and physical
+/// lines. That preference has to stop at a statement that substitutes:
+/// replaying `ambient Tk $tkver` verbatim hands the reader the dollar sign
+/// instead of the version, and the pack silently means something it did not
+/// say (issue #1643).
+#[test]
+fn a_variable_substitutes_into_rows_at_every_scope() {
+    let source = "speclib versioned 2.0 {\n\
+                  set tkver 8.6\n\
+                  environment probe-shell \"\ncore tcl 8.6\nambient Tk $tkver\n\"\n\
+                  command demo {\n\
+                  \x20   arity 1\n\
+                  \x20   available \"package Tk $tkver-\"\n\
+                  }\n\
+                  }\n";
+    let pack = evaluate_pack(source);
+    assert!(pack.load_error.is_none(), "{:#?}", pack.notices);
+
+    // The environment's `ambient` row carries the version, not the spelling.
+    let environment = pack
+        .environments
+        .iter()
+        .find(|environment| environment.id == "probe-shell")
+        .expect("the environment block loads");
+    let placement = environment
+        .placements
+        .iter()
+        .find(|row| row.package == "Tk")
+        .expect("the ambient placement loads");
+    assert!(placement.ambient);
+    assert!(
+        matches!(&placement.version, Placement::Pinned(version) if version.to_string() == "8.6"),
+        "{:?}",
+        placement.version
+    );
+
+    // And the `available` window names the same package by value.
+    let surface = pack
+        .command("demo")
+        .expect("the command loads")
+        .spec
+        .surface
+        .expect("the available row loads");
+    assert!(
+        surface
+            .iter()
+            .any(|row| matches!(&row.provider, SpecProvider::Package(name) if *name == "Tk")),
+        "{surface:?}"
+    );
+    assert!(
+        !pack
+            .notices
+            .iter()
+            .any(|notice| notice.message.contains("$tkver")),
+        "nothing reports the unsubstituted spelling: {:?}",
+        pack.notices
+    );
 }
 
 // Determinism and budgets (§1.2)
