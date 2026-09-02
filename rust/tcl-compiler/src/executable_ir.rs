@@ -33,7 +33,8 @@ use tcl_registry::hooks::LoweringHookId;
 use tcl_registry::model::semantic::SemanticContext;
 use tcl_registry::{CommandRegistry, SemanticOperationId};
 
-use crate::ir::{NodeId, Script, SourceSite, Statement, WordExpr};
+use crate::expr_ast::ExprNode;
+use crate::ir::{NodeId, Script, SourceSite, Statement, SwitchMode, WordExpr};
 pub use crate::registry_invocation::{
     OwnedInvocationResolutionUnresolved, RegistryInvocationResolution as InvocationResolution,
 };
@@ -226,6 +227,9 @@ pub struct LoweredOperation {
     pub completion: CompletionId,
     /// Registry-owned target-neutral lowering descriptor.
     pub descriptor: LoweringHookId,
+    /// Exact cell and completion footprint projected from the descriptor and
+    /// the statement's retained operands.
+    pub footprint: LoweredFootprint,
     /// Exact already-lowered source operation and operands.
     pub statement: Statement,
     /// Stable source-semantic node that originated the operation.
@@ -276,6 +280,257 @@ impl OpaqueRegion {
             Some(descriptor) => Some(SemanticOperationId::StructuredLowering(descriptor)),
             None => None,
         }
+    }
+}
+
+/// One Tcl variable cell named by source-faithful lowering.
+///
+/// This is deliberately *not* a [`crate::place::Place`]: binding a name to a
+/// place requires the scope declarations (`global`, `variable`, `upvar`,
+/// instance variables) that a `ResolveContext` carries, and the executable
+/// builder is handed a [`Script`] and a registry context only.  A cell
+/// reference is therefore the exact retained name plus the one distinction the
+/// name text itself proves — whether it is statically spellable at all — and a
+/// consumer that does own a scope context binds it to a `Place` itself.
+///
+/// The base name is the world subject in both cases: `a(k)` and `$a` name the
+/// same subject, so an element write is correctly seen by a whole-array read.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CellReference {
+    /// A cell whose name is statically known, resolved in the scope current at
+    /// the site.  `element` records that only one element of an array was
+    /// touched.
+    Named {
+        /// Base variable name, without any array index.
+        name: String,
+        /// Whether the reference named one array element.
+        element: bool,
+    },
+    /// A cell whose identity is computed at run time (`set $name …`, a
+    /// substituted array index).  Every access must be treated as touching an
+    /// unbounded set of cells.
+    Computed,
+}
+
+impl CellReference {
+    /// Project one retained variable-name word into the cell vocabulary.
+    ///
+    /// `braced` is the source token's brace-literal flag: a braced name word
+    /// suppresses substitution, so `{a($k)}` names a literal element of `a`
+    /// rather than a computed one.  Array-name splitting is the shared
+    /// `tcl_syntax` rule, never a local re-parse.
+    #[must_use]
+    pub fn from_name(name: &str, braced: bool) -> Self {
+        if name.is_empty() {
+            return Self::Computed;
+        }
+        let (base, index) = tcl_syntax::naming::split_array_name_braced(name, braced);
+        if base.is_empty() || base.contains('$') || base.contains('[') {
+            return Self::Computed;
+        }
+        if !braced && index.is_some_and(|index| index.contains('$') || index.contains('[')) {
+            // A substituted index still touches only this array, but the
+            // element is unknown; the base subject already covers that.
+            return Self::Named {
+                name: base.to_owned(),
+                element: true,
+            };
+        }
+        Self::Named {
+            name: base.to_owned(),
+            element: index.is_some(),
+        }
+    }
+
+    /// The statically known base name, when there is one.
+    #[must_use]
+    pub fn name(&self) -> Option<&str> {
+        match self {
+            Self::Named { name, .. } => Some(name),
+            Self::Computed => None,
+        }
+    }
+}
+
+/// Which part of a completion triple a handler cell receives.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CompletionPayload {
+    /// The Tcl completion code.
+    Code,
+    /// The completion result value.
+    Result,
+    /// The return-options dictionary.
+    Options,
+}
+
+/// One structured-control operand that produces a Tcl value.
+///
+/// Structured lowering keeps conditions as parsed expressions and list or
+/// subject words as exact retained text, so these operands cannot travel
+/// through [`ExecutableInstruction::EvaluateWord`], which validates a
+/// [`WordExpr`] against its own source site.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExecutableExpr {
+    /// A parsed Tcl expression retained by structured lowering: an `if`,
+    /// `while`, or `for` condition.
+    Condition {
+        /// Parsed expression AST.
+        expr: Box<ExprNode>,
+        /// Absolute source offset of the expression text's first byte, when
+        /// the text handed to the expression parser was a verbatim slice.
+        base: Option<u32>,
+    },
+    /// An exact retained operand word: a `foreach` list, a `switch` subject.
+    Operand {
+        /// Exact retained operand text, with any braces already stripped.
+        text: String,
+        /// Whether the source word was a brace literal, which suppresses
+        /// substitution.
+        braced: bool,
+    },
+    /// The `-errorcode` prefix test of a `try … trap` handler against the
+    /// return options of the completion the handler joined.
+    TrapPrefix {
+        /// Completion whose `-errorcode` entry is tested.
+        completion: CompletionId,
+        /// The `-errorcode` prefix elements, as the registry-owned handler
+        /// parse produced them.
+        prefix: Vec<String>,
+    },
+}
+
+/// One `switch` arm comparison against the evaluated subject.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SwitchPattern {
+    /// Exact retained pattern text.
+    pub text: String,
+    /// Match mode selected by the registry-owned `switch` option parse.
+    pub mode: SwitchMode,
+    /// Whether matching is case-insensitive.
+    pub nocase: bool,
+    /// Whether the pattern arrived as a literal list element of a single
+    /// braced `{pat body …}` block, so no substitution applies to it.
+    pub literal: bool,
+}
+
+/// One `foreach`/`lmap` iterator group in an executable list-cursor loop.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IteratorGroup {
+    /// Evaluated Tcl list this group iterates.
+    pub list: ExecutableValueId,
+    /// Loop-variable cells written once per iteration, in list order.
+    pub variables: Vec<CellReference>,
+}
+
+/// The executable shape a structured control region was projected into.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum StructuredRegionKind {
+    /// `if`/`elseif`/`else` decision edges.
+    Conditional,
+    /// A `while` or `for` loop header with an explicit back edge.
+    ConditionLoop,
+    /// A `foreach`/`lmap` list-cursor loop.
+    CursorLoop,
+    /// A `catch` region with one completion-joining handler edge.
+    Catch,
+    /// A `try` region with completion-class handler edges and `finally`.
+    Try,
+    /// A `switch` decision tree over registry-parsed pattern/body arms.
+    Switch,
+}
+
+impl StructuredRegionKind {
+    /// Stable Explorer/API spelling.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Conditional => "conditional",
+            Self::ConditionLoop => "condition-loop",
+            Self::CursorLoop => "cursor-loop",
+            Self::Catch => "catch",
+            Self::Try => "try",
+            Self::Switch => "switch",
+        }
+    }
+}
+
+/// A structured control region whose interior is now executable edges.
+///
+/// The instruction carrying this sits where the region's interior edges join,
+/// because that is where the region's completion becomes available: every
+/// operand evaluation, condition test, handler edge, and body statement is a
+/// separate instruction reached before it.  It performs no work of its own; it
+/// is the region's stable identity for plans, provenance, and diagnostics.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StructuredRegion {
+    /// Completion produced by the region as a whole.
+    pub completion: CompletionId,
+    /// Registry-owned structural identity.
+    pub descriptor: LoweringHookId,
+    /// Which executable projection this region received.
+    pub kind: StructuredRegionKind,
+    /// Exact structured source-IR payload, retained as provenance only.
+    pub statement: Statement,
+    /// Stable source-semantic node that originated the region.
+    pub node: NodeId,
+    /// Full source site and provenance.
+    pub source: SourceSite,
+}
+
+impl StructuredRegion {
+    /// Return the target-neutral operation identity of this region.
+    #[must_use]
+    pub const fn semantic_operation(&self) -> SemanticOperationId {
+        SemanticOperationId::StructuredLowering(self.descriptor)
+    }
+}
+
+/// The exact cell and completion footprint of an already-lowered operation.
+///
+/// This replaces the conservative all-world default for the assignment,
+/// increment, expression, and return operations that
+/// [`ExecutableInstruction::ExecuteLowered`] carries.  It is derived from the
+/// registry-owned [`LoweringHookId`] the statement already holds and from the
+/// statement's own retained operands — never from a command spelling.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoweredFootprint {
+    /// Cells the operation writes.
+    pub writes: Vec<CellReference>,
+    /// Cells the operation reads.
+    pub reads: Vec<CellReference>,
+    /// `true` when the operation reads cells this footprint does not bound.
+    pub reads_unbounded: bool,
+    /// `true` when evaluating the operands can run arbitrary Tcl commands, so
+    /// the cell footprint bounds only this operation's own accesses.
+    pub runs_commands: bool,
+    /// Completion codes the operation can produce, in ascending code order.
+    pub completion: Vec<CompletionCode>,
+}
+
+impl LoweredFootprint {
+    /// The conservative footprint: unbounded reads, unbounded writes, and an
+    /// unknown completion set.
+    #[must_use]
+    pub fn conservative() -> Self {
+        Self {
+            writes: vec![CellReference::Computed],
+            reads: Vec::new(),
+            reads_unbounded: true,
+            runs_commands: true,
+            completion: Vec::new(),
+        }
+    }
+
+    /// Whether this footprint bounds the operation's cell accesses at all.
+    #[must_use]
+    pub fn is_bounded(&self) -> bool {
+        !self.runs_commands
+            && !self.reads_unbounded
+            && self
+                .writes
+                .iter()
+                .chain(&self.reads)
+                .all(|cell| cell.name().is_some())
     }
 }
 
@@ -344,6 +599,95 @@ pub enum ExecutableInstruction {
     /// Execute one structured region through a conservative compatibility
     /// boundary without declining the containing function.
     ExecuteOpaqueRegion(OpaqueRegion),
+    /// Evaluate one structured-control operand into a Tcl value.
+    ///
+    /// A condition or list operand may substitute variables and run commands,
+    /// so it can complete abnormally before the control decision is taken;
+    /// its completion must therefore be dispatched before the value is used.
+    EvaluateExpr {
+        /// Value available only on normal completion.
+        value: ExecutableValueId,
+        /// Completion of operand evaluation.
+        completion: CompletionId,
+        /// The retained structured operand.
+        expr: ExecutableExpr,
+        /// Structured statement containing the operand.
+        node: NodeId,
+        /// Exact operand source site.
+        source: SourceSite,
+    },
+    /// Compare one `switch` arm pattern against the evaluated subject.
+    ///
+    /// A dynamic or regular-expression pattern stays one opaque comparison,
+    /// but the arm bodies it selects between are real blocks.
+    MatchPattern {
+        /// Boolean match result, available only on normal completion.
+        value: ExecutableValueId,
+        /// Completion of the comparison, which a bad pattern can fail.
+        completion: CompletionId,
+        /// Evaluated `switch` subject.
+        subject: ExecutableValueId,
+        /// The arm's retained pattern and match mode.
+        pattern: SwitchPattern,
+        /// Structured statement containing the arm.
+        node: NodeId,
+        /// Exact pattern source site.
+        source: SourceSite,
+    },
+    /// Step a `foreach`/`lmap` list cursor and bind this iteration's variables.
+    ///
+    /// This is the loop header: it consumes the evaluated per-group lists,
+    /// writes each group's loop-variable cells for the iteration about to run,
+    /// and produces the boolean the following `Branch` tests.  Parsing an
+    /// operand as a Tcl list and writing a loop variable can both fail, so it
+    /// carries a completion.
+    IterateLists {
+        /// True when another iteration exists, available on normal completion.
+        has_iteration: ExecutableValueId,
+        /// Completion of the list parse and the per-iteration cell writes.
+        completion: CompletionId,
+        /// Iterator groups in source order.
+        groups: Vec<IteratorGroup>,
+        /// Structured statement that owns the loop.
+        node: NodeId,
+        /// Exact loop source site.
+        source: SourceSite,
+    },
+    /// Receive the completion triple that transferred control to this handler.
+    ///
+    /// This is the completion analogue of a φ: `catch` and `try` join every
+    /// abrupt edge out of their body, so the handler names the joined triple
+    /// rather than any one producer's.
+    JoinCompletion {
+        /// The joined completion observed by this handler block.
+        completion: CompletionId,
+        /// Structured statement that established the handler.
+        node: NodeId,
+        /// Exact handler source site.
+        source: SourceSite,
+    },
+    /// Write one part of an already-dispatched completion into a Tcl cell.
+    ///
+    /// `catch`'s result and options variables, and a `try` handler's bindings,
+    /// are ordinary cell writes of a completion payload — and a cell write can
+    /// itself fail, so it has its own completion.
+    WriteCompletionCell {
+        /// Completion of the cell write.
+        completion: CompletionId,
+        /// Completion whose payload is written.
+        payload_of: CompletionId,
+        /// Which part of that completion is written.
+        payload: CompletionPayload,
+        /// Destination cell.
+        cell: CellReference,
+        /// Structured statement that owns the binding.
+        node: NodeId,
+        /// Exact variable-word source site.
+        source: SourceSite,
+    },
+    /// Produce the completion of a structured control region whose interior is
+    /// now executable edges.
+    CompleteStructuredRegion(StructuredRegion),
 }
 
 /// One branch of a completion-code dispatch.
@@ -538,15 +882,7 @@ fn argv_entry_source_word<'f>(
         (ArgvEntry::Expanded(_), ExecutableInstruction::ExpandWord { original, .. }) => {
             Some(original)
         }
-        (ArgvEntry::Value(_), _)
-        | (
-            ArgvEntry::Expanded(_),
-            ExecutableInstruction::EvaluateWord { .. }
-            | ExecutableInstruction::BuildArgv { .. }
-            | ExecutableInstruction::Invoke(_)
-            | ExecutableInstruction::ExecuteLowered(_)
-            | ExecutableInstruction::ExecuteOpaqueRegion(_),
-        ) => None,
+        (ArgvEntry::Value(_), _) | (ArgvEntry::Expanded(_), _) => None,
     }
 }
 
@@ -566,18 +902,29 @@ enum ValueDefinition {
         position: InstructionPosition,
         completion: CompletionId,
     },
+    /// A value computed by structured control — a condition, a pattern match,
+    /// or a loop cursor step.  It is never a source word, so it can never be
+    /// an argv entry.
+    Computed {
+        position: InstructionPosition,
+        completion: CompletionId,
+    },
 }
 
 impl ValueDefinition {
     const fn position(self) -> InstructionPosition {
         match self {
-            Self::Word { position, .. } | Self::Expansion { position, .. } => position,
+            Self::Word { position, .. }
+            | Self::Expansion { position, .. }
+            | Self::Computed { position, .. } => position,
         }
     }
 
     const fn completion(self) -> CompletionId {
         match self {
-            Self::Word { completion, .. } | Self::Expansion { completion, .. } => completion,
+            Self::Word { completion, .. }
+            | Self::Expansion { completion, .. }
+            | Self::Computed { completion, .. } => completion,
         }
     }
 }
@@ -705,7 +1052,64 @@ fn collect_instruction_definition(
             validate_opaque_region(region)?;
             insert_completion_definition(&mut definitions.completions, region.completion, position)
         }
+        ExecutableInstruction::EvaluateExpr {
+            value, completion, ..
+        }
+        | ExecutableInstruction::MatchPattern {
+            value, completion, ..
+        } => {
+            insert_value_definition(
+                &mut definitions.values,
+                *value,
+                ValueDefinition::Computed {
+                    position,
+                    completion: *completion,
+                },
+            )?;
+            insert_completion_definition(&mut definitions.completions, *completion, position)
+        }
+        ExecutableInstruction::IterateLists {
+            has_iteration,
+            completion,
+            ..
+        } => {
+            insert_value_definition(
+                &mut definitions.values,
+                *has_iteration,
+                ValueDefinition::Computed {
+                    position,
+                    completion: *completion,
+                },
+            )?;
+            insert_completion_definition(&mut definitions.completions, *completion, position)
+        }
+        ExecutableInstruction::JoinCompletion { completion, .. }
+        | ExecutableInstruction::WriteCompletionCell { completion, .. } => {
+            insert_completion_definition(&mut definitions.completions, *completion, position)
+        }
+        ExecutableInstruction::CompleteStructuredRegion(region) => {
+            validate_structured_region(region)?;
+            insert_completion_definition(&mut definitions.completions, region.completion, position)
+        }
     }
+}
+
+fn validate_structured_region(
+    region: &StructuredRegion,
+) -> Result<(), ExecutableIrValidationError> {
+    if region.source.span != region.statement.span() {
+        return Err(ExecutableIrValidationError::OperationSourceMismatch {
+            completion: region.completion,
+        });
+    }
+    if structured_region_projection(&region.statement).map(|(descriptor, kind)| (descriptor, kind))
+        != Some((region.descriptor, region.kind))
+    {
+        return Err(ExecutableIrValidationError::OperationDescriptorMismatch {
+            completion: region.completion,
+        });
+    }
+    Ok(())
 }
 
 fn validate_lowered_operation(
@@ -718,6 +1122,11 @@ fn validate_lowered_operation(
     }
     if lowered_operation_descriptor(&operation.statement) != Some(operation.descriptor) {
         return Err(ExecutableIrValidationError::OperationDescriptorMismatch {
+            completion: operation.completion,
+        });
+    }
+    if operation.footprint != lowered_operation_footprint(&operation.statement) {
+        return Err(ExecutableIrValidationError::OperationFootprintMismatch {
             completion: operation.completion,
         });
     }
@@ -800,7 +1209,20 @@ fn validate_instruction_uses(
     match instruction {
         ExecutableInstruction::EvaluateWord { .. }
         | ExecutableInstruction::ExecuteLowered(_)
-        | ExecutableInstruction::ExecuteOpaqueRegion(_) => Ok(()),
+        | ExecutableInstruction::ExecuteOpaqueRegion(_)
+        | ExecutableInstruction::EvaluateExpr { .. }
+        | ExecutableInstruction::JoinCompletion { .. }
+        | ExecutableInstruction::CompleteStructuredRegion(_) => Ok(()),
+        ExecutableInstruction::MatchPattern { subject, .. } => {
+            require_available_value(function, values, *subject, position, dominance).map(drop)
+        }
+        ExecutableInstruction::IterateLists { groups, .. } => {
+            for group in groups {
+                require_available_value(function, values, group.list, position, dominance)?;
+            }
+            Ok(())
+        }
+        ExecutableInstruction::WriteCompletionCell { .. } => Ok(()),
         ExecutableInstruction::ExpandWord {
             value,
             input,
@@ -888,6 +1310,9 @@ fn validate_argv_entry(
         }
         (ArgvEntry::Expanded(_), ValueDefinition::Word { .. }) => {
             Err(ExecutableIrValidationError::WordValueUsedAsExpansion { argv, value })
+        }
+        (_, ValueDefinition::Computed { .. }) => {
+            Err(ExecutableIrValidationError::ComputedValueUsedInArgv { argv, value })
         }
     }
 }
@@ -1304,6 +1729,57 @@ fn validate_instruction_owners(
         ExecutableInstruction::ExecuteOpaqueRegion(region) => {
             require_completion_owner(region.completion, function)?;
         }
+        ExecutableInstruction::EvaluateExpr {
+            value,
+            completion,
+            expr,
+            ..
+        } => {
+            require_value_owner(*value, function)?;
+            require_completion_owner(*completion, function)?;
+            if let ExecutableExpr::TrapPrefix {
+                completion: tested, ..
+            } = expr
+            {
+                require_completion_owner(*tested, function)?;
+            }
+        }
+        ExecutableInstruction::MatchPattern {
+            value,
+            completion,
+            subject,
+            ..
+        } => {
+            require_value_owner(*value, function)?;
+            require_completion_owner(*completion, function)?;
+            require_value_owner(*subject, function)?;
+        }
+        ExecutableInstruction::IterateLists {
+            has_iteration,
+            completion,
+            groups,
+            ..
+        } => {
+            require_value_owner(*has_iteration, function)?;
+            require_completion_owner(*completion, function)?;
+            for group in groups {
+                require_value_owner(group.list, function)?;
+            }
+        }
+        ExecutableInstruction::JoinCompletion { completion, .. } => {
+            require_completion_owner(*completion, function)?;
+        }
+        ExecutableInstruction::WriteCompletionCell {
+            completion,
+            payload_of,
+            ..
+        } => {
+            require_completion_owner(*completion, function)?;
+            require_completion_owner(*payload_of, function)?;
+        }
+        ExecutableInstruction::CompleteStructuredRegion(region) => {
+            require_completion_owner(region.completion, function)?;
+        }
     }
     Ok(())
 }
@@ -1595,6 +2071,20 @@ pub enum ExecutableIrValidationError {
         /// Completion being dispatched.
         completion: CompletionId,
     },
+    /// A lowered operation's retained cell/completion footprint does not match
+    /// the footprint its statement projects.
+    OperationFootprintMismatch {
+        /// Completion identifying the malformed operation.
+        completion: CompletionId,
+    },
+    /// A structured-control value was supplied as an argv entry, which would
+    /// claim a source word the value never came from.
+    ComputedValueUsedInArgv {
+        /// Constructed argv vector.
+        argv: ExecutableArgvId,
+        /// Structured-control value used incorrectly.
+        value: ExecutableValueId,
+    },
 }
 
 /// Why the deliberately small source-IR compatibility builder declined input.
@@ -1637,11 +2127,14 @@ pub enum SourceCompatibilityDecline {
 ///
 /// Calls with exact segmented words retain the complete generic invocation
 /// sequence. Already-lowered assignment, expression, increment, and return
-/// statements become registry-identified structural operations without
-/// reconstructing a command head. Structured control that this IR cannot yet
-/// spell exactly becomes one typed opaque region, so it does not discard facts
-/// for the rest of the function. No optimisation or backend specialisation is
-/// enabled by this adapter.
+/// statements become registry-identified structural operations carrying their
+/// exact cell and completion footprint. Structured control — `if`, `while`,
+/// `for`, `foreach`/`lmap`, `catch`, `try`, and `switch` — becomes real
+/// executable blocks with branch, loop back, handler, and completion edges;
+/// only the inlined-body regions (`Block`, `UpFrame`) and the structured
+/// shapes explicitly listed in [`structured_region_projection`] remain typed
+/// opaque regions. No optimisation or backend specialisation is enabled by
+/// this adapter.
 pub fn build_linear_executable_ir(
     registry: &CommandRegistry,
     context: Option<SemanticContext>,
@@ -1651,88 +2144,1032 @@ pub fn build_linear_executable_ir(
     if script.statements.is_empty() {
         return Err(SourceCompatibilityDecline::EmptyScript);
     }
-    let mut allocator = IdAllocator::new(function);
-    let stages = plan_linear_stages(registry, context, script, &mut allocator)?;
-    Ok(build_staged_function(function, &mut allocator, stages))
+    let mut builder = FunctionBuilder::new(function);
+    let entry = builder.new_block();
+    let (tail, completion) = builder.emit_script(
+        registry,
+        context,
+        script,
+        &[],
+        entry,
+        ControlContext::FUNCTION_BODY,
+    )?;
+    let Some(completion) = completion else {
+        return Err(SourceCompatibilityDecline::EmptyScript);
+    };
+    builder.terminate(tail, ExecutableTerminator::ReturnCompletion(completion));
+    let executable = ExecutableFunction::new(function, entry, builder.blocks);
+    debug_assert!(
+        executable.validate().is_ok(),
+        "compatibility builder emitted invalid executable IR: {:?}",
+        executable.validate()
+    );
+    Ok(executable)
 }
 
-fn plan_linear_stages(
-    registry: &CommandRegistry,
-    context: Option<SemanticContext>,
-    script: &Script,
-    allocator: &mut IdAllocator,
-) -> Result<Vec<Stage>, SourceCompatibilityDecline> {
-    let mut stages = Vec::new();
-    for (statement_index, statement) in script.statements.iter().enumerate() {
-        let terminates = plan_source_statement(
-            registry,
-            context,
-            statement,
-            statement_index,
-            allocator,
-            &mut stages,
-        )?;
-        if terminates {
-            break;
+/// Where an abnormal completion goes from the statement being emitted.
+///
+/// This is what makes "any non-OK code unwinds" a graph fact rather than a
+/// backend convention: a completion whose code is not routed by one of these
+/// targets reaches the `default` arm of a [`ExecutableTerminator::CompletionSwitch`]
+/// and leaves the function carrying its own triple.
+#[derive(Clone, Copy)]
+struct ControlContext {
+    /// Block that receives a `TCL_BREAK` completion, inside a loop body.
+    break_target: Option<ExecutableBlockId>,
+    /// Block that receives a `TCL_CONTINUE` completion, inside a loop body.
+    continue_target: Option<ExecutableBlockId>,
+    /// Block that joins every other abnormal completion — a `catch` or `try`
+    /// handler. `None` leaves the function with the completion.
+    unwind: Option<ExecutableBlockId>,
+}
+
+impl ControlContext {
+    /// The function body itself: nothing is caught, so every abnormal code
+    /// leaves the function.
+    const FUNCTION_BODY: Self = Self {
+        break_target: None,
+        continue_target: None,
+        unwind: None,
+    };
+
+    const fn loop_body(
+        self,
+        break_target: ExecutableBlockId,
+        continue_target: ExecutableBlockId,
+    ) -> Self {
+        Self {
+            break_target: Some(break_target),
+            continue_target: Some(continue_target),
+            unwind: self.unwind,
         }
     }
-    Ok(stages)
+
+    /// A `catch`/`try` body: every abnormal code, loop control included, joins
+    /// the handler instead of leaving the region.
+    const fn caught_body(handler: ExecutableBlockId) -> Self {
+        Self {
+            break_target: None,
+            continue_target: None,
+            unwind: Some(handler),
+        }
+    }
 }
 
-fn plan_source_statement(
-    registry: &CommandRegistry,
-    context: Option<SemanticContext>,
-    statement: &Statement,
-    statement_index: usize,
-    allocator: &mut IdAllocator,
-    stages: &mut Vec<Stage>,
-) -> Result<bool, SourceCompatibilityDecline> {
-    let source = SourceSite::source(statement.span());
-    let node = NodeId::from_path(vec![u32::try_from(statement_index).unwrap_or(u32::MAX)]);
-    if let Some(descriptor) = lowered_operation_descriptor(statement) {
-        stages.push(Stage::ExecuteLowered(LoweredOperation {
-            completion: allocator.completion(),
-            descriptor,
-            statement: statement.clone(),
-            node,
-            source,
-        }));
-        return Ok(matches!(statement, Statement::Return { .. }));
+struct FunctionBuilder {
+    allocator: IdAllocator,
+    blocks: Vec<ExecutableBlock>,
+}
+
+impl FunctionBuilder {
+    fn new(function: ExecutableFunctionId) -> Self {
+        Self {
+            allocator: IdAllocator::new(function),
+            blocks: Vec::new(),
+        }
     }
-    if let Some(descriptor) = opaque_region_descriptor(statement) {
-        stages.push(Stage::ExecuteOpaqueRegion(OpaqueRegion {
-            completion: allocator.completion(),
-            descriptor: descriptor.lowering_hook(),
-            statement: statement.clone(),
-            node,
-            source,
-        }));
-        return Ok(false);
+
+    /// Allocate one empty block. Allocation order is block-ID order, which is
+    /// the deterministic vector position [`ExecutableFunction::validate`]
+    /// requires.
+    fn new_block(&mut self) -> ExecutableBlockId {
+        let id = self.allocator.block();
+        self.blocks.push(ExecutableBlock::new(id));
+        id
     }
-    let source_call = source_call(statement, statement_index)?;
-    let words = exact_words(
-        source_call.tokens,
-        statement_index,
-        source_call.command,
-        source_call.args,
-    )?;
-    let resolution = resolve_invocation_facts(registry, context, &words, statement_index)?;
-    let entries = plan_argv_entries(&words, &node, allocator, stages);
-    let argv = allocator.argv();
-    stages.push(Stage::BuildArgv {
-        argv,
-        completion: allocator.completion(),
-        entries,
-    });
-    stages.push(Stage::Invoke {
-        argv,
-        completion: allocator.completion(),
-        resolution,
-        original_words: words,
-        node,
-        source,
-    });
-    Ok(false)
+
+    fn push(&mut self, block: ExecutableBlockId, instruction: ExecutableInstruction) {
+        self.blocks[block.index()].instructions.push(instruction);
+    }
+
+    fn terminate(&mut self, block: ExecutableBlockId, terminator: ExecutableTerminator) {
+        self.blocks[block.index()].terminator = Some(terminator);
+    }
+
+    /// Terminate `block` by dispatching `completion`, and return the block
+    /// where normal completion continues.
+    fn dispatch(
+        &mut self,
+        block: ExecutableBlockId,
+        completion: CompletionId,
+        control: ControlContext,
+    ) -> ExecutableBlockId {
+        let ok = self.new_block();
+        let mut cases = vec![CompletionCase {
+            code: CompletionCode::Ok,
+            target: ok,
+        }];
+        if let Some(target) = control.break_target {
+            cases.push(CompletionCase {
+                code: CompletionCode::Break,
+                target,
+            });
+        }
+        if let Some(target) = control.continue_target {
+            cases.push(CompletionCase {
+                code: CompletionCode::Continue,
+                target,
+            });
+        }
+        let default = control.unwind.unwrap_or_else(|| {
+            let leave = self.new_block();
+            self.terminate(leave, ExecutableTerminator::ReturnCompletion(completion));
+            leave
+        });
+        self.terminate(
+            block,
+            ExecutableTerminator::CompletionSwitch {
+                completion,
+                cases,
+                default,
+            },
+        );
+        ok
+    }
+
+    /// Emit every statement of `script` starting at the empty block `block`.
+    ///
+    /// Returns the still-unterminated block where normal completion continues
+    /// and the completion of the last statement emitted, or `None` when the
+    /// script was empty.
+    fn emit_script(
+        &mut self,
+        registry: &CommandRegistry,
+        context: Option<SemanticContext>,
+        script: &Script,
+        path: &[u32],
+        block: ExecutableBlockId,
+        control: ControlContext,
+    ) -> Result<(ExecutableBlockId, Option<CompletionId>), SourceCompatibilityDecline> {
+        let mut current = block;
+        let mut last = None;
+        for (statement_index, statement) in script.statements.iter().enumerate() {
+            let node = child_node(path, statement_index);
+            let (next, completion) =
+                self.emit_statement(registry, context, statement, &node, current, control)?;
+            current = next;
+            last = Some(completion);
+            // A retained `return` ends the sequence: what follows it in the
+            // same script is unreachable, exactly as the source-faithful
+            // lowering already recorded.
+            if matches!(statement, Statement::Return { .. }) {
+                break;
+            }
+        }
+        Ok((current, last))
+    }
+
+    fn emit_statement(
+        &mut self,
+        registry: &CommandRegistry,
+        context: Option<SemanticContext>,
+        statement: &Statement,
+        node: &NodeId,
+        block: ExecutableBlockId,
+        control: ControlContext,
+    ) -> Result<(ExecutableBlockId, CompletionId), SourceCompatibilityDecline> {
+        let source = SourceSite::source(statement.span());
+        if let Some(descriptor) = lowered_operation_descriptor(statement) {
+            let completion = self.allocator.completion();
+            self.push(
+                block,
+                ExecutableInstruction::ExecuteLowered(LoweredOperation {
+                    completion,
+                    descriptor,
+                    footprint: lowered_operation_footprint(statement),
+                    statement: statement.clone(),
+                    node: node.clone(),
+                    source,
+                }),
+            );
+            return Ok((self.dispatch(block, completion, control), completion));
+        }
+        if structured_region_projection(statement).is_some() {
+            return self.emit_structured_region(registry, context, statement, node, block, control);
+        }
+        if let Some(descriptor) = opaque_region_descriptor(statement) {
+            let completion = self.allocator.completion();
+            self.push(
+                block,
+                ExecutableInstruction::ExecuteOpaqueRegion(OpaqueRegion {
+                    completion,
+                    descriptor: descriptor.lowering_hook(),
+                    statement: statement.clone(),
+                    node: node.clone(),
+                    source,
+                }),
+            );
+            return Ok((self.dispatch(block, completion, control), completion));
+        }
+        self.emit_call(registry, context, statement, node, block, control, source)
+    }
+
+    fn emit_call(
+        &mut self,
+        registry: &CommandRegistry,
+        context: Option<SemanticContext>,
+        statement: &Statement,
+        node: &NodeId,
+        block: ExecutableBlockId,
+        control: ControlContext,
+        source: SourceSite,
+    ) -> Result<(ExecutableBlockId, CompletionId), SourceCompatibilityDecline> {
+        let statement_index = node.path().last().copied().unwrap_or(0) as usize;
+        let source_call = source_call(statement, statement_index)?;
+        let words = exact_words(
+            source_call.tokens,
+            statement_index,
+            source_call.command,
+            source_call.args,
+        )?;
+        let resolution = resolve_invocation_facts(registry, context, &words, statement_index)?;
+        let mut stages = Vec::new();
+        let entries = plan_argv_entries(&words, node, &mut self.allocator, &mut stages);
+        let argv = self.allocator.argv();
+        stages.push(Stage::BuildArgv {
+            argv,
+            completion: self.allocator.completion(),
+            entries,
+        });
+        stages.push(Stage::Invoke {
+            argv,
+            completion: self.allocator.completion(),
+            resolution,
+            original_words: words,
+            node: node.clone(),
+            source,
+        });
+        let mut current = block;
+        let mut last = None;
+        for stage in stages {
+            let completion = stage.completion();
+            for instruction in stage.into_instructions() {
+                self.push(current, instruction);
+            }
+            current = self.dispatch(current, completion, control);
+            last = Some(completion);
+        }
+        Ok((
+            current,
+            last.expect("a call always plans at least one stage"),
+        ))
+    }
+
+    fn emit_structured_region(
+        &mut self,
+        registry: &CommandRegistry,
+        context: Option<SemanticContext>,
+        statement: &Statement,
+        node: &NodeId,
+        block: ExecutableBlockId,
+        control: ControlContext,
+    ) -> Result<(ExecutableBlockId, CompletionId), SourceCompatibilityDecline> {
+        match statement {
+            Statement::If {
+                clauses, else_body, ..
+            } => self.emit_if(
+                registry,
+                context,
+                statement,
+                clauses,
+                else_body.as_ref(),
+                node,
+                block,
+                control,
+            ),
+            Statement::While {
+                condition,
+                condition_span,
+                condition_base,
+                body,
+                ..
+            } => self.emit_condition_loop(
+                registry,
+                context,
+                statement,
+                LoopParts {
+                    init: None,
+                    condition,
+                    condition_span: *condition_span,
+                    condition_base: *condition_base,
+                    next: None,
+                    body,
+                },
+                node,
+                block,
+                control,
+            ),
+            Statement::For {
+                init,
+                condition,
+                condition_span,
+                condition_base,
+                next,
+                body,
+                ..
+            } => self.emit_condition_loop(
+                registry,
+                context,
+                statement,
+                LoopParts {
+                    init: Some(init),
+                    condition,
+                    condition_span: *condition_span,
+                    condition_base: *condition_base,
+                    next: Some(next),
+                    body,
+                },
+                node,
+                block,
+                control,
+            ),
+            Statement::Foreach {
+                iterators, body, ..
+            } => self.emit_cursor_loop(
+                registry, context, statement, iterators, body, node, block, control,
+            ),
+            Statement::Catch {
+                body,
+                result_var,
+                options_var,
+                ..
+            } => self.emit_catch(
+                registry,
+                context,
+                statement,
+                body,
+                result_var.as_deref(),
+                options_var.as_deref(),
+                node,
+                block,
+                control,
+            ),
+            Statement::Try {
+                body,
+                handlers,
+                finally_body,
+                ..
+            } => self.emit_try(
+                registry,
+                context,
+                statement,
+                body,
+                handlers,
+                finally_body.as_ref(),
+                node,
+                block,
+                control,
+            ),
+            Statement::Switch {
+                subject,
+                subject_span,
+                arms,
+                default_body,
+                mode,
+                nocase,
+                patterns_braced,
+                ..
+            } => self.emit_switch(
+                registry,
+                context,
+                statement,
+                SwitchParts {
+                    subject,
+                    subject_span: *subject_span,
+                    arms,
+                    default_body: default_body.as_ref(),
+                    mode: *mode,
+                    nocase: *nocase,
+                    patterns_braced: *patterns_braced,
+                },
+                node,
+                block,
+                control,
+            ),
+            _ => unreachable!("structured_region_projection selected a non-structured statement"),
+        }
+    }
+
+    /// Produce the region's completion where its interior edges join, then
+    /// dispatch it in the enclosing control context.
+    fn complete_region(
+        &mut self,
+        statement: &Statement,
+        node: &NodeId,
+        join: ExecutableBlockId,
+        control: ControlContext,
+    ) -> (ExecutableBlockId, CompletionId) {
+        let (descriptor, kind) = structured_region_projection(statement)
+            .expect("only a projected statement reaches region completion");
+        let completion = self.allocator.completion();
+        self.push(
+            join,
+            ExecutableInstruction::CompleteStructuredRegion(StructuredRegion {
+                completion,
+                descriptor,
+                kind,
+                statement: statement.clone(),
+                node: node.clone(),
+                source: SourceSite::source(statement.span()),
+            }),
+        );
+        (self.dispatch(join, completion, control), completion)
+    }
+
+    fn emit_condition(
+        &mut self,
+        condition: &ExprNode,
+        condition_span: tcl_lexer::Span,
+        condition_base: Option<u32>,
+        node: &NodeId,
+        block: ExecutableBlockId,
+        control: ControlContext,
+    ) -> (ExecutableBlockId, ExecutableValueId) {
+        let value = self.allocator.value();
+        let completion = self.allocator.completion();
+        self.push(
+            block,
+            ExecutableInstruction::EvaluateExpr {
+                value,
+                completion,
+                expr: ExecutableExpr::Condition {
+                    expr: Box::new(condition.clone()),
+                    base: condition_base,
+                },
+                node: node.clone(),
+                source: SourceSite::source(condition_span),
+            },
+        );
+        (self.dispatch(block, completion, control), value)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn emit_if(
+        &mut self,
+        registry: &CommandRegistry,
+        context: Option<SemanticContext>,
+        statement: &Statement,
+        clauses: &[crate::ir::IfClause],
+        else_body: Option<&Script>,
+        node: &NodeId,
+        block: ExecutableBlockId,
+        control: ControlContext,
+    ) -> Result<(ExecutableBlockId, CompletionId), SourceCompatibilityDecline> {
+        let join = self.new_block();
+        let mut current = block;
+        for (index, clause) in clauses.iter().enumerate() {
+            let (decided, condition) = self.emit_condition(
+                &clause.condition,
+                clause.condition_span,
+                clause.condition_base,
+                node,
+                current,
+                control,
+            );
+            let body_entry = self.new_block();
+            let next_test = self.new_block();
+            self.terminate(
+                decided,
+                ExecutableTerminator::Branch {
+                    condition,
+                    then_target: body_entry,
+                    else_target: next_test,
+                },
+            );
+            let path = child_path(node, u32::try_from(index).unwrap_or(u32::MAX));
+            let (tail, _) =
+                self.emit_script(registry, context, &clause.body, &path, body_entry, control)?;
+            self.terminate(tail, ExecutableTerminator::Goto(join));
+            current = next_test;
+        }
+        if let Some(else_body) = else_body {
+            let path = child_path(node, u32::try_from(clauses.len()).unwrap_or(u32::MAX));
+            let (tail, _) =
+                self.emit_script(registry, context, else_body, &path, current, control)?;
+            self.terminate(tail, ExecutableTerminator::Goto(join));
+        } else {
+            self.terminate(current, ExecutableTerminator::Goto(join));
+        }
+        Ok(self.complete_region(statement, node, join, control))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn emit_condition_loop(
+        &mut self,
+        registry: &CommandRegistry,
+        context: Option<SemanticContext>,
+        statement: &Statement,
+        parts: LoopParts<'_>,
+        node: &NodeId,
+        block: ExecutableBlockId,
+        control: ControlContext,
+    ) -> Result<(ExecutableBlockId, CompletionId), SourceCompatibilityDecline> {
+        let mut current = block;
+        if let Some(init) = parts.init {
+            let path = child_path(node, LOOP_INIT_SLOT);
+            let (tail, _) = self.emit_script(registry, context, init, &path, current, control)?;
+            current = tail;
+        }
+        let header = self.new_block();
+        self.terminate(current, ExecutableTerminator::Goto(header));
+        let exit = self.new_block();
+        let (decided, condition) = self.emit_condition(
+            parts.condition,
+            parts.condition_span,
+            parts.condition_base,
+            node,
+            header,
+            control,
+        );
+        let body_entry = self.new_block();
+        self.terminate(
+            decided,
+            ExecutableTerminator::Branch {
+                condition,
+                then_target: body_entry,
+                else_target: exit,
+            },
+        );
+        // `continue` re-runs the `next` script of a `for` before the header;
+        // a `while` continues straight at the header.
+        let continue_target = if parts.next.is_some() {
+            self.new_block()
+        } else {
+            header
+        };
+        let body_control = control.loop_body(exit, continue_target);
+        let path = child_path(node, LOOP_BODY_SLOT);
+        let (tail, _) = self.emit_script(
+            registry,
+            context,
+            parts.body,
+            &path,
+            body_entry,
+            body_control,
+        )?;
+        if let Some(next) = parts.next {
+            self.terminate(tail, ExecutableTerminator::Goto(continue_target));
+            let path = child_path(node, LOOP_NEXT_SLOT);
+            let (next_tail, _) =
+                self.emit_script(registry, context, next, &path, continue_target, control)?;
+            self.terminate(next_tail, ExecutableTerminator::Goto(header));
+        } else {
+            self.terminate(tail, ExecutableTerminator::Goto(header));
+        }
+        Ok(self.complete_region(statement, node, exit, control))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn emit_cursor_loop(
+        &mut self,
+        registry: &CommandRegistry,
+        context: Option<SemanticContext>,
+        statement: &Statement,
+        iterators: &[crate::ir::ForeachIterator],
+        body: &Script,
+        node: &NodeId,
+        block: ExecutableBlockId,
+        control: ControlContext,
+    ) -> Result<(ExecutableBlockId, CompletionId), SourceCompatibilityDecline> {
+        let source = SourceSite::source(statement.span());
+        let mut current = block;
+        let mut groups = Vec::with_capacity(iterators.len());
+        for iterator in iterators {
+            let value = self.allocator.value();
+            let completion = self.allocator.completion();
+            self.push(
+                current,
+                ExecutableInstruction::EvaluateExpr {
+                    value,
+                    completion,
+                    expr: ExecutableExpr::Operand {
+                        text: iterator.list_arg.clone(),
+                        braced: iterator.list_braced,
+                    },
+                    node: node.clone(),
+                    source: source.clone(),
+                },
+            );
+            current = self.dispatch(current, completion, control);
+            groups.push(IteratorGroup {
+                list: value,
+                variables: iterator
+                    .vars
+                    .iter()
+                    .map(|name| CellReference::from_name(name, false))
+                    .collect(),
+            });
+        }
+        let header = self.new_block();
+        self.terminate(current, ExecutableTerminator::Goto(header));
+        let exit = self.new_block();
+        let has_iteration = self.allocator.value();
+        let completion = self.allocator.completion();
+        self.push(
+            header,
+            ExecutableInstruction::IterateLists {
+                has_iteration,
+                completion,
+                groups,
+                node: node.clone(),
+                source,
+            },
+        );
+        let decided = self.dispatch(header, completion, control);
+        let body_entry = self.new_block();
+        self.terminate(
+            decided,
+            ExecutableTerminator::Branch {
+                condition: has_iteration,
+                then_target: body_entry,
+                else_target: exit,
+            },
+        );
+        let body_control = control.loop_body(exit, header);
+        let path = child_path(node, LOOP_BODY_SLOT);
+        let (tail, _) =
+            self.emit_script(registry, context, body, &path, body_entry, body_control)?;
+        self.terminate(tail, ExecutableTerminator::Goto(header));
+        Ok(self.complete_region(statement, node, exit, control))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn emit_catch(
+        &mut self,
+        registry: &CommandRegistry,
+        context: Option<SemanticContext>,
+        statement: &Statement,
+        body: &Script,
+        result_var: Option<&str>,
+        options_var: Option<&str>,
+        node: &NodeId,
+        block: ExecutableBlockId,
+        control: ControlContext,
+    ) -> Result<(ExecutableBlockId, CompletionId), SourceCompatibilityDecline> {
+        let source = SourceSite::source(statement.span());
+        let handler = self.new_block();
+        let join = self.new_block();
+        let path = child_path(node, LOOP_BODY_SLOT);
+        let (tail, _) = self.emit_script(
+            registry,
+            context,
+            body,
+            &path,
+            block,
+            ControlContext::caught_body(handler),
+        )?;
+        self.terminate(tail, ExecutableTerminator::Goto(join));
+
+        let caught = self.allocator.completion();
+        self.push(
+            handler,
+            ExecutableInstruction::JoinCompletion {
+                completion: caught,
+                node: node.clone(),
+                source: source.clone(),
+            },
+        );
+        let mut current = self.new_block();
+        self.terminate(handler, ExecutableTerminator::Goto(current));
+        for (variable, payload) in [
+            (result_var, CompletionPayload::Result),
+            (options_var, CompletionPayload::Options),
+        ] {
+            let Some(variable) = variable else { continue };
+            let completion = self.allocator.completion();
+            self.push(
+                current,
+                ExecutableInstruction::WriteCompletionCell {
+                    completion,
+                    payload_of: caught,
+                    payload,
+                    cell: CellReference::from_name(variable, false),
+                    node: node.clone(),
+                    source: source.clone(),
+                },
+            );
+            current = self.dispatch(current, completion, control);
+        }
+        self.terminate(current, ExecutableTerminator::Goto(join));
+        Ok(self.complete_region(statement, node, join, control))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn emit_try(
+        &mut self,
+        registry: &CommandRegistry,
+        context: Option<SemanticContext>,
+        statement: &Statement,
+        body: &Script,
+        handlers: &[crate::ir::TryHandler],
+        finally_body: Option<&Script>,
+        node: &NodeId,
+        block: ExecutableBlockId,
+        control: ControlContext,
+    ) -> Result<(ExecutableBlockId, CompletionId), SourceCompatibilityDecline> {
+        let source = SourceSite::source(statement.span());
+        let dispatch_block = self.new_block();
+        let finally_entry = self.new_block();
+        let join = self.new_block();
+        let path = child_path(node, LOOP_BODY_SLOT);
+        let (tail, _) = self.emit_script(
+            registry,
+            context,
+            body,
+            &path,
+            block,
+            ControlContext::caught_body(dispatch_block),
+        )?;
+        self.terminate(tail, ExecutableTerminator::Goto(finally_entry));
+
+        let caught = self.allocator.completion();
+        self.push(
+            dispatch_block,
+            ExecutableInstruction::JoinCompletion {
+                completion: caught,
+                node: node.clone(),
+                source: source.clone(),
+            },
+        );
+        // Every handler's abnormal completion also runs `finally`, so handler
+        // bodies unwind into the same finally edge as the body.
+        let handler_control = ControlContext::caught_body(finally_entry);
+        let handler_entries = self.emit_try_handlers(
+            registry,
+            context,
+            handlers,
+            caught,
+            node,
+            &source,
+            finally_entry,
+            handler_control,
+        )?;
+        let mut cases = Vec::new();
+        for (code, target) in handler_entries {
+            if cases.iter().any(|case: &CompletionCase| case.code == code) {
+                continue;
+            }
+            cases.push(CompletionCase { code, target });
+        }
+        cases.sort_by_key(|case| case.code.as_int());
+        self.terminate(
+            dispatch_block,
+            ExecutableTerminator::CompletionSwitch {
+                completion: caught,
+                cases,
+                // An unhandled code still runs `finally` before it leaves.
+                default: finally_entry,
+            },
+        );
+
+        let finally_tail = if let Some(finally_body) = finally_body {
+            let path = child_path(node, TRY_FINALLY_SLOT);
+            let (tail, _) = self.emit_script(
+                registry,
+                context,
+                finally_body,
+                &path,
+                finally_entry,
+                ControlContext::caught_body(join),
+            )?;
+            tail
+        } else {
+            finally_entry
+        };
+        self.terminate(finally_tail, ExecutableTerminator::Goto(join));
+        Ok(self.complete_region(statement, node, join, control))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn emit_try_handlers(
+        &mut self,
+        registry: &CommandRegistry,
+        context: Option<SemanticContext>,
+        handlers: &[crate::ir::TryHandler],
+        caught: CompletionId,
+        node: &NodeId,
+        source: &SourceSite,
+        finally_entry: ExecutableBlockId,
+        control: ControlContext,
+    ) -> Result<Vec<(CompletionCode, ExecutableBlockId)>, SourceCompatibilityDecline> {
+        let mut entries = Vec::new();
+        for (index, handler) in handlers.iter().enumerate() {
+            let Some(code) = try_handler_code(handler) else {
+                continue;
+            };
+            let body = resolve_try_fallthrough(handlers, index);
+            let entry = self.new_block();
+            let mut current = entry;
+            if let Some(prefix) = handler.trap_pattern.clone() {
+                // A `trap` selector narrows an error by its `-errorcode`
+                // prefix; the parse is the registry-owned one lowering already
+                // performed, never a local re-parse of the handler grammar.
+                let value = self.allocator.value();
+                let completion = self.allocator.completion();
+                self.push(
+                    current,
+                    ExecutableInstruction::EvaluateExpr {
+                        value,
+                        completion,
+                        expr: ExecutableExpr::TrapPrefix {
+                            completion: caught,
+                            prefix,
+                        },
+                        node: node.clone(),
+                        source: source.clone(),
+                    },
+                );
+                let decided = self.dispatch(current, completion, control);
+                let matched = self.new_block();
+                self.terminate(
+                    decided,
+                    ExecutableTerminator::Branch {
+                        condition: value,
+                        then_target: matched,
+                        else_target: finally_entry,
+                    },
+                );
+                current = matched;
+            }
+            for (variable, payload) in [
+                (handler.var_name.as_deref(), CompletionPayload::Result),
+                (handler.options_var.as_deref(), CompletionPayload::Options),
+            ] {
+                let Some(variable) = variable else { continue };
+                let completion = self.allocator.completion();
+                self.push(
+                    current,
+                    ExecutableInstruction::WriteCompletionCell {
+                        completion,
+                        payload_of: caught,
+                        payload,
+                        cell: CellReference::from_name(variable, false),
+                        node: node.clone(),
+                        source: source.clone(),
+                    },
+                );
+                current = self.dispatch(current, completion, control);
+            }
+            let path = child_path(node, TRY_HANDLER_SLOT + u32::try_from(index).unwrap_or(0));
+            let (tail, _) = self.emit_script(registry, context, body, &path, current, control)?;
+            self.terminate(tail, ExecutableTerminator::Goto(finally_entry));
+            entries.push((code, entry));
+        }
+        Ok(entries)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn emit_switch(
+        &mut self,
+        registry: &CommandRegistry,
+        context: Option<SemanticContext>,
+        statement: &Statement,
+        parts: SwitchParts<'_>,
+        node: &NodeId,
+        block: ExecutableBlockId,
+        control: ControlContext,
+    ) -> Result<(ExecutableBlockId, CompletionId), SourceCompatibilityDecline> {
+        let source = SourceSite::source(statement.span());
+        let subject_value = self.allocator.value();
+        let subject_completion = self.allocator.completion();
+        self.push(
+            block,
+            ExecutableInstruction::EvaluateExpr {
+                value: subject_value,
+                completion: subject_completion,
+                expr: ExecutableExpr::Operand {
+                    text: parts.subject.to_owned(),
+                    braced: false,
+                },
+                node: node.clone(),
+                source: SourceSite::source(parts.subject_span),
+            },
+        );
+        let mut current = self.dispatch(block, subject_completion, control);
+        let join = self.new_block();
+        // A `-` body falls through to the next arm that has one, so the shared
+        // body is emitted once and every falling arm branches to it.
+        let bodies: Vec<Option<ExecutableBlockId>> = parts
+            .arms
+            .iter()
+            .map(|arm| arm.body.as_ref().map(|_| self.new_block()))
+            .collect();
+        for (index, arm) in parts.arms.iter().enumerate() {
+            let Some(target) = next_switch_body(&bodies, index) else {
+                continue;
+            };
+            let value = self.allocator.value();
+            let completion = self.allocator.completion();
+            self.push(
+                current,
+                ExecutableInstruction::MatchPattern {
+                    value,
+                    completion,
+                    subject: subject_value,
+                    pattern: SwitchPattern {
+                        text: arm.pattern.clone(),
+                        mode: parts.mode,
+                        nocase: parts.nocase,
+                        literal: parts.patterns_braced,
+                    },
+                    node: node.clone(),
+                    source: SourceSite::source(arm.pattern_span),
+                },
+            );
+            let decided = self.dispatch(current, completion, control);
+            let next_test = self.new_block();
+            self.terminate(
+                decided,
+                ExecutableTerminator::Branch {
+                    condition: value,
+                    then_target: target,
+                    else_target: next_test,
+                },
+            );
+            current = next_test;
+        }
+        for (index, arm) in parts.arms.iter().enumerate() {
+            let (Some(body), Some(entry)) = (arm.body.as_ref(), bodies[index]) else {
+                continue;
+            };
+            let path = child_path(node, u32::try_from(index).unwrap_or(u32::MAX));
+            let (tail, _) = self.emit_script(registry, context, body, &path, entry, control)?;
+            self.terminate(tail, ExecutableTerminator::Goto(join));
+        }
+        if let Some(default_body) = parts.default_body {
+            let path = child_path(node, SWITCH_DEFAULT_SLOT);
+            let (tail, _) =
+                self.emit_script(registry, context, default_body, &path, current, control)?;
+            self.terminate(tail, ExecutableTerminator::Goto(join));
+        } else {
+            self.terminate(current, ExecutableTerminator::Goto(join));
+        }
+        let _ = source;
+        Ok(self.complete_region(statement, node, join, control))
+    }
+}
+
+/// The `for`/`while` operands one loop projection needs.
+struct LoopParts<'a> {
+    init: Option<&'a Script>,
+    condition: &'a ExprNode,
+    condition_span: tcl_lexer::Span,
+    condition_base: Option<u32>,
+    next: Option<&'a Script>,
+    body: &'a Script,
+}
+
+/// The registry-parsed `switch` operands one decision tree needs.
+struct SwitchParts<'a> {
+    subject: &'a str,
+    subject_span: tcl_lexer::Span,
+    arms: &'a [crate::ir::SwitchArm],
+    default_body: Option<&'a Script>,
+    mode: SwitchMode,
+    nocase: bool,
+    patterns_braced: bool,
+}
+
+/// Reserved child-node slots for the interior scripts of a structured region.
+///
+/// They sit above any plausible statement index so an interior script's nodes
+/// can never collide with a sibling clause body's.
+const LOOP_BODY_SLOT: u32 = 1 << 24;
+const LOOP_INIT_SLOT: u32 = (1 << 24) + 1;
+const LOOP_NEXT_SLOT: u32 = (1 << 24) + 2;
+const TRY_FINALLY_SLOT: u32 = (1 << 24) + 3;
+const SWITCH_DEFAULT_SLOT: u32 = (1 << 24) + 4;
+const TRY_HANDLER_SLOT: u32 = 1 << 25;
+
+fn child_node(path: &[u32], index: usize) -> NodeId {
+    let mut child = path.to_vec();
+    child.push(u32::try_from(index).unwrap_or(u32::MAX));
+    NodeId::from_path(child)
+}
+
+fn child_path(node: &NodeId, slot: u32) -> Vec<u32> {
+    let mut path = node.path().to_vec();
+    path.push(slot);
+    path
+}
+
+/// The body a `try` handler runs, following `-` fallthrough to the next
+/// handler that has one.
+fn resolve_try_fallthrough(handlers: &[crate::ir::TryHandler], index: usize) -> &Script {
+    for handler in &handlers[index..] {
+        if !handler.fallthrough {
+            return &handler.body;
+        }
+    }
+    &handlers[index].body
+}
+
+/// The block that runs when a `switch` arm matches, following `-` fallthrough.
+fn next_switch_body(
+    bodies: &[Option<ExecutableBlockId>],
+    index: usize,
+) -> Option<ExecutableBlockId> {
+    bodies[index..].iter().find_map(|body| *body)
 }
 
 fn lowered_operation_descriptor(statement: &Statement) -> Option<LoweringHookId> {
@@ -1811,6 +3248,268 @@ fn opaque_region_descriptor(statement: &Statement) -> Option<OpaqueRegionDescrip
     }
 }
 
+/// The structured projection selected for one source statement, or `None` when
+/// the statement keeps a typed opaque region.
+///
+/// The identity is the registry-owned [`LoweringHookId`] the lowering already
+/// chose; nothing here recognises a command spelling.
+fn structured_region_projection(
+    statement: &Statement,
+) -> Option<(LoweringHookId, StructuredRegionKind)> {
+    match statement {
+        Statement::If { .. } => Some((LoweringHookId::If, StructuredRegionKind::Conditional)),
+        Statement::While { .. } => {
+            Some((LoweringHookId::While, StructuredRegionKind::ConditionLoop))
+        }
+        Statement::For { .. } => Some((LoweringHookId::For, StructuredRegionKind::ConditionLoop)),
+        Statement::Foreach {
+            is_lmap,
+            is_dict_iteration,
+            is_array_iteration,
+            ..
+        } => {
+            // `dict for`/`dict map` iterate a dictionary and Tcl 9's `array
+            // for` iterates an array, neither of which is the Tcl-list cursor
+            // this projection models, so both keep their opaque region.
+            (!*is_dict_iteration && !*is_array_iteration).then(|| {
+                (
+                    if *is_lmap {
+                        LoweringHookId::Lmap
+                    } else {
+                        LoweringHookId::Foreach
+                    },
+                    StructuredRegionKind::CursorLoop,
+                )
+            })
+        }
+        Statement::Catch { .. } => Some((LoweringHookId::Catch, StructuredRegionKind::Catch)),
+        Statement::Try { .. } => Some((LoweringHookId::Try, StructuredRegionKind::Try)),
+        Statement::Switch { .. } => Some((LoweringHookId::Switch, StructuredRegionKind::Switch)),
+        Statement::AssignConst { .. }
+        | Statement::AssignExpr { .. }
+        | Statement::AssignValue { .. }
+        | Statement::Incr { .. }
+        | Statement::ExprEval { .. }
+        | Statement::Call { .. }
+        | Statement::Return { .. }
+        | Statement::Barrier { .. }
+        | Statement::Block { .. }
+        | Statement::UpFrame { .. } => None,
+    }
+}
+
+/// The completion code a `try` handler clause selects, when its selector is
+/// statically a completion code.
+///
+/// `trap` always selects `TCL_ERROR` and narrows it further by `-errorcode`
+/// prefix; `on` names a code directly. The selector spelling is decoded by the
+/// registry's completion-code table, never by a local keyword match.
+fn try_handler_code(handler: &crate::ir::TryHandler) -> Option<CompletionCode> {
+    if handler.trap_pattern.is_some() || handler.kind == "trap" {
+        return Some(CompletionCode::Error);
+    }
+    tcl_registry::completion::completion_code_selector(
+        &handler.match_arg,
+        tcl_syntax::number::Numbers::of_profile(None),
+    )
+}
+
+/// Project the exact cell and completion footprint of an already-lowered
+/// operation from the statement the registry descriptor authorised.
+///
+/// This is deliberately computable from the statement alone: validation
+/// recomputes it and rejects a retained footprint that disagrees, so no
+/// consumer can be handed a footprint the IR does not itself prove.
+fn lowered_operation_footprint(statement: &Statement) -> LoweredFootprint {
+    match statement {
+        Statement::AssignConst {
+            name, name_braced, ..
+        } => {
+            let write = CellReference::from_name(name, *name_braced);
+            let exact = write.name().is_some();
+            LoweredFootprint {
+                writes: vec![write],
+                reads: Vec::new(),
+                reads_unbounded: false,
+                runs_commands: false,
+                // A constant assignment to a statically named cell has no
+                // operand that can fail; a computed target name can.
+                completion: if exact {
+                    vec![CompletionCode::Ok]
+                } else {
+                    vec![CompletionCode::Ok, CompletionCode::Error]
+                },
+            }
+        }
+        Statement::AssignValue {
+            name,
+            name_braced,
+            value,
+            ..
+        } => {
+            let operand = operand_text_footprint(value);
+            LoweredFootprint {
+                writes: vec![CellReference::from_name(name, *name_braced)],
+                reads: Vec::new(),
+                reads_unbounded: operand.reads_unbounded,
+                runs_commands: operand.runs_commands,
+                completion: vec![CompletionCode::Ok, CompletionCode::Error],
+            }
+        }
+        Statement::AssignExpr {
+            name,
+            name_braced,
+            expr,
+            ..
+        } => {
+            let operand = expr_footprint(expr);
+            LoweredFootprint {
+                writes: vec![CellReference::from_name(name, *name_braced)],
+                reads: operand.reads,
+                reads_unbounded: operand.reads_unbounded,
+                runs_commands: operand.runs_commands,
+                completion: vec![CompletionCode::Ok, CompletionCode::Error],
+            }
+        }
+        Statement::Incr {
+            name,
+            name_braced,
+            amount,
+            ..
+        } => {
+            let target = CellReference::from_name(name, *name_braced);
+            let operand = amount
+                .as_deref()
+                .map_or_else(OperandFootprint::exact, operand_text_footprint);
+            LoweredFootprint {
+                writes: vec![target.clone()],
+                // `incr` reads its target before writing it.
+                reads: vec![target],
+                reads_unbounded: operand.reads_unbounded,
+                runs_commands: operand.runs_commands,
+                completion: vec![CompletionCode::Ok, CompletionCode::Error],
+            }
+        }
+        Statement::ExprEval { expr, .. } => {
+            let operand = expr_footprint(expr);
+            LoweredFootprint {
+                writes: Vec::new(),
+                reads: operand.reads,
+                reads_unbounded: operand.reads_unbounded,
+                runs_commands: operand.runs_commands,
+                completion: vec![CompletionCode::Ok, CompletionCode::Error],
+            }
+        }
+        Statement::Return {
+            value,
+            expr,
+            braced,
+            ..
+        } => {
+            let operand = match (expr, value) {
+                (Some(expr), _) => expr_footprint(expr),
+                // A braced result word suppresses substitution entirely.
+                (None, Some(_)) if *braced => OperandFootprint::exact(),
+                (None, Some(value)) => operand_text_footprint(value),
+                (None, None) => OperandFootprint::exact(),
+            };
+            let mut completion = Vec::new();
+            if operand.runs_commands || operand.reads_unbounded {
+                completion.push(CompletionCode::Error);
+            }
+            completion.push(CompletionCode::Return);
+            LoweredFootprint {
+                writes: Vec::new(),
+                reads: operand.reads,
+                reads_unbounded: operand.reads_unbounded,
+                runs_commands: operand.runs_commands,
+                completion,
+            }
+        }
+        Statement::Call { .. }
+        | Statement::Barrier { .. }
+        | Statement::Block { .. }
+        | Statement::UpFrame { .. }
+        | Statement::If { .. }
+        | Statement::For { .. }
+        | Statement::While { .. }
+        | Statement::Foreach { .. }
+        | Statement::Catch { .. }
+        | Statement::Try { .. }
+        | Statement::Switch { .. } => LoweredFootprint::conservative(),
+    }
+}
+
+/// What evaluating one retained operand can read and run.
+struct OperandFootprint {
+    reads: Vec<CellReference>,
+    reads_unbounded: bool,
+    runs_commands: bool,
+}
+
+impl OperandFootprint {
+    /// An operand that neither reads a cell nor runs a command.
+    const fn exact() -> Self {
+        Self {
+            reads: Vec::new(),
+            reads_unbounded: false,
+            runs_commands: false,
+        }
+    }
+}
+
+/// The footprint of a retained operand word held as exact text.
+///
+/// The text has already lost the token shape needed to enumerate its variable
+/// references without re-running word substitution, so a substituted operand
+/// reports unbounded reads rather than a guessed list. A bracket makes it a
+/// command-running operand, which no cell footprint can bound.
+fn operand_text_footprint(text: &str) -> OperandFootprint {
+    OperandFootprint {
+        reads: Vec::new(),
+        reads_unbounded: text.contains('$') || text.contains('['),
+        runs_commands: text.contains('['),
+    }
+}
+
+/// The footprint of a parsed Tcl expression.
+fn expr_footprint(expr: &ExprNode) -> OperandFootprint {
+    let unparsed = expr_has_raw(expr);
+    let runs_commands = unparsed || !expr.command_texts().is_empty();
+    let mut reads: Vec<CellReference> = expr
+        .vars()
+        .into_iter()
+        .map(|name| CellReference::from_name(&name, false))
+        .collect();
+    reads.sort();
+    reads.dedup();
+    OperandFootprint {
+        reads_unbounded: unparsed || reads.iter().any(|cell| cell.name().is_none()),
+        reads,
+        runs_commands,
+    }
+}
+
+/// Whether any part of the expression fell back to unparsed raw text, which
+/// can hide both variable references and command substitutions.
+fn expr_has_raw(expr: &ExprNode) -> bool {
+    match expr {
+        ExprNode::Raw { .. } => true,
+        ExprNode::Literal { .. }
+        | ExprNode::String { .. }
+        | ExprNode::Var { .. }
+        | ExprNode::Command { .. } => false,
+        ExprNode::Binary { left, right, .. } => expr_has_raw(left) || expr_has_raw(right),
+        ExprNode::Unary { operand, .. } => expr_has_raw(operand),
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => expr_has_raw(condition) || expr_has_raw(true_branch) || expr_has_raw(false_branch),
+        ExprNode::Call { args, .. } => args.iter().any(expr_has_raw),
+    }
+}
+
 fn plan_argv_entries(
     words: &[WordExpr],
     node: &NodeId,
@@ -1864,56 +3563,6 @@ fn plan_word_entry(
         ));
         ArgvEntry::Value(value)
     }
-}
-
-fn build_staged_function(
-    function: ExecutableFunctionId,
-    allocator: &mut IdAllocator,
-    stages: Vec<Stage>,
-) -> ExecutableFunction {
-    let stage_count = stages.len();
-    let stage_completions: Vec<_> = stages.iter().map(Stage::completion).collect();
-    let stage_blocks: Vec<_> = (0..stage_count).map(|_| allocator.block()).collect();
-    let failure_blocks: Vec<_> = (0..stage_count.saturating_sub(1))
-        .map(|_| allocator.block())
-        .collect();
-    let mut blocks = Vec::with_capacity(stage_count + failure_blocks.len());
-    for (index, stage) in stages.into_iter().enumerate() {
-        let is_last = index + 1 == stage_count;
-        let terminator = if is_last {
-            ExecutableTerminator::ReturnCompletion(stage.completion())
-        } else {
-            ExecutableTerminator::CompletionSwitch {
-                completion: stage.completion(),
-                cases: vec![CompletionCase {
-                    code: CompletionCode::Ok,
-                    target: stage_blocks[index + 1],
-                }],
-                default: failure_blocks[index],
-            }
-        };
-        blocks.push(ExecutableBlock {
-            id: stage_blocks[index],
-            instructions: stage.into_instructions(),
-            terminator: Some(terminator),
-        });
-    }
-    for (index, failure) in failure_blocks.into_iter().enumerate() {
-        blocks.push(ExecutableBlock {
-            id: failure,
-            instructions: Vec::new(),
-            terminator: Some(ExecutableTerminator::ReturnCompletion(
-                stage_completions[index],
-            )),
-        });
-    }
-    let executable = ExecutableFunction::new(function, stage_blocks[0], blocks);
-    debug_assert!(
-        executable.validate().is_ok(),
-        "compatibility builder emitted invalid executable IR: {:?}",
-        executable.validate()
-    );
-    executable
 }
 
 struct SourceCall<'a> {
@@ -2088,8 +3737,6 @@ enum Stage {
         node: NodeId,
         source: SourceSite,
     },
-    ExecuteLowered(LoweredOperation),
-    ExecuteOpaqueRegion(OpaqueRegion),
 }
 
 impl Stage {
@@ -2133,8 +3780,6 @@ impl Stage {
             | Self::Expand { completion, .. }
             | Self::BuildArgv { completion, .. }
             | Self::Invoke { completion, .. } => *completion,
-            Self::ExecuteLowered(operation) => operation.completion,
-            Self::ExecuteOpaqueRegion(region) => region.completion,
         }
     }
 
@@ -2192,12 +3837,6 @@ impl Stage {
                 node,
                 source,
             })],
-            Self::ExecuteLowered(operation) => {
-                vec![ExecutableInstruction::ExecuteLowered(operation)]
-            }
-            Self::ExecuteOpaqueRegion(region) => {
-                vec![ExecutableInstruction::ExecuteOpaqueRegion(region)]
-            }
         }
     }
 }
@@ -2275,6 +3914,515 @@ mod tests {
                 _ => None,
             })
             .expect("generic invocation")
+    }
+
+    fn build(source: &str, id: usize) -> ExecutableFunction {
+        let registry = CommandRegistry::build_default();
+        let module = crate::lowering::lower_to_ir(source, &registry);
+        let function = build_linear_executable_ir(
+            &registry,
+            Some(test_context()),
+            ExecutableFunctionId::new(id),
+            &module.top_level,
+        )
+        .expect("structured control remains executable");
+        function.validate().expect("valid executable IR");
+        function
+    }
+
+    fn instructions(function: &ExecutableFunction) -> Vec<&ExecutableInstruction> {
+        function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .collect()
+    }
+
+    fn structured_regions(function: &ExecutableFunction) -> Vec<&StructuredRegion> {
+        instructions(function)
+            .into_iter()
+            .filter_map(|instruction| match instruction {
+                ExecutableInstruction::CompleteStructuredRegion(region) => Some(region),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn region_block(function: &ExecutableFunction) -> ExecutableBlockId {
+        function
+            .blocks
+            .iter()
+            .find(|block| {
+                block.instructions.iter().any(|instruction| {
+                    matches!(
+                        instruction,
+                        ExecutableInstruction::CompleteStructuredRegion(_)
+                    )
+                })
+            })
+            .expect("structured region")
+            .id
+    }
+
+    #[test]
+    fn if_becomes_branch_edges_joining_at_the_region_completion() {
+        let function = build("if {$enabled} {puts on} else {puts off}", 200);
+        assert!(
+            instructions(&function)
+                .iter()
+                .all(|instruction| !matches!(
+                    instruction,
+                    ExecutableInstruction::ExecuteOpaqueRegion(_)
+                )),
+            "an `if` no longer needs an opaque compatibility barrier"
+        );
+        let conditions: Vec<_> = instructions(&function)
+            .into_iter()
+            .filter_map(|instruction| match instruction {
+                ExecutableInstruction::EvaluateExpr {
+                    expr: ExecutableExpr::Condition { .. },
+                    ..
+                } => Some(instruction),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(conditions.len(), 1, "one clause, one condition");
+        let branches = function
+            .blocks
+            .iter()
+            .filter(|block| matches!(block.terminator, Some(ExecutableTerminator::Branch { .. })))
+            .count();
+        assert_eq!(branches, 1);
+        let regions = structured_regions(&function);
+        assert_eq!(regions.len(), 1);
+        assert_eq!(regions[0].kind, StructuredRegionKind::Conditional);
+        assert_eq!(regions[0].descriptor, LoweringHookId::If);
+        // Both arms converge on the block that produces the region completion.
+        let join = region_block(&function);
+        let predecessors = function
+            .blocks
+            .iter()
+            .filter(|block| {
+                matches!(block.terminator, Some(ExecutableTerminator::Goto(target)) if target == join)
+            })
+            .count();
+        assert_eq!(predecessors, 2, "then and else arms both join");
+    }
+
+    #[test]
+    fn while_loop_has_an_explicit_back_edge_to_its_header() {
+        let function = build("while {$more} {puts tick}", 201);
+        let header = function
+            .blocks
+            .iter()
+            .find(|block| {
+                matches!(
+                    block.instructions.first(),
+                    Some(ExecutableInstruction::EvaluateExpr {
+                        expr: ExecutableExpr::Condition { .. },
+                        ..
+                    })
+                )
+            })
+            .expect("loop header")
+            .id;
+        let back_edges = function
+            .blocks
+            .iter()
+            .filter(|block| {
+                block.id.index() > header.index()
+                    && matches!(
+                        block.terminator,
+                        Some(ExecutableTerminator::Goto(target)) if target == header
+                    )
+            })
+            .count();
+        assert_eq!(back_edges, 1, "the loop body branches back to the header");
+        assert_eq!(
+            structured_regions(&function)[0].kind,
+            StructuredRegionKind::ConditionLoop
+        );
+    }
+
+    #[test]
+    fn break_and_continue_are_routed_to_loop_targets_not_out_of_the_function() {
+        let function = build("while {1} {break}", 202);
+        let exit = region_block(&function);
+        let routed = function
+            .blocks
+            .iter()
+            .filter_map(|block| match &block.terminator {
+                Some(ExecutableTerminator::CompletionSwitch { cases, .. }) => Some(cases),
+                _ => None,
+            })
+            .filter(|cases| {
+                cases.iter().any(|case| {
+                    case.code == CompletionCode::Break && case.target == exit
+                })
+            })
+            .count();
+        assert!(
+            routed > 0,
+            "a completion of code TCL_BREAK inside the body reaches the loop exit"
+        );
+        assert!(
+            function
+                .blocks
+                .iter()
+                .filter_map(|block| match &block.terminator {
+                    Some(ExecutableTerminator::CompletionSwitch { cases, .. }) => Some(cases),
+                    _ => None,
+                })
+                .any(|cases| cases
+                    .iter()
+                    .any(|case| case.code == CompletionCode::Continue)),
+            "the loop body also names an explicit continue target"
+        );
+    }
+
+    #[test]
+    fn every_non_ok_completion_leaves_the_function_at_top_level() {
+        let function = build("puts hello", 203);
+        for block in &function.blocks {
+            let Some(ExecutableTerminator::CompletionSwitch {
+                cases, default, ..
+            }) = &block.terminator
+            else {
+                continue;
+            };
+            assert_eq!(
+                cases.len(),
+                1,
+                "outside a loop only the OK edge is named; every other code unwinds"
+            );
+            assert!(cases[0].code.is_ok());
+            let unwind = function
+                .blocks
+                .iter()
+                .find(|candidate| candidate.id == *default)
+                .expect("unwind block");
+            assert!(matches!(
+                unwind.terminator,
+                Some(ExecutableTerminator::ReturnCompletion(_))
+            ));
+        }
+    }
+
+    #[test]
+    fn for_loop_continues_through_its_next_script() {
+        let function = build("for {set i 0} {$i < 4} {incr i} {puts $i}", 204);
+        let continue_targets: BTreeSet<_> = function
+            .blocks
+            .iter()
+            .filter_map(|block| match &block.terminator {
+                Some(ExecutableTerminator::CompletionSwitch { cases, .. }) => Some(cases),
+                _ => None,
+            })
+            .flat_map(|cases| cases.iter())
+            .filter(|case| case.code == CompletionCode::Continue)
+            .map(|case| case.target)
+            .collect();
+        assert_eq!(continue_targets.len(), 1);
+        let target = *continue_targets.iter().next().expect("continue target");
+        // The `for` continue target runs the loop's `next` script, so it is not
+        // the header itself.
+        let next_block = function
+            .blocks
+            .iter()
+            .find(|block| block.id == target)
+            .expect("continue block");
+        assert!(matches!(
+            next_block.instructions.first(),
+            Some(ExecutableInstruction::ExecuteLowered(LoweredOperation {
+                descriptor: LoweringHookId::Incr,
+                ..
+            }))
+        ));
+    }
+
+    #[test]
+    fn foreach_becomes_a_list_cursor_loop_that_binds_its_variables() {
+        let function = build("foreach {a b} $pairs {puts $a}", 205);
+        let cursor = instructions(&function)
+            .into_iter()
+            .find_map(|instruction| match instruction {
+                ExecutableInstruction::IterateLists { groups, .. } => Some(groups),
+                _ => None,
+            })
+            .expect("list-cursor loop header");
+        assert_eq!(cursor.len(), 1);
+        assert_eq!(
+            cursor[0].variables,
+            vec![
+                CellReference::Named {
+                    name: "a".to_owned(),
+                    element: false
+                },
+                CellReference::Named {
+                    name: "b".to_owned(),
+                    element: false
+                },
+            ]
+        );
+        assert_eq!(
+            structured_regions(&function)[0].kind,
+            StructuredRegionKind::CursorLoop
+        );
+    }
+
+    #[test]
+    fn dict_iteration_keeps_its_opaque_region() {
+        let function = build("dict for {k v} $d {puts $k}", 206);
+        assert!(
+            instructions(&function).iter().any(|instruction| matches!(
+                instruction,
+                ExecutableInstruction::ExecuteOpaqueRegion(_)
+            )),
+            "a dict cursor is not the Tcl-list cursor this projection models"
+        );
+    }
+
+    #[test]
+    fn catch_joins_its_abrupt_edge_and_writes_the_result_cells() {
+        let function = build("catch {error boom} msg opts", 207);
+        let joins = instructions(&function)
+            .into_iter()
+            .filter(|instruction| {
+                matches!(instruction, ExecutableInstruction::JoinCompletion { .. })
+            })
+            .count();
+        assert_eq!(joins, 1, "every abrupt edge out of the body joins once");
+        let written: Vec<_> = instructions(&function)
+            .into_iter()
+            .filter_map(|instruction| match instruction {
+                ExecutableInstruction::WriteCompletionCell { payload, cell, .. } => {
+                    Some((*payload, cell.clone()))
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            written,
+            vec![
+                (
+                    CompletionPayload::Result,
+                    CellReference::Named {
+                        name: "msg".to_owned(),
+                        element: false
+                    }
+                ),
+                (
+                    CompletionPayload::Options,
+                    CellReference::Named {
+                        name: "opts".to_owned(),
+                        element: false
+                    }
+                ),
+            ]
+        );
+        assert_eq!(
+            structured_regions(&function)[0].kind,
+            StructuredRegionKind::Catch
+        );
+    }
+
+    #[test]
+    fn try_routes_handlers_by_completion_class() {
+        let function = build(
+            "try {risky} on error {m} {puts $m} finally {cleanup}",
+            208,
+        );
+        let joined = instructions(&function)
+            .into_iter()
+            .find_map(|instruction| match instruction {
+                ExecutableInstruction::JoinCompletion { completion, .. } => Some(*completion),
+                _ => None,
+            })
+            .expect("try joins its abrupt edges");
+        let cases = function
+            .blocks
+            .iter()
+            .find_map(|block| match &block.terminator {
+                Some(ExecutableTerminator::CompletionSwitch {
+                    completion, cases, ..
+                }) if *completion == joined => Some(cases.clone()),
+                _ => None,
+            })
+            .expect("the joined completion selects a handler by its code");
+        assert_eq!(
+            cases.iter().map(|case| case.code).collect::<Vec<_>>(),
+            vec![CompletionCode::Error]
+        );
+        assert_eq!(
+            structured_regions(&function)[0].kind,
+            StructuredRegionKind::Try
+        );
+    }
+
+    #[test]
+    fn switch_becomes_a_decision_tree_with_shared_fallthrough_bodies() {
+        let function = build("switch $mode {a - b {puts ab} c {puts c}}", 209);
+        let patterns: Vec<_> = instructions(&function)
+            .into_iter()
+            .filter_map(|instruction| match instruction {
+                ExecutableInstruction::MatchPattern { pattern, .. } => Some(pattern.text.clone()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(patterns, vec!["a", "b", "c"]);
+        // `a -` falls through, so both `a` and `b` branch to the same body.
+        let targets: Vec<_> = function
+            .blocks
+            .iter()
+            .filter_map(|block| match &block.terminator {
+                Some(ExecutableTerminator::Branch { then_target, .. }) => Some(*then_target),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(targets.len(), 3);
+        assert_eq!(targets[0], targets[1], "a fallthrough arm shares one body");
+        assert_ne!(targets[1], targets[2]);
+        assert_eq!(
+            structured_regions(&function)[0].kind,
+            StructuredRegionKind::Switch
+        );
+    }
+
+    #[test]
+    fn uplevel_and_inlined_blocks_stay_opaque() {
+        let function = build("uplevel 1 {set outer 1}", 210);
+        let region = instructions(&function)
+            .into_iter()
+            .find_map(|instruction| match instruction {
+                ExecutableInstruction::ExecuteOpaqueRegion(region) => Some(region),
+                _ => None,
+            })
+            .expect("an inlined uplevel body is not straight-line splice-able yet");
+        assert_eq!(region.descriptor, Some(LoweringHookId::Uplevel));
+    }
+
+    #[test]
+    fn constant_assignment_has_an_exact_footprint_and_cannot_fail() {
+        let function = build("set counter 0", 211);
+        let operation = instructions(&function)
+            .into_iter()
+            .find_map(|instruction| match instruction {
+                ExecutableInstruction::ExecuteLowered(operation) => Some(operation),
+                _ => None,
+            })
+            .expect("lowered assignment");
+        assert_eq!(
+            operation.footprint.writes,
+            vec![CellReference::Named {
+                name: "counter".to_owned(),
+                element: false
+            }]
+        );
+        assert!(operation.footprint.reads.is_empty());
+        assert!(operation.footprint.is_bounded());
+        assert_eq!(operation.footprint.completion, vec![CompletionCode::Ok]);
+    }
+
+    #[test]
+    fn expression_assignment_reads_exactly_its_operand_variables() {
+        let function = build("set total [expr {$a + $b}]", 212);
+        let operation = instructions(&function)
+            .into_iter()
+            .find_map(|instruction| match instruction {
+                ExecutableInstruction::ExecuteLowered(operation) => Some(operation),
+                _ => None,
+            })
+            .expect("lowered expression assignment");
+        assert_eq!(
+            operation.footprint.reads,
+            vec![
+                CellReference::Named {
+                    name: "a".to_owned(),
+                    element: false
+                },
+                CellReference::Named {
+                    name: "b".to_owned(),
+                    element: false
+                },
+            ]
+        );
+        assert!(operation.footprint.is_bounded());
+        assert_eq!(
+            operation.footprint.completion,
+            vec![CompletionCode::Ok, CompletionCode::Error]
+        );
+    }
+
+    #[test]
+    fn increment_reads_before_it_writes_and_a_command_operand_is_unbounded() {
+        let bounded = build("incr n 2", 213);
+        let operation = instructions(&bounded)
+            .into_iter()
+            .find_map(|instruction| match instruction {
+                ExecutableInstruction::ExecuteLowered(operation) => Some(operation),
+                _ => None,
+            })
+            .expect("lowered increment");
+        assert_eq!(operation.footprint.writes, operation.footprint.reads);
+        assert!(operation.footprint.is_bounded());
+
+        let unbounded = build("set total [expr {[step] + 1}]", 214);
+        let operation = instructions(&unbounded)
+            .into_iter()
+            .find_map(|instruction| match instruction {
+                ExecutableInstruction::ExecuteLowered(operation) => Some(operation),
+                _ => None,
+            })
+            .expect("lowered expression assignment");
+        assert!(
+            operation.footprint.runs_commands,
+            "a command substitution in the operand is not bounded by a cell footprint"
+        );
+        assert!(!operation.footprint.is_bounded());
+    }
+
+    #[test]
+    fn a_retained_footprint_that_disagrees_with_its_statement_is_rejected() {
+        let registry = CommandRegistry::build_default();
+        let module = crate::lowering::lower_to_ir("set counter 0", &registry);
+        let function_id = ExecutableFunctionId::new(215);
+        let mut function = build_linear_executable_ir(
+            &registry,
+            Some(test_context()),
+            function_id,
+            &module.top_level,
+        )
+        .expect("lowered assignment");
+        for block in &mut function.blocks {
+            for instruction in &mut block.instructions {
+                if let ExecutableInstruction::ExecuteLowered(operation) = instruction {
+                    operation.footprint.writes = vec![CellReference::Computed];
+                }
+            }
+        }
+        assert!(matches!(
+            function.validate(),
+            Err(ExecutableIrValidationError::OperationFootprintMismatch { .. })
+        ));
+    }
+
+    #[test]
+    fn a_structured_region_still_isolates_the_statements_around_it() {
+        let function = build(
+            "set total 0\nforeach item $items {incr total $item}\nreturn $total",
+            216,
+        );
+        let descriptors: Vec<_> = instructions(&function)
+            .into_iter()
+            .filter_map(|instruction| match instruction {
+                ExecutableInstruction::ExecuteLowered(operation) => Some(operation.descriptor),
+                ExecutableInstruction::CompleteStructuredRegion(region) => Some(region.descriptor),
+                _ => None,
+            })
+            .collect();
+        assert!(descriptors.contains(&LoweringHookId::Set));
+        assert!(descriptors.contains(&LoweringHookId::Foreach));
+        assert!(descriptors.contains(&LoweringHookId::Return));
     }
 
     #[test]
@@ -2454,20 +4602,33 @@ mod tests {
             &module.top_level,
         )
         .expect("structured control is isolated, not a whole-function decline");
-        function.validate().expect("valid opaque-region sequence");
+        function.validate().expect("valid structured-region sequence");
 
         let region = function
             .blocks
             .iter()
             .flat_map(|block| &block.instructions)
             .find_map(|instruction| match instruction {
-                ExecutableInstruction::ExecuteOpaqueRegion(region) => Some(region),
+                ExecutableInstruction::CompleteStructuredRegion(region) => Some(region),
                 _ => None,
             })
             .expect("if region");
-        assert_eq!(region.descriptor, Some(LoweringHookId::If));
+        assert_eq!(region.descriptor, LoweringHookId::If);
+        assert_eq!(region.kind, StructuredRegionKind::Conditional);
         assert_eq!(region.node.path(), &[0]);
-        assert_eq!(find_invoke(&function).node.path(), &[1]);
+        // The body's own invocation is now a node *inside* the region, and the
+        // statement after the region keeps its own top-level node.
+        let invoked: Vec<_> = function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .filter_map(|instruction| match instruction {
+                ExecutableInstruction::Invoke(invoke) => Some(invoke.node.path().to_vec()),
+                _ => None,
+            })
+            .collect();
+        assert!(invoked.iter().any(|path| path.first() == Some(&0) && path.len() > 1));
+        assert!(invoked.contains(&vec![1]));
     }
 
     #[test]
@@ -2500,8 +4661,9 @@ mod tests {
         )));
         assert!(instructions.iter().any(|instruction| matches!(
             instruction,
-            ExecutableInstruction::ExecuteOpaqueRegion(OpaqueRegion {
-                descriptor: Some(LoweringHookId::Foreach),
+            ExecutableInstruction::CompleteStructuredRegion(StructuredRegion {
+                descriptor: LoweringHookId::Foreach,
+                kind: StructuredRegionKind::CursorLoop,
                 ..
             })
         )));

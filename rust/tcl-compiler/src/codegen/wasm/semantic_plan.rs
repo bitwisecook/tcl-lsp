@@ -175,7 +175,13 @@ pub(super) fn plan_wasm_generic_invoke_named(
             ExecutableInstruction::ExpandWord { .. }
             | ExecutableInstruction::Invoke(_)
             | ExecutableInstruction::ExecuteLowered(_)
-            | ExecutableInstruction::ExecuteOpaqueRegion(_) => {
+            | ExecutableInstruction::ExecuteOpaqueRegion(_)
+            | ExecutableInstruction::EvaluateExpr { .. }
+            | ExecutableInstruction::MatchPattern { .. }
+            | ExecutableInstruction::IterateLists { .. }
+            | ExecutableInstruction::JoinCompletion { .. }
+            | ExecutableInstruction::WriteCompletionCell { .. }
+            | ExecutableInstruction::CompleteStructuredRegion(_) => {
                 return Err(WasmExecutableInvokeDecline::UnsupportedInstruction);
             }
         });
@@ -261,7 +267,13 @@ fn staged_ok_spine(
                 return Err(WasmExecutableInvokeDecline::ArgumentExpansion);
             }
             ExecutableInstruction::ExecuteLowered(_)
-            | ExecutableInstruction::ExecuteOpaqueRegion(_) => {
+            | ExecutableInstruction::ExecuteOpaqueRegion(_)
+            | ExecutableInstruction::EvaluateExpr { .. }
+            | ExecutableInstruction::MatchPattern { .. }
+            | ExecutableInstruction::IterateLists { .. }
+            | ExecutableInstruction::JoinCompletion { .. }
+            | ExecutableInstruction::WriteCompletionCell { .. }
+            | ExecutableInstruction::CompleteStructuredRegion(_) => {
                 return Err(WasmExecutableInvokeDecline::UnsupportedInstruction);
             }
         }
@@ -280,6 +292,12 @@ fn instruction_completion(instruction: &ExecutableInstruction) -> CompletionId {
         ExecutableInstruction::Invoke(invoke) => invoke.completion,
         ExecutableInstruction::ExecuteLowered(operation) => operation.completion,
         ExecutableInstruction::ExecuteOpaqueRegion(region) => region.completion,
+        ExecutableInstruction::EvaluateExpr { completion, .. }
+        | ExecutableInstruction::MatchPattern { completion, .. }
+        | ExecutableInstruction::JoinCompletion { completion, .. }
+        | ExecutableInstruction::WriteCompletionCell { completion, .. } => *completion,
+        ExecutableInstruction::IterateLists { completion, .. } => *completion,
+        ExecutableInstruction::CompleteStructuredRegion(region) => region.completion,
     }
 }
 

@@ -857,7 +857,13 @@ fn selection_operation(function: &ExecutableFunction) -> SemanticOperationId {
             | ExecutableInstruction::ExpandWord { .. }
             | ExecutableInstruction::BuildArgv { .. }
             | ExecutableInstruction::ExecuteLowered(_)
-            | ExecutableInstruction::ExecuteOpaqueRegion(_) => None,
+            | ExecutableInstruction::ExecuteOpaqueRegion(_)
+            | ExecutableInstruction::EvaluateExpr { .. }
+            | ExecutableInstruction::MatchPattern { .. }
+            | ExecutableInstruction::IterateLists { .. }
+            | ExecutableInstruction::JoinCompletion { .. }
+            | ExecutableInstruction::WriteCompletionCell { .. }
+            | ExecutableInstruction::CompleteStructuredRegion(_) => None,
         })
         .unwrap_or(SemanticOperationId::Invoke)
 }
@@ -878,7 +884,13 @@ fn selection_facts(function: &ExecutableFunction) -> SelectionFacts<'_> {
             | ExecutableInstruction::ExpandWord { .. }
             | ExecutableInstruction::BuildArgv { .. }
             | ExecutableInstruction::ExecuteLowered(_)
-            | ExecutableInstruction::ExecuteOpaqueRegion(_) => None,
+            | ExecutableInstruction::ExecuteOpaqueRegion(_)
+            | ExecutableInstruction::EvaluateExpr { .. }
+            | ExecutableInstruction::MatchPattern { .. }
+            | ExecutableInstruction::IterateLists { .. }
+            | ExecutableInstruction::JoinCompletion { .. }
+            | ExecutableInstruction::WriteCompletionCell { .. }
+            | ExecutableInstruction::CompleteStructuredRegion(_) => None,
         })
         .unwrap_or_else(SelectionFacts::unavailable)
 }

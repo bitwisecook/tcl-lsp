@@ -33,8 +33,8 @@ use tcl_registry::{
 use crate::cfg::BlockId;
 use crate::effect_ssa::{WorldStateIntentKind, project_effect_footprint};
 use crate::executable_ir::{
-    ExecutableBlockId, ExecutableFunction, ExecutableInstruction, ExecutableIrValidationError,
-    ExecutableTerminator, InvocationResolution,
+    CellReference, ExecutableBlockId, ExecutableExpr, ExecutableFunction, ExecutableInstruction,
+    ExecutableIrValidationError, ExecutableTerminator, InvocationResolution, LoweredFootprint,
 };
 use crate::state_ssa::StateOverlap;
 use crate::state_ssa::adapters::{
@@ -1114,7 +1114,7 @@ impl<'a> Planner<'a> {
                         ExecutableInstruction::ExecuteLowered(operation) => Ok(Some((
                             block.id,
                             operation.completion,
-                            conservative_region_intents(),
+                            lowered_footprint_intents(&operation.footprint),
                             Vec::new(),
                         ))),
                         ExecutableInstruction::ExecuteOpaqueRegion(region) => Ok(Some((
@@ -1139,6 +1139,37 @@ impl<'a> Planner<'a> {
                                 Vec::new(),
                             )))
                         }
+                        // Structured control's own operations touch variable
+                        // cells and nothing else.  An operand that can run
+                        // commands is the one exception, and it takes the same
+                        // conservative barrier a command-substituting word does.
+                        ExecutableInstruction::EvaluateExpr {
+                            expr, completion, ..
+                        } => Ok(Some((
+                            block.id,
+                            *completion,
+                            executable_expr_intents(expr),
+                            Vec::new(),
+                        ))),
+                        ExecutableInstruction::IterateLists {
+                            groups, completion, ..
+                        } => Ok(Some((
+                            block.id,
+                            *completion,
+                            cell_intents(
+                                groups.iter().flat_map(|group| group.variables.iter()),
+                                WorldStateIntentKind::Clobber,
+                            ),
+                            Vec::new(),
+                        ))),
+                        ExecutableInstruction::WriteCompletionCell {
+                            cell, completion, ..
+                        } => Ok(Some((
+                            block.id,
+                            *completion,
+                            cell_intents(std::iter::once(cell), WorldStateIntentKind::Clobber),
+                            Vec::new(),
+                        ))),
                         _ => Ok(None),
                     }
                 }?;
@@ -1543,6 +1574,111 @@ impl<'a> Planner<'a> {
             })),
         }
         Ok(())
+    }
+}
+
+/// The world region of one Tcl variable cell in the scopes current at the site.
+fn cell_region(cell: &CellReference) -> WorldRegion {
+    match cell.name() {
+        Some(name) => WorldRegion::exact(
+            WorldRegionKind::VariableStore,
+            WorldInterpreterScope::Current,
+            WorldNamespaceScope::Current,
+            name,
+        ),
+        None => WorldRegion::domain_wildcard(
+            WorldRegionKind::VariableStore,
+            WorldInterpreterScope::Current,
+            WorldNamespaceScope::Current,
+        ),
+    }
+}
+
+fn cell_intents<'a>(
+    cells: impl Iterator<Item = &'a CellReference>,
+    kind: WorldStateIntentKind,
+) -> Vec<(WorldStateIntentKind, WorldRegion)> {
+    let mut intents: Vec<(WorldStateIntentKind, WorldRegion)> = Vec::new();
+    let mut writes_a_cell = false;
+    for cell in cells {
+        writes_a_cell |= kind == WorldStateIntentKind::Clobber;
+        let region = cell_region(cell);
+        if !intents.iter().any(|(k, r)| *k == kind && *r == region) {
+            intents.push((kind, region));
+        }
+    }
+    if writes_a_cell {
+        // A cell write is observable through a variable trace, so it depends on
+        // the trace registrations of the domain.  Whether such a trace exists —
+        // and therefore whether a callback runs here — is the contents/absence
+        // lattice's question, exactly as it already is for a variable read.
+        intents.push((
+            WorldStateIntentKind::Use,
+            WorldRegion::domain_wildcard(
+                WorldRegionKind::VariableTraces,
+                WorldInterpreterScope::Current,
+                WorldNamespaceScope::Current,
+            ),
+        ));
+    }
+    intents
+}
+
+/// Project the exact footprint of an already-lowered assignment, increment,
+/// expression, or return into world-state intents.
+///
+/// An operand that can run nested commands keeps the conservative barrier: no
+/// cell footprint bounds what a command substitution does.
+fn lowered_footprint_intents(
+    footprint: &LoweredFootprint,
+) -> Vec<(WorldStateIntentKind, WorldRegion)> {
+    if footprint.runs_commands {
+        return conservative_region_intents();
+    }
+    let mut intents = cell_intents(footprint.reads.iter(), WorldStateIntentKind::Use);
+    if footprint.reads_unbounded {
+        intents.push((
+            WorldStateIntentKind::Use,
+            WorldRegion::domain_wildcard(
+                WorldRegionKind::VariableStore,
+                WorldInterpreterScope::Current,
+                WorldNamespaceScope::Current,
+            ),
+        ));
+    }
+    intents.extend(cell_intents(
+        footprint.writes.iter(),
+        WorldStateIntentKind::Clobber,
+    ));
+    intents
+}
+
+/// Project one structured-control operand evaluation into world-state intents.
+fn executable_expr_intents(expr: &ExecutableExpr) -> Vec<(WorldStateIntentKind, WorldRegion)> {
+    let variable_store = WorldRegion::domain_wildcard(
+        WorldRegionKind::VariableStore,
+        WorldInterpreterScope::Current,
+        WorldNamespaceScope::Current,
+    );
+    match expr {
+        ExecutableExpr::Condition { expr, .. } => {
+            if expr.command_texts().is_empty() {
+                vec![(WorldStateIntentKind::Use, variable_store)]
+            } else {
+                conservative_region_intents()
+            }
+        }
+        ExecutableExpr::Operand { text, braced } => {
+            if *braced {
+                Vec::new()
+            } else if text.contains('[') {
+                conservative_region_intents()
+            } else {
+                vec![(WorldStateIntentKind::Use, variable_store)]
+            }
+        }
+        // Reading the joined completion's options dictionary touches no cell.
+        ExecutableExpr::TrapPrefix { .. } => Vec::new(),
     }
 }
 

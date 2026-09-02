@@ -21,7 +21,8 @@ use crate::completion::CompletionObligations;
 use crate::dispatch_proof::DispatchEntryAssumption;
 use crate::executable_ir::{
     ExecutableFunction, ExecutableFunctionId, GenericInvoke, InvocationResolution,
-    LoweredOperation, OpaqueRegion, SourceCompatibilityDecline, build_linear_executable_ir,
+    LoweredOperation, OpaqueRegion, SourceCompatibilityDecline, StructuredRegion,
+    build_linear_executable_ir,
 };
 use crate::ir::Script;
 use crate::mixed_region_plan::{MixedPlanBuildError, MixedRegionPlan};
@@ -348,9 +349,17 @@ impl ExecutableAnalysisAvailability {
                         | crate::executable_ir::ExecutableInstruction::ExpandWord { .. }
                         | crate::executable_ir::ExecutableInstruction::BuildArgv { .. }
                         | crate::executable_ir::ExecutableInstruction::ExecuteLowered(_)
-                        | crate::executable_ir::ExecutableInstruction::ExecuteOpaqueRegion(_) => {
-                            None
+                        | crate::executable_ir::ExecutableInstruction::ExecuteOpaqueRegion(_)
+                        | crate::executable_ir::ExecutableInstruction::EvaluateExpr { .. }
+                        | crate::executable_ir::ExecutableInstruction::MatchPattern { .. }
+                        | crate::executable_ir::ExecutableInstruction::IterateLists { .. }
+                        | crate::executable_ir::ExecutableInstruction::JoinCompletion { .. }
+                        | crate::executable_ir::ExecutableInstruction::WriteCompletionCell {
+                            ..
                         }
+                        | crate::executable_ir::ExecutableInstruction::CompleteStructuredRegion(
+                            _,
+                        ) => None,
                     })
             })
         })
@@ -381,6 +390,25 @@ impl ExecutableAnalysisAvailability {
             function.blocks.iter().flat_map(|block| {
                 block.instructions.iter().filter_map(|instruction| {
                     if let crate::executable_ir::ExecutableInstruction::ExecuteOpaqueRegion(
+                        region,
+                    ) = instruction
+                    {
+                        Some(region)
+                    } else {
+                        None
+                    }
+                })
+            })
+        })
+    }
+
+    /// Iterate structured control regions that now carry real executable
+    /// edges instead of a conservative opaque barrier.
+    pub fn structured_regions(&self) -> impl Iterator<Item = &StructuredRegion> {
+        self.function().into_iter().flat_map(|function| {
+            function.blocks.iter().flat_map(|block| {
+                block.instructions.iter().filter_map(|instruction| {
+                    if let crate::executable_ir::ExecutableInstruction::CompleteStructuredRegion(
                         region,
                     ) = instruction
                     {

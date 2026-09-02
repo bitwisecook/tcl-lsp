@@ -376,7 +376,9 @@ fn serialise_wasm_region_plan(availability: &MixedRegionPlanAvailability) -> (Va
                                         .collect(),
                                 ),
                             ),
-                            RegionPlan::Lowered(_) | RegionPlan::Opaque(_) => {
+                            RegionPlan::Lowered(_)
+                            | RegionPlan::Opaque(_)
+                            | RegionPlan::Structured(_) => {
                                 (Value::Null, Value::Array(Vec::new()))
                             }
                         };
@@ -1652,6 +1654,12 @@ fn executable_instruction_kind(instruction: &ExecutableInstruction) -> &'static 
         ExecutableInstruction::Invoke(_) => "invoke",
         ExecutableInstruction::ExecuteLowered(_) => "execute-lowered",
         ExecutableInstruction::ExecuteOpaqueRegion(_) => "execute-opaque-region",
+        ExecutableInstruction::EvaluateExpr { .. } => "evaluate-expr",
+        ExecutableInstruction::MatchPattern { .. } => "match-pattern",
+        ExecutableInstruction::IterateLists { .. } => "iterate-lists",
+        ExecutableInstruction::JoinCompletion { .. } => "join-completion",
+        ExecutableInstruction::WriteCompletionCell { .. } => "write-completion-cell",
+        ExecutableInstruction::CompleteStructuredRegion(_) => "complete-structured-region",
     }
 }
 
