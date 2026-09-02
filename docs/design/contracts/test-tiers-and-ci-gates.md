@@ -53,9 +53,12 @@ behind it.
    trivial lint" on this repo was a push that skipped this step.
 6. **CI carries the deep suites.** Rebase on `rust`, run `prep-pr`, open the
    PR, subscribe to its activity, fix forward. Do not block on the full suite
-   locally. `make test` (workspace + extension + runtime port + Zed query
-   check) and `make test-emacs` reproduce a CI failure or add confidence on a
-   risky change; they are not a precondition.
+   locally. To reproduce a deep-tier failure or add confidence on a risky
+   change: `make test` (workspace + extension + runtime port + Zed query
+   check), `make test-spectcl-compat`, the browser host
+   (`make lsp-server-wasm`, then `npm run test:web` in `editors/vscode`),
+   and `make test-emacs`. No single target mirrors the whole CI test
+   surface, and none is a precondition for the PR.
 7. **Capture long gate output to a file, never just `tail`.** A failure in the
    middle of a ten-minute run is lost to a 50-line tail, and summary lines get
    pushed off by skip spam:

@@ -31,9 +31,12 @@ make prep-pr        # format + codegen + lint/typecheck + smoke tier
   trivial lint" on this repo was a push that skipped this.
 - **CI carries the deep suites.** Rebase on `rust`, run `prep-pr`, open the
   PR, subscribe to its activity, fix forward. Do not block on the full suite
-  locally; `make test` reproduces CI when you need it. Emacs runs nowhere in
-  CI — touch `editors/emacs` only with `make test-emacs`; its eglot
-  semantic-token repaint failure is an upstream xfail (#333), never chase it.
+  locally. To reproduce a deep-tier failure: `make test` (workspace,
+  extension, runtime port, Zed query check), `make test-spectcl-compat`, and
+  for the browser host `make lsp-server-wasm` then `npm run test:web` in
+  `editors/vscode`. Emacs runs nowhere in CI — touch `editors/emacs` only
+  with `make test-emacs`; its eglot semantic-token repaint failure is an
+  upstream xfail (#333), never chase it.
 - **Fuzzing is always manual.** Campaigns and fuzz-shaped tests
   (generator-driven or seeded-random bodies) are `#[ignore]`d into
   `make test-exhaustive` regardless of speed; deterministic fixed-input tests

@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "compiler-explorer",
-      "runtimeExecutable": "cargo",
-      "runtimeArgs": ["run", "-q", "-p", "tcl-cli", "--bin", "tcl", "--", "explore", "--serve", "--port", "8080"],
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "make explorer-build && cargo run -q -p tcl-cli --bin tcl -- explore --serve --port 8080"],
       "port": 8080
     }
   ]

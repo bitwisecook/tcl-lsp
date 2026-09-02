@@ -75,7 +75,7 @@ sharing `CARGO_HOME` is fine are in
 | `make prep-pr` | pre-push gate: format + codegen + lint/typecheck + smoke |
 | `make check-all` | lint + typecheck across TypeScript, Rust, Python |
 | `make smoke`, `make smoke-p P=<crate>` | the smoke tier |
-| `make test` | the CI-mirror test gate (everything but Emacs) |
+| `make test` | workspace + extension + runtime port + Zed query check. CI also runs `make test-spectcl-compat` and the browser host (`make lsp-server-wasm`, then `npm run test:web` in `editors/vscode`), which have no umbrella target |
 | `make codegen` | regenerate every generated file via `cargo xtask` |
 | `make rust-server` / `rust-tcl` / `rust-f5` / `rust-mcp` | build one native binary |
 | `make build-editor-vsix` | the VS Code package (bundles the native servers + the WASI fallback) |
