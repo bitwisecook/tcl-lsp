@@ -59,9 +59,11 @@ rather than per project:
   settings.
 - **Several open projects share one set of associations.** The plugin
   registers the union of what every open project's server reports, and drops
-  an extension only when no open project still claims it. A project whose
-  server has not started yet claims nothing, so shortly after IDE startup an
-  extension can disappear and come back once that project's server reports.
+  an extension only when no open project still claims it. Closing a project
+  retires what it alone claimed straight away, as long as another project is
+  still open. A project whose server has not started yet claims nothing, so
+  shortly after IDE startup an extension can disappear and come back once that
+  project's server reports.
 
 Nothing is torn down when the IDE exits, so the associations survive a
 restart. If a pack has been deleted in the meantime, the first report of the

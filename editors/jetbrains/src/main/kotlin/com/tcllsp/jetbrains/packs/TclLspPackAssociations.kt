@@ -101,6 +101,26 @@ class TclLspPackAssociations : PersistentStateComponent<TclLspPackAssociations.S
     }
 
     /**
+     * Drop a closed project's claims, and retire whatever no open project
+     * claims any more.
+     *
+     * Called from [PackAssociationsProjectTracker.dispose], the one callback
+     * that arrives when a project stops claiming. Pruning on the next report
+     * is not enough on its own: with no other project reporting, nothing would
+     * ever come.
+     */
+    fun projectClosed(project: Project) {
+        val remaining = synchronized(lock) {
+            claimsByProject.remove(project)
+            claimsByProject.keys.removeAll { it.isDisposed }
+            claimsByProject.size
+        }
+        if (PackAssociationReconciler.reconcileAfterProjectClose(remaining)) {
+            scheduleReconcile()
+        }
+    }
+
+    /**
      * Ask a freshly-initialised server what its packs claim.
      *
      * The push covers every reload including the startup one, so this is the

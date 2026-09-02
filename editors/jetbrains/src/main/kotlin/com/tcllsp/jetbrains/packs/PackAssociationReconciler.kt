@@ -121,6 +121,20 @@ object PackAssociationReconciler {
     }
 
     /**
+     * Whether a closing project's departure should be reconciled at once.
+     *
+     * Only while some other project is still claiming. Every project closes in
+     * turn when the IDE exits, so a pass taken with nothing left would retire
+     * every association the plugin owns at shutdown — and the whole point of
+     * persisting the ledger is that the associations survive to the next
+     * session, where the first report retires whatever no pack claims any
+     * more. With a project still open the union has genuinely shrunk, and the
+     * extensions only the departing project claimed have to go now rather than
+     * whenever something else happens to report.
+     */
+    fun reconcileAfterProjectClose(remainingProjects: Int): Boolean = remainingProjects > 0
+
+    /**
      * Decide what to associate, what to retire, and what the ledger becomes.
      *
      * `associatedWith` reports the file type the IDE currently resolves an

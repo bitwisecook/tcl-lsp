@@ -849,7 +849,11 @@ keeps its own ledger instead of relying on a scope to contain the damage.
   type wins — both file types use the same language, so it is the safe
   superset. A project that has not started its server yet contributes nothing,
   so at startup an association can briefly retire and return; the file type
-  settles as soon as that project's server reports.
+  settles as soon as that project's server reports. A closing project drops
+  its claims through its own project service, and what it alone claimed is
+  retired there and then — but only while another project is still open,
+  because every project closes in turn when the IDE exits and a pass with
+  nothing left would retire the lot.
 - **Attachment follows the claim.** The plugin decides whether to start the
   language server from the file's extension, so a dynamically-claimed
   extension is added to that set too — otherwise the file would open as Tcl

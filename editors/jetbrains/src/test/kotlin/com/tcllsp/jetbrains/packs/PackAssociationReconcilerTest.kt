@@ -3,6 +3,7 @@ package com.tcllsp.jetbrains.packs
 import com.google.gson.JsonParser
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class PackAssociationReconcilerTest {
@@ -159,6 +160,31 @@ class PackAssociationReconcilerTest {
 
         assertEquals(mapOf("aaa" to tcl, "bbb" to irule, "shared" to tcl), forward)
         assertEquals(forward, backward)
+    }
+
+    @Test
+    fun closingOneOfTwoProjectsRetiresOnlyWhatItAloneClaimed() {
+        // The surviving project's claims are the whole union now, so the
+        // extension only the closed project claimed has to go — and the one
+        // they shared must not.
+        val plan = PackAssociationReconciler.plan(
+            claimed = PackAssociationReconciler.union(listOf(mapOf("shared" to tcl))),
+            owned = mapOf("closedonly" to irule, "shared" to tcl),
+            associatedWith = { extension -> if (extension == "shared") tcl else irule },
+        )
+
+        assertEquals(listOf(PackExtensionClaim("closedonly", irule)), plan.disassociate)
+        assertEquals(emptyList(), plan.associate)
+        assertEquals(mapOf("shared" to tcl), plan.owned)
+    }
+
+    @Test
+    fun aClosingProjectIsReconciledOnlyWhileAnotherIsStillOpen() {
+        // Every project closes in turn at IDE shutdown. A pass with nothing
+        // left would retire every association the plugin owns, defeating the
+        // ledger's whole purpose.
+        assertTrue(PackAssociationReconciler.reconcileAfterProjectClose(1))
+        assertFalse(PackAssociationReconciler.reconcileAfterProjectClose(0))
     }
 
     @Test

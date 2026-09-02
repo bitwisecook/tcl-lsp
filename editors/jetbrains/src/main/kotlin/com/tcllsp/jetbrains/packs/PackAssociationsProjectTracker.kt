@@ -18,23 +18,29 @@
 
 package com.tcllsp.jetbrains.packs
 
+import com.intellij.openapi.Disposable
+import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.startup.StartupActivity
 
 /**
- * Loads the pack-association ledger while a project opens, and arms the
- * tracker that reports the project closing again.
+ * Tells the association service when a project goes away.
  *
- * Both services are otherwise instantiated by the first report, which arrives
- * from a server that only starts once a file the plugin recognises is opened.
- * A session whose only Tcl files carry a pack-claimed extension would never
- * get that far, so the extensions the ledger records have to be back in play
- * before the first file is opened — and a project that never reported still
- * has to be able to tell the service it has gone.
+ * A project service is disposed with its project, which is the only callback
+ * that arrives at the moment a project stops claiming anything. Without it a
+ * closed project's claims survive in the service until some *other* project
+ * happens to report, so an extension nothing claims any more stays associated
+ * — and, because the ledger is persisted, into the next session too.
  */
-class PackAssociationsStartupActivity : StartupActivity.DumbAware {
-    override fun runActivity(project: Project) {
-        TclLspPackAssociations.getInstance()
-        PackAssociationsProjectTracker.getInstance(project)
+@Service(Service.Level.PROJECT)
+class PackAssociationsProjectTracker(private val project: Project) : Disposable {
+
+    override fun dispose() {
+        TclLspPackAssociations.getInstance().projectClosed(project)
+    }
+
+    companion object {
+        @JvmStatic
+        fun getInstance(project: Project): PackAssociationsProjectTracker =
+            project.getService(PackAssociationsProjectTracker::class.java)
     }
 }
