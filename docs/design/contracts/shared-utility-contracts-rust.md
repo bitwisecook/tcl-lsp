@@ -56,6 +56,12 @@ entry point, or gate moves without this contract being updated.
 | C Tcl conformance oracles | `rust/tcl-test-support/src/lib.rs` | `reference_patchlevel`; `reference_source_tag`; `locate_tclsh`; `available_tclshs`; `run_script`; `locate_source_tree`; `Tclsh`; `TclSourceTree`; `ScriptOutcome` | exact interpreter/source agreement and provenance for the selected release line | none |
 | interpreter platform bootstrap | `rust/tcl-platform/src/lib.rs` | `bootstrap::Values`; `bootstrap::Snapshot`; `bootstrap::snapshot`; `bootstrap::entries`; `bootstrap::HOST_ARRAYS`; `bootstrap::HOST_PATH_GLOBALS`; `bootstrap::safe_scrub_keys`; `bootstrap::SHARED_LIBRARY_EXTENSION` | key, selected-host snapshot, rebootstrap-clear, safe-scrub, and canonical Unix shared-library suffix invariant; runtime identity supplied per engine | none |
 | shared plain types | `rust/tcl-core-types/src/diag_code.rs` | `DiagCode` | invariant | `xtask-diag-tables` |
+| SslicTcl declaration model | `rust/tcl-sslictcl/src/model.rs` | `SslicModel`; `TlsFacts`; `Policy` | vocabulary version (`dsl::SUPPORTED_VOCABULARY`); no Tcl release axis — the document is never evaluated | none |
+| SslicTcl document loading | `rust/tcl-sslictcl/src/dsl.rs`; `rust/tcl-sslictcl/src/vocabulary.rs` | `load_with_diagnostics`; `DslDiagnostic`; `DECLARATIONS` | vocabulary version; open/closed block rule per declaration | none |
+| SslicTcl finding identity | `rust/tcl-sslictcl/src/policy.rs` | `evaluate_policy`; `PolicyFinding` | invariant `(check id, endpoint)` identity; the `grade` id is reserved | none |
+| SslicTcl embedded source data | `rust/tcl-sslictcl/src/trust.rs` | `embedded_dataset` | pinned upstream revisions, recorded with hashes and licences in `data/provenance.json` | `xtask-sslictcl-data` |
+| SslicTcl declaration surface | `rust/tcl-registry/src/commands/sslictcl/mod.rs`; `rust/tcl-registry/src/definer.rs` | `sslictcl_command_specs`; `SSLICTCL_GRAMMARS` | the `sslictcl` authoring surface (`SpecSurface::SSLICTCL`); Tcl 9.0 core underneath | none |
+| SslicTcl editor projection | `rust/tcl-lsp-core/src/sslictcl_diagnostics.rs`; `rust/tcl-lsp-core/src/declaration_outline.rs` | `applies_to`; `diagnostics`; `SUPERSEDED_ANALYSER_CODES`; `supersede_analyser_diagnostics`; `is_declaration_document`; `declarations`; `grammar_at`; `member_completions` | resolved authoring surface (the `sslictcl` package) per document | none |
 <!-- end-owner-resolution-manifest -->
 
 ### `tcl-dialect` + `tcl-test-support` — C Tcl reference toolchains
@@ -459,6 +465,35 @@ entry point, or gate moves without this contract being updated.
 - The crate for cross-runtime plain types (diagnostic codes today).
   Anything two crates must *name* identically without depending on
   each other's machinery lands here.
+
+### `tcl-sslictcl` — the TLS declaration vocabulary
+
+- `load_with_diagnostics` is the one reader of a `.sslictcl` document.
+  It walks the canonical syntax tree and constructs no interpreter, so the
+  document is never evaluated — not even a `check`'s `predicate`, which it
+  retains verbatim. `DECLARATIONS` is the machine-readable statement of the
+  vocabulary the loader implements; `docs/design/sslictcl-vocabulary.md` is
+  its prose, and a unit test holds the two together.
+- `evaluate_policy` owns **finding identity**: a policy finding is
+  `(check id, endpoint)`, which is why the `grade` id is reserved and why
+  declaring `check grade { … }` is `SSLIC1009`. Every consumer that
+  deduplicates, suppresses, or compares findings across runs keys on that
+  pair rather than on a message.
+- `embedded_dataset` is the single reader of the embedded trust-store and TLS
+  source bundle. Nothing else fetches it, and nothing reaches upstream at
+  build, report, or editing time — see
+  [`sslictcl-source-data.md`](sslictcl-source-data.md).
+- The loader reuses the shared owners rather than re-deriving them: the
+  command/word segmentation owner (`tcl_compiler::segmenter` over the
+  canonical CST) reads the document, and `tcl_syntax::list` splits every
+  braced `LIST` value, so a `forbid-ciphers {[A-Z]*RC4}` glob means exactly
+  what a Tcl list means. There is no SslicTcl exception in the "Known
+  deliberate exceptions" section because there is no divergence to record.
+- The editor projection is a separate owner because two binaries consume it:
+  `tcl-lsp-server` publishes the loader's diagnostics and `tcl-cli`'s
+  `diag` / `lint` verbs report the same set, and the rule that the loader
+  **supersedes** the analyser's unknown-command verdict in a never-evaluated
+  document must be stated once for both.
 
 ## Decision rules / contracts
 

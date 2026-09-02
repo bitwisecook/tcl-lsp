@@ -125,10 +125,10 @@ sites and are not debt.
 
 Names, lists, dicts, numbers, escapes, word spans, indices, option prefixes,
 expr, segmentation, comment lines, `when` blocks, dialect facts, the C Tcl
-oracles, and platform bootstrap each have one owner crate and one semantic
-axis; never re-derive one, and never add an owner-shaped implementation
-without updating the contract and its gate. `cargo xtask owner-resolution`
-(in `make rust-check`) enforces it. Owner map:
+oracles, platform bootstrap, and SslicTcl declarations each have one owner
+crate and one semantic axis; never re-derive one, and never add an
+owner-shaped implementation without updating the contract and its gate.
+`cargo xtask owner-resolution` (in `make rust-check`) enforces it. Owner map:
 [shared-utility-contracts-rust.md](docs/design/contracts/shared-utility-contracts-rust.md).
 
 ### WASM command parity
