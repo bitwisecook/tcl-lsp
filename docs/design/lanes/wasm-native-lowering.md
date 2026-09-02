@@ -148,3 +148,36 @@ shared worktree carries other lanes' in-flight edits to
 `rust/tcl-compiler/src/executable_ir.rs` and `runtime/rust/src/**` that did not
 compile at the time. A worktree at HEAD plus this lane's own files is exactly
 what this lane's commit produces, so it is the correct thing to measure.
+
+### The harness is red on the branch as landed — and that is its first find
+
+`e422f4b0 wip(p2-executable-ir): structured control as executable edges`
+landed between this lane's measured baseline and its commits, and it is not
+green:
+
+- `build_linear_executable_ir` trips its own
+  `debug_assert!(executable.validate().is_ok(), …)` at
+  `executable_ir.rs:2162` with
+  `ValueNotAvailableOnAllPaths(ExecutableValueId { index: 15 })` while
+  compiling a `samples/wasm` script, which panics all three sample-driven
+  `wasm_tiers` tests (both plans and the budget regeneration);
+- `wasm_real_link.rs`'s `canonical_generic_argv_runs_against_the_real_runtime`
+  and `guarded_boxed_intrinsic_runs_and_falls_back_against_the_real_runtime`
+  fail with `NoViablePlan { operation: Intrinsic(StringLength), … failure:
+  Selector(InconsistentCompletionReturn) }` — the literal program no longer
+  selects the generic-argv plan those cases exist to prove.
+
+Both were reproduced on a clean worktree checked out at `e422f4b0` itself,
+with this lane's files absent — so neither is caused by anything here, and the
+`wasm_real_link` pair reproduces against that file's *unmodified* pre-move
+form. `p2-executable-ir` owns `executable_ir.rs` and owns the fix; this lane
+must not edit it.
+
+That the breakage is visible at all is the point of P0. Before `wasm_tiers.rs`
+existed, a compatibility-builder regression that silently stops compiling
+`samples/wasm` scripts had nothing pointed at it: `wasm_real_link.rs` compiles
+six hand-written snippets, not the corpus. The budgets golden cannot be
+regenerated, and this lane's ledger cannot be re-measured, until `e422f4b0`'s
+`debug_assert` is fixed — `samples/wasm/budgets.tsv` as committed is the
+`4a0b9d58` measurement and will need a reviewed regeneration once P2 is green
+again.
