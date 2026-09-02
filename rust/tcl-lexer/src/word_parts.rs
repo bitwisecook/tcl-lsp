@@ -307,15 +307,30 @@ pub fn scan_var_ref(
     }))
 }
 
-/// Where the `[` command substitution at `at` closes, or
-/// [`MISSING_CLOSE_BRACKET`]. The offset is one byte **past** the `]`.
+/// Where the `[` command substitution at `at` closes — one byte **past** the
+/// `]` — or the error C reports for it.
 ///
-/// Delegates to [`command_substitution_end`](crate::command_substitution_end),
+/// The search is [`command_substitution_end`](crate::command_substitution_end),
 /// which is brace-, quote- and comment-aware: a `]` written inside `{…}`, a
 /// `"…"` word, or a `#` comment of the substituted script does not close it.
 /// Every private copy this module replaced got at least one of those wrong.
-pub fn command_subst_close(src: &[u8], at: usize) -> Result<usize, &'static str> {
-    command_substitution_end_bytes(src, at).ok_or(MISSING_CLOSE_BRACKET)
+///
+/// When nothing closes it, the error is **not** automatically
+/// [`MISSING_CLOSE_BRACKET`]. A substituted `[…]` is a *script*: C recurses
+/// into `Tcl_ParseCommand` at the bracket rather than hunting for the matching
+/// `]` first, so an error it meets inside the bracket surfaces instead. With
+/// `t` = `[set y ${a{b]`, `subst $t` reports `missing close-brace for variable
+/// name` on both oracles, not `missing close-bracket`.
+pub fn command_subst_close(
+    src: &[u8],
+    at: usize,
+    flags: SubstFlags,
+    config: LexerConfig,
+) -> Result<usize, &'static str> {
+    match command_substitution_end_bytes(src, at) {
+        Some(end) => Ok(end),
+        None => Err(error_inside_unterminated_bracket(src, at, flags, config)),
+    }
 }
 
 /// Is `c` a valid first byte of a bare `$name`? A `$` not followed by one of
@@ -386,7 +401,7 @@ fn decompose_at_depth(
             lit_start = i;
         } else if flags.cmds && c == b'[' {
             flush_text(&mut parts, src, lit_start, i, flags, config.escapes);
-            match command_subst_close(src, i) {
+            match command_subst_close(src, i, flags, config) {
                 Ok(end) => {
                     parts.push(WordPart::Command(&src[i + 1..end - 1]));
                     i = end;
@@ -418,6 +433,34 @@ fn decompose_at_depth(
         return WordBody::Literal(b);
     }
     WordBody::Parts(parts)
+}
+
+/// [`command_subst_close`]'s error choice for an unterminated `[`.
+///
+/// The walk is iterative on purpose: recursing back into [`decompose`] would
+/// cost one native frame per unterminated bracket, and `[[[[[…` is ordinary
+/// `subst` input.
+fn error_inside_unterminated_bracket(
+    src: &[u8],
+    at: usize,
+    flags: SubstFlags,
+    config: LexerConfig,
+) -> &'static str {
+    let mut i = at + 1;
+    while i < src.len() {
+        match src[i] {
+            b'\\' => i += 2,
+            b'$' if flags.vars && starts_var_ref(src, i, flags) => {
+                match scan_var_ref(src, i, config) {
+                    Ok(Some(raw)) => i = raw.next,
+                    Ok(None) => i += 1,
+                    Err(msg) => return msg,
+                }
+            }
+            _ => i += 1,
+        }
+    }
+    MISSING_CLOSE_BRACKET
 }
 
 /// Whether the `$` at `at` opens a variable reference under `flags`.
@@ -650,6 +693,14 @@ mod tests {
         assert_eq!(
             parts(b"$arr(", nine()),
             vec![WordPart::ParseError(MISSING_PAREN)]
+        );
+        // A substituted `[…]` is a script, so C recurses into it rather than
+        // hunting for the `]`: an error inside an unterminated bracket is what
+        // surfaces. `subst [format {[set y $%sa%sb]} "{" "{"]` reports
+        // `missing close-brace for variable name` on both oracles.
+        assert_eq!(
+            parts(b"[set y ${a{b]", nine()),
+            vec![WordPart::ParseError(MISSING_CLOSE_BRACE_FOR_VAR)]
         );
         assert_eq!(MISSING_QUOTE, "missing \"");
         assert_eq!(MISSING_CLOSE_BRACE, "missing close-brace");

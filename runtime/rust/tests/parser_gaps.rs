@@ -17,10 +17,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Oracle-pinned regression coverage for the r4-parser-gaps lane
-//! (#1576, #1586, #1577). Every expected message/errorCode/value below was
-//! taken verbatim from `tclsh9.0` (9.0.4) and/or `tclsh8.6` (8.6.16); a
-//! reader can paste the sheet into a real `tclsh` and re-derive the
-//! expectation without this harness.
+//! (#1576, #1586, #1577) and the two lenient cases r10-word-parts closed on
+//! top of it (`missing "`, `missing close-bracket`). Every expected
+//! message/errorCode/value below was taken verbatim from `tclsh9.0` (9.0.4)
+//! and/or `tclsh8.6` (8.6.16); a reader can paste the sheet into a real
+//! `tclsh` and re-derive the expectation without this harness.
 
 use tcl_runtime::interp::{Code, Interp};
 
@@ -205,4 +206,91 @@ fn zero_length_array_name_spelling_routes_through_the_same_owner() {
     let (code, result, _) = run("lassign {v} (k)\narray get {}");
     assert_eq!(code, Code::Ok);
     assert_eq!(result, "k v");
+}
+
+// ---------------------------------------------------------------------------
+// R10 — the two cases R4 left lenient. Both are word-delimiter failures the
+// lexer recovers from (it is shared with the LSP and must keep tokenizing
+// half-typed source), so the eval-facing parser is the one that must fail
+// closed. Before the shared `tcl_lexer::word_parts` owner landed, this
+// runtime read `list a "b` as the two-word list `a b` and evaluated the `b`
+// of `list a [b` as a command.
+//
+// Oracle (both interpreters):
+//   % eval {list a "b}    => missing "                -errorcode NONE
+//   % eval {list a [b}    => missing close-bracket    -errorcode NONE
+// ---------------------------------------------------------------------------
+
+#[test]
+fn unterminated_quoted_word_raises_missing_quote() {
+    let (code, result, error_code) = run(r#"eval {list a "b}"#);
+    assert_eq!(code, Code::Error);
+    assert_eq!(result, "missing \"");
+    assert_eq!(error_code, "NONE");
+}
+
+#[test]
+fn unterminated_quoted_word_raises_for_other_commands_too() {
+    for sheet in [r#"eval {puts "a}"#, r#"eval {set x "a}"#] {
+        let (code, result, _) = run(sheet);
+        assert_eq!(code, Code::Error, "{sheet}");
+        assert_eq!(result, "missing \"", "{sheet}");
+    }
+}
+
+#[test]
+fn unterminated_command_substitution_raises_missing_close_bracket() {
+    let (code, result, error_code) = run("eval {list a [b}");
+    assert_eq!(code, Code::Error);
+    assert_eq!(result, "missing close-bracket");
+    assert_eq!(error_code, "NONE");
+}
+
+/// The same failure through `subst`, where C reports it *after* the earlier
+/// bracket in the template has already run and kept its side effects — the
+/// left-to-right order `WordPart::ParseError` exists to preserve.
+///
+/// Oracle: `proc side {} {puts ran; return S}; subst {[side][b}` prints `ran`
+/// and then raises `missing close-bracket` on 8.6.16 and 9.0.4.
+#[test]
+fn subst_reports_the_missing_bracket_after_running_the_earlier_one() {
+    let (code, result, _) = run("set ::ran 0\nproc side {} {set ::ran 1; return S}\ncatch {subst {[side][b}} e\nlist $::ran $e");
+    assert_eq!(code, Code::Ok);
+    assert_eq!(result, "1 {missing close-bracket}");
+}
+
+/// An unterminated `$name(` array index is C's `missing )` — the third
+/// delimiter failure the same owner now spells, previously read as a scalar
+/// literally named `x(`.
+///
+/// Oracle: `eval {list a $x(}` and `subst {$x(}` both give `missing )`.
+#[test]
+fn unterminated_array_index_raises_missing_paren() {
+    for sheet in ["eval {list a $x(}", "subst {$x(}"] {
+        let (code, result, _) = run(sheet);
+        assert_eq!(code, Code::Error, "{sheet}");
+        assert_eq!(result, "missing )", "{sheet}");
+    }
+}
+
+/// Well-formed quoted, bracketed and array-index words are unaffected: the
+/// close checks must not fire on a `"` inside a command substitution, a `]`
+/// inside a braced or quoted word of the substituted script, or a `)` closing
+/// a nested index.
+#[test]
+fn well_formed_quoted_and_bracketed_words_still_parse() {
+    for (sheet, want) in [
+        (r#"list a "b c" d"#, "a {b c} d"),
+        (r#"set x [string cat "a" "b"]"#, "ab"),
+        (r#"subst {[list {a]b}]}"#, r"a\]b"),
+        (r#"subst {[list "a]b"]}"#, r"a\]b"),
+        (
+            "set c(1) inner\nset b(inner) mid\nset a(mid) outer\nsubst {$a($b($c(1)))}",
+            "outer",
+        ),
+    ] {
+        let (code, result, _) = run(sheet);
+        assert_eq!(code, Code::Ok, "{sheet}: {result}");
+        assert_eq!(result, want, "{sheet}");
+    }
 }

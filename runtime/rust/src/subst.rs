@@ -18,8 +18,10 @@
 
 //! Tcl substitution engine (`subst`, and the eval loop's word expander) — T1.2.
 //!
-//! Implements `subst_flagged` on the shared [`crate::parse::scan_parts`]
-//! component model so parse and subst share one scanner.
+//! The scan half is not implemented here: [`scan`] is a flag adapter over
+//! [`tcl_lexer::word_parts::decompose`], the one owner of Tcl word-component
+//! decomposition, shared with this crate's word parser and with `tcl-vm`.
+//! This module owns only the *resolve* half.
 //!
 //! Substitution is two halves:
 //! 1. **Scan** the input into components ([`scan`]) — pure, done here.
@@ -36,7 +38,7 @@
 
 use tcl_core_types::RecursionLimit;
 
-use crate::parse::{self, WordBody, WordPart};
+use crate::parse::{WordBody, WordPart};
 use tcl_lexer::{EscapeSyntax, LexerConfig};
 
 /// Cap on `$name(index)` nesting depth [`resolve_parts`] will recurse into
@@ -80,7 +82,17 @@ impl Default for SubstFlags {
 /// release, so `subst` must read the template the way that release's parser
 /// would.
 pub fn scan(src: &[u8], flags: SubstFlags, config: LexerConfig) -> WordBody<'_> {
-    parse::scan_parts(src, flags.vars, flags.cmds, flags.backslashes, config)
+    tcl_lexer::word_parts::decompose(
+        src,
+        tcl_lexer::word_parts::SubstFlags {
+            vars: flags.vars,
+            cmds: flags.cmds,
+            backslashes: flags.backslashes,
+            // Source `subst` reads every `$name` spelling C does.
+            bare_var_refs: true,
+        },
+        config,
+    )
 }
 
 /// Resolve a scanned [`WordBody`] to bytes. Literals are copied and backslashes
