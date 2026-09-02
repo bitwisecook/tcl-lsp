@@ -100,8 +100,13 @@ diffing stdout against the `tclsh9.0` oracle gives:
 
 | Result | default tier | analysis tier |
 |---|---|---|
-| byte-identical to tclsh 9.0 | 34 / 36 | 29 / 36 |
-| diverges | `70_var_traces`, `73_coroutine` | those two plus `11_while_loop`, `20_lists`, `24_regex`, `41_upvar`, `50_catch_error` |
+| byte-identical to tclsh 9.0 (at review time) | 34 / 36 | 29 / 36 |
+| diverges (at review time) | `70_var_traces`, `73_coroutine` | those two plus `11_while_loop`, `20_lists`, `24_regex`, `41_upvar`, `50_catch_error` |
+
+The live ledger is `EXPECTED_DIVERGENCES` in
+`rust/tcl-compiler/tests/wasm_tiers.rs`, which fails when an entry goes
+stale; P1 has since closed `50_catch_error` and the default-plan
+`70_var_traces` row.
 
 The two default-tier divergences are runtime bugs, not codegen: `incr` with a
 read trace fires only `write` (issue #1633, row 3) and the wasm build refuses

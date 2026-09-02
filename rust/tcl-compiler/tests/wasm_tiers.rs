@@ -166,17 +166,11 @@ const EXPECTED_DIVERGENCES: &[ExpectedDivergence] = &[
     ExpectedDivergence {
         tier: "t7-dynamic",
         name: "70_var_traces",
-        plan: Plan::Default,
-        why: "issue #1633 row 3: `incr` on a traced variable fires only the \
-              `write` trace, never the `read` one. Runtime defect, not codegen \
-              — the interpreted script diverges the same way. Fixed in P1.",
-    },
-    ExpectedDivergence {
-        tier: "t7-dynamic",
-        name: "70_var_traces",
         plan: Plan::Analysis,
-        why: "same issue #1633 row 3 as the default plan: the read trace never \
-              fires. Fixed in P1.",
+        why: "issue #1772: the script's final `puts \"$a $b $c\"` is a quoted \
+              word with three substitutions, and the analysis tier's `puts` \
+              fast path re-parses its compatibility text into a bogus variable \
+              name, so `::top` stops after the first line. Fixed in P3.",
     },
     ExpectedDivergence {
         tier: "t7-dynamic",
