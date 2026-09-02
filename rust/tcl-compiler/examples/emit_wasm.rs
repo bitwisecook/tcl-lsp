@@ -34,15 +34,17 @@
 
 use std::fs;
 
-use tcl_compiler::codegen::wasm::{WasmCompileOptions, compile_wasm};
+use tcl_compiler::codegen::wasm::{SemanticOptimisationPassId, WasmCompileOptions, compile_wasm};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_registry::CommandRegistry;
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let (standalone, init, rest): (bool, bool, Vec<&String>) = {
+    let (standalone, init, analysis, wat, rest): (bool, bool, bool, bool, Vec<&String>) = {
         let mut standalone = false;
         let mut init = false;
+        let mut analysis = false;
+        let mut wat = false;
         let mut rest = Vec::new();
         for a in &args {
             match a.as_str() {
@@ -52,13 +54,19 @@ fn main() {
                     init = true;
                     standalone = true;
                 }
+                // Opt into the analysis-derived specialisation tier (off by default).
+                "--analysis" => analysis = true,
+                // Also write `<out>.wat` next to the binary.
+                "--wat" => wat = true,
                 _ => rest.push(a),
             }
         }
-        (standalone, init, rest)
+        (standalone, init, analysis, wat, rest)
     };
     let [script_path, out_path] = rest.as_slice() else {
-        eprintln!("usage: emit_wasm [--standalone] [--init] <script-file> <out.wasm>");
+        eprintln!(
+            "usage: emit_wasm [--standalone] [--init] [--analysis] [--wat] <script-file> <out.wasm>"
+        );
         std::process::exit(2);
     };
     let src = fs::read_to_string(script_path).expect("read script");
@@ -69,8 +77,17 @@ fn main() {
     } else {
         WasmCompileOptions::runtime_linked()
     };
+    let options = if analysis {
+        options.with_semantic_optimisation(SemanticOptimisationPassId::LegacyAnalysisSpecialisation)
+    } else {
+        options
+    };
     let mut wasm = compile_wasm(&unit, &registry, options);
     fs::write(out_path, wasm.to_bytes()).expect("write wasm");
+    if wat {
+        fs::write(format!("{out_path}.wat"), wasm.to_wat()).expect("write wat");
+    }
+    eprintln!("codegen plan: {}", wasm.plan.as_str());
     let tag = match (standalone, init) {
         (_, true) => " [standalone +_start +init_library]",
         (true, false) => " [standalone +_start]",

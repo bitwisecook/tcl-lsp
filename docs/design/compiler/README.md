@@ -192,6 +192,9 @@ User-facing compiler troubleshooting and how-tos live in
 - [wasm-target-surfaces.md](wasm-target-surfaces.md) — WASI vs in-browser
   WASM: the capability matrix, browser-target build/wiring gaps, the
   proposed host-import surface, and measured module sizes.
+- [wasm-native-lowering-plan.md](wasm-native-lowering-plan.md) — review of
+  the current WASM code generator and runtime ABI, the sample-tier baseline,
+  and the phased plan for native lowering with provable framing elision.
 - [aot-command-priority.md](aot-command-priority.md) — real-corpus census
   (issue #1181) ranking which Tcl commands the AOT WASM compiler should
   emit directly next, with a breadth-weighted tiering and what is already
