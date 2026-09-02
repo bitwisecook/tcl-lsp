@@ -78,7 +78,7 @@ curl -fsSL https://raw.githubusercontent.com/bitwisecook/tcl-lsp/rust/scripts/in
 | [Emacs](editors/emacs/) | Config snippet (Elisp) | Add to `init.el` for eglot or lsp-mode | Works with built-in eglot (Emacs 29+) |
 | [Helix](editors/helix/) | Config snippet (TOML) | Add to `~/.config/helix/languages.toml` | Minimal pure-TOML setup |
 | [Sublime Text](editors/sublime-text/) | Full package (.sublime-package) | Package Control or manual install | Works standalone (syntax + snippets) without LSP; enhanced with LSP package |
-| [JetBrains](editors/jetbrains/) | Full plugin (.zip) | Settings > Plugins > Install from Disk | Compiler explorer tool window, settings UI panel, IntelliJ IDEA 2024.1+ |
+| [JetBrains](editors/jetbrains/) | Full plugin (.zip) | Settings > Plugins > Install from Disk | Compiler explorer tool window, settings UI panel, dynamic file-type registration for pack-claimed extensions, IntelliJ IDEA 2024.1+ |
 
 All editors connect to the native Rust binary `tcl-lsp-server` over stdio
 (build it with `make rust-server`, or `cargo build -p tcl-lsp-server`).
@@ -1036,7 +1036,10 @@ The dialect is selected automatically using the following priority chain
    `.sdc`/`.upf` → `synopsys-eda-tcl`, `.xdc` → `xilinx-eda-tcl`.
    A SpecTcl pack can route further extensions to a dialect with a
    `file_extension` row, so a private library's own suffix opens in the
-   dialect it is written for.
+   dialect it is written for.  VS Code and the JetBrains IDEs also register
+   those extensions with the editor itself as the pack loads, so the file
+   opens as Tcl in the first place — see
+   [A file extension my SpecTcl pack claims opens as plain text](docs/kcs/kcs-issue-a-pack-claimed-file-extension-opens-as-plain-text.md).
 3. **Comment directive** -- a `# tcl-dialect: <name>` comment in the
    first 5 lines of a file pins the dialect for that file. The name is any
    environment name or alias (`tcl8.4`, `f5-irules`, `tk`, `wish`, a name a
@@ -1394,6 +1397,15 @@ tclvm -c 'puts [expr {6 * 7}]'
 # Show bytecode disassembly without executing
 tcl dis script.tcl
 ```
+
+#### C extension shim
+
+A command written against the C Tcl API can run on the bytecode VM through
+the `tcl-cshim` crate: compile the extension against `rust/tcl-cshim/include/tclshim.h`
+instead of `tcl.h` and load its `<Pkg>_Init` from Rust. Shimmed extensions are
+trusted native code loaded only by host configuration — a spec pack cannot
+reference one. See
+[docs/design/c-extension-shim.md](docs/design/c-extension-shim.md).
 
 ### eBPF (BPF-Tcl)
 

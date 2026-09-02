@@ -48,6 +48,10 @@ symptom with several possible causes worth telling apart. See rule 13 in
 - [kcs-issue-sticky-scroll-shows-nothing.md](kcs-issue-sticky-scroll-shows-nothing.md)
   — sticky scroll pins nothing for Tcl files while the extension is
   enabled, even though breadcrumbs and the outline look fine.
+- [kcs-issue-a-pack-claimed-file-extension-opens-as-plain-text.md](kcs-issue-a-pack-claimed-file-extension-opens-as-plain-text.md)
+  — a file whose extension a SpecTcl pack claims opens as plain text with
+  no language server, and what each editor needs before it will treat the
+  extension as Tcl.
 - [kcs-issue-parallel-worktree-builds-serve-stale-artefacts.md](kcs-issue-parallel-worktree-builds-serve-stale-artefacts.md)
   — builds in one git worktree fail or pass with artefacts from a
   sibling checkout because the worktrees share one cargo target
@@ -147,6 +151,9 @@ symptom with several possible causes worth telling apart. See rule 13 in
 - [kcs-qa-why-w112-w118-have-no-quick-fix.md](kcs-qa-why-w112-w118-have-no-quick-fix.md)
   — why the trailing-whitespace and line-ending hints stay quick-fix-free:
   the document formatter is the safe, already-existing fix.
+- [kcs-qa-what-is-the-c-extension-shim.md](kcs-qa-what-is-the-c-extension-shim.md)
+  — what the C extension shim is, when to use it instead of a Tcl hook
+  body or a native hook, and why a spec pack can never load one.
 - [kcs-qa-when-is-a-proc-parameter-treated-as-a-constant.md](kcs-qa-when-is-a-proc-parameter-treated-as-a-constant.md)
   — when the analyser binds a procedure parameter to a compile-time
   literal from its call sites, which indirect calls (`$cmd args`, callback

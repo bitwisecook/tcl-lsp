@@ -11,6 +11,8 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
+use crate::emit::{hex_lower, tcl_word};
+
 /// One normalised testssl.sh result. Common fields are projected for analysis;
 /// every other field remains in [`Self::unknown`], and the import also retains
 /// the complete source JSON.
@@ -54,15 +56,18 @@ impl TestSslImport {
     /// compact JSON and re-run a newer importer later.
     #[must_use]
     pub fn to_sslictcl(&self, name: &str) -> String {
+        format!("sslictcl 1\n{}", self.declaration(name))
+    }
+
+    /// The `testssl-import` declaration alone, for embedding in a larger
+    /// document emitted by [`crate::model::SslicModel::to_sslictcl`].
+    pub(crate) fn declaration(&self, name: &str) -> String {
         let compact = serde_json::to_vec(&self.raw).unwrap_or_default();
-        let mut output = String::new();
-        output.push_str("sslictcl 1\n");
-        output.push_str("testssl-import ");
-        output.push_str(&tcl_word(name));
-        output.push_str(" {\n    schema 1\n    raw-json-hex ");
-        output.push_str(&hex_lower(&compact));
-        output.push_str("\n}\n");
-        output
+        format!(
+            "testssl-import {} {{\n    schema 1\n    raw-json-hex {}\n}}\n",
+            tcl_word(name),
+            hex_lower(&compact)
+        )
     }
 }
 
@@ -149,43 +154,6 @@ fn field_text(object: &Map<String, Value>, field: &str) -> Option<String> {
         Value::String(text) => Some(text.clone()),
         other => Some(other.to_string()),
     })
-}
-
-fn tcl_word(value: &str) -> String {
-    if !value.is_empty()
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || b"._/-".contains(&byte))
-    {
-        return value.to_owned();
-    }
-    if !value.contains('{') && !value.contains('}') && !value.contains("\\\n") {
-        return format!("{{{value}}}");
-    }
-    let mut output = String::from("\"");
-    for character in value.chars() {
-        match character {
-            '\\' | '"' | '$' | '[' | ']' => {
-                output.push('\\');
-                output.push(character);
-            }
-            '\n' => output.push_str("\\n"),
-            '\r' => output.push_str("\\r"),
-            '\t' => output.push_str("\\t"),
-            other => output.push(other),
-        }
-    }
-    output.push('"');
-    output
-}
-
-fn hex_lower(bytes: &[u8]) -> String {
-    use std::fmt::Write as _;
-    let mut output = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        let _ = write!(output, "{byte:02x}");
-    }
-    output
 }
 
 #[cfg(test)]

@@ -4267,6 +4267,18 @@ name = "tcl-core-types"
 version = "0.1.0"
 
 [[package]]
+name = "tcl-cshim"
+version = "0.1.0"
+dependencies = [
+ "cc",
+ "tcl-cmd-core",
+ "tcl-engine-api",
+ "tcl-engine-tclvm",
+ "tcl-spec-hooks",
+ "tcl-syntax",
+]
+
+[[package]]
 name = "tcl-debugger"
 version = "0.1.0"
 dependencies = [
@@ -4618,7 +4630,9 @@ dependencies = [
  "serde_json",
  "sha2 0.11.0",
  "tcl-compiler",
+ "tcl-core-types",
  "tcl-lexer",
+ "tcl-syntax",
  "x509-parser",
 ]
 

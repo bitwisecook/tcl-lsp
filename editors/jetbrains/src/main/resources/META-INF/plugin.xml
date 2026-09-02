@@ -76,6 +76,11 @@
         <postStartupActivity
             implementation="com.tcllsp.jetbrains.SpecStudioStartupActivity"/>
 
+        <!-- Restores the file extensions SpecTcl packs claimed in an earlier
+             session before the first file is opened. -->
+        <postStartupActivity
+            implementation="com.tcllsp.jetbrains.packs.PackAssociationsStartupActivity"/>
+
         <!-- Notification group for error messages -->
         <notificationGroup id="Tcl LSP" displayType="BALLOON"/>
     </extensions>

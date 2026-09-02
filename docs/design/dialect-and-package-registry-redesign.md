@@ -764,8 +764,10 @@ environment attaches its documents to a generic contributed Tcl identity
 while the server tracks the real environment. A pack may request
 detection patterns; the editor adapter reports whether it can apply them
 dynamically (VS Code: workspace `files.associations` per #1626; JetBrains:
-#1650; Zed/Sublime: static manifests only) — the design never promises a
-new native file type where the host cannot register one.
+IDE-global `FileTypeManager` associations with a persisted ledger of what
+the plugin installed, per #1650; Zed/Sublime: static manifests only) — the
+design never promises a new native file type where the host cannot register
+one.
 
 - **Environments are the only user-facing names.** All six ingress kinds —
   `# tcl-dialect:` directives, `tclLsp.dialect` settings and

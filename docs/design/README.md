@@ -191,6 +191,11 @@ rule itself, its single Rust home, and its conformance gates live in
   reaches the `ILXServer.addMethod` registration that implements it, the
   workspace-directory association rule, the JavaScript registration forms that
   are supported, and the forms that abstain.
+- [sslictcl-vocabulary.md](sslictcl-vocabulary.md) — the `.sslictcl`
+  vocabulary-1 reference: every declaration and member, the value domains,
+  the open/closed rule that carries a newer document on an older build, the
+  never-evaluated guarantee, name resolution, the `(check_id, endpoint)`
+  policy-finding identity, and the `SSLIC1xxx` diagnostics.
 - [contracts/sslictcl-source-data.md](contracts/sslictcl-source-data.md) —
   the embedded SslicTcl source-data layout, provenance/hash schema, offline
   drift gate, explicit refresh command, and release freshness contract.
@@ -447,6 +452,10 @@ are its rules, and what are the failure modes". One contract per file.
   execution that have landed; the version-ranges lifecycle model at every
   gateable level; and the vocabulary-tolerance policy that avoids
   per-release rebuilds.
+- [c-extension-shim.md](c-extension-shim.md) — the C Tcl extension shim
+  (`tcl-cshim`): the trust model for shimmed native code, `Tcl_Obj` to
+  structured-value marshalling, the `_Init` registration story, the C API
+  subset shimmed first, and the unbuilt WASM leg.
 - [spec-dsl-examples/tricky-surfaces.md](spec-dsl-examples/tricky-surfaces.md)
   — the DSL's acceptance rubric: the tricky Tcl surfaces (operator
   aliasing, TclOO corners, real-world options, paired tails, hooks)
