@@ -321,6 +321,7 @@ mod tests {
         assert_eq!(ds.len(), DialectProfile::all().len());
         assert!(ds.iter().any(|d| d.name == "bpf"));
         assert!(ds.iter().any(|d| d.name == "spectcl"));
+        assert!(ds.iter().any(|d| d.name == "sslictcl"));
     }
 
     #[test]
@@ -356,6 +357,7 @@ mod tests {
         );
         assert!(values.as_array().unwrap().iter().any(|v| v == "bpf"));
         assert!(values.as_array().unwrap().iter().any(|v| v == "spectcl"));
+        assert!(values.as_array().unwrap().iter().any(|v| v == "sslictcl"));
     }
 
     #[test]

@@ -13,6 +13,32 @@ A unit test synthesises a fully-declared instance of every declaration and
 asserts the loader knows exactly the words the table declares — and no others —
 so the two cannot drift.
 
+## Classification: an environment, not a grammar axis
+
+SslicTcl is an **environment** over Tcl 9.0 (package surface `sslictcl`), not a
+new grammar family — the same shape as SpecTcl, and for the same reason. The
+[redesign's classification
+table](dialect-and-package-registry-redesign.md#2-the-classification-rule)
+records the ruling. Concretely:
+
+- the lexical grammar is `GRAMMAR_TCL9X` verbatim;
+- what makes it a dialect is the *availability* half: the declaration
+  vocabulary below exists inside a `.sslictcl` document and nowhere else;
+- base Tcl stays loaded underneath, so the grammar is what says a word is
+  **not** an SslicTcl declaration;
+- `CommandSpec` is not extended. The vocabulary is ordinary registry data —
+  one `CommandSpec` per statement word, plus a `DefinitionBodyGrammar` per
+  block body, in the `DefinerFamily::SslicTcl` family — which is what gives a
+  document completion, hover, signature help, semantic tokens, folding, and
+  document symbols with no declaration name in any LSP consumer.
+
+A document is routed to the dialect three ways: the `.sslictcl` extension, the
+mandatory `sslictcl VERSION` header as a content signature (so a document saved
+under a `.tcl` name is still recognised), and an explicit
+`# tcl-dialect: sslictcl`. The header signature is **structural** — the word
+must be a command head followed by an integer word — because `sslictcl` is
+ordinary English and `set format sslictcl` in a `.tcl` script must stay Tcl.
+
 ## Declarations
 
 The top level is **open**: an unrecognised statement is preserved as an
@@ -185,6 +211,66 @@ order of the table above, `BTreeMap` iteration order within each kind,
 four-space indent per level, and one shared word-quoting helper. Loading the
 emitted text reproduces an equal model, and emitting that model reproduces
 byte-identical text.
+
+## The vocabulary as registry data
+
+The registry pack (`rust/tcl-registry/src/commands/sslictcl/`) states the same
+table a second time, in the shape the editor surfaces read:
+
+- **The document is a definition body too.** `SSLICTCL_DOCUMENT_GRAMMAR` names
+  the nine top-level declarations, and the registry hands it to consumers as
+  `CommandRegistry::document_grammar()`. That is what lets completion offer
+  exactly the declarations at the root and exactly a block's members inside it,
+  and what lets the token walker paint every word from grammar membership.
+- **No word carries `LANGUAGE_KEYWORD`.** The token walker honours that trait
+  wherever a head appears, so a member row carrying it would look correct in
+  the wrong block. Each word carries
+  `Traits::DEFINITION_BODY_MEMBER_ONLY` instead: the spec exists so the word
+  can hover, complete, and arity-check where it is legal, and the flag keeps it
+  out of an open command position — inside a retained `predicate`, say, where
+  ordinary Tcl completion resumes.
+- **One spec per word.** A word meaning one thing in several blocks
+  (`protocols` in `endpoint` and `cipher`, `status` in `protocol` and `cipher`)
+  is one `CommandSpec`; grammar membership, not a duplicated spec, provides the
+  context sensitivity.
+- **`chain` and `policy` carry arity `1..=2`.** They are the only two words
+  that are both a top-level declaration (`chain NAME { … }`) and a *reference*
+  inside an `endpoint` (`chain NAME`). The static `Body` role at index 1 is
+  dropped when the call has no second word, and the `endpoint` grammar's member
+  row for them is keyword-only, so a reference never looks like a block.
+- **Closed domains are `arg_values` plus a `closed_value_args` entry**, so a
+  literal outside the set is reported (W127). `VERSION` is the one deliberate
+  exception: the canonical spellings are offered as completions while the
+  loader also accepts documented aliases, so the argument is *not* closed.
+- **`predicate SCRIPT`** carries `ArgRole::OpaqueScript`, not `Body`, and
+  **no** `definition_body`. `Body` means "executable Tcl a consumer must
+  descend into", which is the one thing the vocabulary guarantees this word is
+  not: calling it a body put a never-executed word into the reference graph,
+  the call-hierarchy, the unresolved-command pass, and the generated
+  callback-surface inventory. The opaque role keeps what a *reader* wants —
+  `ArgRole::folds_as_block` is true, so it still folds — while
+  `ArgRole::carries_script` is false, so no analysis enters it, and the missing
+  grammar keeps the definition-body walker out of declaration context for it
+  as well.
+
+`rust/tcl-sslictcl/tests/registry_pack_drift.rs` walks [`DECLARATIONS`] and
+asserts the pack matches it in both directions: every declared word has a spec,
+every block spec's grammar members are exactly the declaration's members, every
+spec in the pack is named by the table, `Script` members carry no grammar, and
+each closed domain's `arg_values` are exactly the loader's accepted spellings.
+The two statements of the vocabulary therefore cannot drift.
+
+## Where it lives
+
+| Surface | Location |
+|---|---|
+| Profile, environment, editor identity | `rust/tcl-dialect/src/profile.rs`, `src/model/environment.rs` |
+| Package surface constant | `SpecSurface::SSLICTCL` |
+| Detection (extension + header signature) | `rust/tcl-registry/src/dialects.rs` |
+| Command pack | `rust/tcl-registry/src/commands/sslictcl/` |
+| Block grammars | `SSLICTCL_*_GRAMMAR` / `SSLICTCL_GRAMMARS` in `rust/tcl-registry/src/definer.rs` |
+| Loader, vocabulary table, policy, emitter | `rust/tcl-sslictcl/src/{dsl,vocabulary,policy,emit}.rs` |
+| Contract tests | `rust/tcl-sslictcl/tests/registry_pack_drift.rs`, `rust/tcl-registry/tests/sslictcl_pack.rs`, `rust/tcl-registry/tests/detect_dialect.rs`, `rust/tcl-lsp-core/tests/semantic_tokens.rs` |
 
 ## See also
 

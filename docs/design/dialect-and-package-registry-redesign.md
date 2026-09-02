@@ -420,7 +420,7 @@ profiles and the jim branch:
 | `spectcl` | environment (recommended) or dialect — **Q3** | grammar is `GRAMMAR_TCL9X` verbatim; the DSL words are a command surface (`rust/tcl-registry/src/commands/spectcl/`) |
 | `bpf` | environment (recommended) or dialect — **Q3** | grammar is `GRAMMAR_TCL9X` verbatim; its real content is a codegen target and a command surface |
 | `f5-bigip` | **neither** — a separate language surface | own tokeniser (`rust/tcl-bigip/src/conf_tokens.rs`), own tree-sitter grammar; keeps its identity/routing entry but leaves the Tcl dialect axis — **Q3** |
-| future `sslictcl` (#1543) | dialect if it earns a grammar axis; otherwise environment | the classification rule decides at proposal time, not by precedent |
+| `sslictcl` (#1543) | **environment** `sslictcl` = tcl@9.0 + sslictcl pack (package surface) — **ruled 2026-09** | The classification rule decided against a grammar axis: a `.sslictcl` document is `GRAMMAR_TCL9X` verbatim, and what makes it a dialect at all is the availability half — the declaration vocabulary (`certificate` / `endpoint` / `trust-program` / `protocol` / `cipher` / `chain` / `policy`, `rust/tcl-registry/src/commands/sslictcl/`) that must exist inside a `.sslictcl` document and nowhere else. The vocabulary **evaluates nothing** — not even a `predicate { … }` body, which the loader retains verbatim — so the environment is closed-world with base Tcl still loaded underneath, exactly as `spectcl` is. `CommandSpec` was **not** extended: the whole vocabulary is expressible with the existing fields plus `DefinerFamily::SslicTcl` definition-body grammars |
 
 ## 3. The three concepts
 

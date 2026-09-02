@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "name": "Tcl",
   "scopeName": "source.tcl",
-  "fileTypes": ["tcl", "tk", "itcl", "tm", "tclspec"],
+  "fileTypes": ["tcl", "tk", "itcl", "tm", "tclspec", "sslictcl"],
   "patterns": [
     { "include": "#comment" },
     { "include": "#regexp-command" },

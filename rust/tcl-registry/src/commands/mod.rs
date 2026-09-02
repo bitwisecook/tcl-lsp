@@ -31,6 +31,7 @@ pub mod iapps;
 pub mod irules;
 pub mod itcl;
 pub mod spectcl;
+pub mod sslictcl;
 pub mod stdlib;
 pub mod tcl;
 pub mod tcllib;

@@ -189,6 +189,140 @@ pub fn member_body_indices_in(
     grammar.member_body_indices_in(command, args, dialect)
 }
 
+/// The innermost definition-body grammar in force at `offset`, or `None` when
+/// the position is an ordinary open command position.
+///
+/// The *root* answer is registry data: an authoring dialect whose file is
+/// itself a declaration body declares a
+/// [`CommandRegistry::document_grammar`], and an ordinary Tcl document has
+/// none. From there this applies exactly the nesting rule the recursive
+/// walkers apply — [`next_definition_grammar`] on the way into a body, and a
+/// body word located through the same grammar-or-spec split
+/// ([`member_block_indices_in`] for a member row, `ArgRole::Body` for anything
+/// else) — so completion cannot disagree with folding and the token walk about
+/// which vocabulary a position is in.
+///
+/// A body under a command with **no** grammar (a `SpecTcl` hook, an
+/// `SslicTcl` `predicate`) answers `None`: those hold ordinary Tcl, or nothing
+/// this consumer models.
+#[must_use]
+pub fn definition_grammar_at(
+    source: &str,
+    offset: u32,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    dialect: Option<SurfaceQuery<'_>>,
+) -> Option<&'static DefinitionBodyGrammar> {
+    /// The inner content range of a braced word, in absolute offsets.
+    fn content_range(tok: &tcl_lexer::Token, len: usize) -> Option<(u32, u32)> {
+        let start = tok
+            .span
+            .start()
+            .checked_add(u32::from(tok.content_offset))?;
+        let end = tok.span.end().min(u32::try_from(len).unwrap_or(u32::MAX));
+        (start <= end).then_some((start, end))
+    }
+
+    /// What the walk carries down unchanged.
+    struct Ctx<'a, 'q> {
+        source: &'a str,
+        offset: u32,
+        registry: &'a CommandRegistry,
+        config: tcl_lexer::LexerConfig,
+        dialect: Option<SurfaceQuery<'q>>,
+    }
+
+    fn walk(
+        ctx: &Ctx<'_, '_>,
+        slice: &str,
+        base: u32,
+        depth: u32,
+        cur: Option<&'static DefinitionBodyGrammar>,
+    ) -> Option<&'static DefinitionBodyGrammar> {
+        // The same bound the folding and token walks carry: a pathological
+        // nest answers with the grammar it had rather than recursing forever.
+        if depth > 32 {
+            return cur;
+        }
+        for cmd in tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+            slice,
+            base,
+            ctx.config.at_depth(depth),
+        ) {
+            if cmd.argv.is_empty() {
+                continue;
+            }
+            let args: Vec<&str> = cmd.texts.iter().skip(1).map(String::as_str).collect();
+            let head = HeadWords::plain(cmd.name());
+            // A member row's block layout comes from the enclosing grammar; an
+            // ordinary command's from its own spec. The same split folding
+            // makes, so the two agree about where a body is.
+            let indices: Vec<usize> = match cur {
+                Some(g) if is_member(g, head.written) => {
+                    member_block_indices_in(g, head.written, &args, ctx.dialect)
+                }
+                _ => ctx
+                    .registry
+                    .arg_indices_for_role(head.resolved, &args, ArgRole::Body),
+            };
+            for index in indices {
+                let Some(tok) = cmd.argv.get(index + 1) else {
+                    continue;
+                };
+                // Only a braced word carries a nested script.
+                if !matches!(tok.kind, tcl_lexer::TokenType::Str) {
+                    continue;
+                }
+                let Some((inner_start, inner_end)) = content_range(tok, ctx.source.len()) else {
+                    continue;
+                };
+                // The cursor has to be inside the word's *content*: a position
+                // on the braces themselves still belongs to the outer body.
+                if ctx.offset < inner_start || ctx.offset > inner_end {
+                    continue;
+                }
+                let Some(inner) = ctx.source.get(inner_start as usize..inner_end as usize) else {
+                    continue;
+                };
+                return walk(
+                    ctx,
+                    inner,
+                    inner_start,
+                    depth + 1,
+                    next_definition_grammar(head, &args, cur, ctx.registry),
+                );
+            }
+        }
+        cur
+    }
+
+    let ctx = Ctx {
+        source,
+        offset,
+        registry,
+        config,
+        dialect,
+    };
+    walk(&ctx, source, 0, 0, registry.document_grammar())
+}
+
+/// Braced-block argument indices for a member call under `grammar` — the
+/// words a **reader** collapses, which is [`member_body_indices_in`] plus
+/// every member word that is a braced block without being executable
+/// (`ArgRole::OpaqueScript`).
+///
+/// Folding reads this; a walker that descends into code reads
+/// [`member_body_indices_in`].
+#[must_use]
+pub fn member_block_indices_in(
+    grammar: &DefinitionBodyGrammar,
+    command: &str,
+    args: &[&str],
+    dialect: Option<SurfaceQuery<'_>>,
+) -> Vec<usize> {
+    grammar.member_block_indices_in(command, args, dialect)
+}
+
 /// Parameter-list argument indices for a member call under `grammar` (a
 /// `method`/`typemethod`/`constructor`'s `{a b}` word).  A wrapper member
 /// (`self method …`, itcl `public method …`) nests.

@@ -684,6 +684,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
             "mentor-eda-tcl" to "Mentor EDA Tcl",
             "microchip-libero-eda-tcl" to "Microchip Libero EDA Tcl",
             "spectcl" to "SpecTcl",
+            "sslictcl" to "SslicTcl",
             "synopsys-eda-tcl" to "Synopsys EDA Tcl",
             "tcl8.4" to "Tcl 8.4",
             "tcl8.5" to "Tcl 8.5",

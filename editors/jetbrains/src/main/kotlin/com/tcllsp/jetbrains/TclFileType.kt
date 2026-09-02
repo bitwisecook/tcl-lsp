@@ -56,6 +56,7 @@ class TclFileType private constructor() : LanguageFileType(TclLanguage) {
             "qip",
             "do",
             "tclspec",
+            "sslictcl",
             "sdc",
             "upf",
             "xdc",

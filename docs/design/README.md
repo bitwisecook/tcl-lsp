@@ -192,10 +192,12 @@ rule itself, its single Rust home, and its conformance gates live in
   workspace-directory association rule, the JavaScript registration forms that
   are supported, and the forms that abstain.
 - [sslictcl-vocabulary.md](sslictcl-vocabulary.md) — the `.sslictcl`
-  vocabulary-1 reference: every declaration and member, the value domains,
-  the open/closed rule that carries a newer document on an older build, the
+  vocabulary-1 reference: its classification as an authoring *environment*
+  over Tcl 9.0, every declaration and member, the value domains, the
+  open/closed rule that carries a newer document on an older build, the
   never-evaluated guarantee, name resolution, the `(check_id, endpoint)`
-  policy-finding identity, and the `SSLIC1xxx` diagnostics.
+  policy-finding identity, the `SSLIC1xxx` diagnostics, and how the registry
+  pack restates the same table.
 - [contracts/sslictcl-source-data.md](contracts/sslictcl-source-data.md) —
   the embedded SslicTcl source-data layout, provenance/hash schema, offline
   drift gate, explicit refresh command, and release freshness contract.

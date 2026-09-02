@@ -27,6 +27,13 @@ rsa = "0.10.0-rc.18"
 p256 = "0.14"
 p384 = "0.14"
 
+[dev-dependencies]
+# The registry pack states the same vocabulary a second time, for the editor
+# surfaces. `tests/registry_pack_drift.rs` walks `vocabulary::DECLARATIONS` and
+# holds the two statements to each other; nothing in the library reaches for
+# the registry.
+tcl-registry = { path = "../tcl-registry" }
+
 # Entropy backends the transitive crypto crates need when the workspace's
 # browser-facing WASM packages are checked. Keyed on the browser target alone:
 # `js`/`wasm_js` route getrandom through `crypto.getRandomValues`, which exists

@@ -933,6 +933,7 @@ body {
       <option value="mentor-eda-tcl">Mentor EDA</option>
       <option value="microchip-libero-eda-tcl">Microchip Libero</option>
       <option value="spectcl">SpecTcl</option>
+      <option value="sslictcl">SslicTcl</option>
       <option value="synopsys-eda-tcl">Synopsys EDA</option>
       <option value="tcl8.4">Tcl 8.4</option>
       <option value="tcl8.5">Tcl 8.5</option>

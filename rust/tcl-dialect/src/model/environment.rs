@@ -99,6 +99,7 @@ impl EditorLanguageIdentityId {
         "tcl-mentor",
         "tcl-microchip",
         "tclspec",
+        "sslictcl",
         "tcl-synopsys",
         "tcl84",
         "tcl85",
@@ -1086,6 +1087,33 @@ fn spectcl_environment() -> EnvironmentDefinition {
     }
 }
 
+fn sslictcl_environment() -> EnvironmentDefinition {
+    EnvironmentDefinition {
+        id: EnvironmentId::new("sslictcl"),
+        aliases: arcs(&["sslic-tcl", "tls-sslictcl"]),
+        display_name: arc("SslicTcl"),
+        editor_identity: EditorLanguageIdentityId::new("sslictcl"),
+        core: Some(tcl_core(Release::TCL_9_0)),
+        targets: tcl_line(Release::TCL_9_0),
+        expected_packages: Vec::new(),
+        policy_defaults: EnvironmentPolicy {
+            // A `.sslictcl` document is declarative and is never evaluated —
+            // not even its `predicate` bodies — so nothing is
+            // `package require`-able into it.
+            closed_world: WorldPolicy::Closed,
+            fixed_ensembles: false,
+            strict_ascii: false,
+            version_ceiling: Some(Release::TCL_9_0),
+        },
+        server_detection: DetectionFacts {
+            file_extensions: vec![ext("sslictcl", "SslicTcl TLS Declaration")],
+            ..DetectionFacts::default()
+        },
+        help_terms: arcs(&["sslictcl", "tls", "certificate", "endpoint"]),
+        provenance: Provenance::BuiltIn,
+    }
+}
+
 fn bpf_environment() -> EnvironmentDefinition {
     EnvironmentDefinition {
         id: EnvironmentId::new("bpf"),
@@ -1127,6 +1155,7 @@ pub fn compiled_definitions() -> Vec<EnvironmentDefinition> {
     definitions.push(bigip_environment());
     definitions.push(expect_environment());
     definitions.push(spectcl_environment());
+    definitions.push(sslictcl_environment());
     definitions.push(bpf_environment());
     definitions.extend(bundled_pack_definitions());
     definitions
@@ -1531,7 +1560,7 @@ mod tests {
         let bigip = registry.resolve("f5-bigip").expect("bigip");
         assert!(bigip.core.is_none(), "identity-only: no Tcl core");
 
-        for id in ["spectcl", "bpf"] {
+        for id in ["spectcl", "sslictcl", "bpf"] {
             let env = registry.resolve(id).expect(id);
             assert_eq!(
                 env.policy_defaults.closed_world,
@@ -1613,7 +1642,7 @@ mod tests {
             }
         }
         // A closed vendor shell declares none, so it cannot host Tk at all.
-        for id in ["f5-irules", "bpf", "spectcl", "xilinx-eda-tcl"] {
+        for id in ["f5-irules", "bpf", "spectcl", "sslictcl", "xilinx-eda-tcl"] {
             let definition = registry.resolve(id).expect(id);
             assert!(
                 !definition
@@ -1654,6 +1683,7 @@ mod tests {
             ("tcl9.1", Some("tcl91")),
             ("f5-irules", Some("tcl-irule")),
             ("spectcl", Some("tclspec")),
+            ("sslictcl", Some("sslictcl")),
             ("tk", None),
             ("bpf", None),
         ];

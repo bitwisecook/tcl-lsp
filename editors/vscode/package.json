@@ -35,6 +35,7 @@
     "onLanguage:tcl-mentor",
     "onLanguage:tcl-microchip",
     "onLanguage:tclspec",
+    "onLanguage:sslictcl",
     "onLanguage:tcl-synopsys",
     "onLanguage:tcl84",
     "onLanguage:tcl85",
@@ -46,7 +47,7 @@
     "onChatParticipant:tcl-lsp.irule",
     "onChatParticipant:tcl-lsp.tcl",
     "onChatParticipant:tcl-lsp.tk",
-    "workspaceContains:**/*.{[tT][cC][lL],[tT][kK],[iI][tT][cC][lL],[tT][mM],[iI][rR][uU][lL],[iI][rR][uU][lL][eE],[iI][aA][pP][pP],[iI][aA][pP][pP][iI][mM][pP][lL],[iI][mM][pP][lL],[eE][xX][pP],[aA][pP][lL],[tT][eE][sS][tT],[iI][rR][uU][lL][eE][sS],[eE][xX][pP][eE][cC][tT],[tT][mM][sS][hH],[tT][cC][lL][sS][pP][eE][cC]}"
+    "workspaceContains:**/*.{[tT][cC][lL],[tT][kK],[iI][tT][cC][lL],[tT][mM],[iI][rR][uU][lL],[iI][rR][uU][lL][eE],[iI][aA][pP][pP],[iI][aA][pP][pP][iI][mM][pP][lL],[iI][mM][pP][lL],[eE][xX][pP],[aA][pP][lL],[tT][eE][sS][tT],[iI][rR][uU][lL][eE][sS],[eE][xX][pP][eE][cC][tT],[tT][mM][sS][hH],[tT][cC][lL][sS][pP][eE][cC],[sS][sS][lL][iI][cC][tT][cC][lL]}"
   ],
   "main": "./out/extension.js",
   "browser": "./out/extension.browser.js",
@@ -209,6 +210,16 @@
         ],
         "extensions": [
           ".tclspec"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "sslictcl",
+        "aliases": [
+          "SslicTcl"
+        ],
+        "extensions": [
+          ".sslictcl"
         ],
         "configuration": "./language-configuration.json"
       },
@@ -385,6 +396,11 @@
       },
       {
         "language": "tclspec",
+        "scopeName": "source.tcl",
+        "path": "./syntaxes/tcl.tmLanguage.json"
+      },
+      {
+        "language": "sslictcl",
         "scopeName": "source.tcl",
         "path": "./syntaxes/tcl.tmLanguage.json"
       }
@@ -3278,6 +3294,9 @@
       },
       "[tclspec]": {
         "editor.stickyScroll.defaultModel": "foldingProviderModel"
+      },
+      "[sslictcl]": {
+        "editor.stickyScroll.defaultModel": "foldingProviderModel"
       }
     },
     "configuration": [
@@ -3315,6 +3334,7 @@
               "mentor-eda-tcl",
               "microchip-libero-eda-tcl",
               "spectcl",
+              "sslictcl",
               "synopsys-eda-tcl",
               "tcl8.4",
               "tcl8.5",
@@ -3335,6 +3355,7 @@
               "Mentor EDA Tcl dialect",
               "Microchip Libero EDA Tcl dialect",
               "SpecTcl dialect",
+              "SslicTcl dialect",
               "Synopsys EDA Tcl dialect",
               "Tcl 8.4 dialect",
               "Tcl 8.5 dialect",
@@ -9287,6 +9308,7 @@
                       "mentor-eda-tcl",
                       "microchip-libero-eda-tcl",
                       "spectcl",
+                      "sslictcl",
                       "synopsys-eda-tcl",
                       "tcl8.4",
                       "tcl8.5",
