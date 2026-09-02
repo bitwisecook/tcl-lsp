@@ -313,17 +313,30 @@ fn sslictcl_extension_selects_the_sslictcl_dialect() {
 /// The mandatory `sslictcl VERSION` header is a content signature — which is
 /// what recognises a document saved under a `.tcl` name, the case the
 /// extension tier cannot reach.
+///
+/// The signature is **structural**, not a bare word: `sslictcl` is ordinary
+/// English, so it speaks for the dialect only where it is a command head
+/// followed by an integer.
 #[test]
 fn the_sslictcl_header_is_a_content_signature() {
     use tcl_registry::dialects::detect_dialect;
 
     let doc = "sslictcl 1\n\nendpoint www {\n    hostname www.example.com\n}\n";
     assert_eq!(detect_dialect(doc, Some("site.tcl"), "tcl9.0"), "sslictcl");
-    // A comment merely mentioning it does not flip the dialect: full-line
-    // comments are stripped before the signature scan.
+    // Leading whitespace is fine — a header is still a command head.
     assert_eq!(
-        detect_dialect("# see sslictcl for the format\nset x 1\n", None, "tcl9.0"),
-        "tcl9.0"
+        detect_dialect("  sslictcl 1\n", Some("site.tcl"), "tcl9.0"),
+        "sslictcl"
+    );
+    // …and so is a header that follows comments and blank lines, which is how
+    // a real document opens.
+    assert_eq!(
+        detect_dialect(
+            "# the production edge\n# generated 2026-09-02\n\nsslictcl 1\n",
+            Some("site.tcl"),
+            "tcl9.0"
+        ),
+        "sslictcl"
     );
     // An explicit directive still outranks it.
     assert_eq!(
@@ -333,6 +346,38 @@ fn the_sslictcl_header_is_a_content_signature() {
             "tcl9.0"
         ),
         "tcl8.6"
+    );
+}
+
+/// The word alone is not the signature: an ordinary Tcl script that merely
+/// *mentions* `sslictcl` — as a value, in a string, or in a comment — stays
+/// Tcl. A whole-word match would have routed every one of these.
+#[test]
+fn the_word_sslictcl_alone_does_not_route_a_tcl_script() {
+    use tcl_registry::dialects::detect_dialect;
+
+    for source in [
+        "set format sslictcl\n",
+        "puts \"sslictcl\"\n",
+        "# see sslictcl for the format\nset x 1\n",
+        "lappend formats sslictcl tclspec\n",
+        // The head is right but the argument is not an integer, so this is
+        // not a header — it is someone calling a command of their own.
+        "sslictcl foo\n",
+        // The head is right but there is no argument at all.
+        "sslictcl\n",
+    ] {
+        assert_eq!(
+            detect_dialect(source, Some("site.tcl"), "tcl9.0"),
+            "tcl9.0",
+            "{source:?} must stay Tcl"
+        );
+    }
+    // The extension still routes regardless of content: a `.sslictcl` file is
+    // one whatever it says.
+    assert_eq!(
+        detect_dialect("set format sslictcl\n", Some("site.sslictcl"), "tcl9.0"),
+        "sslictcl"
     );
 }
 

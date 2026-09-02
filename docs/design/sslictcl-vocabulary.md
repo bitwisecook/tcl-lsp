@@ -35,7 +35,9 @@ records the ruling. Concretely:
 A document is routed to the dialect three ways: the `.sslictcl` extension, the
 mandatory `sslictcl VERSION` header as a content signature (so a document saved
 under a `.tcl` name is still recognised), and an explicit
-`# tcl-dialect: sslictcl`.
+`# tcl-dialect: sslictcl`. The header signature is **structural** — the word
+must be a command head followed by an integer word — because `sslictcl` is
+ordinary English and `set format sslictcl` in a `.tcl` script must stay Tcl.
 
 ## Declarations
 
