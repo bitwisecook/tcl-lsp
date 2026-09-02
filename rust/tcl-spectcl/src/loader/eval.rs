@@ -702,24 +702,30 @@ impl State {
         }
     }
 
-    /// A captured invocation as a [`Stmt`]: the file's verbatim statement
-    /// when the invocation corresponds to one, the evaluated values
-    /// otherwise. Inside an included fragment the verbatim index (which
-    /// describes the root file) is not consulted, so a line-number
-    /// coincidence cannot substitute the wrong statement.
+    /// The file's own statement for a captured invocation, when the file
+    /// has one of the same shape at that line. Inside an included fragment
+    /// the verbatim index (which describes the root file) is not consulted,
+    /// so a line-number coincidence cannot substitute the wrong statement.
     ///
-    /// The verbatim statement stands in only when it **substitutes
-    /// nothing**. A row built from a variable or a command substitution has
-    /// values the source text does not spell, and replaying
-    /// `ambient Tk $tkver` verbatim would hand the reader the dollar sign
-    /// instead of the version (issue #1643).
-    fn captured(&mut self, word: &str, args: &[String], line: u32) -> Stmt {
+    /// The source statement stands in only when it **substitutes nothing**.
+    /// A row built from a variable or a command substitution has values the
+    /// source text does not spell, and replaying `ambient Tk $tkver`
+    /// verbatim would hand the reader the dollar sign instead of the
+    /// version (issue #1643).
+    fn source_stmt(&mut self, word: &str, args: &[String], line: u32) -> Option<Stmt> {
         if self.in_include {
-            return capture_stmt(word, args, line);
+            return None;
         }
         self.verbatim
             .row(word, args.len(), line)
             .filter(substitution_free)
+    }
+
+    /// A captured invocation as a [`Stmt`]: the file's verbatim statement
+    /// when the invocation corresponds to one, the evaluated values
+    /// otherwise.
+    fn captured(&mut self, word: &str, args: &[String], line: u32) -> Stmt {
+        self.source_stmt(word, args, line)
             .unwrap_or_else(|| capture_stmt(word, args, line))
     }
 }
@@ -1095,24 +1101,8 @@ fn block_handler(word: &'static str, state: &Rc<RefCell<State>>, fast_path: bool
             return Ok(None);
         }
         let name = args.first().cloned().unwrap_or_default();
-        // Evaluation loses per-word braced-ness, so the body is the first
-        // blockish word after the name — the same reconstruction
-        // `command` makes, and the reason `-extend` never has to be
-        // special-cased here.
-        let body_at = args
-            .iter()
-            .enumerate()
-            .skip(1)
-            .find(|(_, arg)| blockish(arg))
-            .map(|(index, _)| index);
-        let head: Vec<Word> = std::iter::once(synth_word(word, line))
-            .chain(
-                args.iter()
-                    .enumerate()
-                    .filter(|(index, _)| Some(*index) != body_at)
-                    .map(|(_, arg)| synth_word(arg, line)),
-            )
-            .collect();
+        let source = state.borrow_mut().source_stmt(word, args, line);
+        let (head, body_at) = block_head(word, args, line, source.as_ref());
         let Some(body_at) = body_at else {
             state
                 .borrow_mut()
@@ -1143,6 +1133,51 @@ fn block_handler(word: &'static str, state: &Rc<RefCell<State>>, fast_path: bool
         stage_block(interpreted(ctx, fast_path), &state, word, head, line, &body)?;
         Ok(None)
     })
+}
+
+/// Split an `environment` / `dialect` declaration into its head words and
+/// the argument index of its body.
+///
+/// Evaluation hands over values, not words, so neither the body nor a
+/// braced name survives in them: `{emit}` and `emit` are the same string,
+/// and so are `{custom}` and `custom`. The file's own statement decides
+/// both whenever it has one at this line, which is what keeps a braced name
+/// rejected on this path as well. Failing that the layout decides —
+/// `NAME ?-extend? BODY`, the body always last — never whitespace in the
+/// value, which would lose a one-word body such as `{emit}`.
+fn block_head(
+    word: &'static str,
+    args: &[String],
+    line: u32,
+    source: Option<&Stmt>,
+) -> (Vec<Word>, Option<usize>) {
+    if let Some(stmt) = source {
+        let body_at = stmt
+            .words
+            .iter()
+            .enumerate()
+            .skip(2)
+            .find(|(_, source_word)| source_word.braced)
+            .map(|(index, _)| index);
+        let head = stmt
+            .words
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| Some(*index) != body_at)
+            .map(|(_, source_word)| source_word.clone())
+            .collect();
+        return (head, body_at.map(|index| index - 1));
+    }
+    let body_at = (args.len() > 1).then(|| args.len() - 1);
+    let head = std::iter::once(synth_word(word, line))
+        .chain(
+            args.iter()
+                .enumerate()
+                .filter(|(index, _)| Some(*index) != body_at)
+                .map(|(_, arg)| synth_word(arg, line)),
+        )
+        .collect();
+    (head, body_at)
 }
 
 /// Evaluate one `environment` / `dialect` body in a fresh block scope and

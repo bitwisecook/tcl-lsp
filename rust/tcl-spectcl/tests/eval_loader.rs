@@ -493,6 +493,119 @@ fn the_block_readers_still_report_from_the_evaluated_path() {
     );
 }
 
+/// A block body is the declaration's body **word**, whatever its value
+/// looks like.
+///
+/// Evaluation hands the handler values, not words, so a one-word body
+/// (`{emit}`) is the same string a flag would be. Picking the body out by
+/// whitespace therefore missed it, staged the declaration with no body at
+/// all, and rejected `environment one-word {emit}` for its formatting
+/// rather than its content (issue #1643).
+#[test]
+fn a_block_body_is_located_by_position_not_by_whitespace() {
+    // `emit` is a pack-defined proc, so both bodies are a single bare
+    // word. The second declaration is templated, so it matches no source
+    // statement and its body comes from the argument layout alone.
+    let one_word = "speclib shaped 2.0 {\n\nproc emit {} {\n    core tcl 8.6\n    \
+                    file_extension one\n}\n\nenvironment spelled {emit}\n\n\
+                    foreach id {templated} {\n    environment $id {emit}\n}\n\n}\n";
+    let pack = evaluate_through_the_interpreter(one_word);
+    assert!(pack.load_error.is_none(), "{:#?}", pack.notices);
+    for id in ["spelled", "templated"] {
+        let environment = pack
+            .environments
+            .iter()
+            .find(|environment| environment.id == id)
+            .unwrap_or_else(|| panic!("the one-word block `{id}` loads: {:#?}", pack.notices));
+        assert!(environment.core.is_some(), "the body ran: {environment:#?}");
+        assert_eq!(
+            environment
+                .file_extensions
+                .iter()
+                .map(|claim| claim.extension.as_ref())
+                .collect::<Vec<&str>>(),
+            vec!["one"],
+            "the proc registered its row into the block"
+        );
+    }
+
+    // The empty body and the ordinary multi-row body stage and replay the
+    // same way whichever path reads them.
+    let shapes = "speclib shaped 2.0 {\n\nenvironment empty-shell {}\n\n\
+                  environment normal-shell {\n    core tcl 8.6\n    \
+                  file_extension many\n}\n\ndialect empty-lang {}\n\n}\n";
+    let fast = evaluate_pack(shapes);
+    let slow = evaluate_through_the_interpreter(shapes);
+    assert!(fast.load_error.is_none(), "{:#?}", fast.notices);
+    let keys = |pack: &Pack| {
+        let mut rows: Vec<_> = pack.notices.iter().map(notice_key).collect();
+        rows.sort();
+        rows
+    };
+    assert_eq!(keys(&fast), keys(&slow));
+    assert_eq!(
+        fast.environments
+            .iter()
+            .map(|environment| environment.id.as_str())
+            .collect::<Vec<&str>>(),
+        slow.environments
+            .iter()
+            .map(|environment| environment.id.as_str())
+            .collect::<Vec<&str>>(),
+    );
+    let normal = fast
+        .environments
+        .iter()
+        .find(|environment| environment.id == "normal-shell")
+        .expect("the multi-row block loads");
+    assert_eq!(
+        normal
+            .file_extensions
+            .iter()
+            .map(|claim| claim.extension.as_ref())
+            .collect::<Vec<&str>>(),
+        vec!["many"],
+    );
+}
+
+/// A braced name is refused on the evaluated path too.
+///
+/// `environment {custom} { … }` is the issue-#1638 mistake the block
+/// readers reject, but evaluation loses per-word braced-ness: rebuilding
+/// the header from values alone made the name look bare, and the
+/// declaration was accepted whenever the pack happened to need the
+/// interpreter.
+#[test]
+fn a_braced_block_name_is_rejected_on_both_paths() {
+    for word in ["environment", "dialect"] {
+        // The declarative pack takes the static path; the `set` makes the
+        // same declaration reach the interpreter instead.
+        let declarative =
+            format!("speclib braced 2.0 {{\n\n{word} {{custom}} {{\n    core tcl 8.6\n}}\n\n}}\n");
+        let programmed = format!(
+            "speclib braced 2.0 {{\n\nset forced 1\n\n{word} {{custom}} {{\n    \
+             core tcl 8.6\n}}\n\n}}\n"
+        );
+        for pack in [
+            evaluate_pack(&declarative),
+            evaluate_pack(&programmed),
+            evaluate_through_the_interpreter(&declarative),
+        ] {
+            assert!(
+                pack.environments.is_empty() && pack.dialects.is_empty(),
+                "`{word} {{custom}}` declares nothing: {:#?}",
+                pack.notices
+            );
+            assert!(
+                pack.notices.iter().any(|notice| notice.message
+                    == format!("`{word}` needs a name and a `{{ … }}` block")),
+                "{:?}",
+                pack.notices
+            );
+        }
+    }
+}
+
 // Determinism and budgets (§1.2)
 
 #[test]
