@@ -404,9 +404,11 @@ pub struct PolicyCheck {
     /// Whether every enabled cipher must provide forward secrecy.
     #[serde(default)]
     pub require_forward_secrecy: Option<bool>,
-    /// Minimum leaf public-key size in bits.
+    /// Minimum leaf public-key size in bits. Held at the full `INT` width so a
+    /// value above `u32::MAX` still fails every real certificate instead of
+    /// being silently dropped.
     #[serde(default)]
-    pub min_key_bits: Option<u32>,
+    pub min_key_bits: Option<u64>,
     /// Whether HSTS must be enabled.
     #[serde(default)]
     pub require_hsts: Option<bool>,

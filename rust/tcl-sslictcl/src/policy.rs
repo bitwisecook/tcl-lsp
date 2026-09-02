@@ -18,7 +18,7 @@ use tcl_syntax::glob::string_match;
 
 use crate::certificate::Certificate;
 use crate::estimate::{Estimate, EstimateSeverity, cipher_has_forward_secrecy};
-use crate::model::{Endpoint, Policy, PolicyCheck};
+use crate::model::{Endpoint, Policy, PolicyCheck, TlsFacts};
 
 /// One policy check that an endpoint did not satisfy.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -39,6 +39,11 @@ pub struct PolicyFinding {
 
 /// Evaluate every check in `policy` against one endpoint.
 ///
+/// `facts` is the document's declared protocol/cipher catalogue, exactly as
+/// handed to [`crate::estimate::estimate`]. Passing the same value to both is
+/// what keeps a policy and an estimate from disagreeing about a cipher: a
+/// declared `forward-secrecy` overrides the suite-name heuristic here too.
+///
 /// Findings are returned in check order, with the grade rule last.
 #[must_use]
 pub fn evaluate_policy(
@@ -46,12 +51,13 @@ pub fn evaluate_policy(
     endpoint: &Endpoint,
     certificates: &[Certificate],
     estimate: &Estimate,
+    facts: Option<&TlsFacts>,
 ) -> Vec<PolicyFinding> {
     let mut findings: Vec<PolicyFinding> = policy
         .checks
         .values()
         .filter_map(|check| {
-            let evidence = check_evidence(check, endpoint, certificates);
+            let evidence = check_evidence(check, endpoint, certificates, facts);
             (!evidence.is_empty()).then(|| finding(&check.id, endpoint, check, evidence))
         })
         .collect();
@@ -103,6 +109,7 @@ fn check_evidence(
     check: &PolicyCheck,
     endpoint: &Endpoint,
     certificates: &[Certificate],
+    facts: Option<&TlsFacts>,
 ) -> Vec<String> {
     let mut evidence = Vec::new();
     for protocol in &check.require_protocols {
@@ -126,7 +133,7 @@ fn check_evidence(
     }
     if check.require_forward_secrecy == Some(true) {
         for cipher in &endpoint.ciphers {
-            if !cipher_has_forward_secrecy(cipher, None) {
+            if !cipher_has_forward_secrecy(cipher, facts) {
                 evidence.push(format!("cipher `{cipher}` has no forward secrecy"));
             }
         }
@@ -155,14 +162,14 @@ fn check_evidence(
 
 /// An unknown key size cannot demonstrate compliance, so it fails the check
 /// rather than silently passing.
-fn key_bits_evidence(minimum: u32, certificates: &[Certificate]) -> Option<String> {
+fn key_bits_evidence(minimum: u64, certificates: &[Certificate]) -> Option<String> {
     let Some(leaf) = certificates.first() else {
         return Some(format!(
             "no leaf certificate is available to satisfy the {minimum}-bit minimum"
         ));
     };
     match leaf.public_key_bits {
-        Some(bits) if bits >= minimum => None,
+        Some(bits) if u64::from(bits) >= minimum => None,
         Some(bits) => Some(format!(
             "leaf public key is {bits} bits, below the required {minimum}"
         )),
@@ -177,7 +184,7 @@ mod tests {
     use super::*;
     use crate::chain::{ChainEvaluation, ChainStatus};
     use crate::estimate::Grade;
-    use crate::model::{GradeRule, HstsPolicy, ProtocolVersion};
+    use crate::model::{CipherFact, GradeRule, HstsPolicy, ProtocolVersion};
 
     fn estimate_with(grade: Grade) -> Estimate {
         Estimate {
@@ -235,12 +242,29 @@ mod tests {
     }
 
     fn evaluate(check: PolicyCheck) -> Vec<PolicyFinding> {
+        evaluate_with_facts(check, None)
+    }
+
+    fn evaluate_with_facts(check: PolicyCheck, facts: Option<&TlsFacts>) -> Vec<PolicyFinding> {
         evaluate_policy(
             &policy_with(check),
             &endpoint(),
             &[],
             &estimate_with(Grade::B),
+            facts,
         )
+    }
+
+    fn facts_with_cipher(name: &str, forward_secrecy: bool) -> TlsFacts {
+        let mut facts = TlsFacts::default();
+        facts.ciphers.insert(
+            name.to_owned(),
+            CipherFact {
+                forward_secrecy: Some(forward_secrecy),
+                ..CipherFact::default()
+            },
+        );
+        facts
     }
 
     #[test]
@@ -301,6 +325,39 @@ mod tests {
         assert!(evaluate(off).is_empty());
     }
 
+    /// A declared `forward-secrecy` fact overrides the suite-name heuristic in
+    /// both directions, so the policy and the estimator never disagree about
+    /// the same cipher.
+    #[test]
+    fn require_forward_secrecy_honours_declared_cipher_facts() {
+        // The name heuristic passes ECDHE-*; a fact saying otherwise fails it.
+        let mut denied = check("fs");
+        denied.require_forward_secrecy = Some(true);
+        let facts = facts_with_cipher("ECDHE-RSA-AES128-GCM-SHA256", false);
+        let findings = evaluate_with_facts(denied, Some(&facts));
+        let evidence: Vec<&str> = findings[0].evidence.iter().map(String::as_str).collect();
+        assert!(
+            evidence.contains(&"cipher `ECDHE-RSA-AES128-GCM-SHA256` has no forward secrecy"),
+            "{evidence:?}"
+        );
+
+        // The name heuristic fails AES128-SHA; a fact saying otherwise passes
+        // it, and with the other suite already forward-secret the check clears.
+        let mut allowed = check("fs");
+        allowed.require_forward_secrecy = Some(true);
+        let facts = facts_with_cipher("AES128-SHA", true);
+        assert!(evaluate_with_facts(allowed, Some(&facts)).is_empty());
+    }
+
+    #[test]
+    fn min_key_bits_above_u32_range_still_fails() {
+        let mut rule = check("keysize");
+        rule.min_key_bits = Some(u64::from(u32::MAX) + 1);
+        let leaf_bits_are_smaller = evaluate(rule);
+        assert_eq!(leaf_bits_are_smaller.len(), 1);
+        assert!(leaf_bits_are_smaller[0].evidence[0].contains("no leaf certificate"));
+    }
+
     #[test]
     fn min_key_bits_fails_without_a_leaf() {
         let mut rule = check("keysize");
@@ -329,6 +386,7 @@ mod tests {
             &endpoint,
             &[],
             &estimate_with(Grade::B),
+            None,
         );
         assert_eq!(findings[0].evidence, ["HSTS is not enabled"]);
     }
@@ -347,12 +405,19 @@ mod tests {
             ..Policy::default()
         };
         policy.grade = Some(GradeRule { minimum: Grade::A });
-        let findings = evaluate_policy(&policy, &endpoint(), &[], &estimate_with(Grade::B));
+        let findings = evaluate_policy(&policy, &endpoint(), &[], &estimate_with(Grade::B), None);
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].check_id, "grade");
         assert_eq!(findings[0].code, "SSLICTL-POLICY-grade");
         assert!(
-            evaluate_policy(&policy, &endpoint(), &[], &estimate_with(Grade::APlus)).is_empty()
+            evaluate_policy(
+                &policy,
+                &endpoint(),
+                &[],
+                &estimate_with(Grade::APlus),
+                None
+            )
+            .is_empty()
         );
     }
 

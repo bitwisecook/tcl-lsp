@@ -20,7 +20,8 @@ pub enum ValueDomain {
     Int,
     /// An unsigned decimal integer within an inclusive range.
     IntRange(u64, u64),
-    /// One braced Tcl list of literal words, or a single bare word.
+    /// One braced Tcl list, split with the shared `tcl_syntax::list` grammar,
+    /// or a single bare word.
     List,
     /// One literal word.
     Text,
@@ -120,6 +121,11 @@ pub static ANCHOR: Declaration = Declaration {
 };
 
 /// `check ID { … }` inside a `policy`.
+///
+/// `ID` may not be [`crate::dsl::RESERVED_CHECK_ID`] (`grade`): a policy
+/// finding is identified by `(check_id, endpoint)` and the grade rule already
+/// emits its finding under that identifier, so the loader reports `SSLIC1009`
+/// for a `check grade`.
 pub static CHECK: Declaration = Declaration {
     name: "check",
     key: Some(ValueDomain::Text),

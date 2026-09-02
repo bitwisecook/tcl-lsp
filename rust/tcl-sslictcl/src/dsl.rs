@@ -14,6 +14,7 @@
 //! [`DiagCode`] and a byte range into the original document. [`load`] is the
 //! thin single-error wrapper the batch consumers use.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt;
@@ -23,6 +24,7 @@ use tcl_compiler::parsing::syntax::segment::segments_from_document;
 use tcl_compiler::segmenter::SegmentedCommand;
 use tcl_core_types::DiagCode;
 use tcl_lexer::{LexerConfig, LineIndex, SourceMap, Span, TokenType, script_is_complete};
+use tcl_syntax::list::split_list;
 
 use crate::estimate::{EstimateSeverity, Grade};
 use crate::model::{
@@ -35,6 +37,13 @@ use crate::trust::{ClientFamily, TrustPurpose};
 
 /// The `SslicTcl` vocabulary version this build implements.
 pub const SUPPORTED_VOCABULARY: u32 = 1;
+
+/// Check identifier reserved for the `grade` rule.
+///
+/// A policy finding is identified by `(check_id, endpoint)` and the grade rule
+/// emits its finding under `grade`, so a `check grade { … }` would collide with
+/// it. Declaring one is `SSLIC1009`.
+pub const RESERVED_CHECK_ID: &str = "grade";
 
 /// A successfully loaded document and its forwards-compatibility notices.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -273,8 +282,28 @@ impl Document {
         Self::segment(&word.text, word.content_start, sink)
     }
 
-    /// One `LIST` value: a braced Tcl list of literal words, or a bare word.
+    /// One `LIST` value: a braced Tcl list, or a single bare word.
+    ///
+    /// A braced word is verbatim by Tcl's own rules — nothing inside it is
+    /// substituted — so the only grammar that applies is the list grammar, and
+    /// that is owned by [`tcl_syntax::list`] (`Tcl_SplitList`), never
+    /// re-derived here. Segmenting the body as a *command* instead would
+    /// reject a perfectly literal `{[A-Z]*}` glob as command substitution and
+    /// would split on `;` and newlines, which are not list separators.
     fn literal_list(word: &Word, sink: &mut Sink) -> Option<Vec<String>> {
+        if word.braced {
+            return match split_list(&word.text) {
+                Ok(items) => Some(items.into_iter().map(Cow::into_owned).collect()),
+                Err(error) => {
+                    sink.error(
+                        DiagCode::Sslic1009,
+                        word.span,
+                        error.full_message(&word.text),
+                    );
+                    None
+                }
+            };
+        }
         if !word.literal {
             sink.error(
                 DiagCode::Sslic1002,
@@ -286,22 +315,7 @@ impl Document {
         if word.text.trim().is_empty() {
             return Some(Vec::new());
         }
-        if !word.braced {
-            return Some(vec![word.text.clone()]);
-        }
-        let rows = Self::segment(&word.text, word.content_start, sink)?;
-        if rows.len() != 1 {
-            sink.error(
-                DiagCode::Sslic1009,
-                word.span,
-                "list must be a single Tcl list, not multiple commands",
-            );
-            return None;
-        }
-        if !rows[0].require_literals(sink) {
-            return None;
-        }
-        Some(rows[0].words.iter().map(|item| item.text.clone()).collect())
+        Some(vec![word.text.clone()])
     }
 }
 
@@ -1298,6 +1312,17 @@ fn parse_policy_check(stmt: &Stmt, policy: &mut Policy, sink: &mut Sink) {
         return;
     }
     let id = stmt.word(1).text.clone();
+    if id == RESERVED_CHECK_ID {
+        sink.error(
+            DiagCode::Sslic1009,
+            stmt.word(1).span,
+            format!(
+                "`{RESERVED_CHECK_ID}` is reserved as a check identifier; it names the \
+                 finding the `grade` rule produces"
+            ),
+        );
+        return;
+    }
     if policy.checks.contains_key(&id) {
         sink.error(
             DiagCode::Sslic1008,
@@ -1335,11 +1360,7 @@ fn parse_policy_check(stmt: &Stmt, policy: &mut Policy, sink: &mut Sink) {
                 }
             }
             "require-forward-secrecy" => check.require_forward_secrecy = parse_bool(value, sink),
-            "min-key-bits" => {
-                if let Some(bits) = parse_unsigned(value, sink) {
-                    check.min_key_bits = u32::try_from(bits).ok();
-                }
-            }
+            "min-key-bits" => check.min_key_bits = parse_unsigned(value, sink),
             "require-hsts" => check.require_hsts = parse_bool(value, sink),
             "min-hsts-max-age" => check.min_hsts_max_age = parse_unsigned(value, sink),
             "predicate" => {
@@ -1589,6 +1610,90 @@ future-top value
         assert_eq!(loaded.diagnostics[0].code, DiagCode::Sslic1102);
         assert_eq!(loaded.diagnostics[0].severity, DslSeverity::Warning);
         assert_eq!(loaded.document.unwrap().model.vocabulary, 2);
+    }
+
+    /// Lists go through the shared `tcl_syntax::list` grammar, not the command
+    /// segmenter: a braced word is verbatim, so a glob with a bracket set is a
+    /// literal element rather than command substitution, `;` is not a
+    /// separator, and a list may span lines.
+    #[test]
+    fn braced_lists_use_the_shared_list_grammar() {
+        let source = concat!(
+            "sslictcl 1\n",
+            "policy p {\n",
+            "    check globs {\n",
+            "        forbid-ciphers {[A-Z]*RC4 *_NULL_? ex;port}\n",
+            "    }\n",
+            "}\n",
+            "endpoint e {\n",
+            "    ciphers {\n",
+            "        TLS_AES_256_GCM_SHA384\n",
+            "        ECDHE-RSA-AES128-GCM-SHA256\n",
+            "        {two words}\n",
+            "    }\n",
+            "}\n",
+        );
+        let loaded = load(source).expect("literal list values are not substitutions");
+        assert_eq!(
+            loaded.model.policies["p"].checks["globs"].forbid_ciphers,
+            ["[A-Z]*RC4", "*_NULL_?", "ex;port"]
+        );
+        assert_eq!(
+            loaded.model.endpoints["e"].ciphers,
+            [
+                "TLS_AES_256_GCM_SHA384",
+                "ECDHE-RSA-AES128-GCM-SHA256",
+                "two words"
+            ]
+        );
+    }
+
+    #[test]
+    fn malformed_and_substituting_lists_are_still_rejected() {
+        // An unmatched brace inside a braced list is a list-grammar error.
+        assert_eq!(
+            load("sslictcl 1\nendpoint e { ciphers {a {b} }")
+                .unwrap_err()
+                .code,
+            DiagCode::Sslic1001
+        );
+        assert_eq!(
+            load("sslictcl 1\nendpoint e {\n    ciphers {{a}b}\n}")
+                .unwrap_err()
+                .code,
+            DiagCode::Sslic1009
+        );
+        // An *unbraced* word carrying substitution is still SSLIC1002.
+        assert_eq!(
+            load("sslictcl 1\nendpoint e { ciphers $suite }")
+                .unwrap_err()
+                .code,
+            DiagCode::Sslic1002
+        );
+    }
+
+    #[test]
+    fn grade_is_reserved_as_a_check_identifier() {
+        let loaded = load_with_diagnostics("sslictcl 1\npolicy p {\n    check grade {}\n}\n");
+        let found = errors(&loaded);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].code, DiagCode::Sslic1009);
+        assert!(found[0].message.contains("reserved"));
+        let document = loaded.document.expect("the rest of the policy still loads");
+        assert!(document.model.policies["p"].checks.is_empty());
+    }
+
+    #[test]
+    fn min_key_bits_keeps_its_full_unsigned_range() {
+        let huge = u64::from(u32::MAX) + 1;
+        let source = format!(
+            "sslictcl 1\npolicy p {{\n    check k {{\n        min-key-bits {huge}\n    }}\n}}\n"
+        );
+        let loaded = load(&source).expect("an in-domain unsigned integer");
+        assert_eq!(
+            loaded.model.policies["p"].checks["k"].min_key_bits,
+            Some(huge)
+        );
     }
 
     #[test]

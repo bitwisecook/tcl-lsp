@@ -31,7 +31,7 @@ extension and reported as `SSLIC1101`.
 | `cipher NAME { … }` | `NAME` | closed | `iana-name TEXT`; `openssl-name TEXT`; `key-exchange TEXT`; `authentication TEXT`; `encryption TEXT`; `bits INT`; `forward-secrecy BOOL`; `aead BOOL`; `status STATUS`; `protocols LIST` |
 | `chain NAME { … }` | `NAME` | closed | `certificates LIST` (**required**; certificate names, leaf first) |
 | `policy NAME { … }` | `NAME` | closed | `check ID { … }`; `grade { … }` |
-| ⤷ `check ID { … }` | `ID` | closed | `severity SEVERITY`; `message TEXT`; `require-protocols LIST`; `forbid-protocols LIST`; `forbid-ciphers LIST`; `require-forward-secrecy BOOL`; `min-key-bits INT`; `require-hsts BOOL`; `min-hsts-max-age INT`; `predicate SCRIPT` |
+| ⤷ `check ID { … }` | `ID` (not `grade`) | closed | `severity SEVERITY`; `message TEXT`; `require-protocols LIST`; `forbid-protocols LIST`; `forbid-ciphers LIST`; `require-forward-secrecy BOOL`; `min-key-bits INT`; `require-hsts BOOL`; `min-hsts-max-age INT`; `predicate SCRIPT` |
 | ⤷ `grade { … }` | — | closed | `minimum GRADE` |
 
 ## Value domains
@@ -40,7 +40,7 @@ extension and reported as `SSLIC1101`.
 |---|---|
 | `BOOL` | `true` \| `false` \| `yes` \| `no` \| `on` \| `off` \| `1` \| `0`, case-insensitive |
 | `INT` | an unsigned decimal integer |
-| `LIST` | one braced Tcl list of literal words, or a single bare word |
+| `LIST` | one braced Tcl list, or a single bare word |
 | `TEXT` | one literal word |
 | `CLIENT` | `mozilla` \| `chrome` \| `apple` \| `microsoft` \| `android` \| `openjdk` (`trust::ClientFamily`) |
 | `STATUS` | `recommended` \| `acceptable` \| `deprecated` \| `prohibited` (`model::TlsStatus`) |
@@ -50,6 +50,15 @@ extension and reported as `SSLIC1101`.
 | `SHA256` | 64 hexadecimal digits, case-insensitive |
 | `HEX` | an even number of hexadecimal digits |
 | `SCRIPT` | one braced literal word, retained verbatim |
+
+A braced `LIST` is split with the workspace's shared list grammar,
+`tcl_syntax::list` (`Tcl_SplitList`) — the owner named in AGENTS.md's owner
+map — so it means exactly what a Tcl list means: `;` and newlines are not
+separators, `{braced}` elements are taken verbatim, and nothing inside the
+outer braces is substituted. A `forbid-ciphers {[A-Z]*RC4 *_NULL_?}` glob is
+therefore two literal elements, not command substitution. A malformed list is
+`SSLIC1009`. An **unbraced** `LIST` word is one element and must still carry no
+substitution (`SSLIC1002`).
 
 `purposes` is a `LIST` whose elements are trust purposes — `server-auth`,
 `client-auth`, `email-protection`, `code-signing`, `any` — and an unrecognised
@@ -121,10 +130,23 @@ the finding's `evidence` list. The finding's `code` is
 `SSLICTL-POLICY-<check_id>`, its severity defaults to `warning`, and its
 message defaults to one derived from the check identity.
 
+`grade.minimum` below the estimate's grade rank yields a finding whose
+`check_id` is `grade`. **`grade` is therefore reserved as a check identifier**:
+a `check grade { … }` would collide with that finding's identity, so the loader
+reports `SSLIC1009` for it.
+
 `forbid-ciphers` entries are Tcl-style glob patterns evaluated with the
 workspace's shared `tcl_syntax::glob::string_match`, so they mean exactly what
-`string match` means. `grade.minimum` below the estimate's grade rank yields a
-finding whose `check_id` is `grade`.
+`string match` means.
+
+`evaluate_policy` takes the same `Option<&TlsFacts>` catalogue as
+`estimate::estimate`, and `require-forward-secrecy` consults it through the
+same `cipher_has_forward_secrecy` helper. Hand both phases the document's
+facts, or a cipher the catalogue declares `forward-secrecy false` would still
+pass the policy on its suite name alone.
+
+`min-key-bits` is held at the full unsigned `INT` width, so a bound larger than
+any real key still fails rather than being silently dropped.
 
 ## Diagnostics
 

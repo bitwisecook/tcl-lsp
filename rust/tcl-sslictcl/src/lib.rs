@@ -23,7 +23,8 @@
 //!    [`estimate::EstimateInput::facts`] and override the built-in heuristics.
 //! 3. **Evaluate** — [`policy::evaluate_policy`] applies a declared policy to
 //!    one endpoint. It is never part of loading, and a check's `predicate`
-//!    script is retained and never evaluated.
+//!    script is retained and never evaluated. It takes the same declared facts
+//!    the estimator does, so the two phases never disagree about a cipher.
 //! 4. **Emit** — [`model::SslicModel::to_sslictcl`] renders a model back to a
 //!    deterministic document that loads to an equal model.
 //!
@@ -54,7 +55,7 @@ pub use dataset::{
     compile_trust_snapshots,
 };
 pub use dsl::{
-    DslDiagnostic, DslDocument, DslError, DslLoad, DslNotice, DslSeverity, load,
+    DslDiagnostic, DslDocument, DslError, DslLoad, DslNotice, DslSeverity, RESERVED_CHECK_ID, load,
     load_with_diagnostics,
 };
 pub use estimate::{
