@@ -522,6 +522,21 @@ field against a grammar in which every axis is non-default — the
 `..Self::default()` tail is where `list_parse` was once declared and carried
 by nothing.
 
+**The backends are Tcl 9, by decision.** The resolved point now reaches the
+front half of every backend — the VM's and CLI's ingress adapters resolve
+through `resolve_environment`, so a Jim unit is *read* as Jim all the way
+into codegen — but what codegen emits and what `tcl-vm` and `runtime/rust`
+execute is Tcl 9 semantics: a profile projected for a non-Tcl point has
+`runtime_base = None` and so `vm_runtime_version = V9_0`, and the VM's own
+pin (`Vm::set_runtime_version`) is a `TclVersion`, a closed set of Tcl
+releases with no Jim rung. Dialect-aware emission and execution — lowering
+`$(…)`, Jim's list/dict/`expr` semantics, a VM pin that is a `DialectPoint`
+rather than a `TclVersion` — is an **eventual**, recorded here and in
+`compiler/codegen-internals.md` so it is a known boundary rather than a
+surprise. What this work guarantees for that future is the shape: every
+backend consumes the point-derived grammar and profile and never a name, so
+the change is a new rung on the same ladder, not a second resolution.
+
 **Deliberately not done here**, each a follow-up rather than a quiet
 omission: the VM's list conversions (`Value::as_list`, `cmd_prefix`,
 `interp`, `expr`) and `signature_scan::parse_param_list` are public APIs with
