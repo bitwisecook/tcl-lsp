@@ -288,15 +288,15 @@ fn instruction_completion(instruction: &ExecutableInstruction) -> CompletionId {
     match instruction {
         ExecutableInstruction::EvaluateWord { completion, .. }
         | ExecutableInstruction::ExpandWord { completion, .. }
-        | ExecutableInstruction::BuildArgv { completion, .. } => *completion,
+        | ExecutableInstruction::BuildArgv { completion, .. }
+        | ExecutableInstruction::EvaluateExpr { completion, .. }
+        | ExecutableInstruction::MatchPattern { completion, .. }
+        | ExecutableInstruction::JoinCompletion { completion, .. }
+        | ExecutableInstruction::WriteCompletionCell { completion, .. }
+        | ExecutableInstruction::IterateLists { completion, .. } => *completion,
         ExecutableInstruction::Invoke(invoke) => invoke.completion,
         ExecutableInstruction::ExecuteLowered(operation) => operation.completion,
         ExecutableInstruction::ExecuteOpaqueRegion(region) => region.completion,
-        ExecutableInstruction::EvaluateExpr { completion, .. }
-        | ExecutableInstruction::MatchPattern { completion, .. }
-        | ExecutableInstruction::JoinCompletion { completion, .. }
-        | ExecutableInstruction::WriteCompletionCell { completion, .. } => *completion,
-        ExecutableInstruction::IterateLists { completion, .. } => *completion,
         ExecutableInstruction::CompleteStructuredRegion(region) => region.completion,
     }
 }

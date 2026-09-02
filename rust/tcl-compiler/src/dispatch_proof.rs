@@ -1443,7 +1443,16 @@ fn apply_instruction<'f>(
             }
             None
         }
-        ExecutableInstruction::ExpandWord { .. } | ExecutableInstruction::BuildArgv { .. } => None,
+        // Neither these nor the structured-control operations below carry a
+        // command dispatch of their own; a body statement that does is a
+        // separate instruction on the same graph.
+        ExecutableInstruction::ExpandWord { .. }
+        | ExecutableInstruction::BuildArgv { .. }
+        | ExecutableInstruction::MatchPattern { .. }
+        | ExecutableInstruction::IterateLists { .. }
+        | ExecutableInstruction::JoinCompletion { .. }
+        | ExecutableInstruction::WriteCompletionCell { .. }
+        | ExecutableInstruction::CompleteStructuredRegion(_) => None,
         ExecutableInstruction::Invoke(invoke) => {
             apply_invoke(state, &invoke.resolution, block, index, site)
         }
@@ -1457,10 +1466,6 @@ fn apply_instruction<'f>(
             }
             None
         }
-        // Structured control now has real edges, so the region header, the
-        // condition and operand evaluations, the loop cursor, and the handler
-        // cell writes carry no hidden command dispatch of their own: a body
-        // statement that does is a separate instruction on the same graph.
         // A condition or operand containing a command substitution still
         // widens, exactly as a word evaluation does.
         ExecutableInstruction::EvaluateExpr { expr, .. } => {
@@ -1469,11 +1474,6 @@ fn apply_instruction<'f>(
             }
             None
         }
-        ExecutableInstruction::MatchPattern { .. }
-        | ExecutableInstruction::IterateLists { .. }
-        | ExecutableInstruction::JoinCompletion { .. }
-        | ExecutableInstruction::WriteCompletionCell { .. }
-        | ExecutableInstruction::CompleteStructuredRegion(_) => None,
     }
 }
 

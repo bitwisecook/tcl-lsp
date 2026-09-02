@@ -396,5 +396,11 @@ fail.
   a distinct node path, so one source script maps to more than one executable
   node. That is honest (the code really does run on each path) but it means a
   node path is no longer a bijection with a source statement inside a `try`.
+- **`lmap`'s accumulated result is not a value in this IR.** A region's
+  completion is a first-class triple, but no consumer reads a region's *result*
+  today, so the per-iteration accumulation `lmap` performs is described only by
+  the region's `LoweringHookId::Lmap` identity. The cursor, the back edge, the
+  loop-variable writes, and the completion routing are all exact; the
+  accumulation is not modelled.
 - **`Block`/`UpFrame` straight-line splice.** Deliberately not attempted: it
   needs a frame-shift and scope analysis this lane does not own.

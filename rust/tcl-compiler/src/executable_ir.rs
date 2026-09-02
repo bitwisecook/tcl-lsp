@@ -882,7 +882,7 @@ fn argv_entry_source_word<'f>(
         (ArgvEntry::Expanded(_), ExecutableInstruction::ExpandWord { original, .. }) => {
             Some(original)
         }
-        (ArgvEntry::Value(_), _) | (ArgvEntry::Expanded(_), _) => None,
+        (ArgvEntry::Value(_) | ArgvEntry::Expanded(_), _) => None,
     }
 }
 
@@ -963,6 +963,7 @@ fn defined_word_at(
     Some(DefinedWord { word: word.clone() })
 }
 
+#[allow(clippy::too_many_lines)]
 fn collect_instruction_definition(
     definitions: &mut DefinitionTables,
     instruction: &ExecutableInstruction,
@@ -1102,9 +1103,7 @@ fn validate_structured_region(
             completion: region.completion,
         });
     }
-    if structured_region_projection(&region.statement).map(|(descriptor, kind)| (descriptor, kind))
-        != Some((region.descriptor, region.kind))
-    {
+    if structured_region_projection(&region.statement) != Some((region.descriptor, region.kind)) {
         return Err(ExecutableIrValidationError::OperationDescriptorMismatch {
             completion: region.completion,
         });
@@ -1207,11 +1206,13 @@ fn validate_instruction_uses(
     dominance: &Dominance,
 ) -> Result<(), ExecutableIrValidationError> {
     match instruction {
+        // These consume no executable value, so they have no use to check.
         ExecutableInstruction::EvaluateWord { .. }
         | ExecutableInstruction::ExecuteLowered(_)
         | ExecutableInstruction::ExecuteOpaqueRegion(_)
         | ExecutableInstruction::EvaluateExpr { .. }
         | ExecutableInstruction::JoinCompletion { .. }
+        | ExecutableInstruction::WriteCompletionCell { .. }
         | ExecutableInstruction::CompleteStructuredRegion(_) => Ok(()),
         ExecutableInstruction::MatchPattern { subject, .. } => {
             require_available_value(function, values, *subject, position, dominance).map(drop)
@@ -1222,7 +1223,6 @@ fn validate_instruction_uses(
             }
             Ok(())
         }
-        ExecutableInstruction::WriteCompletionCell { .. } => Ok(()),
         ExecutableInstruction::ExpandWord {
             value,
             input,
@@ -2412,6 +2412,7 @@ impl FunctionBuilder {
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn emit_statement(
         &mut self,
         registry: &CommandRegistry,
@@ -2439,9 +2440,8 @@ impl FunctionBuilder {
             return Ok(self.finish(block, completion, control, tail));
         }
         if structured_region_projection(statement).is_some() {
-            return self.emit_structured_region(
-                registry, context, statement, node, block, control, tail,
-            );
+            return self
+                .emit_structured_region(registry, context, statement, node, block, control, tail);
         }
         if let Some(descriptor) = opaque_region_descriptor(statement) {
             let completion = self.allocator.completion();
@@ -2519,6 +2519,7 @@ impl FunctionBuilder {
         Ok(outcome.expect("a call always plans at least one stage"))
     }
 
+    #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
     fn emit_structured_region(
         &mut self,
         registry: &CommandRegistry,
@@ -2553,7 +2554,7 @@ impl FunctionBuilder {
                 registry,
                 context,
                 statement,
-                LoopParts {
+                &LoopParts {
                     init: None,
                     condition,
                     condition_span: *condition_span,
@@ -2578,7 +2579,7 @@ impl FunctionBuilder {
                 registry,
                 context,
                 statement,
-                LoopParts {
+                &LoopParts {
                     init: Some(init),
                     condition,
                     condition_span: *condition_span,
@@ -2643,7 +2644,7 @@ impl FunctionBuilder {
                 registry,
                 context,
                 statement,
-                SwitchParts {
+                &SwitchParts {
                     subject,
                     subject_span: *subject_span,
                     arms,
@@ -2750,7 +2751,8 @@ impl FunctionBuilder {
                 },
             );
             let path = child_path(node, u32::try_from(index).unwrap_or(u32::MAX));
-            let flow = self.emit_nested(registry, context, &clause.body, &path, body_entry, control)?;
+            let flow =
+                self.emit_nested(registry, context, &clause.body, &path, body_entry, control)?;
             self.terminate(flow, ExecutableTerminator::Goto(join));
             current = next_test;
         }
@@ -2765,12 +2767,13 @@ impl FunctionBuilder {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_lines)]
     fn emit_condition_loop(
         &mut self,
         registry: &CommandRegistry,
         context: Option<SemanticContext>,
         statement: &Statement,
-        parts: LoopParts<'_>,
+        parts: &LoopParts<'_>,
         node: &NodeId,
         block: ExecutableBlockId,
         control: ControlContext,
@@ -2822,7 +2825,8 @@ impl FunctionBuilder {
         if let Some(next) = parts.next {
             self.terminate(flow, ExecutableTerminator::Goto(continue_target));
             let path = child_path(node, LOOP_NEXT_SLOT);
-            let next_flow = self.emit_nested(registry, context, next, &path, continue_target, control)?;
+            let next_flow =
+                self.emit_nested(registry, context, next, &path, continue_target, control)?;
             self.terminate(next_flow, ExecutableTerminator::Goto(header));
         } else {
             self.terminate(flow, ExecutableTerminator::Goto(header));
@@ -3158,12 +3162,13 @@ impl FunctionBuilder {
             .collect())
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn emit_switch(
         &mut self,
         registry: &CommandRegistry,
         context: Option<SemanticContext>,
         statement: &Statement,
-        parts: SwitchParts<'_>,
+        parts: &SwitchParts<'_>,
         node: &NodeId,
         block: ExecutableBlockId,
         control: ControlContext,
@@ -3237,7 +3242,8 @@ impl FunctionBuilder {
         }
         if let Some(default_body) = parts.default_body {
             let path = child_path(node, SWITCH_DEFAULT_SLOT);
-            let flow = self.emit_nested(registry, context, default_body, &path, current, control)?;
+            let flow =
+                self.emit_nested(registry, context, default_body, &path, current, control)?;
             self.terminate(flow, ExecutableTerminator::Goto(join));
         } else {
             self.terminate(current, ExecutableTerminator::Goto(join));
@@ -3408,24 +3414,20 @@ fn structured_region_projection(
             // `dict for`/`dict map` iterate a dictionary and Tcl 9's `array
             // for` iterates an array, neither of which is the Tcl-list cursor
             // this projection models, so both keep their opaque region.
-            (!*is_dict_iteration && !*is_array_iteration).then(|| {
-                (
-                    if *is_lmap {
-                        LoweringHookId::Lmap
-                    } else {
-                        LoweringHookId::Foreach
-                    },
-                    StructuredRegionKind::CursorLoop,
-                )
-            })
+            let hook = if *is_lmap {
+                LoweringHookId::Lmap
+            } else {
+                LoweringHookId::Foreach
+            };
+            (!*is_dict_iteration && !*is_array_iteration)
+                .then_some((hook, StructuredRegionKind::CursorLoop))
         }
         // An empty guarded body has no abrupt edge for a handler to join, so
         // there is nothing for the completion-class projection to describe.
         Statement::Catch { body, .. } => (!body.statements.is_empty())
             .then_some((LoweringHookId::Catch, StructuredRegionKind::Catch)),
-        Statement::Try { body, .. } => {
-            (!body.statements.is_empty()).then_some((LoweringHookId::Try, StructuredRegionKind::Try))
-        }
+        Statement::Try { body, .. } => (!body.statements.is_empty())
+            .then_some((LoweringHookId::Try, StructuredRegionKind::Try)),
         Statement::Switch { .. } => Some((LoweringHookId::Switch, StructuredRegionKind::Switch)),
         Statement::AssignConst { .. }
         | Statement::AssignExpr { .. }
@@ -3462,6 +3464,7 @@ fn try_handler_code(handler: &crate::ir::TryHandler) -> Option<CompletionCode> {
 /// This is deliberately computable from the statement alone: validation
 /// recomputes it and rejects a retained footprint that disagrees, so no
 /// consumer can be handed a footprint the IR does not itself prove.
+#[allow(clippy::too_many_lines)]
 fn lowered_operation_footprint(statement: &Statement) -> LoweredFootprint {
     match statement {
         Statement::AssignConst {
@@ -4110,22 +4113,22 @@ mod tests {
     fn if_becomes_branch_edges_joining_at_the_region_completion() {
         let function = build("if {$enabled} {puts on} else {puts off}", 200);
         assert!(
-            instructions(&function)
-                .iter()
-                .all(|instruction| !matches!(
-                    instruction,
-                    ExecutableInstruction::ExecuteOpaqueRegion(_)
-                )),
+            instructions(&function).iter().all(|instruction| !matches!(
+                instruction,
+                ExecutableInstruction::ExecuteOpaqueRegion(_)
+            )),
             "an `if` no longer needs an opaque compatibility barrier"
         );
         let conditions: Vec<_> = instructions(&function)
             .into_iter()
-            .filter_map(|instruction| match instruction {
-                ExecutableInstruction::EvaluateExpr {
-                    expr: ExecutableExpr::Condition { .. },
-                    ..
-                } => Some(instruction),
-                _ => None,
+            .filter(|instruction| {
+                matches!(
+                    instruction,
+                    ExecutableInstruction::EvaluateExpr {
+                        expr: ExecutableExpr::Condition { .. },
+                        ..
+                    }
+                )
             })
             .collect();
         assert_eq!(conditions.len(), 1, "one clause, one condition");
@@ -4198,9 +4201,9 @@ mod tests {
                 _ => None,
             })
             .filter(|cases| {
-                cases.iter().any(|case| {
-                    case.code == CompletionCode::Break && case.target == exit
-                })
+                cases
+                    .iter()
+                    .any(|case| case.code == CompletionCode::Break && case.target == exit)
             })
             .count();
         assert!(
@@ -4226,9 +4229,8 @@ mod tests {
     fn every_non_ok_completion_leaves_the_function_at_top_level() {
         let function = build("puts hello", 203);
         for block in &function.blocks {
-            let Some(ExecutableTerminator::CompletionSwitch {
-                cases, default, ..
-            }) = &block.terminator
+            let Some(ExecutableTerminator::CompletionSwitch { cases, default, .. }) =
+                &block.terminator
             else {
                 continue;
             };
@@ -4370,10 +4372,7 @@ mod tests {
 
     #[test]
     fn try_routes_handlers_by_completion_class() {
-        let function = build(
-            "try {risky} on error {m} {puts $m} finally {cleanup}",
-            208,
-        );
+        let function = build("try {risky} on error {m} {puts $m} finally {cleanup}", 208);
         let joined = instructions(&function)
             .into_iter()
             .find_map(|instruction| match instruction {
@@ -4744,7 +4743,9 @@ mod tests {
             &module.top_level,
         )
         .expect("structured control is isolated, not a whole-function decline");
-        function.validate().expect("valid structured-region sequence");
+        function
+            .validate()
+            .expect("valid structured-region sequence");
 
         let region = function
             .blocks
@@ -4769,7 +4770,11 @@ mod tests {
                 _ => None,
             })
             .collect();
-        assert!(invoked.iter().any(|path| path.first() == Some(&0) && path.len() > 1));
+        assert!(
+            invoked
+                .iter()
+                .any(|path| path.first() == Some(&0) && path.len() > 1)
+        );
         assert!(invoked.contains(&vec![1]));
     }
 

@@ -378,9 +378,7 @@ fn serialise_wasm_region_plan(availability: &MixedRegionPlanAvailability) -> (Va
                             ),
                             RegionPlan::Lowered(_)
                             | RegionPlan::Opaque(_)
-                            | RegionPlan::Structured(_) => {
-                                (Value::Null, Value::Array(Vec::new()))
-                            }
+                            | RegionPlan::Structured(_) => (Value::Null, Value::Array(Vec::new())),
                         };
                         json!({
                             "node": node.path(),
