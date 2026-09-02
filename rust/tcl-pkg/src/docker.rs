@@ -98,6 +98,13 @@ const CLI_PREREQ_DEBIAN: &str = "RUN apt-get update && apt-get install -y --no-i
 // an install — guard on the binary so a present curl is left alone.
 const CLI_PREREQ_REDHAT: &str = "RUN if ! command -v curl >/dev/null 2>&1; then dnf install -y curl; fi && \\\n    dnf install -y ca-certificates && \\\n    dnf clean all";
 
+/// The image families the native `tcl` CLI can be installed on, and what each
+/// needs first. One table so [`cli_prereq_recipe`] and [`cli_capable_families`]
+/// cannot drift into advertising a family that errors, or omitting one that
+/// works. Sorted, because `cli_capable_families` is a user-facing listing.
+const CLI_PREREQS: &[(&str, &str)] =
+    &[("debian", CLI_PREREQ_DEBIAN), ("redhat", CLI_PREREQ_REDHAT)];
+
 fn strip_registry(image: &str) -> String {
     let parts: Vec<&str> = image.split('/').collect();
     if parts.len() >= 2 && (parts[0].contains('.') || parts[0].contains(':')) {
@@ -156,19 +163,21 @@ pub fn tcl_install_recipe(image: &str, tcl_version: &str) -> Result<String, TclP
 /// binary dies in the dynamic loader). A Tcl-only Alpine image is still fine:
 /// drop the CLI verbs (`--no-packages`, no `--venv`) and nothing is fetched.
 pub fn cli_prereq_recipe(image: &str) -> Result<String, TclPkgError> {
-    match detect_image_family(image).as_str() {
-        "debian" => Ok(CLI_PREREQ_DEBIAN.to_string()),
-        "redhat" => Ok(CLI_PREREQ_REDHAT.to_string()),
-        "alpine" => Err(docker_error(
+    let family = detect_image_family(image);
+    if let Some((_, prereq)) = CLI_PREREQS.iter().find(|(f, _)| *f == family) {
+        return Ok((*prereq).to_string());
+    }
+    if family == "alpine" {
+        return Err(docker_error(
             "the native tcl CLI has no musl release asset, so it cannot run on \
              alpine (its glibc shim is missing fcntl64 and __res_init). Use a \
              glibc base image (debian, ubuntu, fedora, rockylinux, …), or build \
              a Tcl-only alpine image with --no-packages and no --venv.",
-        )),
-        family => Err(docker_error(format!(
-            "no tcl CLI prerequisite recipe for image family: {family}"
-        ))),
+        ));
     }
+    Err(docker_error(format!(
+        "no tcl CLI prerequisite recipe for image family: {family}"
+    )))
 }
 
 /// The image families a generated Dockerfile can install the native `tcl` CLI
@@ -176,7 +185,7 @@ pub fn cli_prereq_recipe(image: &str) -> Result<String, TclPkgError> {
 /// itself; only these can also carry the CLI.
 #[must_use]
 pub fn cli_capable_families() -> Vec<String> {
-    ["debian", "redhat"].map(ToString::to_string).to_vec()
+    CLI_PREREQS.iter().map(|(f, _)| (*f).to_string()).collect()
 }
 
 /// The release version a generated Dockerfile pins by default.
@@ -357,7 +366,7 @@ pub fn generate_dockerfile(spec: &DockerfileSpec) -> Result<String, TclPkgError>
     lines.push(String::new());
 
     if needs_cli {
-        lines.push("# Fetch and verify the native tcl CLI release asset".to_string());
+        lines.push("# Prerequisites for fetching and verifying the tcl CLI".to_string());
         lines.push(cli_prereq_recipe(&spec.base_image)?);
         lines.push(String::new());
 
@@ -571,6 +580,23 @@ mod tests {
             assert!(recipe.contains("curl"), "{image}: no curl");
             assert!(!recipe.contains("python"), "{image}: still installs python");
         }
+    }
+
+    #[test]
+    fn every_advertised_cli_family_has_a_recipe() {
+        let families = cli_capable_families();
+        assert!(!families.is_empty());
+        for family in &families {
+            assert!(
+                cli_prereq_recipe(family).is_ok(),
+                "{family} is advertised as CLI-capable but has no prerequisite recipe"
+            );
+        }
+        assert!(!families.iter().any(|f| f == "alpine"));
+        // Sorted, because this is a user-facing listing.
+        let mut sorted = families.clone();
+        sorted.sort();
+        assert_eq!(families, sorted);
     }
 
     #[test]

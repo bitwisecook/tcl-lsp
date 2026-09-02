@@ -74,6 +74,11 @@ Its default is the release the `tcl` that generated the file was built from,
 so an image built from a generated Dockerfile ships the CLI line you develop
 with.
 
+An unpinned build resolves the newest release the first time only. The
+instruction text does not change between builds, so Docker reuses the cached
+layer — and the binary in it — until something above it changes or you build
+with `--no-cache`. Pin the release when you need a rebuild to track it.
+
 ## How to tell it worked
 
 The build prints the checksum verification and the version of the CLI it
