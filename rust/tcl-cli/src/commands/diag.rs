@@ -309,14 +309,25 @@ fn collect_rows(
     }
 
     // The `SslicTcl` loader's own `SSLIC1xxx` findings, the same projection the
-    // server publishes.
+    // server publishes. The loader reads the *analysis* form — a lone `\r`
+    // terminates a command for `tclsh`, but the lexer treats it as horizontal
+    // whitespace, so without this a CR-terminated document collapses into one
+    // command and the findings are nonsense. `normalise_lone_cr` rewrites each
+    // lone `\r` to `\n` byte-for-byte, so the spans it returns address the same
+    // offsets as `source`. They are mapped with a line index over that same
+    // normalised text, because `LineIndex` starts a line only after a `\n` —
+    // over the raw bytes every finding in a CR-terminated document would land
+    // on line 1. The editor shows these on the client's own lines, where a
+    // lone CR *is* an end of line, so this is what makes the two agree.
     if sslictcl {
+        let loader_text = tcl_lexer::normalise_lone_cr(source);
+        let loader_lines = LineIndex::new(&loader_text);
         for d in tcl_lsp_core::sslictcl_diagnostics::diagnostics(
-            source,
+            &loader_text,
             disabled,
             &result.suppressed_lines,
         ) {
-            let pos = line_index.position_at_utf16(d.span.start(), source);
+            let pos = loader_lines.position_at_utf16(d.span.start(), &loader_text);
             rows.push(Row {
                 line: pos.line + 1,
                 column: pos.character.get() + 1,

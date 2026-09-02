@@ -324,6 +324,7 @@ declared member (`hostname a b c` → `E003`) is still an arity error.
 
 ## See also
 
+- [How do I author a `.sslictcl` TLS declaration in my editor?](../kcs/kcs-howto-author-a-sslictcl-declaration.md)
 - `samples/sslictcl/example.sslictcl` — a document exercising every
   declaration and member, plus an unknown word in each open block.
 - [contracts/sslictcl-source-data.md](contracts/sslictcl-source-data.md) — the

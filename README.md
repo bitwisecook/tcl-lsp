@@ -960,7 +960,9 @@ treats it accordingly:
   extension (`SSLIC1101`), not an unknown command — the loader owns that
   verdict, so no unknown-command hint doubles up on it.
 
-The vocabulary, the open/closed block rule, and the value domains are in
+A step-by-step walkthrough is in
+[docs/kcs/kcs-howto-author-a-sslictcl-declaration.md](docs/kcs/kcs-howto-author-a-sslictcl-declaration.md);
+the vocabulary, the open/closed block rule, and the value domains are in
 [docs/design/sslictcl-vocabulary.md](docs/design/sslictcl-vocabulary.md).
 
 ### Every package in the registry
