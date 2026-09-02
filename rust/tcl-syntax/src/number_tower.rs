@@ -135,19 +135,20 @@ pub trait BigIntOps: Sized + Clone + Ord {
     /// agrees bit for bit: a finite double is `mantissa * 2^shift` with a
     /// 53-bit mantissa, and any magnitude the wide tier cannot already hold
     /// has `shift > 0`.
+    #[must_use]
     fn from_f64_trunc(f: f64) -> Option<Self> {
         if !f.is_finite() {
             return None;
         }
         let truncated = f.trunc();
         let bits = truncated.to_bits();
-        let exponent = ((bits >> 52) & 0x7FF) as i64;
+        let exponent = ((bits >> 52) & 0x7FF).cast_signed();
         let fraction = bits & ((1_u64 << 52) - 1);
         if exponent == 0 {
             // Zero or subnormal: `trunc` already made every such value ±0.
             return Some(Self::from_i64(0));
         }
-        let mantissa = (fraction | (1_u64 << 52)) as i64;
+        let mantissa = (fraction | (1_u64 << 52)).cast_signed();
         let shift = exponent - 1075;
         let magnitude = if shift >= 0 {
             Self::from_i64(mantissa).shl(u32::try_from(shift).ok()?)

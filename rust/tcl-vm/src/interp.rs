@@ -1898,26 +1898,22 @@ impl Vm {
     /// 0 / `2^31-1` seed off the generator's two fixed points (Tcl's
     /// `srand`).
     pub(crate) fn rand_seed_set(&mut self, value: i64) {
-        let mut s = value & 0x7fff_ffff;
-        if s == 0 || s == 2_147_483_647 {
-            s ^= 0x075b_d924;
-        }
-        self.rand_seed = s;
+        self.rand_seed = tcl_syntax::expr::rand::seed_from_wide(value);
     }
 
     /// Advance the Park–Miller minimal-standard generator one step and return a
-    /// double in `[0, 1)` (`expr rand()`), using Schrage's overflow-safe form.
-    // `rand_seed` is kept in `[1, 2^31 - 1]` and `IP` is `2^31 - 1`; both are
-    // well under `f64`'s 2^53 exact-integer range, so the casts are lossless.
-    #[allow(clippy::cast_precision_loss)]
+    /// double in `(0, 1)` (`expr rand()`).
+    ///
+    /// The step and the scaling are the shared owner's
+    /// (`tcl_syntax::expr::rand`), not a second transcription: this used to
+    /// divide by `IM` where C multiplies by `1.0/IM`, and because
+    /// `1.0/2147483647` is not exactly representable the two disagreed by one
+    /// ulp for a dense family of seeds — visible in the result string
+    /// (`srand(251)` printed `0.0019644186841158285` instead of C's
+    /// `0.001964418684115828`, and the 145th draw of `srand(1)`'s stream
+    /// already differed). Issue #1432.
     pub(crate) fn rand_next(&mut self) -> f64 {
-        const IA: i64 = 16807;
-        const IP: i64 = 2_147_483_647;
-        const IQ: i64 = 127_773;
-        const IR: i64 = 2_836;
-        let test = IA * (self.rand_seed % IQ) - IR * (self.rand_seed / IQ);
-        self.rand_seed = if test > 0 { test } else { test + IP };
-        self.rand_seed as f64 / IP as f64
+        tcl_syntax::expr::rand::next_draw(&mut self.rand_seed)
     }
 
     /// Write the release-reporting globals derived from the threaded

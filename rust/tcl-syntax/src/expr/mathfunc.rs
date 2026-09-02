@@ -1536,7 +1536,7 @@ mod tests {
         assert_eq!(
             dispatch_with_backend_int_width::<BigInt>(
                 "int",
-                &[two_64_1.clone()],
+                std::slice::from_ref(&two_64_1),
                 IntWidth::Unbounded
             ),
             Some(two_64_1.clone())
@@ -1544,13 +1544,17 @@ mod tests {
         assert_eq!(
             dispatch_with_backend_int_width::<BigInt>(
                 "int",
-                &[two_64_1.clone()],
+                std::slice::from_ref(&two_64_1),
                 IntWidth::Windowed
             ),
             Some(N::Int(1))
         );
         assert_eq!(
-            dispatch_with_backend_int_width::<BigInt>("int", &[two_64_1], IntWidth::Unresolved),
+            dispatch_with_backend_int_width::<BigInt>(
+                "int",
+                std::slice::from_ref(&two_64_1),
+                IntWidth::Unresolved
+            ),
             None
         );
 

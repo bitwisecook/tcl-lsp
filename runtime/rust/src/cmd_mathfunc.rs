@@ -115,10 +115,22 @@ pub(crate) fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return Code::Ok;
         }
         "srand" => {
-            // The seed is the operand's low 64 bits (C's `TclGetWideBitsFromObj`);
-            // a non-integer operand is an error.
+            // The seed is the operand's low 64 bits (C's
+            // `TclGetWideBitsFromObj`), which takes an **integer** of any
+            // width and refuses a double rather than truncating it — tclsh
+            // 8.6.16: `expected integer but got "1.5"`, `-errorcode TCL VALUE
+            // INTEGER` (`TCL VALUE NUMBER` when the operand is not a number
+            // at all). The VM uses the identical wording (#1432).
             if !crate::bignum::is_integer(argv[1]) {
-                return interp.set_error(b"argument to math function didn't have numeric value");
+                let mut m = b"expected integer but got \"".to_vec();
+                m.extend_from_slice(&obj_bytes(argv[1]));
+                m.push(b'"');
+                let code: &[u8] = if crate::bignum::is_numeric(argv[1]) {
+                    b"TCL VALUE INTEGER"
+                } else {
+                    b"TCL VALUE NUMBER"
+                };
+                return interp.error_with_code(&m, code);
             }
             let seed = crate::bignum::truncate_to_wide(argv[1]);
             interp.set_result(obj::new_double_obj(interp.srand(seed)));

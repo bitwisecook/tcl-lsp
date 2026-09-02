@@ -295,3 +295,60 @@ const E1E300: &str = "1000000000000000052504760255204420248704468581108159154915
 
 /// tclsh `expr {isqrt(1e300)}` (151 digits).
 const ISQRT_1E300: &str = "1000000000000000026252380127602209779758503108492371458359424883684651414333812736380124287612629691547944630047071980611862607399628869272326975124240";
+
+// ---------------------------------------------------------------------------
+// #1432 — `rand`/`srand`. The generator (Park-Miller step, seed nudge, and C's
+// reciprocal-multiply scaling) is now `tcl_syntax::expr::rand`; only the seed
+// storage and the nondeterministic first-seed policy stay per engine.
+// ---------------------------------------------------------------------------
+
+/// `srand(251)` is the smallest seed in the dense family where C's
+/// `seed * (1.0/RAND_IM)` and a true `seed / RAND_IM` differ by one ulp, which
+/// Tcl's shortest-round-trip formatting makes visible. tclsh 8.6.16/9.0.4
+/// print the reciprocal-multiply value.
+#[test]
+fn srand_reproduces_cs_reciprocal_multiply_scaling() {
+    expr_is("srand(251)", "0.001964418684115828");
+    expr_is("srand(1)", "7.826369259425611e-6");
+    expr_is("srand(0)", "0.24257829889775176");
+    // `-1 & 0x7FFFFFFF` is `IM`, one of the generator's two fixed points, so
+    // both seeds land on the same nudged stream.
+    expr_is("srand(2147483647)", "0.7574217011022483");
+    expr_is("srand(-1)", "0.7574217011022483");
+    // C reads the operand's low 64 bits (`TclGetWideBitsFromObj`).
+    expr_is("srand(2**64+7)", "5.4784584815979276e-5");
+}
+
+/// A whole seeded stream, not just its first draw: the 145th draw after
+/// `srand(1)` is the first index at which the two scalings disagree, so this
+/// row is the drift gate for the family. tclsh 8.6.16/9.0.4:
+/// `0.9833050970841688`.
+#[test]
+fn the_145th_draw_after_srand_1_matches_the_oracle() {
+    let (code, result, _) = run("expr {srand(1)}\n\
+         set v {}\n\
+         for {set i 2} {$i <= 145} {incr i} { set v [expr {rand()}] }\n\
+         set v");
+    assert_eq!(code, Code::Ok);
+    assert_eq!(result, "0.9833050970841688");
+}
+
+/// C reads `srand`'s operand with `TclGetWideBitsFromObj`, which takes an
+/// integer of any width and **refuses** a double rather than truncating it
+/// (tclsh8.6.16: `expected integer but got "1.5"`, `-errorcode TCL VALUE
+/// INTEGER`; tclsh9.0.4 raises with an empty message because C passes a NULL
+/// interp there). Both engines use 8.6's wording so they agree with each
+/// other; 9.0's empty-message quirk is left to #1581.
+#[test]
+fn srand_refuses_a_non_integer_operand() {
+    expr_err(
+        "srand(1.5)",
+        "expected integer but got \"1.5\"",
+        "TCL VALUE INTEGER",
+    );
+    expr_err(
+        "srand(\"abc\")",
+        "expected integer but got \"abc\"",
+        "TCL VALUE NUMBER",
+    );
+}

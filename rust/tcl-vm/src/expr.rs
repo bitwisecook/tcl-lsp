@@ -795,6 +795,20 @@ fn word_or(left: &Value, right: &Value) -> Result<bool, TclError> {
     }
 }
 
+/// A math-function command's error completion as an expr error, **keeping the
+/// `-errorcode` it published**. The dynamic `expr $e` path used to rebuild the
+/// error from the message alone, so the same call reported `ARITH DOMAIN` when
+/// compiled as `expr {…}` and `NONE` when evaluated from a variable.
+fn call_error(c: &tcl_runtime_api::Completion<Value>) -> TclError {
+    let message = c.result.to_str().to_string();
+    let code = crate::command::resolved_error_code(c).to_str().to_string();
+    if code == "NONE" {
+        TclError::new(message)
+    } else {
+        TclError::with_error_code(message, code)
+    }
+}
+
 /// An [`ExprOps`] adapter that evaluates an expression AST against the VM
 /// (resolving `$var` / `[cmd]` / math functions through it), reusing the shared
 /// `tcl-syntax` expr walker.
@@ -859,7 +873,7 @@ impl ExprOps for ExprEval<'_> {
                 let c = self.vm.invoke_fixed_math_builtin(spec, &args);
                 return match c.code {
                     Code::Ok => Ok(c.result),
-                    Code::Error => Err(TclError::new(c.result.to_str().to_string())),
+                    Code::Error => Err(call_error(&c)),
                     code => Err(TclError::with_code(c.result.to_str().to_string(), code)),
                 };
             }
@@ -893,7 +907,7 @@ impl ExprOps for ExprEval<'_> {
         let c = self.vm.invoke_command(&name, &args);
         match c.code {
             Code::Ok => Ok(c.result),
-            Code::Error => Err(TclError::new(c.result.to_str().to_string())),
+            Code::Error => Err(call_error(&c)),
             code => Err(TclError::with_code(c.result.to_str().to_string(), code)),
         }
     }

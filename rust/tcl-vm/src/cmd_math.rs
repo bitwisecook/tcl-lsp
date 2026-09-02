@@ -447,13 +447,23 @@ fn m_srand(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(v) => v,
         Err(c) => return c,
     };
-    let seed = if let Ok(n) = x.as_wide() {
-        n
-    } else {
-        match num_arg(x) {
-            Ok(f) => f.trunc() as i64,
-            Err(m) => return err(m),
-        }
+    // C reads the operand with `TclGetWideBitsFromObj`: an **integer** of any
+    // width, folded to its low 64 bits (`srand(2**64+7)` seeds as `7`). A
+    // double is refused, not truncated — tclsh8.6.16 says `expected integer
+    // but got "1.5"` (`-errorcode TCL VALUE INTEGER`, or `TCL VALUE NUMBER`
+    // for a non-number), and tclsh9.0.4 raises with an *empty* message
+    // because C passes a NULL interp to the conversion there. Both engines
+    // use 8.6's wording so they agree with each other (#1432); 9.0's
+    // empty-message quirk is left to the error-taxonomy work (#1581).
+    let Ok(seed) = x.as_wide() else {
+        return err_with_code(
+            format!("expected integer but got \"{}\"", x.to_str()),
+            if x.as_double().is_ok() {
+                "TCL VALUE INTEGER"
+            } else {
+                "TCL VALUE NUMBER"
+            },
+        );
     };
     vm.rand_seed_set(seed);
     ok(Value::double(vm.rand_next()))

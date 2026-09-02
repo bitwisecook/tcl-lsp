@@ -323,3 +323,45 @@ const E1E300: &str = "1000000000000000052504760255204420248704468581108159154915
 
 /// tclsh `expr {isqrt(1e300)}` (151 digits).
 const ISQRT_1E300: &str = "1000000000000000026252380127602209779758503108492371458359424883684651414333812736380124287612629691547944630047071980611862607399628869272326975124240";
+
+// ---------------------------------------------------------------------------
+// #1432 — `rand`/`srand` through the shared generator.
+// ---------------------------------------------------------------------------
+
+/// The VM used to divide by `RAND_IM` where C multiplies by `1.0/RAND_IM`,
+/// giving `0.0019644186841158285` for `srand(251)` where tclsh (and the WASM
+/// runtime) say `0.001964418684115828`. Both engines now call the one shared
+/// generator.
+#[test]
+fn srand_reproduces_cs_reciprocal_multiply_scaling() {
+    both("srand(251)", "ok 0.001964418684115828");
+    both("srand(1)", "ok 7.826369259425611e-6");
+    both("srand(0)", "ok 0.24257829889775176");
+    both("srand(2147483647)", "ok 0.7574217011022483");
+    both("srand(-1)", "ok 0.7574217011022483");
+    both("srand(2**64+7)", "ok 5.4784584815979276e-5");
+}
+
+/// The 145th draw of `srand(1)`'s stream — the first index at which the two
+/// scalings disagreed. tclsh 8.6.16/9.0.4: `0.9833050970841688`.
+#[test]
+fn the_145th_draw_after_srand_1_matches_the_oracle() {
+    let out = run(
+        "expr {srand(1)}\nset v {}\nfor {set i 2} {$i <= 145} {incr i} { set v [expr {rand()}] }\nset v",
+    );
+    assert_eq!(out, "0.9833050970841688");
+}
+
+/// C refuses a double `srand` operand rather than truncating it; the VM used
+/// to truncate (`srand(1.5)` seeded 1) while the runtime errored.
+#[test]
+fn srand_refuses_a_non_integer_operand() {
+    both(
+        "srand(1.5)",
+        "err {expected integer but got \"1.5\"} {TCL VALUE INTEGER}",
+    );
+    both(
+        "srand(\"abc\")",
+        "err {expected integer but got \"abc\"} {TCL VALUE NUMBER}",
+    );
+}
