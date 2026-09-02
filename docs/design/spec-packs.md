@@ -1021,6 +1021,32 @@ it produces. The rules below keep the first without paying for the second.
   tool, which is what makes it safe to run a *generated* pack through
   `spectcl_check` before reading a line of it.
 
+### Declaring an environment: `environment NAME { … }`
+
+A pack that describes a shell — an interpreter with packages already
+loaded, its own file extensions, a fixed base release — declares it as an
+environment, and the six bundled EDA packs do (`specs/eda_*.tclspec`; the
+compiled shells they replaced are gone, D17). The rows, in the order the
+shipped blocks write them:
+
+| row | meaning |
+|---|---|
+| `display_name {TEXT}` | the human-facing name (defaults to the id) |
+| `core FAMILY RELEASE ?-build PROFILE?` | the base release; a compiled family or a `dialect` block the pack declares |
+| `version_ceiling RELEASE` | the upper-bound release for option gating (§5.2 of the redesign), on the core's ladder |
+| `editor_identity ID` | one of the **contributed** editor language ids — an environment selects, never mints |
+| `ambient PACKAGE VERSION\|tracks-base\|keyed KEY` | a package present with no `package require`; `keyed` names an external version axis (`ToolVersion`, `SdcVersion`, `UpfVersion`, `BigipVersion`) |
+| `hosted PACKAGE REQUIREMENT` | an installable package, floored on its own axis |
+| `alias NAME` | a retired or convenience spelling that resolves here |
+| `file_extension EXT ?-name TEXT?`, `filename NAME`, `signature TEXT` | server-side detection facts |
+| `policy open\|closed\|ambient-plus-require` | resolution strictness |
+| `help_terms {WORD …}` | the lower-case terms `tcl help --dialect` filters the knowledge base by |
+
+Compiled names are reserved; a bundled pack's names are reserved against
+every lower tier; an unknown row rejects the block (it is all semantic
+vocabulary). `environment NAME -extend { … }` adds detection facts and
+placements to an environment declared elsewhere.
+
 ### Composing a surface: `include from … into …`
 
 `include NAME` splices another `.tclspec`'s declarations in — file

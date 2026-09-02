@@ -391,6 +391,65 @@ fn spec_upgrade_translates_dialects_rows_and_moves_the_version_word() {
     );
 }
 
+/// `--restyle` (D13) re-emits the upgraded pack in canonical form; with
+/// `--check` it only says so.
+#[test]
+fn spec_upgrade_restyle_emits_canonical_form() {
+    let tree = Tree::new("upgrade-restyle");
+    let pack = tree.path().join("demo.tclspec");
+    let source = "# a comment the restyle drops\n\
+                  speclib demo 1.2 {\n\
+                  \x20   command demo::greet {\n\
+                  \x20           arity 1 ;# odd indent\n\
+                  \x20       dialects {tcl8.6+ tk}\n\
+                  \x20   }\n\
+                  }\n";
+    std::fs::write(&pack, source).expect("write pack");
+
+    let path = pack.to_string_lossy().into_owned();
+    let (stdout, _stderr, code) = run(&["spec", "upgrade", "--check", "--restyle", &path]);
+    assert_eq!(code, 0, "{stdout}");
+    assert!(
+        stdout.contains("would re-emit in canonical form"),
+        "{stdout}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&pack).expect("read back"),
+        source,
+        "--check writes nothing"
+    );
+
+    let (stdout, _stderr, code) = run(&["spec", "upgrade", "--restyle", &path]);
+    assert_eq!(code, 0, "{stdout}");
+    assert!(stdout.contains("re-emitted in canonical form"), "{stdout}");
+    assert_eq!(
+        std::fs::read_to_string(&pack).expect("read back"),
+        "speclib demo 2.0 {\n\
+         \n\
+         command demo::greet {\n\
+         \x20   arity 1\n\
+         \x20   available {tcl 8.6-} {package Tk}\n\
+         }\n\
+         \n\
+         }\n"
+    );
+
+    // A programmed pack is refused whole (E-R12), and the file is untouched.
+    let programmed = "speclib demo 2.0 {\n\
+                      foreach name {a b} {\n\
+                      \x20   command $name { arity 0 }\n\
+                      }\n\
+                      }\n";
+    std::fs::write(&pack, programmed).expect("write pack");
+    let (_stdout, stderr, code) = run(&["spec", "upgrade", "--restyle", &path]);
+    assert_ne!(code, 0);
+    assert!(stderr.contains("E-R12"), "{stderr}");
+    assert_eq!(
+        std::fs::read_to_string(&pack).expect("read back"),
+        programmed
+    );
+}
+
 /// `--verify` proves the rewrite is behaviour-preserving (U9) and never
 /// writes; `--to` older than `--from` is refused (U10).
 #[test]

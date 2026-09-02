@@ -1046,8 +1046,10 @@ The dialect is selected automatically using the following priority chain
    those extensions with the editor itself as the pack loads, so the file
    opens as Tcl in the first place — see
    [A file extension my SpecTcl pack claims opens as plain text](docs/kcs/kcs-issue-a-pack-claimed-file-extension-opens-as-plain-text.md).
-3. **Comment directive** -- a `# tcl-dialect: <dialect>` comment in the
-   first 5 lines of a file pins the dialect for that file:
+3. **Comment directive** -- a `# tcl-dialect: <name>` comment in the
+   first 5 lines of a file pins the dialect for that file. The name is any
+   environment name or alias (`tcl8.4`, `f5-irules`, `tk`, `wish`, a name a
+   loaded SpecTcl pack declares); an unknown name is ignored:
 
    ```tcl
    # tcl-dialect: tcl8.4

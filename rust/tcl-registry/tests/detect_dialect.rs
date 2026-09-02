@@ -97,6 +97,73 @@ fn directive_unknown_dialect_ignored() {
     assert_eq!(detect("# tcl-dialect: unknown\nset x 1\n"), None);
 }
 
+/// E8 (#1631 §5.1): the directive resolves through the environment
+/// registry, so an environment name that is not a catalogue dialect —
+/// `tk` — resolves, and so does an alias, to its canonical id.
+#[test]
+fn directive_resolves_environment_names_and_aliases() {
+    assert_eq!(detect("# tcl-dialect: tk\nwm title . hi\n"), Some("tk"));
+    assert_eq!(detect("# tcl-dialect: wish\nwm title . hi\n"), Some("tk"));
+    assert_eq!(
+        detect("# tcl-dialect: irules\nwhen HTTP_REQUEST {\n"),
+        Some("f5-irules")
+    );
+    assert_eq!(detect("# tcl-dialect: jimsh\nset x 1\n"), Some("jim"));
+    // The answer is the canonical id, and the resolution is case-sensitive
+    // on the name exactly as the settings ingress is.
+    assert_eq!(detect("# tcl-dialect: TK\nset x 1\n"), None);
+}
+
+/// A pack-declared environment resolves through the directive once the
+/// pack registers it — the same live registry the extension routing and
+/// `setDialect` read — and stops resolving once it retires.
+#[test]
+fn directive_resolves_a_registered_environment() {
+    use std::sync::Arc;
+    use tcl_dialect::model::{
+        BuildProfileId, CoreProfileSelector, DetectionFacts, EnvironmentDefinition, EnvironmentId,
+        EnvironmentPolicy, Family, Provenance, Release, VersionAxisId, VersionSet, WorldPolicy,
+    };
+    use tcl_registry::model::{EnvironmentSource, sync_environment_sources};
+
+    let source = "# tcl-dialect: directive-probe-shell\nset x 1\n";
+    let alias = "# tcl-dialect: probe-shell\nset x 1\n";
+    let definition = EnvironmentDefinition {
+        id: EnvironmentId::new("directive-probe-shell"),
+        aliases: vec![Arc::from("probe-shell")],
+        display_name: Arc::from("Directive Probe"),
+        editor_identity: None,
+        core: Some(CoreProfileSelector {
+            family: Family::Tcl,
+            default_release: Release::TCL_8_6,
+            build: BuildProfileId::Canonical,
+        }),
+        targets: VersionSet::from_requirements(VersionAxisId::core(Family::Tcl), &["8.6-"])
+            .expect("targets"),
+        expected_packages: Vec::new(),
+        policy_defaults: EnvironmentPolicy {
+            closed_world: WorldPolicy::Open,
+            fixed_ensembles: false,
+            strict_ascii: false,
+            version_ceiling: None,
+        },
+        server_detection: DetectionFacts::default(),
+        help_terms: Vec::new(),
+        provenance: Provenance::User,
+    };
+    let outcome = sync_environment_sources(vec![EnvironmentSource {
+        id: "test:directive-probe".to_owned(),
+        definitions: vec![definition],
+        extensions: Vec::new(),
+    }]);
+    assert!(outcome.rejected.is_empty(), "{:?}", outcome.rejected);
+    assert_eq!(detect(source), Some("directive-probe-shell"));
+    assert_eq!(detect(alias), Some("directive-probe-shell"));
+
+    let _ = sync_environment_sources(Vec::new());
+    assert_eq!(detect(source), None, "a retired environment abstains again");
+}
+
 #[test]
 fn no_hint_returns_none() {
     assert_eq!(detect("set x 1\nputs $x\n"), None);
