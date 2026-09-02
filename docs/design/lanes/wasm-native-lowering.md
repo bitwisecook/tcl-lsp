@@ -512,3 +512,119 @@ failed) and `make runtime-rust-lint` (`cargo fmt --check` + `cargo clippy
 --locked --all-targets -- -D warnings`) both green before every commit in
 this lane, on top of a tree containing other lanes' concurrent in-flight
 edits outside this lane's files.
+
+## r6a-rename-interp
+
+Status: **done** — all seven items of #1412 verified against tclsh9.0.4
+(8.6.16 cross-checked where the two releases could plausibly differ); four
+needed a fix, three (item 4, the two halves of item 6, and all three stale
+doc comments the issue named) were already correct at this lane's start.
+Owner files: `runtime/rust/src/namespace.rs`, `runtime/rust/src/cmd_alias.rs`,
+plus small additive `runtime/rust/src/interp.rs` hunks (see *Note on
+attribution* below), and the new
+`runtime/rust/tests/rename_interp_semantics.rs`.
+
+### Done
+
+1. **Item 1 — `rename` onto an occupied destination.**
+   `Namespaces::rename` (`namespace.rs`) now checks the destination before
+   touching the source, matching C's `TclRenameCommand` (`tclBasic.c`), which
+   checks `newNsPtr->cmdTable` before removing `old`'s hash entry. Refuses
+   with `can't rename to "X": command already exists`
+   (`RenameOutcome::TargetExists`), leaving both commands intact. This also
+   makes a same-slot self-rename (`rename foo foo`) refuse — tclsh 9.0.4
+   does too, since the source is still occupying the slot when the check
+   runs; the old doc comment claiming self-rename was a harmless no-op was
+   wrong and is gone. The occupancy check is gate-hidden-root-aware
+   (`Interp::is_gate_hidden_object_root`) via `Namespaces::
+   destination_occupant_fqn`, so renaming onto an engine-installed TclOO
+   root this release doesn't carry (`::oo::configurable` on an 8.6 surface)
+   still succeeds, per that mechanism's existing "must read as free"
+   contract — two pre-existing `cmd_namespace.rs` tests exercise exactly
+   this and would have failed otherwise.
+2. **Item 2 — `rename` across namespaces re-homes a proc.**
+   `Namespaces::rehome_proc` rewrites a moved `Command::Proc`'s `ns`/`fqn`
+   to the destination when they differ, so `namespace current` inside the
+   body reports the new namespace, mirroring C's `cmdPtr->nsPtr`
+   reassignment. A fresh `Rc<ProcDef>` is built rather than mutating through
+   the shared one, so any frame still on the call stack from before the
+   rename keeps its old snapshot.
+3. **Item 3 — `interp`'s bad-option list advertised undispatchable
+   subcommands.** `target` is cheap given this runtime's two supported alias
+   shapes (same-interp `Command::Alias`, child-to-immediate-parent
+   `Command::ParentAlias`) — `Interp::alias_target_path` computes the
+   interp-path directly from the shape rather than a general interp-tree
+   walk, and `interp target path alias` now dispatches. `cancel` (script
+   cancellation) and `share`/`transfer` (cross-interp channel sharing) need
+   infrastructure this runtime has none of, so they were dropped from the
+   advertised list rather than left advertised-but-undispatchable — this
+   runtime's list now names only what it dispatches, diverging from tclsh's
+   on purpose for those three names.
+4. **Item 5 — `invokehidden`'s `-global`/`-namespace` were parsed and
+   discarded.** They now set the current-namespace context for the hidden
+   call (`Interp::set_current_ns`, saved/restored around it — no frame push
+   needed for one command rather than a script body), with `-namespace`'s
+   name resolved from the **global** namespace regardless of the caller's
+   current one (`Interp::ensure_global_namespace`, C's `TCL_GLOBAL_ONLY`;
+   tclsh-pinned: `-namespace bar` from inside `::foo` still names `::bar`).
+   An unrecognized option is now a hard `bad option "-x": must be -global,
+   -namespace, or --` error instead of a silent skip. **Correction to the
+   issue's own item 5**: the claimed `cannot use -global option and
+   -namespace option together` error does not exist on either tclsh 8.6.16
+   or 9.0.4 — C's `ChildInvokeHidden` just takes the last of the two given;
+   no mutual-exclusion refusal was added. Simplification: unlike C's
+   `Tcl_GetIndexFromObj`, this does not accept an abbreviated option name
+   (`-g` for `-global`).
+5. **Item 7 — inconsistent `bad option` shape between `interp` and
+   `$child`.** `Interp::dispatch_child`'s fallthrough said `interp
+   subcommand "X" is not supported in this runtime` — not a tclsh shape at
+   all. It now reports the same `bad option "X": must be ...` shape the
+   `interp` ensemble uses, with the child command object's own (shorter)
+   list — `NRChildCmd` (tclInterp.c) never dispatches
+   `children`/`create`/`delete`/`exists` there, those are only ever spelled
+   `interp <op> path` from the parent.
+6. **Items 4 and 6 (already correct).** `rename name ""`'s missing-source
+   error already said `can't delete` (item 4); `interp hide`/`expose`
+   misses already raised and `expose` already refused an occupied
+   destination (item 6). No code change; both got regression tests anyway.
+7. **Three stale doc comments (already fixed before this lane started).**
+   `cmd_alias.rs:28`/`:75`'s "single-interp scope only" / "other subcommands
+   … trap here" claims and `interp.rs`'s `Command` enum doc's "`Builtin` and
+   `Alias` … the next variants" are all gone from the current text —
+   verified by grep, no diff needed.
+
+### Note on attribution (shared-worktree staging race)
+
+Two of this lane's fixes — item 1/2's `namespace.rs`/`interp.rs` edits, and
+the `Interp::alias_target_path` addition item 3's commit message cites —
+physically landed inside two `wip(r5-trace-semantics):` commits (`5a74eb43`,
+`605989af`) instead of a `wip(r6a-rename-interp):` one. This lane staged its
+own files with explicit paths and used `git add -p` to pick only its own
+hunks out of `interp.rs` (which had, and kept having, other lanes' unrelated
+in-flight edits sitting in the same working copy throughout), but between
+staging and running `git commit`, another lane's broader `git add`/`git
+commit` in the same shared index swept up what this lane had already staged
+before this lane's own `git commit` ran — which then found nothing left to
+commit and aborted, invisibly, with output that reads like an ordinary
+post-commit status listing rather than a failure (worth watching for: `git
+commit`'s "no changes added to commit" line, easy to miss when skimming for
+just the "files changed" summary). r4-parser-gaps hit the same race from the
+other side (see its *Note* above) and reached the same conclusion: the code
+is correct and tested either way (see `rename_interp_semantics.rs`), only
+the commit attribution is wrong, and rewriting shared branch history to fix
+attribution is out of policy. Every commit after the first used `git add
+<explicit paths>` immediately followed by `git commit` with no gap for
+another lane's commit to intervene, and a `git diff --cached` sanity check
+immediately before each one — closing the window as tightly as one lane can
+from its own side, though the race is inherently cross-lane.
+
+### Verification
+
+`make runtime-rust-test` and `make runtime-rust-lint` both green before
+every commit, re-run immediately before each one to absorb other lanes'
+concurrent in-flight breakage in files outside this lane's ownership
+(`interp.rs`/`cmd_error.rs`/`parse.rs`/etc. were each observed transiently
+broken mid-edit by other lanes during this lane's work; every one resolved
+itself within a minute without action from this lane). `runtime/rust/tests/
+rename_interp_semantics.rs` pins all seven items against real `tclsh9.0.4`
+transcripts quoted in each test's doc comment.
