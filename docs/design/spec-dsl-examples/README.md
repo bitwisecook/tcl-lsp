@@ -85,7 +85,7 @@ Additive only, so nothing written against 1.0 has to change.
 | **1.0** | the vocabulary the eleven ports froze |
 | **1.1** | the three lifecycle flags `-introduced` / `-deprecated` / `-retired` at every level the registry can gate — `form`, `side_effect`, `option_conflict`, `sub_subcommand`, and a `values` table's `value` rows — plus `versioned_arg_value` at **command** scope (it was subcommand-only), and the option row's `-deprecation-fix {…}` data form |
 | **1.2** | versioned `arity` and `arg` rows; `ambient_package`; second-level option blocks; option-level `-taints-var-write`, `-variable-scope`, `-script-timing`, and `-callback-taint-inputs`; positional `callback_taint_inputs`; `script_timing_resolver`; `object_class -method-prefix-matching`; and `tk_geometry` |
-| **2.0** | `available {PROVIDER SPEC…}` / `-available` at every scope `dialects` is accepted; the `environment NAME { … }` and `dialect NAME { … }` pack-level blocks; `refine NAME { … }`, the invocation refinement, at command and subcommand scope |
+| **2.0** | `available {PROVIDER SPEC…}` / `-available` at every scope `dialects` is accepted; the `environment NAME { … }` (with `help_terms` and `version_ceiling` rows since the EDA shells moved into their packs) and `dialect NAME { … }` pack-level blocks; `refine NAME { … }`, the invocation refinement, at command and subcommand scope |
 
 Every 1.1 word is one the option row already spelled, moved outward: the
 flags are `Lifecycle`'s own three releases, on the entity's own package

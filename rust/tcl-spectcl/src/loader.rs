@@ -158,7 +158,7 @@ mod surface_roster;
 mod vocabulary_class;
 
 pub use dialect_block::{PackDialect, PackDialectAxis};
-pub(crate) use environment_block::reserved_name as reserved_environment_name;
+pub(crate) use environment_block::reserved_name_for as reserved_environment_name_for;
 pub use environment_block::{PackCore, PackEnvironment, PackEnvironmentTier};
 pub use eval::{
     EvalOptions, EvalSnapshotKey, LOADER_EVAL_VERSION, eval_snapshot_key, evaluate_pack,
@@ -8173,6 +8173,59 @@ mod tests {
                 .provenance,
             Provenance::BundledPack
         );
+    }
+
+    /// `help_terms` and `version_ceiling` (D17: the two facts the compiled
+    /// EDA shells carried that the block could not yet say) load and
+    /// convert; the ceiling resolves against the `core` family whichever
+    /// order the two rows come in.
+    #[test]
+    fn help_terms_and_version_ceiling_rows_load_and_convert() {
+        let pack = evaluate_pack(
+            "speclib probe 2.0 {\n environment vivado-tcl {\n \
+             version_ceiling 8.5\n core tcl 8.5\n \
+             help_terms {Vivado xilinx}\n help_terms {fpga}\n \
+             }\n}",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        let environment = &pack.environments[0];
+        assert_eq!(environment.version_ceiling, Some(Release::TCL_8_5));
+        assert_eq!(environment.help_terms, ["vivado", "xilinx", "fpga"]);
+        let definition = environment.to_definition(PackEnvironmentTier::Bundled);
+        assert_eq!(
+            definition.policy_defaults.version_ceiling,
+            Some(Release::TCL_8_5)
+        );
+        let terms: Vec<&str> = definition.help_terms.iter().map(AsRef::as_ref).collect();
+        assert_eq!(terms, ["vivado", "xilinx", "fpga"]);
+    }
+
+    /// A ceiling off the core's ladder, or with no compiled core to sit on,
+    /// rejects the block: it is a point on a ladder or it is nothing.
+    #[test]
+    fn a_version_ceiling_off_the_ladder_rejects_the_block() {
+        for body in ["core tcl 8.5\n version_ceiling 8.7", "version_ceiling 8.5"] {
+            let pack = evaluate_pack(&format!(
+                "speclib probe 2.0 {{\n environment vivado-tcl {{\n {body}\n }}\n \
+                 command demo {{ arity 1 }}\n}}"
+            ));
+            assert!(
+                pack.environments.is_empty(),
+                "{body}: {:?}",
+                pack.environments
+            );
+            assert!(
+                pack.command("demo").is_some(),
+                "{body}: the rest still loads"
+            );
+            assert!(
+                pack.notices
+                    .iter()
+                    .any(|n| n.message.contains("version_ceiling")),
+                "{body}: {:?}",
+                pack.notices
+            );
+        }
     }
 
     /// §3.3: a compiled canonical name (or alias) is reserved, and a block

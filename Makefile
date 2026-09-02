@@ -207,7 +207,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: rust-check check-all prep-pr _prep-pr-checks _prep-pr-tests _prep-pr-smoke _prep-pr-smoke-tier
 # Tests
 .PHONY: test test-ext test-emacs test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all print-server-targets-jetbrains
-.PHONY: xtask-check xtask-editor-extensions xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle xtask-sslictcl-data xtask-runtime-stdlib tcltest-sweep tcltest-sweep-check xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-api-ownership
+.PHONY: xtask-check xtask-editor-extensions xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle xtask-sslictcl-data xtask-runtime-stdlib tcltest-sweep tcltest-sweep-check xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-api-ownership
 .PHONY: xtask-workflow-sync xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-gen-tmlanguage-keywords xtask-option-registry-drift xtask-callback-inventory check-tcl-reference-toolchains check-spectcl-compat-paths
 # Lint / format / typecheck
 .PHONY: lint format lint-ts format-ts typecheck-ts check-rust check-rust-pr _check-rust-pr rust-deny
@@ -757,7 +757,7 @@ coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extens
 # --- Native (cargo xtask) check gates.  These need the Rust toolchain, so CI
 # runs them in the rust-tests job (rust-gate.yml / ci.yml).  `xtask-check` is
 # the CI aggregate.
-xtask-check: check-tcl-reference-toolchains check-spectcl-compat-paths xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership ## Rust-side check gates (docs index coverage + generated-table/catalog drift)
+xtask-check: check-tcl-reference-toolchains check-spectcl-compat-paths xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership ## Rust-side check gates (docs index coverage + generated-table/catalog drift)
 
 check-tcl-reference-toolchains: ## Verify pinned C Tcl patchlevels across shell setup and Rust oracle discovery
 	@echo "==> Checking C Tcl reference toolchain ownership"
@@ -771,6 +771,10 @@ check-spectcl-compat-paths: ## Verify CI's SpecTcl dependency closure and centra
 xtask-runtime-stdlib: ## Verify the embedded Tcl stdlib version, provenance, hashes, and FILES table
 	@echo "==> Checking embedded Tcl standard-library provenance (cargo xtask)"
 	cd $(ROOT) && cargo xtask runtime-stdlib
+
+xtask-gen-bundled-environments: ## Verify the compiled environment seed matches the bundled packs' environment blocks (drift gate)
+	@echo "==> Checking the bundled-pack environment seed against specs/ (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-bundled-environments --check
 
 xtask-gen-editor-dialects: ## Verify editor selectable dialect lists match DialectProfile::all
 	@echo "==> Checking generated editor dialect lists (cargo xtask)"
@@ -1592,6 +1596,8 @@ _TMLANGUAGE_KEYWORD_OUTPUTS := editors/vscode/syntaxes/tcl.tmLanguage.json edito
 $(_TMLANGUAGE_KEYWORD_OUTPUTS): $(_TMLANGUAGE_KEYWORD_DEPS)
 
 generate: editors/zed/src/generated/tcl_commands.json editors/zed/languages/tcl/highlights.scm $(_EDITOR_DIALECT_OUTPUTS) $(_TMLANGUAGE_KEYWORD_OUTPUTS) gen-irule-test-data ## Regenerate editor catalogs, dialect projections, lexical grammars, and iRule-test data
+	@echo "==> Generating the bundled-pack environment seed (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-bundled-environments
 	@echo "==> Generating editor dialect projections (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-editor-dialects
 	@echo "==> Generating TextMate keyword grammars (cargo xtask)"

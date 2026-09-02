@@ -1586,7 +1586,10 @@ fn provenance_violation_in(registrations: &[Registration], tier: Tier) -> Option
                 ));
             }
             "environment" => {
-                if let Some(reserved) = environment_block::reserved_name(reg.arg(1)) {
+                if let Some(reserved) = environment_block::reserved_name_for(
+                    reg.arg(1),
+                    super::PackEnvironmentTier::of(tier),
+                ) {
                     let verb = if reg.has_flag("-extend") {
                         // §6.4: altering a canonical environment — detection
                         // rows and placements included — needs a trusted

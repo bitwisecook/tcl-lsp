@@ -1037,8 +1037,10 @@ The dialect is selected automatically using the following priority chain
    A SpecTcl pack can route further extensions to a dialect with a
    `file_extension` row, so a private library's own suffix opens in the
    dialect it is written for.
-3. **Comment directive** -- a `# tcl-dialect: <dialect>` comment in the
-   first 5 lines of a file pins the dialect for that file:
+3. **Comment directive** -- a `# tcl-dialect: <name>` comment in the
+   first 5 lines of a file pins the dialect for that file. The name is any
+   environment name or alias (`tcl8.4`, `f5-irules`, `tk`, `wish`, a name a
+   loaded SpecTcl pack declares); an unknown name is ignored:
 
    ```tcl
    # tcl-dialect: tcl8.4

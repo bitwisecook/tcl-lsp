@@ -91,6 +91,37 @@ pack-level `environment` and `dialect` blocks, and `refine NAME { … }`,
 the per-form invocation refinement. `tcl spec upgrade <pack.tclspec>`
 rewrites an older declaration in place (`--check` to only report).
 
+## A 2.0 pack is a Tcl script
+
+A `speclib … 2.0` file is **evaluated**, not walked: it runs as a Tcl
+program in a deterministic sandbox (no clock, IO, network, processes,
+environment or threads), the vocabulary words are host commands, and what
+loads is the snapshot of registrations the run made. `set`, `foreach`,
+`proc` and `if` work between the words. Write to these rules:
+
+- **Canonical form by default.** Straight-line registration calls only —
+  no `proc`, `set`, `foreach` or computed argument — is what every
+  generator emits and what the studio can edit in place. Reach for a
+  program only when repetition is the problem: a version shared across
+  rows is a variable; forty commands differing in two fields are a
+  `foreach` over a data table written directly above the loop, never
+  assembled across procs.
+- **Prefer `-available` rows to branching on `available?`.** A branch
+  makes the snapshot one analysis target's answer and marks the pack
+  target-dependent; an `-available` row states the same fact as data.
+- **Read the expansion before shipping.** `tcl spec export FILE` (MCP:
+  `spectcl_expand`) renders any snapshot back as canonical source; read it
+  as a diff against intent. Expansion is total, contraction is never
+  attempted, so the expansion is the whole truth.
+- **Scope ambient packages to an environment.** A package the interpreter
+  loads before the first byte belongs in an `environment NAME { core tcl
+  8.6; ambient PKG VERSION|keyed KEY; file_extension EXT … }` block, not
+  in a global claim.
+- **Upgrading a 1.x source**: `tcl spec upgrade FILE` rewrites the rows in
+  place and preserves every other byte; add `--restyle` to re-emit the
+  result in canonical form (comments and layout dropped). A programmed
+  pack is never rewritten.
+
 ## Deriving version ranges from release history
 
 Steps 1–8 read *one* snapshot of the library, so they can only say what it

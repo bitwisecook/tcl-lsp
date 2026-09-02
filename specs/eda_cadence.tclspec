@@ -17,12 +17,27 @@
 # from the registry modules, which reported no unwritable field on any command
 # here; this file is hand-maintained from now on.
 
-speclib eda_cadence 1.1 {
+speclib eda_cadence 2.0 {
 
 display_name {Cadence EDA Shells}
 
+environment cadence-eda-tcl {
+    display_name    {Cadence EDA Tcl}
+    core            tcl 8.4
+    version_ceiling 8.4
+    editor_identity tcl-cadence
+    ambient         sdc keyed SdcVersion
+    ambient         upf keyed UpfVersion
+    ambient         cadence-genus keyed ToolVersion
+    ambient         cadence-common keyed ToolVersion
+    ambient         cadence-innovus keyed ToolVersion
+    ambient         cadence-xcelium keyed ToolVersion
+    file_extension  globals -name {Innovus/Genus Globals}
+    help_terms      {cadence genus innovus tempus xcelium encounter}
+}
+
 command add_endcap {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {add_endcap ?-pre_endcap cell? ?-post_endcap cell?}
@@ -35,7 +50,7 @@ command add_endcap {
 }
 
 command add_filler {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {add_filler ?-cell cell_list? ?-prefix prefix?}
@@ -48,7 +63,7 @@ command add_filler {
 }
 
 command add_stripes {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {add_stripes}
@@ -62,7 +77,7 @@ command add_stripes {
 }
 
 command add_tieoffs {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {add_tieoffs}
@@ -76,7 +91,7 @@ command add_tieoffs {
 }
 
 command add_well_tap {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {add_well_tap ?-cell cell? ?-cell_interval interval?}
@@ -89,7 +104,7 @@ command add_well_tap {
 }
 
 command assign_clock_tree_source_groups {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {assign_clock_tree_source_groups}
@@ -103,7 +118,7 @@ command assign_clock_tree_source_groups {
 }
 
 command ccopt_design {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {ccopt_design ?-cts? ?-post_cts_opt?}
@@ -116,7 +131,7 @@ command ccopt_design {
 }
 
 command check_connectivity {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {check_connectivity}
@@ -130,7 +145,7 @@ command check_connectivity {
 }
 
 command check_design {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {check_design ?-all? ?-type type?}
@@ -143,7 +158,7 @@ command check_design {
 }
 
 command check_drc {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {check_drc}
@@ -157,7 +172,7 @@ command check_drc {
 }
 
 command check_pin_assignment {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {check_pin_assignment}
@@ -171,7 +186,7 @@ command check_pin_assignment {
 }
 
 command check_timing_intent {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {check_timing_intent ?-verbose?}
@@ -184,7 +199,7 @@ command check_timing_intent {
 }
 
 command clock_design {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {clock_design}
@@ -198,7 +213,7 @@ command clock_design {
 }
 
 command commit_power_intent {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {commit_power_intent}
@@ -212,7 +227,7 @@ command commit_power_intent {
 }
 
 command connect_global_net {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {connect_global_net}
@@ -226,7 +241,7 @@ command connect_global_net {
 }
 
 command create_analysis_view {
-    dialects tcl8.4
+    available {tcl 8.4}
     arity 1..
     required_package cadence-innovus
 
@@ -240,7 +255,7 @@ command create_analysis_view {
 }
 
 command create_ccopt_clock_tree_spec {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {create_ccopt_clock_tree_spec}
@@ -254,7 +269,7 @@ command create_ccopt_clock_tree_spec {
 }
 
 command create_clock_tree_spec {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {create_clock_tree_spec}
@@ -268,7 +283,7 @@ command create_clock_tree_spec {
 }
 
 command create_constraint_mode {
-    dialects tcl8.4
+    available {tcl 8.4}
     arity 1..
     required_package cadence-innovus
 
@@ -282,7 +297,7 @@ command create_constraint_mode {
 }
 
 command create_delay_corner {
-    dialects tcl8.4
+    available {tcl 8.4}
     arity 1..
     required_package cadence-innovus
 
@@ -296,7 +311,7 @@ command create_delay_corner {
 }
 
 command create_floorplan {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {create_floorplan ?-core_utilization util? ?-core_aspect_ratio ratio? ?-core_margins_by die|core? margins}
@@ -309,7 +324,7 @@ command create_floorplan {
 }
 
 command create_route_rule {
-    dialects tcl8.4
+    available {tcl 8.4}
     arity 1..
     required_package cadence-innovus
 
@@ -323,7 +338,7 @@ command create_route_rule {
 }
 
 command dbGet {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {dbGet object_spec.attribute ?-regexp pattern? ?-e?}
@@ -337,7 +352,7 @@ command dbGet {
 }
 
 command dbQuery {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {dbQuery ?-area box? ?-objType type?}
@@ -351,7 +366,7 @@ command dbQuery {
 }
 
 command dbSet {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {dbSet object_spec.attribute value}
@@ -365,7 +380,7 @@ command dbSet {
 }
 
 command dbShape {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {dbShape ?-shape type? ?-net net_name?}
@@ -379,7 +394,7 @@ command dbShape {
 }
 
 command delete_constant_nets {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {delete_constant_nets}
@@ -393,7 +408,7 @@ command delete_constant_nets {
 }
 
 command eco_design {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {eco_design}
@@ -407,7 +422,7 @@ command eco_design {
 }
 
 command edit_pin {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {edit_pin ?-pin pin_list? ?-edge edge? ?-layer layer? ?-start coord? ?-end coord? ?-fixedPin? ?-snap?}
@@ -420,7 +435,7 @@ command edit_pin {
 }
 
 command elaborate {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-genus
 
     form Default {elaborate ?design_name? ?-parameters params?}
@@ -433,7 +448,7 @@ command elaborate {
 }
 
 command fcroute {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {fcroute}
@@ -447,7 +462,7 @@ command fcroute {
 }
 
 command get_db {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-common
 
     form Default {get_db object_or_attr ?-regexp? ?-foreach script?}
@@ -460,7 +475,7 @@ command get_db {
 }
 
 command init_design {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {init_design}
@@ -479,7 +494,7 @@ command init_design {
 ;# absence of evidence is not proof of non-existence; re-check against a
 ;# primary source (Innovus Stylus Common UI Text Command Reference).
 command opt_design {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {opt_design ?-post_route? ?-setup? ?-hold? ?-drv?}
@@ -492,7 +507,7 @@ command opt_design {
 }
 
 command place_design {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {place_design ?-concurrent_macros?}
@@ -506,7 +521,7 @@ command place_design {
 }
 
 command place_opt_design {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {place_opt_design ?-effort effort? ?-incremental?}
@@ -519,7 +534,7 @@ command place_opt_design {
 }
 
 command read_db {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-common
 
     form Default {read_db file_name}
@@ -533,7 +548,7 @@ command read_db {
 }
 
 command read_hdl {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-genus
 
     form Default {read_hdl ?-language language? ?-define define_list? file_list}
@@ -546,7 +561,7 @@ command read_hdl {
 }
 
 command read_library {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {read_library ?-liberty? ?-lef? file_list}
@@ -559,7 +574,7 @@ command read_library {
 }
 
 command read_mmmc {
-    dialects tcl8.4
+    available {tcl 8.4}
     arity 1
     required_package cadence-innovus
 
@@ -573,7 +588,7 @@ command read_mmmc {
 }
 
 command read_netlist {
-    dialects tcl8.4
+    available {tcl 8.4}
     arity 1
     required_package cadence-innovus
 
@@ -587,7 +602,7 @@ command read_netlist {
 }
 
 command read_physical {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {read_physical ?-lef file_list? ?-def file?}
@@ -600,7 +615,7 @@ command read_physical {
 }
 
 command report_analysis_coverage {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {report_analysis_coverage}
@@ -613,7 +628,7 @@ command report_analysis_coverage {
 }
 
 command report_area {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {report_area ?-physical? ?-verbose?}
@@ -626,7 +641,7 @@ command report_area {
 }
 
 command report_constraint {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {report_constraint ?-all_violators? ?-drv_violation_type type?}
@@ -639,7 +654,7 @@ command report_constraint {
 }
 
 command report_dp {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {report_dp ?-all?}
@@ -652,7 +667,7 @@ command report_dp {
 }
 
 command report_gates {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {report_gates ?-power?}
@@ -665,7 +680,7 @@ command report_gates {
 }
 
 command report_power {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {report_power ?-leakage? ?-dynamic? ?-view view_name?}
@@ -678,7 +693,7 @@ command report_power {
 }
 
 command report_qor {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {report_qor ?-summary?}
@@ -691,7 +706,7 @@ command report_qor {
 }
 
 command report_timing {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {report_timing ?-from from? ?-to to? ?-through through? ?-max_paths n? ?-nworst n?}
@@ -704,7 +719,7 @@ command report_timing {
 }
 
 command route_design {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {route_design ?-global_detail?}
@@ -717,7 +732,7 @@ command route_design {
 }
 
 command route_fix_signoff_drc {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {route_fix_signoff_drc}
@@ -731,7 +746,7 @@ command route_fix_signoff_drc {
 }
 
 command set_analysis_view {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {set_analysis_view ?-setup view_list? ?-hold view_list?}
@@ -744,7 +759,7 @@ command set_analysis_view {
 }
 
 command set_db {
-    dialects tcl8.4
+    available {tcl 8.4}
     arity 2..
     required_package cadence-common
 
@@ -758,7 +773,7 @@ command set_db {
 }
 
 command sroute {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {sroute ?-nets net_list?}
@@ -772,7 +787,7 @@ command sroute {
 }
 
 command streamOut {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {streamOut file_name ?-merge gds_files? ?-mapFile map?}
@@ -786,7 +801,7 @@ command streamOut {
 }
 
 command syn_generic {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-genus
 
     form Default {syn_generic ?-effort effort?}
@@ -799,7 +814,7 @@ command syn_generic {
 }
 
 command syn_map {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-genus
 
     form Default {syn_map ?-effort effort?}
@@ -812,7 +827,7 @@ command syn_map {
 }
 
 command syn_opt {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-genus
 
     form Default {syn_opt ?-effort effort? ?-incremental?}
@@ -825,7 +840,7 @@ command syn_opt {
 }
 
 command time_design {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {time_design ?-pre_cts? ?-post_cts? ?-post_route? ?-hold? ?-report_prefix prefix?}
@@ -838,7 +853,7 @@ command time_design {
 }
 
 command update_timing {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {update_timing ?-full?}
@@ -857,7 +872,7 @@ command update_timing {
 ;# absence of evidence is not proof of non-existence; re-check against a
 ;# primary source before removing.
 command verify_connectivity {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {verify_connectivity ?-type type? ?-error n?}
@@ -870,7 +885,7 @@ command verify_connectivity {
 }
 
 command verify_drc {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {verify_drc ?-limit n?}
@@ -889,7 +904,7 @@ command verify_drc {
 ;# because absence of evidence is not proof of non-existence; re-check against
 ;# a primary source before removing.
 command verify_geometry {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {verify_geometry ?-error n?}
@@ -902,7 +917,7 @@ command verify_geometry {
 }
 
 command write_db {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-common
 
     form Default {write_db file_name}
@@ -916,7 +931,7 @@ command write_db {
 }
 
 command write_def {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {write_def ?-version version? file_name}
@@ -929,7 +944,7 @@ command write_def {
 }
 
 command write_design {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-genus
 
     form Default {write_design ?-innovus? ?-base_name name?}
@@ -942,7 +957,7 @@ command write_design {
 }
 
 command write_do_lec {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {write_do_lec ?-revised_design design? ?-logicEquivalence? > file}
@@ -955,7 +970,7 @@ command write_do_lec {
 }
 
 command write_extraction_spec {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {write_extraction_spec ?-rc_corners rc_corner_list?}
@@ -969,7 +984,7 @@ command write_extraction_spec {
 }
 
 command write_gds {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {write_gds ?-merge gds_files? ?-map_file map? file_name}
@@ -982,7 +997,7 @@ command write_gds {
 }
 
 command write_hdl {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-genus
 
     form Default {write_hdl ?-lec? ?design_name? > file}
@@ -995,7 +1010,7 @@ command write_hdl {
 }
 
 command write_netlist {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {write_netlist file_name ?-top_module_first?}
@@ -1008,7 +1023,7 @@ command write_netlist {
 }
 
 command write_sdc {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {write_sdc > file}
@@ -1021,7 +1036,7 @@ command write_sdc {
 }
 
 command write_timing_model {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-innovus
 
     form Default {write_timing_model}
@@ -1035,7 +1050,7 @@ command write_timing_model {
 }
 
 command xelab {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-xcelium
 
     form Default {xelab ?-access access_type? ?-top top_module? ?-snapshot snap_name?}
@@ -1048,7 +1063,7 @@ command xelab {
 }
 
 command xrun {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-xcelium
 
     form Default {xrun ?-sv? ?-access access_type? ?-define define? ?-top top_module? ?-input cmd_file? file_list}
@@ -1061,7 +1076,7 @@ command xrun {
 }
 
 command xsim {
-    dialects tcl8.4
+    available {tcl 8.4}
     required_package cadence-xcelium
 
     form Default {xsim ?-R? ?-input cmd_file? snapshot_name}

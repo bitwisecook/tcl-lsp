@@ -70,8 +70,9 @@ use tcl_compiler::parsing::syntax::build::build_document;
 use tcl_compiler::parsing::syntax::segment::segments_from_document;
 use tcl_lexer::{LexerConfig, SourceMap, TokenType};
 
+use crate::export::{ExportLoss, export_pack_reporting};
 use crate::loader::{
-    KNOWN_VOCABULARY_VERSIONS, NEWEST_VOCABULARY_VERSION, evaluate_pack, list_words,
+    KNOWN_VOCABULARY_VERSIONS, NEWEST_VOCABULARY_VERSION, Pack, evaluate_pack, list_words,
     speclib_version_span,
 };
 
@@ -150,6 +151,21 @@ pub struct UpgradeOptions {
     /// one identical row in every command) to a pack-level `provides`.
     /// Off by default — it changes shape, not spelling.
     pub infer_provides: bool,
+    /// `--restyle` (ledger D13): once the rows are rewritten, re-emit the
+    /// whole pack in **canonical** form through the same renderer `tcl spec
+    /// export` uses — straight-line registration calls at the house
+    /// layout, comments and author layout dropped. Off by default: the
+    /// source rewrite above preserves every byte it does not translate
+    /// (U8), and a restyle deliberately does not.
+    ///
+    /// Two refusals keep it honest. A **programmed** pack — one that queried
+    /// `available?`, or whose `speclib` body holds a statement that is not
+    /// one of the registration calls the snapshot recorded — is never
+    /// rewritten (E-R12): writing its expansion over its program would
+    /// silently delete the program. And a **partial** upgrade keeps its
+    /// `# TODO(spectcl 2.0):` markers, which an export (which writes no
+    /// comments) would drop, so it is not restyled.
+    pub restyle: bool,
 }
 
 impl Default for UpgradeOptions {
@@ -158,6 +174,7 @@ impl Default for UpgradeOptions {
             from: OLDEST_VOCABULARY_VERSION.to_owned(),
             to: NEWEST_VOCABULARY_VERSION.to_owned(),
             infer_provides: false,
+            restyle: false,
         }
     }
 }
@@ -204,6 +221,9 @@ pub enum UpgradeStatus {
     /// Rows translated, but at least one is left for a later phase, so the
     /// version word stays where it was (U1).
     Partial,
+    /// Nothing to translate, but `--restyle` re-emitted the file in
+    /// canonical form, so it changed all the same.
+    Restyled,
     /// Nothing was rewritten — see [`UpgradeOutcome::refusals`].
     Refused,
     /// The file has no `speclib` line at all.
@@ -229,6 +249,18 @@ pub struct UpgradeOutcome {
     /// U7: sites in the rewritten file whose vocabulary is newer than its
     /// own declaration. Empty is the proof the upgrade is complete.
     pub above_target: Vec<String>,
+    /// Whether [`UpgradeOptions::restyle`] re-emitted the file in canonical
+    /// form. `false` when it was not asked for, when the file was already
+    /// canonical, or when the restyle was skipped (see
+    /// [`Self::restyle_skipped`]).
+    pub restyled: bool,
+    /// Why an asked-for restyle did not happen while the upgrade itself
+    /// still went ahead — a partial upgrade keeping its markers. A
+    /// programmed pack is a refusal of the whole file instead.
+    pub restyle_skipped: Option<String>,
+    /// Words the canonical renderer had to quote rather than write
+    /// verbatim during a restyle (see [`ExportLoss`]).
+    pub restyle_losses: Vec<ExportLoss>,
 }
 
 /// One replacement, as a content range and the bytes to put there.
@@ -248,6 +280,9 @@ pub fn upgrade_source(source: &str, options: &UpgradeOptions) -> UpgradeOutcome 
         deferred: Vec::new(),
         refusals: Vec::new(),
         above_target: Vec::new(),
+        restyled: false,
+        restyle_skipped: None,
+        restyle_losses: Vec::new(),
     };
     if let Some(refusal) = check_versions(options) {
         outcome.refusals.push(refusal);
@@ -340,8 +375,83 @@ pub fn upgrade_source(source: &str, options: &UpgradeOptions) -> UpgradeOutcome 
         };
     }
 
+    if options.restyle {
+        restyle(source, &mut outcome);
+    }
+
     outcome.above_target = words_above_declaration(&outcome.source);
     outcome
+}
+
+/// D13: re-emit the (rewritten) file in canonical form, or say why not.
+fn restyle(source: &str, outcome: &mut UpgradeOutcome) {
+    match outcome.status {
+        UpgradeStatus::Upgraded | UpgradeStatus::AlreadyCurrent => {}
+        UpgradeStatus::Partial => {
+            outcome.restyle_skipped = Some(
+                "the upgrade is partial and its `# TODO(spectcl 2.0):` markers would not \
+                 survive a canonical re-emission, which writes no comments; finish the \
+                 environment wire-up first"
+                    .to_owned(),
+            );
+            return;
+        }
+        UpgradeStatus::Refused | UpgradeStatus::NotAPack | UpgradeStatus::Restyled => return,
+    }
+    let pack = evaluate_pack(&outcome.source);
+    let refusal = if pack.load_error.is_some() {
+        Some("the pack does not load, so there is no snapshot to re-emit".to_owned())
+    } else if pack.target_dependent {
+        Some(
+            "the pack queried `available?` while registering, so its snapshot is one \
+             analysis target's answer; a programmed pack is never rewritten (design E-R12)"
+                .to_owned(),
+        )
+    } else if !straight_line(&outcome.source, &pack) {
+        Some(
+            "the `speclib` body runs rather than registers — a `proc`, `set`, `foreach` or \
+             computed declaration — and writing its expansion over it would delete the \
+             program; a programmed pack is never rewritten (design E-R12). Read the \
+             expansion with `tcl spec export` instead"
+                .to_owned(),
+        )
+    } else {
+        None
+    };
+    if let Some(message) = refusal {
+        outcome.refusals.push(Refusal {
+            line: 1,
+            message: format!("not restyled: {message}"),
+        });
+        outcome.status = UpgradeStatus::Refused;
+        source.clone_into(&mut outcome.source);
+        outcome.translated.clear();
+        return;
+    }
+    let (canonical, losses) = export_pack_reporting(&pack);
+    outcome.restyle_losses = losses;
+    if canonical == outcome.source {
+        return;
+    }
+    outcome.source = canonical;
+    outcome.restyled = true;
+    if outcome.status == UpgradeStatus::AlreadyCurrent {
+        outcome.status = UpgradeStatus::Restyled;
+    }
+}
+
+/// Whether every top-level statement of the `speclib` body is one of the
+/// registration calls the snapshot recorded, in the same order — the
+/// canonical-subset test (E-R11) a restyle needs before it may write a
+/// snapshot back over its source. True for every straight-line pack, and
+/// false the moment a statement *runs* rather than registers.
+fn straight_line(source: &str, pack: &Pack) -> bool {
+    let rows = pack_level_rows(source);
+    rows.len() == pack.registrations.len()
+        && rows.iter().zip(&pack.registrations).all(|(row, reg)| {
+            row.words.first().map(String::as_str) == Some(reg.word())
+                && row.words.get(1).map_or("", String::as_str) == reg.arg(1)
+        })
 }
 
 /// U10: `--from`/`--to` must both name a vocabulary, and a downgrade is
@@ -1184,7 +1294,7 @@ fn locate_lines(source: &str, sites: &mut [Site]) {
 
 #[cfg(test)]
 mod tests {
-    use super::{UpgradeOptions, UpgradeStatus, upgrade_source};
+    use super::{UpgradeOptions, UpgradeStatus, environment_effect_snapshot, upgrade_source};
     use crate::loader::evaluate_pack;
 
     /// A pack with a `dialects` row at each of the three written shapes —
@@ -1230,6 +1340,166 @@ mod tests {
             outcome.above_target.is_empty(),
             "{:#?}",
             outcome.above_target
+        );
+    }
+
+    /// D13: `--restyle` re-emits the upgraded pack in canonical form —
+    /// comments and author layout gone, rows at the house margins — and the
+    /// restyled pack loads to the same snapshot as the plain rewrite.
+    #[test]
+    fn restyle_emits_canonical_form_that_loads_to_the_same_snapshot() {
+        let source = "# a comment the restyle drops\n\
+                      speclib probe 1.1 {\n\
+                      display_name {Probe}\n\
+                      command demo {\n\
+                            arity 1..  ;# odd indent\n\
+                        dialects {tcl8.6+ tk}\n\
+                        subcommand sub { arity 0 }\n\
+                      }\n\
+                      }\n";
+        let plain = upgrade_source(source, &UpgradeOptions::default());
+        assert_eq!(plain.status, UpgradeStatus::Upgraded, "{plain:#?}");
+        let restyled = upgrade_source(
+            source,
+            &UpgradeOptions {
+                restyle: true,
+                ..UpgradeOptions::default()
+            },
+        );
+        assert_eq!(restyled.status, UpgradeStatus::Upgraded, "{restyled:#?}");
+        assert!(restyled.restyled);
+        assert!(
+            restyled.restyle_losses.is_empty(),
+            "{:?}",
+            restyled.restyle_losses
+        );
+        assert_eq!(
+            restyled.source,
+            "speclib probe 1.1 {\n\
+             display_name {Probe}\n\
+             \n\
+             command demo {\n\
+             \x20   arity 1..\n\
+             \x20   available {tcl 8.6-} {package Tk}\n\
+             \n\
+             \x20   subcommand sub {\n\
+             \x20       arity 0\n\
+             \x20   }\n\
+             }\n\
+             \n\
+             }\n"
+            .replace("probe 1.1", "probe 2.0")
+        );
+        assert!(
+            restyled.above_target.is_empty(),
+            "{:?}",
+            restyled.above_target
+        );
+        let plain_pack = evaluate_pack(&plain.source);
+        let restyled_pack = evaluate_pack(&restyled.source);
+        assert!(
+            restyled_pack.notices.is_empty(),
+            "{:?}",
+            restyled_pack.notices
+        );
+        assert_eq!(restyled_pack.display_name.as_deref(), Some("Probe"));
+        assert_eq!(
+            format!("{:?}", plain_pack.command("demo").expect("demo").spec),
+            format!("{:?}", restyled_pack.command("demo").expect("demo").spec),
+        );
+        assert_eq!(
+            environment_effect_snapshot(&plain_pack),
+            environment_effect_snapshot(&restyled_pack)
+        );
+        // A restyled pack is a fixed point of the restyle.
+        let again = upgrade_source(
+            &restyled.source,
+            &UpgradeOptions {
+                restyle: true,
+                ..UpgradeOptions::default()
+            },
+        );
+        assert_eq!(again.status, UpgradeStatus::AlreadyCurrent, "{again:#?}");
+        assert!(!again.restyled);
+    }
+
+    /// D13 / E-R12: a programmed pack is never rewritten. Its rows are not
+    /// translated either — the whole file is refused, byte-identical.
+    #[test]
+    fn restyle_refuses_a_programmed_pack() {
+        let source = "speclib probe 2.0 {\n\
+                      set version 1.0\n\
+                      foreach name {alpha beta} {\n\
+                      \x20   command $name { arity 0 }\n\
+                      }\n\
+                      }\n";
+        let outcome = upgrade_source(
+            source,
+            &UpgradeOptions {
+                restyle: true,
+                ..UpgradeOptions::default()
+            },
+        );
+        assert_eq!(outcome.status, UpgradeStatus::Refused, "{outcome:#?}");
+        assert_eq!(outcome.source, source, "nothing is rewritten");
+        assert!(!outcome.restyled);
+        assert!(
+            outcome
+                .refusals
+                .iter()
+                .any(|refusal| refusal.message.contains("E-R12")),
+            "{:?}",
+            outcome.refusals
+        );
+        // Without `--restyle` the same file is simply current.
+        let plain = upgrade_source(source, &UpgradeOptions::default());
+        assert_eq!(plain.status, UpgradeStatus::AlreadyCurrent, "{plain:#?}");
+    }
+
+    /// D13: a partial upgrade keeps its markers and is not restyled, while
+    /// the row rewrite still goes ahead and says why the restyle waited.
+    #[test]
+    fn restyle_is_skipped_on_a_partial_upgrade() {
+        let source = "speclib probe 1.2 {\n\
+                      command demo {\n\
+                      \x20   arity 1\n\
+                      \x20   dialects {tcl8.6 bpf}\n\
+                      }\n\
+                      }\n";
+        let outcome = upgrade_source(
+            source,
+            &UpgradeOptions {
+                restyle: true,
+                ..UpgradeOptions::default()
+            },
+        );
+        assert_eq!(outcome.status, UpgradeStatus::Partial, "{outcome:#?}");
+        assert!(!outcome.restyled);
+        assert!(outcome.restyle_skipped.is_some());
+        assert!(
+            outcome.source.contains("TODO(spectcl 2.0)"),
+            "{}",
+            outcome.source
+        );
+    }
+
+    /// D13: an already-current pack with nothing to translate is still
+    /// restyled when asked, and reports as such.
+    #[test]
+    fn restyle_of_a_current_pack_reports_restyled() {
+        let source = "speclib probe 2.0 {\n  command demo {\n      arity 1\n  }\n}\n";
+        let outcome = upgrade_source(
+            source,
+            &UpgradeOptions {
+                restyle: true,
+                ..UpgradeOptions::default()
+            },
+        );
+        assert_eq!(outcome.status, UpgradeStatus::Restyled, "{outcome:#?}");
+        assert!(outcome.restyled);
+        assert_eq!(
+            outcome.source,
+            "speclib probe 2.0 {\n\ncommand demo {\n    arity 1\n}\n\n}\n"
         );
     }
 
