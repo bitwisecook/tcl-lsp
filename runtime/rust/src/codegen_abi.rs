@@ -510,6 +510,101 @@ pub unsafe extern "C" fn tcl_value_release(value: *mut TclObj) {
     unsafe { obj::decr_ref_count(value) };
 }
 
+/// One eval-loop activation held for the span of an ABI dispatch.
+///
+/// [`tcl_invoke_argv`] and [`tcl_intrinsic_invoke_argv`] *are* the compiled
+/// statement as far as the interpreter can see, and today's generated code does
+/// not yet bracket its statements with
+/// [`tcl_codegen_activation_enter`]/[`tcl_codegen_activation_leave`], so they
+/// hold the activation themselves. Without it a dispatched `catch` runs its
+/// body at depth 0, the eval loop's outermost rule publishes and resets the
+/// exception state inside the body, and `catch {…} r opts` reports
+/// `-errorcode NONE` where interpreted Tcl reports the raised code.
+///
+/// Leaving on `Drop` also applies the outermost rule for a genuinely top-level
+/// compiled statement — the "publish an uncaught error even though no eval loop
+/// ran" behaviour these entry points already had, now expressed once as the
+/// activation's tail instead of a separate publish call.
+struct AbiActivation {
+    interp: *mut Interp,
+    code: crate::interp::Code,
+}
+
+impl AbiActivation {
+    /// Enter an activation on the live current interpreter, or `None` when the
+    /// native nesting bound refuses it (the interpreter then carries the
+    /// catchable "too many nested evaluations" error and holds no activation).
+    ///
+    /// # Safety
+    /// `interp` must be the live current interpreter for the whole guard's life.
+    unsafe fn enter(interp: *mut Interp) -> Option<Self> {
+        // SAFETY: forwarded per this function's contract.
+        unsafe { (*interp).codegen_activation_enter() }.then_some(AbiActivation {
+            interp,
+            code: crate::interp::Code::Ok,
+        })
+    }
+
+    /// Record the completion this activation ends with, before it is left.
+    fn complete(&mut self, code: tcl_runtime_api::Code) {
+        self.code = crate::interp::Code::from_int(i32::try_from(code.as_int()).unwrap_or(1));
+    }
+}
+
+impl Drop for AbiActivation {
+    fn drop(&mut self) {
+        // SAFETY: the interpreter was live when the activation was entered and
+        // stays live for the ABI call that holds this guard.
+        unsafe { (*self.interp).codegen_activation_leave(self.code) };
+    }
+}
+
+/// `tcl_codegen_activation_enter() -> i32` — make the compiled work that
+/// follows count as one eval-loop activation.
+///
+/// The runtime's outermost-eval rule (`interp.rs`'s eval loop, at depth 0) is
+/// what publishes an uncaught error's trace to `::errorInfo`/`::errorCode` and
+/// drains the background-error queue. Generated code that dispatches commands
+/// without entering that loop runs at depth 0, so a dispatched `catch` would
+/// see the rule fire *inside* its own body — resetting the exception state
+/// before `catch` reads `-errorcode`/`-errorinfo`. An activation restores what
+/// interpreted Tcl always has: an enclosing activation at depth ≥ 1.
+///
+/// Returns `0` when the activation was entered; the caller then owes exactly
+/// one [`tcl_codegen_activation_leave`] with the activation's completion code.
+/// Returns non-zero when there is no current interpreter, or when the
+/// activation would exceed the runtime's native nesting bound (in which case
+/// the interpreter carries the same catchable "too many nested evaluations"
+/// error the eval loop raises); **no** activation is held, and the caller must
+/// not leave one.
+#[no_mangle]
+pub extern "C" fn tcl_codegen_activation_enter() -> i32 {
+    let interp = current_interp();
+    if interp.is_null() {
+        return 1;
+    }
+    // SAFETY: the bootstrap installed a live current interpreter.
+    i32::from(!unsafe { (*interp).codegen_activation_enter() })
+}
+
+/// `tcl_codegen_activation_leave(code)` — leave the activation entered by the
+/// matching [`tcl_codegen_activation_enter`].
+///
+/// `code` is the activation's Tcl completion code (`0` ok, `1` error, `2`
+/// return, `3` break, `4` continue, or any `return -code N` integer). Leaving
+/// the outermost activation applies exactly the eval loop's tail: an error
+/// publishes its accumulated trace to `::errorInfo`/`::errorCode`, and any
+/// queued background errors are drained with the current handler.
+#[no_mangle]
+pub extern "C" fn tcl_codegen_activation_leave(code: i32) {
+    let interp = current_interp();
+    if interp.is_null() {
+        return;
+    }
+    // SAFETY: the bootstrap installed a live current interpreter.
+    unsafe { (*interp).codegen_activation_leave(crate::interp::Code::from_int(code)) };
+}
+
 /// Push a name-addressable Tcl frame for a generated procedure.
 #[no_mangle]
 pub extern "C" fn tcl_codegen_frame_push() {
@@ -1270,17 +1365,34 @@ pub unsafe extern "C" fn tcl_intrinsic_invoke_argv(
     };
     // SAFETY: every word was validated non-null and is caller-owned.
     let _borrowed = unsafe { BorrowedArgv::retain(words) };
+    // An intrinsic reached from generated code is an activation for the same
+    // reason a dispatched command is (see [`AbiActivation`]): the implementation
+    // may evaluate a body, and this call is the only enclosing activation there
+    // is.
+    // SAFETY: the current interpreter is live for this ABI call.
+    let Some(mut activation) = (unsafe { AbiActivation::enter(interp) }) else {
+        // SAFETY: current interp and `out` are live per the function contract.
+        unsafe {
+            write_completion(
+                out,
+                completion_abi(crate::state_traits::capture_completion(
+                    &mut *interp,
+                    crate::interp::Code::Error,
+                )),
+            );
+        }
+        return TCL_INVOKE_ABI_OK;
+    };
     // SAFETY: `interp` is live; direct execution only borrows `args`.
     let Some(code) = (unsafe { (*interp).execute_intrinsic(intrinsic, args) }) else {
         return TCL_INTRINSIC_ABI_DECLINED;
     };
     // SAFETY: `interp` is live and `out` is caller-provided writable storage.
-    unsafe {
-        write_completion(
-            out,
-            completion_abi(crate::state_traits::capture_completion(&mut *interp, code)),
-        )
-    };
+    let completion = unsafe { crate::state_traits::capture_completion(&mut *interp, code) };
+    activation.complete(completion.code);
+    drop(activation);
+    // SAFETY: `out` is caller-provided writable storage.
+    unsafe { write_completion(out, completion_abi(completion)) };
     TCL_INVOKE_ABI_OK
 }
 
@@ -1384,17 +1496,29 @@ pub unsafe extern "C" fn tcl_invoke_argv(
     // SAFETY: null words were rejected; the caller guarantees every word is
     // live and holds an owned reference for this call.
     let _borrowed = unsafe { BorrowedArgv::retain(words) };
+    // Dispatching directly skips the eval loop, so this call *is* the enclosing
+    // activation: it must count as one while the dispatched command runs (a
+    // `catch` body would otherwise trip the outermost-eval rule and lose its
+    // `-errorcode`), and it applies that rule itself on the way out — which is
+    // what publishes an uncaught error's trace to `::errorInfo`/`::errorCode`.
+    // SAFETY: the current interpreter is live for this ABI call.
+    let Some(mut activation) = (unsafe { AbiActivation::enter(interp) }) else {
+        // SAFETY: current interp and `out` are live per the function contract.
+        unsafe {
+            write_completion(
+                out,
+                completion_abi(crate::state_traits::capture_completion(
+                    &mut *interp,
+                    crate::interp::Code::Error,
+                )),
+            );
+        }
+        return TCL_INVOKE_ABI_OK;
+    };
     // SAFETY: the current interpreter is live for this ABI call.
     let completion = unsafe { crate::state_traits::dispatch_prebuilt_argv(&mut *interp, words) };
-    // Dispatching directly skips the eval loop, which is what publishes an
-    // uncaught error's trace to `::errorInfo`/`::errorCode`. Without this a
-    // compiled script would leave those globals unset where the source-eval
-    // path creates them, so identical Tcl would expose different error state
-    // depending on which tier compiled it.
-    if completion.code == tcl_runtime_api::Code::Error {
-        // SAFETY: the current interpreter is live for this ABI call.
-        unsafe { (*interp).publish_error_if_uncaught() };
-    }
+    activation.complete(completion.code);
+    drop(activation);
     // SAFETY: `out` is live and properly aligned per this function's contract.
     unsafe { write_completion(out, completion_abi(completion)) };
     TCL_INVOKE_ABI_OK
@@ -1975,6 +2099,97 @@ mod tests {
             release_words(&words);
             tcl_runtime_set_current_interp(ptr::null_mut());
             tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    /// A `catch` dispatched from generated code must read its **own** error
+    /// state. Before compiled activations existed, `tcl_invoke_argv` dispatched
+    /// at `eval_depth == 0`, so `catch`'s `eval_control_body` returned to depth
+    /// 0 and the eval loop's outermost rule published-and-reset the exception
+    /// before `catch` read `error_code()` — `-errorcode` came back `NONE`.
+    ///
+    /// Oracle (`tclsh9.0`): `catch {error m NEGATIVE {MYERR NEG}} r opts` sets
+    /// `-errorcode` to `MYERR NEG` and `-errorinfo` to `NEGATIVE`.
+    #[test]
+    fn invoke_argv_catch_reads_the_raised_errorcode_at_compiled_top_level() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            let words = [
+                owned_word(b"catch"),
+                owned_word(b"error m NEGATIVE {MYERR NEG}"),
+                owned_word(b"r"),
+                owned_word(b"opts"),
+            ];
+
+            let mut completion = invoke(&words);
+            assert_eq!(completion.code, 0);
+            assert_eq!(obj_bytes(completion.result), b"1", "catch reports an error");
+
+            assert_eq!(tcl_eval_code(box_str(b"dict get $opts -errorcode")), 0);
+            assert_eq!((*interp).result_bytes(), b"MYERR NEG");
+            assert_eq!(tcl_eval_code(box_str(b"dict get $opts -errorinfo")), 0);
+            assert_eq!((*interp).result_bytes(), b"NEGATIVE");
+            assert_eq!(tcl_eval_code(box_str(b"set r")), 0);
+            assert_eq!((*interp).result_bytes(), b"m");
+
+            tcl_completion_release(&mut completion);
+            release_words(&words);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    /// An explicit compiled activation is an eval-loop activation: an uncaught
+    /// error inside it is *not* published while it is held (the enclosing
+    /// activation, not the dispatch, is the outermost one), and the matching
+    /// leave publishes `::errorInfo`/`::errorCode` exactly as the eval loop's
+    /// tail does.
+    #[test]
+    fn compiled_activation_defers_error_publication_to_its_own_leave() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+
+            assert_eq!(tcl_codegen_activation_enter(), 0);
+            let words = [owned_word(b"error"), owned_word(b"boom")];
+            let mut completion = invoke(&words);
+            assert_eq!(completion.code, 1);
+
+            // Still inside the activation, so the globals are untouched — the
+            // eval loop would not have published at depth 1 either. Read them
+            // straight out of the interpreter: an intervening `eval` would
+            // reset the very error episode under test.
+            assert!(
+                (*interp).var_get(b"::errorInfo").is_none(),
+                "a held activation is not the outermost one"
+            );
+
+            tcl_codegen_activation_leave(1);
+            let published = (*interp)
+                .var_get(b"::errorInfo")
+                .expect("leaving the outermost activation publishes the trace");
+            assert!(obj_bytes(published).starts_with(b"boom"));
+            assert_eq!(
+                obj_bytes((*interp).var_get(b"::errorCode").expect("::errorCode")),
+                b"NONE"
+            );
+
+            tcl_completion_release(&mut completion);
+            release_words(&words);
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    /// Without a current interpreter the activation entry declines rather than
+    /// silently pretending to hold one, and the paired leave is a no-op.
+    #[test]
+    fn compiled_activation_declines_without_a_current_interpreter() {
+        leak_free(|| {
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            assert_ne!(tcl_codegen_activation_enter(), 0);
+            tcl_codegen_activation_leave(0);
         });
     }
 

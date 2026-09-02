@@ -2080,6 +2080,54 @@ impl Interp {
         self.current_ns.get()
     }
 
+    /// Enter a **compiled activation** — the eval-loop activation a generated
+    /// function or ABI dispatch stands in for.
+    ///
+    /// The eval loop's outermost-eval rule (`eval_script_mode`, depth 0) is what
+    /// publishes an uncaught error's trace and drains the background-error
+    /// queue. Compiled code that dispatches a command without entering that loop
+    /// therefore runs at depth 0, and any command that evaluates a body — `catch`
+    /// above all — sees the rule fire *inside* its body, resetting the exception
+    /// state before it can read `error_code()`. Holding an activation for the
+    /// span of compiled work restores the invariant that interpreted Tcl always
+    /// has: the enclosing activation is depth ≥ 1, so only the true outermost
+    /// completion publishes.
+    ///
+    /// Returns `false` — with the interpreter's error set, and **no** activation
+    /// entered, so the caller must not leave one — when the activation would
+    /// exceed the native nesting bound. Pair every `true` with exactly one
+    /// [`codegen_activation_leave`](Self::codegen_activation_leave).
+    pub(crate) fn codegen_activation_enter(&mut self) -> bool {
+        if NATIVE_EVAL_DEPTH_LIMIT.exceeded(self.eval_depth.get() + 1) {
+            self.error(b"too many nested evaluations (infinite loop?)");
+            return false;
+        }
+        self.eval_depth.set(self.eval_depth.get() + 1);
+        true
+    }
+
+    /// Leave a compiled activation entered by
+    /// [`codegen_activation_enter`](Self::codegen_activation_enter), applying the
+    /// outermost-eval rule with `code` as the activation's completion.
+    ///
+    /// This is the same two-step tail `eval_script_mode` runs after decrementing
+    /// the depth — publish an uncaught error's trace to
+    /// `::errorInfo`/`::errorCode`, then drain the background-error queue — so
+    /// the policy lives in one place and a compiled statement at the true top
+    /// level leaves exactly the error state its interpreted twin would.
+    pub(crate) fn codegen_activation_leave(&mut self, code: Code) {
+        self.eval_depth.set(self.eval_depth.get().saturating_sub(1));
+        if self.eval_depth.get() != 0 {
+            return;
+        }
+        if code == Code::Error {
+            self.publish_error();
+        }
+        if !self.bg_queue.borrow().is_empty() {
+            self.process_bg_errors();
+        }
+    }
+
     /// Enter a generated procedure body using the ordinary Tcl variable frame.
     pub(crate) fn codegen_frame_push(&mut self) {
         self.frames.borrow_mut().push(self.current_ns.get());
@@ -4875,19 +4923,6 @@ impl Interp {
     /// `catch` still reports the last error).
     pub(crate) fn mark_error_stack_reset(&self) {
         self.reset_error_stack.set(true);
-    }
-
-    /// Publish an error's trace **if** it has unwound past the outermost
-    /// evaluation, leaving `::errorInfo`/`::errorCode` set for an uncaught one.
-    ///
-    /// [`eval_script_mode`](Self::eval_script_mode) applies this at the end of
-    /// the eval loop. Compiled code that dispatches a command directly, without
-    /// entering that loop, has no other place to do it, so it calls this and the
-    /// depth policy stays in one place rather than being restated per caller.
-    pub(crate) fn publish_error_if_uncaught(&mut self) {
-        if self.eval_depth.get() == 0 {
-            self.publish_error();
-        }
     }
 
     /// Publish the accumulated trace to the `::errorInfo`/`::errorCode` globals

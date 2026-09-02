@@ -159,6 +159,16 @@ pub enum CodegenAbiImportId {
     VarGetElement,
     /// Join evaluated word parts into one owned Tcl value.
     WordConcat,
+    /// Enter a compiled activation, so compiled code counts as an eval-loop
+    /// activation for the outermost-eval error-publication rule.
+    ///
+    /// Takes no parameters and returns an i32 status: zero on success (the
+    /// caller owes exactly one [`Self::ActivationLeave`]), non-zero when the
+    /// activation was refused and **no** activation is held.
+    ActivationEnter,
+    /// Leave a compiled activation, passing the activation's Tcl completion
+    /// code so the outermost one publishes an uncaught error's trace.
+    ActivationLeave,
 }
 
 impl CodegenAbiImportId {
@@ -215,6 +225,8 @@ impl CodegenAbiImportId {
                 parameters: I32_I32,
                 results: I32,
             },
+            Self::ActivationEnter => tcl_import("tcl_codegen_activation_enter", NONE, I32),
+            Self::ActivationLeave => tcl_import("tcl_codegen_activation_leave", I32, NONE),
         }
     }
 }
@@ -394,6 +406,21 @@ mod tests {
             assert_eq!(descriptor.parameters, parameters, "{id:?}");
             assert_eq!(descriptor.results, results, "{id:?}");
         }
+    }
+
+    #[test]
+    fn compiled_activation_imports_bracket_generated_code_with_a_status_and_a_code() {
+        let enter = CodegenAbiImportId::ActivationEnter.descriptor();
+        assert_eq!(enter.module, "tcl");
+        assert_eq!(enter.name, "tcl_codegen_activation_enter");
+        assert!(enter.parameters.is_empty());
+        assert_eq!(enter.results, I32);
+
+        let leave = CodegenAbiImportId::ActivationLeave.descriptor();
+        assert_eq!(leave.module, "tcl");
+        assert_eq!(leave.name, "tcl_codegen_activation_leave");
+        assert_eq!(leave.parameters, I32);
+        assert!(leave.results.is_empty());
     }
 
     #[test]
