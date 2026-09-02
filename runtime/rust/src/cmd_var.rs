@@ -40,15 +40,132 @@
 use tcl_syntax::naming::is_qualified;
 
 use crate::frame::{split_array_ref, Link, VarHome};
-use crate::interp::{obj_bytes, Code, Interp};
+use crate::interp::{drop_fresh, obj_bytes, Code, Interp};
 use crate::namespace::GLOBAL;
-use crate::obj::TclObj;
+use crate::obj::{self, TclObj};
 
-/// Register `global`, `variable`, and `upvar`.
+/// Register `global`, `variable`, and `upvar`; also re-registers `set` (and,
+/// where the numeric tower is linked, `incr`) to fix their return value after
+/// a write trace runs (issue #1633 row 1) — see [`set_cmd`] and [`incr_cmd`].
+/// The override pattern mirrors TclOO's own `variable` override in
+/// `builtins::install` (installed later still wins; nothing after this lane's
+/// files re-registers `set`/`incr`).
 pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"global", global);
     interp.register_builtin(b"variable", variable);
     interp.register_builtin(b"upvar", upvar);
+    interp.register_builtin(b"set", set_cmd);
+    #[cfg(have_tommath)]
+    interp.register_builtin(b"incr", incr_cmd);
+}
+
+// -- set / incr: return-after-trace ------------------------------------------
+//
+// C's `TclPtrSetVarIdx` (tclVar.c 9.0.4:2050-2065) stores the value, fires the
+// write traces, and only *then* decides what to return: the cell's *current*
+// value if it is still a defined scalar (a trace may have rewritten it), or an
+// empty-string object if a trace changed the variable "in some gross way" —
+// unset it, or turned it into an array. `set`/`incr` in `builtins.rs` instead
+// echoed back the value they had just stored, which is also a use-after-free
+// once a write trace replaces that same cell (the stored object's only
+// reference is dropped from under it) — `store_var_result` (`interp.rs`,
+// already used by `append`/`lappend`/`string insert` for the identical
+// reason) closes both bugs at once by holding a protective reference across
+// the store and reading the cell back afterward.
+//
+// Pinned against `tclsh9.0`/`tclsh8.6`:
+//   proc w {n1 n2 op} {set ::x mangled}; trace add variable x write w
+//   set x orig                                -> mangled
+//   proc u {n1 n2 op} {unset ::x}; trace add variable y write u
+//   set y orig                                -> "" (the trace unset it)
+//   proc w {n1 n2 op} {set ::z mangled}; trace add variable z write w
+//   incr z                                    -> mangled
+
+/// `set varName ?newValue?` — overrides `builtins::set`'s write arm only; the
+/// read arm is unchanged.
+fn set_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    match argv.len() {
+        2 => {
+            let name = obj_bytes(argv[1]);
+            let (base, elem) = split_array_ref(&name);
+            if let Some(c) = interp.fire_read_trace(&base, elem.as_deref()) {
+                return c;
+            }
+            let val = match &elem {
+                Some(k) => interp.var_get_elem(&base, k),
+                None => interp.var_get(&base),
+            };
+            match val {
+                Some(o) => {
+                    interp.set_result(o);
+                    Code::Ok
+                }
+                None => {
+                    let msg = interp.read_miss_msg(&base, elem.as_deref());
+                    interp.set_error(&msg)
+                }
+            }
+        }
+        3 => {
+            let name = obj_bytes(argv[1]);
+            let (base, elem) = split_array_ref(&name);
+            let value = argv[2];
+            match interp.store_var_result(&base, elem.as_deref(), value) {
+                Ok(()) => Code::Ok,
+                Err(e) => crate::builtins::var_error(interp, &name, e),
+            }
+        }
+        _ => interp.wrong_args(b"set varName ?newValue?"),
+    }
+}
+
+/// `can't incr "name": variable is a constant` — duplicated from
+/// `builtins::incr_constant_error` (module-private there); C checks this
+/// before the read-modify-write, so no read trace fires.
+#[cfg(have_tommath)]
+fn incr_constant_error(
+    interp: &mut Interp,
+    base: &[u8],
+    elem: &Option<Vec<u8>>,
+    name: &[u8],
+) -> Option<Code> {
+    if elem.is_none() && interp.is_constant(base) {
+        let mut msg = b"can't incr \"".to_vec();
+        msg.extend_from_slice(name);
+        msg.extend_from_slice(b"\": variable is a constant");
+        return Some(interp.set_error(&msg));
+    }
+    None
+}
+
+/// `incr varName ?increment?` — overrides `builtins::incr`'s store/result tail
+/// only; the numeric-tower add is unchanged.
+#[cfg(have_tommath)]
+fn incr_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 2 || argv.len() > 3 {
+        return interp.wrong_args(b"incr varName ?increment?");
+    }
+    let name = obj_bytes(argv[1]);
+    let (base, elem) = split_array_ref(&name);
+    if let Some(c) = incr_constant_error(interp, &base, &elem, &name) {
+        return c;
+    }
+
+    let cur = interp.read_for_update(&base, elem.as_deref());
+    let one = obj::new_wide_int_obj(1);
+    let amount = if argv.len() == 3 { argv[2] } else { one };
+
+    let sum = tcl_syntax::value::ValueOps::int_add(interp, cur.as_ref(), &amount);
+    drop_fresh(one); // the transient `1` (used or not) is no longer needed
+    let sum = match sum {
+        Ok(s) => s, // rc 0
+        Err(e) => return interp.set_error(e.message().as_bytes()),
+    };
+
+    match interp.store_var_result(&base, elem.as_deref(), sum) {
+        Ok(()) => Code::Ok,
+        Err(e) => crate::builtins::var_error(interp, &name, e),
+    }
 }
 
 /// `can't <verb> "<name>": parent namespace doesn't exist` — the qualified-into-

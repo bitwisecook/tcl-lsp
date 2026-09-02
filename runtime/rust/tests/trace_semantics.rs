@@ -676,3 +676,36 @@ fn an_array_trace_error_fails_the_subcommand_with_cs_verb() {
          \x20   (array trace on \"arr\")\n    invoked from within\n\"array names arr\""
     );
 }
+
+/// #1633 row 1: `set`/`incr` must return the variable's value *read back
+/// after* their own write trace runs, not the value they handed the store —
+/// C's `TclPtrSetVarIdx` (tclVar.c 9.0.4:2050-2065) stores, fires the write
+/// traces, and only then decides what to return: the cell's current value if
+/// a trace rewrote it (still a defined scalar), or the empty string if a
+/// trace changed the variable "in some gross way" (here, unset it). `set` and
+/// `incr` share this store tail, so both are pinned; identical at 8.6.16 and
+/// 9.0.4.
+#[test]
+fn a_write_trace_that_mutates_or_unsets_changes_what_set_and_incr_return() {
+    for version in [None, Some(tcl_dialect::TclVersion::V8_6)] {
+        let got = transcript_at(
+            "set ::log {}\n\
+             proc mangle {n1 n2 op} { set ::x mangled }\n\
+             trace add variable x write mangle\n\
+             lappend ::log [set x orig]\n\
+             proc vanish {n1 n2 op} { unset ::y }\n\
+             trace add variable y write vanish\n\
+             lappend ::log \"[set y orig]|\"\n\
+             proc mangle2 {n1 n2 op} { set ::z mangled }\n\
+             trace add variable z write mangle2\n\
+             lappend ::log [incr z]\n\
+             set w 5\n\
+             proc vanish2 {n1 n2 op} { unset ::w }\n\
+             trace add variable w write vanish2\n\
+             lappend ::log \"[incr w 3]|\"\n\
+             join $::log \\n",
+            version,
+        );
+        assert_eq!(got, "mangled\n|\nmangled\n|", "{version:?}");
+    }
+}
