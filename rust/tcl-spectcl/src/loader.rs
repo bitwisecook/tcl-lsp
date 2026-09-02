@@ -160,6 +160,7 @@ mod vocabulary_class;
 pub use dialect_block::{PackDialect, PackDialectAxis};
 pub(crate) use environment_block::reserved_name_for as reserved_environment_name_for;
 pub use environment_block::{PackCore, PackEnvironment, PackEnvironmentTier};
+pub(crate) use eval::static_stmt;
 pub use eval::{
     EvalOptions, EvalSnapshotKey, LOADER_EVAL_VERSION, eval_snapshot_key, evaluate_pack,
     evaluate_pack_in, evaluate_pack_with, provenance_violation,
@@ -485,7 +486,7 @@ impl FileBom {
 /// answer rather than merely the question. That is a correctness measure, not
 /// a fix for a reachable bug — see [`crate::cache`]'s `Memo` for why the two
 /// dispositions cannot currently meet in one memo.
-fn statements(source: &str, base_line: u32, bom: FileBom) -> Vec<Stmt> {
+pub(crate) fn statements(source: &str, base_line: u32, bom: FileBom) -> Vec<Stmt> {
     if let Some(hit) = crate::cache::memo_get(source, base_line, bom) {
         return hit;
     }

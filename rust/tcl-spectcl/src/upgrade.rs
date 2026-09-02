@@ -70,10 +70,10 @@ use tcl_compiler::parsing::syntax::build::build_document;
 use tcl_compiler::parsing::syntax::segment::segments_from_document;
 use tcl_lexer::{LexerConfig, SourceMap, TokenType};
 
-use crate::export::{ExportLoss, export_pack_reporting};
+use crate::export::{ExportLoss, Registration, export_pack_reporting};
 use crate::loader::{
-    KNOWN_VOCABULARY_VERSIONS, NEWEST_VOCABULARY_VERSION, Pack, evaluate_pack, list_words,
-    speclib_version_span,
+    FileBom, KNOWN_VOCABULARY_VERSIONS, NEWEST_VOCABULARY_VERSION, Pack, Stmt, evaluate_pack,
+    list_words, pack_statements, speclib_version_span, statements, static_stmt,
 };
 
 /// The oldest vocabulary `--from` defaults to.
@@ -440,17 +440,51 @@ fn restyle(source: &str, outcome: &mut UpgradeOutcome) {
     }
 }
 
-/// Whether every top-level statement of the `speclib` body is one of the
-/// registration calls the snapshot recorded, in the same order — the
-/// canonical-subset test (E-R11) a restyle needs before it may write a
-/// snapshot back over its source. True for every straight-line pack, and
-/// false the moment a statement *runs* rather than registers.
+/// Whether the `speclib` body is the **canonical subset** (E-R11): every
+/// statement, at every level the loader evaluates as a script, is a static
+/// registration row the snapshot recorded — no computed word anywhere, no
+/// `proc`/`set`/`foreach`, no `available?`. The test a restyle needs before
+/// it may write a snapshot back over its source (E-R12).
+///
+/// Read with the loader's own lexer and judged by the loader's own
+/// [`static_stmt`] — the predicate the static fast path uses to decide a
+/// row could only ever be captured verbatim — so "canonical" here means
+/// exactly what it means at load. A `command`/`subcommand` block's braced
+/// body is descended into and held to the same test against the nested
+/// registrations; every other braced word is verbatim data.
 fn straight_line(source: &str, pack: &Pack) -> bool {
-    let rows = pack_level_rows(source);
-    rows.len() == pack.registrations.len()
-        && rows.iter().zip(&pack.registrations).all(|(row, reg)| {
-            row.words.first().map(String::as_str) == Some(reg.word())
-                && row.words.get(1).map_or("", String::as_str) == reg.arg(1)
+    let body = pack_statements(source)
+        .into_iter()
+        .find(|stmt| stmt.word_text(0) == "speclib")
+        .and_then(|stmt| stmt.words.get(3).filter(|word| word.braced).cloned());
+    match body {
+        // Not a pack at all: nothing registered, nothing programmed.
+        None => pack.registrations.is_empty(),
+        Some(word) => statements_are_canonical(
+            &statements(&word.text, word.line, FileBom::Content),
+            &pack.registrations,
+        ),
+    }
+}
+
+/// [`straight_line`] over one block level: the statements pair off with the
+/// recorded registrations in order, each is static, and each block body is
+/// canonical against its nested record.
+fn statements_are_canonical(stmts: &[Stmt], registrations: &[Registration]) -> bool {
+    stmts.len() == registrations.len()
+        && stmts.iter().zip(registrations).all(|(stmt, reg)| {
+            static_stmt(stmt)
+                && stmt.word_text(0) == reg.word()
+                && stmt.word_text(1) == reg.arg(1)
+                && reg.body.as_deref().is_none_or(|nested| {
+                    stmt.words.last().is_some_and(|body| {
+                        body.braced
+                            && statements_are_canonical(
+                                &statements(&body.text, body.line, FileBom::Content),
+                                nested,
+                            )
+                    })
+                })
         })
 }
 
@@ -1454,6 +1488,78 @@ mod tests {
         // Without `--restyle` the same file is simply current.
         let plain = upgrade_source(source, &UpgradeOptions::default());
         assert_eq!(plain.status, UpgradeStatus::AlreadyCurrent, "{plain:#?}");
+    }
+
+    /// E-R12, per word: a computed word anywhere in the pack — a `[list …]`
+    /// body, a `$var` in a nested option row, a substituting quoted word —
+    /// makes it a program, and a program is never rewritten, whatever its
+    /// head words look like.
+    #[test]
+    fn restyle_refuses_a_computed_word_at_any_depth() {
+        let programmed = [
+            "speclib probe 2.0 {\n command demo [list arity 1]\n}\n",
+            "speclib probe 2.0 {\n\
+             set flag -nocase\n\
+             command demo {\n\
+             \x20   arity 1\n\
+             \x20   option $flag -takes none\n\
+             }\n\
+             }\n",
+            "speclib probe 2.0 {\n\
+             command demo {\n\
+             \x20   arity 1\n\
+             \x20   subcommand sub {\n\
+             \x20       option [list -nocase] -takes none\n\
+             \x20   }\n\
+             }\n\
+             }\n",
+            "speclib probe 2.0 {\n\
+             set x 1\n\
+             command demo {\n\
+             \x20   arity \"$x..\"\n\
+             }\n\
+             }\n",
+        ];
+        for source in programmed {
+            let outcome = upgrade_source(
+                source,
+                &UpgradeOptions {
+                    restyle: true,
+                    ..UpgradeOptions::default()
+                },
+            );
+            assert_eq!(outcome.status, UpgradeStatus::Refused, "{source}\n{outcome:#?}");
+            assert_eq!(outcome.source, source, "nothing is rewritten");
+            assert!(
+                outcome
+                    .refusals
+                    .iter()
+                    .any(|refusal| refusal.message.contains("E-R12")),
+                "{source}\n{:?}",
+                outcome.refusals
+            );
+        }
+        // Braced bodies at every level are verbatim data, so a canonical pack
+        // with nested blocks and braced prose still restyles.
+        let canonical = "speclib probe 2.0 {\n\
+                         command demo {\n\
+                         \x20   arity 1\n\
+                         \x20   hover { summary {Costs $5 [really].} }\n\
+                         \x20   subcommand sub {\n\
+                         \x20       option -nocase -takes none\n\
+                         \x20   }\n\
+                         }\n\
+                         }\n";
+        let outcome = upgrade_source(
+            canonical,
+            &UpgradeOptions {
+                restyle: true,
+                ..UpgradeOptions::default()
+            },
+        );
+        assert_eq!(outcome.status, UpgradeStatus::Restyled, "{outcome:#?}");
+        assert!(outcome.restyled);
+        assert!(outcome.source.contains("summary {Costs $5 [really].}"), "{}", outcome.source);
     }
 
     /// D13: a partial upgrade keeps its markers and is not restyled, while

@@ -542,7 +542,11 @@ fn triage(state: &DynamicState, sources: &[EnvironmentSource]) -> (Vec<bool>, Ve
 /// dropped while the rest register: a malformed workspace pack must not
 /// take every other pack's environments down with it. A set
 /// identical to the registered one is a no-op, generation included, so a
-/// reload that found nothing new does not invalidate downstream caches.
+/// reload that found nothing new does not invalidate downstream caches —
+/// and so is a set whose **rebuilt registry** is identical to the live
+/// one: the bundled packs restate the very rows the compiled seed already
+/// carries from them (D17), and a publish that changes no definition must
+/// not re-key every per-context generation cache in the process.
 #[must_use]
 pub fn sync_environment_sources(sources: Vec<EnvironmentSource>) -> SyncOutcome {
     let state = STATE.get_or_init(|| Mutex::new(DynamicState::default()));
@@ -588,8 +592,24 @@ pub fn sync_environment_sources(sources: Vec<EnvironmentSource>) -> SyncOutcome 
     let generation = current_generation() + 1;
     match assemble(&state.definitions, &state.extensions, &accepted, generation) {
         Ok(registry) => {
-            *live_cell().lock().expect("live environment registry lock") = Arc::new(registry);
+            let live = live_environments();
+            let same_content = registry
+                .definitions()
+                .iter()
+                .map(Arc::as_ref)
+                .eq(live.definitions().iter().map(Arc::as_ref));
             state.sources = accepted;
+            if same_content {
+                return SyncOutcome {
+                    generation: live.generation(),
+                    changed: false,
+                    declared,
+                    extended,
+                    retired,
+                    rejected,
+                };
+            }
+            *live_cell().lock().expect("live environment registry lock") = Arc::new(registry);
             SyncOutcome {
                 generation,
                 changed: true,
@@ -765,6 +785,20 @@ mod tests {
             .next()
             .expect("the bundled packs seed at least one environment");
         let id = seed.id.as_str().to_owned();
+
+        // A verbatim restatement — what every publish of the shipped packs
+        // is — changes no definition, so the generation stays put and no
+        // downstream generation cache is invalidated.
+        let before = live_environments().generation();
+        let outcome = sync_environment_sources(vec![EnvironmentSource {
+            id: "bundled:verbatim".to_owned(),
+            definitions: vec![seed.clone()],
+            extensions: Vec::new(),
+        }]);
+        assert!(outcome.rejected.is_empty(), "{:?}", outcome.rejected);
+        assert!(!outcome.changed, "a verbatim restatement is content-identical");
+        assert_eq!(outcome.generation, before);
+        assert_eq!(live_environments().generation(), before);
 
         let mut restated = seed.clone();
         restated.display_name = arc("Restated From Disk");

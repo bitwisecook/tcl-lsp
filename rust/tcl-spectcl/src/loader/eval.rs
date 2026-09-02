@@ -1206,7 +1206,12 @@ fn is_general_tcl(word: &str) -> bool {
 /// evaluation could only capture it verbatim. Substitution in any unbraced
 /// word, a general-Tcl or denied head word, and `available?` all force the
 /// interpreter path.
-fn static_stmt(stmt: &Stmt) -> bool {
+///
+/// The one owner of "this word substitutes": the fast path asks it to skip
+/// the interpreter, and `tcl spec upgrade --restyle` asks it (over every
+/// statement, nested bodies included) before it may write a snapshot back
+/// over its source (E-R12) — a computed word is a program either way.
+pub(crate) fn static_stmt(stmt: &Stmt) -> bool {
     let head = stmt.word_text(0);
     if head.is_empty()
         || head == "available?"
