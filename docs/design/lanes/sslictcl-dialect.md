@@ -77,8 +77,23 @@ Done:
 - `tests/sslictcl_pack.rs`, including a `VOCABULARY` table test that pins the
   complete `(statement → members)` map.
 
-Remaining: codegen regeneration and hand-maintained editor prose; lsp-core
-semantic-token tests; docs.
+- Codegen: every editor projection regenerated (`gen-editor-dialects`,
+  `gen-editor-extensions`, `gen-vscode-package`, `gen-jetbrains-catalog`,
+  `gen-editor-catalogs`, `gen-editor-settings`, `gen-tmlanguage-keywords`,
+  `gen-zed-queries`, `gen-ai-diagnostics`, `callback-inventory`) plus the
+  hand-maintained bits those generators do **not** own: the Helix
+  `[[language]]` block, both `tcl.tmLanguage.json` `fileTypes` arrays, the
+  Neovim / Emacs / Zed prose, and the callback-surface baseline rows.
+- `tcl-lsp-core/tests/semantic_tokens.rs`: three tests — body words are
+  keywords at every nesting level, the vocabulary is context-sensitive, and a
+  `predicate { … }` body is not a declaration block.
+- Docs: `docs/design/sslictcl-vocabulary.md` (the table every hover cites),
+  the redesign's classification-table ruling, the two design-index entries,
+  and the README dialect / extension lists.
+
+Remaining: nothing in this lane. The loader lane owns `rust/tcl-sslictcl/`
+and the `DiagSection::Sslic` codes; the LSP lane owns the server diagnostics
+pipeline, the e2e tests, and the owner-map contract rows.
 
 ## Interfaces the other lanes depend on
 

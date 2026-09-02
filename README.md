@@ -93,7 +93,8 @@ All editors connect to the native Rust binary `tcl-lsp-server` over stdio
   Lite XL, micro, CudaText, JupyterLab, Doom Emacs, and Spacemacs.
 
 **File types recognised:** the Tcl family — `.tcl`, `.tk`, `.itcl`, `.tm`,
-`.test`, `.exp`, `.expect`, `.apl`, `.tclspec` — the F5 surfaces — `.irul`,
+`.test`, `.exp`, `.expect`, `.apl`, `.tclspec`, `.sslictcl` — the F5 surfaces
+— `.irul`,
 `.irule`, `.irules`, `.iapp`, `.iappimpl`, `.impl`, `.tmsh`, `.scf` — and the
 EDA vendors' constraint and script suffixes — `.sdc`, `.upf`, `.xdc`, `.qsf`,
 `.qpf`, `.qip`, `.do`, `.globals`. Every editor's registration list is
@@ -918,6 +919,7 @@ single source of truth — its `display_name` is the second column.
 | `expect` | Expect |
 | `bpf` | BPF-Tcl, the eBPF packet-matching dialect |
 | `spectcl` | SpecTcl command packs (`.tclspec`) |
+| `sslictcl` | SslicTcl TLS declarations (`.sslictcl`) |
 | `f5-irules` | F5 iRules (embedded Tcl 8.4.6) — see [README-f5.md](README-f5.md) |
 | `f5-iapps` | F5 iApps — iApp templates and implementation scripts |
 | `f5-bigip` | F5 BIG-IP `bigip.conf` / `.scf` objects |
@@ -1031,7 +1033,8 @@ The dialect is selected automatically using the following priority chain
    `.irul`/`.irule`/`.irules` → `f5-irules`,
    `.iapp`/`.iappimpl`/`.impl` → `f5-iapps`, `.tmsh` → `f5-tmsh`,
    `.scf` → `f5-bigip`, `.exp`/`.expect` → `expect`,
-   `.tclspec` → `spectcl`, `.globals` → `cadence-eda-tcl`,
+   `.tclspec` → `spectcl`, `.sslictcl` → `sslictcl`,
+   `.globals` → `cadence-eda-tcl`,
    `.qsf`/`.qpf`/`.qip` → `intel-quartus-eda-tcl`, `.do` → `mentor-eda-tcl`,
    `.sdc`/`.upf` → `synopsys-eda-tcl`, `.xdc` → `xilinx-eda-tcl`.
    A SpecTcl pack can route further extensions to a dialect with a
@@ -1077,6 +1080,7 @@ different Tcl versions without manual switching.
 | `expect` | Expect: `spawn`, `expect`, `send`, `interact` and related commands for automating interactive programs |
 | `bpf` | BPF-Tcl: the eBPF packet-matching dialect |
 | `spectcl` | SpecTcl command packs (`.tclspec`): the declarations that teach the registry a private library |
+| `sslictcl` | SslicTcl TLS declarations (`.sslictcl`): the certificates, endpoints, trust programs, and assurance policy of a deployment, read and never evaluated |
 
 **Tk**, **tcllib**, and **Tcl stdlib** commands are automatically recognised
 when the corresponding `package require` appears in the file.  No manual

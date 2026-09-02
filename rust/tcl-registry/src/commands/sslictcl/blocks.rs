@@ -111,17 +111,17 @@ const fn hover(
 }
 
 /// `sslictcl VERSION` — the mandatory first declaration of every document.
+///
+/// The version word claims no role: it is a plain integer literal, not a
+/// keyword, a name, or a body.
 fn header() -> CommandSpec {
-    CommandSpec {
-        arg_roles: &[(0, ArgRole::Keyword)],
-        ..super::statement(
-            "sslictcl",
-            Arity::exact(1),
-            "Declare the vocabulary version this document is written against.",
-            &["sslictcl version"],
-            "The mandatory header, and the first declaration in the file. VERSION is a plain integer naming the vocabulary revision — a document stating a version the loader does not know is rejected rather than half-read. The word appears nowhere else in the vocabulary, which is what lets dialect detection recognise a document saved under a `.tcl` name.",
-        )
-    }
+    super::statement(
+        "sslictcl",
+        Arity::exact(1),
+        "Declare the vocabulary version this document is written against.",
+        &["sslictcl version"],
+        "The mandatory header, and the first declaration in the file. VERSION is a plain integer naming the vocabulary revision — a document stating a version the loader does not know is rejected rather than half-read. The word appears nowhere else in the vocabulary, which is what lets dialect detection recognise a document saved under a `.tcl` name.",
+    )
 }
 
 /// The blocks that describe a deployment: what is served, and from what.

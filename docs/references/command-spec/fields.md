@@ -1140,6 +1140,7 @@ The EDA shells are not on it: a vendor shell is a base Tcl release plus package-
 | `f5-tmsh` | F5 tmsh Scripts |
 | `f5-bigip` | F5 BIG-IP |
 | `spectcl` | SpecTcl |
+| `sslictcl` | SslicTcl |
 
 ### Form kinds
 
