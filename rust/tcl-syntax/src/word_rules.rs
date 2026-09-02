@@ -137,6 +137,20 @@ impl WordValueRules {
         }
     }
 
+    /// The **tolerant** element split under this dialect's list grammar —
+    /// the best-effort sibling of [`Self::split_list`] for a fold or a
+    /// scan that must still yield the elements *before* a malformed tail
+    /// rather than nothing. Strict list parsing tolerates through
+    /// [`crate::list::split_list_lenient`]; Jim's grammar is tolerant by construction
+    /// ([`crate::list::split_list_jim`]), so the same axis chooses.
+    #[must_use]
+    pub fn split_list_tolerant(self, text: &str) -> Vec<Cow<'_, str>> {
+        match self.list {
+            ListParse::Strict => crate::list::split_list_lenient(text),
+            ListParse::Lenient => crate::list::split_list_jim(text),
+        }
+    }
+
     /// The word-shaped-list helper: collapse the braced word, then split it,
     /// yielding owned names. `None` is "this dialect raises on this text",
     /// which a static consumer turns into a barrier and never into a guess.

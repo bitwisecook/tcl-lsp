@@ -132,6 +132,16 @@ pub fn try_lower_return(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) ->
                     expr = Some(parse_expr_for_profile(&expr_arg, cmd.dialect));
                 }
             }
+            ArgTokenKind::ExprSugar => {
+                // JimTcl `$(…)`: `return $($a*2)` returns the expression's
+                // value, as `return [expr {$a*2}]` does.
+                if let Some(body) = cmd.args[0]
+                    .strip_prefix("$(")
+                    .and_then(|s| s.strip_suffix(')'))
+                {
+                    expr = Some(parse_expr_for_profile(body, cmd.dialect));
+                }
+            }
             _ => {}
         }
     }

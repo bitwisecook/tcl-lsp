@@ -352,6 +352,8 @@ pub fn segment_commands(source: &str) -> Vec<SegmentedCommand> {
 /// consumers see absolute offsets into the outer source buffer.
 #[must_use]
 pub fn segment_commands_with_offset(source: &str, base_offset: u32) -> Vec<SegmentedCommand> {
+    // dialect-drift-ok: the dialect-blind entry point; a caller holding the
+    // document's config uses `segment_commands_with_offset_and_config`.
     segment_commands_with_offset_and_config(source, base_offset, LexerConfig::default())
 }
 
@@ -706,6 +708,8 @@ pub fn segment_commands_with_recovery<S>(
 where
     S: std::hash::BuildHasher,
 {
+    // dialect-drift-ok: the dialect-blind entry point; a caller holding the
+    // document's config uses `segment_commands_with_recovery_and_config`.
     segment_commands_with_recovery_and_config(source, known_commands, LexerConfig::default())
 }
 

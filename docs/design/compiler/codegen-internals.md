@@ -48,9 +48,11 @@ document's resolved dialect today — a JimTcl unit's literals, escapes and
 word splitting are read as Jim wrote them. What codegen *emits*, and what the
 bytecode VM and `runtime/rust` execute, is **Tcl 9 semantics only**: the
 projected profile a non-Tcl dialect resolves to carries
-`vm_runtime_version = V9_0`, Jim's `$(…)` is reconstructed by the segmenter
-but not lowered to an expression evaluation, and Jim's own list, dict and
-`expr` semantics are not modelled by any pass. That is the intended state,
+`vm_runtime_version = V9_0`; Jim's `$(…)` lowers to the same `AssignExpr`
+a bracketed `expr` does in `set` and `return` (so the emitted bytecode is
+Tcl 9's expression evaluation of the body) and stays an opaque dynamic word
+elsewhere; and Jim's own list, dict and `expr` semantics are not modelled
+by any pass. That is the intended state,
 not an omission: the backends target Tcl 9, and dialect-aware emission and
 execution is an **eventual** — the readiness requirement met now is that
 codegen consumes only the point-derived grammar and profile, never a dialect

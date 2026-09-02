@@ -963,7 +963,7 @@ file; this call falls through to the 'unknown' handler."
             // as used and skip W214.  Saves the W214 over-emit on
             // ``proc f {x} { return [expr {$x + 1}] }``-style bodies.
             if let Some(body_source) = ir_proc.body_source.as_deref()
-                && body_references_param(body_source, param)
+                && body_references_param(body_source, param, self.lexer_config())
             {
                 continue;
             }
@@ -2905,15 +2905,15 @@ fn skip_options(args: &[String], value_opts: &[&str]) -> usize {
 /// runs in the *namespace* frame, not the caller's — does **not** falsely
 /// recover a read of the caller's parameter.  Other bodies (`eval`, `if`,
 /// loops) run in the caller frame, so their `$param` reads still count.
-pub(super) fn body_references_param(body: &str, param: &str) -> bool {
+pub(super) fn body_references_param(
+    body: &str,
+    param: &str,
+    config: tcl_lexer::LexerConfig,
+) -> bool {
     if param.is_empty() {
         return false;
     }
-    let cmds = crate::segmenter::segment_commands_with_offset_and_config(
-        body,
-        0,
-        tcl_lexer::LexerConfig::default(),
-    );
+    let cmds = crate::segmenter::segment_commands_with_offset_and_config(body, 0, config);
     for cmd in &cmds {
         // `namespace eval NS BODY` — the trailing body word evaluates in NS's
         // frame, so exclude it; the NS-name word (e.g. `namespace eval $x …`)

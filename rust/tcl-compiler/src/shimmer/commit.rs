@@ -253,6 +253,14 @@ impl CommitCtx<'_> {
     pub fn numbers(&self) -> tcl_syntax::number::NumberSyntax {
         self.registry.numbers()
     }
+
+    /// The document's word-value rules, from the same loaded profile
+    /// [`Self::numbers`] reads — whether a constant is a valid list/dict is a
+    /// list-grammar question, and Jim's parser answers it differently.
+    #[must_use]
+    pub fn word_rules(&self) -> tcl_syntax::word_rules::WordValueRules {
+        tcl_syntax::word_rules::WordValueRules::of_profile(self.registry.profile())
+    }
 }
 
 /// A per-block replay of the commitment transfer function, kept in step with a
@@ -272,6 +280,14 @@ impl CommitWalker<'_> {
     #[must_use]
     pub fn numbers(&self) -> tcl_syntax::number::NumberSyntax {
         self.registry.numbers()
+    }
+
+    /// The document's word-value rules, from the same loaded profile
+    /// [`Self::numbers`] reads — whether a constant is a valid list/dict is a
+    /// list-grammar question, and Jim's parser answers it differently.
+    #[must_use]
+    pub fn word_rules(&self) -> tcl_syntax::word_rules::WordValueRules {
+        tcl_syntax::word_rules::WordValueRules::of_profile(self.registry.profile())
     }
 
     /// The commitment state of `(sym, ver)` at the current point — versions

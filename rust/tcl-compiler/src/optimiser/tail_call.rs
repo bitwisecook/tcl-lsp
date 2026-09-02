@@ -643,13 +643,12 @@ fn collect_tail_sites(
 /// requiring exactly one top-level `Cmd` word rejects the concat, nested-close
 /// (`[a]] [b`), and trailing-text shapes a naive strip would accept (issue
 /// 152).
-fn parse_return_subst(
-    value: &str,
-    config: tcl_lexer::LexerConfig,
-) -> Option<(String, String)> {
+fn parse_return_subst(value: &str, config: tcl_lexer::LexerConfig) -> Option<(String, String)> {
     let v = value.trim();
     let sm = tcl_lexer::SourceMap::new(v);
-    let toks = tcl_lexer::Lexer::with_config(v, config).tokenise_all().ok()?;
+    let toks = tcl_lexer::Lexer::with_config(v, config)
+        .tokenise_all()
+        .ok()?;
     let mut words = toks.iter().filter(|t| {
         !matches!(
             t.kind,
@@ -765,12 +764,24 @@ mod tests {
         );
         // A concatenation of two substitutions is NOT a single subst — a naive
         // strip would yield the invalid `a $x][b $y` (issue 152).
-        assert_eq!(parse_return_subst("[a $x][b $y]", tcl_lexer::LexerConfig::default()), None);
+        assert_eq!(
+            parse_return_subst("[a $x][b $y]", tcl_lexer::LexerConfig::default()),
+            None
+        );
         // Trailing text after the substitution is likewise rejected.
-        assert_eq!(parse_return_subst("[a] tail", tcl_lexer::LexerConfig::default()), None);
+        assert_eq!(
+            parse_return_subst("[a] tail", tcl_lexer::LexerConfig::default()),
+            None
+        );
         // Not a substitution at all.
-        assert_eq!(parse_return_subst("plain", tcl_lexer::LexerConfig::default()), None);
-        assert_eq!(parse_return_subst("[]", tcl_lexer::LexerConfig::default()), None);
+        assert_eq!(
+            parse_return_subst("plain", tcl_lexer::LexerConfig::default()),
+            None
+        );
+        assert_eq!(
+            parse_return_subst("[]", tcl_lexer::LexerConfig::default()),
+            None
+        );
     }
 
     #[test]

@@ -742,12 +742,12 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
                 )
                 .split_list(&args[0])
                 .map(|names| {
-                        names
-                            .into_iter()
-                            .map(std::borrow::Cow::into_owned)
-                            .collect()
-                    })
-                    .unwrap_or_default();
+                    names
+                        .into_iter()
+                        .map(std::borrow::Cow::into_owned)
+                        .collect()
+                })
+                .unwrap_or_default();
             }
             if let Some(reg) = registry {
                 let defs = registry_barrier_defs(reg, command, args, tokens.as_ref());

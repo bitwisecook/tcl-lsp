@@ -478,6 +478,7 @@ fn check_argument(
             expected,
             ctx.values.get(&(sym, ver)),
             ctx.commit.numbers(),
+            ctx.commit.word_rules(),
         )
     {
         return;
@@ -748,6 +749,7 @@ fn check_incr_var(ctx: &mut UseSiteCtx<'_>, var: &str, span: Span, uses: &HashMa
             TclType::Int,
             ctx.values.get(&(sym, ver)),
             ctx.commit.numbers(),
+            ctx.commit.word_rules(),
         ) {
             return;
         }

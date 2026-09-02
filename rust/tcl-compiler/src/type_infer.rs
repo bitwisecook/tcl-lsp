@@ -839,12 +839,12 @@ fn prior_container_elements<S: std::hash::BuildHasher>(
         }
         // A pure string constant parses to a known element count of pure
         // strings — `lappend` on `{a b}` starts from two `String` elements.
+        // dialect-drift-ok: the `WordValueRules` owner call.
+        let rules = tcl_syntax::word_rules::WordValueRules::of_profile(ctx.registry.profile());
         if t.tcl_type() == Some(TclType::String)
             && let Some(LatticeValue::Const(ConstValue::String(text))) = ctx.const_of(target)
-            && let Ok(parsed) = tcl_syntax::word_rules::WordValueRules::of_profile(
-                ctx.registry.profile(),
-            )
-            .split_list(text)
+            // dialect-drift-ok: the `WordValueRules` owner call.
+            && let Ok(parsed) = rules.split_list(text)
         {
             if parsed.len() > MAX_EXACT_ELEMENTS {
                 return Some(Elements::Uniform(Box::new(TypeShape::String)));

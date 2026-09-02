@@ -521,7 +521,7 @@ Use braces: {{ \u{2026} }}"
                 // and shift the regions back into slice coordinates.
                 let coff = usize::from(tok.content_offset);
                 slice.get(coff..).map_or_else(Vec::new, |content| {
-                    comment_regions_recursive(content)
+                    comment_regions_recursive(content, self.lexer_config())
                         .into_iter()
                         .map(|r| r.start + coff..r.end + coff)
                         .collect()
@@ -1403,12 +1403,20 @@ pub(super) fn is_review_hazard_unicode(ch: char) -> bool {
 /// no regions (conservative: everything stays scanned).  A braced plain
 /// string whose content merely *looks* like a comment under-flags — the
 /// acceptable cost of not knowing which braced words are scripts.
-fn comment_regions_recursive(slice: &str) -> Vec<std::ops::Range<usize>> {
-    fn collect(slice: &str, base: usize, out: &mut Vec<std::ops::Range<usize>>) {
+fn comment_regions_recursive(
+    slice: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Vec<std::ops::Range<usize>> {
+    fn collect(
+        slice: &str,
+        base: usize,
+        config: tcl_lexer::LexerConfig,
+        out: &mut Vec<std::ops::Range<usize>>,
+    ) {
         if !slice.contains('#') {
             return;
         }
-        let Ok(tokens) = tcl_lexer::Lexer::new(slice).tokenise_all() else {
+        let Ok(tokens) = tcl_lexer::Lexer::with_config(slice, config).tokenise_all() else {
             return;
         };
         for tok in &tokens {
@@ -1421,7 +1429,7 @@ fn comment_regions_recursive(slice: &str) -> Vec<std::ops::Range<usize>> {
                     // the opener, which would unbalance a nested lex.
                     let coff = usize::from(tok.content_offset);
                     if let Some(inner) = slice.get(start + coff..end) {
-                        collect(inner, base + start + coff, out);
+                        collect(inner, base + start + coff, config, out);
                     }
                 }
                 _ => {}
@@ -1429,7 +1437,7 @@ fn comment_regions_recursive(slice: &str) -> Vec<std::ops::Range<usize>> {
         }
     }
     let mut out = Vec::new();
-    collect(slice, 0, &mut out);
+    collect(slice, 0, config, &mut out);
     out
 }
 

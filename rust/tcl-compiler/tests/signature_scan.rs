@@ -528,7 +528,7 @@ fn no_heavy_fields() {
 fn param_list_defaults_and_args() {
     // Same param shape as the proc-with-defaults-and-args case, but
     // against the standalone parser entry point.
-    let params = parse_param_list("a {b 2} args");
+    let params = parse_param_list("a {b 2} args", tcl_syntax::word_rules::WordValueRules::TCL);
     let names: Vec<&str> = params.iter().map(|p| p.name.as_str()).collect();
     assert_eq!(names, ["a", "b", "args"]);
     assert!(!params[0].has_default);
@@ -539,8 +539,8 @@ fn param_list_defaults_and_args() {
 
 #[test]
 fn param_list_empty() {
-    assert!(parse_param_list("").is_empty());
-    assert!(parse_param_list("   \t\n ").is_empty());
+    assert!(parse_param_list("", tcl_syntax::word_rules::WordValueRules::TCL).is_empty());
+    assert!(parse_param_list("   \t\n ", tcl_syntax::word_rules::WordValueRules::TCL).is_empty());
 }
 
 // Registry-driven class-definer recognition (walker `definer_family`)

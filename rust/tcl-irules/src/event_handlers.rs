@@ -5,7 +5,7 @@
 //! Registry-driven extraction of iRules event handlers and effective priorities.
 
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-use tcl_lexer::{LexerConfig, TokenType};
+use tcl_lexer::TokenType;
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 /// A statically-resolved iRules event handler.

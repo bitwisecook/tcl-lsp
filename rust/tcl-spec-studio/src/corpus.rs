@@ -499,7 +499,12 @@ fn options_from_dispatch(stmts: &[Stmt], config: LexerConfig, shape: &mut Shape)
 /// The two are the same evidence read against the parameter list: a dispatch
 /// on the **first** parameter of a proc whose tail is variadic selects *tails*
 /// — that is a subcommand table. Anything else closes a value set.
-fn values_from_dispatch(stmts: &[Stmt], params: &[ParamDef], config: LexerConfig, shape: &mut Shape) {
+fn values_from_dispatch(
+    stmts: &[Stmt],
+    params: &[ParamDef],
+    config: LexerConfig,
+    shape: &mut Shape,
+) {
     let positions: BTreeMap<&str, usize> = params
         .iter()
         .enumerate()

@@ -242,6 +242,12 @@ pub struct FoldPolicy {
     /// does (9.0+), and whether `_` separators do (9.0+) — so folding `0o17`
     /// for an 8.4 target correctly yields nothing.
     pub numbers: Option<NumberSyntax>,
+    /// The active dialect's word-value rules — how a word-shaped list of this
+    /// document divides, and whether a braced `\<newline>` folds.  Carried
+    /// beside the numeral axis for the same reason: a fold that re-splits a
+    /// literal list must split it the way the document's own list parser
+    /// does.  Defaults to C Tcl for a caller with no dialect.
+    pub word_rules: tcl_syntax::word_rules::WordValueRules,
 }
 
 impl FoldPolicy {
@@ -254,6 +260,7 @@ impl FoldPolicy {
             is_irules: false,
             characters: None,
             numbers: None,
+            word_rules: tcl_syntax::word_rules::WordValueRules::TCL,
         }
     }
 
@@ -267,6 +274,7 @@ impl FoldPolicy {
             is_irules: profile.is_some_and(tcl_dialect::DialectProfile::is_irules),
             characters: profile.and_then(tcl_dialect::DialectProfile::character_model),
             numbers: profile.map(|p| NumberSyntax::of_profile(Some(p))),
+            word_rules: tcl_syntax::word_rules::WordValueRules::of_profile(profile),
         }
     }
 
@@ -282,6 +290,7 @@ impl FoldPolicy {
                 .is_some_and(tcl_dialect::DialectProfile::is_irules),
             characters: registry.character_model(),
             numbers: Some(registry.numbers()),
+            word_rules: tcl_syntax::word_rules::WordValueRules::of_profile(registry.profile()),
         }
     }
 }
@@ -1313,6 +1322,10 @@ fn tcl_pow(a: &TclValue, b: &TclValue) -> Option<TclValue> {
 /// Tolerant of a malformed tail so folding a partial list still yields a
 /// best-effort element list rather than nothing.
 pub(crate) fn split_tcl_list(text: &str) -> Vec<String> {
+    // dialect-drift-ok: the *tolerant* element split, whose Jim counterpart
+    // `WordValueRules` does not expose (it owns strict-vs-Jim, not
+    // strict-vs-tolerant); the four call sites outside this lane are the
+    // analyser's. Tracked for the `WordValueRules` owner.
     tcl_syntax::list::split_list_lenient(text)
         .into_iter()
         .map(std::borrow::Cow::into_owned)

@@ -1310,7 +1310,7 @@ impl Analyser {
     /// `\<newline>` folds and how list text divides. The [`Self::grammar`]
     /// twin for the re-parses that split a *word* rather than re-lex a
     /// script — a proc's parameter list, an OO member's — so they cannot
-    /// answer C Tcl's question about a JimTcl document.
+    /// answer C Tcl's question about a `JimTcl` document.
     pub(super) fn word_rules(&self) -> tcl_syntax::word_rules::WordValueRules {
         tcl_syntax::word_rules::WordValueRules::from_grammar(&self.grammar())
     }

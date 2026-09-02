@@ -200,9 +200,10 @@ fn collect(src: &str, depth: usize, base: usize, mode: Mode, out: &mut Vec<Highl
     }
     // dialect-drift-ok: the `.tclspec` DSL's own grammar, not the Tcl the pack
     // describes — this module paints the pack file itself.
-    let Ok(tokens) =
-        Lexer::with_source_map(SourceMap::new(src), LexerConfig::default()).tokenise_all()
-    else {
+    let source_map = SourceMap::new(src);
+    // dialect-drift-ok: as above — the pack file's own fixed grammar.
+    let config = LexerConfig::default();
+    let Ok(tokens) = Lexer::with_source_map(source_map, config).tokenise_all() else {
         return;
     };
 

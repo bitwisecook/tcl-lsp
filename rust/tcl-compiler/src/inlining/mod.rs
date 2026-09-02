@@ -1643,22 +1643,20 @@ fn build_param_bindings(
 
     let mut bound: Vec<String> = Vec::new();
     let mut bound_is_literal: Vec<bool> = Vec::new();
+    // The call-site half of a default-filling binding, should either branch
+    // below find the call short of its formals.
+    let mut site = DefaultBindingSite {
+        args,
+        tokens,
+        positional_count: params.len(),
+        has_variadic,
+    };
 
     if has_variadic {
         let positional_count = params.len() - 1;
         if args.len() < positional_count {
-            return build_with_defaults(
-                cid,
-                &rename,
-                proc,
-                &DefaultBindingSite {
-                    args,
-                    tokens,
-                    positional_count,
-                    has_variadic: true,
-                },
-                rules,
-            );
+            site.positional_count = positional_count;
+            return build_with_defaults(cid, &rename, proc, &site, rules);
         }
         for (i, a) in args.iter().enumerate().take(positional_count) {
             bound.push(a.clone());
@@ -1691,18 +1689,7 @@ fn build_param_bindings(
             return None;
         }
         if args.len() < params.len() {
-            return build_with_defaults(
-                cid,
-                &rename,
-                proc,
-                &DefaultBindingSite {
-                    args,
-                    tokens,
-                    positional_count: params.len(),
-                    has_variadic: false,
-                },
-                rules,
-            );
+            return build_with_defaults(cid, &rename, proc, &site, rules);
         }
         for (i, a) in args.iter().enumerate() {
             bound.push(a.clone());

@@ -1185,6 +1185,7 @@ fn collect_upframes<'a>(
 pub(crate) fn build_extra_call_site_scan_contexts(
     ir_module: &IrModule,
     cfg_context: Option<&crate::cfg_builder::CfgContext>,
+    config: tcl_lexer::LexerConfig,
 ) -> Vec<(String, CfgFunction)> {
     let upframes = upframe_scan_bodies(ir_module);
     if ir_module.methods.is_empty() && ir_module.body_units.is_empty() && upframes.is_empty() {
@@ -1194,13 +1195,14 @@ pub(crate) fn build_extra_call_site_scan_contexts(
         return Vec::new();
     };
     let build = |qname: &str, body: &crate::ir::Script| {
-        crate::cfg_builder::build_cfg_function_with_upvars(
+        crate::cfg_builder::build_cfg_function_with_upvars_and_config(
             qname,
             body,
             true,
             upvar_procs.clone(),
             proc_params.clone(),
             global_write_procs.clone(),
+            config,
         )
     };
     ir_module
@@ -1476,10 +1478,10 @@ pub fn scan_source_call_sites<S: std::hash::BuildHasher>(
     let mut ir_module = crate::lowering::lower_to_ir_with_config(source, registry, config);
     crate::specialise_factories::specialise_factories(&mut ir_module, registry);
     crate::inline_uplevel::inline_uplevel_passthrough(&mut ir_module, registry);
-    let cfg_module = crate::cfg_builder::build_cfg(&ir_module, false);
+    let cfg_module = crate::cfg_builder::build_cfg_with_config(&ir_module, false, config);
     let cfg_context = needs_extra_call_site_scan_contexts(&ir_module)
         .then(|| crate::cfg_builder::prepare_cfg_context(&ir_module));
-    let extra = build_extra_call_site_scan_contexts(&ir_module, cfg_context.as_ref());
+    let extra = build_extra_call_site_scan_contexts(&ir_module, cfg_context.as_ref(), config);
     // The cross-file scan resolves a dispatch word exactly as the in-unit one
     // does — `scan_cfg_callers`/`record_call_site_evidence` are shared, so a
     // `set cmd helper; $cmd dev` in *another* file retracts this unit's seed

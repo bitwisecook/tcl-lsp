@@ -35,7 +35,6 @@ use tcl_registry::CommandRegistry;
 use tcl_registry::model::semantic::SemanticContext;
 
 use crate::cfg::{CfgModule, Function as CfgFunction};
-use crate::cfg_builder::build_cfg;
 use crate::def_use::{DefUseResult, build_def_use_chains};
 use crate::interprocedural::InterproceduralAnalysis;
 use crate::ir::Module as IrModule;
@@ -1028,7 +1027,11 @@ fn lower_and_build_cfg(
     // every passthrough callsite is replaced with a Statement::Block
     // that splices the body inline.
     crate::inline_uplevel::inline_uplevel_passthrough(&mut ir_module, registry);
-    let mut cfg_module = build_cfg(&ir_module, options.defer_top_level);
+    let mut cfg_module = crate::cfg_builder::build_cfg_with_config(
+        &ir_module,
+        options.defer_top_level,
+        options.config,
+    );
     let tainted_global_writes =
         crate::interprocedural::enrich_instance_taint_cfg(&ir_module, &mut cfg_module, registry);
     (ir_module, cfg_module, tainted_global_writes)
@@ -1061,7 +1064,7 @@ fn resolve_unit_scope(
     // `None`): a call from inside one of these bodies to an ordinary user proc
     // is a real call site whose argument can vary between call sites, exactly
     // like a bare top-level/proc-body call.
-    let extra_callers = build_extra_call_site_scan_contexts(ir_module, cfg_context);
+    let extra_callers = build_extra_call_site_scan_contexts(ir_module, cfg_context, options.config);
     // Collect call-site literal arg values per user proc so each callee's SCCP
     // can fold a param every caller passes the same literal for
     // (interprocedural constant propagation).
@@ -1305,6 +1308,9 @@ impl CompilationUnit {
             source,
             registry,
             defer_top_level,
+            // dialect-drift-ok: `build_for` is the documented dialect-blind
+            // entry point; a caller that knows the dialect uses
+            // `build_for_profile` / `build_for_dialect`.
             tcl_lexer::LexerConfig::default(),
         )
     }
@@ -1615,13 +1621,14 @@ impl CompilationUnit {
                 } else {
                     &widened_upvar_procs
                 };
-                let cfg = crate::cfg_builder::build_cfg_function_with_upvars(
+                let cfg = crate::cfg_builder::build_cfg_function_with_upvars_and_config(
                     mqname,
                     &method.body,
                     true,
                     method_upvar_procs.clone(),
                     proc_params.clone(),
                     global_write_procs.clone(),
+                    tcl_lexer::LexerConfig::for_profile(registry.profile()),
                 );
                 // Body-byte half of the complexity guard (the block-count
                 // half is applied inside `build`); skip an oversized
@@ -1702,13 +1709,14 @@ impl CompilationUnit {
             .body_units
             .iter()
             .map(|(qname, proc)| {
-                let cfg = crate::cfg_builder::build_cfg_function_with_upvars(
+                let cfg = crate::cfg_builder::build_cfg_function_with_upvars_and_config(
                     qname,
                     &proc.body,
                     true,
                     upvar_procs.clone(),
                     proc_params.clone(),
                     global_write_procs.clone(),
+                    tcl_lexer::LexerConfig::for_profile(registry.profile()),
                 );
                 // Same body-byte complexity guard as procs/methods: a huge
                 // generated lambda body contributes trivial lattices instead of

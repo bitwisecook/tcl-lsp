@@ -392,8 +392,11 @@ fn handle_target(
 fn construction_target(ctx: &IlxCtx<'_>, tok: &Token) -> Option<IlxExtension> {
     let (start, end) = content_range(ctx.full, tok);
     let inner = ctx.full.get(start..end)?;
-    let mut commands =
-        segment_commands_with_offset_and_config(inner, u32::try_from(start).unwrap_or(0), ctx.config);
+    let mut commands = segment_commands_with_offset_and_config(
+        inner,
+        u32::try_from(start).unwrap_or(0),
+        ctx.config,
+    );
     if commands.len() != 1 {
         return None;
     }

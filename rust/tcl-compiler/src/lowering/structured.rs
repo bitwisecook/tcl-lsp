@@ -735,6 +735,8 @@ impl Lowerer<'_> {
                         } else {
                             tcl_lexer::backslash_subst_in(&match_arg, self.config.escapes)
                         };
+                        // dialect-drift-ok: this *is* the `WordValueRules`
+                        // owner call the rule directs callers to.
                         WordValueRules::from_config(&self.config)
                             .split_list(&value)
                             .ok()

@@ -718,7 +718,8 @@ fn minify_body(source: &str, env: MinifyEnv<'_>, depth: u32) -> String {
         return source.to_owned();
     }
     let sm = SourceMap::new(source);
-    let Ok(tokens) = Lexer::with_config(source, LexerConfig::for_profile(Some(dialect))).tokenise_all()
+    let Ok(tokens) =
+        Lexer::with_config(source, LexerConfig::for_profile(Some(dialect))).tokenise_all()
     else {
         return source.to_owned();
     };
@@ -1698,7 +1699,8 @@ fn abbreviate_keywords(
     let later = later_core_registries(dialect);
     while let Some((text, base)) = stack.pop() {
         let sm = SourceMap::new(&text);
-        let Ok(tokens) = Lexer::with_config(&text, LexerConfig::for_profile(Some(dialect))).tokenise_all()
+        let Ok(tokens) =
+            Lexer::with_config(&text, LexerConfig::for_profile(Some(dialect))).tokenise_all()
         else {
             continue;
         };
@@ -1957,7 +1959,8 @@ fn alias_repeated_arguments(
     let mut stack: Vec<(String, u32)> = vec![(source.to_owned(), 0)];
     while let Some((text, base)) = stack.pop() {
         let sm = SourceMap::new(&text);
-        let Ok(tokens) = Lexer::with_config(&text, LexerConfig::for_profile(Some(dialect))).tokenise_all()
+        let Ok(tokens) =
+            Lexer::with_config(&text, LexerConfig::for_profile(Some(dialect))).tokenise_all()
         else {
             continue;
         };
@@ -2239,7 +2242,8 @@ fn collect_string_literals(
     let mut stack: Vec<(String, u32)> = vec![(top_source.to_owned(), 0)];
     while let Some((text, base)) = stack.pop() {
         let sm = SourceMap::new(&text);
-        let Ok(tokens) = Lexer::with_config(&text, LexerConfig::for_profile(Some(dialect))).tokenise_all()
+        let Ok(tokens) =
+            Lexer::with_config(&text, LexerConfig::for_profile(Some(dialect))).tokenise_all()
         else {
             continue;
         };

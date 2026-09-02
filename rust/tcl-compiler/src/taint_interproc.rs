@@ -356,12 +356,8 @@ fn collect_return_taint(
         let Some(ssa_block) = fu.ssa.blocks.get(bn) else {
             continue;
         };
-        let uses = word_uses_from_versions(
-            value,
-            &ssa_block.exit_versions,
-            &fu.ssa,
-            ctx.lexer_config(),
-        );
+        let uses =
+            word_uses_from_versions(value, &ssa_block.exit_versions, &fu.ssa, ctx.lexer_config());
         ret = ret.join(word_taint(
             value,
             &uses,

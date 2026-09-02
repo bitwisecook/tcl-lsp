@@ -109,7 +109,7 @@ impl CodegenCtx<'_> {
         };
         // Constant-fold [list arg1 arg2 ...].
         if self.trusts_builtin("list")
-            && let Some(folded) = super::helpers::fold_list_cmd(value)
+            && let Some(folded) = super::helpers::fold_list_cmd(value, self.word_rules)
         {
             push(self, &folded);
             return true;
@@ -136,7 +136,7 @@ impl CodegenCtx<'_> {
         // Constant-fold [dict create k v ...].
         if self.registry.has_command_in_this_dialect("dict")
             && self.trusts_builtin("dict")
-            && let Some(folded) = super::helpers::fold_dict_create_cmd(value)
+            && let Some(folded) = super::helpers::fold_dict_create_cmd(value, self.word_rules)
         {
             self.push_lit(&folded);
             self.emit(Op::DUP, vec![]);

@@ -50,7 +50,6 @@ use crate::depth_guard::{MAX_BRACKET_TEXT_DEPTH, MAX_EXPR_NODE_DEPTH};
 use crate::expr_ast::ExprNode;
 use crate::ir::Statement;
 use crate::sccp::{SccpResult, cfg_order};
-use crate::segmenter::segment_commands;
 use crate::side_effects::classify_side_effects;
 
 use super::helpers::spans::full_rewrite_span;

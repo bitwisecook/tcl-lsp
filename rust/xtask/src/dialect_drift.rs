@@ -179,14 +179,14 @@ fn scan<'a>(rel: &str, text: &'a str) -> Vec<(usize, &'a str, &'static str)> {
         if trimmed.starts_with("//") {
             continue;
         }
-        let code = strip_trailing_comment(trimmed);
+        let code = code_only(trimmed);
         for rule in RULES {
             if let Some(only) = rule.only_under
                 && !only.iter().any(|p| rel.starts_with(p))
             {
                 continue;
             }
-            if rule.needles.iter().any(|n| code.contains(n)) && !is_waived(&lines, idx) {
+            if rule.needles.iter().any(|n| calls_free(&code, n)) && !is_waived(&lines, idx) {
                 out.push((idx + 1, trimmed, rule.why));
                 break;
             }
@@ -195,23 +195,55 @@ fn scan<'a>(rel: &str, text: &'a str) -> Vec<(usize, &'a str, &'static str)> {
     out
 }
 
-/// The code part of a line — everything before a `//` that is not inside a
-/// string literal (good enough for the spellings this lint names).
-fn strip_trailing_comment(line: &str) -> &str {
+/// Whether `code` calls `needle` as a free function or path (`split_list(`,
+/// `list::split_list(`), not as a method on a receiver (`rules.split_list(`)
+/// — the receiver form *is* the owner call the list-split rule asks for.
+fn calls_free(code: &str, needle: &str) -> bool {
+    let mut from = 0;
+    while let Some(pos) = code[from..].find(needle) {
+        let at = from + pos;
+        let preceded_by_dot = at > 0 && code.as_bytes()[at - 1] == b'.';
+        if !preceded_by_dot {
+            return true;
+        }
+        from = at + needle.len();
+    }
+    false
+}
+
+/// The code part of a line: everything before a `//` that is not inside a
+/// string literal, with the *contents* of string literals elided — a needle
+/// quoted in a message or a doc string is a mention, not a call.
+fn code_only(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
     let mut in_str = false;
     let bytes = line.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
-        match bytes[i] {
-            b'"' if i == 0 || bytes[i - 1] != b'\\' => in_str = !in_str,
-            b'/' if !in_str && i + 1 < bytes.len() && bytes[i + 1] == b'/' => {
-                return &line[..i];
+        let b = bytes[i];
+        if in_str {
+            if b == b'\\' {
+                i += 2;
+                continue;
             }
-            _ => {}
+            if b == b'"' {
+                in_str = false;
+                out.push('"');
+            }
+            i += 1;
+            continue;
+        }
+        match b {
+            b'"' => {
+                in_str = true;
+                out.push('"');
+            }
+            b'/' if i + 1 < bytes.len() && bytes[i + 1] == b'/' => break,
+            _ => out.push(b as char),
         }
         i += 1;
     }
-    line
+    out
 }
 
 /// A waiver is honoured on the flagged line itself, or anywhere in the
@@ -298,6 +330,16 @@ mod tests {
     }
 
     #[test]
+    fn the_owner_method_call_is_not_a_hit() {
+        let src = "let e = rules.split_list(word);\nlet f = self.word_rules().split_list(w);\n";
+        assert!(scan(REL, src).is_empty());
+        assert_eq!(
+            scan(REL, "let e = tcl_syntax::list::split_list(word);\n").len(),
+            1
+        );
+    }
+
+    #[test]
     fn a_mention_in_a_comment_or_string_is_not_a_hit() {
         let src = "// the old form was Lexer::new(s)\nlet m = \"Lexer::new(\";\n";
         assert!(scan(REL, src).is_empty());
@@ -307,7 +349,9 @@ mod tests {
     fn sanctioned_and_test_paths_are_exempt() {
         assert!(is_exempt_path("rust/tcl-lexer/src/lexer.rs"));
         assert!(is_exempt_path("rust/tcl-compiler/tests/foo.rs"));
-        assert!(is_exempt_path("rust/tcl-compiler/src/analyser/diagnostics/tests.rs"));
+        assert!(is_exempt_path(
+            "rust/tcl-compiler/src/analyser/diagnostics/tests.rs"
+        ));
         assert!(!is_exempt_path("rust/tcl-compiler/src/lowering/mod.rs"));
     }
 }

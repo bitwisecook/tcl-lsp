@@ -158,7 +158,14 @@ fn walk(
             if inner_end <= inner_start {
                 continue;
             }
-            walk(registry, config, &whole[..inner_end], inner_start, depth + 1, out);
+            walk(
+                registry,
+                config,
+                &whole[..inner_end],
+                inner_start,
+                depth + 1,
+                out,
+            );
         }
     }
 }
@@ -421,7 +428,14 @@ impl<'a> Bench<'a> {
     pub fn analyse(&self, sample: &str) -> Value {
         let diagnostics = self.diagnostics(sample);
         let mut words = Vec::new();
-        walk(&self.registry, self.lexer_config(), sample, 0, 0, &mut words);
+        walk(
+            &self.registry,
+            self.lexer_config(),
+            sample,
+            0,
+            0,
+            &mut words,
+        );
         words.sort_by_key(|w| (w.start, w.end));
         words.dedup_by_key(|w| (w.start, w.end));
 
@@ -517,7 +531,14 @@ impl<'a> Bench<'a> {
     #[must_use]
     pub fn inspect(&self, sample: &str, offset: usize) -> Option<Value> {
         let mut words = Vec::new();
-        walk(&self.registry, self.lexer_config(), sample, 0, 0, &mut words);
+        walk(
+            &self.registry,
+            self.lexer_config(),
+            sample,
+            0,
+            0,
+            &mut words,
+        );
         // The innermost word wins: a body's own statements are pushed after
         // the body word that holds them, and are strictly narrower.
         let word = words

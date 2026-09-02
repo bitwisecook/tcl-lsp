@@ -703,7 +703,7 @@ impl Analyser {
             return;
         };
         // The loop variable must be one bare name.
-        let Ok(var_names) = tcl_syntax::list::split_list(var_word) else {
+        let Ok(var_names) = self.word_rules().split_list(var_word) else {
             return;
         };
         if var_names.len() != 1 {
@@ -997,8 +997,10 @@ impl Analyser {
                 texts,
                 argv,
                 class_def,
-                Some(self.analysis_context().context().authoring_query()),
-                self.word_rules(),
+                MemberDialect {
+                    surface: Some(self.analysis_context().context().authoring_query()),
+                    rules: self.word_rules(),
+                },
             );
             self.record_member_command_references(grammar, texts, argv, scope_path);
             if let Some(method) = collect_method_body(
@@ -2006,6 +2008,16 @@ impl Analyser {
 /// Walk an inline `oo::define Class subcmd ...` form using the selected
 /// dialect's member layout. A recognised member option from another dialect
 /// is not reinterpreted using the older positional layout.
+/// The two dialect facts extracting a member definition needs, carried
+/// together because they are read from the same document: the availability
+/// point that resolves the member's argument roles, and the word-value rules
+/// that split its parameter list.
+#[derive(Clone, Copy)]
+pub(super) struct MemberDialect<'a> {
+    pub(super) surface: Option<SurfaceQuery<'a>>,
+    pub(super) rules: WordValueRules,
+}
+
 pub(super) fn parse_oo_define_inline_in(
     analyser: &mut Analyser,
     grammar: &DefinitionBodyGrammar,
@@ -2042,8 +2054,10 @@ pub(super) fn parse_oo_define_inline_in(
         args,
         arg_tokens,
         class_def,
-        dialect,
-        analyser.word_rules(),
+        MemberDialect {
+            surface: dialect,
+            rules: analyser.word_rules(),
+        },
     );
 }
 
@@ -2504,8 +2518,7 @@ fn apply_oo_private(
     sub_args: &[String],
     sub_tokens: &[Token],
     class_def: &mut ClassDef,
-    dialect: Option<SurfaceQuery<'_>>,
-    rules: WordValueRules,
+    dialect: MemberDialect<'_>,
 ) {
     if sub_args.is_empty() {
         return;
@@ -2520,7 +2533,10 @@ fn apply_oo_private(
     let Some(member) = grammar.member(inner_subcmd) else {
         return;
     };
-    if member.unavailable_option_for(inner_args, dialect).is_some() {
+    if member
+        .unavailable_option_for(inner_args, dialect.surface)
+        .is_some()
+    {
         return;
     }
     // `private deletemethod m` removes an instance-side member — `private`'s
@@ -2547,13 +2563,14 @@ fn apply_oo_private(
                 "method",
                 "private",
                 "",
-                MemberDialect {
-                    surface: dialect,
-                    rules,
-                },
+                dialect,
             ) {
-                md.visibility =
-                    declared_member_visibility(member, inner_args, "private".to_string(), dialect);
+                md.visibility = declared_member_visibility(
+                    member,
+                    inner_args,
+                    "private".to_string(),
+                    dialect.surface,
+                );
                 class_def.methods.insert(md.name.clone(), md);
             }
         }
@@ -2565,13 +2582,14 @@ fn apply_oo_private(
                 "classmethod",
                 "private",
                 "",
-                MemberDialect {
-                    surface: dialect,
-                    rules,
-                },
+                dialect,
             ) {
-                md.visibility =
-                    declared_member_visibility(member, inner_args, "private".to_string(), dialect);
+                md.visibility = declared_member_visibility(
+                    member,
+                    inner_args,
+                    "private".to_string(),
+                    dialect.surface,
+                );
                 class_def.class_methods.insert(md.name.clone(), md);
             }
         }
@@ -2897,8 +2915,7 @@ fn apply_oo_self(
     sub_args: &[String],
     sub_tokens: &[Token],
     class_def: &mut ClassDef,
-    dialect: Option<SurfaceQuery<'_>>,
-    rules: WordValueRules,
+    dialect: MemberDialect<'_>,
 ) {
     if sub_args.is_empty() {
         return;
@@ -2913,7 +2930,10 @@ fn apply_oo_self(
     let Some(member) = grammar.member(inner_subcmd) else {
         return;
     };
-    if member.unavailable_option_for(inner_args, dialect).is_some() {
+    if member
+        .unavailable_option_for(inner_args, dialect.surface)
+        .is_some()
+    {
         return;
     }
     // Every effect this word has on the members it names lands on the
@@ -2961,16 +2981,13 @@ fn apply_oo_self(
         "classmethod",
         "public",
         "",
-        MemberDialect {
-            surface: dialect,
-            rules,
-        },
+        dialect,
     ) {
         md.visibility = declared_member_visibility(
             member,
             inner_args,
             default_visibility(grammar, &md.name),
-            dialect,
+            dialect.surface,
         );
         md.is_self_method = true;
         class_def.class_methods.insert(md.name.clone(), md);
@@ -3074,8 +3091,7 @@ fn apply_oo_ctor_or_dtor(
     sub_tokens: &[Token],
     argv: &[Token],
     kind: &str,
-    dialect: Option<SurfaceQuery<'_>>,
-    rules: WordValueRules,
+    dialect: MemberDialect<'_>,
 ) -> Option<MethodDef> {
     let synthetic_id = if kind == "constructor" {
         "<constructor>"
@@ -3090,10 +3106,7 @@ fn apply_oo_ctor_or_dtor(
             kind,
             "public",
             synthetic_id,
-            MemberDialect {
-                surface: dialect,
-                rules,
-            },
+            dialect,
         )
     })?;
     if let Some(kw) = argv.first() {
@@ -3111,7 +3124,16 @@ pub(super) fn apply_oo_subcommand(
 ) {
     // dialect-drift-ok: the dialect-less test/utility spelling, matching the
     // `None` surface query it already passes.
-    apply_oo_subcommand_in(grammar, texts, argv, class_def, None, WordValueRules::TCL);
+    apply_oo_subcommand_in(
+        grammar,
+        texts,
+        argv,
+        class_def,
+        MemberDialect {
+            surface: None,
+            rules: WordValueRules::TCL,
+        },
+    );
 }
 
 /// Apply one registry member using the selected dialect's concrete layout.
@@ -3120,8 +3142,7 @@ pub(super) fn apply_oo_subcommand_in(
     texts: &[String],
     argv: &[Token],
     class_def: &mut ClassDef,
-    dialect: Option<SurfaceQuery<'_>>,
-    rules: WordValueRules,
+    dialect: MemberDialect<'_>,
 ) {
     let Some(subcmd) = texts.first().map(String::as_str) else {
         return;
@@ -3131,7 +3152,11 @@ pub(super) fn apply_oo_subcommand_in(
     // The member's argument layout (name / params / body positions) comes from
     // its registry grammar spec; field routing below stays analyser-local.
     let member = grammar.member(subcmd);
-    if member.is_some_and(|member| member.unavailable_option_for(sub_args, dialect).is_some()) {
+    if member.is_some_and(|member| {
+        member
+            .unavailable_option_for(sub_args, dialect.surface)
+            .is_some()
+    }) {
         return;
     }
 
@@ -3194,16 +3219,7 @@ pub(super) fn apply_oo_subcommand_in(
         "method" => {
             if let Some((member, mut md)) = member.and_then(|member| {
                 extract_method_def_in(
-                    member,
-                    sub_args,
-                    sub_tokens,
-                    "method",
-                    "public",
-                    "",
-                    MemberDialect {
-                        surface: dialect,
-                        rules,
-                    },
+                    member, sub_args, sub_tokens, "method", "public", "", dialect,
                 )
                 .map(|method| (member, method))
             }) {
@@ -3215,7 +3231,7 @@ pub(super) fn apply_oo_subcommand_in(
                     member,
                     sub_args,
                     default_visibility(grammar, &md.name),
-                    dialect,
+                    dialect.surface,
                 );
                 class_def.methods.insert(md.name.clone(), md);
             }
@@ -3229,10 +3245,7 @@ pub(super) fn apply_oo_subcommand_in(
                     "classmethod",
                     "public",
                     "",
-                    MemberDialect {
-                        surface: dialect,
-                        rules,
-                    },
+                    dialect,
                 )
                 .map(|method| (member, method))
             }) {
@@ -3240,37 +3253,21 @@ pub(super) fn apply_oo_subcommand_in(
                     member,
                     sub_args,
                     default_visibility(grammar, &md.name),
-                    dialect,
+                    dialect.surface,
                 );
                 class_def.class_methods.insert(md.name.clone(), md);
             }
         }
         "constructor" => {
             if let Some(md) =
-                apply_oo_ctor_or_dtor(
-                    member,
-                    sub_args,
-                    sub_tokens,
-                    argv,
-                    "constructor",
-                    dialect,
-                    rules,
-                )
+                apply_oo_ctor_or_dtor(member, sub_args, sub_tokens, argv, "constructor", dialect)
             {
                 class_def.constructors.push(md);
             }
         }
         "destructor" => {
             if let Some(md) =
-                apply_oo_ctor_or_dtor(
-                    member,
-                    sub_args,
-                    sub_tokens,
-                    argv,
-                    "destructor",
-                    dialect,
-                    rules,
-                )
+                apply_oo_ctor_or_dtor(member, sub_args, sub_tokens, argv, "destructor", dialect)
             {
                 class_def.destructor = Some(md);
             }
@@ -3299,8 +3296,8 @@ pub(super) fn apply_oo_subcommand_in(
             extract_property_defs(sub_args, sub_tokens, class_def);
         }
         "forward" => apply_oo_forward(grammar, sub_args, sub_tokens, class_def),
-        "private" => apply_oo_private(grammar, sub_args, sub_tokens, class_def, dialect, rules),
-        "self" => apply_oo_self(grammar, sub_args, sub_tokens, class_def, dialect, rules),
+        "private" => apply_oo_private(grammar, sub_args, sub_tokens, class_def, dialect),
+        "self" => apply_oo_self(grammar, sub_args, sub_tokens, class_def, dialect),
         // No `ClassDef` mutation here for the remaining subcommands.
         // ``initialise`` / ``initialize`` are class-level initialisation
         // scripts whose bodies are collected and walked separately in
@@ -3408,16 +3405,6 @@ fn collect_property_accessor_bodies(
         }
         i += 1;
     }
-}
-
-/// The two dialect facts extracting a member definition needs, carried
-/// together because they are read from the same document: the availability
-/// point that resolves the member's argument roles, and the word-value rules
-/// that split its parameter list.
-#[derive(Clone, Copy)]
-struct MemberDialect<'a> {
-    surface: Option<SurfaceQuery<'a>>,
-    rules: WordValueRules,
 }
 
 /// Extract a [`MethodDef`] from a method-shaped member's args.

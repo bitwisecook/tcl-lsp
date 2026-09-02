@@ -176,7 +176,20 @@ pub fn is_braced_whole_name_array_ref(text: &str) -> bool {
 /// argument). Callers that need full Tcl list quoting handle it upstream.
 #[must_use]
 pub fn parse_command_substitution(text: &str) -> Option<(String, Vec<String>)> {
-    let (command, args) = parse_command_substitution_with_spans(text)?;
+    // dialect-drift-ok: compatibility shim for the ~50 call sites outside this
+    // lane (analyser, LSP core, shimmer, uri_split, …); the `_with_config`
+    // forms below are what a caller holding the document's config uses.
+    parse_command_substitution_with_config(text, tcl_lexer::LexerConfig::default())
+}
+
+/// [`parse_command_substitution`] under the document's own
+/// [`tcl_lexer::LexerConfig`].
+#[must_use]
+pub fn parse_command_substitution_with_config(
+    text: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<(String, Vec<String>)> {
+    let (command, args) = parse_command_substitution_with_spans_and_config(text, config)?;
     Some((command, args.into_iter().map(|(text, _)| text).collect()))
 }
 
@@ -195,13 +208,25 @@ pub fn parse_command_substitution(text: &str) -> Option<(String, Vec<String>)> {
 /// as a single command (an embedded `;`/newline followed by more words).
 #[must_use]
 pub fn parse_command_substitution_with_spans(text: &str) -> Option<(String, Vec<(String, Span)>)> {
+    // dialect-drift-ok: compatibility shim; see `parse_command_substitution`.
+    parse_command_substitution_with_spans_and_config(text, tcl_lexer::LexerConfig::default())
+}
+
+/// [`parse_command_substitution_with_spans`] under the document's own
+/// [`tcl_lexer::LexerConfig`], so the word boundaries it reports are the ones
+/// the document's grammar draws.
+#[must_use]
+pub fn parse_command_substitution_with_spans_and_config(
+    text: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<(String, Vec<(String, Span)>)> {
     let leading_ws = u32::try_from(text.len() - text.trim_start().len()).unwrap_or(u32::MAX);
     let stripped = text.trim();
     let inner = stripped.strip_prefix('[')?.strip_suffix(']')?;
     // Offset of `inner`'s first byte within `text`: leading whitespace + `[`.
     let base = leading_ws + 1;
 
-    let tokens = Lexer::new(inner).tokenise_all().ok()?;
+    let tokens = Lexer::with_config(inner, config).tokenise_all().ok()?;
     // One `SourceMap` for the whole scan — `widened_token_text` needs the
     // lexer's content geometry to widen a word over its closing delimiter,
     // and building a map per token would re-index `inner`'s lines each time.

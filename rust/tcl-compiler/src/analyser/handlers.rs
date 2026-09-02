@@ -3480,7 +3480,7 @@ impl Analyser {
             return;
         }
         let ns = self.command_resolution_namespace(scope_path);
-        let Ok(elements) = tcl_syntax::list::split_list(&args[1]) else {
+        let Ok(elements) = self.word_rules().split_list(&args[1]) else {
             // A malformed list (an unbalanced brace) is not a path Tcl would
             // accept either; record nothing rather than half of one.
             return;
@@ -4122,7 +4122,7 @@ impl Analyser {
     /// decoded for the variable name while each definition span remains the
     /// exact source range of its list element.
     fn define_vars_from_list(&mut self, var_list_text: &str, tok: Token, scope_path: &[usize]) {
-        let Ok(names) = tcl_syntax::list::split_list(var_list_text) else {
+        let Ok(names) = self.word_rules().split_list(var_list_text) else {
             return;
         };
         let content_start = tok.span.start() + u32::from(tok.content_offset);
@@ -4191,7 +4191,9 @@ impl Analyser {
             .get(1)
             .is_some_and(|tok| tok.kind == TokenType::Str);
         let literal_binding = (args.len() == 3)
-            .then(|| Self::literal_foreach_binding(&args[0], &args[1], list_braced))
+            .then(|| {
+                Self::literal_foreach_binding(&args[0], &args[1], list_braced, self.word_rules())
+            })
             .flatten();
         if let Some((var, elements)) = &literal_binding
             && let Some(first) = elements.first()
@@ -4229,8 +4231,9 @@ impl Analyser {
         var_list_text: &str,
         list_text: &str,
         list_braced: bool,
+        rules: tcl_syntax::word_rules::WordValueRules,
     ) -> Option<(String, Vec<String>)> {
-        let vars = tcl_syntax::list::split_list(var_list_text).ok()?;
+        let vars = rules.split_list(var_list_text).ok()?;
         let [var] = vars.as_slice() else {
             return None;
         };
@@ -4246,7 +4249,8 @@ impl Analyser {
         // iteration (Codex review, PR #1020). A malformed list (unbalanced
         // brace/quote) is not a valid `foreach` value at all — real Tcl
         // errors on it — so `split_list`'s `Err` means abstain entirely.
-        let elements: Vec<String> = tcl_syntax::list::split_list(list_text)
+        let elements: Vec<String> = rules
+            .split_list(list_text)
             .ok()?
             .into_iter()
             .map(std::borrow::Cow::into_owned)
@@ -7944,7 +7948,7 @@ impl Analyser {
                     return Some(());
                 }
                 let names: Vec<String> = if role == tcl_registry::ArgRole::LoopVarList {
-                    let Ok(names) = tcl_syntax::list::split_list(word) else {
+                    let Ok(names) = self.word_rules().split_list(word) else {
                         env.clear();
                         return Some(());
                     };
@@ -9271,8 +9275,10 @@ impl Analyser {
                     &injected.texts,
                     &injected.argv,
                     &mut class,
-                    Some(self.analysis_context().context().authoring_query()),
-                    self.word_rules(),
+                    super::oo::MemberDialect {
+                        surface: Some(self.analysis_context().context().authoring_query()),
+                        rules: self.word_rules(),
+                    },
                 );
             }
         }
@@ -13858,14 +13864,35 @@ mod tests {
     #[test]
     fn literal_foreach_binding_parses_single_variable_as_tcl_list() {
         assert_eq!(
-            Analyser::literal_foreach_binding(r"{one name}", "alpha beta", true),
+            Analyser::literal_foreach_binding(
+                r"{one name}",
+                "alpha beta",
+                true,
+                tcl_syntax::word_rules::WordValueRules::TCL
+            ),
             Some((
                 "one name".to_string(),
                 vec!["alpha".to_string(), "beta".to_string()]
             ))
         );
-        assert!(Analyser::literal_foreach_binding("{unterminated", "alpha", true).is_none());
-        assert!(Analyser::literal_foreach_binding("one two", "alpha", true).is_none());
+        assert!(
+            Analyser::literal_foreach_binding(
+                "{unterminated",
+                "alpha",
+                true,
+                tcl_syntax::word_rules::WordValueRules::TCL
+            )
+            .is_none()
+        );
+        assert!(
+            Analyser::literal_foreach_binding(
+                "one two",
+                "alpha",
+                true,
+                tcl_syntax::word_rules::WordValueRules::TCL
+            )
+            .is_none()
+        );
     }
 
     #[test]

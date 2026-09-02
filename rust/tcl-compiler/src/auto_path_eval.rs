@@ -164,6 +164,10 @@ pub fn evaluate_auto_path_entry_with_constants<S: std::hash::BuildHasher>(
     if entry.form == AutoPathForm::Append {
         return fold_path_value(raw).into_iter().collect();
     }
+    // dialect-drift-ok: `auto_path` is a *Tcl core* list read by the package
+    // machinery, and this public entry point carries no dialect (its only
+    // out-of-crate caller is the LSP server's package scan). Threading
+    // `WordValueRules` here is a signature change across tcl-lsp-server.
     let Ok(elements) = tcl_syntax::list::split_list(raw) else {
         return Vec::new();
     };

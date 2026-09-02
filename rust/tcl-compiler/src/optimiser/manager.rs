@@ -622,6 +622,7 @@ fn couple_const_dead_store_chain(
         interproc_pure: &empty,
         pure_methods: &empty,
         enclosing_class: None,
+        config: tcl_lexer::LexerConfig::for_profile(registry.profile()),
     };
     if !super::elimination::assignment_safe_to_delete(def_stmt, purity) {
         return None;

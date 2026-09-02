@@ -76,6 +76,11 @@ pub fn param_word_is_literal(kind: tcl_lexer::TokenType, single_token_word: bool
 /// computed: nothing about it can be trusted as a declaration.
 #[must_use]
 pub fn param_word_text_is_literal(word: &str) -> bool {
+    // dialect-drift-ok: the LSP cursor-position classifier that owns this
+    // predicate (`tcl_lsp_core::definition::param_word_position`) carries only
+    // `AnalysisResult::dialect`, a dialect *name*; resolving it here would be
+    // the name lookup this lane exists to remove. The test the predicate makes
+    // — one word, `Str` or `Esc` — is invariant across every modelled grammar.
     let Ok(tokens) = tcl_lexer::Lexer::new(word).tokenise_all() else {
         return false;
     };
@@ -150,6 +155,10 @@ pub fn parse_param_list(param_str: &str, rules: WordValueRules) -> Vec<ParamDef>
 ///
 /// Returns `None` only when the call has too few required arguments or too
 /// many arguments for a non-variadic signature.
+///
+/// `rules` are the document dialect's word-value rules: a declared default is
+/// list text, and which dialect reads it decides whether malformed text raises
+/// or is split anyway.
 #[must_use]
 pub fn bind_proc_formals(
     params: &[ParamDef],
@@ -195,6 +204,11 @@ pub fn bind_proc_formals(
 /// lenient API deliberately remains separate so incomplete editor buffers can
 /// still contribute signature and name information.  Defaults returned here
 /// are decoded Tcl list values rather than source-preserving display text.
+///
+/// `rules` supply the document dialect's brace `\<newline>` axis for the
+/// pre-pass.  The *split* stays strict deliberately: this is the
+/// runtime-validity oracle behind E006, and a lenient list parse would report
+/// a malformed declaration as well-formed.
 pub fn parse_param_list_strict(
     param_str: &str,
     rules: WordValueRules,
@@ -567,13 +581,13 @@ mod tests {
 
     #[test]
     fn empty_input_yields_no_params() {
-        assert!(parse_param_list("").is_empty());
-        assert!(parse_param_list("   \t\n  ").is_empty());
+        assert!(parse_param_list("", WordValueRules::TCL).is_empty());
+        assert!(parse_param_list("   \t\n  ", WordValueRules::TCL).is_empty());
     }
 
     #[test]
     fn three_bare_names() {
-        let params = parse_param_list("a b c");
+        let params = parse_param_list("a b c", WordValueRules::TCL);
         assert_eq!(params.len(), 3);
         assert_eq!(params[0].name, "a");
         assert!(!params[0].has_default);
@@ -584,7 +598,7 @@ mod tests {
 
     #[test]
     fn braced_with_default() {
-        let params = parse_param_list("{a default}");
+        let params = parse_param_list("{a default}", WordValueRules::TCL);
         assert_eq!(params.len(), 1);
         assert_eq!(params[0].name, "a");
         assert!(params[0].has_default);
@@ -614,7 +628,7 @@ mod tests {
 
     #[test]
     fn braced_single_element_no_default() {
-        let params = parse_param_list("{a}");
+        let params = parse_param_list("{a}", WordValueRules::TCL);
         assert_eq!(params.len(), 1);
         assert_eq!(params[0].name, "a");
         assert!(!params[0].has_default);
@@ -623,7 +637,7 @@ mod tests {
 
     #[test]
     fn mixed_bare_and_braced_default() {
-        let params = parse_param_list("a {b 1} c");
+        let params = parse_param_list("a {b 1} c", WordValueRules::TCL);
         assert_eq!(params.len(), 3);
         assert_eq!(params[0].name, "a");
         assert!(!params[0].has_default);
@@ -636,7 +650,7 @@ mod tests {
 
     #[test]
     fn whitespace_padding_tolerated() {
-        let params = parse_param_list("  a   b  ");
+        let params = parse_param_list("  a   b  ", WordValueRules::TCL);
         assert_eq!(params.len(), 2);
         assert_eq!(params[0].name, "a");
         assert_eq!(params[1].name, "b");
@@ -648,13 +662,13 @@ mod tests {
         // Tcl list parsing treats the backslash-newline as element-separating
         // whitespace, so the last name on the wrapped line is `ddrtol`, not
         // `ddrtol\`.
-        let params = parse_param_list("a b ddrtol\\\n            ddatol c");
+        let params = parse_param_list("a b ddrtol\\\n            ddatol c", WordValueRules::TCL);
         let names: Vec<&str> = params.iter().map(|p| p.name.as_str()).collect();
         assert_eq!(names, vec!["a", "b", "ddrtol", "ddatol", "c"]);
         assert!(params.iter().all(|p| !p.name.contains('\\')));
 
         // `\r\n` line endings behave identically.
-        let crlf = parse_param_list("x\\\r\ny");
+        let crlf = parse_param_list("x\\\r\ny", WordValueRules::TCL);
         let crlf_names: Vec<&str> = crlf.iter().map(|p| p.name.as_str()).collect();
         assert_eq!(crlf_names, vec!["x", "y"]);
     }
@@ -665,7 +679,7 @@ mod tests {
         // Tcl then reads as a two-field spec: name `a`, default `b`. Verified
         // against tclsh: `proc p {a\ b c}` → `info args` = `a c`, and
         // `info default p a d` sets d = `b`.
-        let params = parse_param_list("a\\ b c");
+        let params = parse_param_list("a\\ b c", WordValueRules::TCL);
         assert_eq!(params.len(), 2);
         assert_eq!(params[0].name, "a");
         assert!(params[0].has_default);
@@ -674,7 +688,7 @@ mod tests {
         assert!(!params[1].has_default);
         // An escaped tab behaves the same way (the tab is a field separator
         // inside the spec).
-        let tabbed = parse_param_list("a\\tb");
+        let tabbed = parse_param_list("a\\tb", WordValueRules::TCL);
         assert_eq!(tabbed.len(), 1);
         assert_eq!(tabbed[0].name, "a");
         assert_eq!(tabbed[0].default_value.as_deref(), Some("b"));
@@ -686,7 +700,7 @@ mod tests {
         // single element `a b`, i.e. a parameter literally named `a b` with no
         // default. Verified against tclsh: `proc q {{a\ b} c}` → `info args`
         // = `{a b} c`.
-        let params = parse_param_list("{a\\ b} c");
+        let params = parse_param_list("{a\\ b} c", WordValueRules::TCL);
         assert_eq!(params.len(), 2);
         assert_eq!(params[0].name, "a b");
         assert!(!params[0].has_default);
@@ -696,20 +710,20 @@ mod tests {
     #[test]
     fn unbalanced_braces_fall_back_gracefully() {
         // A half-typed list must not panic and should still recover params.
-        let params = parse_param_list("a {b");
+        let params = parse_param_list("a {b", WordValueRules::TCL);
         let names: Vec<&str> = params.iter().map(|p| p.name.as_str()).collect();
         assert_eq!(names, vec!["a", "b"]);
     }
 
     #[test]
     fn strict_parser_rejects_runtime_invalid_names_but_lenient_parser_recovers() {
-        let strict = parse_param_list_strict("a {b::c default}");
+        let strict = parse_param_list_strict("a {b::c default}", WordValueRules::TCL);
         assert!(matches!(
             strict,
             Err(FormalParameterError::NotSimpleName { ref name }) if name == "b::c"
         ));
 
-        let lenient = parse_param_list("a {b::c default}");
+        let lenient = parse_param_list("a {b::c default}", WordValueRules::TCL);
         assert_eq!(
             lenient
                 .iter()
@@ -744,7 +758,10 @@ mod tests {
         // a @1..2 (the `\ b` default is excluded), c @6..7.
         assert_eq!(spans, vec![Span::new(1, 2), Span::new(6, 7)]);
         // The span count and order stay aligned with the parsed params.
-        assert_eq!(spans.len(), parse_param_list("a\\ b c").len());
+        assert_eq!(
+            spans.len(),
+            parse_param_list("a\\ b c", WordValueRules::TCL).len()
+        );
 
         // Braced escaped-whitespace spec: the whole `a\ b` is the name (decoded
         // `a b`), so the span covers it verbatim.
@@ -752,12 +769,15 @@ mod tests {
         let bspans = param_name_spans(braced, 0);
         // `a\ b` @2..6, c @8..9.
         assert_eq!(bspans, vec![Span::new(2, 6), Span::new(8, 9)]);
-        assert_eq!(bspans.len(), parse_param_list("{a\\ b} c").len());
+        assert_eq!(
+            bspans.len(),
+            parse_param_list("{a\\ b} c", WordValueRules::TCL).len()
+        );
     }
 
     #[test]
     fn default_value_preserves_internal_whitespace() {
-        let params = parse_param_list("{name default with spaces}");
+        let params = parse_param_list("{name default with spaces}", WordValueRules::TCL);
         assert_eq!(params.len(), 1);
         assert_eq!(
             params[0].default_value.as_deref(),
@@ -767,8 +787,8 @@ mod tests {
 
     #[test]
     fn proc_formal_binding_uses_defaults_and_checks_arity() {
-        let params = parse_param_list("required {optional {two words}}");
-        let bound = bind_proc_formals(&params, &[Some("value".to_owned())]);
+        let params = parse_param_list("required {optional {two words}}", WordValueRules::TCL);
+        let bound = bind_proc_formals(&params, &[Some("value".to_owned())], WordValueRules::TCL);
         assert_eq!(
             bound,
             Some(vec![
@@ -776,7 +796,7 @@ mod tests {
                 ("optional".to_owned(), Some("two words".to_owned())),
             ])
         );
-        assert_eq!(bind_proc_formals(&params, &[]), None);
+        assert_eq!(bind_proc_formals(&params, &[], WordValueRules::TCL), None);
         assert_eq!(
             bind_proc_formals(
                 &params,
@@ -785,14 +805,56 @@ mod tests {
                     Some("two".to_owned()),
                     Some("three".to_owned()),
                 ],
+                WordValueRules::TCL,
             ),
             None
         );
     }
 
+    /// The dialect decides how a parameter list divides, and the two answers
+    /// are visibly different for the *same* text.
+    ///
+    /// `{a b\<newline>c}` is a proc's parameter word. Every Tcl core build
+    /// folds the `\<newline>` to a space *before* the word is list-parsed
+    /// (`BraceBackslashNewline::Folds`), so it declares three required
+    /// parameters. `JimTcl` keeps the bytes (`Literal`, to preserve line
+    /// numbers), so the list splits into two elements and the second is a
+    /// `{name default}` spec — two parameters, the second optional. Parsing a
+    /// Jim document under the default grammar would silently report the wrong
+    /// arity, which is the drift this parameter exists to stop.
+    ///
+    /// The rules come from the compiled catalogue rather than the constants,
+    /// so this fails if the grammar's `brace_backslash_newline` axis moves.
+    #[test]
+    fn a_braced_continuation_splits_per_the_documents_brace_rule() {
+        use tcl_dialect::model::{Family, grammar};
+
+        let param_word = "a b\\\nc";
+
+        let tcl = WordValueRules::from_grammar(&grammar(Family::Tcl, Family::Tcl.releases()[0]));
+        let folded = parse_param_list(param_word, tcl);
+        assert_eq!(
+            folded.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(),
+            ["a", "b", "c"],
+            "a folding dialect declares three required parameters"
+        );
+        assert!(folded.iter().all(|p| !p.has_default));
+
+        let jim = WordValueRules::from_grammar(&grammar(Family::Jim, Family::Jim.releases()[0]));
+        assert_ne!(jim.brace, tcl.brace, "the catalogue axes must differ");
+        let literal = parse_param_list(param_word, jim);
+        assert_eq!(
+            literal.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(),
+            ["a", "b"],
+            "a literal-continuation dialect declares two parameters"
+        );
+        assert_eq!(literal[1].default_value.as_deref(), Some("c"));
+        assert!(literal[1].has_default);
+    }
+
     #[test]
     fn proc_formal_binding_packs_zero_one_and_many_args_as_a_tcl_list() {
-        let params = parse_param_list("head args");
+        let params = parse_param_list("head args", WordValueRules::TCL);
         for (tail, expected) in [
             (Vec::<&str>::new(), Vec::<&str>::new()),
             (vec!["one"], vec!["one"]),
@@ -803,13 +865,13 @@ mod tests {
         ] {
             let mut actuals = vec![Some("head".to_owned())];
             actuals.extend(tail.into_iter().map(|value| Some(value.to_owned())));
-            let Some(bound) = bind_proc_formals(&params, &actuals) else {
+            let Some(bound) = bind_proc_formals(&params, &actuals, WordValueRules::TCL) else {
                 panic!("valid variadic call did not bind");
             };
             let Some(Some(packed)) = bound.last().map(|(_, value)| value) else {
                 panic!("args binding was not a known Tcl list");
             };
-            let Ok(elements) = split_list(packed) else {
+            let Ok(elements) = WordValueRules::TCL.split_list(packed) else {
                 panic!("args binding was not list-parseable");
             };
             assert_eq!(elements, expected);
@@ -818,9 +880,13 @@ mod tests {
 
     #[test]
     fn proc_formal_binding_preserves_unknown_variadic_values() {
-        let params = parse_param_list("args");
+        let params = parse_param_list("args", WordValueRules::TCL);
         assert_eq!(
-            bind_proc_formals(&params, &[Some("known".to_owned()), None]),
+            bind_proc_formals(
+                &params,
+                &[Some("known".to_owned()), None],
+                WordValueRules::TCL
+            ),
             Some(vec![("args".to_owned(), None)])
         );
     }
@@ -870,7 +936,10 @@ mod tests {
         let spans = param_name_spans_for_token(source, params_tok);
         let names: Vec<&str> = spans.iter().map(|s| &source[s.as_range()]).collect();
         assert_eq!(names, vec!["f", "z", "xs"]);
-        assert_eq!(spans.len(), parse_param_list("f z xs").len());
+        assert_eq!(
+            spans.len(),
+            parse_param_list("f z xs", WordValueRules::TCL).len()
+        );
     }
 
     #[test]
@@ -923,7 +992,7 @@ mod tests {
         let spans = param_name_spans_for_token(source, params_tok);
         let names: Vec<&str> = spans.iter().map(|s| &source[s.as_range()]).collect();
         assert_eq!(names, vec!["a", "b", "c"]);
-        let params = parse_param_list("a {b 1} c");
+        let params = parse_param_list("a {b 1} c", WordValueRules::TCL);
         assert_eq!(spans.len(), params.len());
         for (span, p) in spans.iter().zip(params.iter()) {
             assert_eq!(&source[span.as_range()], p.name);

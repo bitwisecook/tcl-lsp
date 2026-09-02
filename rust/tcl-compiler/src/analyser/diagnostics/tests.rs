@@ -1339,47 +1339,99 @@ fn first_nested_expr_finds_bracketed_expr() {
 
 #[test]
 fn body_references_param_bare_dollar() {
-    assert!(body_references_param("set y $x", "x"));
-    assert!(body_references_param("return [expr {$a + $b}]", "a"));
-    assert!(body_references_param("return [expr {$a + $b}]", "b"));
-    assert!(body_references_param("puts [list $val 1]", "val"));
+    assert!(body_references_param(
+        "set y $x",
+        "x",
+        tcl_lexer::LexerConfig::default()
+    ));
+    assert!(body_references_param(
+        "return [expr {$a + $b}]",
+        "a",
+        tcl_lexer::LexerConfig::default()
+    ));
+    assert!(body_references_param(
+        "return [expr {$a + $b}]",
+        "b",
+        tcl_lexer::LexerConfig::default()
+    ));
+    assert!(body_references_param(
+        "puts [list $val 1]",
+        "val",
+        tcl_lexer::LexerConfig::default()
+    ));
 }
 
 #[test]
 fn body_references_param_braced_dollar() {
-    assert!(body_references_param("set y ${x}", "x"));
-    assert!(body_references_param("puts \"got ${val}!\"", "val"));
+    assert!(body_references_param(
+        "set y ${x}",
+        "x",
+        tcl_lexer::LexerConfig::default()
+    ));
+    assert!(body_references_param(
+        "puts \"got ${val}!\"",
+        "val",
+        tcl_lexer::LexerConfig::default()
+    ));
 }
 
 #[test]
 fn body_references_param_no_match_for_substring_only() {
     // ``$abc`` must not match ``ab`` (boundary check).
-    assert!(!body_references_param("set y $abc", "ab"));
-    assert!(!body_references_param("puts $foobar", "foo"));
+    assert!(!body_references_param(
+        "set y $abc",
+        "ab",
+        tcl_lexer::LexerConfig::default()
+    ));
+    assert!(!body_references_param(
+        "puts $foobar",
+        "foo",
+        tcl_lexer::LexerConfig::default()
+    ));
 }
 
 #[test]
 fn body_references_param_skips_backslash_escape() {
     // ``\$x`` is a literal dollar — not a substitution.
-    assert!(!body_references_param("puts \\$x", "x"));
+    assert!(!body_references_param(
+        "puts \\$x",
+        "x",
+        tcl_lexer::LexerConfig::default()
+    ));
 }
 
 #[test]
 fn body_references_param_handles_multiple_uses() {
-    assert!(body_references_param("set y $x; set z $x", "x"));
+    assert!(body_references_param(
+        "set y $x; set z $x",
+        "x",
+        tcl_lexer::LexerConfig::default()
+    ));
 }
 
 #[test]
 fn body_references_param_misses_when_unused() {
-    assert!(!body_references_param("puts hello", "x"));
-    assert!(!body_references_param("return 42", "y"));
+    assert!(!body_references_param(
+        "puts hello",
+        "x",
+        tcl_lexer::LexerConfig::default()
+    ));
+    assert!(!body_references_param(
+        "return 42",
+        "y",
+        tcl_lexer::LexerConfig::default()
+    ));
 }
 
 #[test]
 fn body_references_param_braced_with_punct_after() {
     // ``${x}foo`` is a valid substitution — boundary not
     // required inside braces.
-    assert!(body_references_param("set y ${x}foo", "x"));
+    assert!(body_references_param(
+        "set y ${x}foo",
+        "x",
+        tcl_lexer::LexerConfig::default()
+    ));
 }
 
 #[test]
@@ -1389,7 +1441,11 @@ fn body_references_param_namespace_qualified() {
     // OK — both are part of the qualified name; the W214
     // emitter passes the bare param so this is a non-issue
     // in practice.  Test pins the boundary semantics.
-    assert!(!body_references_param("set y $ns::var", "ns"));
+    assert!(!body_references_param(
+        "set y $ns::var",
+        "ns",
+        tcl_lexer::LexerConfig::default()
+    ));
 }
 
 fn diag(code: DiagCode, span: Span, msg: &str) -> Diagnostic {

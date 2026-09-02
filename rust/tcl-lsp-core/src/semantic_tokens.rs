@@ -1257,7 +1257,9 @@ fn irules_top_level_declaration_heads(
     for seg in segment_commands_with_offset_and_config(
         source,
         0,
-        tcl_lexer::LexerConfig::for_file_grammar(crate::environment_for_dialect("f5-irules").grammar()),
+        tcl_lexer::LexerConfig::for_file_grammar(
+            crate::environment_for_dialect("f5-irules").grammar(),
+        ),
     ) {
         let Some(head_token) = seg.argv.first() else {
             continue;

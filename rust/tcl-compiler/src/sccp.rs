@@ -1330,8 +1330,16 @@ pub fn evaluate_def_with_folds<S: std::hash::BuildHasher>(
             // (`[list a b c]`, `[format …]`) that folds to a
             // constant list. Multi-variable and multi-list
             // foreaches are left as Overdefined.
-            let elements = extract_foreach_elements(&args[0])
-                .or_else(|| resolve_foreach_list_via_lattice(&args[0], &stmt_ssa.uses, values, ssa))
+            let elements = extract_foreach_elements(&args[0], policy.word_rules)
+                .or_else(|| {
+                    resolve_foreach_list_via_lattice(
+                        &args[0],
+                        &stmt_ssa.uses,
+                        values,
+                        ssa,
+                        policy.word_rules,
+                    )
+                })
                 .or_else(|| {
                     // `foreach v [list a b c]` — fold the command substitution
                     // to a constant list string, then split into elements.
@@ -1341,7 +1349,7 @@ pub fn evaluate_def_with_folds<S: std::hash::BuildHasher>(
                         && let Some(LatticeValue::Const(ConstValue::String(s))) =
                             try_fold_cmd_subst(arg, &stmt_ssa.uses, values, ssa, policy, folds)
                     {
-                        return Some(split_list_values(&s));
+                        return Some(split_list_values(&s, policy.word_rules));
                     }
                     None
                 });
@@ -1628,7 +1636,10 @@ pub(crate) fn tcl_value_to_const(v: TclValue) -> ConstValue {
 ///   callers fall through to
 ///   [`resolve_foreach_list_via_lattice`].
 #[must_use]
-pub fn extract_foreach_elements(list_text: &str) -> Option<Vec<String>> {
+pub fn extract_foreach_elements(
+    list_text: &str,
+    rules: tcl_syntax::word_rules::WordValueRules,
+) -> Option<Vec<String>> {
     let stripped = list_text.trim();
     if stripped.is_empty() {
         return Some(Vec::new());
@@ -1639,7 +1650,7 @@ pub fn extract_foreach_elements(list_text: &str) -> Option<Vec<String>> {
     // List-aware split (Tcl_SplitList semantics): a nested-brace list like
     // `a {b c} d` yields the three elements `a`, `b c`, `d` — not the four
     // whitespace runs `a`, `{b`, `c}`, `d` a naive split would produce.
-    Some(split_list_values(stripped))
+    Some(split_list_values(stripped, rules))
 }
 
 /// Resolve `$var` / `${var}` to a `Vec<String>` of list elements
@@ -1652,6 +1663,7 @@ pub fn resolve_foreach_list_via_lattice<S1, S2>(
     uses: &HashMap<Symbol, crate::ssa::Version, S1>,
     values: &HashMap<ValueKey, LatticeValue, S2>,
     ssa: &SsaFunction,
+    rules: tcl_syntax::word_rules::WordValueRules,
 ) -> Option<Vec<String>>
 where
     S1: std::hash::BuildHasher,
@@ -1680,7 +1692,7 @@ where
         // The lattice value is the variable's runtime string; splitting it as a
         // `foreach` list uses Tcl list semantics (nested-brace aware), not a
         // whitespace split.
-        LatticeValue::Const(ConstValue::String(s)) => Some(split_list_values(s)),
+        LatticeValue::Const(ConstValue::String(s)) => Some(split_list_values(s, rules)),
         _ => None,
     }
 }
@@ -1848,7 +1860,7 @@ fn try_fold_cmd_subst<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
 
     // `[list ...]` — reuse the codegen fold.
     if trusted("list")
-        && let Some(folded) = crate::codegen::helpers::fold_list_cmd(value)
+        && let Some(folded) = crate::codegen::helpers::fold_list_cmd(value, policy.word_rules)
     {
         return Some(LatticeValue::Const(ConstValue::String(folded)));
     }
@@ -1873,11 +1885,13 @@ fn try_fold_cmd_subst<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         // `[...]` command substitution, so it still carries its own
         // `{…}`/`"…"` wrapping that `extract_foreach_elements` no longer
         // strips — peel exactly one level before splitting.
-        if let Some(elements) = extract_foreach_elements(strip_one_level(arg)) {
+        if let Some(elements) = extract_foreach_elements(strip_one_level(arg), policy.word_rules) {
             let n = i64::try_from(elements.len()).unwrap_or(i64::MAX);
             return Some(LatticeValue::Const(ConstValue::Int(n)));
         }
-        if let Some(items) = resolve_foreach_list_via_lattice(arg, uses, values, ssa) {
+        if let Some(items) =
+            resolve_foreach_list_via_lattice(arg, uses, values, ssa, policy.word_rules)
+        {
             let n = i64::try_from(items.len()).unwrap_or(i64::MAX);
             return Some(LatticeValue::Const(ConstValue::Int(n)));
         }
@@ -2869,15 +2883,21 @@ mod tests {
         // the shape `foreach v {a b c}`'s `list_arg` is built in: the word's
         // own `{…}` is gone, leaving plain whitespace-separated text.
         assert_eq!(
-            extract_foreach_elements("a b c"),
+            extract_foreach_elements("a b c", tcl_syntax::word_rules::WordValueRules::TCL),
             Some(vec!["a".into(), "b".into(), "c".into()])
         );
     }
 
     #[test]
     fn extract_foreach_elements_rejects_substitutions() {
-        assert_eq!(extract_foreach_elements("$lst"), None);
-        assert_eq!(extract_foreach_elements("[list a b c]"), None);
+        assert_eq!(
+            extract_foreach_elements("$lst", tcl_syntax::word_rules::WordValueRules::TCL),
+            None
+        );
+        assert_eq!(
+            extract_foreach_elements("[list a b c]", tcl_syntax::word_rules::WordValueRules::TCL),
+            None
+        );
     }
 
     #[test]
@@ -2886,20 +2906,23 @@ mod tests {
         // four whitespace runs `a`, `{b`, `c}`, `d`. A naive `split_ascii_whitespace`
         // corrupted the CONSTSET; the list-aware split fixes it.
         assert_eq!(
-            extract_foreach_elements("a {b c} d"),
+            extract_foreach_elements("a {b c} d", tcl_syntax::word_rules::WordValueRules::TCL),
             Some(vec!["a".into(), "b c".into(), "d".into()])
         );
         // Backslash-escaped whitespace groups an element too: `a\ b c` is two
         // elements `a b` and `c`.
         assert_eq!(
-            extract_foreach_elements("a\\ b c"),
+            extract_foreach_elements("a\\ b c", tcl_syntax::word_rules::WordValueRules::TCL),
             Some(vec!["a b".into(), "c".into()])
         );
     }
 
     #[test]
     fn extract_foreach_elements_empty_list_returns_empty() {
-        assert_eq!(extract_foreach_elements(""), Some(Vec::new()));
+        assert_eq!(
+            extract_foreach_elements("", tcl_syntax::word_rules::WordValueRules::TCL),
+            Some(Vec::new())
+        );
     }
 
     // Regression tests for issue #1433: `list_text` already has its outer
@@ -2915,7 +2938,7 @@ mod tests {
         // `a b c`, not the three whitespace-separated words `a`, `b`, `c`
         // a second brace-strip-then-split would wrongly produce.
         assert_eq!(
-            extract_foreach_elements("{a b c}"),
+            extract_foreach_elements("{a b c}", tcl_syntax::word_rules::WordValueRules::TCL),
             Some(vec!["a b c".into()])
         );
     }
@@ -2927,7 +2950,7 @@ mod tests {
         // yielding the corrupted split `a`, `b}`, `{c`, `d` (lenient split of
         // `a b} {c d`). The correct split is the two nested-list elements.
         assert_eq!(
-            extract_foreach_elements("{a b} {c d}"),
+            extract_foreach_elements("{a b} {c d}", tcl_syntax::word_rules::WordValueRules::TCL),
             Some(vec!["a b".into(), "c d".into()])
         );
     }
@@ -2938,7 +2961,7 @@ mod tests {
         // `"…"` delimiters the same way it strips `{…}`, so `list_text` is
         // plain `a b c` — no quote handling is needed (or wanted) here.
         assert_eq!(
-            extract_foreach_elements("a b c"),
+            extract_foreach_elements("a b c", tcl_syntax::word_rules::WordValueRules::TCL),
             Some(vec!["a".into(), "b".into(), "c".into()])
         );
     }

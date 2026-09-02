@@ -463,7 +463,14 @@ fn own_write_targets(stmt: &Statement) -> Vec<String> {
         _ => {}
     }
     for text in stmt_embedded_texts(stmt) {
-        out.extend(super::CfgBuilder::builtin_write_defs_from_text(text));
+        // dialect-drift-ok: reached from `prepare_cfg_context(module)`, whose
+        // public signature carries no config; the write set it feeds is a
+        // widening (a name it misses only leaves a call less invalidating),
+        // and the config-carrying scan on `CfgBuilder` covers the same texts.
+        out.extend(super::CfgBuilder::builtin_write_defs_from_text(
+            text,
+            tcl_lexer::LexerConfig::default(), // dialect-drift-ok: see above
+        ));
     }
     out
 }

@@ -155,7 +155,15 @@ impl ConstSubstCtx<'_> {
         use tcl_lexer::{Lexer, SourceMap, TokenType};
 
         let sm = SourceMap::new(inner);
-        let tokens = Lexer::new(inner).tokenise_all().ok()?;
+        // The document's grammar, from the dialect-selected registry's own
+        // profile: a fold that re-splits `[…]` under the wrong word grammar
+        // folds a different command's arguments.
+        let tokens = Lexer::with_config(
+            inner,
+            tcl_lexer::LexerConfig::for_profile(self.registry.profile()),
+        )
+        .tokenise_all()
+        .ok()?;
         let mut words: Vec<String> = Vec::new();
         let mut prev_is_sep = true;
         for tok in &tokens {
