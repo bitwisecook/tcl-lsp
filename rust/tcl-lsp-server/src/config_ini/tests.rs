@@ -271,6 +271,27 @@ fn features_shimmer_xc_and_line_length() {
 }
 
 #[test]
+fn signature_help_disabled_commands_section() {
+    let snake = settings_from_ini(
+        "[signatureHelp]\ndisabled_commands = set, incr\n",
+        Layer::Global,
+    );
+    assert_eq!(
+        snake["signatureHelp"]["disabledCommands"],
+        json!(["set", "incr"])
+    );
+
+    let camel = settings_from_ini(
+        "[signatureHelp]\ndisabledCommands = set format\n",
+        Layer::Project,
+    );
+    assert_eq!(
+        camel["signatureHelp"]["disabledCommands"],
+        json!(["set", "format"])
+    );
+}
+
+#[test]
 fn formatting_section_maps_all_keys() {
     // Every `[formatting]` key maps to its camelCase editor key with the right
     // value type.

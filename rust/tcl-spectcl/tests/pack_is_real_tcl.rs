@@ -40,11 +40,19 @@
 
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Command, Output, Stdio};
+
+use tcl_dialect::TclVersion;
+use tcl_test_support::{locate_tclsh, reference_patchlevel};
+
+const REQUIRE_VAR: &str = "TCL_REQUIRE_SPECTCL_COMPAT";
+const COMPLETE_SENTINEL: &str = "__TCL_LSP_SPECTCL_ORACLE_COMPLETE__";
 
 /// Absorb the vocabulary, recurse into the bodies the loader executes, and
 /// report only what Tcl could not parse.
 const DRIVER: &str = r#"
+fconfigure stdout -translation lf
+
 proc unknown {args} { return "" }
 
 set failures {}
@@ -76,6 +84,26 @@ foreach path $argv {
 }
 "#;
 
+fn protocol_error(output: &Output) -> Option<String> {
+    if !output.status.success() {
+        return Some(format!("interpreter exited with {}", output.status));
+    }
+    if !output.stderr.is_empty() {
+        return Some(format!(
+            "interpreter wrote unexpected stderr:\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    let expected = format!("{COMPLETE_SENTINEL}\n");
+    if output.stdout != expected.as_bytes() {
+        return Some(format!(
+            "driver did not produce its exact completion sentinel; stdout was:\n{}",
+            String::from_utf8_lossy(&output.stdout)
+        ));
+    }
+    None
+}
+
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -84,36 +112,51 @@ fn repo_root() -> PathBuf {
         .to_path_buf()
 }
 
-/// The first interpreter on `PATH` that runs and reports a usable release.
-///
-/// The pack syntax is plain Tcl, so any modern interpreter is a fair judge;
-/// 9.x is preferred only because it is what the packs target. Follows the
-/// house pattern of `tcl-registry`'s dialect oracle: probe, do not assume —
-/// the `rust-tests` CI job installs Rust and nextest, not Tcl.
-fn find_tclsh() -> Option<&'static str> {
-    ["tclsh9.1", "tclsh9.0", "tclsh8.6", "tclsh"]
-        .into_iter()
-        .find(|candidate| {
-            Command::new(candidate)
-                .arg("-")
-                .stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status()
-                .is_ok_and(|status| status.success())
-        })
-}
-
 #[test]
 fn every_shipped_pack_is_a_tcl_script_a_real_tclsh_accepts() {
-    let Some(tclsh) = find_tclsh() else {
+    let tclsh = locate_tclsh(TclVersion::V9_0)
+        .unwrap_or_else(|error| panic!("could not resolve the exact Tcl 9.0 oracle: {error}"));
+    let Some(tclsh) = tclsh else {
+        assert!(
+            std::env::var_os(REQUIRE_VAR).is_none(),
+            "{REQUIRE_VAR}=1 requires tclsh9.0 at the pinned Tcl {} patchlevel",
+            reference_patchlevel(TclVersion::V9_0)
+        );
         eprintln!(
-            "skipping the real-tclsh pack gate: no working tclsh on PATH. \
-             `make ensure-test-deps` installs the interpreters; CI runs this \
-             gate on the jobs that have them."
+            "skipping the real-tclsh pack check: no exact Tcl {} tclsh9.0 on PATH. \
+             `make test-spectcl-compat` installs and requires the pinned oracle.",
+            reference_patchlevel(TclVersion::V9_0)
         );
         return;
     };
+
+    // `tclsh -` reports a top-level error on stderr but still exits zero. Keep
+    // that counter-intuitive process contract pinned here: checking status
+    // alone would let a broken driver pass with empty stdout.
+    let mut broken = Command::new(&tclsh.path)
+        .arg("-")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("the probed tclsh spawns for the protocol regression");
+    broken
+        .stdin
+        .take()
+        .expect("stdin")
+        .write_all(b"error {intentional driver failure}\n")
+        .expect("write the broken driver");
+    let broken = broken
+        .wait_with_output()
+        .expect("the broken driver completes");
+    assert!(
+        broken.status.success(),
+        "the regression depends on Tcl's stdin driver returning status zero"
+    );
+    assert!(
+        protocol_error(&broken).is_some(),
+        "a status-zero driver failure without the completion sentinel must fail closed"
+    );
 
     let root = repo_root();
     let packs = tcl_spectcl::golden::shipped_packs(&root);
@@ -122,7 +165,7 @@ fn every_shipped_pack_is_a_tcl_script_a_real_tclsh_accepts() {
         "the inventory must cover the shipped packs"
     );
 
-    let mut child = Command::new(tclsh)
+    let mut child = Command::new(&tclsh.path)
         .arg("-")
         .args(packs.iter().map(|p| p.as_os_str()))
         .stdin(Stdio::piped())
@@ -130,17 +173,18 @@ fn every_shipped_pack_is_a_tcl_script_a_real_tclsh_accepts() {
         .stderr(Stdio::piped())
         .spawn()
         .expect("the probed tclsh spawns");
-    child
-        .stdin
-        .take()
-        .expect("stdin")
+    let mut stdin = child.stdin.take().expect("stdin");
+    stdin
         .write_all(DRIVER.as_bytes())
         .expect("write the driver");
+    writeln!(stdin, "puts {COMPLETE_SENTINEL}").expect("write the completion sentinel");
+    drop(stdin);
     let out = child.wait_with_output().expect("the probed tclsh runs");
-    let failures = String::from_utf8_lossy(&out.stdout);
-    assert!(
-        failures.trim().is_empty(),
-        "{tclsh} refuses to source these packs:\n{failures}\n{}",
-        String::from_utf8_lossy(&out.stderr)
-    );
+    if let Some(error) = protocol_error(&out) {
+        panic!(
+            "{} (Tcl {}) did not complete the pack parse oracle: {error}",
+            tclsh.path.display(),
+            tclsh.patchlevel
+        );
+    }
 }

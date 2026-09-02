@@ -40,10 +40,11 @@ pub fn run(check: bool) -> ExitCode {
     let root = crate::util::repo_root();
     let packs = golden::shipped_packs(&root);
     if packs.len() < 24 {
+        let pack_dirs: Vec<_> = golden::shipped_pack_dirs().collect();
         eprintln!(
             "pack-goldens: only {} shipped packs found under {:?} — the scan has gone blind",
             packs.len(),
-            golden::PACK_DIRS
+            pack_dirs
         );
         return ExitCode::FAILURE;
     }

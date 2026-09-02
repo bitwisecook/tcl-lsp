@@ -16,7 +16,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Variable-name resolution on the compiled path — issues #1602, #1616, #1578.
+//! Variable-name resolution on the compiled path — issues #1602, #1616, #1578,
+//! #1745.
 //!
 //! One rule underlies the first two: **a variable name is the name word's
 //! substituted *value*, resolved exactly once.** The compiled path used to get
@@ -445,6 +446,98 @@ puts [p]
 "#,
         want_8x: "{z1 y}:LOCAL",
         want_90: "{z1 y}:LOCAL",
+    },
+    // -- #1729: array element access keeps `(base, key)` as a pair. --
+    Vector {
+        name: "array commands preserve bases containing parentheses",
+        script: r#"foreach name [list {z(b} {z)b} {z(b)c}] {
+    array set $name {a 1 b 2}
+    puts "$name get=[array get $name] names=[array names $name] size=[array size $name]"
+    array unset $name a
+    puts "$name after=[array get $name]"
+}
+set r(\$i) 2
+puts "literal-key=[lindex [array names r] 0]"
+"#,
+        want_8x: "z(b get=a 1 b 2 names=a b size=2\n\
+                  z(b after=b 2\n\
+                  z)b get=a 1 b 2 names=a b size=2\n\
+                  z)b after=b 2\n\
+                  z(b)c get=a 1 b 2 names=a b size=2\n\
+                  z(b)c after=b 2\n\
+                  literal-key=$i",
+        want_90: "z(b get=a 1 b 2 names=a b size=2\n\
+                  z(b after=b 2\n\
+                  z)b get=a 1 b 2 names=a b size=2\n\
+                  z)b after=b 2\n\
+                  z(b)c get=a 1 b 2 names=a b size=2\n\
+                  z(b)c after=b 2\n\
+                  literal-key=$i",
+    },
+    // -- #1745: explicit-frame names use the target frame's namespace. --
+    Vector {
+        name: "relative-qualified upvar targets use the caller frame namespace",
+        script: r#"namespace eval A {
+    namespace eval rel { variable x A; variable arr; set arr(k) AK }
+    proc outer {} { ::B::inner }
+}
+namespace eval B {
+    namespace eval rel { variable x B; variable arr; set arr(k) BK }
+    proc inner {} {
+        upvar 1 rel::x scalar rel::arr(k) element
+        set scalar AS
+        set element AE
+        list $scalar $element
+    }
+}
+puts [list [::A::outer] $::A::rel::x $::A::rel::arr(k) $::B::rel::x $::B::rel::arr(k)]
+namespace eval C { proc middle {} { ::B::deep } }
+namespace eval A { proc deep_outer {} { ::C::middle } }
+namespace eval B { proc deep {} { upvar 2 rel::x target; append target -DEEP } }
+puts [list [::A::deep_outer] $::A::rel::x $::B::rel::x]
+namespace eval A2 { proc outer {} { ::B2::inner } }
+namespace eval B2 {
+    namespace eval rel { variable x B }
+    proc inner {} { upvar 1 rel::x y }
+}
+puts "missing=[catch {::A2::outer} message]:$message:$::errorCode"
+"#,
+        // Tcl 9.0.4 exact oracle; this frame rule is release-invariant.
+        want_8x: "{AS AE} AS AE B BK\n\
+                  AS-DEEP AS-DEEP B\n\
+                  missing=1:can't access \"rel::x\": parent namespace doesn't exist:TCL LOOKUP VARNAME rel::x",
+        want_90: "{AS AE} AS AE B BK\n\
+                  AS-DEEP AS-DEEP B\n\
+                  missing=1:can't access \"rel::x\": parent namespace doesn't exist:TCL LOOKUP VARNAME rel::x",
+    },
+    // -- #1582 / #1588: `upvar` resolves semantic homes before shape checks. --
+    Vector {
+        name: "upvar validates namespace targets and rejects inverted proc links",
+        script: r#"namespace eval x { variable ok READY }
+puts "control=[catch {upvar #0 ::x::ok top} m opts]:[set top]"
+proc p {} {
+    set proc_local 1
+    puts "inverted=[catch {upvar 0 proc_local ::x::link(k)} m]:$m:$::errorCode"
+}
+p
+puts "target=[catch {upvar #0 ::missing::x local} m]:$m:$::errorCode"
+proc compiled_target {} { upvar #0 ::missing::compiled local }
+puts "compiled-target=[catch {compiled_target} m]:$m:$::errorCode"
+puts "local=[catch {upvar #0 x ::missing::local} m]:$m:$::errorCode"
+puts "element=[catch {upvar #0 x local(k)} m]:$m:$::errorCode"
+"#,
+        want_8x: "control=0:READY\n\
+                  inverted=1:bad variable name \"::x::link(k)\": can't create namespace variable that refers to procedure variable:TCL UPVAR INVERTED\n\
+                  target=1:can't access \"::missing::x\": parent namespace doesn't exist:TCL LOOKUP VARNAME ::missing::x\n\
+                  compiled-target=1:can't access \"::missing::compiled\": parent namespace doesn't exist:TCL LOOKUP VARNAME ::missing::compiled\n\
+                  local=1:can't create \"::missing::local\": parent namespace doesn't exist:TCL LOOKUP VARNAME ::missing::local\n\
+                  element=1:bad variable name \"local(k)\": can't create a scalar variable that looks like an array element:TCL UPVAR LOCAL_ELEMENT",
+        want_90: "control=0:READY\n\
+                  inverted=1:bad variable name \"::x::link(k)\": can't create namespace variable that refers to procedure variable:TCL UPVAR INVERTED\n\
+                  target=1:can't access \"::missing::x\": parent namespace doesn't exist:TCL LOOKUP VARNAME ::missing::x\n\
+                  compiled-target=1:can't access \"::missing::compiled\": parent namespace doesn't exist:TCL LOOKUP VARNAME ::missing::compiled\n\
+                  local=1:can't create \"::missing::local\": parent namespace doesn't exist:TCL LOOKUP VARNAME ::missing::local\n\
+                  element=1:bad variable name \"local(k)\": can't create a scalar variable that looks like an array element:TCL UPVAR LOCAL_ELEMENT",
     },
 ];
 

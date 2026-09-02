@@ -39,7 +39,7 @@ runtime-port churn.
 
 ```
 make runtime-rust-test     # cargo test  (the T1.1 leak round-trip gate)
-make runtime-rust-lint     # cargo fmt --check + clippy -D warnings
+make runtime-rust-lint     # direct cargo fmt + locked clippy gate (also in check-rust / CI)
 ```
 
 The acceptance gate is `round_trip_zero_residual`: `Tcl_NewObj` →

@@ -88,6 +88,7 @@ mod pack_goldens;
 mod registry_oracle;
 mod resolution_drift;
 mod retired_api_gate;
+mod runtime_stdlib;
 mod sslictcl_data;
 mod tcltest_sweep;
 mod tzdata_bundle;
@@ -334,6 +335,10 @@ enum Command {
         max_age_days: Option<u64>,
     },
 
+    /// Verify the embedded Tcl standard-library provenance and byte inventory.
+    #[command(name = "runtime-stdlib")]
+    RuntimeStdlib,
+
     /// Compare the iRules registry with a local BIG-IP schema/man-page
     /// extract; exact source omissions fail, newer registry entries are
     /// reported separately.
@@ -356,10 +361,19 @@ enum Command {
         /// Which backend(s) to run: `vm` | `tclsh` | `both`.
         #[arg(long, default_value = "both")]
         backend: String,
-        /// Sweep only this single stem and print its result (does not rewrite the
-        /// committed scoreboard).
+        /// Sweep only these stems and print their results (repeatable; focused
+        /// runs do not rewrite the committed scoreboard).
+        #[arg(long = "stem")]
+        stems: Vec<String>,
+        /// Restrict each selected stem to Tcltest IDs matching this Tcl glob.
+        /// Requires at least one `--stem`.
         #[arg(long)]
-        stem: Option<String>,
+        r#match: Option<String>,
+        /// Tcl source root containing `generic/`, `library/`, and `tests/`.
+        /// Defaults to the release-specific environment override, the pinned
+        /// repository tree, or a matching checkout under `$HOME/src`.
+        #[arg(long)]
+        tcl_root: Option<PathBuf>,
         /// Per-file timeout in seconds (default 120).
         #[arg(long)]
         timeout: Option<u64>,
@@ -419,6 +433,7 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::NumberDrift { check } => Ok(number_drift::run(check)),
         Command::ResolutionDrift { check } => Ok(resolution_drift::run(check)),
         Command::RetiredApiGate { check } => Ok(retired_api_gate::run(check)),
+        Command::RuntimeStdlib => runtime_stdlib::run(),
         Command::OwnerResolution => owner_resolution::run(),
         Command::PackGoldens { check } => Ok(pack_goldens::run(check)),
         Command::SslictclData {
@@ -432,10 +447,19 @@ fn main() -> anyhow::Result<ExitCode> {
         } => registry_oracle::run(&irules_root, output.as_deref(), check),
         Command::TcltestSweep {
             backend,
-            stem,
+            stems,
+            r#match,
+            tcl_root,
             timeout,
             check,
-        } => tcltest_sweep::run(backend.parse()?, stem.as_deref(), timeout, check),
+        } => tcltest_sweep::run(
+            backend.parse()?,
+            &stems,
+            r#match.as_deref(),
+            tcl_root.as_deref(),
+            timeout,
+            check,
+        ),
         Command::FpSweep {
             codes,
             corpus,

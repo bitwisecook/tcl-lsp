@@ -80,6 +80,8 @@ The current owners and their semantic axes are:
 | iRules `when EVENT` blocks | `tcl_syntax::event_handler::{event_handlers, script_commands}` for supplied script regions + `tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver`, with `tcl_irules::when_blocks` wrapper | caller-supplied `LexerConfig`; offset-keyed resolved command identity at the top-level iRules boundary |
 | Per-command knowledge | `tcl-registry::CommandSpec` and descriptors | per release/dialect |
 | Dialect / release facts | `tcl-dialect::DialectProfile` | resolved profile axis |
+| C Tcl conformance oracles | `tcl-dialect` reference-toolchain manifest + `tcl-test-support` | pinned patchlevel/source tag per release; exact interpreter/source provenance |
+| Interpreter platform bootstrap / safe scrub / shared-library suffix | `tcl-platform::bootstrap` | selected-host snapshot plus build values; invariant key, rebootstrap-clear, safe policy, and canonical Unix suffix |
 
 Run `cargo xtask owner-resolution` (included in `make rust-check`) after
 moving an owner or changing one of these axes. Do not add a new owner-shaped
@@ -185,8 +187,10 @@ To bump any of these versions, edit the pinned variables at the top of
 [`.claude/hooks/session-start.sh`](.claude/hooks/session-start.sh)
 (`WASMTIME_VERSION`, `BINARYEN_VERSION`, `WASI_SDK_VERSION`, `TCLLIB_TAG` /
 `TCLLIB_VERSION`; Rust tracks the floating `stable` channel via
-`RUST_TOOLCHAIN` and needs no version bump) and, for Tcl, the version/tag maps in
-[`.claude/skills/fetch-tcl-source/fetch_tcl_source.sh`](.claude/skills/fetch-tcl-source/fetch_tcl_source.sh).
+`RUST_TOOLCHAIN` and needs no version bump). Tcl reference patchlevels and
+source tags are owned by
+[`rust/tcl-dialect/data/reference-toolchains.tsv`](rust/tcl-dialect/data/reference-toolchains.tsv);
+the fetch skill and host installer consume that manifest.
 
 ### Version requirements — sources of truth and update checklist
 
@@ -211,18 +215,19 @@ The project uses GNU Make. Key targets:
 
 | Target             | Purpose                                  |
 |--------------------|------------------------------------------|
-| `make rust-check`  | **Rust PR gate** — `check-rust` (cargo `fmt --check` + `clippy`) + `xtask-check` (generated-file / docs-index drift gates via `cargo xtask …`). Mirrors the GitHub Actions `pr-gate` job. |
+| `make rust-check`  | **Rust PR gate** — root-workspace and standalone-runtime `fmt --check` + `clippy`, then `xtask-check` generated-file / docs-index drift gates. Mirrors the GitHub Actions `pr-gate` job. |
 | `make check-all`   | **Pre-push gate** — full lint + typecheck across **every** language: TypeScript via ESLint + Prettier + tsc, Rust via `cargo fmt --check` + `cargo clippy`, Python via `ruff` + `ty` + `pyright` (`lint-py` + `typecheck-py`). Run before every push. |
 | `make install-test-deps` | One-shot setup: install **everything** the full test suite needs (the system toolchain — all of `ensure-test-deps`). The target to run on a fresh checkout before running the heavier suites below. Same platform coverage as `ensure-test-deps`. |
 | `make ensure-test-deps` | Install the optional host toolchain (`tclsh9.0`, `node`+`npm`, `kotlinc`, Rust/rustup, Wasmtime, Binaryen, wasi-sdk, emacs, xvfb, …) on Debian/Ubuntu (apt-get), CentOS/RHEL/Rocky/Alma/Fedora (dnf or yum), or macOS (Homebrew). Idempotent. Builds Tcl 9 from `tmp/tcl9.0.4/` since most distros don't package it yet. Skip individual tools with `SKIP_TCLSH=1`, `SKIP_NODE=1`, `SKIP_KOTLINC=1`, `SKIP_RUST=1`, … Run `bash scripts/dev/ensure-test-deps.sh --check` for a non-mutating report, including whether `rustc` satisfies the workspace `rust-version`. |
 | `make ensure-rust-deps` | Install Rust/rustup + the `wasm32-wasip2` target needed by `check-rust` / the WASM build. |
-| `make check-rust`  | Rust format check + clippy across the workspace (and the Zed extension). Skip with `SKIP_CHECK_RUST=1`. |
+| `make check-rust`  | Broader Rust format + clippy gate across the workspace and every excluded crate, reusing the same standalone-runtime gate as `make rust-check`. Skip with `SKIP_CHECK_RUST=1`. |
 | `make prep-pr`     | The standard local gate: auto-formats code, runs codegen, lint/typecheck, and the smoke tier (`make smoke`). Deep suites run in CI — see "Workflow requirements" below. |
 | `make smoke`       | Fast per-module smoke tier (`cargo nextest run --profile smoke`): the `smoke_*` / `*_smoke.rs` subset, seconds warm, reusing the existing dev build. `make smoke-p P=<crate>` scopes it to one crate. |
 | `make test-exhaustive` | Manual-only tier: every `#[ignore]`d corpus sweep / fuzz gate / privileged test (`--run-ignored ignored-only`). Never run automatically. |
 | `make fuzz`        | tcl-fuzz differential campaign (manual-only; see the fuzz-findings skill). |
 | `make test`        | **The CI-mirror test gate** — everything except Emacs: `test-rust` + `test-ext` + `runtime-rust-test` + `zed-query-check`. Use to reproduce CI locally; not required before a PR. |
 | `make test-rust`   | `cargo test --workspace --all-features` — includes the native lsp_e2e suite (`rust/tcl-lsp-server/tests/*_e2e.rs`); skip with `SKIP_TEST_RUST=1` |
+| `make test-spectcl-compat` | Fail-closed SpecTcl compatibility: 15 legacy/TclVM cases + 3 2.0 upgrade goldens + 4 live 1.x/2.0 source/hook cases + 2 shipped corpus/containment cases + 1 real-C-Tcl parse case, using the manifest-pinned exact Tcl 9.0 reference interpreter. |
 | `make test-ext`    | VS Code extension integration tests — the single-root suite **and** the multi-root (`test:multi-folder`) suite (xvfb on headless Linux).  The **browser** extension host is a separate suite: `make lsp-server-wasm` then `cd editors/vscode && npm run test:web` (headless Chromium via `@vscode/test-web`; CI's `test-ext-web` job) |
 | `make lint-py`     | `ruff format --check` + `ruff check` over every tracked `.py` (versions pinned in the Makefile) |
 | `make format-py`   | `ruff format` over every tracked `.py` |

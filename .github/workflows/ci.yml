@@ -92,6 +92,9 @@ jobs:
   #                    scripted LSP sessions targeted, while failing safe when
   #                    path detection is ambiguous.  Both transports sit on the
   #                    same `tcl-lsp-server` closure, so one flag gates both.
+  #   spectcl_compat_changed — SpecTcl or its TclVM/compiler/registry/runtime
+  #                    and exact-reference-toolchain closure changed. Runs the
+  #                    non-vacuous 15+3+4+2+1 compatibility lane.
   channel:
     runs-on: ubuntu-24.04
     permissions:
@@ -103,6 +106,7 @@ jobs:
       python_changed: ${{ steps.paths.outputs.python_changed }}
       ext_changed: ${{ steps.paths.outputs.ext_changed }}
       lsp_wasm_changed: ${{ steps.paths.outputs.lsp_wasm_changed }}
+      spectcl_compat_changed: ${{ steps.paths.outputs.spectcl_compat_changed }}
       docs_only: ${{ steps.paths.outputs.docs_only }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -179,6 +183,7 @@ jobs:
           python_changed=false
           ext_changed=false
           lsp_wasm_changed=false
+          spectcl_compat_changed=false
           docs_only=true
           if [ "$ok" = "true" ]; then
             while IFS= read -r f; do
@@ -194,28 +199,41 @@ jobs:
                 rust/f5-xc/* | rust/tcl-bigip/* | rust/tcl-bytecode/* | rust/tcl-cmd-core/* | rust/tcl-compiler/* | rust/tcl-core-types/* | rust/tcl-diagram/* | rust/tcl-dialect/* | rust/tcl-engine-api/* | rust/tcl-engine-tclvm/* | rust/tcl-explorer/* | rust/tcl-host-native/* | rust/tcl-irules/* | rust/tcl-lexer/* | rust/tcl-lsp-core/* | rust/tcl-lsp-db/* | rust/tcl-lsp-server/* | rust/tcl-lsp-server-wasm/* | rust/tcl-lsp-server-wasi/* | rust/tcl-platform/* | rust/tcl-regex/* | rust/tcl-registry/* | rust/tcl-runtime-api/* | rust/tcl-spec-hooks/* | rust/tcl-spectcl/* | rust/tcl-sslictcl/* | rust/tcl-syntax/* | rust/tcl-userdirs/* | rust/tcl-version/* | rust/tcl-vm/* | .cargo/config.toml | scripts/verify-wasm-externref.mjs | Cargo.toml | Cargo.lock | rust-toolchain.toml | Makefile | .github/workflows/ci.yml)
                   lsp_wasm_changed=true ;;
               esac
+              if scripts/dev/spectcl-compat-path.sh "$f"; then
+                spectcl_compat_changed=true
+              else
+                status=$?
+                if [ "$status" -ne 1 ]; then
+                  ok=false
+                  break
+                fi
+              fi
               case "$f" in
                 docs/* | *.md | .claude/* | .gitignore | LICENSE) ;;
                 *) docs_only=false ;;
               esac
             done <<<"$files"
-          else
+          fi
+          if [ "$ok" != "true" ]; then
             python_changed=true
             ext_changed=true
             lsp_wasm_changed=true
+            spectcl_compat_changed=true
             docs_only=false
           fi
           {
             echo "python_changed=$python_changed"
             echo "ext_changed=$ext_changed"
             echo "lsp_wasm_changed=$lsp_wasm_changed"
+            echo "spectcl_compat_changed=$spectcl_compat_changed"
             echo "docs_only=$docs_only"
           } >>"$GITHUB_OUTPUT"
-          echo "python_changed=$python_changed ext_changed=$ext_changed lsp_wasm_changed=$lsp_wasm_changed docs_only=$docs_only"
+          echo "python_changed=$python_changed ext_changed=$ext_changed lsp_wasm_changed=$lsp_wasm_changed spectcl_compat_changed=$spectcl_compat_changed docs_only=$docs_only"
 
   # Fast PR gate.  Runs on every PR and every push.  Covers the Rust fast
-  # checks: `cargo fmt --check`, `cargo clippy --workspace`, and the
-  # generated-file drift gates (`make xtask-check`).  The test surface runs
+  # checks through the central `make rust-check` contract: root and standalone
+  # crate formatting/Clippy plus generated-file drift gates. The test surface
+  # runs
   # concurrently in `rust-tests`, `rust-tests-heavy`, `lsp-e2e`, `cargo-deny`,
   # `test-ext` and `python` — all on every PR and push.  See AGENTS.md for the
   # local gates (`make check-all`, plus the heavier suites) agents must run
@@ -229,9 +247,24 @@ jobs:
     # ancestor through the needs graph).  Those tags are cut from `rust` and
     # gated by the cargo jobs instead.  Runs in full for PRs, rust pushes,
     # stable tags.
-    needs: [channel]
+    # `pr-gate` is already a required status on `rust`. Run even when a needed
+    # job failed, then fail explicitly below: Actions otherwise skips a job
+    # whose dependency failed, and a skipped required check does not propagate
+    # the SpecTcl failure as a red `pr-gate` verdict.
+    if: ${{ always() }}
+    needs: [channel, spectcl-compat]
     runs-on: ubuntu-26.04
     steps:
+      - name: Propagate prerequisite gate failures
+        env:
+          CHANNEL_RESULT: ${{ needs.channel.result }}
+          SPECTCL_COMPAT_RESULT: ${{ needs.spectcl-compat.result }}
+        run: |
+          if [ "$CHANNEL_RESULT" != success ] || [ "$SPECTCL_COMPAT_RESULT" != success ]; then
+            echo "channel=$CHANNEL_RESULT spectcl-compat=$SPECTCL_COMPAT_RESULT" >&2
+            exit 1
+          fi
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
@@ -245,26 +278,14 @@ jobs:
           toolchain: stable
           components: clippy, rustfmt
 
-      - name: Run fast CI gate (cargo fmt + clippy + generated-file drift)
+      - name: Run fast CI gate (format + Clippy + generated-file drift)
         # Skipped for pre-release (rust-line) tags and for tags whose SHA is
         # already green; job still succeeds so the release graph stays
         # unbroken.  Deliberately NOT skipped on already-green merge pushes:
         # this job's clippy cache is the base-branch fallback every PR run
         # restores from, so pushes to rust keep it warm.
         if: needs.channel.outputs.prerelease != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
-        run: |
-          cargo fmt --all --check
-          cargo clippy --workspace --all-targets -- -D warnings
-          make xtask-check
-
-      # runtime/rust is a standalone crate excluded from the root workspace
-      # (it is `unsafe`; root forbids `unsafe`), so the root `cargo fmt --all
-      # --check` above never sees it. Gate it separately here so a drift like
-      # #1623 (four files unformatted, unnoticed until a manual `cargo fmt
-      # --all` run) can't recur silently.
-      - name: Run runtime/rust fmt gate
-        if: needs.channel.outputs.prerelease != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
-        run: cd runtime/rust && cargo fmt --all --check
+        run: make rust-check
 
   # Build the native tcl-lsp-server release binary ONCE and share it via
   # artifact with every job that just needs to *run* it rather than build it
@@ -714,6 +735,21 @@ jobs:
         with:
           tool: nextest
 
+      # The real-tclsh conformance binaries fail closed when no manifest-pinned
+      # interpreter is available. Provision the shared Tcl 9.0 gold-standard
+      # lane through the same tool entry point SpecTcl uses; distro Tcl and a
+      # stale system tclsh9.0 must never decide which oracle CI exercises.
+      - name: Install exact Tcl 9.0 reference interpreter
+        if: needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
+        env:
+          TCL_LSP_TCL_BIN_DIR: ${{ runner.temp }}/tcl-reference-bin
+        run: |
+          make ensure-tcl90-reference
+          . scripts/dev/tcl-reference-toolchains.sh
+          tcl_reference_load_toolchains "$PWD"
+          tclsh="$(tcl_reference_resolve_tclsh 9.0)"
+          printf 'TCL_LSP_TCLSH90=%s\n' "$tclsh" >> "$GITHUB_ENV"
+
       # --no-fail-fast: report every failure, not just the first.
       # Skipped entirely for docs-only changes and already-green tags;
       # downgraded to a cache-warming build (--no-run) on an already-green
@@ -741,6 +777,29 @@ jobs:
       - name: cargo test --doc
         if: needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
         run: cargo test --workspace --all-features --doc --no-fail-fast
+
+  # Fail-closed SpecTcl compatibility on every PR that changes its TclVM,
+  # compiler, registry, runtime, pack, or exact-reference-toolchain closure.
+  # The Make target installs/resolves the manifest-pinned Tcl 9.0 oracle and
+  # runs the 15+3+4+2 internal cases plus the one real-C-Tcl parse case.
+  spectcl-compat:
+    needs: [channel]
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Set up Rust
+        if: needs.channel.outputs.spectcl_compat_changed == 'true' && needs.channel.outputs.already_green != 'true'
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        with:
+          toolchain: stable
+          cache-key: spectcl-compat
+
+      - name: Run exact SpecTcl 1.x + 2.0 + real-Tcl compatibility gate
+        if: needs.channel.outputs.spectcl_compat_changed == 'true' && needs.channel.outputs.already_green != 'true'
+        run: make test-spectcl-compat
 
   # The heavy VM-simulation suites, split out to run concurrently with
   # `rust-tests` (see that job's header).  Doctests are covered there.
@@ -1194,7 +1253,7 @@ jobs:
     # whose SHA was never tested (or whose green is stale) runs everything
     # here in full.  cargo-deny always runs regardless.
     needs:
-      [channel, pr-gate, rust-tests, rust-tests-heavy, lsp-server-wasm, lsp-e2e, cargo-deny, python]
+      [channel, pr-gate, rust-tests, rust-tests-heavy, spectcl-compat, lsp-server-wasm, lsp-e2e, cargo-deny, python]
     runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload
@@ -1250,12 +1309,14 @@ jobs:
           gh release upload "$tag" install.sh --clobber
 
   # ---------------------------------------------------------------------
-  # build-server-matrix — cross-compile the native `tcl-lsp-server` for every
-  # supported platform.  Each runner builds its host's target triples (with
-  # cross-linkers for the foreign Linux arches), smoke-tests the native one,
-  # and uploads the binaries preserving `target/<triple>/release/`.  build-vsix
-  # downloads them all and packages both the untargeted universal VSIX and
-  # six platform-targeted VSIXes (one per vsce --target platform).
+  # build-server-matrix — compile the four native programs for every supported
+  # platform. Linux x86_64 and aarch64 build natively inside UBI 8 to retain a
+  # GLIBC_2.28 ABI floor; RISC-V uses an Ubuntu 22.04 container's glibc 2.35
+  # cross sysroot because EL8 did not ship a RISC-V architecture. No Zig or
+  # separately downloaded libc is involved. Each leg smoke-tests its binary
+  # and uploads it preserving `target/<triple>/release/`. build-vsix downloads
+  # them all and packages both the untargeted universal VSIX and six
+  # platform-targeted VSIXes.
   #
   # Per the no-marketplace-tokens invariant this uses only GitHub's built-in
   # token — nothing is published to a marketplace here.
@@ -1284,14 +1345,18 @@ jobs:
           - os: ubuntu-24.04
             id: linux-x64
             target: x86_64-unknown-linux-gnu
-          - os: ubuntu-24.04
+            ubi8: true
+            glibc_max: "2.28"
+          - os: ubuntu-24.04-arm
             id: linux-arm64
             target: aarch64-unknown-linux-gnu
-            cross: gcc-aarch64-linux-gnu
+            ubi8: true
+            glibc_max: "2.28"
           - os: ubuntu-24.04
             id: linux-riscv64
             target: riscv64gc-unknown-linux-gnu
-            cross: gcc-riscv64-linux-gnu
+            riscv_glibc: true
+            glibc_max: "2.35"
           - os: windows-latest
             id: win32-x64
             target: x86_64-pc-windows-msvc
@@ -1312,17 +1377,116 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Install Linux cross-linker
-        if: matrix.cross
+      # Use the runner's architecture-matched UBI image, so x86_64 and aarch64
+      # both link against the maintained EL8 glibc 2.28 ABI without a cross
+      # sysroot. The Rust installation is supplied by the pinned setup action;
+      # only the distro C toolchain lives in the container. aarch64 overrides
+      # the local-development cross-linker from .cargo/config.toml with native
+      # `gcc`/`ar`.
+      - name: Build GNU/Linux binaries against glibc 2.28
+        if: matrix.ubi8
+        env:
+          TARGET: ${{ matrix.target }}
+          TCL_LSP_VERSION: ${{ github.ref_name }}
+        shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ${{ matrix.cross }} qemu-user
+          set -euo pipefail
+          # Git rejects the root-owned container's bind-mounted checkout as a
+          # dubious directory. Stamp provenance explicitly instead of letting
+          # tcl-version silently fall back to an empty commit.
+          export GIT_HASH="${GITHUB_SHA:0:8}"
+          docker run --rm \
+            --env TARGET \
+            --env TCL_LSP_VERSION \
+            --env GIT_HASH \
+            --env CARGO_HOME=/cargo \
+            --env RUSTUP_HOME=/rustup \
+            --volume "$GITHUB_WORKSPACE:/work" \
+            --volume "$HOME/.cargo:/cargo" \
+            --volume "$HOME/.rustup:/rustup" \
+            --workdir /work \
+            registry.access.redhat.com/ubi8/ubi-minimal:8.10 \
+            /bin/bash -lc '
+              set -euo pipefail
+              microdnf install -y binutils cmake gcc gcc-c++ git make perl pkgconf-pkg-config
+              microdnf clean all
+              export PATH="/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+              if [[ "$TARGET" == aarch64-unknown-linux-gnu ]]; then
+                export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=gcc
+                export CC_aarch64_unknown_linux_gnu=gcc
+                export AR_aarch64_unknown_linux_gnu=ar
+              fi
+              rustup target add "$TARGET"
+              cargo build -p tcl-lsp-server --release --target "$TARGET"
+              cargo build -p tcl-mcp --release --target "$TARGET"
+              cargo build -p tcl-cli --release --target "$TARGET"
+              cargo build -p f5-cli --release --target "$TARGET"
+              expected="${TCL_LSP_VERSION#v}+g$GIT_HASH"
+              scripts/verify-native-versions.sh \
+                "$expected" "target/$TARGET/release"
+            '
+
+      # Ubuntu 22.04 is the oldest still-supported mainstream RISC-V distro and
+      # ships a complete glibc 2.35 cross toolchain. Keep it inside a container
+      # rather than pinning the outer GitHub runner to an aging image. The QEMU
+      # handshake runs in the same container so it uses that matching sysroot.
+      - name: Build RISC-V GNU/Linux binaries against glibc 2.35
+        if: matrix.riscv_glibc
+        env:
+          TARGET: ${{ matrix.target }}
+          TCL_LSP_VERSION: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GIT_HASH="${GITHUB_SHA:0:8}"
+          docker run --rm \
+            --env TARGET \
+            --env TCL_LSP_VERSION \
+            --env GIT_HASH \
+            --env CARGO_HOME=/cargo \
+            --env RUSTUP_HOME=/rustup \
+            --env DEBIAN_FRONTEND=noninteractive \
+            --volume "$GITHUB_WORKSPACE:/work" \
+            --volume "$HOME/.cargo:/cargo" \
+            --volume "$HOME/.rustup:/rustup" \
+            --workdir /work \
+            docker.io/library/ubuntu:22.04 \
+            /bin/bash -lc '
+              set -euo pipefail
+              apt-get update
+              # Both libc development packages are recommendations rather than
+              # dependencies of the GCC packages, so name them explicitly when
+              # suppressing recommended packages.
+              apt-get install -y --no-install-recommends \
+                ca-certificates cmake gcc gcc-riscv64-linux-gnu git libc6-dev \
+                libc6-dev-riscv64-cross make perl pkg-config qemu-user
+              rm -rf /var/lib/apt/lists/*
+              export PATH="/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+              test -f "$(gcc -print-file-name=Scrt1.o)"
+              test -f "$(riscv64-linux-gnu-gcc -print-file-name=Scrt1.o)"
+              rustup target add "$TARGET"
+              cargo build -p tcl-lsp-server --release --target "$TARGET"
+              cargo build -p tcl-mcp --release --target "$TARGET"
+              cargo build -p tcl-cli --release --target "$TARGET"
+              cargo build -p f5-cli --release --target "$TARGET"
+              expected="${TCL_LSP_VERSION#v}+g$GIT_HASH"
+              scripts/verify-native-versions.sh \
+                "$expected" "target/$TARGET/release" \
+                qemu-riscv64 -L /usr/riscv64-linux-gnu
+              scripts/verify-glibc-baseline.sh 2.35 \
+                "target/$TARGET/release/tcl-lsp-server" \
+                "target/$TARGET/release/tcl-mcp" \
+                "target/$TARGET/release/tcl" \
+                "target/$TARGET/release/f5-query"
+              make server-cross-test
+            '
 
       # Stamp the release version into every user-facing binary. The
       # tcl-version crate prefers this over `git describe`; without it a tag
       # build would still be correct, but this avoids depending on the checkout
       # having tags fetched.
       - name: Cross-compile native binaries (server + mcp + CLIs)
+        if: matrix.ubi8 != true && matrix.riscv_glibc != true
         env:
           TCL_LSP_VERSION: ${{ github.ref_name }}
         shell: bash
@@ -1336,10 +1500,23 @@ jobs:
           cargo build -p tcl-cli --release --target "$t"
           cargo build -p f5-cli --release --target "$t"
 
+      - name: Verify GNU/Linux glibc ABI ceiling
+        if: matrix.glibc_max
+        shell: bash
+        run: |
+          set -euo pipefail
+          t="${{ matrix.target }}"
+          scripts/verify-glibc-baseline.sh "${{ matrix.glibc_max }}" \
+            "target/$t/release/tcl-lsp-server" \
+            "target/$t/release/tcl-mcp" \
+            "target/$t/release/tcl" \
+            "target/$t/release/f5-query"
+
       # scripts/test-cross-server.sh tests whatever is already built and skips
       # absent triples loudly, so each per-triple leg smoke-tests just its own
       # binary (natively or under QEMU where runnable).
       - name: Smoke-test built binaries
+        if: matrix.riscv_glibc != true
         shell: bash
         run: make server-cross-test
 
@@ -1365,6 +1542,55 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  # The per-architecture ELF gates above catch ABI drift at the producer. This
+  # fan-in repeats them over the uploaded release bytes, then starts the exact
+  # x86_64 server across a compact matrix of maintained glibc distributions.
+  # WASI/browser-WASM artefacts are produced by separate jobs and intentionally
+  # do not participate in a host-libc contract.
+  linux-release-portability:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [create-release, build-server-matrix]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Download server-matrix binaries
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: server-bins-*
+          path: target
+          merge-multiple: true
+
+      - name: Verify Linux release ABI ceilings
+        shell: bash
+        run: |
+          set -euo pipefail
+          # upload-artifact intentionally normalises file modes. Restore the
+          # executable bit before both the ELF gate and the distro handshake.
+          chmod +x \
+            target/{x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu,riscv64gc-unknown-linux-gnu}/release/{tcl-lsp-server,tcl-mcp,tcl,f5-query}
+          for triple in x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu; do
+            scripts/verify-glibc-baseline.sh 2.28 \
+              "target/$triple/release/tcl-lsp-server" \
+              "target/$triple/release/tcl-mcp" \
+              "target/$triple/release/tcl" \
+              "target/$triple/release/f5-query"
+          done
+          scripts/verify-glibc-baseline.sh 2.35 \
+            target/riscv64gc-unknown-linux-gnu/release/tcl-lsp-server \
+            target/riscv64gc-unknown-linux-gnu/release/tcl-mcp \
+            target/riscv64gc-unknown-linux-gnu/release/tcl \
+            target/riscv64gc-unknown-linux-gnu/release/f5-query
+
+      - name: Test the release server across supported Linux distributions
+        env:
+          CONTAINER_ENGINE: docker
+        run: scripts/test-linux-distro-compat.sh target/x86_64-unknown-linux-gnu/release/tcl-lsp-server
+
   # Publish the standalone native binaries as per-triple release assets
   # (`<name>-<triple>[.exe]` for tcl-lsp-server, tcl-mcp, tcl, f5-query), so
   # `install.sh` fetches a prebuilt binary for the host platform.
@@ -1380,7 +1606,7 @@ jobs:
   # covered automatically.
   publish-native-binaries:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [create-release, build-server-matrix]
+    needs: [create-release, build-server-matrix, linux-release-portability]
     runs-on: ubuntu-24.04
     permissions:
       contents: write # gh release upload
@@ -1439,7 +1665,7 @@ jobs:
     # the module; this one downloads its `wasi-module` artifact rather than
     # re-linking wasm32-wasip1 here, the same way it takes the native binaries
     # from `build-server-matrix` instead of cross-compiling them itself.
-    needs: [create-release, test-ext, test-ext-web, build-server-matrix, lsp-server-wasi]
+    needs: [create-release, test-ext, test-ext-web, build-server-matrix, linux-release-portability, lsp-server-wasi]
     runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload
@@ -1646,7 +1872,7 @@ jobs:
   # binaries rather than cross-compiling again — same source build-vsix uses.
   build-jetbrains:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [create-release, build-server-matrix]
+    needs: [create-release, build-server-matrix, linux-release-portability]
     runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload
@@ -1709,7 +1935,7 @@ jobs:
     # release will carry so plugin.py verifies its download against a digest
     # that travelled inside the package rather than one served from the same
     # release as the binary.
-    needs: [create-release, build-server-matrix]
+    needs: [create-release, build-server-matrix, linux-release-portability]
     runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload

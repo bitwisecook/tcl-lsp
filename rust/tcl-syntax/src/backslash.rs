@@ -71,8 +71,9 @@ pub fn decode_bytes_in(raw: &[u8], escapes: EscapeSyntax) -> Cow<'_, [u8]> {
 }
 
 /// Collapse Tcl brace-word line continuations: a backslash immediately followed
-/// by a newline — `\<LF>`, `\<CR>`, or `\<CRLF>`, together with any spaces and
-/// tabs after that newline — becomes a single space. This is the **only**
+/// by LF — `\<LF>` — together with any spaces and tabs after it, becomes a
+/// single space. Raw `\<CR>` and `\<CRLF>` are data; a source channel may
+/// translate CRLF to LF before this parser seam. This is the **only**
 /// backslash processing a `{braced}` word undergoes (every other backslash byte
 /// stays literal), and it matches C's pre-pass rule for the backslash-newline
 /// sequence, which the `Tcl` language summary notes applies *even inside
@@ -101,8 +102,9 @@ pub fn collapse_separator_continuations(raw: &[u8]) -> Cow<'_, [u8]> {
 /// rule (drop spaces/tabs already emitted before the backslash).
 fn collapse_continuations(raw: &[u8], trim_preceding: bool) -> Cow<'_, [u8]> {
     if !raw
-        .windows(2)
-        .any(|w| w[0] == b'\\' && matches!(w[1], b'\n' | b'\r'))
+        .iter()
+        .enumerate()
+        .any(|(i, _)| tcl_lexer::backslash_continuation_end(raw, i).is_some())
     {
         return Cow::Borrowed(raw);
     }
@@ -110,29 +112,22 @@ fn collapse_continuations(raw: &[u8], trim_preceding: bool) -> Cow<'_, [u8]> {
     let mut i = 0;
     while i < raw.len() {
         if raw[i] == b'\\' {
-            match raw.get(i + 1) {
-                Some(&nl @ (b'\n' | b'\r')) => {
-                    i += 2;
-                    // A `\r` pairs with a following `\n` (CRLF) as one newline.
-                    if nl == b'\r' && raw.get(i) == Some(&b'\n') {
-                        i += 1;
-                    }
+            match tcl_lexer::backslash_continuation_end(raw, i) {
+                Some(end) => {
+                    i = end;
                     if trim_preceding {
                         while matches!(out.last(), Some(b' ' | b'\t')) {
                             out.pop();
                         }
                     }
                     out.push(b' ');
-                    while matches!(raw.get(i), Some(b' ' | b'\t')) {
-                        i += 1;
-                    }
                     continue;
                 }
                 // A non-continuation backslash escapes the next byte for
                 // scanning purposes, so `\\<newline>` stays a literal `\\` +
                 // newline rather than the second backslash starting a
                 // continuation.
-                Some(&b) => {
+                None if let Some(&b) = raw.get(i + 1) => {
                     out.push(b'\\');
                     out.push(b);
                     i += 2;
@@ -227,11 +222,13 @@ mod tests {
         assert_eq!(&*collapse_brace_continuations(b"a\\\nb"), b"a b");
         assert_eq!(&*collapse_brace_continuations(b"a\\\n   b"), b"a b");
         assert_eq!(&*collapse_brace_continuations(b"a\\\n\t b"), b"a b");
-        // `\<CR>` and `\<CRLF>` collapse the same way (tclsh9.0: length 3 for
-        // `{a\<eol>   b}` regardless of the line ending).
-        assert_eq!(&*collapse_brace_continuations(b"a\\\rb"), b"a b");
-        assert_eq!(&*collapse_brace_continuations(b"a\\\r\n   b"), b"a b");
-        assert_eq!(&*collapse_brace_continuations(b"a\\\r\tb"), b"a b");
+        // TclParseBackslash has no CR arm: raw CR and CRLF stay byte-exact.
+        assert_eq!(&*collapse_brace_continuations(b"a\\\rb"), b"a\\\rb");
+        assert_eq!(
+            &*collapse_brace_continuations(b"a\\\r\n   b"),
+            b"a\\\r\n   b"
+        );
+        assert_eq!(&*collapse_brace_continuations(b"a\\\r\tb"), b"a\\\r\tb");
         // No continuation ⇒ borrowed, byte-identical (including a literal `\n`).
         assert!(matches!(
             collapse_brace_continuations(b"p\\nq"),
@@ -247,7 +244,7 @@ mod tests {
     #[test]
     fn brace_continuations_str_matches_bytes_and_borrows() {
         assert_eq!(&*collapse_brace_continuations_str("a\\\n   b"), "a b");
-        assert_eq!(&*collapse_brace_continuations_str("a\\\r\nb"), "a b");
+        assert_eq!(&*collapse_brace_continuations_str("a\\\r\nb"), "a\\\r\nb");
         // No continuation ⇒ borrowed (no allocation), including a literal `\t`.
         assert!(matches!(
             collapse_brace_continuations_str("a\\tb"),
@@ -259,13 +256,16 @@ mod tests {
     fn separator_continuations_trim_preceding_whitespace() {
         // Word-separator context: the whole `<ws>\<eol><ws>` run is ONE
         // separator, so the spaces/tabs before the backslash collapse too —
-        // for LF, CR, and CRLF endings alike.
+        // for LF. Raw CR/CRLF are ordinary escaped data.
         assert_eq!(&*collapse_separator_continuations(b"a \\\n  b"), b"a b");
         assert_eq!(
             &*collapse_separator_continuations(b"a\t \\\r\n\t b"),
-            b"a b"
+            b"a\t \\\r\n\t b"
         );
-        assert_eq!(&*collapse_separator_continuations(b"a \\\r  b"), b"a b");
+        assert_eq!(
+            &*collapse_separator_continuations(b"a \\\r  b"),
+            b"a \\\r  b"
+        );
         // Contrast: the brace/quote rule keeps the preceding space as data.
         assert_eq!(&*collapse_brace_continuations(b"a \\\n  b"), b"a  b");
         // FP guards: no continuation borrows unchanged (preceding whitespace
@@ -282,7 +282,10 @@ mod tests {
 
     #[test]
     fn separator_continuations_str_matches_bytes() {
-        assert_eq!(&*collapse_separator_continuations_str("a \\\r\n b"), "a b");
+        assert_eq!(
+            &*collapse_separator_continuations_str("a \\\r\n b"),
+            "a \\\r\n b"
+        );
         assert!(matches!(
             collapse_separator_continuations_str("a\\tb"),
             Cow::Borrowed(_)

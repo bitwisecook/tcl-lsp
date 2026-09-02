@@ -1972,6 +1972,11 @@ before pushing, how to add a diagnostic or a formatter option, the repository
 layout, and the code-style rules — see **[AGENTS.md](AGENTS.md)** and
 **[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
+Tcl VM conformance work uses the shared C Tcl oracle harness. See
+**[How to run the C tcltest suite through the bytecode VM](docs/kcs/kcs-howto-run-tcltest-bundles.md)**;
+for example, a narrow Tcl 9 comparison is `cargo xtask tcltest-sweep --backend
+both --tcl-root ~/src/tcl9.0.4 --stem parse --match 'parse-18.*'`.
+
 ## Acknowledgements
 
 This project was inspired by:

@@ -132,6 +132,28 @@ pub fn choice_list_bytes<T: AsRef<[u8]>>(table: &[T]) -> Vec<u8> {
     out
 }
 
+/// Render `TclOO`'s method-list variant: `a`, `a or b`, or `a, b or c`.
+///
+/// `TclOO`'s `unknown method` diagnostics deliberately omit the Oxford comma
+/// that [`choice_list_bytes`] uses for `Tcl_GetIndexFromObj` tables. Keeping
+/// the variant here prevents runtime consumers from reimplementing either
+/// separator rule beside their command handlers.
+#[must_use]
+pub fn tcloo_choice_list_bytes<T: AsRef<[u8]>>(table: &[T]) -> Vec<u8> {
+    let mut out = Vec::new();
+    for (index, entry) in table.iter().enumerate() {
+        if index > 0 {
+            out.extend_from_slice(if index == table.len() - 1 {
+                b" or "
+            } else {
+                b", "
+            });
+        }
+        out.extend_from_slice(entry.as_ref());
+    }
+    out
+}
+
 /// [`choice_list_bytes`] over `&str` entries, as a `String`.
 #[must_use]
 pub fn choice_list<T: AsRef<str>>(table: &[T]) -> String {
@@ -320,6 +342,15 @@ mod tests {
         let t = ["apple", "applet"];
         assert_eq!(lookup(&t, b"apple", false), Lookup::Found(0));
         assert_eq!(lookup(&t, b"apple", true), Lookup::Found(0));
+    }
+
+    #[test]
+    fn tcloo_method_choices_omit_the_oxford_comma() {
+        assert_eq!(
+            tcloo_choice_list_bytes(&["-append", "-clear", "-set"]),
+            b"-append, -clear or -set"
+        );
+        assert_eq!(tcloo_choice_list_bytes(&["a", "b"]), b"a or b");
     }
 
     #[test]

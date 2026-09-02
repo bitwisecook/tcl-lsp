@@ -133,7 +133,7 @@ pub enum Command {
     ChildInterp(crate::interp::InterpId),
     /// A `namespace ensemble` — invoking `cmd sub args…` resolves `sub` against
     /// the ensemble's subcommands and dispatches to the mapped target.
-    Ensemble(Rc<EnsembleDef>),
+    Ensemble(Rc<tcl_cmd_core::ensemble::EnsembleToken<EnsembleDef, String>>),
     /// A `TclOO` object or class (`Foo create obj` / `obj method …`): the name
     /// keys into the interp's `oo` state (`OoState::objects`/`classes`).
     /// Invoking it dispatches `method args…` against the object (`oo_dispatch`).
@@ -283,14 +283,18 @@ fn cmd_set(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
-/// `source ?-encoding name? fileName` — read a file and evaluate it as a
-/// script in the current context. The optional `-encoding` flag is accepted
-/// and ignored (files are read as UTF-8).
+/// `source ?-encoding name? ?-nopkg? fileName` — read a file and evaluate it
+/// as a script in the current context. `-encoding` is accepted and ignored
+/// (files are read as UTF-8); Tcl 9's `-nopkg` suppresses package bookkeeping
+/// that this VM does not otherwise perform, so it uses the same read path.
 fn cmd_source(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let path = match args {
         [file] => file.to_str(),
         [flag, _enc, file] if &*flag.to_str() == "-encoding" => file.to_str(),
-        _ => return err("wrong # args: should be \"source ?-encoding name? fileName\""),
+        [flag, file] if &*flag.to_str() == "-nopkg" => file.to_str(),
+        _ => {
+            return err("wrong # args: should be \"source ?-encoding name? ?-nopkg? fileName\"");
+        }
     };
     let contents = match std::fs::read_to_string(&*path) {
         Ok(c) => c,
@@ -513,13 +517,15 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // spelling rooted at the caller's current namespace.
     let is_coro = crate::cmd_coro::is_coroutine(vm, &old_key);
     if new_name.is_empty() {
-        vm.delete_prepared_renamed_command(&rename);
+        let trace_handled = vm.delete_prepared_renamed_command(&rename);
         if is_coro {
             crate::cmd_coro::on_command_deleted(vm, &old_key);
         }
         // `rename x {}` is a delete: fire the command's `delete` traces
         // (`callback ::old {} delete`, tclsh-pinned) and drop its traces.
-        vm.on_command_removed(&old_key);
+        if !trace_handled {
+            vm.on_command_removed(&old_key);
+        }
     } else {
         // An unqualified target binds in the current namespace; a qualified one
         // is used as given, normalised to the key form (separator runs
@@ -821,23 +827,6 @@ fn interp_hidectl_cmd(vm: &mut Vm, hide: bool, rest: &[Value]) -> Completion<Val
             "permission denied: safe interpreter cannot {verb} commands"
         ));
     }
-    // The hidden-command token may never carry namespace qualifiers, and only
-    // global-namespace commands can be hidden / exposed-from.
-    if hide {
-        if token.contains("::") {
-            return err("cannot use namespace qualifiers in hidden command token (rename)");
-        }
-        if !is_global_command(&cmd) {
-            return err("can only hide global namespace commands (use rename then hide)");
-        }
-    } else {
-        if cmd.contains("::") {
-            return err("cannot use namespace qualifiers in hidden command token (rename)");
-        }
-        if !is_global_command(&token) {
-            return err("cannot expose to a namespace (use expose to toplevel, then rename)");
-        }
-    }
     if path.is_empty() {
         let result = if hide {
             vm.hide_command(&cmd, &token)
@@ -846,23 +835,15 @@ fn interp_hidectl_cmd(vm: &mut Vm, hide: bool, rest: &[Value]) -> Completion<Val
         };
         match result {
             Ok(()) => ok(Value::empty()),
-            Err(message) => err(message),
+            Err(problem) => problem.into_completion(),
         }
     } else {
         match vm.child_hide(&path, &cmd, &token, hide) {
             Ok(true) => ok(Value::empty()),
             Ok(false) => err(format!("could not find interpreter \"{path}\"")),
-            Err(message) => err(message),
+            Err(problem) => problem.into_completion(),
         }
     }
-}
-
-/// Whether `name` resolves in the global namespace — i.e. it carries no
-/// namespace qualifiers beyond an optional leading `::` run (the shared
-/// separator-run-aware split: `::::foo` is global too, where the old
-/// single-`strip_prefix` misclassified it).
-fn is_global_command(name: &str) -> bool {
-    tcl_cmd_core::namespace::qualifiers(name.as_bytes()).is_empty()
 }
 
 /// `interp invokehidden path ?-namespace ns? ?--? cmd ?arg ...?` — invoke a
@@ -1198,7 +1179,7 @@ fn cmd_proc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // A namespace-qualified proc name requires its namespace to already exist
     // (C's `TclGetNamespaceForQualName` → `nsPtr == NULL`). An unqualified name
     // lands in the current namespace, which always exists (proc-1.2).
-    if name_s.contains("::") && !vm.namespace_exists(&namespace) {
+    if name_s.contains("::") && !vm.namespace_accepts_command_definition(&namespace, &reg_name) {
         return err(format!(
             "can't create procedure \"{name_s}\": unknown namespace"
         ));
@@ -1276,6 +1257,30 @@ pub(crate) fn options_dict(code: Code, level: i64, extra: &[(&str, Value)]) -> V
 pub(crate) fn err_with_code(message: impl Into<String>, code: &str) -> Completion<Value> {
     let options = options_dict(Code::Error, 0, &[("-errorcode", Value::string(code))]);
     Completion::new(Code::Error, Value::string(message.into()), options)
+}
+
+/// An `ERROR` completion carrying a structured Tcl lookup error code.
+///
+/// Error codes are Tcl lists, not space-delimited diagnostic strings: a
+/// command or subcommand name may itself contain whitespace or list syntax.
+/// Keep the encoding here, at the completion-construction boundary, and use
+/// the shared list owner for quoting each element.
+pub(crate) fn lookup_error(
+    message: impl Into<String>,
+    lookup_kind: &str,
+    name: &str,
+) -> Completion<Value> {
+    let code = tcl_syntax::list::join_list(["TCL", "LOOKUP", lookup_kind, name]);
+    err_with_code(message, &code)
+}
+
+/// The canonical error completion for a failed Tcl command lookup.
+///
+/// Attach this at lookup-producing sites instead of inferring identity from an
+/// arbitrary error message later: a user is allowed to raise the same message
+/// with the ordinary `NONE` error code.
+pub(crate) fn command_lookup_error(name: &str) -> Completion<Value> {
+    lookup_error(format!("invalid command name \"{name}\""), "COMMAND", name)
 }
 
 /// Convert an internal expression/helper failure into its Tcl completion
@@ -1847,32 +1852,6 @@ fn variable_name_tail(name: &str) -> &str {
     }
 }
 
-/// The namespace qualifier `name` names, or `None` when it is unqualified.
-///
-/// The array element is split off **first**, through the same
-/// [`split_element_ref`](tcl_syntax::naming::split_element_ref) owner the
-/// element guard uses: `TclObjLookupVarEx` separates `part1(part2)` before any
-/// namespace lookup, so a `::` inside an index is data, not a path.
-///
-/// The split only applies when the name *ends* with `)`, and that distinction
-/// is load-bearing — it is what separates these three, all verified on 8.6.16
-/// and 9.0.4:
-///
-/// | name | part1 | qualifier | outcome |
-/// |---|---|---|---|
-/// | `v(x::y)` | `v` | none | accepted — the `::` is index data |
-/// | `v(a)::b` | `v(a)::b` | `v(a)` | parent namespace doesn't exist |
-/// | `::nosuch::v(k)` | `::nosuch::v` | `::nosuch` | parent namespace doesn't exist |
-///
-/// A qualifier of `""` is the global namespace, which always exists.
-fn parent_namespace_of(name: &str) -> Option<&str> {
-    let part1 = match tcl_syntax::naming::split_element_ref(name) {
-        Some((base, _)) => base,
-        None => name,
-    };
-    part1.rfind("::").map(|i| &part1[..i])
-}
-
 /// C's refusal when a qualified variable name's parent namespace is absent —
 /// `TclObjLookupVar`'s `TCL_LEAVE_ERR_MSG` path, which takes the operation
 /// word (`define` for `variable`, `access` for `global`) and reports the name
@@ -1883,14 +1862,22 @@ fn parent_namespace_of(name: &str) -> Option<&str> {
 /// alike. It closes a slice of #1588 (the VM had no parent-namespace check at
 /// all); the remaining `upvar` surface of that issue is untouched.
 fn missing_parent_ns(vm: &Vm, op: &str, name: &str) -> Option<Completion<Value>> {
-    let qualifier = parent_namespace_of(name)?;
-    if vm.namespace_exists(&vm.qualify_name(qualifier)) {
+    if vm.var_parent_exists(name) {
         return None;
     }
     Some(err_with_code(
         format!("can't {op} \"{name}\": parent namespace doesn't exist"),
-        "TCL LOOKUP VARNAME",
+        &lookup_var_error_code(name),
     ))
+}
+
+/// C's `TCL LOOKUP VARNAME` detail is the scalar/array **base**, while the
+/// human-readable message retains the name exactly as written. Keep that
+/// split at the command adapter boundary so `variable`, `global`, and `upvar`
+/// cannot drift (`::missing::v(k)` reports detail `::missing::v`).
+fn lookup_var_error_code(name: &str) -> String {
+    let base = tcl_syntax::naming::split_element_ref(name).map_or(name, |(base, _)| base);
+    format!("TCL LOOKUP VARNAME {base}")
 }
 
 /// C's `MakeUpvar` refusal for a link *target name* that looks like an array
@@ -1904,6 +1891,31 @@ fn bad_link_name(name: &str) -> Completion<Value> {
         ),
         "TCL UPVAR LOCAL_ELEMENT",
     )
+}
+
+/// Render the typed variable-resolver failure from [`Vm::link_upvar`].
+pub(crate) fn upvar_link_error(
+    error: crate::interp::UpvarLinkError,
+    other: &str,
+    local: &str,
+) -> Completion<Value> {
+    match error {
+        crate::interp::UpvarLinkError::TargetNamespace => err_with_code(
+            format!("can't access \"{other}\": parent namespace doesn't exist"),
+            &lookup_var_error_code(other),
+        ),
+        crate::interp::UpvarLinkError::Inverted => err_with_code(
+            format!(
+                "bad variable name \"{local}\": can't create namespace variable that refers to procedure variable"
+            ),
+            "TCL UPVAR INVERTED",
+        ),
+        crate::interp::UpvarLinkError::LocalElement => bad_link_name(local),
+        crate::interp::UpvarLinkError::LocalNamespace => err_with_code(
+            format!("can't create \"{local}\": parent namespace doesn't exist"),
+            &lookup_var_error_code(local),
+        ),
+    }
 }
 
 /// `global name ?name ...?` — link names to the global frame.
@@ -1964,26 +1976,8 @@ fn cmd_upvar(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     while i + 1 < rest.len() {
         let other = rest[i].to_str();
         let local = rest[i + 1].to_str();
-        // The *local* name may not look like an array element (C's `MakeUpvar`);
-        // the other-var side legally may (`upvar 0 arr(k) v` is fine).
-        //
-        // Scoped to unqualified locals on purpose: a *qualified* element-looking
-        // local (`upvar 0 zz ::x::l(k)`) hits C's earlier `can't create namespace
-        // variable that refers to procedure variable` check instead, which this
-        // VM does not implement — guarding it here would emit the wrong message.
-        if !local.contains("::") && looks_like_element(&local) {
-            return bad_link_name(&local);
-        }
-        // Inside a `namespace eval` body, an unqualified alias names a namespace
-        // variable: store the link in the global frame under the qualified name
-        // (and resolve the target to its namespace-qualified location), so a
-        // proc's `variable <name>` finds the same cell.
-        if vm.in_ns_script() && !local.contains("::") && !vm.current_ns().is_empty() {
-            let alias = vm.qualify_name(&local);
-            let target_name = vm.qualify_name(&other);
-            vm.add_global_link(&alias, 0, &target_name);
-        } else {
-            vm.add_link(&local, target, &other);
+        if let Err(error) = vm.link_upvar(target, &other, &local) {
+            return upvar_link_error(error, &other, &local);
         }
         i += 2;
     }
@@ -2130,6 +2124,7 @@ pub(crate) fn cmd_variable(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 "TCL UPVAR LOCAL_ELEMENT",
             );
         }
+        vm.declare_namespace_variable(&qual);
         vm.add_link(&local, 0, &qual);
         if i + 1 < args.len() {
             // `set_var` follows the alias just installed to the real cell.

@@ -1,3 +1,70 @@
+# v2.2.1
+
+This stable update broadens Linux compatibility and hardens the Rust runtime,
+language intelligence, and editor delivery introduced in 2.2.0.
+
+## Linux portability
+
+- The prebuilt x86_64 and aarch64 GNU/Linux binaries now target a
+  `GLIBC_2.28` ABI floor. Release CI builds them natively in UBI 8 and rejects
+  any newer symbol imports before publishing.
+- RISC-V uses Ubuntu 22.04's maintained packaged cross-toolchain and a
+  `GLIBC_2.35` floor. EL8 did not ship RISC-V, so this keeps the toolchain
+  minimal without inventing an unsupported 2.28 sysroot.
+- Release CI starts the exact x86_64 release server across maintained Ubuntu,
+  Debian, EL8/Oracle Linux, Amazon Linux, openSUSE, Fedora, and Arch containers.
+  All four Linux programs (`tcl-lsp-server`, `tcl-mcp`, `tcl`, and `f5-query`)
+  are checked at the producer and again after artifact fan-in.
+- The build uses current Rust plus ordinary GCC/binutils: no Zig toolchain,
+  downloaded libc, or statically bundled musl. Programs continue to use the
+  host's maintained glibc and receive its security updates normally.
+- Alpine and other non-glibc systems remain source-build targets. The
+  separately published WASI server is unchanged and provides a libc-independent
+  option for hosts that choose a WebAssembly runtime.
+
+The portability change adds 29,328 bytes to the raw x86_64 server compared
+with the former newest-glibc build. The paired Linux x64 VSIX grows by 12,654
+bytes (0.024%). It adds no bytes to WASI or browser-WASM artifacts. In focused
+measurements the glibc 2.28 build remained within noise of the newer-glibc
+build, while the rejected static-musl experiment made the cold workspace scan
+more than ten times slower.
+
+## Tcl runtime and conformance
+
+- TclVM namespace and ensemble behavior now preserves live token state and
+  matches Tcl's command lifecycles more closely, including variable homes and
+  pair-valued array access.
+- Real Tcl 9.0.4 startup, package paths, and Tcltest loading were repaired and
+  moved behind a focused conformance runner shared by the supported engines.
+- Platform bootstrap, TclOO information/property dispatch, core grammar, and
+  Tcl 9 array-index validation now use their central semantic owners rather
+  than parallel implementations.
+
+## Language intelligence and dialects
+
+- Signature help no longer leaks from procedure parameter lists into procedure
+  bodies.
+- Inherited TclOO callback captures honor effective visibility, and the
+  registry's callback inventory now fails when authored coverage is silently
+  downgraded.
+- iRulesLX navigation follows literal `ILX::call` and `ILX::notify` method
+  names through `ILXServer.addMethod`, declared plugin workspaces, and their
+  JavaScript definitions.
+- Registry result typing can derive a type from the call itself. Dialect and
+  SpecTcl availability now use explicit surface rows and profile points rather
+  than an availability bitmask, improving package- and release-specific
+  answers.
+
+## Editors and transports
+
+- The language server now ships as native stdio, WASI stdio, and browser-WASM
+  transports. The universal VSIX carries the WASI fallback, and the VS Code web
+  extension is tested in a browser extension host.
+- The same VSIX set is published to Open VSX as well as the VS Code
+  Marketplace.
+- The Sublime Text package is platform-independent and downloads a
+  checksum-pinned native server on demand.
+
 # v2.2.0
 
 **The 2.x line is out of preview.** After twenty-five `2.1.x` pre-releases, the

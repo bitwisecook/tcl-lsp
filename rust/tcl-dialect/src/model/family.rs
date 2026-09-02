@@ -452,6 +452,7 @@ const GRAMMAR_TCL84: LexerGrammar = LexerGrammar {
     irules_brace_separator: false,
     brace_line_continuation: BraceLineContinuation::Terminates,
     braced_var: BracedVarStyle::FirstClose,
+    array_index: crate::ArrayIndexSyntax::Tcl8,
     script_skips_leading_bom: false,
     expr_comments: ExprCommentStyle::None,
     numbers: NumberSyntax::Tcl84,
@@ -479,6 +480,7 @@ const GRAMMAR_TCL9X: LexerGrammar = LexerGrammar {
     irules_brace_separator: false,
     brace_line_continuation: BraceLineContinuation::Terminates,
     braced_var: BracedVarStyle::Tcl9Nesting,
+    array_index: crate::ArrayIndexSyntax::Tcl9,
     script_skips_leading_bom: true,
     expr_comments: ExprCommentStyle::Hash,
     numbers: NumberSyntax::Tcl90,
@@ -547,6 +549,7 @@ const GRAMMAR_JIM: LexerGrammar = LexerGrammar {
     irules_brace_separator: false,
     brace_line_continuation: BraceLineContinuation::Terminates,
     braced_var: BracedVarStyle::FirstClose,
+    array_index: crate::ArrayIndexSyntax::Tcl8,
     script_skips_leading_bom: false,
     expr_comments: ExprCommentStyle::None,
     // Jim's own numeral grammar, not Tcl 9.0's: it agrees on decimal

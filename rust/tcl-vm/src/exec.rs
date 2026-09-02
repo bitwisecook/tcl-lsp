@@ -34,7 +34,7 @@ use tcl_runtime_api::{Code, Completion};
 use tcl_syntax::expr::{BinOp, UnaryOp};
 use tcl_syntax::value::string_char_len;
 
-use crate::command::{Command, ProcDef};
+use crate::command::{Command, ProcDef, command_lookup_error};
 use crate::expr;
 use crate::interp::{CmdTraceEntry, CommandSidecarHandle, CommandSidecarKey, Vm, err, ok};
 use crate::value::Value;
@@ -575,25 +575,23 @@ fn dict_from_pairs(ps: &[(String, Value)]) -> Value {
 /// missing key — are returned untouched, so they keep the `errorCode` their own
 /// rules give them.
 pub(crate) fn dict_parse_err(message: &str) -> Completion<Value> {
-    let (msg, code) = if let Some(rest) = message.strip_prefix("list element in ") {
-        (
-            format!("dict element in {rest}"),
-            "TCL VALUE DICTIONARY JUNK",
-        )
-    } else if message == "unmatched open brace in list" {
+    let worded = tcl_cmd_core::dict::worded_parse_error(message);
+    let (msg, code) = if worded.starts_with("dict element in ") {
+        (worded, "TCL VALUE DICTIONARY JUNK")
+    } else if worded == "unmatched open brace in dict" {
         (
             "unmatched open brace in dict".to_owned(),
             "TCL VALUE DICTIONARY BRACE",
         )
-    } else if message == "unmatched open quote in list" {
+    } else if worded == "unmatched open quote in dict" {
         (
             "unmatched open quote in dict".to_owned(),
             "TCL VALUE DICTIONARY QUOTE",
         )
-    } else if message == "missing value to go with key" {
-        (message.to_owned(), "TCL VALUE DICTIONARY")
+    } else if worded == "missing value to go with key" {
+        (worded, "TCL VALUE DICTIONARY")
     } else {
-        return err(message.to_owned());
+        return err(worded);
     };
     crate::command::err_with_code(msg, code)
 }
@@ -2638,13 +2636,8 @@ impl Vm {
                 } else {
                     self.current_level().saturating_sub(1)
                 };
-                // Mirror cmd_upvar's namespace-eval aliasing.
-                if self.in_ns_script() && !local.contains("::") && !self.current_ns().is_empty() {
-                    let alias = self.qualify_name(&local);
-                    let target_name = self.qualify_name(&other);
-                    self.add_global_link(&alias, 0, &target_name);
-                } else {
-                    self.add_link(&local, target_level, &other);
+                if let Err(error) = self.link_upvar(target_level, &other, &local) {
+                    return Tick::Return(crate::command::upvar_link_error(error, &other, &local));
                 }
             }
             // `variable` (C `INST_VARIABLE`): link the local slot to the
@@ -3460,7 +3453,7 @@ impl Vm {
                 }
                 let words = f.stack.split_off(marker);
                 if words.is_empty() {
-                    return Tick::Return(err("invalid command name \"\""));
+                    return Tick::Return(command_lookup_error(""));
                 }
                 match self.dispatch_words(f, &words) {
                     Ok(Some(call)) => return call,
@@ -3987,7 +3980,7 @@ impl Vm {
                         f.stack.push(Value::string(format!("::{origin}")));
                     }
                     _ => {
-                        return Tick::Return(err(format!("invalid command name \"{name}\"")));
+                        return Tick::Return(command_lookup_error(&name));
                     }
                 }
             }
@@ -4515,10 +4508,10 @@ impl Vm {
                     unknown_words.extend_from_slice(words);
                     self.dispatch_words(f, &unknown_words)
                 } else {
-                    Err(err(format!("invalid command name \"{name}\"")))
+                    Err(command_lookup_error(&name))
                 }
             }
-            None => Err(err(format!("invalid command name \"{name}\""))),
+            None => Err(command_lookup_error(&name)),
         }
     }
 
@@ -4798,10 +4791,10 @@ impl Vm {
                     full.extend_from_slice(argv);
                     self.invoke_command("unknown", &full)
                 } else {
-                    err(format!("invalid command name \"{name}\""))
+                    command_lookup_error(name)
                 }
             }
-            None => err(format!("invalid command name \"{name}\"")),
+            None => command_lookup_error(name),
         }
     }
 

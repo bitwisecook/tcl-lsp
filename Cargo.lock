@@ -4599,6 +4599,7 @@ dependencies = [
  "tcl-registry",
  "tcl-spec-hooks",
  "tcl-syntax",
+ "tcl-test-support",
  "tcl-userdirs",
  "xxhash-rust",
 ]
@@ -4632,6 +4633,14 @@ dependencies = [
  "num-traits",
  "tcl-dialect",
  "tcl-lexer",
+ "tcl-test-support",
+]
+
+[[package]]
+name = "tcl-test-support"
+version = "0.1.0"
+dependencies = [
+ "tcl-dialect",
 ]
 
 [[package]]
@@ -4662,6 +4671,7 @@ dependencies = [
  "tcl-registry",
  "tcl-runtime-api",
  "tcl-syntax",
+ "tcl-test-support",
 ]
 
 [[package]]
@@ -5933,6 +5943,7 @@ dependencies = [
  "tcl-registry",
  "tcl-spectcl",
  "tcl-syntax",
+ "tcl-test-support",
 ]
 
 [[package]]

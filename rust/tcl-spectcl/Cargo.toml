@@ -54,6 +54,7 @@ xxhash-rust = { workspace = true }
 [dev-dependencies]
 tcl-engine-api = { path = "../tcl-engine-api" }
 tcl-engine-tclvm = { path = "../tcl-engine-tclvm" }
+tcl-test-support = { path = "../tcl-test-support" }
 
 [lints]
 workspace = true

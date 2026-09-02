@@ -41,6 +41,8 @@ class TclLspSettingsPanel {
     )
     private val extraCommandsField = JBTextField(30)
     private val libraryPathsField = JBTextField(30)
+    private val signatureHelpDisabledCommandsField = JBTextField(30)
+    private val signatureHelpInheritDisabledCommands = JBCheckBox("Inherit from config.ini")
 
     // Feature toggles
     private val featureHover = JBCheckBox("Hover")
@@ -341,6 +343,18 @@ class TclLspSettingsPanel {
         builder.addTooltip("Comma-separated list of additional command names to treat as known.")
         builder.addLabeledComponent(JBLabel("Library paths:"), libraryPathsField)
         builder.addTooltip("Comma-separated directories to scan for Tcl packages.")
+        builder.addLabeledComponent(
+            JBLabel("Signature help disabled commands:"),
+            signatureHelpDisabledCommandsField,
+        )
+        builder.addTooltip("Comma-separated built-in command names to silence, such as set,incr. Leave Inherit unchecked and this list empty to show every signature. User-defined proc signatures remain enabled.")
+        builder.addComponent(signatureHelpInheritDisabledCommands)
+        signatureHelpInheritDisabledCommands.toolTipText =
+            "Use the disabled-command list from config.ini instead of overriding it in the IDE."
+        signatureHelpInheritDisabledCommands.addActionListener {
+            signatureHelpDisabledCommandsField.isEnabled =
+                !signatureHelpInheritDisabledCommands.isSelected
+        }
 
         // Features section
         builder.addComponent(TitledSeparator("Features"))
@@ -543,6 +557,10 @@ class TclLspSettingsPanel {
             dialectCombo.selectedIndex != TclLspSettings.DIALECT_OPTIONS.indexOfFirst { it.first == s.dialect } ||
             extraCommandsField.text != s.extraCommands ||
             libraryPathsField.text != s.libraryPaths ||
+            signatureHelpDisabledCommandsOverride(
+                signatureHelpInheritDisabledCommands.isSelected,
+                signatureHelpDisabledCommandsField.text,
+            ) != s.signatureHelpDisabledCommands ||
             // Features
             featureHover.isSelected != s.featureHover ||
             featureCompletion.isSelected != s.featureCompletion ||
@@ -814,6 +832,10 @@ class TclLspSettingsPanel {
         s.dialect = TclLspSettings.DIALECT_OPTIONS.getOrNull(dialectCombo.selectedIndex)?.first ?: "tcl8.6"
         s.extraCommands = extraCommandsField.text
         s.libraryPaths = libraryPathsField.text
+        s.signatureHelpDisabledCommands = signatureHelpDisabledCommandsOverride(
+            signatureHelpInheritDisabledCommands.isSelected,
+            signatureHelpDisabledCommandsField.text,
+        )
 
         s.featureHover = featureHover.isSelected
         s.featureCompletion = featureCompletion.isSelected
@@ -1103,6 +1125,9 @@ class TclLspSettingsPanel {
         dialectCombo.selectedIndex = TclLspSettings.DIALECT_OPTIONS.indexOfFirst { it.first == s.dialect }.coerceAtLeast(0)
         extraCommandsField.text = s.extraCommands
         libraryPathsField.text = s.libraryPaths
+        signatureHelpDisabledCommandsField.text = s.signatureHelpDisabledCommands.orEmpty()
+        signatureHelpInheritDisabledCommands.isSelected = s.signatureHelpDisabledCommands == null
+        signatureHelpDisabledCommandsField.isEnabled = !signatureHelpInheritDisabledCommands.isSelected
 
         featureHover.isSelected = s.featureHover
         featureCompletion.isSelected = s.featureCompletion

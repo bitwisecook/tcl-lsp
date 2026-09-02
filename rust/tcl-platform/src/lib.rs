@@ -338,6 +338,334 @@ pub trait Host {
     }
 }
 
+/// Canonical bootstrap schema for the predefined `tcl_platform` array.
+///
+/// The two interpreters supply the few host- and engine-dependent values via
+/// [`Values`], then install every [`entries`] row.  Keeping the key set, its
+/// portable defaults, and the safe-interpreter scrub policy in this leaf crate
+/// prevents a runtime from silently acquiring a different platform surface.
+pub mod bootstrap {
+    use super::{Host, backend};
+
+    /// Arrays whose complete contents come from the selected host bootstrap.
+    pub const HOST_ARRAYS: &[&str] = &["tcl_platform", "env"];
+
+    /// Scalars and path variables invalidated when the selected host changes.
+    ///
+    /// `tcl_library` and `auto_path` are reinstalled from the new snapshot;
+    /// the other two are populated by `init.tcl` and must not retain an old
+    /// host's library search path.
+    pub const HOST_PATH_GLOBALS: &[&str] = &[
+        "tcl_library",
+        "auto_path",
+        "tclDefaultLibrary",
+        "tcl_pkgPath",
+    ];
+
+    /// Shared-library suffix exposed by `info sharedlibextension` for the
+    /// canonical Unix platform both Rust interpreters currently publish.
+    pub const SHARED_LIBRARY_EXTENSION: &str = ".so";
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    enum ValueSource {
+        Literal(&'static str),
+        OsVersion,
+        Machine,
+        User,
+        Runtime,
+        RuntimeVersion,
+        Wasm,
+        Wasi,
+        WasiVersion,
+        Ebpf,
+    }
+
+    /// Engine-provided values for the non-constant platform facts.
+    ///
+    /// Providers intentionally remain strings: Tcl exposes every
+    /// `tcl_platform` element as a string and a restricted host may only know
+    /// the empty value for a fact such as the operating-system release.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct Values<'a> {
+        pub os_version: &'a str,
+        pub machine: &'a str,
+        pub user: &'a str,
+        pub runtime: &'a str,
+        pub runtime_version: &'a str,
+        pub wasm: &'a str,
+        pub wasi: &'a str,
+        pub wasi_version: &'a str,
+        pub ebpf: &'a str,
+    }
+
+    /// Owned host-derived values installed into a fresh or rebound interpreter.
+    ///
+    /// Both native engines consume this snapshot.  Host environment reads,
+    /// backend override selection, platform values, and library-path selection
+    /// therefore happen once, before either engine clears its old globals.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct Snapshot {
+        platform: Vec<(&'static str, String)>,
+        environment: Vec<(String, String)>,
+        tcl_library: String,
+    }
+
+    impl Snapshot {
+        /// Canonical `tcl_platform` element/value pairs.
+        #[must_use]
+        pub fn platform(&self) -> &[(&'static str, String)] {
+            &self.platform
+        }
+
+        /// The selected host's complete Unicode environment view.
+        #[must_use]
+        pub fn environment(&self) -> &[(String, String)] {
+            &self.environment
+        }
+
+        /// The selected host's Tcl script-library directory.
+        #[must_use]
+        pub fn tcl_library(&self) -> &str {
+            &self.tcl_library
+        }
+    }
+
+    /// One canonical `tcl_platform` element and its safe-interpreter policy.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct Entry {
+        name: &'static str,
+        source: ValueSource,
+        scrub_in_safe: bool,
+    }
+
+    impl Entry {
+        const fn new(name: &'static str, source: ValueSource, scrub_in_safe: bool) -> Self {
+            Self {
+                name,
+                source,
+                scrub_in_safe,
+            }
+        }
+
+        /// The array-element name.
+        #[must_use]
+        pub const fn name(self) -> &'static str {
+            self.name
+        }
+
+        /// Resolve this element for an interpreter's supplied values.
+        #[must_use]
+        pub fn value<'a>(self, values: &'a Values<'a>) -> &'a str {
+            match self.source {
+                ValueSource::Literal(value) => value,
+                ValueSource::OsVersion => values.os_version,
+                ValueSource::Machine => values.machine,
+                ValueSource::User => values.user,
+                ValueSource::Runtime => values.runtime,
+                ValueSource::RuntimeVersion => values.runtime_version,
+                ValueSource::Wasm => values.wasm,
+                ValueSource::Wasi => values.wasi,
+                ValueSource::WasiVersion => values.wasi_version,
+                ValueSource::Ebpf => values.ebpf,
+            }
+        }
+
+        /// Whether `Tcl_MakeSafe` must remove this host-revealing element.
+        #[must_use]
+        pub const fn scrub_in_safe(self) -> bool {
+            self.scrub_in_safe
+        }
+    }
+
+    const ENTRIES: &[Entry] = &[
+        Entry::new("platform", ValueSource::Literal("unix"), false),
+        Entry::new("os", ValueSource::Literal("Linux"), true),
+        Entry::new("osVersion", ValueSource::OsVersion, true),
+        Entry::new("machine", ValueSource::Machine, true),
+        Entry::new("byteOrder", ValueSource::Literal("littleEndian"), false),
+        Entry::new("wordSize", ValueSource::Literal("8"), false),
+        Entry::new("pointerSize", ValueSource::Literal("8"), false),
+        Entry::new("pathSeparator", ValueSource::Literal(":"), false),
+        Entry::new("engine", ValueSource::Literal("Tcl"), false),
+        // Tcl itself keeps `threaded` in a safe child.  It reports build
+        // capability rather than host identity; an embedder may change it to
+        // `1` after bootstrap when it installs thread support.
+        Entry::new("threaded", ValueSource::Literal("0"), false),
+        Entry::new("user", ValueSource::User, true),
+        Entry::new(backend::key::RUNTIME, ValueSource::Runtime, true),
+        Entry::new(
+            backend::key::RUNTIME_VERSION,
+            ValueSource::RuntimeVersion,
+            true,
+        ),
+        Entry::new(backend::key::WASM, ValueSource::Wasm, true),
+        Entry::new(backend::key::WASI, ValueSource::Wasi, true),
+        Entry::new(backend::key::WASI_VERSION, ValueSource::WasiVersion, true),
+        Entry::new(backend::key::EBPF, ValueSource::Ebpf, true),
+    ];
+
+    /// The complete platform array schema, in deterministic installation order.
+    #[must_use]
+    pub fn entries() -> &'static [Entry] {
+        ENTRIES
+    }
+
+    /// Capture every host-derived bootstrap value for one interpreter engine.
+    #[must_use]
+    pub fn snapshot(host: &dyn Host, runtime: &str, runtime_version: &str) -> Snapshot {
+        use backend::key;
+
+        let detected = |name: &str, compiled: &str| -> String {
+            backend::override_env_var(name)
+                .and_then(|variable| host.env().get(variable))
+                .filter(|value| !value.is_empty())
+                .unwrap_or_else(|| compiled.to_string())
+        };
+        let webassembly_level = detected(key::WASM, backend::compiled_wasm_spec());
+        let interface_level = detected(key::WASI, backend::compiled_wasi_spec());
+        let interface_host = detected(key::WASI_VERSION, backend::compiled_wasi_host());
+        let bpf_level = detected(key::EBPF, backend::compiled_ebpf_spec());
+        let user = host
+            .env()
+            .get("USER")
+            .or_else(|| host.env().get("USERNAME"))
+            .unwrap_or_default();
+        let values = Values {
+            os_version: "",
+            machine: std::env::consts::ARCH,
+            user: &user,
+            runtime,
+            runtime_version,
+            wasm: &webassembly_level,
+            wasi: &interface_level,
+            wasi_version: &interface_host,
+            ebpf: &bpf_level,
+        };
+        let platform = entries()
+            .iter()
+            .copied()
+            .map(|entry| (entry.name(), entry.value(&values).to_string()))
+            .collect();
+        let mut environment = host.env().vars();
+        environment.sort_unstable();
+        let tcl_library = host.env().get("TCL_LIBRARY").unwrap_or_default();
+        Snapshot {
+            platform,
+            environment,
+            tcl_library,
+        }
+    }
+
+    /// Keys removed when an interpreter becomes safe, derived from [`entries`].
+    pub fn safe_scrub_keys() -> impl Iterator<Item = &'static str> {
+        ENTRIES
+            .iter()
+            .copied()
+            .filter(|entry| entry.scrub_in_safe())
+            .map(Entry::name)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        const VALUES: Values<'static> = Values {
+            os_version: "kernel",
+            machine: "machine",
+            user: "user",
+            runtime: "runtime",
+            runtime_version: "runtime-version",
+            wasm: "wasm",
+            wasi: "wasi",
+            wasi_version: "wasi-version",
+            ebpf: "ebpf",
+        };
+
+        #[test]
+        fn schema_has_unique_expected_keys_and_provider_values() {
+            let names = entries()
+                .iter()
+                .map(|entry| entry.name())
+                .collect::<Vec<_>>();
+            assert_eq!(
+                names,
+                [
+                    "platform",
+                    "os",
+                    "osVersion",
+                    "machine",
+                    "byteOrder",
+                    "wordSize",
+                    "pointerSize",
+                    "pathSeparator",
+                    "engine",
+                    "threaded",
+                    "user",
+                    "runtime",
+                    "runtimeVersion",
+                    "wasm",
+                    "wasi",
+                    "wasiVersion",
+                    "ebpf",
+                ]
+            );
+            let mut unique = names.clone();
+            unique.sort_unstable();
+            unique.dedup();
+            assert_eq!(unique.len(), names.len());
+
+            for (name, expected) in [
+                ("osVersion", VALUES.os_version),
+                ("machine", VALUES.machine),
+                ("user", VALUES.user),
+                ("runtime", VALUES.runtime),
+                ("runtimeVersion", VALUES.runtime_version),
+                ("wasm", VALUES.wasm),
+                ("wasi", VALUES.wasi),
+                ("wasiVersion", VALUES.wasi_version),
+                ("ebpf", VALUES.ebpf),
+            ] {
+                let entry = entries()
+                    .iter()
+                    .find(|entry| entry.name() == name)
+                    .expect("provider-backed platform key");
+                assert_eq!(entry.value(&VALUES), expected);
+            }
+        }
+
+        #[test]
+        fn safe_scrub_is_derived_from_the_schema() {
+            let scrubbed = safe_scrub_keys().collect::<Vec<_>>();
+            assert_eq!(
+                scrubbed,
+                [
+                    "os",
+                    "osVersion",
+                    "machine",
+                    "user",
+                    "runtime",
+                    "runtimeVersion",
+                    "wasm",
+                    "wasi",
+                    "wasiVersion",
+                    "ebpf",
+                ]
+            );
+            for portable in [
+                "platform",
+                "byteOrder",
+                "wordSize",
+                "pointerSize",
+                "pathSeparator",
+                "engine",
+                "threaded",
+            ] {
+                assert!(!scrubbed.contains(&portable));
+            }
+        }
+    }
+}
+
 /// Backend introspection for the `tcl_platform` keys the test-suite
 /// backend-constraint overlay reads to decide which upstream tcltest tests a
 /// given build can run.

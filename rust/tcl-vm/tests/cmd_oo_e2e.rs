@@ -327,6 +327,47 @@ fn tip558_configurable_option_abbreviation() {
 }
 
 #[test]
+fn tip558_property_and_info_options_match_tcl_prefix_diagnostics() {
+    for (script, want) in [
+        (
+            "oo::configurable create P {property x -}",
+            "ambiguous option \"-\": must be -get, -kind, or -set",
+        ),
+        (
+            "oo::configurable create Q {property x -kind r}",
+            "ambiguous kind \"r\": must be readable, readwrite, or writable",
+        ),
+    ] {
+        let (ok, message, _) = run(script);
+        assert!(!ok, "{script} should error");
+        assert_eq!(message, want);
+    }
+
+    assert_eq!(
+        result(
+            "oo::configurable create C {property x}\n\
+             set o [C new]\n\
+             list [info class properties C -a] [info object properties $o -a]"
+        ),
+        "-x -x"
+    );
+    for (script, want) in [
+        (
+            "oo::configurable create C {property x}; info class properties C {}",
+            "ambiguous option \"\": must be -all, -readable, or -writable",
+        ),
+        (
+            "oo::configurable create C {property x}; set o [C new]; info object properties $o -",
+            "ambiguous option \"-\": must be -all, -readable, or -writable",
+        ),
+    ] {
+        let (ok, message, _) = run(script);
+        assert!(!ok, "{script} should error");
+        assert_eq!(message, want);
+    }
+}
+
+#[test]
 fn tip558_configurable_not_on_plain_class() {
     // ooProp T12/T28: `property` is not a command in a non-configurable define
     // body, but a plain subclass's *instances* still inherit `configure`.

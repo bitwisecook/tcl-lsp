@@ -10,6 +10,12 @@ arm64, plus Linux riscv64) and run the one matching your machine. The
 Sublime Text package and the Zed extension download the matching binary
 on first use.
 
+The Linux native binaries target glibc: x86_64 and arm64 require 2.28 or
+newer, while RISC-V requires 2.35 or newer. This covers the maintained GNU
+distribution families in the release matrix; Alpine does not run these native
+binaries. The separately published WASI server is independent of the host libc
+and is documented below for editors that can launch a WebAssembly runtime.
+
 On an architecture none of those seven covers, the same server is also
 published as a WebAssembly module — see
 [No prebuilt binary for your platform?](#no-prebuilt-binary-for-your-platform)

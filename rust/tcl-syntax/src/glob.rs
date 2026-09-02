@@ -37,6 +37,22 @@ pub fn string_match(pattern: &str, text: &str) -> bool {
     string_case_match(pattern, text, false)
 }
 
+/// Tcl `string match` over byte-valued strings.
+///
+/// Valid UTF-8 retains the ordinary Unicode-scalar semantics. An embedder can
+/// also supply an invalid-UTF-8 plain string; that is outside Tcl's normal
+/// script-created string representation, so the runtime's established policy
+/// is deliberately narrow and collision-free: such a pattern/text pair matches
+/// only when its bytes are identical. In particular, a valid `*` does not
+/// reinterpret an invalid byte string through replacement characters.
+#[must_use]
+pub fn string_match_bytes(pattern: &[u8], text: &[u8]) -> bool {
+    match (core::str::from_utf8(pattern), core::str::from_utf8(text)) {
+        (Ok(pattern), Ok(text)) => string_match(pattern, text),
+        _ => pattern == text,
+    }
+}
+
 /// Whether `pattern` contains no glob metacharacter, so
 /// [`string_match(pattern, text)`](string_match) is exactly `pattern == text`.
 ///
@@ -378,6 +394,14 @@ mod tests {
             assert!(string_match(pattern, other), "{pattern:?} vs {other:?}");
             assert_ne!(pattern, other);
         }
+    }
+
+    #[test]
+    fn byte_match_preserves_invalid_utf8_identity() {
+        assert!(string_match_bytes(b"plain*", b"plaintext"));
+        assert!(string_match_bytes(b"raw\xff", b"raw\xff"));
+        assert!(!string_match_bytes(b"raw\xff", b"raw\xfe"));
+        assert!(!string_match_bytes(b"*", b"raw\xff"));
     }
 
     #[test]

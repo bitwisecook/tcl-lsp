@@ -3557,6 +3557,20 @@
             "description": "Override signature help (parameter hints). When null, inherits from editor.parameterHints.enabled.",
             "order": 11
           },
+          "tclLsp.signatureHelp.disabledCommands": {
+            "scope": "language-overridable",
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true,
+            "default": null,
+            "markdownDescription": "Built-in Tcl command names whose automatic signature help is suppressed. For example, add `set` and `incr` to keep signatures for commands such as `format` and for user-defined procs while silencing those two built-ins. Names are case-sensitive and resolved with Tcl's qualified-name rules, so `set` and `::set` select the same registry command.",
+            "order": 12
+          },
           "tclLsp.features.workspaceSymbols": {
             "scope": "language-overridable",
             "type": [
@@ -3565,7 +3579,7 @@
             ],
             "default": null,
             "description": "Override workspace symbols (Cmd+T). When null, enabled.",
-            "order": 12
+            "order": 13
           },
           "tclLsp.features.inlayTypeHints": {
             "scope": "language-overridable",
@@ -3575,7 +3589,7 @@
             ],
             "default": null,
             "description": "Show inferred-type inlay hints on variables (and format-string specifiers). Off by default; set true to enable.",
-            "order": 13
+            "order": 14
           },
           "tclLsp.features.inlayParameterHints": {
             "scope": "language-overridable",
@@ -3585,7 +3599,7 @@
             ],
             "default": null,
             "description": "Show parameter-name inlay hints at proc/method call sites (e.g. NAME:, PROC_SCRIPT:). Verbose; off by default, set true to enable.",
-            "order": 14
+            "order": 15
           },
           "tclLsp.features.callHierarchy": {
             "scope": "language-overridable",
@@ -3595,7 +3609,7 @@
             ],
             "default": null,
             "description": "Override call hierarchy (incoming/outgoing calls for procs). When null, enabled.",
-            "order": 15
+            "order": 16
           },
           "tclLsp.features.documentLinks": {
             "scope": "language-overridable",
@@ -3605,7 +3619,7 @@
             ],
             "default": null,
             "description": "Override document links (clickable source paths and package requires). When null, enabled.",
-            "order": 16
+            "order": 17
           },
           "tclLsp.features.selectionRange": {
             "scope": "language-overridable",
@@ -3615,7 +3629,7 @@
             ],
             "default": null,
             "description": "Override selection range (smart expand/shrink). When null, enabled.",
-            "order": 17
+            "order": 18
           },
           "tclLsp.features.documentHighlight": {
             "scope": "language-overridable",
@@ -3625,7 +3639,7 @@
             ],
             "default": null,
             "description": "Override document highlight. When null, inherits from editor.occurrencesHighlight.",
-            "order": 18
+            "order": 19
           },
           "tclLsp.features.codeLens": {
             "scope": "language-overridable",
@@ -3635,7 +3649,7 @@
             ],
             "default": null,
             "description": "Override code lens (inline reference counts, test runners). When null, inherits from editor.codeLens.",
-            "order": 19
+            "order": 20
           },
           "tclLsp.features.workspaceFileOps": {
             "scope": "language-overridable",
@@ -3645,14 +3659,14 @@
             ],
             "default": null,
             "description": "Override workspace file operations (auto-rewrite source paths on rename). When null, enabled.",
-            "order": 20
+            "order": 21
           },
           "tclLsp.features.willSaveWaitUntil": {
             "scope": "language-overridable",
             "type": "boolean",
             "default": false,
             "description": "Format the document on save via textDocument/willSaveWaitUntil. Off by default; enable for format-on-save without relying on the editor's own editor.formatOnSave. Uses the resolved tclLsp.formatting.lineLength for the document's folder.",
-            "order": 21
+            "order": 22
           },
           "tclLsp.features.implementation": {
             "scope": "language-overridable",
@@ -3662,7 +3676,7 @@
             ],
             "default": null,
             "description": "Override Go to Implementation (TclOO method overrides). When null, enabled.",
-            "order": 23
+            "order": 24
           },
           "tclLsp.features.typeDefinition": {
             "scope": "language-overridable",
@@ -3672,7 +3686,7 @@
             ],
             "default": null,
             "description": "Override Go to Type Definition. When null, enabled.",
-            "order": 24
+            "order": 25
           },
           "tclLsp.features.declaration": {
             "scope": "language-overridable",
@@ -3682,7 +3696,7 @@
             ],
             "default": null,
             "description": "Override Go to Declaration. When null, enabled.",
-            "order": 25
+            "order": 26
           },
           "tclLsp.features.linkedEditingRange": {
             "scope": "language-overridable",
@@ -3692,7 +3706,7 @@
             ],
             "default": null,
             "description": "Override linked editing range. When null, inherits from editor.linkedEditing.",
-            "order": 26
+            "order": 27
           },
           "tclLsp.features.crossFileResolution": {
             "scope": "resource",
@@ -3702,7 +3716,7 @@
             ],
             "default": null,
             "description": "Resolve diagnostics across the whole workspace: suppress \"unknown command\" (W120/W123) for a proc defined in another file, and report wrong-argument-count errors (E002/E003) for cross-file calls. Off by default (scans every workspace file); set true to enable. An expr math function the workspace injects into ::tcl::mathfunc resolves without this setting, since that namespace is one table per interpreter. Independent of XC Migration diagnostics below.",
-            "order": 27
+            "order": 28
           }
         }
       },

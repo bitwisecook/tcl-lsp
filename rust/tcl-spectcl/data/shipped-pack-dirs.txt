@@ -1,0 +1,8 @@
+# Repository-relative directories containing shipped SpecTcl packs.
+#
+# This is the language-neutral owner shared by the Rust golden/evaluation
+# inventory and CI's SpecTcl compatibility path classifier. Keep entries
+# slash-free at the end; every directory is scanned non-recursively.
+specs
+docs/design/spec-dsl-examples
+docs/design/spec-dsl-examples/external

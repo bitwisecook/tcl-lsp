@@ -1061,7 +1061,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         traits: Traits::REFLECTS_COMMAND_NAMES,
         arity: Arity::exact(1),
         detail: "Returns the fully-qualified name of the original command.",
-        synopsis: "namespace origin command",
+        synopsis: "namespace origin name",
         pure: true,
         return_type: Some(TclType::String),
         // The single argument is a command name resolved (not called), so it

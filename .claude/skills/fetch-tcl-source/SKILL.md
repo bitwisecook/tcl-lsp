@@ -47,8 +47,9 @@ After fetching, the following directories are available:
 
 Each source tree also contains `generic/`, `library/`, `doc/`, and build files.
 
-Tcl 9.1 is a beta (`9.1b0`); bump `[9.1]` in both `LATEST_VERSIONS` and
-`GITHUB_TAGS` (`fetch_tcl_source.sh`) when a newer 9.1 tag ships.
+Tcl 9.1 is a beta (`9.1b0`). Patchlevels and source tags for every release
+live in `rust/tcl-dialect/data/reference-toolchains.tsv`; the fetcher and
+host dependency installer both consume that manifest.
 
 ## When to use
 
@@ -63,7 +64,8 @@ Tcl 9.1 is a beta (`9.1b0`); bump `[9.1]` in both `LATEST_VERSIONS` and
 - Idempotent: re-running skips existing directories
 - Downloads from `codeload.github.com` with retry logic (4 attempts,
   exponential backoff)
-- Version numbers are hardcoded; update `fetch_tcl_source.sh` when new
-  patch releases come out
+- Update `rust/tcl-dialect/data/reference-toolchains.tsv` when a new
+  pinned patch release comes out; `tcl-dialect` validates and generates the
+  ordered `TclVersion` release facts from that manifest
 
 $ARGUMENTS

@@ -25,46 +25,9 @@
 //! with no binary is skipped **loudly** — the suite says which column went
 //! unchecked rather than passing in silence.
 
-use std::io::Write as _;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 
 use tcl_dialect::TclVersion;
-
-/// Environment variable and PATH names for one release of the matrix.
-struct ReleaseBinary {
-    release: TclVersion,
-    env: &'static str,
-    names: &'static [&'static str],
-}
-
-const MATRIX: &[ReleaseBinary] = &[
-    ReleaseBinary {
-        release: TclVersion::V8_4,
-        env: "TCL_LSP_TCLSH84",
-        names: &["tclsh8.4"],
-    },
-    ReleaseBinary {
-        release: TclVersion::V8_5,
-        env: "TCL_LSP_TCLSH85",
-        names: &["tclsh8.5"],
-    },
-    ReleaseBinary {
-        release: TclVersion::V8_6,
-        env: "TCL_LSP_TCLSH86",
-        names: &["tclsh8.6"],
-    },
-    ReleaseBinary {
-        release: TclVersion::V9_0,
-        env: "TCL_LSP_TCLSH90",
-        names: &["tclsh9.0"],
-    },
-    ReleaseBinary {
-        release: TclVersion::V9_1,
-        env: "TCL_LSP_TCLSH91",
-        names: &["tclsh9.1"],
-    },
-];
 
 /// Every release of the matrix that has a usable interpreter on this
 /// machine, oldest first.
@@ -72,19 +35,10 @@ const MATRIX: &[ReleaseBinary] = &[
 /// Prints one `skipping` line per release it could not find, so a run that
 /// only covers part of the ladder says so in its output.
 pub fn available_releases() -> Vec<(TclVersion, PathBuf)> {
-    let mut found = Vec::new();
-    for entry in MATRIX {
-        match locate(entry) {
-            Some(path) => found.push((entry.release, path)),
-            None => eprintln!(
-                "skipping Tcl {}: no interpreter (set {} or put {} on PATH)",
-                entry.release.version_string(),
-                entry.env,
-                entry.names.join(" / "),
-            ),
-        }
-    }
-    found
+    tcl_test_support::available_tclshs()
+        .into_iter()
+        .map(|interpreter| (interpreter.version, interpreter.path))
+        .collect()
 }
 
 /// Run `script` on `tclsh`, returning its trimmed standard output.
@@ -97,66 +51,7 @@ pub fn available_releases() -> Vec<(TclVersion, PathBuf)> {
 /// setup a release rejects would otherwise report whatever the *rest* of
 /// the script happened to do.
 pub fn run_script(tclsh: &Path, script: &str) -> Result<String, String> {
-    let mut child = Command::new(tclsh)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .unwrap_or_else(|why| panic!("spawn {}: {why}", tclsh.display()));
-    child
-        .stdin
-        .as_mut()
-        .expect("tclsh stdin")
-        .write_all(script.as_bytes())
-        .expect("write script");
-    let output = child.wait_with_output().expect("tclsh run");
-    let complaint = String::from_utf8_lossy(&output.stderr).trim().to_owned();
-    if output.status.success() && complaint.is_empty() {
-        Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
-    } else if complaint.is_empty() {
-        Err(format!("exited with {}", output.status))
-    } else {
-        Err(complaint)
-    }
-}
-
-/// The interpreter for one release: the environment override first, then
-/// the conventional PATH names.
-fn locate(entry: &ReleaseBinary) -> Option<PathBuf> {
-    if let Ok(explicit) = std::env::var(entry.env) {
-        let path = PathBuf::from(explicit);
-        if path.exists() {
-            return Some(path);
-        }
-    }
-    for name in entry.names {
-        if runs(name) {
-            return Some(PathBuf::from(name));
-        }
-    }
-    None
-}
-
-/// Whether `name` names an interpreter that answers `info patchlevel` with
-/// the release its name claims — a PATH `tclsh8.6` that is really a 9.0
-/// would silently pin the wrong column.
-fn runs(name: &str) -> bool {
-    let Ok(mut child) = Command::new(name)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-    else {
-        return false;
-    };
-    let _ = child
-        .stdin
-        .as_mut()
-        .expect("tclsh stdin")
-        .write_all(b"puts [info tclversion]\n");
-    let Ok(output) = child.wait_with_output() else {
-        return false;
-    };
-    let reported = String::from_utf8_lossy(&output.stdout).trim().to_owned();
-    output.status.success() && name.ends_with(&reported)
+    tcl_test_support::run_script(tclsh, script.as_bytes())
+        .map_err(|error| error.to_string())?
+        .strict_text()
 }

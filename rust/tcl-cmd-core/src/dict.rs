@@ -32,6 +32,25 @@ use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
 
+/// Re-word a list-codec parse failure as the dict failure C reports.
+///
+/// `SetDictFromAny` uses the same element grammar with the type strings
+/// `dict`/`DICTIONARY`; the shared list codec therefore supplies the structure
+/// and this owner supplies the public noun. Already dict-specific messages pass
+/// through unchanged.
+#[must_use]
+pub fn worded_parse_error(message: &str) -> String {
+    if let Some(rest) = message.strip_prefix("list element in ") {
+        format!("dict element in {rest}")
+    } else if message == "unmatched open brace in list" {
+        "unmatched open brace in dict".to_owned()
+    } else if message == "unmatched open quote in list" {
+        "unmatched open quote in dict".to_owned()
+    } else {
+        message.to_owned()
+    }
+}
+
 fn ilen(n: usize) -> i64 {
     i64::try_from(n).unwrap_or(i64::MAX)
 }

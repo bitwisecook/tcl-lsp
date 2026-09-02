@@ -115,6 +115,12 @@ the server stop advertising or running that feature. Valid keys:
 `implementation`, `typeDefinition`, `declaration`,
 `linkedEditingRange`, `crossFileResolution`.
 
+### `[signatureHelp]`
+
+Controls selective suppression without disabling signature help globally:
+
+- `disabled_commands` — comma- or whitespace-separated built-in command names. For example, `set, incr` suppresses those built-in signatures while retaining `format` and user-defined proc signatures. Names are case-sensitive and use the shared Tcl qualified-name resolver (so `set`, `::set`, and equivalent separator spellings resolve to the same registry key).
+
 Delivery-model changes are not configuration toggles: diagnostics use push
 publication, while pull requests are supported only when a client requests
 them directly.

@@ -705,9 +705,10 @@ fn backslash_newline_continuation_decodes_to_a_single_space() {
     // `llength "a\<nl>b"` -> 2, two elements of that joined string).
     assert_eq!(subst("a\\\nb"), "a b");
     assert_eq!(subst("a\\\n   b"), "a b"); // leading run after NL stripped
-    // CRLF and bare-CR continuations collapse the same way.
-    assert_eq!(subst("a\\\r\nb"), "a b");
-    assert_eq!(subst("a\\\rb"), "a b");
+    // C's raw parser has no CR continuation arm. A channel may translate
+    // CRLF before parsing, but bytes handed directly to TclParseBackslash stay.
+    assert_eq!(subst("a\\\r\nb"), "a\r\nb");
+    assert_eq!(subst("a\\\rb"), "a\rb");
 }
 
 // Comment rules (`#` only at command start; `\<nl>` continues a comment).

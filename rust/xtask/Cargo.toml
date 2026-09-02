@@ -33,6 +33,7 @@ path = "src/main.rs"
 
 [dependencies]
 tcl-dialect = { path = "../tcl-dialect" }
+tcl-test-support = { path = "../tcl-test-support" }
 clap = { version = "4", features = ["derive", "wrap_help"] }
 anyhow = "1"
 regex = "1"
