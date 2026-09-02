@@ -129,7 +129,7 @@ fn encode_text(text: &str) -> Box<[u8]> {
 
 fn decode_bytes(bytes: &[u8]) -> String {
     let text = String::from_utf8_lossy(bytes);
-    if text.contains('\u{C0}') || bytes.windows(2).any(|pair| pair == [0xC0, 0x80]) {
+    if bytes.windows(2).any(|pair| pair == [0xC0, 0x80]) {
         // Rare path: restore the interior NULs the encoding spelled out.
         let mut out = Vec::with_capacity(bytes.len());
         let mut index = 0;

@@ -254,7 +254,9 @@ Pkga_CalcObjCmd(void *dummy, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]
     return TCL_OK;
 }
 
-/* A counter carried through clientData, with a delete procedure. */
+/* A counter carried through clientData, with a delete procedure. It is a
+ * process-wide static shared by every interpreter that loads the package
+ * (tests load it concurrently), so it is never reset. */
 struct counter {
     int calls;
     int deleted;
@@ -307,8 +309,6 @@ Pkga_Init(Tcl_Interp *interp)
     if (code != TCL_OK) {
 	return code;
     }
-    pkgaCounter.calls = 0;
-    pkgaCounter.deleted = 0;
     Tcl_CreateObjCommand(interp, "pkga_eq", Pkga_EqObjCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "pkga_quote", Pkga_QuoteObjCmd, NULL, NULL);
     Tcl_CreateObjCommand(interp, "pkga_calc", Pkga_CalcObjCmd, NULL, NULL);

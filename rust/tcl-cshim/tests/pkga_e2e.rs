@@ -331,13 +331,15 @@ fn results_and_errors_match_c_tcl_byte_for_byte() {
 #[test]
 fn client_data_and_delete_procs_work_across_calls() {
     let mut interp = loaded();
+    // The counter is a C static shared by every interpreter in the process,
+    // so only the increment between two calls is this test's to assert.
+    let first: i64 = catching(&mut interp, "pkga_count")
+        .1
+        .parse()
+        .expect("a count");
     assert_eq!(
         catching(&mut interp, "pkga_count"),
-        (0, "1".into(), String::new())
-    );
-    assert_eq!(
-        catching(&mut interp, "pkga_count"),
-        (0, "2".into(), String::new())
+        (0, (first + 1).to_string(), String::new())
     );
     assert_eq!(
         catching(&mut interp, "pkga_count extra"),

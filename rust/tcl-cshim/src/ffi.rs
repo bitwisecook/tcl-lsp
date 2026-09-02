@@ -625,10 +625,11 @@ pub unsafe extern "C" fn tcl_get_index_from_obj_struct(
         let null_ok = flags & TCL_NULL_OK != 0;
         let exact = flags & TCL_EXACT != 0;
 
+        let resolution = prefix::scan(&entries, key.as_bytes(), exact);
         let resolved: Option<isize> = if key.is_empty() && null_ok {
             Some(-1)
         } else {
-            match prefix::scan(&entries, key.as_bytes(), exact) {
+            match resolution {
                 Resolution::Exact(index) | Resolution::UniquePrefix(index) => {
                     isize::try_from(index).ok()
                 }
@@ -636,10 +637,7 @@ pub unsafe extern "C" fn tcl_get_index_from_obj_struct(
             }
         };
         let Some(index) = resolved else {
-            let ambiguous = matches!(
-                prefix::scan(&entries, key.as_bytes(), exact),
-                Resolution::Ambiguous
-            );
+            let ambiguous = matches!(resolution, Resolution::Ambiguous);
             let message = if null_ok {
                 null_ok_message(&what, &key, ambiguous, &entries)
             } else {
