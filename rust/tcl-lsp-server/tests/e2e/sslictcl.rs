@@ -231,32 +231,36 @@ fn a_block_body_offers_exactly_its_members() {
     );
 }
 
-/// The top level offers the declaration words. It is *open* — an unrecognised
-/// statement is preserved as an extension — so the offer is not exhaustive
-/// there, only complete.
+/// The root of the document offers exactly the declarations, and no core Tcl
+/// command: the file itself is a declaration body, and the document grammar is
+/// what says so.
+///
+/// The top level is *open* to a word the loader does not recognise — that is
+/// the forwards-compatibility rule, reported as `SSLIC1101` — but "we would
+/// preserve a word we do not know" is not a reason to suggest `puts` here.
 #[test]
-fn the_top_level_offers_the_declarations() {
+fn the_top_level_offers_exactly_the_declarations() {
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("sslictcl");
     let source = format!("{DOC}\n");
     lsp.open_ready(&uri, &source);
     let line = u32::try_from(source.split('\n').count() - 1).expect("line fits u32");
-    let labels = completion_labels(&lsp.completion(&uri, line, 0));
-    for declaration in [
-        "certificate",
-        "chain",
-        "cipher",
-        "endpoint",
-        "policy",
-        "protocol",
-        "testssl-import",
-        "trust-program",
-    ] {
-        assert!(
-            labels.iter().any(|label| label == declaration),
-            "top level must offer `{declaration}`",
-        );
-    }
+    let mut labels = completion_labels(&lsp.completion(&uri, line, 0));
+    labels.sort();
+    assert_eq!(
+        labels,
+        vec![
+            "certificate",
+            "chain",
+            "cipher",
+            "endpoint",
+            "policy",
+            "protocol",
+            "sslictcl",
+            "testssl-import",
+            "trust-program",
+        ],
+    );
 }
 
 /// Signature help on a declaration shows the shape the vocabulary document

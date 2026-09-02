@@ -557,10 +557,6 @@ Distilled from the trickiest scars in the WASM runtime history
   and one tracking document per in-flight agent lane. A file there means a
   lane is either in flight or was interrupted; each is removed when its
   lane lands.
-- [lanes/sslictcl-lsp.md](lanes/sslictcl-lsp.md) — SslicTcl LSP authoring end
-  to end (#1543): the loader's diagnostics as document diagnostics, the
-  declaration outline and block-body vocabulary, and the dialect rule that
-  the loader supersedes the analyser's unknown-command verdict.
 
 ## Templates
 

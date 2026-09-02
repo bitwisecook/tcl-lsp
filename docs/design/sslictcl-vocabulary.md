@@ -279,7 +279,7 @@ so aliases and all four routes agree.
 
 | Surface | Where it comes from |
 |---|---|
-| Completion | The declaration words at the top level, from the pack's `CommandSpec`s. Inside a block, exactly that block's members and nothing else — `tcl_lsp_core::declaration_outline::member_completions` reads the innermost enclosing `DefinitionBodyGrammar`. The narrowing is right because the document is never evaluated: no core Tcl command is callable in a block body. |
+| Completion | Exactly the members of the grammar in force, and nothing else: the nine top-level declarations at the root (`SSLICTCL_DOCUMENT_GRAMMAR`, reached through `CommandRegistry::document_grammar`), that block's members inside a block, and ordinary Tcl completion inside a `predicate { … }`, whose statement carries no grammar. `oo_body::definition_grammar_at` finds the grammar; the narrowing applies because the document declares a document grammar, which is what says its bodies are closed — a script document's class body is executable Tcl and stays open. |
 | Hover / signature help | The pack's `HoverSnippet` for each statement word, whose `source` line cites this document. |
 | Semantic tokens | The shared `oo_body` walk: every declaration word paints as a keyword at any depth, and a `predicate` body — whose statement carries no grammar — drops out of declaration context. |
 | Folding | The shared body-fold walk over the same grammars: every block folds, nested blocks included. |
@@ -317,7 +317,8 @@ declared member (`hostname a b c` → `E003`) is still an arity error.
 | Command pack | `rust/tcl-registry/src/commands/sslictcl/` |
 | Block grammars | `SSLICTCL_*_GRAMMAR` / `SSLICTCL_GRAMMARS` in `rust/tcl-registry/src/definer.rs` |
 | Loader, vocabulary table, policy, emitter | `rust/tcl-sslictcl/src/{dsl,vocabulary,policy,emit}.rs` |
-| Editor projection (diagnostics, outline, body vocabulary) | `rust/tcl-lsp-core/src/{sslictcl_diagnostics,declaration_outline}.rs` |
+| Editor projection (diagnostics, outline) | `rust/tcl-lsp-core/src/{sslictcl_diagnostics,declaration_outline}.rs` |
+| Body vocabulary (completion, painting) | `rust/tcl-lsp-core/src/oo_body.rs` `definition_grammar_at`; `CommandRegistry::document_grammar` |
 | Contract tests | `rust/tcl-sslictcl/tests/registry_pack_drift.rs`, `rust/tcl-registry/tests/sslictcl_pack.rs`, `rust/tcl-registry/tests/detect_dialect.rs`, `rust/tcl-lsp-core/tests/semantic_tokens.rs` |
 | End-to-end tests | `rust/tcl-lsp-server/tests/e2e/sslictcl.rs`, `editors/vscode/src/test/sslictclAuthoring.test.ts`, `rust/tcl-lsp-server-wasm/test/e2e.mjs` |
 

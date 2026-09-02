@@ -61,7 +61,7 @@ entry point, or gate moves without this contract being updated.
 | SslicTcl finding identity | `rust/tcl-sslictcl/src/policy.rs` | `evaluate_policy`; `PolicyFinding` | invariant `(check id, endpoint)` identity; the `grade` id is reserved | none |
 | SslicTcl embedded source data | `rust/tcl-sslictcl/src/trust.rs` | `embedded_dataset` | pinned upstream revisions, recorded with hashes and licences in `data/provenance.json` | `xtask-sslictcl-data` |
 | SslicTcl declaration surface | `rust/tcl-registry/src/commands/sslictcl/mod.rs`; `rust/tcl-registry/src/definer.rs` | `sslictcl_command_specs`; `SSLICTCL_GRAMMARS` | the `sslictcl` authoring surface (`SpecSurface::SSLICTCL`); Tcl 9.0 core underneath | none |
-| SslicTcl editor projection | `rust/tcl-lsp-core/src/sslictcl_diagnostics.rs`; `rust/tcl-lsp-core/src/declaration_outline.rs` | `applies_to`; `diagnostics`; `SUPERSEDED_ANALYSER_CODES`; `supersede_analyser_diagnostics`; `is_declaration_document`; `declarations`; `grammar_at`; `member_completions` | resolved authoring surface (the `sslictcl` package) per document | none |
+| SslicTcl editor projection | `rust/tcl-lsp-core/src/sslictcl_diagnostics.rs`; `rust/tcl-lsp-core/src/declaration_outline.rs` | `applies_to`; `diagnostics`; `SUPERSEDED_ANALYSER_CODES`; `supersede_analyser_diagnostics`; `is_declaration_document`; `declarations` | resolved authoring surface (the `sslictcl` package) per document | none |
 <!-- end-owner-resolution-manifest -->
 
 ### `tcl-dialect` + `tcl-test-support` — C Tcl reference toolchains
@@ -493,7 +493,16 @@ entry point, or gate moves without this contract being updated.
   `tcl-lsp-server` publishes the loader's diagnostics and `tcl-cli`'s
   `diag` / `lint` verbs report the same set, and the rule that the loader
   **supersedes** the analyser's unknown-command verdict in a never-evaluated
-  document must be stated once for both.
+  document must be stated once for both. Its second half is the *outline*:
+  a declaration document has no procs, classes or namespaces for the
+  analyser's scope walk, so its blocks are its structure.
+- Which **vocabulary** a position admits is a different question with a
+  different owner, and deliberately not stated here: it is the
+  definition-body grammar in force, which `tcl_lsp_core::oo_body`'s
+  `definition_grammar_at` answers for every definition body of every class
+  system, rooted in `CommandRegistry::document_grammar` for a dialect whose
+  file is itself a declaration body. Completion and the token walk read it,
+  and this owner must not grow a second answer to it.
 
 ## Decision rules / contracts
 
