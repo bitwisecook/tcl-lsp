@@ -290,7 +290,7 @@ type CmdTeardownCallback = (Vec<u8>, Vec<u8>);
 /// prefix, and whether it was registered through the deprecated 8.x
 /// `trace variable` form — which decides the op word its callback receives,
 /// here exactly as on the explicit-unset path.
-type VarTeardownCallback = (Vec<u8>, Vec<u8>, bool);
+type VarTeardownCallback = (Vec<u8>, Vec<u8>, Vec<u8>, bool);
 
 /// The outcome of an ensemble `-unknown` handler (`EnsembleUnknownCallback`).
 enum EnsembleUnknown {
@@ -3135,6 +3135,52 @@ impl Interp {
         self.runtime_version() >= tcl_dialect::TclVersion::V9_0
     }
 
+    /// The unset-trace callbacks a proc frame's locals contribute as the frame
+    /// is torn down — C's `TclDeleteVars`, which runs `UnsetVarStruct` (and,
+    /// for an array local, `DeleteArray`) over every variable in the frame.
+    ///
+    /// Read while the frame is still on the stack: after the pop its variables
+    /// are gone, and an array local's elements with them. Each variable's own
+    /// callbacks fire newest-first and contiguously; *which* variable comes
+    /// first is C's local-slot / hash walk and is not a pinned property, so the
+    /// frame's own (sorted) name order stands in for it (issue #1575 row 1).
+    fn frame_teardown_unset_traces(&self, level: usize) -> Vec<VarTeardownCallback> {
+        if self
+            .traces
+            .borrow()
+            .traces
+            .iter()
+            .all(|t| t.frame_level != Some(level))
+        {
+            return Vec::new();
+        }
+        let names: Vec<Vec<u8>> = match self.frames.borrow().table(level) {
+            Some(table) => table.names().into_iter().map(<[u8]>::to_vec).collect(),
+            None => return Vec::new(),
+        };
+        let mut victims = Vec::new();
+        for name in names {
+            let home = crate::vars::TraceHome {
+                ns: None,
+                level: Some(level),
+                base: name.clone(),
+                link_elem: None,
+            };
+            victims.extend(self.cell_unset_traces(&home, None, &name, b""));
+            let elements = self
+                .frames
+                .borrow()
+                .table(level)
+                .and_then(|t| t.array_names(&name))
+                .map(|keys| keys.into_iter().map(<[u8]>::to_vec).collect::<Vec<_>>())
+                .unwrap_or_default();
+            for elem in elements {
+                victims.extend(self.cell_unset_traces(&home, Some(&elem), &name, &elem));
+            }
+        }
+        victims
+    }
+
     /// Drop every variable trace tied to call-frame `level` (the frame is being
     /// popped; its local variables and their traces go away).
     pub(crate) fn clear_frame_var_traces(&self, level: usize) {
@@ -3223,6 +3269,16 @@ impl Interp {
         let (base, elem) = crate::frame::split_array_ref(name);
         let traced = !self.traces.borrow().traces.is_empty();
         let key = traced.then(|| self.trace_identity(&base));
+        // Unsetting a whole array destroys each element cell too, and C's
+        // `DeleteArray` fires each element's own traces — with `arrayPtr` NULL,
+        // so only that element's list runs — after the array's own firing
+        // (tclVar.c). The elements have to be read while the array is still
+        // there (issue #1575 row 3).
+        let elements = if traced && elem.is_none() {
+            self.array_names(&base).unwrap_or_default()
+        } else {
+            Vec::new()
+        };
         let existed = crate::vars::unset(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
@@ -3232,6 +3288,12 @@ impl Interp {
         if let (true, Some(home)) = (existed, key) {
             let access = self.trace_access(name, &base, elem.as_deref(), &home, true);
             self.fire_var_trace_resolved(&home, &access, b"unset");
+            // Then, for a whole-array unset, each element cell in turn.
+            let per_element: Vec<VarTeardownCallback> = elements
+                .iter()
+                .flat_map(|e| self.cell_unset_traces(&home, Some(e), &access.reported, e))
+                .collect();
+            self.fire_unset_callbacks(per_element);
             // The variable (and its traces) go away — drop every trace on it
             // (C frees the Var's trace list on unset). Element unset drops only
             // that element's traces (whole-variable traces survive) — and an
@@ -4056,6 +4118,37 @@ impl Interp {
         Self::group_newest_first_per_entity(victims, |victim| victim.0.clone())
     }
 
+    /// The unset-trace callbacks a **cell** contributes when it is destroyed,
+    /// newest-first — C walks the `Var`'s prepended trace list head to tail.
+    /// Non-destructive: the caller's own sweep drops the traces.
+    fn cell_unset_traces(
+        &self,
+        home: &crate::vars::TraceHome,
+        elem: Option<&[u8]>,
+        report_name: &[u8],
+        report_elem: &[u8],
+    ) -> Vec<VarTeardownCallback> {
+        self.traces
+            .borrow()
+            .traces
+            .iter()
+            .rev()
+            .filter(|t| {
+                crate::cmd_trace::same_variable(t, &home.base, home.ns, home.level)
+                    && t.elem.as_deref() == elem
+                    && t.ops.iter().any(|o| o == b"unset")
+            })
+            .map(|t| {
+                (
+                    report_name.to_vec(),
+                    report_elem.to_vec(),
+                    t.command.clone(),
+                    t.old_style,
+                )
+            })
+            .collect()
+    }
+
     /// Fire collected command `delete`-trace callbacks as `command oldName {}
     /// delete` after the namespace has been torn down (errors ignored — a delete
     /// trace's result is discarded, matching C).
@@ -4117,7 +4210,7 @@ impl Interp {
                     fqn.extend_from_slice(e);
                     fqn.push(b')');
                 }
-                victims.push((fqn, t.command.clone(), t.old_style));
+                victims.push((fqn, Vec::new(), t.command.clone(), t.old_style));
             }
             !hit
         });
@@ -4179,7 +4272,7 @@ impl Interp {
         }
         let saved = self.result.get();
         unsafe { obj::incr_ref_count(saved) };
-        for (name, cmd, old_style) in victims {
+        for (name, elem, cmd, old_style) in victims {
             // A trace registered the deprecated way is called with the `rwua`
             // letter, not the operation name — the teardown path must honour
             // that exactly as the explicit-unset path does (`TraceVarProc`,
@@ -4187,7 +4280,7 @@ impl Interp {
             let op = tcl_cmd_core::trace::callback_op_word("unset", old_style);
             let args = crate::list::new_list_obj(&[
                 new_string(&name),
-                new_string(b""),
+                new_string(&elem),
                 new_string(op.as_bytes()),
             ]);
             let mut line = cmd;
@@ -7578,11 +7671,20 @@ impl Interp {
         // Capture `[info level 0]` (the invocation words) before the frame is
         // popped — the TIP 348 `CALL` entry if this body unwinds with an error.
         let call_words = self.level_words(proc_level);
+        // The locals' unset traces are collected while the frame — and its
+        // arrays' elements — still exist, and fire once it is gone, as C's
+        // `TclDeleteVars` runs over a frame that is on its way out.
+        let teardown = if self.traces.borrow().traces.is_empty() {
+            Vec::new()
+        } else {
+            self.frame_teardown_unset_traces(proc_level)
+        };
         self.frames.borrow_mut().pop();
         if !self.traces.borrow().traces.is_empty() {
             self.clear_frame_var_traces(proc_level);
         }
         self.current_ns.set(saved_ns);
+        self.fire_unset_callbacks(teardown);
         self.recursion_depth.set(self.recursion_depth.get() - 1);
         // Apply the return boundary (`return`/`return -code -level`), then a
         // bare `break`/`continue` that escaped the body (no enclosing loop) is an

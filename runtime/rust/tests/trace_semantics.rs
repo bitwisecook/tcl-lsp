@@ -502,3 +502,92 @@ fn the_arrays_own_cell_gates_the_whole_array_traces() {
     );
     assert_eq!(got, "S g {} unset\nexists: 1");
 }
+
+// -- #1575: the unset-trace firing sites that were missing ------------------
+
+/// A proc's locals are unset when its frame goes, and C's `TclDeleteVars` fires
+/// each one's unset traces — newest-first within a variable. runtime/rust fired
+/// nothing at all.
+///
+/// tclsh 8.6.16 and 9.0.4 print the transcript below. *Which* variable comes
+/// first is C's local-slot/hash walk and is not a pinned property; that a
+/// variable's own callbacks are contiguous and newest-first is.
+#[test]
+fn proc_frame_teardown_fires_its_locals_unset_traces() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc R1 {n1 n2 op} { lappend ::log [list R1 $n1 $n2 $op] }\n\
+         proc R2 {n1 n2 op} { lappend ::log [list R2 $n1 $n2 $op] }\n\
+         proc P {} {\n\
+         \x20   set a 1\n\
+         \x20   set b 2\n\
+         \x20   trace add variable a unset R1\n\
+         \x20   trace add variable b unset R1\n\
+         \x20   trace add variable a unset R2\n\
+         }\n\
+         P\n\
+         join $::log \\n",
+    );
+    assert_eq!(got, "R2 a {} unset\nR1 a {} unset\nR1 b {} unset");
+}
+
+/// The array halves of the same site: a local *array* fires its own whole-array
+/// trace and then each element's, and a trace another frame registered through
+/// an `upvar` alias belongs to the owning frame and fires when *that* frame
+/// goes — newest-first alongside the owner's own.
+#[test]
+fn proc_frame_teardown_covers_array_elements_and_alias_registrations() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc R1 {n1 n2 op} { lappend ::log [list R1 $n1 $n2 $op] }\n\
+         proc R2 {n1 n2 op} { lappend ::log [list R2 $n1 $n2 $op] }\n\
+         proc P {} {\n\
+         \x20   array set la {m 1 n 2}\n\
+         \x20   trace add variable la unset R1\n\
+         \x20   trace add variable la(m) unset R2\n\
+         \x20   set s 0\n\
+         \x20   trace add variable s unset R1\n\
+         }\n\
+         P\n\
+         lappend ::log {= alias registration}\n\
+         proc Q {} { set q 1 ; trace add variable q unset R1 ; R }\n\
+         proc R {} { upvar 1 q alias ; trace add variable alias unset R2 }\n\
+         Q\n\
+         join $::log \\n",
+    );
+    assert_eq!(
+        got,
+        "R1 la {} unset\nR2 la m unset\nR1 s {} unset\n\
+         = alias registration\nR2 q {} unset\nR1 q {} unset"
+    );
+}
+
+/// Unsetting a whole array destroys each element cell, and C's `DeleteArray`
+/// fires each element's own traces — `arrayPtr` NULL, so the array's traces do
+/// *not* run again — after the array's own firing, reporting
+/// `name1 = <array>` and `name2 = <element>`. Both engines stopped after the
+/// whole-array firing.
+#[test]
+fn a_whole_array_unset_fires_each_elements_own_traces_too() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc R1 {n1 n2 op} { lappend ::log [list R1 $n1 $n2 $op] }\n\
+         proc R2 {n1 n2 op} { lappend ::log [list R2 $n1 $n2 $op] }\n\
+         array set arr {j 1 k 2}\n\
+         trace add variable arr unset R1\n\
+         trace add variable arr(j) unset R1\n\
+         trace add variable arr(k) unset R2\n\
+         unset arr\n\
+         lappend ::log {= elements only}\n\
+         array set b2 {p 1 q 2}\n\
+         trace add variable b2(p) unset R1\n\
+         trace add variable b2(q) unset R2\n\
+         unset b2\n\
+         join $::log \\n",
+    );
+    assert_eq!(
+        got,
+        "R1 arr {} unset\nR1 arr j unset\nR2 arr k unset\n\
+         = elements only\nR1 b2 p unset\nR2 b2 q unset"
+    );
+}
