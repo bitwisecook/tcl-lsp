@@ -269,6 +269,23 @@ class TclLspSettingsPanel {
     private val diagIAPP7001 = JBCheckBox("IAPP7001: iApp implementation references a presentation field ...")
     private val diagIAPP7002 = JBCheckBox("IAPP7002: iApp presentation field is never referenced by the i...")
     private val diagIAPP7003 = JBCheckBox("IAPP7003: iApp presentation #include file could not be resolved")
+
+    // Diagnostics — SslicTcl
+    private val diagSSLIC1001 = JBCheckBox("SSLIC1001: SslicTcl declaration is not valid Tcl syntax or has ...")
+    private val diagSSLIC1002 = JBCheckBox("SSLIC1002: SslicTcl declaration uses substitution or argument e...")
+    private val diagSSLIC1003 = JBCheckBox("SSLIC1003: SslicTcl document is missing its sslictcl VERSION he...")
+    private val diagSSLIC1004 = JBCheckBox("SSLIC1004: SslicTcl document declares its sslictcl header more ...")
+    private val diagSSLIC1005 = JBCheckBox("SSLIC1005: SslicTcl declaration has the wrong number of words")
+    private val diagSSLIC1006 = JBCheckBox("SSLIC1006: SslicTcl declaration body must be a braced literal")
+    private val diagSSLIC1007 = JBCheckBox("SSLIC1007: SslicTcl closed block contains an unknown member")
+    private val diagSSLIC1008 = JBCheckBox("SSLIC1008: SslicTcl declaration duplicates an earlier declarati...")
+    private val diagSSLIC1009 = JBCheckBox("SSLIC1009: SslicTcl value is outside its declared domain")
+    private val diagSSLIC1010 = JBCheckBox("SSLIC1010: SslicTcl declaration is missing a required member")
+    private val diagSSLIC1011 = JBCheckBox("SSLIC1011: SslicTcl declaration references a name that is not d...")
+    private val diagSSLIC1012 = JBCheckBox("SSLIC1012: SslicTcl declaration combines mutually exclusive mem...")
+    private val diagSSLIC1101 = JBCheckBox("SSLIC1101: SslicTcl unknown declaration preserved as an extension")
+    private val diagSSLIC1102 = JBCheckBox("SSLIC1102: SslicTcl document vocabulary is newer than this buil...")
+    private val diagSSLIC1103 = JBCheckBox("SSLIC1103: SslicTcl predicate body is retained but never evalua...")
     // @generated:diag-checkboxes:end
 
     // XC Diagnostics
@@ -489,6 +506,15 @@ class TclLspSettingsPanel {
             diagBIGIP6007, diagBIGIP6008, diagBIGIP6009, diagBIGIP6010, diagBIGIP6011, diagBIGIP6012,
             diagBIGIP6013, diagBIGIP6014, diagBIGIP6038, diagBIGIP6039, diagIAPP7001, diagIAPP7002,
             diagIAPP7003,
+        ).forEach { diagPanel.add(it) }
+        builder.addComponent(diagPanel)
+
+        builder.addComponent(TitledSeparator("Diagnostics — SslicTcl"))
+        val diagPanel = JPanel(java.awt.GridLayout(0, 2, 8, 2))
+        listOf(
+            diagSSLIC1001, diagSSLIC1002, diagSSLIC1003, diagSSLIC1004, diagSSLIC1005, diagSSLIC1006,
+            diagSSLIC1007, diagSSLIC1008, diagSSLIC1009, diagSSLIC1010, diagSSLIC1011, diagSSLIC1012,
+            diagSSLIC1101, diagSSLIC1102, diagSSLIC1103,
         ).forEach { diagPanel.add(it) }
         builder.addComponent(diagPanel)
         // @generated:diag-ui:end
@@ -767,6 +793,21 @@ class TclLspSettingsPanel {
             diagIAPP7001.isSelected != s.diagnosticIAPP7001 ||
             diagIAPP7002.isSelected != s.diagnosticIAPP7002 ||
             diagIAPP7003.isSelected != s.diagnosticIAPP7003 ||
+            diagSSLIC1001.isSelected != s.diagnosticSSLIC1001 ||
+            diagSSLIC1002.isSelected != s.diagnosticSSLIC1002 ||
+            diagSSLIC1003.isSelected != s.diagnosticSSLIC1003 ||
+            diagSSLIC1004.isSelected != s.diagnosticSSLIC1004 ||
+            diagSSLIC1005.isSelected != s.diagnosticSSLIC1005 ||
+            diagSSLIC1006.isSelected != s.diagnosticSSLIC1006 ||
+            diagSSLIC1007.isSelected != s.diagnosticSSLIC1007 ||
+            diagSSLIC1008.isSelected != s.diagnosticSSLIC1008 ||
+            diagSSLIC1009.isSelected != s.diagnosticSSLIC1009 ||
+            diagSSLIC1010.isSelected != s.diagnosticSSLIC1010 ||
+            diagSSLIC1011.isSelected != s.diagnosticSSLIC1011 ||
+            diagSSLIC1012.isSelected != s.diagnosticSSLIC1012 ||
+            diagSSLIC1101.isSelected != s.diagnosticSSLIC1101 ||
+            diagSSLIC1102.isSelected != s.diagnosticSSLIC1102 ||
+            diagSSLIC1103.isSelected != s.diagnosticSSLIC1103 ||
             // @generated:diag-dirty:end
             // XC Diagnostics
             xcDiagnosticsEnabled.isSelected != s.xcDiagnosticsEnabled ||
@@ -1043,6 +1084,21 @@ class TclLspSettingsPanel {
         s.diagnosticIAPP7001 = diagIAPP7001.isSelected
         s.diagnosticIAPP7002 = diagIAPP7002.isSelected
         s.diagnosticIAPP7003 = diagIAPP7003.isSelected
+        s.diagnosticSSLIC1001 = diagSSLIC1001.isSelected
+        s.diagnosticSSLIC1002 = diagSSLIC1002.isSelected
+        s.diagnosticSSLIC1003 = diagSSLIC1003.isSelected
+        s.diagnosticSSLIC1004 = diagSSLIC1004.isSelected
+        s.diagnosticSSLIC1005 = diagSSLIC1005.isSelected
+        s.diagnosticSSLIC1006 = diagSSLIC1006.isSelected
+        s.diagnosticSSLIC1007 = diagSSLIC1007.isSelected
+        s.diagnosticSSLIC1008 = diagSSLIC1008.isSelected
+        s.diagnosticSSLIC1009 = diagSSLIC1009.isSelected
+        s.diagnosticSSLIC1010 = diagSSLIC1010.isSelected
+        s.diagnosticSSLIC1011 = diagSSLIC1011.isSelected
+        s.diagnosticSSLIC1012 = diagSSLIC1012.isSelected
+        s.diagnosticSSLIC1101 = diagSSLIC1101.isSelected
+        s.diagnosticSSLIC1102 = diagSSLIC1102.isSelected
+        s.diagnosticSSLIC1103 = diagSSLIC1103.isSelected
         // @generated:diag-apply:end
         s.xcDiagnosticsEnabled = xcDiagnosticsEnabled.isSelected
 
@@ -1335,6 +1391,21 @@ class TclLspSettingsPanel {
         diagIAPP7001.isSelected = s.diagnosticIAPP7001
         diagIAPP7002.isSelected = s.diagnosticIAPP7002
         diagIAPP7003.isSelected = s.diagnosticIAPP7003
+        diagSSLIC1001.isSelected = s.diagnosticSSLIC1001
+        diagSSLIC1002.isSelected = s.diagnosticSSLIC1002
+        diagSSLIC1003.isSelected = s.diagnosticSSLIC1003
+        diagSSLIC1004.isSelected = s.diagnosticSSLIC1004
+        diagSSLIC1005.isSelected = s.diagnosticSSLIC1005
+        diagSSLIC1006.isSelected = s.diagnosticSSLIC1006
+        diagSSLIC1007.isSelected = s.diagnosticSSLIC1007
+        diagSSLIC1008.isSelected = s.diagnosticSSLIC1008
+        diagSSLIC1009.isSelected = s.diagnosticSSLIC1009
+        diagSSLIC1010.isSelected = s.diagnosticSSLIC1010
+        diagSSLIC1011.isSelected = s.diagnosticSSLIC1011
+        diagSSLIC1012.isSelected = s.diagnosticSSLIC1012
+        diagSSLIC1101.isSelected = s.diagnosticSSLIC1101
+        diagSSLIC1102.isSelected = s.diagnosticSSLIC1102
+        diagSSLIC1103.isSelected = s.diagnosticSSLIC1103
         // @generated:diag-reset:end
         xcDiagnosticsEnabled.isSelected = s.xcDiagnosticsEnabled
 
