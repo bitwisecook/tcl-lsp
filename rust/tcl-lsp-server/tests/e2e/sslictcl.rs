@@ -363,7 +363,10 @@ fn the_outline_names_the_declarations() {
     // whole tree, so it sees them wherever they sit.
     let all = symbol_names(&symbols);
     for nested in ["hsts", "check modern", "grade"] {
-        assert!(all.contains(nested), "outline must list `{nested}`: {all:?}");
+        assert!(
+            all.contains(nested),
+            "outline must list `{nested}`: {all:?}"
+        );
     }
 }
 
@@ -385,14 +388,17 @@ fn the_sample_yields_exactly_its_documented_notices() {
     assert_eq!(
         sslic,
         vec![
-            "SSLIC1101", "SSLIC1101", "SSLIC1101", "SSLIC1101", "SSLIC1101", "SSLIC1103",
+            "SSLIC1101",
+            "SSLIC1101",
+            "SSLIC1101",
+            "SSLIC1101",
+            "SSLIC1101",
+            "SSLIC1103",
         ],
         "the sample's four extension words (one twice) and its one predicate",
     );
     assert!(
-        diags
-            .iter()
-            .all(|d| d["severity"].as_i64() != Some(ERROR)),
+        diags.iter().all(|d| d["severity"].as_i64() != Some(ERROR)),
         "the sample must load with no errors: {:?}",
         coded(&diags),
     );
@@ -467,9 +473,7 @@ fn editing_the_document_clears_its_errors() {
     lsp.settle_analysis(&uri, 2, DOC);
     let after = lsp.pull_diagnostics(&uri);
     assert!(
-        after
-            .iter()
-            .all(|d| d["severity"].as_i64() != Some(ERROR)),
+        after.iter().all(|d| d["severity"].as_i64() != Some(ERROR)),
         "the corrected document has no errors left: {:?}",
         coded(&after),
     );
@@ -506,11 +510,11 @@ fn a_disabled_code_is_suppressed_and_the_others_stand() {
     // A configuration change never bumps the document version, so the pull
     // cache still holds the pre-change report until the reschedule the config
     // change triggers republishes: wait for that publish rather than racing it.
-    let after = codes(&lsp.await_diagnostics_settled(
-        &uri,
-        Duration::from_secs(15),
-        |diags| !codes(diags).iter().any(|code| code == "SSLIC1101"),
-    ));
+    let after = codes(
+        &lsp.await_diagnostics_settled(&uri, Duration::from_secs(15), |diags| {
+            !codes(diags).iter().any(|code| code == "SSLIC1101")
+        }),
+    );
     assert!(
         !after.iter().any(|code| code == "SSLIC1101"),
         "the disabled code is gone: {after:?}"

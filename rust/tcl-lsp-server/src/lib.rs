@@ -4737,6 +4737,17 @@ struct RefinementInputs<'a> {
     cross_file_resolution: bool,
 }
 
+/// The resolved per-document settings an F5 model dialect's pull report reads
+/// — everything [`Backend::f5_pull_report`] needs beyond the buffers and the
+/// URI.
+struct F5PullInputs<'a> {
+    profile: &'static tcl_dialect::DialectProfile,
+    disabled: &'a HashSet<String>,
+    severity_overrides:
+        &'a std::collections::HashMap<String, tower_lsp_server::ls_types::DiagnosticSeverity>,
+    decode_report: Option<tcl_lsp_core::source_decode::DecodeReport>,
+}
+
 /// The document-local settings shared by every pull-diagnostic workspace
 /// refinement. Keeping them together makes the pull path's central
 /// finalisation entry point explicit without repeating its configuration at
@@ -15779,6 +15790,54 @@ impl Backend {
         })
     }
 
+    /// The pull-path report for an F5 **model** dialect — BIG-IP config or
+    /// iApp APL presentation text, which is not Tcl source and has its own
+    /// validators rather than the analyser.
+    ///
+    /// Split out of [`Self::full_diagnostics_for`] because it is a complete
+    /// alternative report rather than a step of one: it shares only the
+    /// resolved settings, and keeping it inline made the Tcl path harder to
+    /// read than either is on its own.
+    async fn f5_pull_report(
+        &self,
+        uri: &Uri,
+        text: &str,
+        analysis_text: &str,
+        language_id: &str,
+        inputs: &F5PullInputs<'_>,
+    ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+        let encoding_abstains = inputs
+            .decode_report
+            .is_some_and(|report| report.requires_abstention());
+        let mut diagnostics = if encoding_abstains {
+            Vec::new()
+        } else {
+            f5_dialect_diagnostics(
+                uri,
+                analysis_text,
+                inputs.profile,
+                language_id,
+                inputs.disabled,
+                &self.documents,
+                self.store.as_ref(),
+            )
+            .await
+            .unwrap_or_default()
+        };
+        diagnostics.extend(lift_f5_source_integrity_diagnostics(
+            text,
+            inputs.decode_report.as_ref(),
+            inputs.disabled,
+            inputs.profile,
+        ));
+        finalise_diagnostics(
+            &mut diagnostics,
+            inputs.severity_overrides,
+            encoding_abstains,
+        );
+        diagnostics
+    }
+
     async fn full_diagnostics_for(
         &self,
         uri: &Uri,
@@ -15827,30 +15886,20 @@ impl Backend {
         // analyser — mirror the push path's dispatch so a pull-mode editor
         // receives the same BIGIP/IAPP diagnostics.
         if Self::is_bigip_dialect(&dialect) || is_apl_source(uri, language_id) {
-            let encoding_abstains = decode_report.is_some_and(|r| r.requires_abstention());
-            let mut diagnostics = if encoding_abstains {
-                Vec::new()
-            } else {
-                f5_dialect_diagnostics(
+            return self
+                .f5_pull_report(
                     uri,
+                    &text,
                     &analysis_text,
-                    profile,
                     language_id,
-                    &disabled,
-                    &self.documents,
-                    self.store.as_ref(),
+                    &F5PullInputs {
+                        profile,
+                        disabled: &disabled,
+                        severity_overrides: &severity_overrides,
+                        decode_report,
+                    },
                 )
-                .await
-                .unwrap_or_default()
-            };
-            diagnostics.extend(lift_f5_source_integrity_diagnostics(
-                &text,
-                decode_report.as_ref(),
-                &disabled,
-                profile,
-            ));
-            finalise_diagnostics(&mut diagnostics, &severity_overrides, encoding_abstains);
-            return diagnostics;
+                .await;
         }
         let analysis = self
             .analysis_for(uri, analysis_text.clone(), dialect.clone())
@@ -35130,7 +35179,7 @@ mod tests {
 
     /// Opening a `.sslictcl` activates the `SslicTcl` vocabulary.
     ///
-    /// The SpecTcl test above, for the sibling declarative dialect: the
+    /// The `SpecTcl` test above, for the sibling declarative dialect: the
     /// `.sslictcl` extension routes under the bare `tcl` language id every
     /// editor sends, the mandatory `sslictcl VERSION` header is the content
     /// signature that recognises a document saved under a `.tcl` name, and the

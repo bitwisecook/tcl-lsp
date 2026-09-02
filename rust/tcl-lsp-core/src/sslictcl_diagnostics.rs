@@ -196,7 +196,10 @@ mod tests {
     fn independent_errors_are_all_reported() {
         let codes = codes(THREE_ERRORS);
         for expected in ["SSLIC1007", "SSLIC1009", "SSLIC1011"] {
-            assert!(codes.contains(&expected.to_owned()), "{expected}: {codes:?}");
+            assert!(
+                codes.contains(&expected.to_owned()),
+                "{expected}: {codes:?}"
+            );
         }
     }
 

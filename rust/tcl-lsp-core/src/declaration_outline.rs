@@ -390,8 +390,8 @@ mod tests {
         let line_index = tcl_lexer::LineIndex::new(DOC);
         let line = u32::try_from(DOC[..DOC.find("enabled").expect("fixture")].lines().count() - 1)
             .expect("fits");
-        let items = member_completions(DOC, line, 8, &line_index, sslictcl(), "")
-            .expect("inside `hsts`");
+        let items =
+            member_completions(DOC, line, 8, &line_index, sslictcl(), "").expect("inside `hsts`");
         assert_eq!(
             items.iter().map(|i| i.label.as_str()).collect::<Vec<_>>(),
             vec!["enabled", "include-subdomains", "max-age", "preload"],
