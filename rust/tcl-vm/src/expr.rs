@@ -219,7 +219,7 @@ fn big_pow(x: &BigInt, y: &BigInt) -> Result<Value, TclError> {
         Some(r) => Ok(big_value(&r)),
         // `int_pow` declines exactly two cases: a zero base with a negative
         // exponent (the domain error) and an exponent past the C limit.
-        None if x.is_zero() => Err(TclError::new("exponentiation of zero by negative power")),
+        None if x.is_zero() => Err(zero_to_negative_power()),
         None => Err(TclError::new("exponent too large")),
     }
 }
@@ -328,15 +328,25 @@ fn is_list_operand(s: &str) -> bool {
 }
 
 fn divzero() -> TclError {
-    TclError::new("divide by zero")
+    TclError::with_error_code("divide by zero", "ARITH DIVZERO {divide by zero}")
+}
+
+/// `0 ** negative` on either the integer or the float tier — C's
+/// `EXPON_OF_ZERO` (`tclExecute.c`) is a **domain** error, `-errorcode ARITH
+/// DOMAIN`, not a division by zero (tclsh 8.6.16/9.0.4 verified).
+fn zero_to_negative_power() -> TclError {
+    TclError::with_error_code(
+        "exponentiation of zero by negative power",
+        "ARITH DOMAIN {exponentiation of zero by negative power}",
+    )
 }
 
 /// The C `IllegalExprOperandType` message for a *unary* operator whose operand
 /// cannot be used: `cannot use <desc> "<v>" as operand of "<op>"`. `<desc>` is
 /// `floating-point value` (a double handed to `~`), `non-numeric floating-point
 /// value` (NaN), `a list` (a multi-element list — phrased without quotes), or
-/// `non-numeric string`. (`errorCode ARITH DOMAIN <desc>` is not threaded here;
-/// the VM does not yet set arith error codes — same as `divide by zero`.)
+/// `non-numeric string`. (`errorCode ARITH DOMAIN <desc>` is not threaded here
+/// yet — tracked by #1581.)
 fn unary_operand_err(v: &Value, op: &str) -> TclError {
     let s = v.to_str();
     if is_list_operand(&s) {
@@ -460,7 +470,7 @@ fn dbl_arith(op: BinOp, x: f64, y: f64) -> Result<Value, TclError> {
             // C raises the domain error before computing (`tclExecute.c`
             // EXPONENT_OF_ZERO): `0.0 ** -1` is an error, never Inf.
             if x == 0.0 && y < 0.0 {
-                return Err(TclError::new("exponentiation of zero by negative power"));
+                return Err(zero_to_negative_power());
             }
             x.powf(y)
         }

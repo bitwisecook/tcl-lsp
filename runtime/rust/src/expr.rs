@@ -202,6 +202,12 @@ pub(crate) fn arith_err(e: ArithError) -> ExprError {
         ArithError::DivideByZero => {
             ExprError::with_code(b"divide by zero", b"ARITH DIVZERO {divide by zero}")
         }
+        // `0 ** negative` is a *domain* error in C, not a division by zero
+        // (tclsh 8.6/9.0: `-errorcode ARITH DOMAIN`).
+        ArithError::ZeroToNegativePower => ExprError::with_code(
+            b"exponentiation of zero by negative power",
+            b"ARITH DOMAIN {exponentiation of zero by negative power}",
+        ),
         ArithError::NegativeShift => ExprError::msg(b"negative shift argument"),
         ArithError::ExponentTooLarge => ExprError::msg(b"exponent too large"),
         ArithError::TooLargeToRepresent => ExprError::msg(b"integer value too large to represent"),

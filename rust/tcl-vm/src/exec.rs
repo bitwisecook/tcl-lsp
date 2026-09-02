@@ -931,7 +931,12 @@ fn bin(f: &mut Frame, op: BinOp) -> Result<(), Completion<Value>> {
             f.stack.push(v);
             Ok(())
         }
-        Err(e) => Err(err(e.message)),
+        // Through `completion_from_tcl_error`, not `err`: C stamps an
+        // `-errorcode` on the arithmetic failures (`ARITH DIVZERO`,
+        // `ARITH DOMAIN`), and a bare `err` would drop it, leaving the
+        // compiled `expr {…}` path reporting `NONE` where the dynamic
+        // `expr $e` path reports the real code (#1428).
+        Err(e) => Err(crate::command::completion_from_tcl_error(e)),
     }
 }
 
@@ -943,7 +948,7 @@ fn cmp(f: &mut Frame, op: BinOp) -> Result<(), Completion<Value>> {
             f.stack.push(Value::bool(t));
             Ok(())
         }
-        Err(e) => Err(err(e.message)),
+        Err(e) => Err(crate::command::completion_from_tcl_error(e)),
     }
 }
 
