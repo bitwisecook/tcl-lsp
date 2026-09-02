@@ -25,7 +25,7 @@ implement exactly, never rename or extend.
 | # | Scope | State |
 |---|-------|-------|
 | 1 | `DiagSection::Sslic` + 15 codes; ranged, recovering, coded loader API | done |
-| 2 | vocabulary 1 complete; facts in the estimator; `policy.rs` | pending |
+| 2 | vocabulary 1 complete; facts in the estimator; `policy.rs` | done |
 | 3 | `SslicModel::to_sslictcl` + fixpoint round-trip | pending |
 | 4 | sample document, docs, re-exports, final gates | pending |
 
@@ -81,12 +81,13 @@ notices still loads.
 | `rust/xtask/src/{gen_editor_settings,gen_vscode_package,gen_jetbrains}.rs` — `SECTIONS` row | done |
 | `rust/tcl-sslictcl/Cargo.toml` — `tcl-core-types`, `tcl-syntax` deps | done |
 | `rust/tcl-sslictcl/src/dsl.rs` — rewritten: `Sink`, absolute spans, recovery | done |
-| `rust/tcl-sslictcl/src/lib.rs` — re-exports | partial (milestone 1 set) |
-| `rust/tcl-sslictcl/src/model.rs` — new typed declarations | pending |
-| `rust/tcl-sslictcl/src/vocabulary.rs` — the declaration table + drift test | pending |
-| `rust/tcl-sslictcl/src/policy.rs` — `evaluate_policy` | pending |
-| `rust/tcl-sslictcl/src/estimate.rs` — `EstimateInput.facts` | pending |
-| `rust/bigip-report-gen/rust/src/tls.rs` — one `EstimateInput` literal (`facts: None`) | pending |
+| `rust/tcl-sslictcl/src/lib.rs` — re-exports | done (milestones 1-2) |
+| `rust/tcl-sslictcl/src/model.rs` — new typed declarations | done |
+| `rust/tcl-sslictcl/src/trust.rs` — `ClientFamily`/`TrustPurpose` `as_str`+`FromStr` | done |
+| `rust/tcl-sslictcl/src/vocabulary.rs` — the declaration table + drift test | done |
+| `rust/tcl-sslictcl/src/policy.rs` — `evaluate_policy` | done |
+| `rust/tcl-sslictcl/src/estimate.rs` — `EstimateInput.facts`, `Grade::rank`/`FromStr` | done |
+| `rust/bigip-report-gen/rust/src/tls.rs` — one `EstimateInput` literal (`facts: None`) | done |
 | `samples/sslictcl/example.sslictcl` | pending |
 | `docs/design/sslictcl-vocabulary.md` + index link | pending |
 
@@ -101,13 +102,62 @@ notices still loads.
 - `diag_section_as_str_covers_every_variant` in `diag_code.rs` was missing
   `Bigip`; added alongside `Sslic` so the test matches its name.
 
+## Milestone 2 decisions
+
+**Resolution is a post-pass.** `endpoint.chain`, `endpoint.policy`, and every
+name in `chain.certificates` are recorded as `PendingRef`s while walking, then
+resolved after the whole document is read, so declaration order is irrelevant.
+Resolving `endpoint.chain` fills `Endpoint.certificate_chain` from the named
+chain, leaving downstream consumers unchanged; `Endpoint.chain` /
+`Endpoint.policy` record the names. An unresolved name is `SSLIC1011` at the
+referenced word's range. Declaring both `chain` and `certificate-chain` on one
+endpoint is `SSLIC1012`, ranged over both members.
+
+**Facts are consulted before the heuristics, never instead of them.**
+`EstimateInput.facts: Option<&TlsFacts>`; a declared `protocol … score N`
+replaces the built-in protocol score for that version, `cipher … bits N`
+replaces `cipher_strength`, `forward-secrecy` replaces the ECDHE/DHE name
+heuristic for that suite, and `status prohibited` on either caps the grade at
+`F` with a new `SSLICTL1104` / `SSLICTL1204` finding. Anything undeclared keeps
+the old behaviour exactly, so `facts: None` is byte-identical to before.
+
+**Policy evaluation is a separate phase.** `policy::evaluate_policy(policy,
+endpoint, certificates, estimate)`. A check is the conjunction of its populated
+members; a failing check yields exactly one `PolicyFinding` keyed
+`(check_id, endpoint)` with code `SSLICTL-POLICY-<check_id>`, default severity
+`warning`, and one evidence line per unsatisfied conjunct. `forbid-ciphers`
+patterns go through the workspace's shared `tcl_syntax::glob::string_match`, so
+they are exactly `string match` semantics. `grade.minimum` below the estimate's
+rank produces the `grade` finding. `predicate` is retained and never evaluated
+(`SSLIC1103` notice at load).
+
+**Unknown key size fails a `min-key-bits` check.** A policy cannot demonstrate
+compliance from missing evidence, so a missing leaf or unknown key size
+produces the finding with explicit evidence rather than passing silently.
+
+**The vocabulary table is executable.** `vocabulary::DECLARATIONS` describes
+every declaration, its key domain, its members, and its openness.
+`every_declared_word_is_known_to_the_parser` synthesises a fully-declared
+instance of each declaration and asserts the loader reports neither
+`SSLIC1007` nor `SSLIC1101` for it, and the converse test proves an
+undeclared word is rejected by a closed block and preserved by an open one.
+Adding a member to the table without teaching the parser fails the test, and
+vice versa.
+
 ## Open questions
 
-- `diag-emission-check` is **not green at the milestone-1 checkpoint**:
-  `SSLIC1011`, `SSLIC1012`, and `SSLIC1103` have no emission site until
-  milestone 2 lands the `chain`/`policy`/`predicate` declarations. The tree
-  compiles and `cargo test -p tcl-sslictcl` passes; the gate goes green with
-  milestone 2.
+- `diag-emission-check` was not green at the milestone-1 checkpoint
+  (`SSLIC1011`, `SSLIC1012`, `SSLIC1103` had no emission site yet). It is
+  green from milestone 2 onward.
 - `ClientFamily`'s serde spelling is kebab-case (`open-jdk`), but the
-  vocabulary pins `openjdk`. Milestone 2 adds a DSL-specific `as_str` /
-  `FromStr` pair that accepts both and emits `openjdk`; serde is untouched.
+  vocabulary pins `openjdk`. `ClientFamily::as_str` emits `openjdk` and
+  `FromStr` accepts both spellings; serde is untouched, so the embedded
+  dataset's JSON is unchanged.
+- `Member` deliberately keeps the spec's `{name, value, nested}` shape, so
+  required-ness (`chain.certificates`, `certificate`'s `pem`/`material`,
+  `trust-program.client`) is not in the table — it lives in the loader and in
+  `docs/design/sslictcl-vocabulary.md`. If the registry lane needs it as data,
+  adding a `required` field is additive.
+- `purposes` is spelled `LIST` in the vocabulary table, as the contract says,
+  but its elements are `TrustPurpose` spellings and an unknown element is
+  `SSLIC1009`.

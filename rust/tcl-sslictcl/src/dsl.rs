@@ -24,10 +24,14 @@ use tcl_compiler::segmenter::SegmentedCommand;
 use tcl_core_types::DiagCode;
 use tcl_lexer::{LexerConfig, LineIndex, SourceMap, Span, TokenType, script_is_complete};
 
+use crate::estimate::{EstimateSeverity, Grade};
 use crate::model::{
-    CertificateDeclaration, Endpoint, HstsPolicy, ProtocolVersion, SslicModel, TlsValue,
+    CertificateDeclaration, ChainDeclaration, CipherFact, Endpoint, GradeRule, HstsPolicy, Policy,
+    PolicyCheck, ProtocolFact, ProtocolVersion, SslicModel, TlsStatus, TlsValue,
+    TrustAnchorDeclaration, TrustProgramDeclaration,
 };
 use crate::testssl::import_testssl_json;
+use crate::trust::{ClientFamily, TrustPurpose};
 
 /// The `SslicTcl` vocabulary version this build implements.
 pub const SUPPORTED_VOCABULARY: u32 = 1;
@@ -381,6 +385,7 @@ pub fn load_with_diagnostics(source: &str) -> DslLoad {
     let document = Document::new(source);
     let mut sink = Sink::default();
     let mut model = SslicModel::default();
+    let mut pending = Vec::new();
     let mut saw_header = false;
 
     let Some(rows) = Document::segment(source, 0, &mut sink) else {
@@ -400,11 +405,17 @@ pub fn load_with_diagnostics(source: &str) -> DslLoad {
         match stmt.name() {
             "sslictcl" => parse_header(stmt, &mut model, &mut saw_header, &mut sink),
             "certificate" => parse_certificate(stmt, &mut model, &mut sink),
-            "endpoint" => parse_endpoint(stmt, &mut model, &mut sink),
+            "endpoint" => parse_endpoint(stmt, &mut model, &mut pending, &mut sink),
             "testssl-import" => parse_testssl_import(stmt, &mut model, &mut sink),
+            "trust-program" => parse_trust_program(stmt, &mut model, &mut sink),
+            "protocol" => parse_protocol_fact(stmt, &mut model, &mut sink),
+            "cipher" => parse_cipher_fact(stmt, &mut model, &mut sink),
+            "chain" => parse_chain(stmt, &mut model, &mut pending, &mut sink),
+            "policy" => parse_policy(stmt, &mut model, &mut sink),
             _ => add_extension(&mut model.extensions, stmt, &mut sink),
         }
     }
+    resolve_references(&mut model, &pending, &mut sink);
 
     if !saw_header {
         sink.error(
@@ -652,7 +663,23 @@ fn parse_certificate(stmt: &Stmt, model: &mut SslicModel, sink: &mut Sink) {
     model.certificates.insert(name, declaration);
 }
 
-fn parse_endpoint(stmt: &Stmt, model: &mut SslicModel, sink: &mut Sink) {
+/// Mutable state one endpoint's member walk builds up.
+struct EndpointBuild<'a> {
+    endpoint: Endpoint,
+    pending: &'a mut Vec<PendingRef>,
+    /// Span of a `chain NAME` member, when one was declared.
+    named_chain: Option<Span>,
+    /// Span of a literal `certificate-chain LIST` member, when one was
+    /// declared.
+    literal_chain: Option<Span>,
+}
+
+fn parse_endpoint(
+    stmt: &Stmt,
+    model: &mut SslicModel,
+    pending: &mut Vec<PendingRef>,
+    sink: &mut Sink,
+) {
     if !stmt.require_words(3, sink) {
         return;
     }
@@ -668,65 +695,107 @@ fn parse_endpoint(stmt: &Stmt, model: &mut SslicModel, sink: &mut Sink) {
     let Some(fields) = Document::block(stmt.word(2), sink) else {
         return;
     };
-    let mut endpoint = Endpoint {
-        name: name.clone(),
-        ..Endpoint::default()
+    let mut build = EndpointBuild {
+        endpoint: Endpoint {
+            name: name.clone(),
+            ..Endpoint::default()
+        },
+        pending,
+        named_chain: None,
+        literal_chain: None,
     };
     for field in &fields {
-        if field.name().is_empty() {
+        if field.name().is_empty() || !field.require_literals(sink) {
             continue;
         }
-        if !field.require_literals(sink) {
-            continue;
+        apply_endpoint_member(field, &mut build, sink);
+    }
+    if let (Some(named), Some(literal)) = (build.named_chain, build.literal_chain) {
+        sink.error(
+            DiagCode::Sslic1012,
+            Span::new(
+                named.start().min(literal.start()),
+                named.end().max(literal.end()),
+            ),
+            format!(
+                "endpoint `{name}` declares both `chain` and `certificate-chain`; they are \
+                 mutually exclusive"
+            ),
+        );
+    }
+    model.endpoints.insert(name, build.endpoint);
+}
+
+fn apply_endpoint_member(field: &Stmt, build: &mut EndpointBuild<'_>, sink: &mut Sink) {
+    if field.name() == "hsts" {
+        if let Some(policy) = parse_hsts(field, sink) {
+            build.endpoint.hsts = Some(policy);
         }
-        match field.name() {
-            "hostname" => {
-                if field.require_words(2, sink) {
-                    endpoint.hostname = Some(field.word(1).text.clone());
-                }
+        return;
+    }
+    let known = matches!(
+        field.name(),
+        "hostname"
+            | "protocols"
+            | "ciphers"
+            | "groups"
+            | "signature-schemes"
+            | "certificate-chain"
+            | "chain"
+            | "policy"
+    );
+    if !known {
+        add_extension(&mut build.endpoint.extensions, field, sink);
+        return;
+    }
+    if !field.require_words(2, sink) {
+        return;
+    }
+    let value = field.word(1);
+    match field.name() {
+        "hostname" => build.endpoint.hostname = Some(value.text.clone()),
+        "protocols" => build.endpoint.protocols = protocol_list(value, sink),
+        "ciphers" => {
+            if let Some(list) = Document::literal_list(value, sink) {
+                build.endpoint.ciphers = list;
             }
-            "protocols" => {
-                if field.require_words(2, sink) {
-                    endpoint.protocols = protocol_list(field.word(1), sink);
-                }
+        }
+        "groups" => {
+            if let Some(list) = Document::literal_list(value, sink) {
+                build.endpoint.groups = list;
             }
-            "ciphers" => {
-                if field.require_words(2, sink)
-                    && let Some(list) = Document::literal_list(field.word(1), sink)
-                {
-                    endpoint.ciphers = list;
-                }
+        }
+        "signature-schemes" => {
+            if let Some(list) = Document::literal_list(value, sink) {
+                build.endpoint.signature_schemes = list;
             }
-            "groups" => {
-                if field.require_words(2, sink)
-                    && let Some(list) = Document::literal_list(field.word(1), sink)
-                {
-                    endpoint.groups = list;
-                }
+        }
+        "certificate-chain" => {
+            if let Some(list) = Document::literal_list(value, sink) {
+                build.literal_chain = Some(field.span);
+                build.endpoint.certificate_chain = list;
             }
-            "signature-schemes" => {
-                if field.require_words(2, sink)
-                    && let Some(list) = Document::literal_list(field.word(1), sink)
-                {
-                    endpoint.signature_schemes = list;
-                }
-            }
-            "certificate-chain" => {
-                if field.require_words(2, sink)
-                    && let Some(list) = Document::literal_list(field.word(1), sink)
-                {
-                    endpoint.certificate_chain = list;
-                }
-            }
-            "hsts" => {
-                if let Some(policy) = parse_hsts(field, sink) {
-                    endpoint.hsts = Some(policy);
-                }
-            }
-            _ => add_extension(&mut endpoint.extensions, field, sink),
+        }
+        "chain" => {
+            build.named_chain = Some(field.span);
+            build.endpoint.chain = Some(value.text.clone());
+            build.pending.push(PendingRef {
+                kind: RefKind::EndpointChain,
+                owner: build.endpoint.name.clone(),
+                name: value.text.clone(),
+                range: value.span,
+            });
+        }
+        _ => {
+            build.endpoint.policy = Some(value.text.clone());
+            build.pending.push(PendingRef {
+                kind: RefKind::EndpointPolicy,
+                owner: build.endpoint.name.clone(),
+                name: value.text.clone(),
+                range: value.span,
+            });
         }
     }
-    model.endpoints.insert(name, endpoint);
 }
 
 fn protocol_list(word: &Word, sink: &mut Sink) -> Vec<ProtocolVersion> {
@@ -818,6 +887,577 @@ fn parse_unsigned(word: &Word, sink: &mut Sink) -> Option<u64> {
         return None;
     };
     Some(value)
+}
+
+/// A name used before the declaration it refers to has necessarily been read.
+/// Resolution is a post-pass, so declaration order is irrelevant.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RefKind {
+    EndpointChain,
+    EndpointPolicy,
+    ChainCertificate,
+}
+
+#[derive(Debug, Clone)]
+struct PendingRef {
+    kind: RefKind,
+    owner: String,
+    name: String,
+    range: Span,
+}
+
+fn parse_chain(
+    stmt: &Stmt,
+    model: &mut SslicModel,
+    pending: &mut Vec<PendingRef>,
+    sink: &mut Sink,
+) {
+    if !stmt.require_words(3, sink) {
+        return;
+    }
+    let name = stmt.word(1).text.clone();
+    if model.chains.contains_key(&name) {
+        sink.error(
+            DiagCode::Sslic1008,
+            stmt.span,
+            format!("duplicate chain `{name}`"),
+        );
+        return;
+    }
+    let Some(fields) = Document::block(stmt.word(2), sink) else {
+        return;
+    };
+    let mut declaration = ChainDeclaration {
+        name: name.clone(),
+        certificates: Vec::new(),
+    };
+    let mut saw_certificates = false;
+    for field in &fields {
+        if field.name().is_empty() {
+            continue;
+        }
+        if !field.require_literals(sink) {
+            continue;
+        }
+        match field.name() {
+            "certificates" => {
+                if field.require_words(2, sink)
+                    && let Some(list) = Document::literal_list(field.word(1), sink)
+                {
+                    saw_certificates = true;
+                    for entry in &list {
+                        pending.push(PendingRef {
+                            kind: RefKind::ChainCertificate,
+                            owner: name.clone(),
+                            name: entry.clone(),
+                            range: field.word(1).span,
+                        });
+                    }
+                    declaration.certificates = list;
+                }
+            }
+            other => sink.error(
+                DiagCode::Sslic1007,
+                field.span,
+                format!("unknown `chain` member `{other}`"),
+            ),
+        }
+    }
+    if !saw_certificates {
+        sink.error(
+            DiagCode::Sslic1010,
+            stmt.span,
+            format!("chain `{name}` has no `certificates` member"),
+        );
+        return;
+    }
+    model.chains.insert(name, declaration);
+}
+
+fn parse_trust_program(stmt: &Stmt, model: &mut SslicModel, sink: &mut Sink) {
+    if !stmt.require_words(3, sink) {
+        return;
+    }
+    let name = stmt.word(1).text.clone();
+    if model.trust_programs.contains_key(&name) {
+        sink.error(
+            DiagCode::Sslic1008,
+            stmt.span,
+            format!("duplicate trust program `{name}`"),
+        );
+        return;
+    }
+    let Some(fields) = Document::block(stmt.word(2), sink) else {
+        return;
+    };
+    let mut declaration = TrustProgramDeclaration {
+        name: name.clone(),
+        client: ClientFamily::Mozilla,
+        version: String::new(),
+        generated_at: String::new(),
+        source_name: String::new(),
+        source_url: String::new(),
+        source_revision: String::new(),
+        source_license: String::new(),
+        anchors: BTreeMap::new(),
+        extensions: BTreeMap::new(),
+    };
+    let mut saw_client = false;
+    for field in &fields {
+        if field.name().is_empty() {
+            continue;
+        }
+        if !field.require_literals(sink) {
+            continue;
+        }
+        if field.name() == "anchor" {
+            parse_anchor(field, &mut declaration, sink);
+            continue;
+        }
+        let text_member = matches!(
+            field.name(),
+            "client"
+                | "version"
+                | "generated-at"
+                | "source-name"
+                | "source-url"
+                | "source-revision"
+                | "source-license"
+        );
+        if !text_member {
+            add_extension(&mut declaration.extensions, field, sink);
+            continue;
+        }
+        if !field.require_words(2, sink) {
+            continue;
+        }
+        let value = field.word(1);
+        match field.name() {
+            "client" => match value.text.parse::<ClientFamily>() {
+                Ok(client) => {
+                    declaration.client = client;
+                    saw_client = true;
+                }
+                Err(message) => sink.error(DiagCode::Sslic1009, value.span, message),
+            },
+            "version" => declaration.version.clone_from(&value.text),
+            "generated-at" => declaration.generated_at.clone_from(&value.text),
+            "source-name" => declaration.source_name.clone_from(&value.text),
+            "source-url" => declaration.source_url.clone_from(&value.text),
+            "source-revision" => declaration.source_revision.clone_from(&value.text),
+            _ => declaration.source_license.clone_from(&value.text),
+        }
+    }
+    if !saw_client {
+        sink.error(
+            DiagCode::Sslic1010,
+            stmt.span,
+            format!("trust program `{name}` has no `client` member"),
+        );
+        return;
+    }
+    model.trust_programs.insert(name, declaration);
+}
+
+fn parse_anchor(stmt: &Stmt, program: &mut TrustProgramDeclaration, sink: &mut Sink) {
+    if !stmt.require_words(3, sink) {
+        return;
+    }
+    let key = stmt.word(1);
+    let fingerprint = key.text.to_ascii_lowercase();
+    if fingerprint.len() != 64 || !fingerprint.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        sink.error(
+            DiagCode::Sslic1009,
+            key.span,
+            "anchor name must be 64 hexadecimal digits (a SHA-256 DER fingerprint)",
+        );
+        return;
+    }
+    if program.anchors.contains_key(&fingerprint) {
+        sink.error(
+            DiagCode::Sslic1008,
+            stmt.span,
+            format!("duplicate anchor `{fingerprint}`"),
+        );
+        return;
+    }
+    let Some(fields) = Document::block(stmt.word(2), sink) else {
+        return;
+    };
+    let mut anchor = TrustAnchorDeclaration {
+        fingerprint_sha256: fingerprint.clone(),
+        ..TrustAnchorDeclaration::default()
+    };
+    for field in &fields {
+        if field.name().is_empty() {
+            continue;
+        }
+        if !field.require_literals(sink) || !field.require_words(2, sink) {
+            continue;
+        }
+        let value = field.word(1);
+        match field.name() {
+            "subject" => anchor.subject.clone_from(&value.text),
+            "der-base64" => anchor.der_base64 = Some(value.text.clone()),
+            "purposes" => {
+                if let Some(list) = Document::literal_list(value, sink) {
+                    anchor.purposes = list
+                        .iter()
+                        .filter_map(|entry| match entry.parse::<TrustPurpose>() {
+                            Ok(purpose) => Some(purpose),
+                            Err(message) => {
+                                sink.error(DiagCode::Sslic1009, value.span, message);
+                                None
+                            }
+                        })
+                        .collect();
+                }
+            }
+            "trusted" => {
+                if let Some(flag) = parse_bool(value, sink) {
+                    anchor.trusted = flag;
+                }
+            }
+            "distrust-after" => {
+                if let Some(seconds) = parse_unsigned(value, sink) {
+                    anchor.distrust_after = i64::try_from(seconds).ok();
+                }
+            }
+            other => sink.error(
+                DiagCode::Sslic1007,
+                field.span,
+                format!("unknown `anchor` member `{other}`"),
+            ),
+        }
+    }
+    program.anchors.insert(fingerprint, anchor);
+}
+
+fn parse_protocol_fact(stmt: &Stmt, model: &mut SslicModel, sink: &mut Sink) {
+    if !stmt.require_words(3, sink) {
+        return;
+    }
+    let key = stmt.word(1);
+    let version = match key.text.parse::<ProtocolVersion>() {
+        Ok(version) => version,
+        Err(message) => {
+            sink.error(DiagCode::Sslic1009, key.span, message);
+            return;
+        }
+    };
+    if model.facts.protocols.contains_key(&version) {
+        sink.error(
+            DiagCode::Sslic1008,
+            stmt.span,
+            format!("duplicate protocol fact `{version}`"),
+        );
+        return;
+    }
+    let Some(fields) = Document::block(stmt.word(2), sink) else {
+        return;
+    };
+    let mut fact = ProtocolFact::default();
+    for field in &fields {
+        if field.name().is_empty() {
+            continue;
+        }
+        if !field.require_literals(sink) || !field.require_words(2, sink) {
+            continue;
+        }
+        let value = field.word(1);
+        match field.name() {
+            "status" => match value.text.parse::<TlsStatus>() {
+                Ok(status) => fact.status = Some(status),
+                Err(message) => sink.error(DiagCode::Sslic1009, value.span, message),
+            },
+            "score" => {
+                if let Some(score) = parse_unsigned(value, sink) {
+                    match u8::try_from(score) {
+                        Ok(score) if score <= 100 => fact.score = Some(score),
+                        _ => sink.error(
+                            DiagCode::Sslic1009,
+                            value.span,
+                            "`score` must be between 0 and 100",
+                        ),
+                    }
+                }
+            }
+            "reference" => fact.reference = Some(value.text.clone()),
+            other => sink.error(
+                DiagCode::Sslic1007,
+                field.span,
+                format!("unknown `protocol` member `{other}`"),
+            ),
+        }
+    }
+    model.facts.protocols.insert(version, fact);
+}
+
+fn parse_cipher_fact(stmt: &Stmt, model: &mut SslicModel, sink: &mut Sink) {
+    if !stmt.require_words(3, sink) {
+        return;
+    }
+    let name = stmt.word(1).text.clone();
+    if model.facts.ciphers.contains_key(&name) {
+        sink.error(
+            DiagCode::Sslic1008,
+            stmt.span,
+            format!("duplicate cipher fact `{name}`"),
+        );
+        return;
+    }
+    let Some(fields) = Document::block(stmt.word(2), sink) else {
+        return;
+    };
+    let mut fact = CipherFact::default();
+    for field in &fields {
+        if field.name().is_empty() {
+            continue;
+        }
+        if !field.require_literals(sink) || !field.require_words(2, sink) {
+            continue;
+        }
+        let value = field.word(1);
+        match field.name() {
+            "iana-name" => fact.iana_name = Some(value.text.clone()),
+            "openssl-name" => fact.openssl_name = Some(value.text.clone()),
+            "key-exchange" => fact.key_exchange = Some(value.text.clone()),
+            "authentication" => fact.authentication = Some(value.text.clone()),
+            "encryption" => fact.encryption = Some(value.text.clone()),
+            "bits" => {
+                if let Some(bits) = parse_unsigned(value, sink) {
+                    match u16::try_from(bits) {
+                        Ok(bits) => fact.bits = Some(bits),
+                        Err(_) => sink.error(
+                            DiagCode::Sslic1009,
+                            value.span,
+                            "`bits` is out of range for a symmetric strength",
+                        ),
+                    }
+                }
+            }
+            "forward-secrecy" => fact.forward_secrecy = parse_bool(value, sink),
+            "aead" => fact.aead = parse_bool(value, sink),
+            "status" => match value.text.parse::<TlsStatus>() {
+                Ok(status) => fact.status = Some(status),
+                Err(message) => sink.error(DiagCode::Sslic1009, value.span, message),
+            },
+            "protocols" => fact.protocols = protocol_list(value, sink),
+            other => sink.error(
+                DiagCode::Sslic1007,
+                field.span,
+                format!("unknown `cipher` member `{other}`"),
+            ),
+        }
+    }
+    model.facts.ciphers.insert(name, fact);
+}
+
+fn parse_policy(stmt: &Stmt, model: &mut SslicModel, sink: &mut Sink) {
+    if !stmt.require_words(3, sink) {
+        return;
+    }
+    let name = stmt.word(1).text.clone();
+    if model.policies.contains_key(&name) {
+        sink.error(
+            DiagCode::Sslic1008,
+            stmt.span,
+            format!("duplicate policy `{name}`"),
+        );
+        return;
+    }
+    let Some(fields) = Document::block(stmt.word(2), sink) else {
+        return;
+    };
+    let mut policy = Policy {
+        name: name.clone(),
+        ..Policy::default()
+    };
+    for field in &fields {
+        if field.name().is_empty() {
+            continue;
+        }
+        if !field.require_literals(sink) {
+            continue;
+        }
+        match field.name() {
+            "check" => parse_policy_check(field, &mut policy, sink),
+            "grade" => parse_grade_rule(field, &mut policy, sink),
+            other => sink.error(
+                DiagCode::Sslic1007,
+                field.span,
+                format!("unknown `policy` member `{other}`"),
+            ),
+        }
+    }
+    model.policies.insert(name, policy);
+}
+
+fn parse_policy_check(stmt: &Stmt, policy: &mut Policy, sink: &mut Sink) {
+    if !stmt.require_words(3, sink) {
+        return;
+    }
+    let id = stmt.word(1).text.clone();
+    if policy.checks.contains_key(&id) {
+        sink.error(
+            DiagCode::Sslic1008,
+            stmt.span,
+            format!("duplicate check `{id}` in policy `{}`", policy.name),
+        );
+        return;
+    }
+    let Some(fields) = Document::block(stmt.word(2), sink) else {
+        return;
+    };
+    let mut check = PolicyCheck {
+        id: id.clone(),
+        ..PolicyCheck::default()
+    };
+    for field in &fields {
+        if field.name().is_empty() {
+            continue;
+        }
+        if !field.require_literals(sink) || !field.require_words(2, sink) {
+            continue;
+        }
+        let value = field.word(1);
+        match field.name() {
+            "severity" => match value.text.parse::<EstimateSeverity>() {
+                Ok(severity) => check.severity = Some(severity),
+                Err(message) => sink.error(DiagCode::Sslic1009, value.span, message),
+            },
+            "message" => check.message = Some(value.text.clone()),
+            "require-protocols" => check.require_protocols = protocol_list(value, sink),
+            "forbid-protocols" => check.forbid_protocols = protocol_list(value, sink),
+            "forbid-ciphers" => {
+                if let Some(list) = Document::literal_list(value, sink) {
+                    check.forbid_ciphers = list;
+                }
+            }
+            "require-forward-secrecy" => check.require_forward_secrecy = parse_bool(value, sink),
+            "min-key-bits" => {
+                if let Some(bits) = parse_unsigned(value, sink) {
+                    check.min_key_bits = u32::try_from(bits).ok();
+                }
+            }
+            "require-hsts" => check.require_hsts = parse_bool(value, sink),
+            "min-hsts-max-age" => check.min_hsts_max_age = parse_unsigned(value, sink),
+            "predicate" => {
+                if value.braced {
+                    check.predicate = Some(value.text.clone());
+                    sink.hint(
+                        DiagCode::Sslic1103,
+                        value.span,
+                        format!(
+                            "`predicate` on check `{id}` is retained verbatim and never \
+                             evaluated in vocabulary 1"
+                        ),
+                    );
+                } else {
+                    sink.error(
+                        DiagCode::Sslic1006,
+                        value.span,
+                        "`predicate` must be a braced literal script",
+                    );
+                }
+            }
+            other => sink.error(
+                DiagCode::Sslic1007,
+                field.span,
+                format!("unknown `check` member `{other}`"),
+            ),
+        }
+    }
+    policy.checks.insert(id, check);
+}
+
+fn parse_grade_rule(stmt: &Stmt, policy: &mut Policy, sink: &mut Sink) {
+    if !stmt.require_words(2, sink) {
+        return;
+    }
+    let Some(fields) = Document::block(stmt.word(1), sink) else {
+        return;
+    };
+    let mut minimum = None;
+    for field in &fields {
+        if field.name().is_empty() {
+            continue;
+        }
+        if !field.require_literals(sink) || !field.require_words(2, sink) {
+            continue;
+        }
+        let value = field.word(1);
+        match field.name() {
+            "minimum" => match value.text.parse::<Grade>() {
+                Ok(grade) => minimum = Some(grade),
+                Err(message) => sink.error(DiagCode::Sslic1009, value.span, message),
+            },
+            other => sink.error(
+                DiagCode::Sslic1007,
+                field.span,
+                format!("unknown `grade` member `{other}`"),
+            ),
+        }
+    }
+    let Some(minimum) = minimum else {
+        sink.error(
+            DiagCode::Sslic1010,
+            stmt.span,
+            "`grade` has no `minimum` member",
+        );
+        return;
+    };
+    policy.grade = Some(GradeRule { minimum });
+}
+
+/// Resolve every cross-declaration name once the whole document has been read,
+/// so declaration order never matters.
+fn resolve_references(model: &mut SslicModel, pending: &[PendingRef], sink: &mut Sink) {
+    for reference in pending {
+        match reference.kind {
+            RefKind::EndpointChain => {
+                let Some(chain) = model.chains.get(&reference.name) else {
+                    sink.error(
+                        DiagCode::Sslic1011,
+                        reference.range,
+                        format!(
+                            "endpoint `{}` references undeclared chain `{}`",
+                            reference.owner, reference.name
+                        ),
+                    );
+                    continue;
+                };
+                let certificates = chain.certificates.clone();
+                if let Some(endpoint) = model.endpoints.get_mut(&reference.owner) {
+                    endpoint.certificate_chain = certificates;
+                }
+            }
+            RefKind::EndpointPolicy => {
+                if !model.policies.contains_key(&reference.name) {
+                    sink.error(
+                        DiagCode::Sslic1011,
+                        reference.range,
+                        format!(
+                            "endpoint `{}` references undeclared policy `{}`",
+                            reference.owner, reference.name
+                        ),
+                    );
+                }
+            }
+            RefKind::ChainCertificate => {
+                if !model.certificates.contains_key(&reference.name) {
+                    sink.error(
+                        DiagCode::Sslic1011,
+                        reference.range,
+                        format!(
+                            "chain `{}` references undeclared certificate `{}`",
+                            reference.owner, reference.name
+                        ),
+                    );
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -949,6 +1589,182 @@ future-top value
         assert_eq!(loaded.diagnostics[0].code, DiagCode::Sslic1102);
         assert_eq!(loaded.diagnostics[0].severity, DslSeverity::Warning);
         assert_eq!(loaded.document.unwrap().model.vocabulary, 2);
+    }
+
+    #[test]
+    fn every_published_code_has_an_emitting_document() {
+        const ANCHOR: &str =
+            "sslictcl 1\npolicy p {\n    check c {\n        predicate {expr 1}\n    }\n}\n";
+        let cases: &[(DiagCode, &str)] = &[
+            (DiagCode::Sslic1001, "sslictcl 1\nendpoint x {"),
+            (
+                DiagCode::Sslic1002,
+                "sslictcl 1\nendpoint x { hostname $h }",
+            ),
+            (DiagCode::Sslic1003, "endpoint x {}"),
+            (DiagCode::Sslic1004, "sslictcl 1\nsslictcl 1"),
+            (DiagCode::Sslic1005, "sslictcl 1\nendpoint x"),
+            (DiagCode::Sslic1006, "sslictcl 1\nendpoint x body"),
+            (
+                DiagCode::Sslic1007,
+                "sslictcl 1\nendpoint x { hsts { bogus 1 } }",
+            ),
+            (
+                DiagCode::Sslic1008,
+                "sslictcl 1\nendpoint x {}\nendpoint x {}",
+            ),
+            (
+                DiagCode::Sslic1009,
+                "sslictcl 1\nendpoint x { hsts { enabled maybe } }",
+            ),
+            (DiagCode::Sslic1010, "sslictcl 1\ncertificate c { key k }"),
+            (
+                DiagCode::Sslic1011,
+                "sslictcl 1\nendpoint x { chain missing }",
+            ),
+            (
+                DiagCode::Sslic1012,
+                "sslictcl 1\nchain c { certificates {} }\nendpoint x {\n chain c\n certificate-chain {}\n}",
+            ),
+            (DiagCode::Sslic1101, "sslictcl 1\nfuture-word value"),
+            (DiagCode::Sslic1102, "sslictcl 2"),
+            (DiagCode::Sslic1103, ANCHOR),
+        ];
+        for (code, source) in cases {
+            let reported: Vec<DiagCode> = load_with_diagnostics(source)
+                .diagnostics
+                .iter()
+                .map(|item| item.code)
+                .collect();
+            assert!(
+                reported.contains(code),
+                "{code} was not emitted for:\n{source}\ngot {reported:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn chain_and_policy_resolve_regardless_of_declaration_order() {
+        let source = concat!(
+            "sslictcl 1\n",
+            "endpoint e {\n    chain c\n    policy p\n}\n",
+            "chain c {\n    certificates {leaf issuer}\n}\n",
+            "certificate leaf {\n    pem leaf-material\n}\n",
+            "certificate issuer {\n    pem issuer-material\n}\n",
+            "policy p {\n    grade {\n        minimum A\n    }\n}\n",
+        );
+        let loaded = load(source).expect("resolvable document");
+        let endpoint = &loaded.model.endpoints["e"];
+        assert_eq!(endpoint.chain.as_deref(), Some("c"));
+        assert_eq!(endpoint.policy.as_deref(), Some("p"));
+        assert_eq!(endpoint.certificate_chain, ["leaf", "issuer"]);
+        assert_eq!(
+            loaded.model.policies["p"].grade.map(|rule| rule.minimum),
+            Some(Grade::A)
+        );
+    }
+
+    #[test]
+    fn unresolved_chain_certificate_is_reported_once() {
+        let loaded = load_with_diagnostics("sslictcl 1\nchain c {\n    certificates {ghost}\n}\n");
+        let found = errors(&loaded);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].code, DiagCode::Sslic1011);
+        assert!(found[0].message.contains("ghost"));
+    }
+
+    #[test]
+    fn catalogue_facts_are_typed_and_deduplicated() {
+        let source = concat!(
+            "sslictcl 1\n",
+            "protocol tls1.0 {\n    status prohibited\n    score 0\n    reference RFC8996\n}\n",
+            "cipher ECDHE-RSA-AES128-GCM-SHA256 {\n",
+            "    iana-name TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256\n",
+            "    openssl-name ECDHE-RSA-AES128-GCM-SHA256\n",
+            "    key-exchange ECDHE\n    authentication RSA\n    encryption AES-128-GCM\n",
+            "    bits 128\n    forward-secrecy true\n    aead true\n    status recommended\n",
+            "    protocols {tls1.2}\n}\n",
+        );
+        let loaded = load(source).expect("valid catalogue");
+        let protocol = &loaded.model.facts.protocols[&ProtocolVersion::Tls10];
+        assert_eq!(protocol.status, Some(TlsStatus::Prohibited));
+        assert_eq!(protocol.score, Some(0));
+        let cipher = &loaded.model.facts.ciphers["ECDHE-RSA-AES128-GCM-SHA256"];
+        assert_eq!(cipher.bits, Some(128));
+        assert_eq!(cipher.forward_secrecy, Some(true));
+        assert_eq!(cipher.protocols, vec![ProtocolVersion::Tls12]);
+        assert_eq!(cipher.status, Some(TlsStatus::Recommended));
+    }
+
+    #[test]
+    fn policy_checks_are_typed_and_predicates_are_retained_verbatim() {
+        let source = concat!(
+            "sslictcl 1\n",
+            "policy strict {\n",
+            "    check modern {\n",
+            "        severity error\n        message {TLS 1.3 required}\n",
+            "        require-protocols {tls1.3}\n        forbid-protocols {tls1.0 tls1.1}\n",
+            "        forbid-ciphers {RC4* *NULL*}\n        require-forward-secrecy yes\n",
+            "        min-key-bits 2048\n        require-hsts on\n",
+            "        min-hsts-max-age 15552000\n",
+            "        predicate {expr {[llength $x] > 0}}\n",
+            "    }\n",
+            "    grade {\n        minimum A+\n    }\n",
+            "}\n",
+        );
+        let loaded = load(source).expect("valid policy");
+        let policy = &loaded.model.policies["strict"];
+        let check = &policy.checks["modern"];
+        assert_eq!(check.severity, Some(EstimateSeverity::Error));
+        assert_eq!(check.message.as_deref(), Some("TLS 1.3 required"));
+        assert_eq!(check.require_protocols, vec![ProtocolVersion::Tls13]);
+        assert_eq!(
+            check.forbid_protocols,
+            vec![ProtocolVersion::Tls10, ProtocolVersion::Tls11]
+        );
+        assert_eq!(check.forbid_ciphers, ["RC4*", "*NULL*"]);
+        assert_eq!(check.require_forward_secrecy, Some(true));
+        assert_eq!(check.min_key_bits, Some(2048));
+        assert_eq!(check.min_hsts_max_age, Some(15_552_000));
+        assert_eq!(
+            check.predicate.as_deref(),
+            Some("expr {[llength $x] > 0}"),
+            "the predicate is retained byte-for-byte and never parsed"
+        );
+        assert_eq!(policy.grade.map(|rule| rule.minimum), Some(Grade::APlus));
+    }
+
+    #[test]
+    fn trust_program_compiles_into_a_trust_store() {
+        let source = concat!(
+            "sslictcl 1\n",
+            "trust-program mozilla-128 {\n",
+            "    client mozilla\n    version 128\n",
+            "    generated-at 2026-01-01T00:00:00Z\n",
+            "    source-name mozilla\n    source-url https://example.test/mozilla\n",
+            "    source-revision abc123\n    source-license CC0-1.0\n",
+            "    anchor ",
+            "abababababababababababababababababababababababababababababababab",
+            " {\n",
+            "        subject {CN=Example Root}\n        purposes {server-auth client-auth}\n",
+            "        trusted true\n        distrust-after 1893456000\n",
+            "    }\n",
+            "}\n",
+        );
+        let loaded = load(source).expect("valid trust program");
+        let program = &loaded.model.trust_programs["mozilla-128"];
+        assert_eq!(program.client, crate::trust::ClientFamily::Mozilla);
+        assert_eq!(program.anchors.len(), 1);
+        let dataset = crate::dataset::compile_trust_snapshots(&[program.to_snapshot()])
+            .expect("declared program compiles");
+        assert_eq!(dataset.trust.anchors.len(), 1);
+        assert_eq!(dataset.trust.anchors[0].subject, "CN=Example Root");
+        assert_eq!(
+            dataset.trust.anchors[0].memberships[0]
+                .snapshot_version
+                .as_deref(),
+            Some("128")
+        );
     }
 
     #[test]

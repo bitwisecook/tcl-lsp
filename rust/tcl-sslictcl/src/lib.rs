@@ -20,8 +20,10 @@ pub mod key;
 pub mod model;
 pub mod nginx;
 pub mod openssl_config;
+pub mod policy;
 pub mod testssl;
 pub mod trust;
+pub mod vocabulary;
 
 pub use certificate::{Certificate, CertificateError, parse_certificates};
 pub use chain::{ChainEvaluation, ChainFinding, ChainFindingKind, ChainStatus, evaluate_chain};
@@ -34,13 +36,20 @@ pub use dsl::{
     DslDiagnostic, DslDocument, DslError, DslLoad, DslNotice, DslSeverity, load,
     load_with_diagnostics,
 };
-pub use estimate::{Estimate, EstimateFinding, EstimateInput, Grade, estimate};
+pub use estimate::{
+    Estimate, EstimateFinding, EstimateInput, EstimateSeverity, Grade, cipher_has_forward_secrecy,
+    estimate,
+};
 pub use key::{KeyMatch, KeyMatchStatus, evaluate_private_key_match, private_key_spki_sha256};
 pub use model::{
-    CertificateDeclaration, Endpoint, HstsPolicy, ProtocolVersion, SslicModel, TlsValue,
+    CertificateDeclaration, ChainDeclaration, CipherFact, Endpoint, GradeRule, HstsPolicy, Policy,
+    PolicyCheck, ProtocolFact, ProtocolVersion, SslicModel, TlsFacts, TlsStatus, TlsValue,
+    TrustAnchorDeclaration, TrustProgramDeclaration,
 };
+pub use policy::{PolicyFinding, evaluate_policy};
 pub use testssl::{TestSslFinding, TestSslImport, import_testssl_json};
 pub use trust::{
     Anchor, ClientFamily, EmbeddedDataset, Provenance, TrustDecision, TrustPurpose, TrustStore,
     embedded_dataset,
 };
+pub use vocabulary::{DECLARATIONS, Declaration, Member, ValueDomain};
