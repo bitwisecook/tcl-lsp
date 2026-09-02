@@ -1528,7 +1528,11 @@ mod tests {
                     ..UpgradeOptions::default()
                 },
             );
-            assert_eq!(outcome.status, UpgradeStatus::Refused, "{source}\n{outcome:#?}");
+            assert_eq!(
+                outcome.status,
+                UpgradeStatus::Refused,
+                "{source}\n{outcome:#?}"
+            );
             assert_eq!(outcome.source, source, "nothing is rewritten");
             assert!(
                 outcome
@@ -1559,7 +1563,11 @@ mod tests {
         );
         assert_eq!(outcome.status, UpgradeStatus::Restyled, "{outcome:#?}");
         assert!(outcome.restyled);
-        assert!(outcome.source.contains("summary {Costs $5 [really].}"), "{}", outcome.source);
+        assert!(
+            outcome.source.contains("summary {Costs $5 [really].}"),
+            "{}",
+            outcome.source
+        );
     }
 
     /// D13: a partial upgrade keeps its markers and is not restyled, while

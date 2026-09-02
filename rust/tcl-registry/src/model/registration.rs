@@ -796,7 +796,10 @@ mod tests {
             extensions: Vec::new(),
         }]);
         assert!(outcome.rejected.is_empty(), "{:?}", outcome.rejected);
-        assert!(!outcome.changed, "a verbatim restatement is content-identical");
+        assert!(
+            !outcome.changed,
+            "a verbatim restatement is content-identical"
+        );
         assert_eq!(outcome.generation, before);
         assert_eq!(live_environments().generation(), before);
 
