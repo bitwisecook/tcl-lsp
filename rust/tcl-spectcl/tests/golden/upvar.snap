@@ -19,4 +19,4 @@ notice command upvar 61 presentation `state_transitions` row `covers` is not yet
 notice command upvar 62 presentation `state_transitions` row `covers` is not yet loadable; dropped
 notice command upvar 65 presentation `state_transitions` row `commit` is not yet loadable; dropped
 commands 1
-command upvar line 16 overrides false degraded false spec 60fcb6d41922ae8e hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command upvar line 16 overrides false degraded false spec 069eec64872b821e hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9

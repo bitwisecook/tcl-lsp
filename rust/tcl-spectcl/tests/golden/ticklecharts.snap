@@ -11,5 +11,5 @@ dialects []
 registrations 3
 notices 0
 commands 2
-command ticklecharts::chart line 73 overrides false degraded false spec 272382264d4b2551 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
-command ticklecharts::jsfunc line 243 overrides false degraded false spec 1fed6092588d4f80 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command ticklecharts::chart line 73 overrides false degraded false spec 4759f92afe97c6b5 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command ticklecharts::jsfunc line 243 overrides false degraded false spec 26b8df5e0178afdf hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
