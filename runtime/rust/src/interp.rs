@@ -1675,6 +1675,22 @@ impl Interp {
         {
             return RenameOutcome::AliasLoop;
         }
+        // C's `TclRenameCommand` checks the destination's hash table before
+        // touching `old`'s (tclBasic.c), so an occupied destination — self-
+        // rename onto the same slot included — is refused before anything
+        // observable happens, same as the alias-loop guard above (issue
+        // #1412 item 1). A release-gated TclOO root this build hides reads
+        // as free here too (`is_gate_hidden_object_root`), same as every
+        // other "is this name taken?" check.
+        if let Some(occupant_fqn) = self
+            .namespaces
+            .borrow_mut()
+            .destination_occupant_fqn(self.current_ns.get(), new)
+        {
+            if !self.is_gate_hidden_object_root(&occupant_fqn) {
+                return RenameOutcome::TargetExists;
+            }
+        }
         // A builtin the emulated release does not carry is not there to be
         // renamed or deleted (#1462/#1463): rebinding it under a name the
         // registry has no spec for would hand it back ungated, defeating the
@@ -1795,8 +1811,11 @@ impl Interp {
                         self.oo_command_renamed(&of, None);
                     }
                 }
-                // `AliasLoop` returned above, before the table was touched.
-                RenameOutcome::NoSuchCommand | RenameOutcome::AliasLoop => {}
+                // `AliasLoop` and `TargetExists` both returned above, before
+                // the table was touched.
+                RenameOutcome::NoSuchCommand
+                | RenameOutcome::AliasLoop
+                | RenameOutcome::TargetExists => {}
             }
         }
         outcome
@@ -3015,15 +3034,24 @@ impl Interp {
         Some(self.set_error(&m))
     }
 
-    /// Read a variable's current value for `lappend`, firing its read trace but
-    /// **swallowing** any error the trace raises (yielding `None`, as if the
-    /// variable were absent). This is C's `Tcl_ObjGetVar2` *without*
-    /// `TCL_LEAVE_ERR_MSG`: `lappend` fires the read trace (its side effects run
-    /// — append-7.2/7.3) yet a trace that errors on a missing element must not
-    /// fail the append, which instead creates the element (bug 3057639,
-    /// append-9.0). `set`/`append`-read, by contrast, propagate the error via
+    /// Read a variable's current value for a **read-modify-write** command
+    /// (`lappend`, `incr`), firing its read trace but **swallowing** any error
+    /// the trace raises — the value simply reads as absent.
+    ///
+    /// This is C's `TclPtrGetVarIdx` seen from a caller that treats a `NULL`
+    /// return as "no current value" rather than as a failure:
+    /// `Tcl_LappendObjCmd` creates the element instead (bug 3057639,
+    /// append-7.2/7.3/9.0) and `TclPtrIncrObjVar` substitutes 0. Both are
+    /// oracle-pinned in `tests/trace_semantics.rs`: with an erroring read trace
+    /// on `x`, tclsh 8.6.16 and 9.0.4 both leave `incr x` succeeding with 1.
+    ///
+    /// `set`/`append`-read, by contrast, propagate the error via
     /// [`fire_read_trace`](Self::fire_read_trace).
-    pub(crate) fn lappend_read(&mut self, base: &[u8], elem: Option<&[u8]>) -> Option<*mut TclObj> {
+    pub(crate) fn read_for_update(
+        &mut self,
+        base: &[u8],
+        elem: Option<&[u8]>,
+    ) -> Option<*mut TclObj> {
         if !self.traces.borrow().traces.is_empty() && self.fire_var_trace(base, elem, b"read") {
             // The read trace errored: discard it and treat the value as absent.
             self.traces.borrow_mut().pending_err.take();
@@ -3033,6 +3061,11 @@ impl Interp {
             Some(k) => self.var_get_elem(base, k),
             None => self.var_get(base),
         }
+    }
+
+    /// `lappend`'s name for [`read_for_update`](Self::read_for_update).
+    pub(crate) fn lappend_read(&mut self, base: &[u8], elem: Option<&[u8]>) -> Option<*mut TclObj> {
+        self.read_for_update(base, elem)
     }
 
     /// `unset name` — returns whether it existed.

@@ -80,6 +80,12 @@ fn rename(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // C names the refused alias by the simple command name it would have
         // been bound under (`Tcl_GetCommandName`), not by the written path.
         RenameOutcome::AliasLoop => alias_loop_error(interp, &simple_tail(&new)),
+        RenameOutcome::TargetExists => {
+            let mut m = b"can't rename to \"".to_vec();
+            m.extend_from_slice(&new);
+            m.extend_from_slice(b"\": command already exists");
+            interp.error_with_code(&m, b"TCL OPERATION RENAME TARGET_EXISTS")
+        }
     }
 }
 

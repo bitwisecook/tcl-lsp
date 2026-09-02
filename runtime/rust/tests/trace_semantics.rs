@@ -169,3 +169,68 @@ fn the_access_spelling_rule_holds_at_8_6() {
     );
     assert_eq!(got, "::a2 {} write");
 }
+
+// -- #1633's `incr` row: a read-modify-write command fires `read` then `write`
+
+/// ```tcl
+/// set x 1
+/// trace add variable x read R ; trace add variable x write R
+/// incr x
+/// ```
+///
+/// tclsh 8.6.16 and 9.0.4 both print `x {} read` then `x {} write`: C's
+/// `TclPtrIncrObjVar` fetches through `TclPtrGetVarIdx`, which is the read-trace
+/// chokepoint. The same sheet on `lappend` already fired both; `append` fires
+/// only `write` (its read is inside `TclPtrSetVarIdx`'s append path), and the
+/// array-element spelling fires `arr k read` / `arr k write`.
+#[test]
+fn incr_lappend_and_append_fire_the_reads_c_fires() {
+    let got = transcript(&format!(
+        "{RECORDER}\
+         set x 1\n\
+         trace add variable x read R\n\
+         trace add variable x write R\n\
+         incr x\n\
+         lappend ::log --\n\
+         set y a\n\
+         trace add variable y read R\n\
+         trace add variable y write R\n\
+         lappend y z\n\
+         lappend ::log --\n\
+         set z 1\n\
+         trace add variable z read R\n\
+         trace add variable z write R\n\
+         append z q\n\
+         lappend ::log --\n\
+         array set arr {{k 1}}\n\
+         trace add variable arr read R\n\
+         trace add variable arr write R\n\
+         incr arr(k)\n\
+         join $::log \\n"
+    ));
+    assert_eq!(
+        got,
+        "x {} read\nx {} write\n--\n\
+         y {} read\ny {} write\n--\n\
+         z {} write\n--\n\
+         arr k read\narr k write"
+    );
+}
+
+/// A read trace that *errors* does not fail `incr`: C's `TclPtrIncrObjVar`
+/// substitutes 0 for the `NULL` fetch, so `incr x` on `x == 1` yields **1**.
+/// Pinned at both releases (identical transcripts).
+#[test]
+fn an_erroring_read_trace_leaves_incr_counting_from_zero() {
+    let sheet = "proc RE {n1 n2 op} { error boom }\n\
+                 set x 1\n\
+                 trace add variable x read RE\n\
+                 set c [catch {incr x} m]\n\
+                 trace remove variable x read RE\n\
+                 set out \"code=$c msg=$m x=$x\"";
+    assert_eq!(transcript(sheet), "code=0 msg=1 x=1");
+    assert_eq!(
+        transcript_at(sheet, Some(tcl_dialect::TclVersion::V8_6)),
+        "code=0 msg=1 x=1"
+    );
+}

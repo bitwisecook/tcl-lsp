@@ -616,17 +616,38 @@ fn build_word<'s>(
                     ));
                 }
             }
+            TokenType::Var if t.content_offset == 2 => {
+                // `${name}` form. The lexer's own token boundary is the
+                // *lenient* recovery (an unterminated `${` reads a name that
+                // runs to end-of-input, since the tokenizer is shared with
+                // the LSP and must keep producing tokens for half-typed
+                // source) — re-derive the close from the one shared owner
+                // instead of trusting `bytes` as a name outright (issue
+                // #1586). `subst`/`scan_parts` already resolve through this
+                // same function; this is the script-word path catching up.
+                match tcl_lexer::braced_var_name_end(
+                    src,
+                    t.span.start() as usize + 2,
+                    config.braced_var,
+                ) {
+                    tcl_lexer::BracedVarEnd::Closed(_) => {
+                        parts.push(WordPart::Variable(VarRef {
+                            name: bytes,
+                            index: None,
+                        }));
+                    }
+                    tcl_lexer::BracedVarEnd::Unterminated => {
+                        parts.push(WordPart::ParseError(tcl_lexer::MISSING_CLOSE_BRACE_FOR_VAR));
+                    }
+                }
+            }
             TokenType::Var => {
-                if array_index_parse_error(bytes, t.content_offset == 2, config) {
+                if array_index_parse_error(bytes, config) {
                     parts.push(WordPart::ParseError(
                         tcl_lexer::INVALID_CHARACTER_IN_ARRAY_INDEX,
                     ));
                 } else {
-                    parts.push(WordPart::Variable(parse_var_ref(
-                        bytes,
-                        t.content_offset == 2,
-                        config,
-                    )));
+                    parts.push(WordPart::Variable(parse_var_ref(bytes, config)));
                 }
             }
             TokenType::Cmd => parts.push(WordPart::Command(bytes)),
@@ -661,11 +682,12 @@ fn build_word<'s>(
     }
 }
 
-/// Parse a `Var` token's content into name + optional array index. `braced`
-/// (the `${name}` form) suppresses index parsing (the whole content is the
-/// name); for `$arr(idx)` the index is itself substituted.
-fn parse_var_ref(bytes: &[u8], braced: bool, config: LexerConfig) -> VarRef<'_> {
-    if !braced && bytes.last() == Some(&b')') {
+/// Parse a `$name`/`$arr(idx)` token's content into name + optional array
+/// index (the `${name}` braced form is resolved separately in `build_word`,
+/// through `tcl_lexer::braced_var_name_end` — issue #1586 — so it never
+/// reaches here). For `$arr(idx)` the index is itself substituted.
+fn parse_var_ref(bytes: &[u8], config: LexerConfig) -> VarRef<'_> {
+    if bytes.last() == Some(&b')') {
         if let Some(open) = bytes.iter().position(|&c| c == b'(') {
             let name = &bytes[..open];
             let idx = &bytes[open + 1..bytes.len() - 1];
@@ -685,14 +707,13 @@ fn parse_var_ref(bytes: &[u8], braced: bool, config: LexerConfig) -> VarRef<'_> 
     }
 }
 
-/// Whether a lexer-produced variable token carries an array-index source byte
-/// forbidden by the selected release. The script lexer records the same fact
-/// as a recovery warning; this runtime parser turns it into an evaluable
-/// parse-error part so direct Rust/WASM interpretation cannot bypass #1732.
-fn array_index_parse_error(bytes: &[u8], braced: bool, config: LexerConfig) -> bool {
-    if braced {
-        return false;
-    }
+/// Whether a lexer-produced `$name`/`$arr(idx)` variable token carries an
+/// array-index source byte forbidden by the selected release (the `${name}`
+/// braced form has no array-index syntax, so it never reaches here — see
+/// `parse_var_ref`). The script lexer records the same fact as a recovery
+/// warning; this runtime parser turns it into an evaluable parse-error part
+/// so direct Rust/WASM interpretation cannot bypass #1732.
+fn array_index_parse_error(bytes: &[u8], config: LexerConfig) -> bool {
     let open = scan_var_name(bytes, 0);
     bytes.get(open) == Some(&b'(')
         && tcl_lexer::scan_array_index(bytes, open, config.array_index, config.braced_var)

@@ -252,10 +252,13 @@ pub(crate) fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
     // Current cell value (borrowed; `None` for an unset variable → the shared
     // seam treats it as 0). The increment is `argv[2]` (borrowed) or a fresh 1.
-    let cur = match &elem {
-        Some(k) => interp.var_get_elem(&base, k),
-        None => interp.var_get(&base),
-    };
+    //
+    // The read goes through the read-trace chokepoint: C's `TclPtrIncrObjVar`
+    // fetches with `TclPtrGetVarIdx`, so `incr x` on a read-traced `x` fires
+    // `read` and then `write` (issue #1633). A read trace that *errors* leaves
+    // the fetch NULL, which C counts as 0 — so the error is swallowed here too,
+    // exactly as `lappend` does.
+    let cur = interp.read_for_update(&base, elem.as_deref());
     let one = obj::new_wide_int_obj(1);
     let amount = if argv.len() == 3 { argv[2] } else { one };
 

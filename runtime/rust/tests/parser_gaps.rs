@@ -83,3 +83,47 @@ fn well_formed_braced_words_still_parse() {
     assert_eq!(code, Code::Ok);
     assert_eq!(result, "a b c d");
 }
+
+// ---------------------------------------------------------------------------
+// #1586 — an unterminated `${` inside a script word (or a script word nested
+// in a command substitution) must raise `missing close-brace for variable
+// name`, the same message `subst` already raises for the identical
+// construct — not the lenient lexer recovery's `${a{` == name `a{` reading
+// (which then fails downstream as `can't read "a{"`). Oracle: tclsh
+// 8.6.16/9.0.4 both raise `missing close-brace for variable name` with
+// `-errorcode NONE`.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn unterminated_braced_var_in_a_script_word_raises_missing_close_brace_for_var() {
+    // eval "set x \"${a{\""
+    let (code, result, error_code) = run("eval \"set x \\\"\\$\\{a\\{\\\"\"");
+    assert_eq!(code, Code::Error);
+    assert_eq!(result, "missing close-brace for variable name");
+    assert_eq!(error_code, "NONE");
+}
+
+/// The same gap, nested inside a command substitution reached through
+/// `subst` — `subst $t` where `t` is `[set y ${a{b]` — matching the second
+/// row of the issue's table (the C parser reports the same error at every
+/// nesting depth, not `can't read "a{b"`).
+#[test]
+fn unterminated_braced_var_nested_in_a_command_subst_raises_the_same_error() {
+    // `t`'s value is the 14-byte string `[set y ${a{b]` — built through
+    // `format` rather than a literal `{...}` word, since its raw text has
+    // two unmatched `{` and would itself be an unterminated *outer* brace
+    // word (this file's own #1576 sibling gap, not what this test targets).
+    let (code, result, _) = run(r#"set t [format {[set y $%sa%sb]} "{" "{"]
+subst $t"#);
+    assert_eq!(code, Code::Error);
+    assert_eq!(result, "missing close-brace for variable name");
+}
+
+/// A well-formed `${name}` (including one immediately followed by more
+/// substitution) is unaffected by the #1586 fix.
+#[test]
+fn well_formed_braced_var_still_substitutes() {
+    let (code, result, _) = run("set a hi\nsubst {x${a}y}");
+    assert_eq!(code, Code::Ok);
+    assert_eq!(result, "xhiy");
+}
