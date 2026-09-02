@@ -267,6 +267,28 @@ mod tests {
         }
     }
 
+    /// A fixed-completion command touches nothing but its completion code:
+    /// its resolved effect footprint is closed and barrier-free, so a loop
+    /// body containing `break`/`continue` keeps its dispatch proofs.
+    #[test]
+    fn completion_commands_have_a_closed_effect_footprint() {
+        let registry = CommandRegistry::build_default();
+        for name in ["break", "continue"] {
+            let facts = registry
+                .resolve_structured_invocation(crate::InvocationWords::literals(name, &[]), None)
+                .resolved()
+                .unwrap_or_else(|| panic!("{name} resolves"))
+                .facts();
+            assert!(!facts.effects.requires_world_barrier(), "{name}");
+            assert!(
+                facts.effects.accesses().iter().all(|access| access.domain
+                    != crate::world_effect::WorldStateDomain::InterpreterPolicy),
+                "{name}: {:?}",
+                facts.effects.accesses()
+            );
+        }
+    }
+
     /// A descriptor is stamped only where a native shape is implemented;
     /// everything else is the generic invocation, stated once here rather
     /// than defaulted silently somewhere else.

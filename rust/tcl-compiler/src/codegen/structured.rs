@@ -360,7 +360,7 @@ fn slice(source: &str, span: Span) -> &str {
 /// left short for any *other* reason (a mis-lowered dynamic body, a rebased
 /// synthetic span) is never silently extended, and a command that is already
 /// whole is returned byte-identical.
-fn command_text(source: &str, span: Span) -> &str {
+pub(crate) fn command_text(source: &str, span: Span) -> &str {
     let text = slice(source, span);
     let end = span.end() as usize;
     // `"` is the one closer `widen_word_end`'s type gate leaves out; a braced

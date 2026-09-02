@@ -116,7 +116,14 @@ const PORTS: &[Port] = &[
         commands: &[PortedCommand {
             name: "if",
             dialect: "tcl9.1",
-            unequal: NONE,
+            unequal: &[(
+                "__unrenderable",
+                "the shipped spec carries the compiler-owned `native_lowering` \
+                 descriptor (the native-tier shape stamped beside the lowering \
+                 hook); SpecTcl has no surface for it, so it stays on the \
+                 unrenderable list and the port does not transcribe it. Every \
+                 field the port does carry matches",
+            )],
             unequal_subcommand: NO_SUBS,
             subcommand_subset: ALL_SUBS,
         }],
@@ -126,7 +133,14 @@ const PORTS: &[Port] = &[
         commands: &[PortedCommand {
             name: "upvar",
             dialect: "tcl9.1",
-            unequal: NONE,
+            unequal: &[(
+                "__unrenderable",
+                "the shipped spec carries the compiler-owned `native_lowering` \
+                 descriptor (the native-tier shape stamped beside the lowering \
+                 hook); SpecTcl has no surface for it, so it stays on the \
+                 unrenderable list and the port does not transcribe it. Every \
+                 field the port does carry matches",
+            )],
             unequal_subcommand: NO_SUBS,
             subcommand_subset: ALL_SUBS,
         }],
@@ -176,7 +190,12 @@ const PORTS: &[Port] = &[
         commands: &[PortedCommand {
             name: "return",
             dialect: "tcl9.1",
-            unequal: NONE,
+            unequal: &[(
+                "__unrenderable",
+                "the shipped spec carries the compiler-owned `native_lowering` \
+                 descriptor, unrenderable in SpecTcl exactly as for `if` and \
+                 `upvar`; every field the port does carry matches",
+            )],
             unequal_subcommand: NO_SUBS,
             subcommand_subset: ALL_SUBS,
         }],
