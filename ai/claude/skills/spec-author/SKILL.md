@@ -6,255 +6,193 @@ allowed-tools: mcp__tcl-lsp__read_proc_docs, mcp__tcl-lsp__analyze, mcp__tcl-lsp
 
 # Spec Author
 
-Turn a private Tcl library into command specs the tools understand, using
-the compiler's own inference — never guesswork from names.
+Turn a private Tcl library into command specs the tools understand, from the
+compiler's own inference — never guesswork from names.
 
-## Background reading (do this first)
+## Read first
 
-- `docs/design/spec-dsl-examples/README.md` — **the frozen SpecTcl
-  syntax specification.** SpecTcl is the output format for everything
-  this skill produces; read the whole memo, and study the eleven
-  `*.tclspec` ports beside it as worked examples before writing a line.
+- `docs/design/spec-dsl-examples/README.md` — the frozen SpecTcl syntax,
+  the output format for everything here; study the eleven `*.tclspec`
+  ports beside it before writing a line.
 - `docs/kcs/kcs-howto-create-command-specs-without-rust.md` — the workflow
   and where each artefact goes.
-- `docs/design/compiler/command-registry.md` — what every spec field means.
-- `docs/design/contracts/proc-arg-traits.md` — how inferred parameter
-  traits map to argument roles and trait bits.
+- `docs/design/compiler/command-registry.md` — every spec field.
+- `docs/design/contracts/proc-arg-traits.md` — inferred parameter traits →
+  argument roles and trait bits.
 - `docs/kcs/kcs-howto-annotate-commands-with-stubs.md` — stub syntax and
-  its limits (no subcommands, no arity checking, sidecar named
-  `<dialect>.tcl.stubs`).
+  limits (no subcommands, no arity, sidecar `<dialect>.tcl.stubs`).
 
 ## Steps
 
-1. Ask (or infer from `$ARGUMENTS`) the library's source directory and the
-   target: **private** (a SpecTcl pack, stays in the project) or
-   **contribution** (the same SpecTcl pack plus a GitHub issue body).
-2. Glob the library's `.tcl` files. Note `package provide` and any
-   `namespace export` — they set `required_package` gating and the
-   public-command surface.
-3. For each file, call `mcp__tcl-lsp__read_proc_docs` with its contents.
-   This returns every proc with its params, parsed docstring, and
-   **inferred param traits** — the same inference the Spec Studio uses.
-4. Derive each command's spec from evidence, citing it:
-   - arity from the parameter list (defaults optional, trailing `args`
-     variadic);
-   - argument roles and trait bits from the param traits, mapped per the
-     proc-arg-traits contract;
-   - hover text from the docstring;
-   - `required_package` from `package provide`.
-   Only claim what the evidence shows. A parameter with no traits is a
-   plain `Value`.
-5. Check each name with `mcp__tcl-lsp__command_info` — a clash with a
-   built-in needs the user's attention, not a silent overwrite.
-6. Write the output — **SpecTcl in both cases**:
-   - **private** — one `<library>.tclspec` pack at the library root,
-     declaring the current vocabulary — `speclib <name> 2.0` — and
-     written strictly to the frozen syntax (schema keys as property
-     words, catalogue spellings verbatim, hook bodies only where the
-     evidence demands one and always with their family's calling
-     convention). The pack loader ships: workspace discovery picks the
-     file up, so no stub sidecar is needed.
-   - **contribution** — the same `.tclspec` pack plus an issue body per
-     the how-to; the Spec Studio renders the final `.rs` from it.
-   Validate the pack with `mcp__tcl-lsp__spectcl_check` — pass the pack
-   source and the target `dialect`. It loads the pack through the real
-   loader and reports, per command, the draft fields the declaration
-   actually set; every loader **notice** (`line`, `context`, `reason`) —
-   each one a word that was dropped, so a typo'd trait or an unknown
-   property shows up here and nowhere else; every declared **hook** with
-   its family and whether it is shape-cacheable; and every
-   **collision** with a shipped command name for that dialect. Fix every
-   notice, and every `shipped-spec-wins` collision (rename, or add
-   `-override` if replacing the shipped spec is genuinely intended — see
-   step 5). An uncacheable hook is legal, not a finding: report the cost
-   rather than removing the hook. Only if the tool is unavailable,
-   self-check each command against the syntax memo's coverage matrix and
-   say validation was manual.
-7. Validate: re-run `mcp__tcl-lsp__analyze` on a library file that *uses*
-   the commands and confirm the unknown-command diagnostics are gone
-   (private) or list what will clear once the specs ship (contribution).
-8. Report: commands covered, evidence per guess, anything skipped, and
-   open questions only the author can answer (side effects, taint,
-   version history).
+1. From `$ARGUMENTS` or by asking: the source directory and the target —
+   **private** (a SpecTcl pack that stays in the project) or
+   **contribution** (the same pack plus a GitHub issue body).
+2. Glob the `.tcl` files; note `package provide` (→ `required_package`) and
+   `namespace export` (→ the public surface).
+3. Per file, call `mcp__tcl-lsp__read_proc_docs` with the contents: every
+   proc with params, parsed docstring, and inferred param traits — the same
+   inference the Spec Studio uses.
+4. Derive each spec from evidence, citing it: arity from the parameter list
+   (defaults optional, trailing `args` variadic); roles and trait bits from
+   the traits per the proc-arg-traits contract; hover text from the
+   docstring; `required_package` from `package provide`. A parameter with
+   no traits is a plain `Value`. Claim only what the evidence shows.
+5. Check each name with `mcp__tcl-lsp__command_info`: a clash with a
+   built-in needs the user's decision, never a silent overwrite.
+6. Write **SpecTcl** either way: one `<library>.tclspec` at the library root
+   declaring `speclib <name> 2.0`, in the frozen syntax (schema keys as
+   property words, catalogue spellings verbatim, hook bodies only where the
+   evidence demands one and always in the family's calling convention).
+   Workspace discovery loads it — no stub sidecar needed. A contribution
+   adds the issue body per the how-to; the Spec Studio renders the `.rs`.
+   Validate with `mcp__tcl-lsp__spectcl_check` (pack source + target
+   `dialect`): it loads through the real loader and reports per-command
+   draft fields, every loader **notice** (`line`, `context`, `reason` —
+   each a dropped word, so a typo'd trait shows up here and nowhere else),
+   every **hook** with family and cacheability, and every **collision**
+   with a shipped name. Fix every notice and every `shipped-spec-wins`
+   collision (rename, or `-override` only when replacing the shipped spec
+   is intended). An uncacheable hook is a cost to report, not a finding.
+   Without the tool, self-check against the syntax memo's coverage matrix
+   and say validation was manual.
+7. Re-run `mcp__tcl-lsp__analyze` on a library file that *uses* the
+   commands: the unknown-command diagnostics are gone (private) or you list
+   what clears once the specs ship (contribution).
+8. Report: commands covered, evidence per inference, anything skipped, and
+   the questions only the author can answer (side effects, taint, version
+   history).
 
 ## Vocabulary versions
 
-Every SpecTcl loader reads **all** known vocabulary versions (`1`, `1.0`,
-`1.1`, `1.2`, `2.0`) in full — a pack is never refused for a version word
-it understands, and the studio, compiler, LSP and CLI all speak every
-version. Declare the newest (`speclib <name> 2.0`) in anything you write:
-the declaration is what entitles the pack to the newer words, and the
-loader flags each one used under an older declaration. What each version
-added is in the DSL memo's version table; 2.0's are
-`available {PROVIDER SPEC…}` (the algebra that replaces `dialects`), the
-pack-level `environment` and `dialect` blocks, and `refine NAME { … }`,
-the per-form invocation refinement. `tcl spec upgrade <pack.tclspec>`
-rewrites an older declaration in place (`--check` to only report).
+Every loader reads every vocabulary (`1`, `1.0`, `1.1`, `1.2`, `2.0`) in
+full; declare the newest, `speclib <name> 2.0`, since the declaration is
+what entitles the pack to the newer words (the loader flags each one used
+under an older declaration). 2.0 adds `available {PROVIDER SPEC…}` (replaces
+`dialects`), pack-level `environment` and `dialect` blocks, and
+`refine NAME { … }`. `tcl spec upgrade <pack.tclspec>` rewrites an older
+declaration in place (`--check` to report only).
 
 ## A 2.0 pack is a Tcl script
 
-A `speclib … 2.0` file is **evaluated**, not walked: it runs as a Tcl
-program in a deterministic sandbox (no clock, IO, network, processes,
-environment or threads), the vocabulary words are host commands, and what
-loads is the snapshot of registrations the run made. `set`, `foreach`,
-`proc` and `if` work between the words. Write to these rules:
+A `speclib … 2.0` file is **evaluated**, not walked: it runs in a
+deterministic sandbox (no clock, IO, network, processes, environment, or
+threads), the vocabulary words are host commands, and what loads is the
+snapshot of registrations the run made; `set`, `foreach`, `proc`, and `if`
+work between the words. Rules:
 
-- **Canonical form by default.** Straight-line registration calls only —
-  no `proc`, `set`, `foreach` or computed argument — is what every
-  generator emits and what the studio can edit in place. Reach for a
-  program only when repetition is the problem: a version shared across
-  rows is a variable; forty commands differing in two fields are a
-  `foreach` over a data table written directly above the loop, never
-  assembled across procs.
-- **Prefer `-available` rows to branching on `available?`.** A branch
+- **Canonical form by default** — straight-line registration calls, no
+  `proc`, `set`, `foreach`, or computed argument; it is what every generator
+  emits and what the studio can edit in place. Reach for a program only when
+  repetition is the problem: a shared version is a variable, forty commands
+  differing in two fields are a `foreach` over a data table written directly
+  above the loop, never assembled across procs.
+- **Prefer `-available` rows to branching on `available?`** — a branch
   makes the snapshot one analysis target's answer and marks the pack
-  target-dependent; an `-available` row states the same fact as data.
-- **Read the expansion before shipping.** `tcl spec export FILE` (MCP:
+  target-dependent; the row states the same fact as data.
+- **Read the expansion before shipping** — `tcl spec export FILE` (MCP:
   `spectcl_expand`) renders any snapshot back as canonical source; read it
-  as a diff against intent. Expansion is total, contraction is never
+  as a diff against intent. Expansion is total and contraction is never
   attempted, so the expansion is the whole truth.
-- **Scope ambient packages to an environment.** A package the interpreter
-  loads before the first byte belongs in an `environment NAME { core tcl
-  8.6; ambient PKG VERSION|keyed KEY; file_extension EXT … }` block, not
-  in a global claim.
-- **Upgrading a 1.x source**: `tcl spec upgrade FILE` rewrites the rows in
-  place and preserves every other byte; add `--restyle` to re-emit the
-  result in canonical form (comments and layout dropped). A programmed
-  pack is never rewritten.
+- **Scope ambient packages to an environment** — a package the interpreter
+  loads before the first byte belongs in an
+  `environment NAME { core tcl 8.6; ambient PKG VERSION|keyed KEY; file_extension EXT … }`
+  block, not a global claim.
+- **Upgrading a 1.x source** — `tcl spec upgrade FILE` rewrites the rows in
+  place and preserves every other byte; `--restyle` re-emits the result in
+  canonical form (comments and layout dropped). A programmed pack is never
+  rewritten.
 
-## Deriving version ranges from release history
+## Version ranges from release history
 
-Steps 1–8 read *one* snapshot of the library, so they can only say what it
-looks like now. Stamping `introduced_version` from that snapshot's own
-`package provide` claims every command arrived in the newest release, which
-is almost never true. If the library has releases, derive the ranges from
-them instead — the importer only writes a lifecycle field when two releases
-disagree about whether something exists, and reports everything else as
+One snapshot only says what the library looks like now; stamping
+`introduced_version` from it claims every command arrived in the newest
+release. With releases available, derive the ranges — the importer writes a
+lifecycle field only when two releases disagree and reports the rest as
 evidence.
 
-9. **Get the releases.** In preference order:
-   - **Network available** — `tcl spec import --github OWNER/REPO` enumerates
-     the repository's tags, maps each to a version label (a leading `v` and a
-     project prefix are stripped: `v1.2` → `1.2`, `tcllib-1.20` → `1.20`) and
-     fetches each release tarball. Narrow the set first:
-     `--tag-pattern 'v*'` keeps only matching tags (`*` any run, `?` one
-     character, the whole tag must match) and `--limit 8` keeps the newest
-     eight. Run it once with `--list-tags` to see exactly what would be
-     fetched before fetching anything. Set `GITHUB_TOKEN` if the
-     unauthenticated rate limit bites; standard proxy variables are honoured.
-   - **No network, but a checkout** — export one directory per release and
-     label it yourself:
-
-     ```sh
-     git clone --bare https://…/pkg.git pkg.git
-     git -C pkg.git tag --list 'v*'
-     for tag in v1.0 v1.2 v2.0; do
-         mkdir -p snapshots/${tag#v}
-         git -C pkg.git archive "$tag" | tar -x -C "snapshots/${tag#v}"
-     done
-     ```
-
-     then `tcl spec import --snapshot 1.0=snapshots/1.0 --snapshot
-     1.2=snapshots/1.2 --snapshot 2.0=snapshots/2.0`. A snapshot path may
-     equally be a `.zip` or `.tar.gz` — release archives need no unpacking.
-   - **Already-local artefacts, no shell** — the MCP `spec_import` tool takes
-     `snapshots: [{version, path}]` (local directories or archives only; it
-     has no fetcher by design), plus `dialect`, `package` and
-     `complete_history`, and returns the same pack, per-command ranges and
-     warnings as JSON.
-10. **Say whether the history is complete.** `--complete-history` (MCP:
-    `complete_history: true`) declares the snapshots are *every* release, which
-    is the only thing that makes presence in the earliest one an introduction.
-    It is off by default. Claim it only when you have checked the full tag
-    list — a wrong `introduced_version` cannot be told from a derived one
-    afterwards.
+9. **Get the releases.** With network: `tcl spec import --github OWNER/REPO`
+   enumerates tags (a leading `v` and a project prefix are stripped:
+   `v1.2` → `1.2`, `tcllib-1.20` → `1.20`) and fetches each tarball;
+   narrow with `--tag-pattern 'v*'` and `--limit 8`, preview with
+   `--list-tags`, set `GITHUB_TOKEN` if rate-limited. From a checkout:
+   `git archive` one directory per tag under `snapshots/<ver>/`, then
+   `tcl spec import --snapshot 1.0=snapshots/1.0 --snapshot 1.2=…` (a
+   snapshot may be a `.zip` or `.tar.gz`). Without a shell: the MCP
+   `spec_import` tool takes `snapshots: [{version, path}]` (local only),
+   `dialect`, `package`, `complete_history` and returns the same pack,
+   ranges, and warnings.
+10. **Say whether the history is complete.** `--complete-history`
+    (`complete_history: true`) declares the snapshots are every release,
+    which alone makes presence in the earliest one an introduction. Claim it
+    only after checking the full tag list.
 11. **Read the header before the body.** The rendered pack opens with `#`
-    comment lines carrying the releases analysed, every contradiction the
-    derivation raised (a command that vanishes and returns, a snapshot whose
-    `package provide` disagrees with its label), the `version-gate:` notes for
-    facts no spec field can hold yet (per-argument value ranges), and every
-    field the render could not carry. Keep them: they are the evidence for
-    each range, and a reviewer overruling a guess needs them. Resolve or
-    answer each one in your report rather than deleting it.
-12. **Validate as usual.** Feed the rendered pack to
-    `mcp__tcl-lsp__spectcl_check` exactly as step 6 does, then merge in the
-    hand-written fields the importer cannot infer (taint, side effects,
-    hover prose you have better wording for). The import is a starting point
-    carrying its evidence, not an assertion.
+    lines: releases analysed, every contradiction (a command that vanishes
+    and returns, a `package provide` that disagrees with its label),
+    `version-gate:` notes for facts no field holds yet, and every field the
+    render could not carry. Keep them and resolve each in your report.
+12. **Validate as usual** with `mcp__tcl-lsp__spectcl_check`, then merge in
+    the hand-written fields the importer cannot infer (taint, side effects,
+    better hover prose). The import is a starting point with evidence, not
+    an assertion.
 
 ## Recognising the common shapes
 
-The corpus-wide patterns (see
-`docs/design/spec-dsl-examples/external/`), with the evidence that
-identifies each and the spec fields it extracts to. Always cite the
-evidence line; never infer a shape from the command's name.
+Cite the evidence line for each; never infer a shape from a name. Corpus
+patterns: `docs/design/spec-dsl-examples/external/`.
 
-- **Options.** Tcl: a loop over `$args` matching `-*` (`switch --`,
-  `argparse`, `cmdline`). C: `Tcl_GetIndexFromObj` over a `-`-string
-  table with `switch` arms. → one `option` row per flag; an arm that
-  consumes the next word makes it a value option; the arm's accepted
-  literals become its values.
-- **Option values.** Closed literal sets in the consuming branch
-  (`switch`/`lsearch` tables, validation `if`s) → closed values;
-  numeric range checks → an integer domain.
-- **Option termination.** Explicit `--` handling (`$arg eq "--"` /
-  `strcmp("--")`) → declare the `--` option (this is what turns on the
-  terminator and taint checks). A scan that always treats the last N
-  words as positional → reserved trailing words, not more options.
-- **N-paired tails.** `foreach {k v} $args`, parity checks
-  (`llength % 2`), `incr i 2` loops; C: `objc` parity + `i += 2`. →
-  stepped arity (with an exact-count extra where one form differs) and
-  a repeat row with the stride and any excluded trailing words.
-- **Mutually exclusive options.** Joint checks that error
-  (`$a && $b → error`, argparse `-forbid`) → an option-conflict row.
-  argparse `-require` (one option demanding another) has no spec field
-  today — record it in the report as a known limit, never fake it with
-  a conflict.
-- **Mode words selecting different tails.** A first-word `switch` to
-  unrelated shapes → subcommands (each with its own arity and roles);
-  when the modes are option-selected instead, note it for a maintainer
-  — per-form routing is a registry-side feature.
-- **Callbacks.** A stored command prefix later run with extra words
-  (`uplevel #0 [list {*}$cb …]`; C: `Tcl_EvalObjEx` on a built list) →
-  a command-prefix position with the appended count you observed —
-  count the words actually appended, and use at-least when branches
-  differ.
-- **Variable writers.** `upvar 1 $name v; set v …` → a variable-write
-  role at that argument; a caller-chosen level word means frame
-  behaviour — describe it in the notes rather than guessing fields.
-- **Optional trailing arguments.** `llength` ladders with defaults →
-  the arity range, plus a form synopsis per meaningful shape.
+- **Options** — a `$args` loop matching `-*` (`switch --`, `argparse`,
+  `cmdline`); C: `Tcl_GetIndexFromObj` over a `-` table → one `option` row
+  per flag; an arm that consumes the next word is a value option, its
+  accepted literals become its values.
+- **Option values** — closed literal sets in the consuming branch → closed
+  values; numeric range checks → an integer domain.
+- **Option termination** — explicit `--` handling → declare the `--` option
+  (that turns on terminator and taint checks). A scan that always treats
+  the last N words as positional → reserved trailing words, not options.
+- **N-paired tails** — `foreach {k v} $args`, `llength % 2`, `incr i 2`; C:
+  `objc` parity + `i += 2` → stepped arity (plus an exact-count extra where
+  one form differs) and a repeat row with stride and excluded trailing
+  words.
+- **Mutually exclusive options** — joint checks that error, argparse
+  `-forbid` → an option-conflict row. argparse `-require` has no field:
+  record it as a known limit, never fake it as a conflict.
+- **Mode words selecting different tails** — a first-word `switch` to
+  unrelated shapes → subcommands with their own arity and roles;
+  option-selected modes → note for a maintainer (per-form routing is
+  registry-side).
+- **Callbacks** — a stored prefix later run with extra words
+  (`uplevel #0 [list {*}$cb …]`; C: `Tcl_EvalObjEx` on a built list) → a
+  command-prefix position with the appended count you observed (at-least
+  when branches differ).
+- **Variable writers** — `upvar 1 $name v; set v …` → a variable-write role;
+  a caller-chosen level word is frame behaviour — describe it in the notes.
+- **Optional trailing arguments** — `llength` ladders with defaults → the
+  arity range plus a form synopsis per shape.
 
-## C extensions (commands created through the C ABI)
+## C extensions
 
-Proc inference sees nothing when commands come from a compiled
-extension. Detect that case (`.c`/`.cpp` with `#include <tcl.h>`,
-`critcl::cproc`/`ccommand` blocks, SWIG `.i`, cffi declarations, a
-`pkgIndex.tcl` that `load`s a shared library) and derive the spec from
-the C source instead, citing file:line for every claim:
+Proc inference sees nothing from a compiled extension (`.c`/`.cpp` with
+`tcl.h`, `critcl::cproc`/`ccommand`, SWIG `.i`, cffi, a `pkgIndex.tcl` that
+`load`s a library). Derive from the C, citing file:line:
 
-- `Tcl_CreateObjCommand(interp, "name", handler, …)` — the command name
-  and where its evidence lives. Registrations made *inside* another
-  handler are factories: `defines_command_at` / instance commands.
-- `Tcl_WrongNumArgs(interp, n, objv, "varName ?value?")` — the richest
-  single artefact: it is the synopsis verbatim, and with the `objc`
-  guards around it (`objc < 3`, `objc != 4`) it fixes the arity.
-- `Tcl_GetIndexFromObj` over a static string table — the subcommand or
-  option vocabulary; `TCL_EXACT` means strict prefix matching. Option
-  tables plus their `switch` arms show which flags consume a value.
-- `Tcl_ObjSetVar2`/`Tcl_GetVar2Ex` with an `objv[i]` name → VarWrite /
-  VarRead role at i; `Tcl_EvalObjEx(objv[i])` → Body role and
-  `EVALUATES_CODE`; `Tcl_GetChannel` → Channel role.
-- `Tcl_SetObjResult` with `Tcl_NewIntObj`/`Tcl_NewListObj`/… → the
-  return type; `Tcl_PkgProvide` in the `*_Init` function → the required
-  package and its version.
-- critcl/cffi/SWIG declarations already state the signature — parse the
-  declaration, not the generated C.
-- Shipped `.n`/man pages often carry the authoritative synopsis and
-  option docs; prefer them for hover text over inferring prose.
+- `Tcl_CreateObjCommand(interp, "name", handler, …)` — the name; a
+  registration inside another handler is a factory (`defines_command_at`,
+  instance commands).
+- `Tcl_WrongNumArgs(interp, n, objv, "varName ?value?")` — the synopsis
+  verbatim; with the `objc` guards around it, the arity.
+- `Tcl_GetIndexFromObj` over a static table — the subcommand or option
+  vocabulary (`TCL_EXACT` = strict prefix); the table plus its `switch`
+  arms show which flags consume a value.
+- `Tcl_ObjSetVar2` / `Tcl_GetVar2Ex` with `objv[i]` → VarWrite / VarRead at
+  i; `Tcl_EvalObjEx(objv[i])` → Body and `EVALUATES_CODE`;
+  `Tcl_GetChannel` → Channel.
+- `Tcl_SetObjResult` with `Tcl_NewIntObj` / `Tcl_NewListObj` → the return
+  type; `Tcl_PkgProvide` in `*_Init` → the package and version.
+- critcl / cffi / SWIG declarations already state the signature — parse the
+  declaration, not the generated C. Shipped `.n` man pages usually carry
+  the authoritative synopsis; prefer them for hover text.
 
-Mark every C-derived field with its evidence the same way as inferred
-ones, and list what C cannot tell you (taint, side effects beyond the
-obvious, version history) as questions for the author.
+Mark every C-derived field with its evidence and list what C cannot tell you
+(taint, non-obvious side effects, history) as questions for the author.
 
 $ARGUMENTS

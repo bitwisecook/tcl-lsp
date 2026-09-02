@@ -6,40 +6,31 @@ allowed-tools: mcp__tcl-lsp__diagram, Read
 
 # iRule Diagram
 
-Generate a Mermaid flowchart from an iRule using compiler IR analysis.
-
 ## Steps
 
-1. Read the domain knowledge from `../_prompts/irules_system.md`
-2. Read the iRule file
-3. Extract the structural flow data: call `mcp__tcl-lsp__diagram` with the file's contents as `source`
-4. If the tool fails (e.g. file not found or parse error), report the error clearly and suggest fixes
-5. Using the structured data (authoritative, from the compiler IR) and the source code (for reference), generate a Mermaid flowchart diagram
+1. Read `../_prompts/irules_system.md`, then the iRule.
+2. Call `mcp__tcl-lsp__diagram` with the contents as `source`. On a tool
+   error report it and suggest fixes.
+3. Draw the flowchart from the structured data (authoritative) with the
+   source for reference.
 
-## Mermaid diagram rules
+## Mermaid rules
 
-- Use `flowchart TD` (top-down direction)
-- Create a **subgraph** for each event handler, labeled with the event name
-- Inside each subgraph:
-  - Use **diamond shapes** `{Decision}` for `switch` and `if` decision points
-  - Use **rectangle shapes** `[Action]` for commands like `pool`, `HTTP::respond`, `HTTP::redirect`, `HTTP::header`, `log`, etc.
-  - Use **rounded rectangles** `(Return)` for `return` statements
-  - Use **stadium shapes** `([Loop])` for loops
-  - Connect decision points to their branches with labeled edges (the pattern or condition on the arrow)
-- If procedures are called, show them as separate subgraphs linked from the call site
-- Keep node labels concise (under 40 characters) -- abbreviate long strings with "..."
-- Use meaningful node IDs (e.g., `hr_switch` not `A1`)
-- Show the event subgraphs in firing order (top to bottom)
-- If events have a non-default priority (not 500), mention it in the subgraph label
-- For switch statements, show the subject being switched on in the diamond, and label each outgoing edge with the match pattern
-- Use double-quoted strings for node labels containing special characters
+- `flowchart TD`; one subgraph per event handler labelled with the event
+  name, in firing order; a non-default priority (not 500) in the label
+- `{Decision}` diamonds for `if` / `switch` (the subject in the diamond, the
+  pattern or condition on each edge); `[Action]` rectangles for `pool`,
+  `HTTP::respond`, `HTTP::redirect`, `HTTP::header`, `log`, …; `(Return)` for
+  `return`; `([Loop])` for loops
+- Called procs are their own subgraphs linked from the call site
+- Meaningful node IDs (`hr_switch`, not `A1`); labels under 40 characters,
+  long strings abbreviated with "..."; labels with special characters
+  double-quoted
 
 ## Output
 
-1. The Mermaid diagram in a ```mermaid code fence
-2. A 2-4 paragraph explanation of what the iRule does, including:
-   - Event firing order and cross-event data flow
-   - Key decision points and routing logic
-   - Any security-relevant actions
+The diagram in a ```mermaid fence, then two to four paragraphs: firing order
+and cross-event data flow, the key decisions and routing, any
+security-relevant actions.
 
 $ARGUMENTS

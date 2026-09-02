@@ -83,7 +83,8 @@ final-status-level = "flaky"
 # Exhaustive / manual-only tier (`make test-exhaustive`).
 #
 # Never runs automatically.  Settings for the #[ignore]d corpus / fuzz /
-# privileged tests (see AGENTS.md's #[ignore] policy) when a human explicitly
+# privileged tests (see docs/design/contracts/test-tiers-and-ci-gates.md)
+# when a human explicitly
 # opts in — this profile does not by itself run ignored tests; `make
 # test-exhaustive` passes --run-ignored ignored-only explicitly.
 [profile.exhaustive]

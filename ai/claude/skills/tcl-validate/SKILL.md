@@ -6,32 +6,17 @@ allowed-tools: mcp__tcl-lsp__validate, Read
 
 # Tcl Validate
 
-Run full validation on a Tcl file and produce a categorised diagnostic report.
-
 ## Steps
 
-1. Read the domain knowledge from `../_prompts/tcl_system.md`
-2. Read the Tcl file to validate
-3. Run the categorised validation: pass the file contents you read as `source` to `mcp__tcl-lsp__validate`
-4. If the tool fails (e.g. file not found or parse error), report the error clearly and suggest fixes
-5. Present the results as a structured report:
-   - Group by category (errors, security, style, optimiser)
-   - For each issue, explain what it means and how to fix it using the diagnostic code reference
-   - Provide a summary with total counts per category
-6. If the file is clean, confirm it passes all checks
+1. Read `../_prompts/tcl_system.md`, then the file.
+2. Call `mcp__tcl-lsp__validate` with the contents as `source`. On a tool
+   error report it and suggest fixes.
+3. Report by category (errors, security, style, optimiser): for each issue
+   the code, severity, line, message, and a one-line fix
+   (`docs/generated/diagnostic_codes.md`), then per-category totals. A clean
+   file gets an explicit pass.
 
-## Diagnostic codes reference
-
-See `docs/generated/diagnostic_codes.md` for the full auto-generated table of all diagnostic codes with descriptions and defaults.
-
-## Output format
-
-Use headings for each category. For each diagnostic, show:
-- The diagnostic code and severity
-- The line number and message
-- A brief explanation of how to fix it
-
-Example structure:
+## Output
 
 ```
 ### Errors (1)
