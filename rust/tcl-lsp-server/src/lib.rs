@@ -4814,6 +4814,10 @@ async fn refine_and_lift_diagnostics(
     let style_line_length = inputs.style_line_length;
     let dialect = inputs.dialect.to_owned();
     let xc_for_irules = inputs.xc_diagnostics && inputs.dialect.is_irules();
+    // SslicTcl documents carry a second whole-file validator, exactly as the
+    // F5 dialects do: the `.sslictcl` loader. Resolved from the profile here
+    // rather than inside the worker so the closure captures a plain `bool`.
+    let sslictcl = tcl_lsp_core::sslictcl_diagnostics::applies_to(inputs.dialect);
     let compiler_diags = Arc::clone(compiler_diags);
     crate::rt::spawn_blocking(move || {
         // `analyser_diags` includes opt-in callback checks when enabled; direct
@@ -4844,6 +4848,23 @@ async fn refine_and_lift_diagnostics(
                 &lift_text,
                 &disabled,
                 &analysis_lifts.suppressed_lines,
+            ));
+        }
+        // Routed by dialect: a `.sslictcl` document's `SSLIC1xxx` loader
+        // findings are ordinary document diagnostics (mirrored on the pull
+        // path in `full_diagnostics_for`). The loader parses the *analysis*
+        // form — a lone `\r` terminates a command for `tclsh` — while the
+        // spans lift against the client's buffer, which the rewrite leaves
+        // byte-for-byte the same length.
+        if sslictcl {
+            let loader_text = tcl_lexer::normalise_lone_cr(&lift_text);
+            diagnostics.extend(lift_analyser_diagnostics(
+                &lift_text,
+                &tcl_lsp_core::sslictcl_diagnostics::diagnostics(
+                    &loader_text,
+                    &disabled,
+                    &analysis_lifts.suppressed_lines,
+                ),
             ));
         }
         finalise_diagnostics(
@@ -15834,6 +15855,9 @@ impl Backend {
         // XC100-301 translatability lints — independent toggle, f5-irules only.
         let xc_on = self.xc_diagnostics_enabled(uri).await;
         let xc_for_irules = tcl_lsp_core::profile_for_dialect(&dialect).is_irules() && xc_on;
+        // The push path's SslicTcl branch, mirrored: a pull-mode editor gets
+        // the same `SSLIC1xxx` loader findings a pushed report carries.
+        let sslictcl = tcl_lsp_core::sslictcl_diagnostics::applies_to(profile);
         // Cross-file resolution + the workspace W120 / W123 refinements,
         // matching the push path — and shared verbatim with
         // `textDocument/codeAction`, which lifts its quick-fixes from this
@@ -15870,6 +15894,16 @@ impl Backend {
                     &analysis_text,
                     &disabled,
                     &analysis.suppressed_lines,
+                ));
+            }
+            if sslictcl {
+                diagnostics.extend(lift_analyser_diagnostics(
+                    &analysis_text,
+                    &tcl_lsp_core::sslictcl_diagnostics::diagnostics(
+                        &analysis_text,
+                        &disabled,
+                        &analysis.suppressed_lines,
+                    ),
                 ));
             }
             finalise_diagnostics(

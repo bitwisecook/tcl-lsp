@@ -86,6 +86,7 @@ pub mod snippets;
 pub mod source_decode;
 pub mod source_graph;
 pub mod source_style;
+pub mod sslictcl_diagnostics;
 pub mod tcl_install;
 pub mod tk_preview;
 pub mod type_definition;
