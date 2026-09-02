@@ -414,6 +414,25 @@ pub(crate) struct ExceptionState {
     already_logged: bool,
 }
 
+/// How one variable access presents itself to the trace machinery — see
+/// [`Interp::trace_access`], which is the only place these four are decided.
+struct TraceAccess {
+    /// `name1` handed to the callback: the access spelling C passes through as
+    /// `part1`, with the array-element split C's `TclCallVarTraces` applies.
+    reported: Vec<u8>,
+    /// The element registered traces are matched against — the spelling's, or
+    /// the one a link resolved to.
+    match_elem: Option<Vec<u8>>,
+    /// `name2` handed to the callback (C's `part2` at the point of the call).
+    report_elem: Option<Vec<u8>>,
+    /// The element the *access spelling* named, which is what an aborting
+    /// trace's `(<type> trace on "…")` errorInfo frame reports: C snapshots
+    /// `element = part2` before recovering one from a linked `Var`.
+    spelling_elem: Option<Vec<u8>>,
+    /// Whether the containing array's whole-array traces take part.
+    whole_array: bool,
+}
+
 /// A captured slice of [`ExceptionState`] — the `errorInfo`/`errorCode`
 /// accumulation — moved between flows by [`Interp::snapshot_error`] /
 /// [`Interp::restore_error`] (see `coroprobe`).
@@ -2232,12 +2251,12 @@ impl Interp {
             return false;
         }
         let (base, _) = crate::frame::split_array_ref(name);
-        let (access_ns, access_frame_level, base) = self.trace_identity(&base);
+        let home = self.trace_identity(&base);
         self.traces
             .borrow()
             .traces
             .iter()
-            .any(|t| crate::cmd_trace::same_variable(t, &base, access_ns, access_frame_level))
+            .any(|t| crate::cmd_trace::same_variable(t, &home.base, home.ns, home.level))
     }
 
     /// [`var_is_traced`](Self::var_is_traced) for a compiled slot, answered from
@@ -3017,13 +3036,36 @@ impl Interp {
     /// alias, whose level can only be read off the *resolved* place (issue
     /// #1633's `upvar` row). C gets this for free: there the alias and its
     /// target are the same `Var`, and the trace list hangs off that `Var`.
-    pub(crate) fn trace_identity(&self, base: &[u8]) -> (Option<NsId>, Option<usize>, Vec<u8>) {
+    pub(crate) fn trace_identity(&self, base: &[u8]) -> crate::vars::TraceHome {
         crate::vars::trace_home(
             &self.frames.borrow(),
             &self.namespaces.borrow(),
             self.current_ns.get(),
             base,
         )
+    }
+
+    /// Whether this release recovers an array element from the resolved `Var`
+    /// when the access spelling names none.
+    ///
+    /// Tcl 9.0 added it in two places at once: `TclCallVarTraces` fills `part2`
+    /// from the element's hash key (`tclTrace.c` 9.0.4:2560-2565) and
+    /// `UnsetVarStruct` does the same before calling the traces
+    /// (`tclVar.c`:2634-2640). 8.4/8.5/8.6 have neither block. The visible
+    /// consequences, both pinned in `tests/trace_semantics.rs`:
+    ///
+    /// - `upvar #0 a(k) e; set e 5` fires the array's traces *and* the
+    ///   element's with `name2 = k` at 9.0; at 8.6 only the element's own, with
+    ///   an empty `name2`.
+    /// - `unset a(k)` reports `name1 = a(k)` at 9.0 (the recovered `part2`
+    ///   stops `TclCallVarTraces` re-splitting the name) and `name1 = a` at
+    ///   8.6.
+    ///
+    /// This is a release axis and belongs in `tcl-dialect` beside
+    /// `namespace_var_global_fallback`; it is derived here while that crate is
+    /// outside this lane.
+    fn traces_recover_the_linked_element(&self) -> bool {
+        self.runtime_version() >= tcl_dialect::TclVersion::V9_0
     }
 
     /// Drop every variable trace tied to call-frame `level` (the frame is being
@@ -3120,35 +3162,23 @@ impl Interp {
             self.current_ns.get(),
             name,
         );
-        if let (true, Some((access_ns, access_frame_level, resolved_base))) = (existed, key) {
-            self.fire_var_trace_resolved(
-                access_ns,
-                access_frame_level,
-                &resolved_base,
-                &base,
-                elem.as_deref(),
-                b"unset",
-            );
+        if let (true, Some(home)) = (existed, key) {
+            let access = self.trace_access(name, &base, elem.as_deref(), &home, true);
+            self.fire_var_trace_resolved(&home, &access, b"unset");
             // The variable (and its traces) go away — drop every trace on it
             // (C frees the Var's trace list on unset). Element unset drops only
-            // that element's traces (whole-variable traces survive).
+            // that element's traces (whole-variable traces survive) — and an
+            // alias for an element (`upvar #0 a(k) e; unset e`) is an element
+            // unset, so the element comes from the access shape, not the
+            // spelling.
             let mut t = self.traces.borrow_mut();
-            match elem {
+            match access.match_elem.as_deref() {
                 Some(e) => t.traces.retain(|v| {
-                    !(crate::cmd_trace::same_variable(
-                        v,
-                        &resolved_base,
-                        access_ns,
-                        access_frame_level,
-                    ) && v.elem.as_deref() == Some(e.as_slice()))
+                    !(crate::cmd_trace::same_variable(v, &home.base, home.ns, home.level)
+                        && v.elem.as_deref() == Some(e))
                 }),
                 None => t.traces.retain(|v| {
-                    !crate::cmd_trace::same_variable(
-                        v,
-                        &resolved_base,
-                        access_ns,
-                        access_frame_level,
-                    )
+                    !crate::cmd_trace::same_variable(v, &home.base, home.ns, home.level)
                 }),
             }
             drop(t);
@@ -3169,18 +3199,16 @@ impl Interp {
             name,
             key,
         );
-        if let (true, Some((access_ns, access_frame_level, resolved_base))) = (existed, trace_key) {
-            self.fire_var_trace_resolved(
-                access_ns,
-                access_frame_level,
-                &resolved_base,
-                name,
-                Some(key),
-                b"unset",
-            );
+        if let (true, Some(home)) = (existed, trace_key) {
+            let mut spelling = name.to_vec();
+            spelling.push(b'(');
+            spelling.extend_from_slice(key);
+            spelling.push(b')');
+            let access = self.trace_access(&spelling, name, Some(key), &home, true);
+            self.fire_var_trace_resolved(&home, &access, b"unset");
             // Drop this element's traces (whole-array traces survive).
             self.traces.borrow_mut().traces.retain(|v| {
-                !(crate::cmd_trace::same_variable(v, &resolved_base, access_ns, access_frame_level)
+                !(crate::cmd_trace::same_variable(v, &home.base, home.ns, home.level)
                     && v.elem.as_deref() == Some(key))
             });
             self.invalidate_guard_domain(GuardDomain::VariableTrace);
@@ -3198,32 +3226,79 @@ impl Interp {
     /// `unset`/`array` errors are ignored (C does too). Returns whether a
     /// read/write callback errored.
     fn fire_var_trace(&mut self, base: &[u8], elem: Option<&[u8]>, op: &[u8]) -> bool {
-        // Resolve the access to the same `(home, simple name)` key registration
-        // used, so a trace matches every spelling of the variable it is on
-        // (`::v` vs `v`, and the 8.x namespace-scope fallback) — issue #1328.
-        let (access_ns, access_frame_level, resolved) = self.trace_identity(base);
-        self.fire_var_trace_resolved(access_ns, access_frame_level, &resolved, base, elem, op)
+        // Resolve the access to the same identity registration used, so a trace
+        // matches every spelling of the variable it is on (`::v` vs `v`, an
+        // `upvar` alias, and the 8.x namespace-scope fallback) — issues #1328,
+        // #1633.
+        let home = self.trace_identity(base);
+        let access = self.trace_access(base, base, elem, &home, false);
+        self.fire_var_trace_resolved(&home, &access, op)
     }
 
-    /// [`Self::fire_var_trace`] with the `(home, simple name)` key already
-    /// resolved — for `unset`, which must resolve *before* it removes the
-    /// variable (resolution can depend on the cell existing).
+    /// How one access presents itself to the trace machinery: which cell's
+    /// element the traces match, what the callback is told, and whether the
+    /// containing array's whole-array traces take part.
     ///
-    /// `base` is the resolved cell's simple name (what traces match on);
-    /// `reported` is the spelling the access used, which is what the callback
-    /// is handed as `name1` — C passes the caller's `part1` straight through
-    /// (`TclCallVarTraces`), so `set alias 5` through an `upvar` reports
-    /// `alias` and `set ::n::v 1` reports `::n::v`.
-    #[allow(clippy::too_many_arguments)]
+    /// `spelling` is the access as written (`a(k)`), `base`/`elem` its split
+    /// halves, and `home` the resolved cell. Three shapes:
+    ///
+    /// - an explicit element (`set a(k) 2`) matches and reports that element,
+    ///   and reports `name1 = a` — C's `TclCallVarTraces` splits `part1` at the
+    ///   `(` when the caller left `part2` NULL. The `unset` path is where 9.0
+    ///   differs: it recovers `part2` from the `Var` *before* the call, so the
+    ///   split never runs and `name1` stays the whole `a(k)`.
+    /// - a link into an element (`upvar #0 a(k) e`) matches that element. At
+    ///   9.0 it reports it too, and the array's traces fire; at 8.4-8.6
+    ///   `part2` stays NULL, so `name2` is empty and only the element's own
+    ///   traces run. See [`traces_recover_the_linked_element`](
+    ///   Self::traces_recover_the_linked_element).
+    /// - anything else is a plain scalar/whole-array access.
+    fn trace_access(
+        &self,
+        spelling: &[u8],
+        base: &[u8],
+        elem: Option<&[u8]>,
+        home: &crate::vars::TraceHome,
+        unset: bool,
+    ) -> TraceAccess {
+        let recover = self.traces_recover_the_linked_element();
+        match (elem, home.link_elem.as_deref()) {
+            (Some(e), _) => TraceAccess {
+                reported: if unset && recover { spelling } else { base }.to_vec(),
+                match_elem: Some(e.to_vec()),
+                report_elem: Some(e.to_vec()),
+                spelling_elem: Some(e.to_vec()),
+                whole_array: true,
+            },
+            (None, Some(k)) => TraceAccess {
+                reported: base.to_vec(),
+                match_elem: Some(k.to_vec()),
+                report_elem: recover.then(|| k.to_vec()),
+                spelling_elem: None,
+                whole_array: recover,
+            },
+            (None, None) => TraceAccess {
+                reported: base.to_vec(),
+                match_elem: None,
+                report_elem: None,
+                spelling_elem: None,
+                whole_array: true,
+            },
+        }
+    }
+
+    /// [`Self::fire_var_trace`] with the identity already resolved — for
+    /// `unset`, which must resolve *before* it removes the variable (resolution
+    /// can depend on the cell existing).
     fn fire_var_trace_resolved(
         &mut self,
-        access_ns: Option<NsId>,
-        access_frame_level: Option<usize>,
-        base: &[u8],
-        reported: &[u8],
-        elem: Option<&[u8]>,
+        home: &crate::vars::TraceHome,
+        access: &TraceAccess,
         op: &[u8],
     ) -> bool {
+        let (access_ns, access_frame_level, base) = (home.ns, home.level, home.base.as_slice());
+        let elem = access.match_elem.as_deref();
+        let reported = access.reported.as_slice();
         let traces = self.traces.borrow();
         // C fires the containing array's traces before the element's own
         // (`TclCallVarTraces`, tclTrace.c 9.0.4: the `arrayPtr` loop at :2581
@@ -3241,7 +3316,12 @@ impl Interp {
                         && !traces.active_var_scopes.contains(&t.scope())
                 })
         };
-        let cmds: Vec<(crate::cmd_trace::VarTraceScope, Vec<u8>, bool)> = selected(true)
+        let array_group = access
+            .whole_array
+            .then(|| selected(true))
+            .into_iter()
+            .flatten();
+        let cmds: Vec<(crate::cmd_trace::VarTraceScope, Vec<u8>, bool)> = array_group
             .chain(selected(false))
             .map(|t| (t.scope(), t.command.clone(), t.old_style))
             .collect();
@@ -3263,7 +3343,7 @@ impl Interp {
             let op_word = tcl_cmd_core::trace::callback_op_word(&op_name, old_style);
             let args = crate::list::new_list_obj(&[
                 new_string(reported),
-                new_string(elem.unwrap_or(b"")),
+                new_string(access.report_elem.as_deref().unwrap_or(b"")),
                 new_string(op_word.as_bytes()),
             ]);
             let mut line = cmd;
@@ -3294,7 +3374,7 @@ impl Interp {
                 let mut frame = op.to_vec();
                 frame.extend_from_slice(b" trace on \"");
                 frame.extend_from_slice(reported);
-                if let Some(k) = elem {
+                if let Some(k) = access.spelling_elem.as_deref() {
                     frame.push(b'(');
                     frame.extend_from_slice(k);
                     frame.push(b')');
@@ -4762,10 +4842,12 @@ impl Interp {
         // Same `(home, simple name)` key registration and firing use — a
         // literal `::errorInfo` here would miss every trace now that traces
         // are keyed by the resolved variable rather than the spelling.
-        let (access_ns, access_frame_level, base) = self.trace_identity(b"::errorInfo");
-        self.traces.borrow().traces.iter().any(|t| {
-            crate::cmd_trace::matches(t, &base, None, b"write", access_ns, access_frame_level)
-        })
+        let home = self.trace_identity(b"::errorInfo");
+        self.traces
+            .borrow()
+            .traces
+            .iter()
+            .any(|t| crate::cmd_trace::matches(t, &home.base, None, b"write", home.ns, home.level))
     }
 
     /// Append the `(procedure "NAME" line N)` / `(lambda term "..." line N)`

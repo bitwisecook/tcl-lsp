@@ -252,31 +252,60 @@ fn resolve_at(frames: &FrameStack, ns: &Namespaces, name: &[u8], level: usize) -
     }
 }
 
-/// The `(home namespace, home frame level, simple name)` identity a variable
-/// trace on `name` belongs to, following `global`/`variable`/`upvar` links to
-/// the concrete cell.
+/// The identity a variable trace on `name` belongs to, following
+/// `global`/`variable`/`upvar` links to the concrete cell.
 ///
 /// A trace must be keyed by the variable it resolves to, not by the spelling
 /// used to register it: C Tcl hangs the trace off the `Var` struct
 /// (`tclTrace.c`'s `TraceVarProc`), so `trace add variable ::v write …` fires
 /// for a later `set v X` in the global namespace and — under the 8.x
 /// namespace-scope fallback — for a `set v X` inside `namespace eval` that
-/// reaches the same global (issue #1328). Reading the frame level off the
-/// resolved place is what extends that to an `upvar` alias, whose home frame
-/// the access spelling cannot see (issue #1633's `upvar` row). Registration and
-/// firing share this one `resolve` call, including the dialect-gated fallback.
+/// reaches the same global (issue #1328). Reading the frame level and the
+/// element off the resolved place is what extends that to an `upvar` alias,
+/// whose home frame and array element the access spelling cannot show
+/// (issue #1633's `upvar` rows). Registration and firing share this one
+/// `resolve` call, including the dialect-gated fallback.
+pub(crate) struct TraceHome {
+    /// The home namespace, for a cell that lives in one.
+    pub(crate) ns: Option<NsId>,
+    /// The home call-frame level, for a proc-local cell.
+    pub(crate) level: Option<usize>,
+    /// The simple (unqualified) name the cell is filed under at its home.
+    pub(crate) base: Vec<u8>,
+    /// The array element the resolution ended on, when the access reached the
+    /// cell through a link that names one (`upvar #0 a(k) e`). `None` for every
+    /// direct access — an explicit `a(k)` spelling is split by the caller and
+    /// never appears here.
+    pub(crate) link_elem: Option<Vec<u8>>,
+}
+
 pub(crate) fn trace_home(
     frames: &FrameStack,
     ns: &Namespaces,
     current_ns: NsId,
     name: &[u8],
-) -> (Option<NsId>, Option<usize>, Vec<u8>) {
+) -> TraceHome {
     match resolve(frames, ns, current_ns, name) {
-        Resolved::Place(p) => match p.home {
-            VarHome::Namespace(id) => (Some(id), None, p.name),
-            VarHome::Frame(level) => (None, Some(level), p.name),
+        Resolved::Place(p) => {
+            let (home_ns, level) = match p.home {
+                VarHome::Namespace(id) => (Some(id), None),
+                VarHome::Frame(level) => (None, Some(level)),
+            };
+            TraceHome {
+                ns: home_ns,
+                level,
+                base: p.name,
+                link_elem: p.elem,
+            }
+        }
+        // Unresolvable (a qualified name into a missing namespace): keep the
+        // caller's spelling so `trace info` still round-trips it.
+        Resolved::NoNamespace => TraceHome {
+            ns: None,
+            level: None,
+            base: name.to_vec(),
+            link_elem: None,
         },
-        Resolved::NoNamespace => (None, None, name.to_vec()),
     }
 }
 

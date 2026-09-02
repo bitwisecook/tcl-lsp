@@ -502,8 +502,11 @@ fn var_trace_query(
     name: &[u8],
 ) -> (Option<NsId>, Option<usize>, Vec<u8>, Option<Vec<u8>>) {
     let (base, elem) = split_array_ref(name);
-    let (ns, frame_level, base) = interp.trace_identity(&base);
-    (ns, frame_level, base, elem)
+    let home = interp.trace_identity(&base);
+    // An alias for an array *element* (`upvar #0 a(k) e`) shows no parentheses,
+    // so the element it names comes from the resolution: in C the alias and
+    // `a(k)` are the same `Var` and therefore carry the same trace list.
+    (home.ns, home.level, home.base, elem.or(home.link_elem))
 }
 
 /// Install or remove one variable trace, shared by `trace add|remove variable`
@@ -520,12 +523,25 @@ fn var_trace_apply(
     old_style: bool,
 ) -> Code {
     if is_add {
-        let (base, elem) = split_array_ref(&name);
+        let (base, spelled_elem) = split_array_ref(&name);
+        // An alias for an array *element* (`upvar #0 a(k) e`) is a trace on that
+        // element: C hangs it off the element's `Var`, which the alias and the
+        // spelling `a(k)` share, so `trace add variable e …` and
+        // `trace add variable a(k) …` install one and the same trace and each
+        // spelling's `trace info` reports it. The element is invisible in the
+        // spelling, so it comes from the resolution.
+        let linked_elem = interp.trace_identity(&base).link_elem;
+        let elem = spelled_elem.or_else(|| linked_elem.clone());
         // Tracing an array element vivifies the array as an (undefined) array, so
         // a later read of a missing element reports "no such element in array"
         // rather than "no such variable", and whole-array semantics apply
         // (trace-1.4/1.8/5.x). Tracing an element of an existing *scalar* errors.
-        let vivify = if elem.is_some() {
+        // An alias already names a live element cell, so there is nothing to
+        // create — and vivifying `e` as a scalar or an array would both be
+        // wrong.
+        let vivify = if linked_elem.is_some() {
+            Ok(())
+        } else if elem.is_some() {
             interp.ensure_array(&base)
         } else {
             interp.ensure_trace_variable(&base)
@@ -545,15 +561,15 @@ fn var_trace_apply(
         // `name` keeps the original spelling for diagnostics only; the
         // `trace info` / `trace remove` match is the same resolved identity,
         // because C looks the variable up and walks *that* `Var`'s list.
-        let (ns, frame_level, base) = interp.trace_identity(&base);
+        let home = interp.trace_identity(&base);
         interp.traces.borrow_mut().traces.push(VarTrace {
             name,
-            base,
+            base: home.base,
             elem,
             ops,
             command,
-            frame_level,
-            ns,
+            frame_level: home.level,
+            ns: home.ns,
             old_style,
         });
         interp.invalidate_guard_domain(tcl_runtime_api::guard::GuardDomain::VariableTrace);

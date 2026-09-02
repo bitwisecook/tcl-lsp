@@ -299,3 +299,83 @@ fn a_read_trace_error_names_the_element_in_its_frame() {
          \x20   (read trace on \"a(k)\")\n    invoked from within\n\"set q $a(k)\""
     );
 }
+
+// -- #1633's two array-element rows, which differ by release ----------------
+
+/// The recording sheet both element rows share: an array with a whole-array
+/// trace (`A`) and an element trace (`E`), exercised through the `a(k)`
+/// spelling, through an `upvar #0 a(k) e` alias, and on unset.
+const ELEMENT_SHEET: &str = "set ::log {}\n\
+     proc A {n1 n2 op} { lappend ::log [list ARR $n1 $n2 $op] }\n\
+     proc E {n1 n2 op} { lappend ::log [list ELE $n1 $n2 $op] }\n\
+     array set a {k 1}\n\
+     trace add variable a write A\n\
+     trace add variable a(k) write E\n\
+     lappend ::log {= set a(k) 2}\n\
+     set a(k) 2\n\
+     lappend ::log {= upvar+set}\n\
+     upvar #0 a(k) e\n\
+     set e 5\n\
+     lappend ::log {= unset a(k)}\n\
+     trace add variable a unset A\n\
+     trace add variable a(k) unset E\n\
+     unset a(k)\n\
+     join $::log \\n";
+
+/// tclsh 9.0.4 recovers the element from the resolved `Var` when the access
+/// spelling names none (`tclTrace.c`:2560-2565, `tclVar.c`:2634-2640), so a
+/// write through an element alias fires the array's traces *and* the element's
+/// with `name2 = k`, and `unset a(k)` reports `name1 = a(k)` — the recovered
+/// `part2` stops `TclCallVarTraces` re-splitting the name.
+#[test]
+fn at_9_0_an_element_alias_fires_the_array_traces_and_unset_keeps_the_spelling() {
+    assert_eq!(
+        transcript(ELEMENT_SHEET),
+        "= set a(k) 2\nARR a k write\nELE a k write\n\
+         = upvar+set\nARR e k write\nELE e k write\n\
+         = unset a(k)\nARR a(k) k unset\nELE a(k) k unset"
+    );
+}
+
+/// tclsh 8.6.16 (and 8.4/8.5, which have neither block) leaves `part2` NULL:
+/// the alias write fires only the element's own trace, with an empty `name2`,
+/// and `unset a(k)` reports the split `name1 = a`.
+#[test]
+fn at_8_6_an_element_alias_fires_only_the_elements_own_trace() {
+    assert_eq!(
+        transcript_at(ELEMENT_SHEET, Some(tcl_dialect::TclVersion::V8_6)),
+        "= set a(k) 2\nARR a k write\nELE a k write\n\
+         = upvar+set\nELE e {} write\n\
+         = unset a(k)\nARR a k unset\nELE a k unset"
+    );
+}
+
+/// Registration follows the same cell: `trace add variable e …` through an
+/// element alias installs the trace on the element, so `trace info variable e`
+/// and `trace info variable a(k)` both report it and `trace info variable a`
+/// (the array itself) reports nothing. Release-independent — both tclsh
+/// releases print this — while the `name2` the alias write reports is not.
+#[test]
+fn a_trace_added_through_an_element_alias_lands_on_the_element() {
+    let sheet = "set ::log {}\n\
+                 proc E {n1 n2 op} { lappend ::log [list ELE $n1 $n2 $op] }\n\
+                 array set a {k 1}\n\
+                 upvar #0 a(k) e\n\
+                 trace add variable e write E\n\
+                 lappend ::log \"info-e: [trace info variable e]\"\n\
+                 lappend ::log \"info-a(k): [trace info variable a(k)]\"\n\
+                 lappend ::log \"info-a: [trace info variable a]\"\n\
+                 set a(k) 3\n\
+                 set e 4\n\
+                 join $::log \\n";
+    assert_eq!(
+        transcript(sheet),
+        "info-e: {write E}\ninfo-a(k): {write E}\ninfo-a: \n\
+         ELE a k write\nELE e k write"
+    );
+    assert_eq!(
+        transcript_at(sheet, Some(tcl_dialect::TclVersion::V8_6)),
+        "info-e: {write E}\ninfo-a(k): {write E}\ninfo-a: \n\
+         ELE a k write\nELE e {} write"
+    );
+}
