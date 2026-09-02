@@ -86,8 +86,10 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use rustc_hash::FxHashMap;
 
-use tcl_dialect::model::{EnvironmentDefinition, EnvironmentIdentity, EnvironmentRegistry};
-use tcl_dialect::{DialectProfile, LibraryVersionOverrides};
+use tcl_dialect::model::{
+    DialectPoint, EnvironmentDefinition, EnvironmentIdentity, EnvironmentRegistry,
+};
+use tcl_dialect::{DialectProfile, LexerGrammar, LibraryVersionOverrides};
 
 use crate::model::assembly::{ContextRegistry, registry_for_environment_if_built};
 use crate::model::context::{KeyedVersions, ResolvedContext};
@@ -199,7 +201,57 @@ impl DocumentEnvironment {
     /// `DialectProfile` does, under ledger C1/F1.
     #[must_use]
     pub fn analyser_profile(&self) -> &'static DialectProfile {
-        DialectProfile::find(self.definition.id.as_str()).unwrap_or_else(DialectProfile::plain_tcl)
+        let id = self.definition.id.as_str();
+        if let Some(profile) = DialectProfile::find(id) {
+            return profile;
+        }
+        // An environment with a Tcl ladder but no catalogue row — `jim` —
+        // is handed a profile *projected from its point*, under its own
+        // name, so every consumer still carrying a `&'static DialectProfile`
+        // reads the grammar the document was lexed with, and one that later
+        // resolves by `profile.name` reaches the same point.
+        //
+        // Two environments with a ladder are deliberately *not* projected:
+        // `tk` keeps the anonymous fallback here for the cache-key and
+        // help-filter reasons above (its grammar reaches the analyser through
+        // [`Self::grammar`]); and the lenient `tcl` sink — where the bare
+        // name, the empty name and every unknown name land — **is** the
+        // fallback, whose identity `DialectProfile::is_fallback` tests by
+        // pointer. Its point is 9.0, the fallback's own grammar, so a
+        // projection would change nothing but that identity.
+        if !self.is_tk()
+            && !self.is_lenient()
+            && let Some(point) = self.point()
+        {
+            return projected_profile(self, point);
+        }
+        DialectProfile::plain_tcl()
+    }
+
+    /// The resolved **point** on this environment's core ladder — the
+    /// `(family, release, build)` every lexical axis is a function of —
+    /// or `None` for an environment with no Tcl ladder at all (`f5-bigip`,
+    /// the BIG-IP config surface).
+    #[must_use]
+    pub fn point(&self) -> Option<DialectPoint> {
+        self.definition
+            .core
+            .map(|core| DialectPoint::new(core.default_release, core.build))
+    }
+
+    /// The grammar this environment's documents are lexed under — **the one
+    /// place a document's grammar is born.** Every `LexerConfig` a unit,
+    /// the analyser or an LSP provider builds for a document should come
+    /// from here (directly, or through the profile this environment hands
+    /// out, whose grammar is this by construction), so the lexer, lowering,
+    /// codegen and every provider read the same bytes under the same rule.
+    ///
+    /// The point's grammar when there is a point; otherwise the catalogue
+    /// row's, which is the only place a ladder-less dialect states one.
+    #[must_use]
+    pub fn grammar(&self) -> LexerGrammar {
+        self.point()
+            .map_or_else(|| self.unit_profile().grammar, DialectPoint::grammar)
     }
 
     /// The interned profile a compilation unit — and every LSP provider
@@ -674,5 +726,110 @@ mod tests {
         );
         let fallback = environment.context_registry(&KeyedVersions::default(), 0xDEAD);
         assert!(Arc::ptr_eq(generation.commands(), fallback.commands()));
+    }
+}
+
+/// Profiles projected from a point, interned once per environment identity
+/// so the `&'static` interop every consumer expects holds. Bounded by the
+/// number of distinct environments a process resolves.
+static PROJECTED_PROFILES: OnceLock<
+    Mutex<FxHashMap<EnvironmentIdentity, &'static DialectProfile>>,
+> = OnceLock::new();
+
+fn projected_profile(env: &DocumentEnvironment, point: DialectPoint) -> &'static DialectProfile {
+    let cell = PROJECTED_PROFILES.get_or_init(|| Mutex::new(FxHashMap::default()));
+    let mut map = cell.lock().expect("projected-profile mutex poisoned");
+    if let Some(profile) = map.get(&env.identity) {
+        return profile;
+    }
+    let leak = |s: &str| -> &'static str { Box::leak(s.to_owned().into_boxed_str()) };
+    let definition = &env.definition;
+    let aliases: Vec<&'static str> = definition.aliases.iter().map(|a| leak(a)).collect();
+    let profile: &'static DialectProfile =
+        Box::leak(Box::new(DialectProfile::projected_from_point(
+            leak(definition.id.as_str()),
+            Box::leak(aliases.into_boxed_slice()),
+            leak(&definition.display_name),
+            point,
+        )));
+    map.insert(env.identity.clone(), profile);
+    profile
+}
+
+/// The property the whole dialect layer rests on: for every environment
+/// with a Tcl ladder, the grammar the ingress hands a unit, the grammar the
+/// analyser lexes under, and the grammar codegen resolves from the
+/// document's name are **one value**. This is the test that would have
+/// caught a `jim` document compiling as Tcl 9.0, and `tk` lexing as 9.x
+/// while compiling as 8.6.
+#[cfg(test)]
+mod point_agreement_tests {
+    use super::*;
+    use tcl_dialect::model::EnvironmentRegistry;
+
+    #[test]
+    fn every_route_to_a_documents_grammar_agrees() {
+        for definition in EnvironmentRegistry::compiled().definitions() {
+            let id = definition.id.as_str();
+            let env = resolve_environment(id);
+            let Some(point) = env.point() else {
+                assert_eq!(
+                    id, "f5-bigip",
+                    "{id}: only the config dialect has no ladder"
+                );
+                continue;
+            };
+            let central = tcl_dialect::grammar_of_dialect_name(Some(id));
+            assert_eq!(
+                env.grammar(),
+                point.grammar(),
+                "{id}: grammar() is the point's"
+            );
+            assert_eq!(
+                env.grammar(),
+                central,
+                "{id}: name resolution reaches the same point"
+            );
+            assert_eq!(
+                env.unit_profile().grammar,
+                central,
+                "{id}: the unit is built under the grammar codegen will resolve"
+            );
+            if id == "tk" {
+                assert!(std::ptr::eq(
+                    env.analyser_profile(),
+                    DialectProfile::plain_tcl()
+                ));
+            } else {
+                assert_eq!(
+                    env.analyser_profile().grammar,
+                    central,
+                    "{id}: analyser profile"
+                );
+                assert_eq!(
+                    env.unit_profile().name,
+                    id,
+                    "{id}: the profile carries its own name"
+                );
+            }
+        }
+    }
+
+    /// `jim` end to end through the ingress: the profile every layer is handed
+    /// is Jim's, under Jim's name, for the canonical id and every alias.
+    #[test]
+    fn jim_is_handed_a_jim_profile() {
+        use tcl_dialect::{ListParse, NumberSyntax};
+        for spelling in ["jim", "jimsh", "jimtcl"] {
+            let env = resolve_environment(spelling);
+            let profile = env.unit_profile();
+            assert_eq!(profile.name, "jim", "{spelling}");
+            assert_eq!(profile.grammar.list_parse, ListParse::Lenient, "{spelling}");
+            assert_eq!(profile.grammar.numbers, NumberSyntax::Jim080, "{spelling}");
+            assert!(
+                std::ptr::eq(profile, resolve_environment("jim").unit_profile()),
+                "{spelling}: one interned profile per identity"
+            );
+        }
     }
 }

@@ -316,7 +316,8 @@ fn is_package_require_tcl(s: &str, requested_version: &str) -> bool {
 /// Return the dialect named by a `# tcl-dialect: <dialect>` comment directive in
 /// the first [`DIALECT_DIRECTIVE_SCAN_LINES`] lines, or `None`. The directive
 /// keyword is matched case-insensitively; the named dialect must be one of
-/// [`KNOWN_DIALECTS`] (so an unknown name yields `None`).
+/// [`KNOWN_DIALECTS`] or a registered environment's id or alias (so an
+/// unknown name yields `None`).
 #[must_use]
 pub fn detect_dialect_directive(source: &str) -> Option<&'static str> {
     const KEY: &str = "tcl-dialect:";
@@ -340,9 +341,33 @@ pub fn detect_dialect_directive(source: &str) -> Option<&'static str> {
             .split_whitespace()
             .next()
             .unwrap_or_default();
-        return KNOWN_DIALECTS.iter().copied().find(|&d| d == candidate);
+        if let Some(known) = KNOWN_DIALECTS.iter().copied().find(|&d| d == candidate) {
+            return Some(known);
+        }
+        // An environment with no catalogue row (`jim`, and any pack- or
+        // workspace-registered environment) is just as real a dialect to
+        // name here; it answers with its canonical id, so `jimsh` and `jim`
+        // detect as one thing.
+        return crate::model::ingress::resolve_known_environment(candidate)
+            .map(|env| intern_environment_id(env.id()));
     }
     None
+}
+
+/// Canonical environment ids handed out by [`detect_dialect_directive`] for
+/// environments outside [`KNOWN_DIALECTS`], interned so the `&'static`
+/// contract holds; bounded by the number of distinct environments.
+fn intern_environment_id(id: &str) -> &'static str {
+    use std::sync::{Mutex, OnceLock};
+    static IDS: OnceLock<Mutex<rustc_hash::FxHashMap<String, &'static str>>> = OnceLock::new();
+    let cell = IDS.get_or_init(|| Mutex::new(rustc_hash::FxHashMap::default()));
+    let mut map = cell.lock().expect("environment-id intern mutex poisoned");
+    if let Some(&s) = map.get(id) {
+        return s;
+    }
+    let leaked: &'static str = Box::leak(id.to_owned().into_boxed_str());
+    map.insert(id.to_owned(), leaked);
+    leaked
 }
 
 /// Maximum bytes of a file inspected by [`detect_dialect`]. Detection reads

@@ -377,6 +377,20 @@ pub struct Analyser {
     /// answer — availability masks, behaviour policies, the lexer grammar —
     /// from this; the original string round-trips as [`Self::dialect`].
     pub profile: &'static tcl_dialect::DialectProfile,
+    /// The grammar the **ingress** resolved for this document — the
+    /// environment's
+    /// [`grammar`](crate::environment_ingress::DocumentEnvironment::grammar),
+    /// set beside [`Self::profile`] by [`Self::resolve_walk_environment`].
+    /// `None` when the walk was set up from a profile directly (tests, and
+    /// any host that hands the analyser a profile rather than a name), in
+    /// which case [`Self::grammar`] answers with the profile's own grammar.
+    ///
+    /// It exists because the two are not always one value: `tk`'s analyser
+    /// profile is deliberately the anonymous fallback (see
+    /// `DocumentEnvironment::analyser_profile`) while its documents lex
+    /// under the `tk` environment's 8.6 core, so a walk that read
+    /// `profile.grammar` would lex a `tk` document under 9.x rules.
+    pub(super) ingress_grammar: Option<tcl_dialect::LexerGrammar>,
     /// The resolved document environment (centralisation R-a): set beside
     /// [`Self::profile`] at each `analyse*` ingress by
     /// [`crate::environment_ingress::resolve_environment`]. The profile
@@ -1269,6 +1283,16 @@ impl Analyser {
         Self::with_disabled_diagnostics(HashSet::new())
     }
 
+    /// The grammar this document is lexed under: the ingress-resolved one
+    /// when the walk came through [`Self::resolve_walk_environment`], else
+    /// the profile's. Every re-segmentation and every grammar-axis read in
+    /// the handlers goes through here, never through `profile.grammar`
+    /// directly, so the analyser cannot lex a document under a rule the
+    /// ingress did not resolve.
+    pub(super) fn grammar(&self) -> tcl_dialect::LexerGrammar {
+        self.ingress_grammar.unwrap_or(self.profile.grammar)
+    }
+
     /// The lexer config for this document's dialect.
     ///
     /// `LexerConfig::for_dialect` resolves the dialect-dependent
@@ -1279,7 +1303,7 @@ impl Analyser {
     /// always assuming the Tcl-8.5+ default.  Reads `self.dialect()`, set at
     /// the top of [`Self::analyse`].
     pub(super) fn lexer_config(&self) -> tcl_lexer::LexerConfig {
-        tcl_lexer::LexerConfig::from_grammar(self.profile.grammar)
+        tcl_lexer::LexerConfig::from_grammar(self.grammar())
     }
 
     /// [`Self::lexer_config`] for the **whole-file** segmentation at the top of
@@ -1289,7 +1313,7 @@ impl Analyser {
     /// business: Tcl 9's `source` strips a leading U+FEFF, Tcl 8.x's does not
     /// and genuinely fails on such a file.
     pub(super) fn file_lexer_config(&self) -> tcl_lexer::LexerConfig {
-        tcl_lexer::LexerConfig::for_file_grammar(self.profile.grammar)
+        tcl_lexer::LexerConfig::for_file_grammar(self.grammar())
     }
 
     /// A [`tcl_lexer::SourceMap`] over [`Self::source`], built from the
@@ -1453,6 +1477,7 @@ impl Analyser {
             current_scope_path: Vec::new(),
             source: String::new(),
             profile: tcl_dialect::DialectProfile::plain_tcl(),
+            ingress_grammar: None,
             environment: None,
             context: None,
             pack_overlay: 0,
@@ -1613,6 +1638,7 @@ impl Analyser {
     pub(super) fn resolve_walk_environment(&mut self, dialect: &str) -> bool {
         let environment = crate::environment_ingress::resolve_environment(dialect);
         self.profile = environment.analyser_profile();
+        self.ingress_grammar = Some(environment.grammar());
         let keyed =
             crate::environment_ingress::DocumentEnvironment::keyed_versions(&self.library_versions);
         let generation = environment.context_registry(&keyed, self.pack_overlay);

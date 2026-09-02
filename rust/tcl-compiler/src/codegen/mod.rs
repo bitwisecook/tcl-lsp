@@ -144,6 +144,17 @@ pub struct CodegenCtx<'r> {
     /// `tcl`: `parse_expr`'s numeral grammar follows the ambient runtime
     /// syntax for the former and the profile's for the latter.
     pub dialect: Option<&'static tcl_dialect::DialectProfile>,
+    /// The grammar a *named* compile re-parses its `expr` bodies under —
+    /// the same [`tcl_dialect::LexerGrammar`] [`Self::numbers`],
+    /// [`Self::escapes`], [`Self::braced_var`] and [`Self::word_rules`] were
+    /// taken from, so a numeral means one thing throughout a compile. `None`
+    /// is the dialect-less compile, whose `expr` bodies follow the ambient
+    /// runtime syntax (see [`Self::dialect`]); it is never the fallback for
+    /// a named dialect. Before this, a named compile re-parsed under
+    /// [`Self::dialect`]'s profile while emitting under a grammar resolved
+    /// from the name — two currencies, and for `tk` two different answers
+    /// to what `010` is inside one compile.
+    pub expr_grammar: Option<tcl_dialect::LexerGrammar>,
     /// Literal constant pool.
     pub literals: LiteralTable,
     /// Local variable table.
@@ -229,6 +240,24 @@ pub struct CodegenCtx<'r> {
 }
 
 impl<'r> CodegenCtx<'r> {
+    /// Parse an `expr` body the way this compile reads expressions: under
+    /// [`Self::expr_grammar`] for a named dialect, under the ambient runtime
+    /// syntax for a dialect-less compile. The one entry point codegen uses,
+    /// so its re-parsed numerals cannot diverge from the ones it emits.
+    #[must_use]
+    pub fn parse_compile_expr(&self, source: &str) -> crate::expr_ast::ExprNode {
+        match (&self.expr_grammar, self.dialect) {
+            (Some(grammar), _) => crate::expr_parser::parse_expr_with_grammar(source, grammar),
+            // A context built from a profile alone (tests, and hosts that do
+            // not come through `codegen_module`) parses under that profile.
+            (None, Some(profile)) => {
+                crate::expr_parser::parse_expr_for_profile(source, Some(profile))
+            }
+            // The dialect-less compile: the ambient runtime syntax.
+            (None, None) => crate::expr_parser::parse_expr_for_profile(source, None),
+        }
+    }
+
     /// Create a new emission context.
     ///
     /// When `is_proc` is true, variable references use LVT-based
@@ -245,6 +274,7 @@ impl<'r> CodegenCtx<'r> {
             word_rules: tcl_syntax::word_rules::WordValueRules::default(),
             braced_var: tcl_dialect::BracedVarStyle::default(),
             dialect: None,
+            expr_grammar: None,
             literals: LiteralTable::new(),
             lvt: LocalVarTable::new(params),
             instructions: Vec::new(),

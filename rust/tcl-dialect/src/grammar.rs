@@ -997,7 +997,13 @@ mod grammar_of_dialect_name_tests {
     /// and it fails loudly if the two ever drift apart.
     #[test]
     fn the_two_catalogues_agree_wherever_both_know_a_name() {
-        for profile in crate::DialectProfile::all() {
+        // `tk` is a catalogue profile that `all()` deliberately excludes, and
+        // it is exactly the row that drifted: 9.x here, 8.6 in the
+        // environment model, until the two were made to agree.
+        let rows = crate::DialectProfile::all()
+            .iter()
+            .chain(std::iter::once(crate::DialectProfile::tk()));
+        for profile in rows {
             let Some(point) = DialectPoint::of_dialect_name(Some(profile.name)) else {
                 continue;
             };

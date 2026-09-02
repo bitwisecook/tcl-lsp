@@ -694,9 +694,7 @@ fn loop_headers(cfg: &CfgFunction, ssa: &SsaFunction) -> HashSet<BlockId> {
 /// [`crate::codegen::CodegenCtx::numbers`] takes for its hand-built contexts.
 #[must_use]
 pub fn numbers_for_dialect(dialect: Option<&tcl_dialect::DialectProfile>) -> NumberSyntax {
-    dialect.map_or(tcl_dialect::NumberSyntax::Tcl90, |profile| {
-        profile.grammar.numbers
-    })
+    tcl_dialect::NumberSyntax::of_profile(dialect)
 }
 
 /// [`compute_intervals_with`] under the Tcl 9.0 numeral grammar.

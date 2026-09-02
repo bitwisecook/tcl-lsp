@@ -278,6 +278,9 @@ pub fn word_piece(sm: &SourceMap<'_>, tok: Token) -> String {
             }
         }
         TokenType::Cmd => format!("[{text}]"),
+        // `JimTcl`'s `$(…)`: the token text is the expression body, so the
+        // logical word keeps the sugar around it rather than losing it.
+        TokenType::ExprSugar => format!("$({text})"),
         _ => text.to_owned(),
     }
 }

@@ -825,7 +825,7 @@ impl CodegenCtx<'_> {
                 let expr_text = &body_args[0].0;
                 // Parsed under the compile's dialect, as lowering parses a
                 // statement-position `expr` (issue #1435).
-                let node = crate::expr_parser::parse_expr_for_profile(expr_text, self.dialect);
+                let node = self.parse_compile_expr(expr_text);
                 if let Some((msg, opts)) = detect_const_expr_error(&node) {
                     self.push_lit(&msg);
                     self.push_lit(&opts);

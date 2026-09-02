@@ -470,23 +470,34 @@ pub(super) fn numbers_for(
 ///
 /// Typed callers should use [`parse_expr_for_profile`].
 pub fn parse_expr(source: &str, dialect: Option<&str>) -> ExprNode {
-    parse_expr_for_profile(
-        source,
-        dialect.map(|name| DialectProfile::find(name).unwrap_or_else(DialectProfile::plain_tcl)),
-    )
+    match dialect.map(|name| (name, DialectProfile::find(name))) {
+        None => parse_expr_for_profile(source, None),
+        Some((_, Some(profile))) => parse_expr_for_profile(source, Some(profile)),
+        // A name with no catalogue row still names a grammar (`jim`).
+        Some((name, None)) => {
+            parse_expr_with_grammar(source, &tcl_dialect::grammar_of_dialect_name(Some(name)))
+        }
+    }
 }
 
-/// Parse under an already-resolved dialect profile.
+/// Parse under a bare grammar — for a caller that holds the document's
+/// grammar but no profile. The numeral grammar is the grammar's own; there
+/// is no expr-grammar base, as for the permissive fallback.
 #[must_use]
-pub fn parse_expr_for_profile(source: &str, profile: Option<&DialectProfile>) -> ExprNode {
-    // Resolve the dialect string to its interned profile once and thread the
-    // canonical name down — so the grammar branch in the expr lexer and the
-    // cache key below can never disagree about what a given spelling means.
-    let resolved = profile.map_or_else(DialectProfile::plain_tcl, |profile| {
-        DialectProfile::find(profile.name).unwrap_or_else(DialectProfile::plain_tcl)
-    });
-    let (raw_tokens, has_unknown) = tcl_lexer::tokenise_expr_checked_for_profile(source, resolved);
+pub fn parse_expr_with_grammar(source: &str, grammar: &tcl_dialect::LexerGrammar) -> ExprNode {
+    let (raw_tokens, has_unknown) = tcl_lexer::tokenise_expr_checked_with_grammar(source, grammar);
+    parse_raw_tokens(source, raw_tokens, has_unknown, grammar.numbers, None)
+}
 
+/// The parse proper, once the tokens exist: shared by every entry point so
+/// the raw-fallback and completeness rules cannot differ between them.
+fn parse_raw_tokens(
+    source: &str,
+    raw_tokens: Vec<ExprToken>,
+    has_unknown: bool,
+    numbers: tcl_dialect::NumberSyntax,
+    expr_grammar_base: Option<tcl_dialect::TclVersion>,
+) -> ExprNode {
     if has_unknown {
         return ExprNode::Raw {
             text: source.to_owned(),
@@ -504,17 +515,31 @@ pub fn parse_expr_for_profile(source: &str, profile: Option<&DialectProfile>) ->
         };
     }
 
-    let mut parser = PrattParser::new(
-        &tokens,
-        numbers_for(profile, resolved),
-        resolved.expr_grammar_base,
-    );
+    let mut parser = PrattParser::new(&tokens, numbers, expr_grammar_base);
     match parser.expression(0) {
         Ok(result) if parser.pos >= tokens.len() => result,
         _ => ExprNode::Raw {
             text: source.to_owned(),
         },
     }
+}
+
+/// Parse under an already-resolved dialect profile.
+#[must_use]
+pub fn parse_expr_for_profile(source: &str, profile: Option<&DialectProfile>) -> ExprNode {
+    // The profile handed in *is* the resolution. Re-finding it by name would
+    // throw away a profile projected from an environment's point (`jim`,
+    // which has no catalogue row) and parse under the permissive fallback
+    // instead — the one way codegen and the lexer could disagree again.
+    let resolved = profile.unwrap_or_else(|| DialectProfile::plain_tcl());
+    let (raw_tokens, has_unknown) = tcl_lexer::tokenise_expr_checked_for_profile(source, resolved);
+    parse_raw_tokens(
+        source,
+        raw_tokens,
+        has_unknown,
+        numbers_for(profile, resolved),
+        resolved.expr_grammar_base,
+    )
 }
 
 // LRU-cached parse_expr
@@ -604,10 +629,16 @@ fn expr_cache() -> &'static Mutex<ExprCache> {
 /// Typed callers should use [`parse_expr_cached_for_profile`].
 #[must_use]
 pub fn parse_expr_cached(source: &str, dialect: Option<&str>) -> Arc<ExprNode> {
-    parse_expr_cached_for_profile(
-        source,
-        dialect.map(|name| DialectProfile::find(name).unwrap_or_else(DialectProfile::plain_tcl)),
-    )
+    match dialect.map(|name| (name, DialectProfile::find(name))) {
+        None => parse_expr_cached_for_profile(source, None),
+        Some((_, Some(profile))) => parse_expr_cached_for_profile(source, Some(profile)),
+        // No catalogue row means no interned identity to key a cache on;
+        // parse uncached under the name's grammar.
+        Some((name, None)) => Arc::new(parse_expr_with_grammar(
+            source,
+            &tcl_dialect::grammar_of_dialect_name(Some(name)),
+        )),
+    }
 }
 
 /// LRU-cached `parse_expr`.
@@ -626,9 +657,11 @@ pub fn parse_expr_cached_for_profile(
     source: &str,
     profile: Option<&DialectProfile>,
 ) -> Arc<ExprNode> {
-    let resolved = profile.map_or_else(DialectProfile::plain_tcl, |profile| {
-        DialectProfile::find(profile.name).unwrap_or_else(DialectProfile::plain_tcl)
-    });
+    // The profile handed in *is* the resolution. Re-finding it by name would
+    // throw away a profile projected from an environment's point (`jim`,
+    // which has no catalogue row) and parse under the permissive fallback
+    // instead — the one way codegen and the lexer could disagree again.
+    let resolved = profile.unwrap_or_else(|| DialectProfile::plain_tcl());
     let key: ExprCacheKey = (source.to_owned(), resolved.name);
     {
         let mut cache = expr_cache().lock().expect("expr cache mutex poisoned");

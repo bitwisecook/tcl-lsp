@@ -2977,6 +2977,7 @@ fn reconstruct_raw(
             format!("${name}")
         }
         TokenType::Expand => "{*}".to_owned(),
+        TokenType::ExprSugar => format!("$({})", sm.token_text(tok)),
         _ => sm.token_text(tok).to_owned(),
     }
 }

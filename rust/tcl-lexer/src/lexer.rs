@@ -314,16 +314,15 @@ impl LexerConfig {
     ///   [`BracedVarStyle::Tcl9Nesting`] for 9.x runtimes (`bpf` embeds
     ///   Tcl 9.0) and unversioned Tcl.
     ///
-    /// Unknown dialect names resolve to the permissive fallback profile
+    /// Resolves through [`tcl_dialect::grammar_of_dialect_name`] — the one
+    /// place a name becomes a grammar — so an environment with no catalogue
+    /// row (`jim`) lexes under its own grammar here exactly as it does
+    /// through the ingress. Unknown names resolve to the permissive default
     /// (modern-Tcl semantics) so a typo in a workspace's `languageId`
     /// doesn't change parsing behaviour.
     #[must_use]
     pub fn for_dialect(dialect: &str) -> Self {
-        Self::from_grammar(
-            tcl_dialect::DialectProfile::find(dialect)
-                .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl)
-                .grammar,
-        )
+        Self::from_grammar(tcl_dialect::grammar_of_dialect_name(Some(dialect)))
     }
 
     /// [`Self::from_grammar`] for the entry point that lexes a **whole file**:
@@ -357,11 +356,7 @@ impl LexerConfig {
     /// document links / inlay hints / references miss (issue #1243).
     #[must_use]
     pub fn for_file_dialect(dialect: &str) -> Self {
-        Self::for_file_grammar(
-            tcl_dialect::DialectProfile::find(dialect)
-                .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl)
-                .grammar,
-        )
+        Self::for_file_grammar(tcl_dialect::grammar_of_dialect_name(Some(dialect)))
     }
 
     /// This config demoted to a **nested** re-lex: identical, except a leading
@@ -3727,5 +3722,52 @@ mod jim_divergence_tests {
                 vec!["extra characters after close-brace"]
             );
         }
+    }
+}
+
+/// `LexerConfig::from_grammar` must carry every axis the lexer reads. The
+/// `..Self::default()` tail is where an axis silently goes missing — it is
+/// how `list_parse` was declared on the grammar and consumed by nothing —
+/// so this pins each carried field against a grammar in which every axis
+/// differs from the default.
+#[cfg(test)]
+mod grammar_carriage_tests {
+    use super::LexerConfig;
+    use tcl_dialect::model::{Family, Release, grammar};
+
+    #[test]
+    fn from_grammar_carries_every_lexer_axis() {
+        let g = grammar(Family::Jim, Release::JIM_0_84);
+        let c = LexerConfig::from_grammar(g);
+        assert_eq!(c.expand_syntax, g.expand_syntax);
+        assert_eq!(c.irules_brace_separator, g.irules_brace_separator);
+        assert_eq!(c.brace_line_continuation, g.brace_line_continuation);
+        assert_eq!(c.braced_var, g.braced_var);
+        assert_eq!(c.array_index, g.array_index);
+        assert_eq!(c.escapes, g.escapes);
+        assert_eq!(c.word_separators, g.word_separators);
+        assert_eq!(c.quote_termination, g.quote_termination);
+        assert_eq!(c.var_syntax, g.var_syntax);
+        assert_eq!(c.brace_backslash_newline, g.brace_backslash_newline);
+        assert_eq!(c.list_parse, g.list_parse);
+    }
+
+    /// The four hand-written copies of the 9.x grammar — `LexerGrammar::
+    /// default()`, the catalogue's, the family ladder's, and the config's
+    /// default — are one value.
+    #[test]
+    fn the_default_grammar_is_tcl_9_0_everywhere() {
+        let ladder = grammar(Family::Tcl, Release::TCL_9_0);
+        assert_eq!(tcl_dialect::LexerGrammar::default(), ladder);
+        let from_default = LexerConfig::from_grammar(tcl_dialect::LexerGrammar::default());
+        let plain = LexerConfig::default();
+        assert_eq!(from_default.escapes, plain.escapes);
+        assert_eq!(from_default.braced_var, plain.braced_var);
+        assert_eq!(from_default.word_separators, plain.word_separators);
+        assert_eq!(from_default.list_parse, plain.list_parse);
+        assert_eq!(
+            from_default.brace_backslash_newline,
+            plain.brace_backslash_newline
+        );
     }
 }

@@ -826,7 +826,7 @@ impl CodegenCtx<'_> {
                 // it dialect-blind here left a dialect-only operator
                 // (`$x contains "a"`) unrecognised and pushed as a raw string
                 // (issue #1435).
-                let node = crate::expr_parser::parse_expr_for_profile(expr_body, self.dialect);
+                let node = self.parse_compile_expr(expr_body);
                 self.emit_expr(&node);
             }
             Some(InlineCodegenHookId::Incr) if (1..=2).contains(&args.len()) => {

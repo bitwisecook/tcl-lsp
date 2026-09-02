@@ -527,23 +527,30 @@ const GRAMMAR_IRULES: LexerGrammar = GRAMMAR_F5_TCL;
 ///   close wins, byte-identical at 0.76, 0.80 and 0.84.
 /// - `script_skips_leading_bom`: **false**. `jim.c` contains no BOM
 ///   handling at any modelled tag.
-/// - `escapes`: **`Tcl90`**. `JimEscape` caps `\x` at two digits, has
-///   `case 'U'` (up to eight), supports the `\u{NNN}` form, and
-///   `utf8.h`'s `MAX_UTF8_LEN 4` gives UCS-4 internals — 9.0's grammar
-///   and 9.0's width, not 8.6's U+FFFD degradation.
+/// - `escapes`: **`Jim`**. `JimEscape` caps `\x` at two digits, has
+///   `case 'U'` (up to eight), supports the braced `\u{…}` form no build of
+///   the Tcl core has, and takes octal to a full byte (`\400` is one NUL
+///   where 8.6 and 9.0 both read `\40` plus `0`) — measured on jimsh 0.76
+///   and 0.84 against tclsh 8.6 / 9.0. `utf8.h`'s `MAX_UTF8_LEN 4` gives
+///   UCS-4 internals, so it can borrow neither 8.6's U+FFFD degradation
+///   nor 9.0's octal width.
+/// - `numbers`: **`Jim`** below 0.80 and **`Jim080`** from 0.80, the rung
+///   `0d` arrived on (`expr 0d10` is a syntax error on 0.79 and `10` on
+///   0.80). `JimNumberBase` accepts `0x`/`0o`/`0b` and — the load-bearing
+///   half — "leading zeros do *not* imply octal", so `010` is ten; there
+///   are six literal special-float spellings, no `Infinity`, no
+///   `NaN(payload)`, no case folding, and no `_` digit separators.
+/// - `word_separators`, `brace_backslash_newline`, `quote_termination`,
+///   `var_syntax`, `list_parse`: the five axes on which Jim's parser — a
+///   reimplementation, not a fork — differs from every C Tcl release; each
+///   is documented on its enum and in `dialect-profile-model.md`.
+/// - `array_index`: **`Tcl8`**, the unrestricted mask. Jim's `JimParseVar`
+///   counts parens with its own scanner and has no Tcl 9 index-byte rule,
+///   and the lexer takes that scanner for `var_syntax: Jim` without
+///   consulting this axis at all — so a future flip here is visibly a
+///   no-op for Jim rather than a silent change.
 /// - `brace_line_continuation` / `irules_brace_separator`: **off**. Both
 ///   are F5 fork axes; Jim has neither.
-///
-/// One axis stays an honest approximation: `numbers` is `Tcl90` because
-/// Jim's own numeral grammar is a fifth value the enum does not have.
-/// `JimNumberBase` accepts `0x`/`0o`/`0b`/`0d` and — the load-bearing
-/// half — "leading zeros do *not* imply octal", so `010` is ten. `Tcl90`
-/// is right on both of those and on `0d`; it is wrong only in accepting
-/// Tcl 9's `_` digit separators, which Jim rejects. `Tcl85` would be
-/// wrong the dangerous way round (it reads `010` as octal 8), so the
-/// closer value ships and the residue is recorded in P6's honest-gaps
-/// list: the missing piece is a `NumberSyntax::Jim` variant, and adding
-/// one is a 43-file, 231-site lexer change, not a data edit.
 const GRAMMAR_JIM: LexerGrammar = LexerGrammar {
     expand_syntax: true,
     irules_brace_separator: false,

@@ -210,7 +210,10 @@ mod tests {
     /// the catalogue wherever the catalogue also has an answer.
     #[test]
     fn a_points_grammar_matches_the_catalogue() {
-        for profile in crate::DialectProfile::all() {
+        let rows = crate::DialectProfile::all()
+            .iter()
+            .chain(std::iter::once(crate::DialectProfile::tk()));
+        for profile in rows {
             let Some(point) = DialectPoint::of_dialect_name(Some(profile.name)) else {
                 continue;
             };

@@ -1592,7 +1592,7 @@ impl Analyser {
             registry,
             self.lexer_config(),
         );
-        let numbers = self.profile.grammar.numbers;
+        let numbers = self.grammar().numbers;
         let idx_diags =
             super::bounds_checks::list_index_diagnostics(cmd_name, args, arg_tokens, numbers);
         let lset_diags = super::bounds_checks::lset_index_diagnostics(
@@ -1764,7 +1764,7 @@ impl Analyser {
     /// rejects (W148). Dynamic/substituted words and words that are not valid
     /// Tcl 9 numerals are deliberately ignored.
     fn emit_w148_numeral_release(&mut self, args: &[String], tokens: &[Token]) {
-        let syntax = self.profile.grammar.numbers;
+        let syntax = self.grammar().numbers;
         for (arg, token) in args.iter().zip(tokens.iter()) {
             if !matches!(token.kind, TokenType::Str | TokenType::Esc)
                 || arg.contains('$')
@@ -1821,7 +1821,7 @@ impl Analyser {
             return;
         }
         let grammars = self.range_numeral_grammars.clone();
-        let primary = self.profile.grammar.numbers;
+        let primary = self.grammar().numbers;
         let mut new_diags: Vec<crate::analyser::types::Diagnostic> = Vec::new();
         for (arg, token) in args.iter().zip(tokens.iter()) {
             if !matches!(token.kind, TokenType::Str | TokenType::Esc)

@@ -173,6 +173,9 @@ fn reconstruct_raw(sm: &SourceMap, tok: Token, in_quotes: bool) -> String {
             }
         }
         TokenType::Expand => "{*}".to_owned(),
+        // `JimTcl`'s `$(…)`: reconstruct the sugar around the expression
+        // body, or formatting a Jim file rewrites `$($a*2)` to `$a*2`.
+        TokenType::ExprSugar => format!("$({})", sm.token_text(tok)),
         _ => sm.token_text(tok).to_owned(),
     }
 }

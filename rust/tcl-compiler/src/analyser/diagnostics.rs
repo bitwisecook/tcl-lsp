@@ -887,7 +887,7 @@ impl Analyser {
                 &self.source,
                 &function_unit.cfg,
                 function_unit.base_offset,
-                self.profile.grammar.braced_var,
+                self.grammar().braced_var,
             );
         // A var read in another iRule event, or consumed *by name* via a
         // call-by-name upvar callee, is "used" — suppress
