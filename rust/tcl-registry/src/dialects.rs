@@ -313,10 +313,17 @@ fn is_package_require_tcl(s: &str, requested_version: &str) -> bool {
         && is_tcl_core_package(words.get(2).copied(), requested_version)
 }
 
-/// Return the dialect named by a `# tcl-dialect: <dialect>` comment directive in
-/// the first [`DIALECT_DIRECTIVE_SCAN_LINES`] lines, or `None`. The directive
-/// keyword is matched case-insensitively; the named dialect must be one of
-/// [`KNOWN_DIALECTS`] (so an unknown name yields `None`).
+/// Return the environment named by a `# tcl-dialect: <name>` comment
+/// directive in the first [`DIALECT_DIRECTIVE_SCAN_LINES`] lines, or `None`.
+///
+/// The directive keyword is matched case-insensitively; the name resolves
+/// through the one environment resolver
+/// ([`crate::model::resolve_known_environment`]) exactly as a settings
+/// string or `tcl-lsp.setDialect` does — a canonical id, an alias (`wish`
+/// → `tk`, `irules` → `f5-irules`), a contributed editor identity, or an
+/// environment a loaded pack declares — and the answer is the resolved
+/// **canonical id**. A name no environment carries makes the tier abstain,
+/// so detection falls through rather than erroring (redesign §5.1, E8).
 #[must_use]
 pub fn detect_dialect_directive(source: &str) -> Option<&'static str> {
     const KEY: &str = "tcl-dialect:";
@@ -340,9 +347,29 @@ pub fn detect_dialect_directive(source: &str) -> Option<&'static str> {
             .split_whitespace()
             .next()
             .unwrap_or_default();
-        return KNOWN_DIALECTS.iter().copied().find(|&d| d == candidate);
+        return crate::model::resolve_known_environment(candidate)
+            .map(|environment| intern_environment_id(environment.id()));
     }
     None
+}
+
+/// The `&'static` spelling of a resolved environment id, for the detection
+/// table's static-string shape. Bounded by the number of distinct
+/// environment ids a process ever resolves through a directive — the
+/// compiled catalogue plus whatever packs declare — so it leaks nothing a
+/// reload can grow.
+fn intern_environment_id(id: &str) -> &'static str {
+    static INTERNED: std::sync::Mutex<Vec<&'static str>> = std::sync::Mutex::new(Vec::new());
+    let mut interned = match INTERNED.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    if let Some(known) = interned.iter().find(|known| **known == id) {
+        return known;
+    }
+    let leaked: &'static str = Box::leak(id.to_owned().into_boxed_str());
+    interned.push(leaked);
+    leaked
 }
 
 /// Maximum bytes of a file inspected by [`detect_dialect`]. Detection reads

@@ -1008,7 +1008,19 @@ Over the eight bundled packs today, `--verify` reports **1,168 rows would
 translate, 0 left as TODO, 8/8 byte-identical registry snapshots**
 (cadence 77, mentor 69, microchip 1, quartus 77, synopsys 68, xilinx 788,
 sdc_base 86, upf 2 — its `all-tcl` default and its U5 `file_extension`
-row). No bundled pack was rewritten.
+row). The six EDA packs were then rewritten by the tool itself (D17,
+2026-09-02: `--verify` byte-identical, then written) to carry their
+`environment` blocks; `sdc_base` and `upf` stay at 1.1 as the live 1.x
+corpus.
+
+**`--restyle` (D13, 2026-09-02):** after the row rewrite, the pack is
+re-emitted through `export_pack` in canonical form — straight-line
+registration calls at the house layout, comments and author layout
+dropped — and `--verify` proves the restyled snapshot as it proves the
+plain one. A **programmed** pack is refused whole (E-R12: `available?` at
+registration, or a top-level statement that is not one of the recorded
+registration calls); a partial upgrade keeps its TODO markers and is not
+restyled.
 
 **The rest of the P2-H remainder landed with it** (same change):
 

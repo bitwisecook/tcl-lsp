@@ -383,12 +383,16 @@ fn untrusted_compiled_extension(
         .iter()
         .filter(|environment| environment.extends)
         .find_map(|environment| {
-            crate::loader::reserved_environment_name(&environment.id).map(|reserved| {
-                EnvironmentRegistrationError::UntrustedExtension {
+            crate::loader::reserved_environment_name_for(
+                &environment.id,
+                PackEnvironmentTier::of(tier),
+            )
+            .map(
+                |reserved| EnvironmentRegistrationError::UntrustedExtension {
                     base: reserved,
                     provenance: PackEnvironmentTier::of(tier).provenance(),
-                }
-            })
+                },
+            )
         })
 }
 

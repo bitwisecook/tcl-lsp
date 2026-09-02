@@ -72,6 +72,36 @@ under an older declaration). 2.0 adds `available {PROVIDER SPEC…}` (replaces
 `refine NAME { … }`. `tcl spec upgrade <pack.tclspec>` rewrites an older
 declaration in place (`--check` to report only).
 
+## A 2.0 pack is a Tcl script
+
+A `speclib … 2.0` file is **evaluated**, not walked: it runs in a
+deterministic sandbox (no clock, IO, network, processes, environment, or
+threads), the vocabulary words are host commands, and what loads is the
+snapshot of registrations the run made; `set`, `foreach`, `proc`, and `if`
+work between the words. Rules:
+
+- **Canonical form by default** — straight-line registration calls, no
+  `proc`, `set`, `foreach`, or computed argument; it is what every generator
+  emits and what the studio can edit in place. Reach for a program only when
+  repetition is the problem: a shared version is a variable, forty commands
+  differing in two fields are a `foreach` over a data table written directly
+  above the loop, never assembled across procs.
+- **Prefer `-available` rows to branching on `available?`** — a branch
+  makes the snapshot one analysis target's answer and marks the pack
+  target-dependent; the row states the same fact as data.
+- **Read the expansion before shipping** — `tcl spec export FILE` (MCP:
+  `spectcl_expand`) renders any snapshot back as canonical source; read it
+  as a diff against intent. Expansion is total and contraction is never
+  attempted, so the expansion is the whole truth.
+- **Scope ambient packages to an environment** — a package the interpreter
+  loads before the first byte belongs in an
+  `environment NAME { core tcl 8.6; ambient PKG VERSION|keyed KEY; file_extension EXT … }`
+  block, not a global claim.
+- **Upgrading a 1.x source** — `tcl spec upgrade FILE` rewrites the rows in
+  place and preserves every other byte; `--restyle` re-emits the result in
+  canonical form (comments and layout dropped). A programmed pack is never
+  rewritten.
+
 ## Version ranges from release history
 
 One snapshot only says what the library looks like now; stamping

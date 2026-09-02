@@ -1390,7 +1390,12 @@ fn is_general_tcl(word: &str) -> bool {
 /// evaluation could only capture it verbatim. Substitution in any unbraced
 /// word, a general-Tcl or denied head word, and `available?` all force the
 /// interpreter path.
-fn static_stmt(stmt: &Stmt) -> bool {
+///
+/// The one owner of "this word substitutes": the fast path asks it to skip
+/// the interpreter, and `tcl spec upgrade --restyle` asks it (over every
+/// statement, nested bodies included) before it may write a snapshot back
+/// over its source (E-R12) — a computed word is a program either way.
+pub(crate) fn static_stmt(stmt: &Stmt) -> bool {
     let head = stmt.word_text(0);
     if head.is_empty()
         || head == "available?"
@@ -1832,7 +1837,10 @@ fn provenance_violation_in(registrations: &[Registration], tier: Tier) -> Option
                 ));
             }
             "environment" => {
-                if let Some(reserved) = environment_block::reserved_name(reg.arg(1)) {
+                if let Some(reserved) = environment_block::reserved_name_for(
+                    reg.arg(1),
+                    super::PackEnvironmentTier::of(tier),
+                ) {
                     let verb = if reg.has_flag("-extend") {
                         // §6.4: altering a canonical environment — detection
                         // rows and placements included — needs a trusted

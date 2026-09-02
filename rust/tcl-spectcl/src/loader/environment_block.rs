@@ -35,6 +35,8 @@
 //!     filename        vivado.jou
 //!     signature       {create_project}
 //!     policy          ambient-plus-require
+//!     version_ceiling 8.6
+//!     help_terms      {vivado xilinx}
 //! }
 //! ```
 //!
@@ -55,8 +57,12 @@
 //! block claiming one is **rejected** — a notice, and the block is not
 //! carried — because a workspace pack silently redefining `tcl8.6` or
 //! `f5-irules` is the §6.4 trust boundary, not an editing convenience.
-//! Editor identities are deliberately *not* reserved: selecting one is
-//! their whole B7 purpose.
+//! The names a **bundled** pack declares (the six EDA shells, seeded into
+//! the compiled registry from the packs themselves — D17) are reserved
+//! one step lower: the bundled tier may restate them, every other tier
+//! is refused, and that refusal lives where the tier is known (the E-R2
+//! gate and the registration seam). Editor identities are deliberately
+//! *not* reserved: selecting one is their whole B7 purpose.
 
 use std::sync::Arc;
 
@@ -64,7 +70,7 @@ use tcl_dialect::model::{BuildProfileId, Family, Release};
 use tcl_dialect::model::{
     CoreProfileSelector, DetectionFacts, EditorLanguageIdentityId, EnvironmentDefinition,
     EnvironmentId, EnvironmentPolicy, FileExtensionClaim, KeyedAxis, PackagePlacement, Placement,
-    Provenance, VersionAxisId, VersionSet, WorldPolicy, compiled_definitions,
+    Provenance, VersionAxisId, VersionSet, WorldPolicy, release_line, reserved_against,
 };
 
 use super::{Log, Stmt, block, next_text};
@@ -137,6 +143,10 @@ pub struct PackPlacementRow {
     pub package: String,
     /// How the version is determined.
     pub version: Placement,
+    /// The version word as the row spelt it (`3.1`, `8.5-`, `keyed`,
+    /// `tracks-base`) — what a projection of the block writes back, since a
+    /// parsed requirement set no longer carries its own spelling.
+    pub version_word: String,
     /// Ambient (no `package require` needed) vs hosted.
     pub ambient: bool,
     /// The declaring line.
@@ -190,6 +200,13 @@ pub struct PackEnvironment {
     pub filenames: Vec<String>,
     /// `signature TEXT` rows.
     pub signatures: Vec<String>,
+    /// `help_terms {WORD …}` rows, flattened in declaration order: the
+    /// lower-case help-index filter terms `tcl help --dialect` narrows by.
+    pub help_terms: Vec<String>,
+    /// `version_ceiling RELEASE` — the upper-bound release for option
+    /// gating (§5.2), on the `core` family's ladder. Resolved once the
+    /// whole block is read, so the row may precede its `core`.
+    pub version_ceiling: Option<Release>,
     /// The declaring line, for notices and editors.
     pub line: u32,
 }
@@ -231,7 +248,7 @@ impl PackEnvironment {
                 closed_world: self.world_policy,
                 fixed_ensembles: false,
                 strict_ascii: false,
-                version_ceiling: None,
+                version_ceiling: self.version_ceiling,
             },
             server_detection: DetectionFacts {
                 file_extensions: self.file_extensions.clone(),
@@ -248,7 +265,11 @@ impl PackEnvironment {
                 shebang_words: Vec::new(),
                 directive_names: Vec::new(),
             },
-            help_terms: Vec::new(),
+            help_terms: self
+                .help_terms
+                .iter()
+                .map(|term| Arc::from(term.as_str()))
+                .collect(),
             provenance: tier.provenance(),
         }
     }
@@ -291,18 +312,6 @@ impl PackEnvironment {
             provenance: tier.provenance(),
         }
     }
-}
-
-/// The single-release-line target set of one ladder release — the same
-/// `[R·a0, next·a0)` window the compiled definitions use.
-fn release_line(family: Family, release: Release) -> VersionSet {
-    let axis = VersionAxisId::core(family);
-    let requirement = match family.next_release(release) {
-        Some(next) => format!("{}-{}", release.as_str(), next.as_str()),
-        None => format!("{}-", release.as_str()),
-    };
-    VersionSet::from_requirements(axis, &[requirement])
-        .unwrap_or_else(|_| VersionSet::empty(VersionAxisId::core(family)))
 }
 
 /// Parse one `environment NAME { … }` block (or
@@ -351,7 +360,8 @@ pub(super) fn parse_rows(
     // is rejected outright. An `-extend` block *must* name an existing
     // environment — compiled included — so the reservation does not apply
     // to it; the §6.4 trust gate on extending a compiled base lives where
-    // the tier is known (registration, and the E-R2 evaluation gate).
+    // the tier is known (registration, and the E-R2 evaluation gate) —
+    // as does the gate on a name only the bundled tier may restate.
     if !extends && let Some(reserved) = reserved_name(name) {
         log.say(
             stmt.line,
@@ -375,14 +385,20 @@ pub(super) fn parse_rows(
         file_extensions: Vec::new(),
         filenames: Vec::new(),
         signatures: Vec::new(),
+        help_terms: Vec::new(),
+        version_ceiling: None,
         line: stmt.line,
     };
     let mut rejected = false;
+    let mut pending = Pending::default();
     log.scoped(format!("environment {name}"), |log| {
         for row in rows {
-            if !read_row(&mut environment, row, log) {
+            if !read_row(&mut environment, row, &mut pending, log) {
                 rejected = true;
             }
+        }
+        if !settle_ceiling(&mut environment, &pending, log) {
+            rejected = true;
         }
     });
     if rejected {
@@ -403,19 +419,75 @@ pub(super) fn parse_rows(
     Some(environment)
 }
 
+/// Rows that resolve only once the whole block is read.
+#[derive(Default)]
+struct Pending {
+    /// The `version_ceiling` word and its line, resolved against the
+    /// `core` row's family by [`settle_ceiling`].
+    ceiling: Option<(String, u32)>,
+}
+
+/// Resolve a pending `version_ceiling` against the block's `core` family.
+/// `false` rejects the block: a ceiling is a point on a compiled ladder,
+/// so it needs a compiled `core` to name one.
+fn settle_ceiling(environment: &mut PackEnvironment, pending: &Pending, log: &mut Log) -> bool {
+    let Some((word, line)) = &pending.ceiling else {
+        return true;
+    };
+    let Some(core) = environment.core else {
+        log.say(
+            *line,
+            format!(
+                "`version_ceiling {word}` needs a `core` row naming a compiled family \
+                 whose ladder carries the release; the environment block is rejected"
+            ),
+        );
+        return false;
+    };
+    let found = core
+        .family
+        .releases()
+        .iter()
+        .copied()
+        .find(|release| release.as_str() == word);
+    let Some(release) = found else {
+        log.say(
+            *line,
+            format!(
+                "`version_ceiling {word}` names no release on the {} ladder; the \
+                 environment block is rejected",
+                core.family.name()
+            ),
+        );
+        return false;
+    };
+    environment.version_ceiling = Some(release);
+    true
+}
+
 /// Read one row. `false` means the whole block is rejected — the §6.1
 /// semantic class, which is what every unknown word in an environment
 /// block is: this block says which world is closed and what is ambient in
 /// it, so there is no decorative word here to drop safely.
-fn read_row(environment: &mut PackEnvironment, stmt: &Stmt, log: &mut Log) -> bool {
-    let words = &stmt.words;
+fn read_row(
+    environment: &mut PackEnvironment,
+    stmt: &Stmt,
+    pending: &mut Pending,
+    log: &mut Log,
+) -> bool {
     // An `-extend` block is additive by construction: identity rows
     // belong to the environment's owner, and reading one here would let
     // an extension restate what §6.4 says only the owner may state.
     if environment.extends
         && matches!(
             stmt.word_text(0),
-            "core" | "policy" | "alias" | "editor_identity" | "display_name"
+            "core"
+                | "policy"
+                | "alias"
+                | "editor_identity"
+                | "display_name"
+                | "help_terms"
+                | "version_ceiling"
         )
     {
         log.say(
@@ -437,44 +509,8 @@ fn read_row(environment: &mut PackEnvironment, stmt: &Stmt, log: &mut Log) -> bo
         "core" => return core_row(environment, stmt, log),
         "ambient" => return placement_row(environment, stmt, true, log),
         "hosted" => return placement_row(environment, stmt, false, log),
-        "editor_identity" => {
-            let id = stmt.word_text(1);
-            match EditorLanguageIdentityId::new(id) {
-                Some(identity) => environment.editor_identity = Some(identity),
-                None => log.say(
-                    stmt.line,
-                    format!(
-                        "`editor_identity {id}` is not a contributed editor language id \
-                         (review B7 — an environment selects one, never mints one); the row \
-                         is kept without routing"
-                    ),
-                ),
-            }
-        }
-        "file_extension" => {
-            let raw = stmt.word_text(1);
-            let extension = raw.trim_start_matches('.').to_ascii_lowercase();
-            if extension.is_empty() || extension.contains('.') {
-                log.say(
-                    stmt.line,
-                    format!("`file_extension {raw}` is not a single extension"),
-                );
-            } else {
-                let mut display = extension.clone();
-                let mut index = 2;
-                while index < words.len() {
-                    match words[index].text.as_str() {
-                        "-name" => display = next_text(words, &mut index),
-                        other => log.unknown_flag("file_extension", stmt.line, other),
-                    }
-                    index += 1;
-                }
-                environment.file_extensions.push(FileExtensionClaim {
-                    extension: Arc::from(extension.as_str()),
-                    display_name: Arc::from(display.as_str()),
-                });
-            }
-        }
+        "editor_identity" => editor_identity_row(environment, stmt, log),
+        "file_extension" => file_extension_row(environment, stmt, log),
         "filename" => match stmt.word_text(1) {
             "" => log.say(stmt.line, "`filename` needs a basename"),
             name => environment.filenames.push(name.to_owned()),
@@ -482,6 +518,25 @@ fn read_row(environment: &mut PackEnvironment, stmt: &Stmt, log: &mut Log) -> bo
         "signature" => match stmt.word_text(1) {
             "" => log.say(stmt.line, "`signature` needs the text to look for"),
             text => environment.signatures.push(text.to_owned()),
+        },
+        "help_terms" => {
+            let terms = super::list_words(stmt.word_text(1));
+            if terms.is_empty() {
+                log.say(stmt.line, "`help_terms` needs at least one term");
+            }
+            environment
+                .help_terms
+                .extend(terms.into_iter().map(|term| term.to_ascii_lowercase()));
+        }
+        "version_ceiling" => match stmt.word_text(1) {
+            "" => {
+                log.say(
+                    stmt.line,
+                    "`version_ceiling` needs a release; the environment block is rejected",
+                );
+                return false;
+            }
+            release => pending.ceiling = Some((release.to_owned(), stmt.line)),
         },
         "policy" => {
             let word = stmt.word_text(1);
@@ -510,6 +565,50 @@ fn read_row(environment: &mut PackEnvironment, stmt: &Stmt, log: &mut Log) -> bo
         }
     }
     true
+}
+
+/// `editor_identity ID`: an unknown id keeps the row without routing
+/// (§6.1's presentation rule).
+fn editor_identity_row(environment: &mut PackEnvironment, stmt: &Stmt, log: &mut Log) {
+    let id = stmt.word_text(1);
+    match EditorLanguageIdentityId::new(id) {
+        Some(identity) => environment.editor_identity = Some(identity),
+        None => log.say(
+            stmt.line,
+            format!(
+                "`editor_identity {id}` is not a contributed editor language id \
+                 (review B7 — an environment selects one, never mints one); the row \
+                 is kept without routing"
+            ),
+        ),
+    }
+}
+
+/// `file_extension EXT ?-name NAME?`.
+fn file_extension_row(environment: &mut PackEnvironment, stmt: &Stmt, log: &mut Log) {
+    let words = &stmt.words;
+    let raw = stmt.word_text(1);
+    let extension = raw.trim_start_matches('.').to_ascii_lowercase();
+    if extension.is_empty() || extension.contains('.') {
+        log.say(
+            stmt.line,
+            format!("`file_extension {raw}` is not a single extension"),
+        );
+        return;
+    }
+    let mut display = extension.clone();
+    let mut index = 2;
+    while index < words.len() {
+        match words[index].text.as_str() {
+            "-name" => display = next_text(words, &mut index),
+            other => log.unknown_flag("file_extension", stmt.line, other),
+        }
+        index += 1;
+    }
+    environment.file_extensions.push(FileExtensionClaim {
+        extension: Arc::from(extension.as_str()),
+        display_name: Arc::from(display.as_str()),
+    });
 }
 
 fn world_policy(word: &str) -> Option<WorldPolicy> {
@@ -692,6 +791,7 @@ fn placement_row(
     environment.placements.push(PackPlacementRow {
         package: package.to_owned(),
         version: placement,
+        version_word: stmt.word_text(2).to_owned(),
         ambient,
         line: stmt.line,
     });
@@ -708,23 +808,17 @@ fn keyed_axis(key: &str) -> Option<KeyedAxis> {
     }
 }
 
-/// The compiled canonical id or alias `name` collides with, if any.
-///
-/// `pub(crate)` so the evaluation loader's E-R2 provenance gate and the
-/// registration seam ([`crate::registration`]) ask the same question this
-/// block's own rejection does.
+/// The compiled canonical id or alias `name` collides with for **every**
+/// pack tier, if any — the built-in rows. A name a bundled pack's own
+/// block seeded is not in this set: the bundled tier restates it.
 pub(crate) fn reserved_name(name: &str) -> Option<String> {
-    for definition in compiled_definitions() {
-        if definition.id.as_str() == name {
-            return Some(definition.id.as_str().to_owned());
-        }
-        if let Some(alias) = definition
-            .aliases
-            .iter()
-            .find(|alias| alias.as_ref() == name)
-        {
-            return Some(alias.to_string());
-        }
-    }
-    None
+    reserved_against(name, Provenance::BundledPack)
+}
+
+/// The compiled or bundled spelling `name` collides with when claimed
+/// from `tier`, if any — the tier-aware form the evaluation loader's E-R2
+/// gate and the registration seam ([`crate::registration`]) ask, so a
+/// workspace pack cannot claim `xilinx-eda-tcl` any more than `tcl8.6`.
+pub(crate) fn reserved_name_for(name: &str, tier: PackEnvironmentTier) -> Option<String> {
+    reserved_against(name, tier.provenance())
 }

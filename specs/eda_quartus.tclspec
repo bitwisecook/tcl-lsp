@@ -41,12 +41,32 @@
 #     Standard Edition (frozen at 18.1) one users still write. The description
 #     says which is which.
 
-speclib eda_quartus 1.1 {
+speclib eda_quartus 2.0 {
 
 display_name {Intel Quartus Prime}
 
+environment intel-quartus-eda-tcl {
+    display_name    {Intel Quartus EDA Tcl}
+    core            tcl 8.5
+    version_ceiling 8.5
+    editor_identity tcl-quartus
+    ambient         sdc keyed SdcVersion
+    ambient         upf keyed UpfVersion
+    ambient         quartus-project keyed ToolVersion
+    ambient         quartus-flow keyed ToolVersion
+    ambient         quartus-sta keyed ToolVersion
+    ambient         quartus-sdc-ext keyed ToolVersion
+    ambient         quartus-report keyed ToolVersion
+    ambient         quartus-device keyed ToolVersion
+    ambient         quartus-misc keyed ToolVersion
+    file_extension  qsf -name {Quartus Settings File}
+    file_extension  qpf -name {Quartus Project File}
+    file_extension  qip -name {Quartus IP File}
+    help_terms      {quartus intel altera fpga quartus_sh}
+}
+
 command check_timing {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-sta
 
     form Default {check_timing ?-append? ?-file name? ?-include check_list? ?-panel_name name? ?-stdout?}
@@ -60,7 +80,7 @@ command check_timing {
 }
 
 command close_device {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-device
 
     form Default {close_device}
@@ -74,7 +94,7 @@ command close_device {
 }
 
 command create_timing_netlist {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-sta
 
     form Default {create_timing_netlist ?-model fast|slow? ?-post_syn? ?-grade c|i|m|e|a? ?-speed speed? ?-temperature degC? ?-voltage mV? ?-snapshot snapshot? ?-force_dat? ?-no_latch? ?-zero_ic_delays? ?operating_conditions?}
@@ -88,7 +108,7 @@ command create_timing_netlist {
 }
 
 command delete_timing_netlist {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-sta
 
     form Default {delete_timing_netlist}
@@ -101,7 +121,7 @@ command delete_timing_netlist {
 }
 
 command derive_clock_uncertainty {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-sdc-ext
 
     form Default {derive_clock_uncertainty ?-add? ?-overwrite?}
@@ -115,7 +135,7 @@ command derive_clock_uncertainty {
 }
 
 command derive_clocks {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-sdc-ext
 
     form Default {derive_clocks ?-period period?}
@@ -129,7 +149,7 @@ command derive_clocks {
 }
 
 command derive_pll_clocks {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-sdc-ext
 
     form Default {derive_pll_clocks ?-create_base_clocks? ?-use_net_name?}
@@ -143,7 +163,7 @@ command derive_pll_clocks {
 }
 
 command device_lock {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-device
 
     form Default {device_lock -timeout milliseconds}
@@ -157,7 +177,7 @@ command device_lock {
 }
 
 command device_unlock {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-device
 
     form Default {device_unlock}
@@ -171,7 +191,7 @@ command device_unlock {
 }
 
 command download_device_file {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-flow
 
     form Default {download_device_file -file file}
@@ -185,7 +205,7 @@ command download_device_file {
 }
 
 command execute_assignment_batch {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-project
 
     form Default {execute_assignment_batch}
@@ -199,7 +219,7 @@ command execute_assignment_batch {
 }
 
 command execute_flow {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-flow
 
     form Default {execute_flow -compile | -export_database | -analysis_and_elaboration | -check_ios | -check_netlist | -design_analysis | -finalize | -implement | -import_database | -incremental_compilation_export | -incremental_compilation_import | -ip_upgrade | -quick_elaboration | -signalprobe | -simulation | -analysis_and_synthesis | -fitter | -assembler | -timing_analyzer | -eda_netlist_writer | -signaltap ?-dni? ?-eco value? ?-flow_args name_value_list? ?-dont_export_assignments?}
@@ -213,7 +233,7 @@ command execute_flow {
 }
 
 command execute_module {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-flow
 
     form Default {execute_module -tool asm|cdb|eda|fit|map|syn|pow|sta|stp|sim|si|cpf|ipg|pfg|qtlg|quick_elaboration|sh ?-args arg_list? ?-classic? ?-dni? ?-dont_export_assignments?}
@@ -227,7 +247,7 @@ command execute_module {
 }
 
 command export_assignments {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-project
 
     form Default {export_assignments ?-reorganize? ?-report_write_failure?}
@@ -240,7 +260,7 @@ command export_assignments {
 }
 
 command get_all_assignments {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-project
 
     form Default {get_all_assignments -name name -type global|instance|parameter|default ?-to to? ?-from from? ?-entity entity? ?-section_id id? ?-tag data? ?-fall? ?-rise?}
@@ -254,7 +274,7 @@ command get_all_assignments {
 }
 
 command get_available_operating_conditions {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-sta
 
     form Default {get_available_operating_conditions ?-all? ?-compile?}
@@ -268,7 +288,7 @@ command get_available_operating_conditions {
 }
 
 command get_current_project {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-project
 
     form Default {get_current_project}
@@ -281,7 +301,7 @@ command get_current_project {
 }
 
 command get_current_revision {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-project
 
     form Default {get_current_revision ?project_name?}
@@ -295,7 +315,7 @@ command get_current_revision {
 }
 
 command get_device_names {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-device
 
     form Default {get_device_names -hardware_name hardware_name}
@@ -309,7 +329,7 @@ command get_device_names {
 }
 
 command get_family_list {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-device
 
     form Default {get_family_list}
@@ -322,7 +342,7 @@ command get_family_list {
 }
 
 command get_fanins {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-sdc-ext
 
     form Default {get_fanins ?-asynch? ?-clock? ?-inverting_paths? ?-no_logic? ?-non_inverting_paths? ?-stop_at_clocks? ?-synch? ?-through names? filter}
@@ -336,7 +356,7 @@ command get_fanins {
 }
 
 command get_fanouts {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-sdc-ext
 
     form Default {get_fanouts ?-asynch? ?-clock? ?-inverting_paths? ?-no_logic? ?-non_inverting_paths? ?-stop_at_clocks? ?-synch? ?-through names? filter}
@@ -350,7 +370,7 @@ command get_fanouts {
 }
 
 command get_global_assignment {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-project
 
     form Default {get_global_assignment -name name ?-section_id id? ?-front? ?-fall? ?-rise?}
@@ -363,7 +383,7 @@ command get_global_assignment {
 }
 
 command get_hardware_names {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-device
 
     form Default {get_hardware_names}
@@ -377,7 +397,7 @@ command get_hardware_names {
 }
 
 command get_instance_assignment {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-project
 
     form Default {get_instance_assignment -name name ?-to to? ?-from from? ?-entity entity? ?-section_id id? ?-tag data? ?-front? ?-fall? ?-rise?}
@@ -390,7 +410,7 @@ command get_instance_assignment {
 }
 
 command get_io_assignment {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-project
 
     form Default {get_io_assignment -name name -to pin_name}
@@ -404,7 +424,7 @@ command get_io_assignment {
 }
 
 command get_name_info {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-project
 
     form Default {get_name_info -info info_type name_id}
@@ -417,7 +437,7 @@ command get_name_info {
 }
 
 command get_names {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-project
 
     form Default {get_names ?-filter filter? ?-node_type type? ?-observable_type type?}
@@ -430,7 +450,7 @@ command get_names {
 }
 
 command get_nodes {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-sdc-ext
 
     form Default {get_nodes ?-include_generated_clocks? ?-no_duplicates? ?-nocase? ?-nowarn? ?-of_clocks? ?filter?}
@@ -444,7 +464,7 @@ command get_nodes {
 }
 
 command get_number_of_columns {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-report
 
     form Default {get_number_of_columns -name panel_name}
@@ -457,7 +477,7 @@ command get_number_of_columns {
 }
 
 command get_number_of_rows {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-report
 
     form Default {get_number_of_rows -name panel_name}
@@ -470,7 +490,7 @@ command get_number_of_rows {
 }
 
 command get_part_info {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-device
 
     form Default {get_part_info ?-default_voltage? ?-device? ?-device_group? ?-family? ?-family_variant? ?-fast_grade_revision? ?-grade_revision? ?-hssi_speed_grade? ?-iobank_revision? ?-package? ?-pdn_model_status? ?-pin_count? ?-pof_id? ?-power_model? ?-power_model_status? ?-rohs_grade? ?-sip_tile? ?-speed_grade? ?-subdevice_id_code? ?-subdevice_id_mask? ?-temperature_grade? part_name}
@@ -484,7 +504,7 @@ command get_part_info {
 }
 
 command get_part_list {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-device
 
     form Default {get_part_list ?-family family? ?-device device? ?-package package? ?-pin_count pin_count? ?-speed_grade speed_grade?}
@@ -497,7 +517,7 @@ command get_part_list {
 }
 
 command get_registers {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-sdc-ext
 
     form Default {get_registers ?-latches? ?-no_duplicates? ?-nocase? ?-nowarn? ?filter?}
@@ -511,7 +531,7 @@ command get_registers {
 }
 
 command get_report_panel_data {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-report
 
     form Default {get_report_panel_data ?-name table_name? ?-id table_id? ?-row row? ?-row_name row_name? ?-col column? ?-col_name column_name?}
@@ -525,7 +545,7 @@ command get_report_panel_data {
 }
 
 command get_report_panel_id {
-    dialects tcl8.5
+    available {tcl 8.5}
     arity 1
     required_package quartus-report
 
@@ -539,7 +559,7 @@ command get_report_panel_id {
 }
 
 command get_report_panel_row_index {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-report
 
     form Default {get_report_panel_row_index -name panel_name row_name}
@@ -552,7 +572,7 @@ command get_report_panel_row_index {
 }
 
 command get_timing_paths {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-sta
 
     form Default {get_timing_paths ?-from from_list? ?-to to_list? ?-through through_list? ?-setup | -hold? ?-npaths n? ?-nworst n? ?-less_than_slack slack? ?-pairs_only? ?-detail summary|path_only|path_and_clock|full_path?}
@@ -566,7 +586,7 @@ command get_timing_paths {
 }
 
 command get_top_level_entity {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-project
 
     form Default {get_top_level_entity}
@@ -580,7 +600,7 @@ command get_top_level_entity {
 }
 
 command import_sdc {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-sta
 
     form Default {import_sdc}
@@ -594,7 +614,7 @@ command import_sdc {
 }
 
 command is_database_version_compatible {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-project
 
     form Default {is_database_version_compatible}
@@ -608,7 +628,7 @@ command is_database_version_compatible {
 }
 
 command is_project_open {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-project
 
     form Default {is_project_open}
@@ -622,7 +642,7 @@ command is_project_open {
 }
 
 command load_package {
-    dialects tcl8.5
+    available {tcl 8.5}
     arity 1..3
     required_package quartus-misc
 
@@ -637,7 +657,7 @@ command load_package {
 }
 
 command load_report {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-report
 
     form Default {load_report ?revision_name?}
@@ -650,7 +670,7 @@ command load_report {
 }
 
 command make_connection {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-project
 
     form Default {make_connection ?-from output_net_name? ?-from_node from_node? ?-from_port from_port? ?-to dest_node_name? ?-to_node to_node? ?-to_port to_port? ?-port dest_node_port? ?-tieoff VCC|GND?}
@@ -664,7 +684,7 @@ command make_connection {
 }
 
 command open_device {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-device
 
     form Default {open_device -hardware_name name -device_name name}
@@ -678,7 +698,7 @@ command open_device {
 }
 
 command post_message {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-misc
 
     form Default {post_message ?-type info|extra_info|warning|critical_warning|error? ?string?}
@@ -692,7 +712,7 @@ command post_message {
 }
 
 command project_archive {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-project
 
     form Default {project_archive archive_name}
@@ -706,7 +726,7 @@ command project_archive {
 }
 
 command project_close {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-project
 
     form Default {project_close ?-dont_export_assignments?}
@@ -719,7 +739,7 @@ command project_close {
 }
 
 command project_exists {
-    dialects tcl8.5
+    available {tcl 8.5}
     arity 1
     required_package quartus-project
 
@@ -733,7 +753,7 @@ command project_exists {
 }
 
 command project_new {
-    dialects tcl8.5
+    available {tcl 8.5}
     arity 1..
     required_package quartus-project
 
@@ -747,7 +767,7 @@ command project_new {
 }
 
 command project_open {
-    dialects tcl8.5
+    available {tcl 8.5}
     arity 1..
     required_package quartus-project
 
@@ -762,7 +782,7 @@ command project_open {
 }
 
 command qexec {
-    dialects tcl8.5
+    available {tcl 8.5}
     arity 1
     required_package quartus-misc
 
@@ -776,7 +796,7 @@ command qexec {
 }
 
 command read_sdc {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-sta
 
     form Default {read_sdc ?-hdl? ?-instance instance_name? ?-no_import? ?-no_sdc_promotion? ?-post_fit | -post_syn? ?-project_relative? ?file_name?}
@@ -790,7 +810,7 @@ command read_sdc {
 }
 
 command remove_all_assignments {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-project
 
     form Default {remove_all_assignments ?-name name? ?-to to? ?-entity entity? ?-type type? ?-section_id id?}
@@ -804,7 +824,7 @@ command remove_all_assignments {
 }
 
 command remove_all_global_assignments {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-project
 
     form Default {remove_all_global_assignments -name name ?-entity entity? ?-section_id id? ?-tag data? ?-fall? ?-rise?}
@@ -818,7 +838,7 @@ command remove_all_global_assignments {
 }
 
 command remove_all_instance_assignments {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-project
 
     form Default {remove_all_instance_assignments -name name ?-entity entity? ?-section_id id? ?-tag data? ?-fall? ?-rise?}
@@ -832,7 +852,7 @@ command remove_all_instance_assignments {
 }
 
 command remove_all_parameters {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-project
 
     form Default {remove_all_parameters -name name ?-entity entity? ?-section_id id? ?-tag data? ?-fall? ?-rise?}
@@ -846,7 +866,7 @@ command remove_all_parameters {
 }
 
 command remove_connection {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-project
 
     form Default {remove_connection ?-from output_net_name? ?-from_node from_node? ?-from_port from_port? ?-to dest_node_name? ?-to_node to_node? ?-to_port to_port? ?-port dest_node_port?}
@@ -860,7 +880,7 @@ command remove_connection {
 }
 
 command rename_node {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-project
 
     form Default {rename_node -from old_name -to new_name}
@@ -874,7 +894,7 @@ command rename_node {
 }
 
 command report_clock_fmax_summary {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-sta
 
     form Default {report_clock_fmax_summary ?-file file? ?-panel_name name? ?-append? ?-split_by_corner? ?-stdout?}
@@ -887,7 +907,7 @@ command report_clock_fmax_summary {
 }
 
 command report_datasheet {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-sta
 
     form Default {report_datasheet ?-file file? ?-panel_name name? ?-append? ?-expand_bus? ?-stdout?}
@@ -900,7 +920,7 @@ command report_datasheet {
 }
 
 command report_device_info {
-    dialects tcl8.5
+    available {tcl 8.5}
     arity 1
     required_package quartus-device
 
@@ -914,7 +934,7 @@ command report_device_info {
 }
 
 command report_min_pulse_width {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-sta
 
     form Default {report_min_pulse_width ?-nworst n? ?-file file? ?-panel_name name? ?-append? ?-detail summary|full_path? ?-show_routing? ?-split_by_corner? ?-stdout? ?-type all|min_period|clock_pulse?}
@@ -927,7 +947,7 @@ command report_min_pulse_width {
 }
 
 command report_path {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-sta
 
     form Default {report_path ?-from names? ?-fall_from names? ?-fall_through names? ?-fall_to names? ?-npaths n? ?-nworst n? ?-min_path? ?-list_clocks? ?-logic_depth? ?-pairs_only? ?-panel_name name? ?-file name? ?-append?}
@@ -941,7 +961,7 @@ command report_path {
 }
 
 command report_timing {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-sta
 
     form Default {report_timing ?-from from_list? ?-to to_list? ?-through through_list? ?-from_clock clocks? ?-to_clock clocks? ?-rise_from names? ?-fall_from names? ?-rise_through names? ?-fall_through names? ?-rise_to names? ?-fall_to names? ?-rise_from_clock clocks? ?-fall_from_clock clocks? ?-rise_to_clock clocks? ?-fall_to_clock clocks? ?-setup | -hold | -recovery | -removal? ?-npaths n? ?-nworst n? ?-less_than_slack slack? ?-detail summary|path_only|path_and_clock|full_path? ?-extra_info basic|all|none? ?-asynch_clock? ?-inter_clock? ?-intra_clock? ?-data_delay? ?-false_path? ?-pairs_only? ?-show_routing? ?-split_by_corner? ?-panel_name name? ?-file file? ?-append? ?-stdout?}
@@ -955,7 +975,7 @@ command report_timing {
 }
 
 command report_ucp {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-sta
 
     form Default {report_ucp ?-file file? ?-panel_name name? ?-append? ?-stdout? ?-summary?}
@@ -968,7 +988,7 @@ command report_ucp {
 }
 
 command save_report {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-report
     deprecated_replacement save_report_database
 
@@ -983,7 +1003,7 @@ command save_report {
 }
 
 command save_report_database {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-report
 
     form Default {save_report_database}
@@ -997,7 +1017,7 @@ command save_report_database {
 }
 
 command set_global_assignment {
-    dialects tcl8.5
+    available {tcl 8.5}
     arity 1..
     required_package quartus-project
 
@@ -1011,7 +1031,7 @@ command set_global_assignment {
 }
 
 command set_instance_assignment {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-project
 
     form Default {set_instance_assignment -name name ?-to to? ?-from from? ?-entity entity? ?-section_id id? ?-comment comment? ?-tag data? ?-disable? ?-remove? ?-fall? ?-rise? value}
@@ -1024,7 +1044,7 @@ command set_instance_assignment {
 }
 
 command set_io_assignment {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-project
 
     form Default {set_io_assignment -name name ?-io_standard io_standard? ?-comment comment? ?-tag data? ?-disable? ?-remove? ?-fall? ?-rise? ?value?}
@@ -1038,7 +1058,7 @@ command set_io_assignment {
 }
 
 command set_location_assignment {
-    dialects tcl8.5
+    available {tcl 8.5}
     arity 1..
     required_package quartus-project
 
@@ -1052,7 +1072,7 @@ command set_location_assignment {
 }
 
 command set_parameter {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-project
 
     form Default {set_parameter -name name ?-comment comment? ?-tag data? ?-disable? ?-remove? ?-fall? ?-rise? ?value?}
@@ -1066,7 +1086,7 @@ command set_parameter {
 }
 
 command update_timing_netlist {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-sta
 
     form Default {update_timing_netlist ?-full? ?-dynamic_borrow? ?-loop_aware_dynamic_borrow? ?-no_borrow? ?-recompute_borrow?}
@@ -1079,7 +1099,7 @@ command update_timing_netlist {
 }
 
 command write_flow_assignment_digest {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package quartus-flow
 
     form Default {write_flow_assignment_digest}
@@ -1093,7 +1113,7 @@ command write_flow_assignment_digest {
 }
 
 command write_sdc {
-    dialects tcl8.5
+    available {tcl 8.5}
     arity 1..
     required_package quartus-sta
 

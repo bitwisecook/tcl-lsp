@@ -28,6 +28,7 @@ import com.intellij.openapi.project.DumbAware
 import com.intellij.openapi.wm.ToolWindowManager
 import com.tcllsp.jetbrains.CompilerExplorerService
 import com.tcllsp.jetbrains.TclFileType
+import com.tcllsp.jetbrains.isJcefSupported
 
 /**
  * Editor / project-view context-menu action that opens the current Tcl file in
@@ -40,13 +41,14 @@ class OpenInCompilerExplorerAction : AnAction(), DumbAware {
     override fun update(e: AnActionEvent) {
         val file = e.getData(CommonDataKeys.VIRTUAL_FILE)
         e.presentation.isEnabledAndVisible =
-            e.project != null && file != null && !file.isDirectory && TclFileType.isSupported(file)
+            e.project != null && file != null && !file.isDirectory &&
+                TclFileType.isSupported(file) && isJcefSupported()
     }
 
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
         val file = e.getData(CommonDataKeys.VIRTUAL_FILE) ?: return
-        if (!TclFileType.isSupported(file)) return
+        if (!TclFileType.isSupported(file) || !isJcefSupported()) return
 
         // Make sure the file is open in an editor so highlight round-trips have
         // a document to target, then reveal the explorer and push the source.

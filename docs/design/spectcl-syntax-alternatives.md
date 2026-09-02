@@ -23,13 +23,10 @@
 > `cargo xtask pack-goldens`), plus a same-build gate holding the one
 > loader's static fast path and its interpreter route byte-identical.
 >
-> One promise here is still outstanding: **`tcl spec upgrade` did not grow
-> a `--restyle` step.** `tcl spec upgrade` implements U0–U10 and already
-> rewrites 1.x rows into 2.0 spellings, so `--restyle` is a formatting
-> affordance on top of a landed translation rather than a missing
-> capability — tracked as D13 in the
-> [redesign's §11 open-questions ledger](dialect-and-package-registry-redesign.md#11-the-open-questions-ledger),
-> which is the single list of what this programme left open.
+> The last promise landed too: **`tcl spec upgrade --restyle`** (ledger
+> D13, 2026-09-02) re-emits an upgraded pack in canonical form through the
+> export renderer, refusing programmed packs per E-R12 — see the
+> [redesign's §11 open-questions ledger](dialect-and-package-registry-redesign.md#11-the-open-questions-ledger).
 >
 > Original status: **EXPLORATION for an owner decision.** A user's complaint —
 > SpecTcl is valid Tcl but does not *read* like Tcl — is solid: the
