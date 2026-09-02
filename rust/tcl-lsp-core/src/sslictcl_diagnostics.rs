@@ -41,6 +41,7 @@ use std::collections::{HashMap, HashSet};
 use std::hash::BuildHasher;
 
 use tcl_compiler::analyser::{Diagnostic, Severity};
+use tcl_core_types::DiagCode;
 use tcl_dialect::DialectProfile;
 use tcl_sslictcl::dsl::{DslSeverity, load_with_diagnostics};
 
@@ -108,6 +109,38 @@ pub fn diagnostics<H: BuildHasher, I: BuildHasher, J: BuildHasher>(
             )
         })
         .collect()
+}
+
+/// The analyser codes a `.sslictcl` document's loader supersedes.
+///
+/// W123 answers "is this word a command that exists?". The question needs a
+/// word in the head position of a script that will be **evaluated**, and the
+/// defining property of this environment is that its documents never are —
+/// the loader walks the syntax tree and constructs no interpreter, so a
+/// `.sslictcl` document contains declarations and no calls at all. The
+/// unrecognised word the analyser sees is an unknown *declaration*, and the
+/// loader already says so with far better information than an edit-distance
+/// guess: `SSLIC1101` where an open block preserves it as a forwards-
+/// compatibility extension, `SSLIC1007` where a closed block rejects it.
+/// Publishing both puts two hints on one word that disagree about what it is,
+/// and the W123 one carries a "did you mean …?" quick-fix that would rewrite
+/// a deliberately-preserved extension into a declaration.
+///
+/// Every other analyser verdict stands: an arity error on a declared member
+/// (`hostname a b c` → `E003`) is still an arity error, and the syntax and
+/// style codes are unaffected.
+///
+/// This is a **dialect** policy — it names no declaration, and it holds for
+/// every word in the document rather than a list of them.
+pub const SUPERSEDED_ANALYSER_CODES: &[DiagCode] = &[DiagCode::W123];
+
+/// Drop the analyser diagnostics [`SUPERSEDED_ANALYSER_CODES`] names.
+///
+/// Applied by a caller that has already established [`applies_to`], on the
+/// analyser's set for the document, before it is lifted or read for
+/// quick-fixes.
+pub fn supersede_analyser_diagnostics(diagnostics: &mut Vec<Diagnostic>) {
+    diagnostics.retain(|d| !SUPERSEDED_ANALYSER_CODES.contains(&d.code));
 }
 
 /// The shared `# noqa` / file-directive suppression contract.
@@ -193,6 +226,32 @@ mod tests {
                 &suppressed,
             )
             .is_empty()
+        );
+    }
+
+    #[test]
+    fn the_loader_supersedes_the_unknown_command_verdict() {
+        let mut analyser_diags = vec![
+            Diagnostic::new(
+                DiagCode::W123,
+                tcl_lexer::Span::new(0, 1),
+                "Unknown command 'site-owner'",
+                Severity::Hint,
+            ),
+            Diagnostic::new(
+                DiagCode::E003,
+                tcl_lexer::Span::new(2, 3),
+                "Too many arguments",
+                Severity::Error,
+            ),
+        ];
+        supersede_analyser_diagnostics(&mut analyser_diags);
+        assert_eq!(
+            analyser_diags
+                .iter()
+                .map(|d| d.code.as_str())
+                .collect::<Vec<_>>(),
+            vec!["E003"],
         );
     }
 

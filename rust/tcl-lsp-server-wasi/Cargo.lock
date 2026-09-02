@@ -1479,6 +1479,7 @@ dependencies = [
  "tcl-irules",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-sslictcl",
  "tcl-syntax",
 ]
 
@@ -1556,6 +1557,7 @@ dependencies = [
  "bitflags",
  "rustc-hash",
  "sha2",
+ "smallvec",
  "tcl-cmd-core",
  "tcl-core-types",
  "tcl-dialect",
@@ -1580,6 +1582,7 @@ dependencies = [
  "tcl-engine-api",
  "tcl-engine-tclvm",
  "tcl-registry",
+ "tcl-vm",
 ]
 
 [[package]]
@@ -1613,7 +1616,9 @@ dependencies = [
  "serde_json",
  "sha2",
  "tcl-compiler",
+ "tcl-core-types",
  "tcl-lexer",
+ "tcl-syntax",
  "x509-parser",
 ]
 

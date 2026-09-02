@@ -4759,6 +4759,15 @@ async fn refine_and_lift_diagnostics(
     refinement: &RefinementInputs<'_>,
     inputs: &LiftInputs<'_>,
 ) -> Result<Vec<tower_lsp_server::ls_types::Diagnostic>, crate::rt::JoinError> {
+    // A `.sslictcl` document is never evaluated, so its unrecognised words are
+    // unknown *declarations* the loader reports (`SSLIC1101` / `SSLIC1007`),
+    // not unknown commands. Drop the superseded analyser verdicts before the
+    // refinements that would otherwise chase them (the pull path and code
+    // actions do the same in `published_analyser_diagnostics`).
+    let mut analyser_diags = analyser_diags;
+    if tcl_lsp_core::sslictcl_diagnostics::applies_to(inputs.dialect) {
+        tcl_lsp_core::sslictcl_diagnostics::supersede_analyser_diagnostics(&mut analyser_diags);
+    }
     // #723 + #804: refine the analyser's single-file W120 against the workspace
     // package database and the requires inherited from entry points / `source`
     // ancestors (shared with the pull path via `refine_workspace_w120`).
@@ -16046,6 +16055,14 @@ impl Backend {
             ),
             None => analysis.diagnostics.clone(),
         };
+        // The push path's `refine_and_lift_diagnostics` supersession, mirrored:
+        // in a never-evaluated `.sslictcl` document the loader owns the verdict
+        // on an unrecognised word, so neither a pulled report nor a code action
+        // may offer the analyser's unknown-command guess over one.
+        let mut analyser_diags = analyser_diags;
+        if tcl_lsp_core::sslictcl_diagnostics::applies_to(dialect) {
+            tcl_lsp_core::sslictcl_diagnostics::supersede_analyser_diagnostics(&mut analyser_diags);
+        }
         self.refine_pull_analyser_diagnostics(
             uri,
             analyser_diags,
@@ -30451,6 +30468,7 @@ mod tests {
             ("tclspec", "spectcl"),
             ("tcl-spec", "spectcl"),
             ("spectcl", "spectcl"),
+            ("sslictcl", "sslictcl"),
             ("tk", "tk"),
         ] {
             assert_eq!(
@@ -35091,6 +35109,51 @@ mod tests {
         // …and the registry that dialect resolves to really carries the pack.
         let reg = tcl_registry::model::ingress::static_context_for("spectcl").commands();
         assert!(reg.get("speclib").is_some(), "the SpecTcl pack is loaded");
+        assert!(reg.get("set").is_some(), "core Tcl stays underneath it");
+    }
+
+    /// Opening a `.sslictcl` activates the `SslicTcl` vocabulary.
+    ///
+    /// The SpecTcl test above, for the sibling declarative dialect: the
+    /// `.sslictcl` extension routes under the bare `tcl` language id every
+    /// editor sends, the mandatory `sslictcl VERSION` header is the content
+    /// signature that recognises a document saved under a `.tcl` name, and the
+    /// canonical name — which is also the editor language id — routes
+    /// directly.
+    #[tokio::test]
+    async fn dialect_for_open_routes_sslictcl_to_the_sslictcl_dialect() {
+        let backend = test_backend();
+        // As above: a folder override proves the file's own identity wins.
+        *backend.folder_dialects.lock().await = vec![(
+            Uri::from_str("file:///workspace/").unwrap(),
+            "f5-irules".to_owned(),
+        )];
+        let doc = Uri::from_str("file:///workspace/site.sslictcl").unwrap();
+        assert_eq!(
+            backend
+                .dialect_for_open(&doc, "tcl", "sslictcl 1\nendpoint /Common/www {\n}\n")
+                .await,
+            "sslictcl".to_owned(),
+            "the `.sslictcl` extension selects the SslicTcl dialect",
+        );
+        let misnamed = Uri::from_str("file:///workspace/site.tcl").unwrap();
+        assert_eq!(
+            backend
+                .dialect_for_open(&misnamed, "tcl", "sslictcl 1\n")
+                .await,
+            "sslictcl".to_owned(),
+            "the `sslictcl VERSION` header is the content signature",
+        );
+        for id in ["sslictcl"] {
+            assert_eq!(
+                backend.dialect_for_open(&doc, id, "").await,
+                "sslictcl".to_owned(),
+                "language id {id:?} names the SslicTcl dialect",
+            );
+        }
+        // …and the registry that dialect resolves to really carries the pack.
+        let reg = tcl_registry::model::ingress::static_context_for("sslictcl").commands();
+        assert!(reg.get("endpoint").is_some(), "the SslicTcl pack is loaded");
         assert!(reg.get("set").is_some(), "core Tcl stays underneath it");
     }
 
