@@ -9,6 +9,26 @@
 //! types in [`model`], then use the certificate, trust, chain, and estimate
 //! engines here.  The `.sslictcl` language is parsed as Tcl syntax but is
 //! never evaluated.
+//!
+//! The document pipeline is four separate phases, and each one can be used on
+//! its own:
+//!
+//! 1. **Load** — [`dsl::load_with_diagnostics`] walks the concrete syntax tree
+//!    and returns a [`model::SslicModel`] plus every [`dsl::DslDiagnostic`] it
+//!    found, each with a published code and a byte range into the original
+//!    document. It recovers: a bad declaration is skipped, not fatal.
+//!    [`dsl::load`] is the first-error wrapper batch consumers use.
+//! 2. **Estimate** — [`estimate::estimate`] scores an endpoint offline. A
+//!    document's declared `protocol` / `cipher` facts reach it through
+//!    [`estimate::EstimateInput::facts`] and override the built-in heuristics.
+//! 3. **Evaluate** — [`policy::evaluate_policy`] applies a declared policy to
+//!    one endpoint. It is never part of loading, and a check's `predicate`
+//!    script is retained and never evaluated.
+//! 4. **Emit** — [`model::SslicModel::to_sslictcl`] renders a model back to a
+//!    deterministic document that loads to an equal model.
+//!
+//! [`vocabulary::DECLARATIONS`] states the whole vocabulary as data, and
+//! `docs/design/sslictcl-vocabulary.md` is its prose reference.
 
 pub mod certificate;
 pub mod chain;

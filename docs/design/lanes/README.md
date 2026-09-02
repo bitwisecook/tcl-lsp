@@ -22,11 +22,6 @@ orchestrator pushes — is in [`AGENTS.md`](../../../AGENTS.md) under
 
 ## In flight
 
-- [sslictcl-loader.md](sslictcl-loader.md) — finishing the `.sslictcl`
-  front end (issue #1543): coded ranged diagnostics, the complete
-  vocabulary-1 declaration set, the model→text emitter, and declarative
-  policy evaluation.
-
-Every lane of the #1631 programme has landed; what each one decided lives
-in its final commit message, and what the programme left open lives in the
-redesign's §11 open-questions ledger.
+None. Every lane of the #1631 programme has landed; what each one
+decided lives in its final commit message, and what the programme left
+open lives in the redesign's §11 open-questions ledger.

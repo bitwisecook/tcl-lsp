@@ -191,6 +191,11 @@ rule itself, its single Rust home, and its conformance gates live in
   reaches the `ILXServer.addMethod` registration that implements it, the
   workspace-directory association rule, the JavaScript registration forms that
   are supported, and the forms that abstain.
+- [sslictcl-vocabulary.md](sslictcl-vocabulary.md) — the `.sslictcl`
+  vocabulary-1 reference: every declaration and member, the value domains,
+  the open/closed rule that carries a newer document on an older build, the
+  never-evaluated guarantee, name resolution, the `(check_id, endpoint)`
+  policy-finding identity, and the `SSLIC1xxx` diagnostics.
 - [contracts/sslictcl-source-data.md](contracts/sslictcl-source-data.md) —
   the embedded SslicTcl source-data layout, provenance/hash schema, offline
   drift gate, explicit refresh command, and release freshness contract.
