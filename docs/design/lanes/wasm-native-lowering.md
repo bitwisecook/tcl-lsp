@@ -628,3 +628,126 @@ broken mid-edit by other lanes during this lane's work; every one resolved
 itself within a minute without action from this lane). `runtime/rust/tests/
 rename_interp_semantics.rs` pins all seven items against real `tclsh9.0.4`
 transcripts quoted in each test's doc comment.
+
+## r5-trace-semantics
+
+Status: **all five buckets landed.** §8's R5 row — #1633's runtime rows, #1574,
+#1575's two runtime gaps, #1569 — plus the `upvar`-alias defect the
+`p1-runtime-abi` lane found and left behind `vars::trace_home` for.
+
+Owner files: `runtime/rust/src/{cmd_trace,interp,frame,vars,cmd_array}.rs` and
+the new `runtime/rust/tests/trace_semantics.rs`.
+
+### Delivered
+
+Eight commits, each with `make runtime-rust-test` and `make runtime-rust-lint`
+green immediately before it.
+
+1. **`528a87c5` — traces fire on the resolved cell.** `fire_var_trace` derived
+   its identity from the *access spelling*: `local_trace_level` refused a frame
+   level whenever the accessed name was a link, and `home_namespace_and_base`
+   discarded the level for a frame home, so an `upvar` alias and its target had
+   different identities and a write through the alias matched nothing.
+   Registration, firing, `trace info variable`, `trace remove variable` and
+   `trace vinfo` now share one `Interp::trace_identity` over `vars::trace_home`.
+   Separately, the callback's `name1` is the caller's spelling, not the resolved
+   base — C passes `part1` through untouched.
+2. **`5a74eb43` — `incr` fires the read trace** (#1633 row 3), through
+   `Interp::read_for_update`, which is `lappend_read` generalised: both commands
+   are C callers that treat a `NULL` fetch as "no current value", so an erroring
+   read trace leaves `incr` counting from 0 rather than failing.
+3. **`605989af` — a trace that aborts an access keeps its errorInfo chain**
+   (#1633 row 2), with the `(<type> trace on "…")` frame and the
+   `TCL WRITE|READ VARNAME` `-errorcode`.
+4. **`c9c393e6` — an array-element alias carries its element** (#1633 rows 6-7).
+   `vars::trace_home` returns a `TraceHome` with the element the resolution
+   ended on, and `Interp::trace_access` is the one place that decides what a
+   given access matches, reports, and whether the array's traces take part.
+5. **`33e00cbb` — what a callback changes mid-firing is honoured** (#1633 rows
+   8-9): a trace removed during a firing no longer runs in that pass, and a
+   command-delete trace that re-creates its command leaves the new command
+   standing.
+6. **`5c3b582d` — re-entrancy suppression per `Var` cell** (#1574), with the
+   array's own cell keeping the separate gate C gives `arrayPtr`.
+7. **`eb650422` — the two missing unset-trace sites** (#1575 rows 1 and 3):
+   proc-frame teardown, and per-element firing on a whole-array `unset`.
+8. **`0d3b125a` — `array` traces dispatched** (#1569), from one `LocateArray`
+   equivalent at the top of the `array` command.
+
+### Decisions
+
+- **One resolution, five consumers.** Registration, firing, `trace info`,
+  `trace remove` and the per-cell trace bit all go through
+  `Interp::trace_identity`. The bug class this closes is a trace that registers
+  against one identity and fires against another; keeping the two on separate
+  code paths is what let #1328 and #1633's `upvar` row exist at all.
+- **Transcripts, not counts.** Every test in `trace_semantics.rs` asserts the
+  whole firing transcript — argument lists and order — and quotes its sheet
+  verbatim so it can be pasted into a real `tclsh`. A count-only test passes on
+  both sides of almost every bug in this bucket.
+- **Both releases where they differ, both releases where they agree.** The
+  release-split rows (`upvar #0 a(k) e`, `unset a(k)`) are pinned at 9.0 *and*
+  8.6; so is the half of the element-alias rule that is release-independent
+  (registration lands on the element), so a future change cannot quietly make
+  the invariant part release-dependent too.
+- **The new release axis is derived in `interp.rs`, and says so.**
+  `traces_recover_the_linked_element` is `>= V9_0`, from the two 9.0-only C
+  blocks it names (`tclTrace.c`:2560-2565 and `tclVar.c`:2634-2640, absent in
+  8.4/8.5/8.6). It belongs in `tcl-dialect` beside
+  `namespace_var_global_fallback`; that crate is outside this lane, and the
+  method carries a comment saying where it should move.
+- **No command-name branches.** The `array`-trace hook is
+  `Interp::fire_array_trace` in the variable owner; `cmd_array.rs` calls it once
+  before dispatch, and the only per-subcommand fact it needs — where the array
+  name sits — is a table it shares with the unknown-subcommand message, so a new
+  subcommand cannot be added without becoming trace-visible.
+- **`VarTrace` gained an id, not a snapshot.** C identifies a trace by pointer
+  and rewrites `nextTracePtr` when one is removed mid-walk. Ids reproduce that
+  with a fixed walk order and a liveness re-read per step; they are never
+  reused, so a trace removed and re-added during one firing is a different
+  trace, as it is a different allocation in C.
+- **The per-cell trace bit stays correct.** `var_is_traced` answers from the
+  same resolved identity and remains conservative in the safe direction (an
+  element alias reports its array as traced); the only trace-list mutations
+  added are the existing ones, so the `VariableTrace` epoch chokepoint is
+  unchanged.
+
+### Notes and remaining
+
+- **One `#1633` row is left, and is not this lane's file.** `set x orig` whose
+  write trace mutates or unsets `x` must return the value read back *after* the
+  traces (`tclVar.c` 9.0.4:2050-2065 — `TclPtrSetVarIdx` re-reads `varPtr` and
+  yields an empty object if a trace changed the variable "in some gross way").
+  The runtime still returns `orig`. The fix belongs in the `set` path in
+  `cmd_var.rs`, which another lane owns this cycle. The other three rows the
+  issue lists as runtime/rust divergences (`lappend` read traces,
+  `trace info command` on a nonexistent command, an unset trace reviving its
+  variable) were already correct and are re-verified here.
+- **#1575's row 2 is tcl-vm's** (namespace teardown), not runtime/rust's.
+- **One edit outside this lane's files.** `cmd_var.rs`'s
+  `traces_fire_on_the_resolved_variable_not_the_spelling` asserted
+  `a2:write` for a `set ::a2 X` access where tclsh 8.6.16 and 9.0.4 both print
+  `::a2:write`. The expectation was wrong; commit 1 corrects that one line and
+  the new test module carries the sheet.
+- **`samples/wasm/t7-dynamic/70_var_traces.tcl` now matches its golden**
+  byte for byte through `examples/run_script`. `p0-harness` retired the
+  corresponding `Plan::Default` ledger row in `f9830ca5` while this lane was
+  running, so there is no stale entry left; the remaining `Plan::Analysis` row
+  for that sample is #1772, a codegen defect P3 owns.
+- **Not attempted:** `array` subcommand prefix matching. `array nam arr` works
+  in both tclsh releases and errors here, which is why the `array`-trace hook
+  can match subcommand names exactly. That is a pre-existing gap in the `array`
+  ensemble, unrelated to traces, and belongs with whoever owns the subcommand
+  table.
+
+### Verification
+
+`make runtime-rust-test` (587 lib + 62 integration) and `make runtime-rust-lint`
+green before every commit. Every expectation in `trace_semantics.rs` was
+produced by running its own sheet through `tclsh9.0` (9.0.4), and through
+`tclsh8.6` (8.6.16) for the release-split rows and for the rows asserted to be
+release-independent. Other lanes' in-flight edits to `bignum.rs`, `expr.rs`,
+`cmd_error.rs`, `cmd_alias.rs`, `namespace.rs`, `parse.rs` and `tcl-registry`
+were each observed transiently non-compiling or red during this lane's work; the
+gates were re-run until those cleared, and no commit here includes another
+lane's file.
