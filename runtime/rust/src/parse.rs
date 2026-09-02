@@ -524,6 +524,22 @@ fn flush_word<'s>(
     *expand = false;
 }
 
+/// C's `Tcl_ParseCommand`/`ParseBraces` error for a `{`-delimited word that
+/// never finds its matching `}` before end of input (`TCL_PARSE_MISSING_BRACE`,
+/// issue #1576). The lexer itself stays lenient here — it is shared with the
+/// LSP, which must keep tokenizing broken source — so this eval-facing parser
+/// is the one that fails closed, the same way an unterminated `${…}` already
+/// does via [`WordPart::ParseError`] (issue #1586).
+const MISSING_CLOSE_BRACE: &str = "missing close-brace";
+
+/// Whether a `Str` (brace-delimited) token never found its closing `}` before
+/// end of input. Delegates to [`tcl_lexer::word_closer_offset`] — the one
+/// owner of "does this delimited word's span actually reach its closer" —
+/// rather than re-deriving the answer from span arithmetic here.
+fn brace_token_unterminated(sm: &SourceMap<'_>, tok: Token) -> bool {
+    tcl_lexer::word_closer_offset(sm, tok).is_none()
+}
+
 fn build_word<'s>(
     sm: &SourceMap<'s>,
     src: &'s [u8],
@@ -538,6 +554,18 @@ fn build_word<'s>(
     // C does in its pre-parse pass. A word with no continuation borrows the
     // source unchanged; one with a continuation owns the collapsed bytes.
     if toks.len() == 1 && toks[0].kind == TokenType::Str {
+        if brace_token_unterminated(sm, toks[0]) {
+            // C aborts parsing outright here (`missing close-brace`); this
+            // scanner stays infallible by carrying the failure as a
+            // `ParseError` part for the evaluator to raise when it reaches
+            // this word — the same convention `${…}` uses (issue #1586).
+            return Word {
+                kind: WordKind::Braced,
+                expand,
+                body: WordBody::Parts(vec![WordPart::ParseError(MISSING_CLOSE_BRACE)]),
+                start: toks[0].span.start() as usize,
+            };
+        }
         let content = token_content(sm, src, toks[0]);
         let body = match tcl_syntax::backslash::collapse_brace_continuations(content) {
             Cow::Borrowed(b) => WordBody::Literal(b),
@@ -573,12 +601,20 @@ fn build_word<'s>(
             }
             // An empty (quote-marker) `Esc` contributes nothing.
             TokenType::Esc => {}
-            // A braced fragment mid-word (rare) is verbatim apart from the
-            // backslash-newline line continuation, which collapses to a space.
+            // A braced fragment mid-word (rare, e.g. the glued `{a}{b` second
+            // half) is verbatim apart from the backslash-newline line
+            // continuation, which collapses to a space — unless it never
+            // closes, in which case it's necessarily the last token in the
+            // word (nothing follows end of input) and fails the same way the
+            // single-token fast path above does.
             TokenType::Str => {
-                parts.push(WordPart::Text(
-                    tcl_syntax::backslash::collapse_brace_continuations(bytes),
-                ));
+                if brace_token_unterminated(sm, t) {
+                    parts.push(WordPart::ParseError(MISSING_CLOSE_BRACE));
+                } else {
+                    parts.push(WordPart::Text(
+                        tcl_syntax::backslash::collapse_brace_continuations(bytes),
+                    ));
+                }
             }
             TokenType::Var => {
                 if array_index_parse_error(bytes, t.content_offset == 2, config) {
