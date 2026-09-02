@@ -867,6 +867,7 @@ Every feature has a KCS note: what it does, how to use it, and its settings.
 | Package Scaffolding | [`package-scaffolding`](docs/kcs/features/kcs-feature-package-scaffolding.md) |
 | tcl pkg | [`tcl-pkg`](docs/kcs/features/kcs-feature-tcl-pkg.md) |
 | tcl venv | [`tcl-venv`](docs/kcs/features/kcs-feature-tcl-venv.md) |
+| tcl docker | [`tcl-docker`](docs/kcs/features/kcs-feature-tcl-docker.md) |
 
 **Compiler, VM, and tooling**
 

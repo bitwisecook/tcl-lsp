@@ -189,6 +189,9 @@ symptom with several possible causes worth telling apart. See rule 13 in
   — write sample files and cursor marker comments for screenshots.
 - [kcs-howto-manage-tcl-packages.md](kcs-howto-manage-tcl-packages.md)
   — add, install, and lock Tcl package dependencies with tclpkg.
+- [kcs-howto-containerise-a-tcl-project.md](kcs-howto-containerise-a-tcl-project.md)
+  — generate a Dockerfile that installs Tcl plus the native `tcl` CLI from a
+  checksum-verified release asset, and why musl base images cannot carry it.
 - [kcs-howto-run-tcltest-bundles.md](kcs-howto-run-tcltest-bundles.md)
   — run the Tcl 9 tcltest files through the bytecode VM, compare against
   reference `tclsh`, and read the parity scoreboard.

@@ -1049,7 +1049,8 @@ pub enum DockerCommand {
         /// Docker ENV as key=value (repeatable).
         #[arg(long)]
         env: Vec<String>,
-        /// tcl CLI zipapp version to download (default: latest known).
+        /// tcl-lsp release to install the native tcl CLI from
+        /// (default: this binary's own release; empty resolves the latest).
         #[arg(long = "cli-version")]
         cli_version: Option<String>,
         /// Overwrite existing Dockerfile.
@@ -1066,6 +1067,13 @@ pub enum DockerCommand {
         /// Tcl version.
         #[arg(long = "tcl-version", default_value = "8.6", value_parser = ["8.4", "8.5", "8.6", "9.0"])]
         tcl_version: String,
+        /// Show the native tcl CLI install recipe instead of the Tcl one.
+        #[arg(long)]
+        cli: bool,
+        /// tcl-lsp release the --cli recipe pins
+        /// (default: this binary's own release; empty resolves the latest).
+        #[arg(long = "cli-version")]
+        cli_version: Option<String>,
         /// Emit JSON output.
         #[arg(long)]
         json: bool,
