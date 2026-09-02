@@ -31,6 +31,7 @@ use crate::abbrev::{Keyword, KeywordTable, PrefixMatching};
 use crate::arg_role::{AppendedArity, ArgRole};
 use crate::arity::Arity;
 use crate::body_kind::BodyKind;
+use crate::definer::DefinitionBodyGrammar;
 use crate::events::{
     DataCollectionAction, DataCollectionOperation, DataCollectionProtocol, EventHandlerPriority,
 };
@@ -458,6 +459,20 @@ pub struct CommandRegistry {
     /// to packs (issue #1631) — a package's own version floor must not depend
     /// on whether this crate happens to know the package's name.
     ambient_packages: Vec<(&'static str, &'static str)>,
+    /// The member grammar of a **document** in this registry's dialect, when
+    /// its command surface declares one.
+    ///
+    /// An authoring dialect whose file is itself a declaration body — a
+    /// `.sslictcl` document, a `.tclspec` pack — has a fixed set of words that
+    /// are legal at the root and nothing else. That is the same fact a
+    /// [`DefinitionBodyGrammar`] states about a *nested* body, so it is stated
+    /// the same way, and the generic consumers (completion, the token walker,
+    /// folding) answer the root question with the machinery they already use
+    /// for every level below it.
+    ///
+    /// `None` for an ordinary Tcl dialect, where the root is an open command
+    /// position and the whole registry is the answer.
+    document_grammar: Option<&'static DefinitionBodyGrammar>,
 }
 
 /// The set of command names registered by *every* dialect, built once and
@@ -795,6 +810,7 @@ impl CommandRegistry {
             loaded_layers: Vec::new(),
             profile: None,
             ambient_packages: Vec::new(),
+            document_grammar: None,
         };
         for spec in tcl_specs() {
             registry.insert_static(spec);
@@ -845,12 +861,18 @@ impl CommandRegistry {
             // is an ordinary Tcl script, so the base Tcl surface stays loaded
             // underneath (hook bodies are real Tcl); this layer adds the
             // declaration vocabulary on top of it.
-            SurfaceLayer::Package("spectcl") => spectcl_specs(),
+            SurfaceLayer::Package("spectcl") => {
+                self.document_grammar = Some(&crate::definer::SPECTCL_DOCUMENT_GRAMMAR);
+                spectcl_specs()
+            }
             // SslicTcl: the `.sslictcl` DSL's own declaration words. A
             // document is an ordinary Tcl script that is read and never
             // evaluated, so the base Tcl surface stays loaded underneath —
             // the grammar is what says a word is not an SslicTcl declaration.
-            SurfaceLayer::Package("sslictcl") => sslictcl_specs(),
+            SurfaceLayer::Package("sslictcl") => {
+                self.document_grammar = Some(&crate::definer::SSLICTCL_DOCUMENT_GRAMMAR);
+                sslictcl_specs()
+            }
             // A core release brings no pack of its own — it records which
             // language the registry is. The EDA shells are such a release
             // plus `required_package`-gated command libraries, which ship as
@@ -861,6 +883,16 @@ impl CommandRegistry {
             self.insert_static(spec);
         }
         self.loaded_layers.push(layer);
+    }
+
+    /// The member grammar of a document in this registry's dialect, when its
+    /// command surface declares one — see the field's own documentation.
+    ///
+    /// A consumer asking "what may appear at the root of this file?" reads
+    /// this; `None` means the root is an ordinary open command position.
+    #[must_use]
+    pub const fn document_grammar(&self) -> Option<&'static DefinitionBodyGrammar> {
+        self.document_grammar
     }
 
     /// Load iRules dialect commands (convenience wrapper).
@@ -4927,6 +4959,10 @@ impl std::fmt::Debug for CommandRegistry {
             .field("loaded_layers", &self.loaded_layers)
             .field("profile", &self.profile.map(|p| p.name))
             .field("ambient_packages", &self.ambient_packages)
+            .field(
+                "document_grammar",
+                &self.document_grammar.map(|g| g.members.len()),
+            )
             .finish()
     }
 }

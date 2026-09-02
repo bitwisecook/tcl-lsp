@@ -141,7 +141,13 @@ pub fn folding_ranges(
         config: tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
     };
     collect_body_folds(
-        source, 0, 0, None, // top-level body is not inside a definition body
+        source,
+        0,
+        0,
+        // An authoring dialect whose *file* is a declaration body states that
+        // as a document grammar; an ordinary Tcl document has none, and the
+        // root stays an open command position (`None`).
+        registry.document_grammar(),
         &mut ctx,
     );
 

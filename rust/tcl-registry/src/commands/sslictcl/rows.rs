@@ -110,7 +110,7 @@ fn predicate() -> CommandSpec {
     CommandSpec {
         traits: Traits::CREATES_BARRIER
             .union(Traits::NEVER_INLINE_BODY)
-            .union(Traits::LANGUAGE_KEYWORD),
+            .union(Traits::DEFINITION_BODY_MEMBER_ONLY),
         arg_roles: &[(0, ArgRole::OpaqueScript)],
         ..text(
             "predicate",

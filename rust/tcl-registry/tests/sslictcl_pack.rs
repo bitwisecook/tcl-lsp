@@ -212,8 +212,9 @@ fn every_declaration_word_is_gated_to_sslictcl() {
             spec.name
         );
         assert!(
-            spec.traits.contains(tcl_registry::Traits::LANGUAGE_KEYWORD),
-            "{}: every declaration word is a language keyword",
+            !spec.traits.contains(tcl_registry::Traits::LANGUAGE_KEYWORD),
+            "{}: keyword-ness comes from the enclosing grammar, never a global \
+             trait the token walker would honour outside the block",
             spec.name
         );
         let hover = spec
@@ -447,6 +448,77 @@ fn enumerated_value_domains_offer_their_canonical_spellings() {
     }
 }
 
+/// The document is itself a definition body, so the nine top-level
+/// declarations are grammar members like every word below them — and that is
+/// what lets the pack carry no `LANGUAGE_KEYWORD` at all.
+#[test]
+fn the_document_grammar_names_the_top_level_declarations() {
+    let document = &tcl_registry::definer::SSLICTCL_DOCUMENT_GRAMMAR;
+    assert_eq!(document.family, DefinerFamily::SslicTcl);
+    let members: Vec<&str> = document.members.iter().map(|m| m.keyword).collect();
+    assert_eq!(
+        members,
+        [
+            "sslictcl",
+            "certificate",
+            "endpoint",
+            "testssl-import",
+            "trust-program",
+            "protocol",
+            "cipher",
+            "chain",
+            "policy",
+        ],
+        "the root vocabulary is the nine top-level declarations"
+    );
+    // A member row of some *inner* block is not legal at the root.
+    for inner in ["hostname", "severity", "minimum", "hsts", "check", "grade"] {
+        assert!(
+            !document.is_member(inner),
+            "`{inner}` is not a top-level declaration"
+        );
+    }
+    // Every word the pack declares is reachable as a member of *some*
+    // grammar, which is the whole reason no spec needs the global trait.
+    let mut reachable: Vec<&str> = SSLICTCL_GRAMMARS
+        .iter()
+        .flat_map(|g| g.members.iter().map(|m| m.keyword))
+        .collect();
+    reachable.sort_unstable();
+    reachable.dedup();
+    for spec in tcl_registry::commands::sslictcl::sslictcl_command_specs() {
+        assert!(
+            reachable.contains(&spec.name),
+            "`{}` is painted by no grammar, so dropping the keyword trait \
+             would make it invisible",
+            spec.name
+        );
+    }
+    // The registry hands the root answer to its consumers; nothing derives it.
+    // (`DefinitionBodyGrammar` constants are `const`, so they are inlined per
+    // use site and pointer identity does not hold — compare what they say.)
+    let from_registry = static_context_for("sslictcl")
+        .commands()
+        .document_grammar()
+        .expect("the sslictcl registry declares a document grammar");
+    assert_eq!(
+        from_registry
+            .members
+            .iter()
+            .map(|m| m.keyword)
+            .collect::<Vec<_>>(),
+        members
+    );
+    assert_eq!(from_registry.family, DefinerFamily::SslicTcl);
+    assert!(
+        static_context_for("tcl9.0")
+            .commands()
+            .document_grammar()
+            .is_none(),
+        "an ordinary Tcl document's root is an open command position"
+    );
+}
+
 /// `SslicTcl` is a *declaration* family, not a class system: it manufactures
 /// nothing and dispatches nothing, so every field a consumer would read to
 /// create an instance is empty.
@@ -454,8 +526,8 @@ fn enumerated_value_domains_offer_their_canonical_spellings() {
 fn the_sslictcl_family_manufactures_nothing() {
     assert_eq!(
         SSLICTCL_GRAMMARS.len(),
-        VOCABULARY.len(),
-        "one grammar per block of the table"
+        VOCABULARY.len() + 1,
+        "one grammar per block of the table, plus the document grammar"
     );
     for grammar in SSLICTCL_GRAMMARS {
         assert_eq!(grammar.family, DefinerFamily::SslicTcl);

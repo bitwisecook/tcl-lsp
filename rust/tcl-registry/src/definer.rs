@@ -2390,9 +2390,25 @@ pub const SPECTCL_BODY_SCOPE_GRAMMAR: DefinitionBodyGrammar =
 pub const SPECTCL_OBJECT_CLASS_GRAMMAR: DefinitionBodyGrammar =
     spectcl_grammar(SPECTCL_OBJECT_CLASS_MEMBERS);
 
+/// The one declaration legal at the **root** of a `.tclspec` pack.
+///
+/// `speclib` is the DSL's only possible top-level word (`spec-packs.md`), so
+/// the document grammar is a single row — and that is what lets completion
+/// offer it, and only it, at the root of a pack.
+const SPECTCL_DOCUMENT_MEMBERS: &[MemberSpec] =
+    &[MemberSpec::flat("speclib", SPECTCL_SPECLIB_ROLES)];
+
+/// `speclib NAME DSL-VERSION { … }` — the name first, the body third.
+const SPECTCL_SPECLIB_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::Name), (2, ArgRole::Body)];
+
+/// The body of a `.tclspec` **document** — see [`SPECTCL_DOCUMENT_MEMBERS`].
+pub const SPECTCL_DOCUMENT_GRAMMAR: DefinitionBodyGrammar =
+    spectcl_grammar(SPECTCL_DOCUMENT_MEMBERS);
+
 /// Every `SpecTcl` grammar, so a sweep can assert the family's invariants
 /// without enumerating the constants by hand.
 pub const SPECTCL_GRAMMARS: &[&DefinitionBodyGrammar] = &[
+    &SPECTCL_DOCUMENT_GRAMMAR,
     &SPECTCL_PACK_GRAMMAR,
     &SPECTCL_COMMAND_GRAMMAR,
     &SPECTCL_HOVER_GRAMMAR,
@@ -2583,9 +2599,36 @@ pub const SSLICTCL_CHECK_GRAMMAR: DefinitionBodyGrammar = sslictcl_grammar(SSLIC
 /// The body of `grade { … }`.
 pub const SSLICTCL_GRADE_GRAMMAR: DefinitionBodyGrammar = sslictcl_grammar(SSLICTCL_GRADE_MEMBERS);
 
+/// The nine declarations legal at the **root** of a `.sslictcl` document.
+///
+/// A document is itself a definition body: `hostname` is a member of
+/// `endpoint` and of nothing else, and by exactly the same rule `endpoint` is
+/// a member of the *document* and `hostname` is not. Giving the root a grammar
+/// is what lets the generic consumers answer both halves the same way —
+/// completion offers these nine at the top level, and the token walker paints
+/// them from membership rather than from a global keyword trait that would
+/// also fire for a misplaced member row.
+const SSLICTCL_DOCUMENT_MEMBERS: &[MemberSpec] = &[
+    // The header names nothing and opens nothing: its word is a version.
+    MemberSpec::keyword_only("sslictcl"),
+    MemberSpec::flat("certificate", SSLICTCL_NAMED_BLOCK_ROLES),
+    MemberSpec::flat("endpoint", SSLICTCL_NAMED_BLOCK_ROLES),
+    MemberSpec::flat("testssl-import", SSLICTCL_NAMED_BLOCK_ROLES),
+    MemberSpec::flat("trust-program", SSLICTCL_NAMED_BLOCK_ROLES),
+    MemberSpec::flat("protocol", SSLICTCL_NAMED_BLOCK_ROLES),
+    MemberSpec::flat("cipher", SSLICTCL_NAMED_BLOCK_ROLES),
+    MemberSpec::flat("chain", SSLICTCL_NAMED_BLOCK_ROLES),
+    MemberSpec::flat("policy", SSLICTCL_NAMED_BLOCK_ROLES),
+];
+
+/// The body of a `.sslictcl` **document** — see [`SSLICTCL_DOCUMENT_MEMBERS`].
+pub const SSLICTCL_DOCUMENT_GRAMMAR: DefinitionBodyGrammar =
+    sslictcl_grammar(SSLICTCL_DOCUMENT_MEMBERS);
+
 /// Every `SslicTcl` grammar, so a sweep can assert the family's invariants
 /// without enumerating the constants by hand.
 pub const SSLICTCL_GRAMMARS: &[&DefinitionBodyGrammar] = &[
+    &SSLICTCL_DOCUMENT_GRAMMAR,
     &SSLICTCL_CERTIFICATE_GRAMMAR,
     &SSLICTCL_ENDPOINT_GRAMMAR,
     &SSLICTCL_HSTS_GRAMMAR,

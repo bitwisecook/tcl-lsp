@@ -43,11 +43,18 @@ use super::values;
 const PROTOCOL_VERSION_ARG: &[(u8, &[ArgValue])] = &[(0, values::PROTOCOL_VERSIONS)];
 use tcl_dialect::model::SpecSurface;
 
-/// The traits every block statement carries: a declaration keyword whose
-/// braced word is a structural body, never inlined into the caller.
+/// The traits every block statement carries: a braced word that is a
+/// structural body, never inlined into the caller.
+///
+/// Deliberately **not** `LANGUAGE_KEYWORD` — every one of these words is a
+/// member of some grammar (the nine top-level declarations of
+/// [`crate::definer::SSLICTCL_DOCUMENT_GRAMMAR`], and `hsts` / `anchor` /
+/// `check` / `grade` of their parents), so membership paints them, and the
+/// global trait would also paint them where they do not belong. See the module
+/// docs of [`super`].
 const BLOCK_TRAITS: Traits = Traits::CREATES_BARRIER
     .union(Traits::NEVER_INLINE_BODY)
-    .union(Traits::LANGUAGE_KEYWORD);
+    .union(Traits::DEFINITION_BODY_MEMBER_ONLY);
 
 /// A bare-block statement: `hsts { … }`.
 fn block(

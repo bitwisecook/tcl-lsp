@@ -720,6 +720,20 @@ pub fn completions(
         return items;
     }
 
+    // A command position inside a definition body — including the root of a
+    // document whose dialect declares a document grammar — has a *closed*
+    // vocabulary: exactly that grammar's members. Offering the whole registry
+    // there put `hostname` at the top level of a `.sslictcl` document and the
+    // members of unrelated blocks inside an `hsts { … }`. The grammar, the
+    // nesting rule, and the root answer are all registry data; this consumer
+    // names no dialect and no declaration.
+    if let Some(registry) = registry
+        && let Some(grammar) =
+            definition_grammar_at_position(source, line, character, &line_index, registry, profile)
+    {
+        return grammar_member_completions(grammar, &partial, registry);
+    }
+
     let usage = document_usage_counts(analysis);
     let mut items = proc_completions(analysis, &partial, &usage);
     // Inside an `expr` expression argument the bare `expr` math functions are
@@ -1806,6 +1820,66 @@ fn scoped_env_at(
         .map(|r| r.env)
 }
 
+/// The definition-body grammar in force at the cursor's command position, or
+/// `None` when the position is an ordinary open one.
+///
+/// Registry data decides both halves: the root answer is the dialect's
+/// document grammar, and every level below it is the same nesting rule the
+/// folding and semantic-token walks apply ([`crate::oo_body`]). No dialect or
+/// declaration name appears here.
+fn definition_grammar_at_position(
+    source: &str,
+    line: u32,
+    character: u32,
+    line_index: &tcl_lexer::LineIndex,
+    registry: &CommandRegistry,
+    profile: &'static tcl_dialect::DialectProfile,
+) -> Option<&'static tcl_registry::definer::DefinitionBodyGrammar> {
+    let offset = crate::definition::byte_offset_at(line_index, source, line, character);
+    crate::oo_body::definition_grammar_at(
+        source,
+        offset,
+        registry,
+        tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+        Some(profile.surface_query()),
+    )
+}
+
+/// Completion items for the member words of a definition-body grammar — the
+/// declarations legal at this position and nothing else.
+///
+/// A member's detail and documentation come from its own [`CommandSpec`] when
+/// it has one (every `SslicTcl` and `SpecTcl` word does), so a grammar-driven
+/// item is as informative as an ordinary command item; a member that is only a
+/// grammar row still completes, with no detail.
+fn grammar_member_completions(
+    grammar: &'static tcl_registry::definer::DefinitionBodyGrammar,
+    partial: &str,
+    registry: &CommandRegistry,
+) -> Vec<CompletionItem> {
+    grammar
+        .members
+        .iter()
+        .filter(|member| partial.is_empty() || member.keyword.starts_with(partial))
+        .map(|member| {
+            let spec = registry.get(member.keyword);
+            CompletionItem {
+                label: member.keyword.to_owned(),
+                insert_text: member.keyword.to_owned(),
+                kind: CompletionKind::Function,
+                detail: spec.map(|s| command_detail(s, registry)),
+                sort_text: None,
+                is_snippet: false,
+                filter_text: None,
+                text_edit: None,
+                documentation: spec
+                    .and_then(|s| s.hover.as_ref())
+                    .map(|h| h.summary.to_owned()),
+            }
+        })
+        .collect()
+}
+
 /// Completion items for the command heads of a scoped environment matching
 /// `partial` (`top`, `data`, `columns`, … inside a `report::defstyle` body).
 fn scoped_command_completions(
@@ -2053,6 +2127,18 @@ fn builtin_completions(
             })
         })
         .filter(|n| context.resolve_spec(registry, n).is_some())
+        // A declaration word of an authoring dialect exists as a spec so it
+        // can hover, complete, and arity-check *inside the block that names
+        // it* — never at an open command position. Which words those are is
+        // registry data (`Traits::DEFINITION_BODY_MEMBER_ONLY`); the
+        // grammar-driven path above is where they are offered.
+        .filter(|n| {
+            registry.get(n).is_none_or(|spec| {
+                !spec
+                    .traits
+                    .contains(tcl_registry::prelude::Traits::DEFINITION_BODY_MEMBER_ONLY)
+            })
+        })
         // A command whose *bare* spelling only works inside a `TclOO`
         // method context (`link` / `my` / `next` / `nextto` / `self` /
         // `classvariable` — issue #1026) is offered only there: completing

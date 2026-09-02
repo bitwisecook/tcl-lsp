@@ -1925,6 +1925,66 @@ fn sslictcl_declaration_words_are_context_sensitive() {
     assert!(tcl_registry::definer::SSLICTCL_ENDPOINT_GRAMMAR.is_member("hostname"));
 }
 
+/// A **misplaced** member row is not painted as a keyword.
+///
+/// This is what the grammar buys and what a global `LANGUAGE_KEYWORD` trait
+/// would have thrown away: the token walker falls back to the trait whenever
+/// the enclosing grammar does not name the head, so a spec carrying it looks
+/// correct everywhere. No `SslicTcl` spec carries it — every word is reachable
+/// as a grammar member, the nine top-level declarations through the document
+/// grammar.
+#[test]
+fn a_misplaced_sslictcl_member_is_not_painted_as_a_keyword() {
+    // `hostname` belongs to `endpoint`. Inside `hsts` and at the root it is
+    // just an unknown word.
+    let inside_hsts = "sslictcl 1\n\
+                       endpoint www {\n\
+                       \x20   hsts {\n\
+                       \x20       hostname www.example.com\n\
+                       \x20   }\n\
+                       }\n";
+    assert_ne!(
+        kind_of_word(inside_hsts, "sslictcl", "hostname").as_deref(),
+        Some("keyword"),
+        "`hostname` is not an `hsts` row: {:?}",
+        decode(inside_hsts, "sslictcl"),
+    );
+    let at_root = "sslictcl 1\nhostname www.example.com\n";
+    assert_ne!(
+        kind_of_word(at_root, "sslictcl", "hostname").as_deref(),
+        Some("keyword"),
+        "`hostname` is not a top-level declaration: {:?}",
+        decode(at_root, "sslictcl"),
+    );
+    // …while in its own block it still is.
+    let in_place = "sslictcl 1\nendpoint www {\n    hostname www.example.com\n}\n";
+    assert_eq!(
+        kind_of_word(in_place, "sslictcl", "hostname").as_deref(),
+        Some("keyword"),
+        "`hostname` is an `endpoint` row: {:?}",
+        decode(in_place, "sslictcl"),
+    );
+    // The document grammar is what paints the root declarations, so they are
+    // still keywords with no spec carrying the global trait.
+    for word in ["sslictcl", "endpoint"] {
+        assert_eq!(
+            kind_of_word(in_place, "sslictcl", word).as_deref(),
+            Some("keyword"),
+            "`{word}` is a top-level declaration: {:?}",
+            decode(in_place, "sslictcl"),
+        );
+        assert!(
+            !static_context_for("sslictcl")
+                .commands()
+                .get(word)
+                .expect("a registered declaration")
+                .traits
+                .contains(tcl_registry::Traits::LANGUAGE_KEYWORD),
+            "`{word}` is painted by the document grammar, not by a global trait"
+        );
+    }
+}
+
 /// A `predicate` body is neither a declaration block nor executable Tcl.
 ///
 /// Its statement carries no grammar, so the walk drops out of declaration

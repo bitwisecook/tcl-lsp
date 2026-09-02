@@ -75,13 +75,33 @@ fn the_pack_and_the_vocabulary_name_the_same_words() {
             declared.insert(member.name);
         }
     }
+    // Every declared word has a spec, and its keyword-ness comes from a
+    // grammar rather than a global trait: the token walker honours
+    // `LANGUAGE_KEYWORD` wherever a head appears, which would paint a
+    // misplaced member row as valid and defeat the context sensitivity the
+    // grammars exist for.
     for name in &declared {
         let spec = spec_named(&registry, name);
         assert!(
-            spec.traits.contains(tcl_registry::Traits::LANGUAGE_KEYWORD),
-            "`{name}` is a declaration word, so the pack must paint it as one"
+            !spec.traits.contains(tcl_registry::Traits::LANGUAGE_KEYWORD),
+            "`{name}` must be painted by its enclosing grammar, not a global trait"
         );
     }
+    // …so every declared word must be a member of some grammar, and the nine
+    // top-level declarations are members of the *document* grammar.
+    let document = registry
+        .document_grammar()
+        .expect("the sslictcl registry declares a document grammar");
+    let top_level: Vec<&str> = DECLARATIONS.iter().map(|entry| entry.name).collect();
+    assert_eq!(
+        document
+            .members
+            .iter()
+            .map(|member| member.keyword)
+            .collect::<Vec<_>>(),
+        top_level,
+        "the document grammar is exactly the table's top-level declarations"
+    );
     let packed: BTreeSet<&str> = tcl_registry::commands::sslictcl::sslictcl_command_specs()
         .iter()
         .map(|spec| spec.name)

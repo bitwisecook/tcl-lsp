@@ -57,6 +57,28 @@
 //!
 //! A word that occurs in several blocks with one meaning (`protocols`,
 //! `status`) is one spec; grammar membership provides the context.
+//!
+//! ## One keyword rule: the grammar, never a global trait
+//!
+//! No spec in this pack carries `Traits::LANGUAGE_KEYWORD`. The token walker
+//! paints a head as a keyword when it is a member of the *enclosing* grammar,
+//! and falls back to the trait otherwise — so a spec carrying the trait is
+//! painted as a valid keyword wherever it appears, which is exactly what the
+//! context sensitivity exists to prevent: a misplaced `hostname` inside an
+//! `hsts { … }`, or at the top level, would still look correct.
+//!
+//! Every word here is reachable as a grammar member, including the nine
+//! top-level declarations and the `sslictcl` header — that is what
+//! [`crate::definer::SSLICTCL_DOCUMENT_GRAMMAR`] is for. So the trait buys
+//! nothing and costs the guarantee. Hover, completion, and signature help read
+//! the spec's own fields and are unaffected.
+//!
+//! What each word carries instead is
+//! [`Traits::DEFINITION_BODY_MEMBER_ONLY`](crate::Traits::DEFINITION_BODY_MEMBER_ONLY):
+//! the spec has to exist for the word to hover, complete, and arity-check
+//! where it *is* legal, and the flag is how it tells a consumer enumerating
+//! the registry not to offer it at an open command position — inside a
+//! retained `predicate`, say, where the vocabulary does not reach.
 
 use crate::arity::Arity;
 use crate::hover::HoverSnippet;
@@ -73,6 +95,11 @@ pub(crate) const SOURCE: &str = "SslicTcl (docs/design/sslictcl-vocabulary.md)";
 
 /// Build the spec for an `SslicTcl` member row — a statement word that takes
 /// operands and opens no block.
+///
+/// Deliberately **no** `Traits::LANGUAGE_KEYWORD`: see the module docs' "One
+/// keyword rule" note. A row's keyword-ness is a fact about the block it sits
+/// in, and the enclosing grammar already states it —
+/// `DEFINITION_BODY_MEMBER_ONLY` is how the word says so.
 pub(crate) fn statement(
     name: &'static str,
     arity: Arity,
@@ -82,7 +109,7 @@ pub(crate) fn statement(
 ) -> CommandSpec {
     CommandSpec {
         name,
-        traits: Traits::LANGUAGE_KEYWORD,
+        traits: Traits::DEFINITION_BODY_MEMBER_ONLY,
         surface: Some(SpecSurface::SSLICTCL),
         arity,
         hover: Some(HoverSnippet {

@@ -217,6 +217,18 @@ byte-identical text.
 The registry pack (`rust/tcl-registry/src/commands/sslictcl/`) states the same
 table a second time, in the shape the editor surfaces read:
 
+- **The document is a definition body too.** `SSLICTCL_DOCUMENT_GRAMMAR` names
+  the nine top-level declarations, and the registry hands it to consumers as
+  `CommandRegistry::document_grammar()`. That is what lets completion offer
+  exactly the declarations at the root and exactly a block's members inside it,
+  and what lets the token walker paint every word from grammar membership.
+- **No word carries `LANGUAGE_KEYWORD`.** The token walker honours that trait
+  wherever a head appears, so a member row carrying it would look correct in
+  the wrong block. Each word carries
+  `Traits::DEFINITION_BODY_MEMBER_ONLY` instead: the spec exists so the word
+  can hover, complete, and arity-check where it is legal, and the flag keeps it
+  out of an open command position — inside a retained `predicate`, say, where
+  ordinary Tcl completion resumes.
 - **One spec per word.** A word meaning one thing in several blocks
   (`protocols` in `endpoint` and `cipher`, `status` in `protocol` and `cipher`)
   is one `CommandSpec`; grammar membership, not a duplicated spec, provides the
