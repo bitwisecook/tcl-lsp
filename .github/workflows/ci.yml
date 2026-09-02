@@ -95,6 +95,20 @@ jobs:
   #   spectcl_compat_changed — SpecTcl or its TclVM/compiler/registry/runtime
   #                    and exact-reference-toolchain closure changed. Runs the
   #                    non-vacuous 15+3+4+2+1 compatibility lane.
+  #   runtime_rust_changed — the standalone `runtime/rust` crate or one of the
+  #                    path dependencies its own cargo workspace resolves
+  #                    changed, so `runtime-rust-tests` must execute that
+  #                    crate's unit suite.  `runtime/rust` is NOT a member of
+  #                    the root workspace: `cargo test --workspace` never runs
+  #                    those tests, and `wasm-real-link` builds and links the
+  #                    crate without running a single one of them, so before
+  #                    this flag existed a standalone-runtime semantic
+  #                    regression could land with every partition green
+  #                    (issue #1768).  The closure lives in
+  #                    scripts/dev/runtime-rust-path.sh and is gated against
+  #                    the committed lockfile by
+  #                    scripts/dev/test-runtime-rust-paths.sh, so it cannot
+  #                    silently narrow.
   channel:
     runs-on: ubuntu-24.04
     permissions:
@@ -107,6 +121,7 @@ jobs:
       ext_changed: ${{ steps.paths.outputs.ext_changed }}
       lsp_wasm_changed: ${{ steps.paths.outputs.lsp_wasm_changed }}
       spectcl_compat_changed: ${{ steps.paths.outputs.spectcl_compat_changed }}
+      runtime_rust_changed: ${{ steps.paths.outputs.runtime_rust_changed }}
       docs_only: ${{ steps.paths.outputs.docs_only }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -184,6 +199,7 @@ jobs:
           ext_changed=false
           lsp_wasm_changed=false
           spectcl_compat_changed=false
+          runtime_rust_changed=false
           docs_only=true
           if [ "$ok" = "true" ]; then
             while IFS= read -r f; do
@@ -208,6 +224,15 @@ jobs:
                   break
                 fi
               fi
+              if scripts/dev/runtime-rust-path.sh "$f"; then
+                runtime_rust_changed=true
+              else
+                status=$?
+                if [ "$status" -ne 1 ]; then
+                  ok=false
+                  break
+                fi
+              fi
               case "$f" in
                 docs/* | *.md | .claude/* | .gitignore | LICENSE) ;;
                 *) docs_only=false ;;
@@ -219,6 +244,7 @@ jobs:
             ext_changed=true
             lsp_wasm_changed=true
             spectcl_compat_changed=true
+            runtime_rust_changed=true
             docs_only=false
           fi
           {
@@ -226,9 +252,10 @@ jobs:
             echo "ext_changed=$ext_changed"
             echo "lsp_wasm_changed=$lsp_wasm_changed"
             echo "spectcl_compat_changed=$spectcl_compat_changed"
+            echo "runtime_rust_changed=$runtime_rust_changed"
             echo "docs_only=$docs_only"
           } >>"$GITHUB_OUTPUT"
-          echo "python_changed=$python_changed ext_changed=$ext_changed lsp_wasm_changed=$lsp_wasm_changed spectcl_compat_changed=$spectcl_compat_changed docs_only=$docs_only"
+          echo "python_changed=$python_changed ext_changed=$ext_changed lsp_wasm_changed=$lsp_wasm_changed spectcl_compat_changed=$spectcl_compat_changed runtime_rust_changed=$runtime_rust_changed docs_only=$docs_only"
 
   # Fast PR gate.  Runs on every PR and every push.  Covers the Rust fast
   # checks through the central `make rust-check` contract: root and standalone
@@ -844,6 +871,63 @@ jobs:
             extra="--no-run"
           fi
           cargo nextest run $extra -p tcl-irule-test -p f5-cli -p tcl-fuzz --all-features
+
+  # The standalone `runtime/rust` unit suite (issue #1768).
+  #
+  # `runtime/rust` is its own cargo workspace, deliberately excluded from the
+  # root one (it needs `unsafe` over the shared linear memory, and its churn
+  # must not gate the LSP/compiler workstream).  The cost of that exclusion is
+  # that `cargo test --workspace --all-features` in `rust-tests` never runs a
+  # single test in it, and `wasm-real-link` compiles and LINKS the crate
+  # without executing its tests either.  `pr-gate` only formats and clippies
+  # it.  So until this job existed, a standalone-runtime semantic regression
+  # could land with every required check green — which is exactly how the
+  # #1750 error-stack work would have added and changed many runtime tests
+  # that CI never ran.
+  #
+  # This is an ADDITIONAL semantic gate, not a replacement: `wasm-real-link`
+  # remains the real-link check, and this job never links anything.
+  #
+  # The step-level skip keys on `runtime_rust_changed` (see the channel job
+  # header): the crate plus the path-dependency closure its own lockfile
+  # resolves.  The job itself always runs and reports, per the redundancy
+  # contract in AGENTS.md.
+  runtime-rust-tests:
+    needs: [channel]
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Set up Rust
+        if: needs.channel.outputs.runtime_rust_changed == 'true' && needs.channel.outputs.already_green != 'true'
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        with:
+          toolchain: stable
+          # A separate cargo workspace with its own lockfile and its own
+          # target dir, so it keeps its own cache rather than racing the root
+          # workspace jobs on save.
+          cache-key: runtime-rust-tests
+
+      # libtommath, for the same reason `wasm-real-link` fetches it: without
+      # the source `runtime/rust`'s build script prints a `cargo:warning` and
+      # builds with the bignum backend DISABLED, which un-registers `expr` and
+      # the `::tcl::mathfunc`/`mathop` ensembles.  The suite would still be
+      # green while covering far less than it appears to (issue #1542's shape).
+      # `make runtime-rust-test` passes the directory explicitly.
+      - name: Fetch the Tcl 9.0.4 source (libtommath)
+        if: needs.channel.outputs.runtime_rust_changed == 'true' && needs.channel.outputs.already_green != 'true'
+        run: |
+          set -euo pipefail
+          .claude/skills/fetch-tcl-source/fetch_tcl_source.sh 9.0
+          test -f tmp/tcl9.0.4/libtommath/tommath.h
+
+      # The shared make target, so a contributor reproducing a failure runs
+      # the identical locked command CI ran.
+      - name: make runtime-rust-test (standalone runtime unit suite)
+        if: needs.channel.outputs.runtime_rust_changed == 'true' && needs.channel.outputs.already_green != 'true'
+        run: make runtime-rust-test
 
   # The real whole-program WASM link (`tcl-compiler`'s `wasm_real_link.rs`):
   # an emitted module linked against the real `runtime/rust` compiled to

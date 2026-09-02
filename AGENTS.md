@@ -451,7 +451,7 @@ CI, and a manual-only exhaustive tier that never runs automatically.
 | Tier | When it runs | What runs |
 |---|---|---|
 | **smoke** (`make smoke`, `make smoke-p P=<crate>`) | locally, right after every compile; part of `make prep-pr` | the `smoke_*` / `*_smoke.rs` subset — one fast per-module sanity check per crate, seconds warm.  Reuses the dev-profile default-features build you just made (never `--all-features`), so it never forces a recompile |
-| **deep** (CI: `rust-tests`, `rust-tests-heavy`, `lsp-e2e`, `test-ext`, `test-ext-web`, `cargo-deny`, `python`) | every PR and every push to `rust`, automatically | the full workspace suite (native lsp_e2e included), the VM-sim heavies, the VS Code extension on the desktop **and** in a browser extension host, supply-chain audit, Python lint/typecheck.  CI skips work only when its inputs demonstrably didn't change (see "CI redundancy contract" below) |
+| **deep** (CI: `rust-tests`, `rust-tests-heavy`, `runtime-rust-tests`, `lsp-e2e`, `test-ext`, `test-ext-web`, `cargo-deny`, `python`) | every PR and every push to `rust`, automatically | the full workspace suite (native lsp_e2e included), the VM-sim heavies, the standalone `runtime/rust` unit suite, the VS Code extension on the desktop **and** in a browser extension host, supply-chain audit, Python lint/typecheck.  CI skips work only when its inputs demonstrably didn't change (see "CI redundancy contract" below) |
 | **exhaustive / manual-only** (`make test-exhaustive`, `make fuzz`, `make tcltest-sweep[-check]`) | only when a human (or a deliberate scheduled job) invokes it by name | every `#[ignore]`d corpus sweep over `tmp/tcl*`/tcllib, differential-fuzz gates, privileged bpf/kernel tests, fuzz campaigns.  NEVER wire these into `prep-pr`, `test`, `check-all`, or CI |
 
 **Fuzzing is always manual.**  This covers campaigns (`make fuzz` /
@@ -534,6 +534,19 @@ CI avoids re-testing what demonstrably didn't change, and the rules live in
   `test-ext`, and `test-ext-web` suites run only when their input paths
   changed (`test-ext-web` on either `ext_changed` or `lsp_wasm_changed`,
   because it consumes both the extension and the browser language server);
+- `runtime-rust-tests` runs the standalone `runtime/rust` unit suite
+  (`make runtime-rust-test`) only when `runtime_rust_changed` is true — that
+  crate plus the path-dependency closure its own lockfile resolves.  It is
+  its own job because `runtime/rust` is its own cargo workspace: the root
+  `cargo test --workspace` never reaches it and `wasm-real-link` builds and
+  links it *without running its tests*, so before this job a
+  standalone-runtime semantic regression could land with every required check
+  green (issue #1768).  The closure lives in
+  `scripts/dev/runtime-rust-path.sh` and is gated against the committed
+  lockfile by `scripts/dev/test-runtime-rust-paths.sh` (run by
+  `make check-runtime-rust-paths`, part of `xtask-check`), so it cannot
+  silently narrow.  It is an additional semantic gate, not a replacement for
+  the real link;
 - `cargo-deny` never skips (new advisories arrive against unchanged trees);
 - every skip fails safe: API error or ambiguity → run everything.
 
