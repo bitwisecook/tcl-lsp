@@ -539,6 +539,9 @@ Distilled from the trickiest scars in the WASM runtime history
   agent lane: goal, decisions taken and why, site inventory, behavioural
   deltas, and open uncertainties. A file there means a lane is either in
   flight or was interrupted; each is removed when its lane lands.
+- [lanes/wasm-native-lowering.md](lanes/wasm-native-lowering.md) — the WASM
+  native-lowering programme: one section per sub-lane (P0–P3, R3–R10) with
+  decisions, ABI additions, and status.
 
 ## Templates
 
