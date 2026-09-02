@@ -142,6 +142,22 @@ struct Cell {
     /// constant`. On the cell rather than in a side set so a compiled slot's
     /// write check is the same O(1) index as the write itself.
     constant: bool,
+    /// **The per-cell trace bit**: whether a variable trace can observe this
+    /// cell, together with the variable-trace epoch that answer was computed
+    /// for.
+    ///
+    /// The answer itself is derived — resolving the cell's name the way trace
+    /// firing does, so an `upvar` link reports its *target*'s traces and an
+    /// array reports its elements' — and this caches it. Every add, remove,
+    /// frame teardown, and unset that touches the trace set bumps the epoch
+    /// through the interpreter's one `VariableTrace` invalidation chokepoint,
+    /// so a stale entry is always *recomputed* rather than trusted. A bit
+    /// maintained by hand at each of those sites could drift, and a wrong
+    /// "untraced" is a silently missed trace.
+    ///
+    /// Epoch `0` is the never-computed sentinel; the interpreter's epoch starts
+    /// at `1`.
+    traced: core::cell::Cell<(u64, bool)>,
 }
 
 /// A variable table: simple-name → [`Var`] cell, with the refcount discipline
@@ -181,6 +197,7 @@ impl VarTable {
             name: name.to_vec(),
             var: None,
             constant: false,
+            traced: core::cell::Cell::new((0, false)),
         });
         self.slots.insert(name.to_vec(), slot);
         slot
@@ -195,6 +212,19 @@ impl VarTable {
     /// The name `slot` is bound to (an out-of-range slot has none).
     pub(crate) fn slot_name(&self, slot: usize) -> Option<&[u8]> {
         self.cells.get(slot).map(|cell| cell.name.as_slice())
+    }
+
+    /// `slot`'s cached trace answer, if it was computed for `epoch`.
+    pub(crate) fn cached_trace_flag(&self, slot: usize, epoch: u64) -> Option<bool> {
+        let (cached_epoch, traced) = self.cells.get(slot)?.traced.get();
+        (cached_epoch == epoch).then_some(traced)
+    }
+
+    /// Record `slot`'s trace answer for `epoch`.
+    pub(crate) fn set_cached_trace_flag(&self, slot: usize, epoch: u64, traced: bool) {
+        if let Some(cell) = self.cells.get(slot) {
+            cell.traced.set((epoch, traced));
+        }
     }
 
     /// The cell bound to `name`, if the table has ever reserved one.
@@ -745,6 +775,21 @@ impl FrameStack {
     pub(crate) fn compiled_slot_name(&self, slot: usize) -> Option<&[u8]> {
         let (frame, cell) = self.compiled_cell(slot)?;
         self.frames[frame].table.slot_name(cell)
+    }
+
+    /// The cached trace answer for the cell a generated-code slot addresses.
+    pub(crate) fn compiled_slot_trace_flag(&self, slot: usize, epoch: u64) -> Option<bool> {
+        let (frame, cell) = self.compiled_cell(slot)?;
+        self.frames[frame].table.cached_trace_flag(cell, epoch)
+    }
+
+    /// Record the trace answer for the cell a generated-code slot addresses.
+    pub(crate) fn set_compiled_slot_trace_flag(&self, slot: usize, epoch: u64, traced: bool) {
+        if let Some((frame, cell)) = self.compiled_cell(slot) {
+            self.frames[frame]
+                .table
+                .set_cached_trace_flag(cell, epoch, traced);
+        }
     }
 
     /// The variable a generated-code slot addresses — the O(1) read behind

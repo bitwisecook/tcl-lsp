@@ -757,6 +757,13 @@ pub struct InterpState {
     /// globals; nested evals (proc bodies, `[cmd]` subst, control bodies) just
     /// accumulate.
     eval_depth: Cell<u32>,
+    /// The variable-trace generation: bumped every time the set of variable
+    /// traces changes, through the one `GuardDomain::VariableTrace`
+    /// invalidation chokepoint every add / remove / frame teardown / unset
+    /// already goes through. It is what makes the per-cell trace bit
+    /// (`frame::Cell::traced`) safe to cache — a stale entry is recomputed, not
+    /// trusted. Starts at `1` so `0` can be the never-computed sentinel.
+    var_trace_epoch: Cell<u64>,
     /// Count of commands dispatched (`info cmdcount`).
     cmd_count: Cell<u64>,
     /// The code an `exit` requested, if any. `exit` does **not** terminate the
@@ -1134,6 +1141,7 @@ impl Interp {
             arg_lines: RefCell::new(Vec::new()),
             arg_locs: RefCell::new(Vec::new()),
             eval_depth: Cell::new(0),
+            var_trace_epoch: Cell::new(1),
             cmd_count: Cell::new(0),
             exit_code: Cell::new(None),
             measure_overhead: Cell::new(0.0),
@@ -1618,6 +1626,13 @@ impl Interp {
     }
 
     pub(crate) fn invalidate_guard_domain(&self, domain: GuardDomain) {
+        if domain == GuardDomain::VariableTrace {
+            // Every change to the variable-trace set already funnels through
+            // here, so this is the one place the per-cell trace bit's epoch
+            // needs to move.
+            self.var_trace_epoch
+                .set(self.var_trace_epoch.get().wrapping_add(1).max(1));
+        }
         self.guards.borrow_mut().invalidate(domain);
     }
 
@@ -2143,6 +2158,51 @@ impl Interp {
             .borrow()
             .compiled_slot_name(slot)
             .map(<[u8]>::to_vec)
+    }
+
+    /// Whether any variable trace can observe accesses to `name` — the runtime
+    /// half of a guarded `TraceBarrier`.
+    ///
+    /// The name is resolved to the same `(home, simple name)` identity trace
+    /// *firing* uses, so this follows `upvar`/`global`/`variable` links to the
+    /// target's traces and reports an array as traced when any of its elements
+    /// is. It is deliberately conservative in that direction: a `true` may be
+    /// broader than the exact access, but a `false` is a promise that nothing
+    /// can observe the cell.
+    pub(crate) fn var_is_traced(&self, name: &[u8]) -> bool {
+        if self.traces.borrow().traces.is_empty() {
+            return false;
+        }
+        let (base, _) = crate::frame::split_array_ref(name);
+        let (access_ns, access_frame_level, base) = crate::vars::trace_home(
+            &self.frames.borrow(),
+            &self.namespaces.borrow(),
+            self.current_ns.get(),
+            &base,
+        );
+        self.traces
+            .borrow()
+            .traces
+            .iter()
+            .any(|t| crate::cmd_trace::same_variable(t, &base, access_ns, access_frame_level))
+    }
+
+    /// [`var_is_traced`](Self::var_is_traced) for a compiled slot, answered from
+    /// the cell's own cached bit when it is current for this interpreter's
+    /// variable-trace epoch.
+    pub(crate) fn codegen_slot_is_traced(&self, slot: usize) -> bool {
+        let epoch = self.var_trace_epoch.get();
+        if let Some(cached) = self.frames.borrow().compiled_slot_trace_flag(slot, epoch) {
+            return cached;
+        }
+        let Some(name) = self.codegen_slot_name(slot) else {
+            return false;
+        };
+        let traced = self.var_is_traced(&name);
+        self.frames
+            .borrow()
+            .set_compiled_slot_trace_flag(slot, epoch, traced);
+        traced
     }
 
     /// The value a generated local slot addresses, by the **O(1) cell path**.

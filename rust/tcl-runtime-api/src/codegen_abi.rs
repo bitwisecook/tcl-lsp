@@ -206,6 +206,15 @@ pub enum CodegenAbiImportId {
     /// `lappend` a value onto the variable an indexed compiled slot addresses;
     /// the i32 result is the Tcl completion code.
     SlotLappend,
+    /// Whether any variable trace can observe accesses to a named variable —
+    /// the runtime half of a guarded `TraceBarrier`.
+    ///
+    /// Parameters are the name pointer and length; the i32 result is `1` when
+    /// traced and `0` when not. `0` is a promise that nothing observes the
+    /// cell, so generated code may take its native path.
+    VarTraced,
+    /// [`Self::VarTraced`] for the variable an indexed compiled slot addresses.
+    SlotTraced,
     /// Enter a compiled activation, so compiled code counts as an eval-loop
     /// activation for the outermost-eval error-publication rule.
     ///
@@ -283,6 +292,8 @@ impl CodegenAbiImportId {
             Self::SlotIncrI64 => tcl_import("tcl_codegen_slot_incr_i64", I32_I64_I32, I32),
             Self::SlotAppend => tcl_import("tcl_codegen_slot_append", I32_I32, I32),
             Self::SlotLappend => tcl_import("tcl_codegen_slot_lappend", I32_I32, I32),
+            Self::VarTraced => tcl_import("tcl_codegen_var_traced", I32_I32, I32),
+            Self::SlotTraced => tcl_import("tcl_codegen_slot_traced", I32, I32),
             Self::ActivationEnter => tcl_import("tcl_codegen_activation_enter", NONE, I32),
             Self::ActivationLeave => tcl_import("tcl_codegen_activation_leave", I32, NONE),
         }
@@ -560,6 +571,23 @@ mod tests {
                 "{slot_id:?} / {local_id:?}"
             );
         }
+    }
+
+    #[test]
+    fn trace_barrier_imports_answer_a_boolean_for_a_name_or_a_slot() {
+        use CodegenAbiValueType::I32;
+
+        let by_name = CodegenAbiImportId::VarTraced.descriptor();
+        assert_eq!(by_name.module, "tcl");
+        assert_eq!(by_name.name, "tcl_codegen_var_traced");
+        assert_eq!(by_name.parameters, &[I32, I32][..]);
+        assert_eq!(by_name.results, &[I32][..]);
+
+        let by_slot = CodegenAbiImportId::SlotTraced.descriptor();
+        assert_eq!(by_slot.module, "tcl");
+        assert_eq!(by_slot.name, "tcl_codegen_slot_traced");
+        assert_eq!(by_slot.parameters, &[I32][..]);
+        assert_eq!(by_slot.results, &[I32][..]);
     }
 
     #[test]

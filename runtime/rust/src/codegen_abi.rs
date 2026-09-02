@@ -853,6 +853,54 @@ pub unsafe extern "C" fn tcl_codegen_local_get(slot: i32) -> *mut TclObj {
     value
 }
 
+/// `tcl_codegen_var_traced(name_ptr, name_len) -> i32` — whether any variable
+/// trace can observe accesses to `name`.
+///
+/// This is the runtime half of a guarded `TraceBarrier`: generated code that has
+/// proved everything *except* the absence of a trace asks this once and takes
+/// its native path when the answer is `0`. The name resolves to the same
+/// identity trace firing uses, so an `upvar`/`global`/`variable` link reports
+/// its **target**'s traces and an array reports its elements'. The answer is
+/// conservative in one direction only: `1` may be broader than the exact
+/// access, `0` is a promise that nothing can observe the cell.
+///
+/// Returns `1` when traced, `0` when not (including a name that does not
+/// resolve, and when there is no current interpreter).
+///
+/// # Safety
+/// The name range must be readable shared linear memory.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_var_traced(name_ptr: *const u8, name_len: i32) -> i32 {
+    let interp = current_interp();
+    if interp.is_null() {
+        return 0;
+    }
+    let name = unsafe { input_bytes(name_ptr, name_len) };
+    // SAFETY: the bootstrap installed a live current interpreter.
+    i32::from(unsafe { (*interp).var_is_traced(name) })
+}
+
+/// `tcl_codegen_slot_traced(slot) -> i32` — [`tcl_codegen_var_traced`] for the
+/// variable a compiled slot addresses.
+///
+/// Answered from the cell's own trace bit, which is validated against the
+/// interpreter's variable-trace epoch — so a repeated guard costs one array
+/// index, and a trace added or removed anywhere (including a proc frame's
+/// teardown dropping its locals' traces) forces the answer to be recomputed
+/// rather than trusted.
+#[no_mangle]
+pub extern "C" fn tcl_codegen_slot_traced(slot: i32) -> i32 {
+    let interp = current_interp();
+    let Ok(slot) = usize::try_from(slot) else {
+        return 0;
+    };
+    if interp.is_null() {
+        return 0;
+    }
+    // SAFETY: the bootstrap installed a live current interpreter.
+    i32::from(unsafe { (*interp).codegen_slot_is_traced(slot) })
+}
+
 /// Resolve a compiled slot's Tcl-visible name, or `None` when it is unbound.
 fn slot_name(interp: &Interp, slot: i32) -> Option<Vec<u8>> {
     interp.codegen_slot_name(usize::try_from(slot).ok()?)
@@ -2412,6 +2460,149 @@ mod tests {
             tcl_value_release(traced);
             assert_eq!(tcl_eval_code(box_str(b"set ::hits")), 0);
             assert_eq!((*interp).result_bytes(), b"1");
+
+            tcl_codegen_frame_pop();
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    /// Ask the trace barrier about a name.
+    unsafe fn var_traced(name: &[u8]) -> i32 {
+        // SAFETY: `name` is a valid readable slice.
+        unsafe { tcl_codegen_var_traced(name.as_ptr(), name.len() as i32) }
+    }
+
+    /// The per-cell trace bit answers for a name and for a slot, follows an
+    /// `upvar` link to its target's traces, covers an array's elements, and —
+    /// the case a hand-maintained bit would get wrong — goes back to `0` when a
+    /// proc frame's teardown drops its locals' traces.
+    #[cfg(have_tommath)]
+    #[test]
+    fn the_trace_barrier_tracks_adds_removes_links_and_frame_teardown() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+
+            assert_eq!(tcl_eval_code(box_str(b"set g 1; set ::hits 0")), 0);
+            assert_eq!(var_traced(b"g"), 0, "an untraced global");
+
+            assert_eq!(
+                tcl_eval_code(box_str(
+                    b"trace add variable g write {apply {{a b op} {incr ::hits}}}"
+                )),
+                0
+            );
+            assert_eq!(var_traced(b"g"), 1);
+            assert_eq!(var_traced(b"other"), 0, "the bit is per cell, not global");
+
+            // An array reports traced when any element is: the guard is
+            // conservative in the safe direction.
+            assert_eq!(tcl_eval_code(box_str(b"set arr(k) 1")), 0);
+            assert_eq!(var_traced(b"arr"), 0);
+            assert_eq!(
+                tcl_eval_code(box_str(
+                    b"trace add variable arr(k) write {apply {{a b op} {incr ::hits}}}"
+                )),
+                0
+            );
+            assert_eq!(var_traced(b"arr"), 1);
+            assert_eq!(var_traced(b"arr(k)"), 1);
+
+            assert_eq!(
+                tcl_eval_code(box_str(
+                    b"trace remove variable g write {apply {{a b op} {incr ::hits}}}"
+                )),
+                0
+            );
+            assert_eq!(var_traced(b"g"), 0, "removing the last trace clears it");
+
+            // A trace added inside a proc frame is visible through the local
+            // name and through an `upvar` alias to it, and both answers go back
+            // to untraced when the frame is popped.
+            assert_eq!(
+                tcl_eval_code(box_str(
+                    b"proc probe {} {\n\
+                        set loc 1\n\
+                        upvar 0 loc alias\n\
+                        set ::before [tcltrace loc],[tcltrace alias]\n\
+                        trace add variable loc write {apply {{a b op} {incr ::hits}}}\n\
+                        set ::during [tcltrace loc],[tcltrace alias]\n\
+                      }"
+                )),
+                0
+            );
+            // A tiny Tcl-visible probe over the same ABI entry point.
+            assert_eq!(
+                tcl_eval_code(box_str(
+                    b"proc tcltrace {n} { uplevel 1 [list ::tcl::probe_traced $n] }"
+                )),
+                0
+            );
+            (*interp).register_builtin(b"::tcl::probe_traced", |interp, argv| {
+                let name = obj_bytes(argv[1]);
+                let traced = interp.var_is_traced(&name);
+                interp.set_result_bytes(if traced { b"1" } else { b"0" });
+                crate::interp::Code::Ok
+            });
+
+            assert_eq!(tcl_eval_code(box_str(b"probe")), 0);
+            assert_eq!(tcl_eval_code(box_str(b"set ::before")), 0);
+            assert_eq!((*interp).result_bytes(), b"0,0");
+            assert_eq!(tcl_eval_code(box_str(b"set ::during")), 0);
+            assert_eq!(
+                (*interp).result_bytes(),
+                b"1,1",
+                "an upvar alias reports its target's traces"
+            );
+            // The frame is gone, so its local's trace is too.
+            assert_eq!(var_traced(b"loc"), 0);
+
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    /// The slot spelling answers from the cell's own bit, and that bit is
+    /// re-derived — never trusted — after the trace set changes.
+    #[cfg(have_tommath)]
+    #[test]
+    fn the_slot_trace_bit_is_revalidated_when_the_trace_set_changes() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            tcl_codegen_frame_push();
+
+            assert_eq!(
+                tcl_codegen_slot_bind(0, b"v".as_ptr(), 1, owned_str(b"1")),
+                0
+            );
+            assert_eq!(tcl_codegen_slot_traced(0), 0);
+            // Asked twice: the second answer comes from the cached bit.
+            assert_eq!(tcl_codegen_slot_traced(0), 0);
+
+            assert_eq!(tcl_eval_code(box_str(b"set ::hits 0")), 0);
+            assert_eq!(
+                tcl_eval_code(box_str(
+                    b"trace add variable v write {apply {{a b op} {incr ::hits}}}"
+                )),
+                0
+            );
+            assert_eq!(
+                tcl_codegen_slot_traced(0),
+                1,
+                "the epoch moved, so the cached 0 was recomputed"
+            );
+            assert_eq!(tcl_codegen_slot_traced(0), 1);
+
+            assert_eq!(
+                tcl_eval_code(box_str(
+                    b"trace remove variable v write {apply {{a b op} {incr ::hits}}}"
+                )),
+                0
+            );
+            assert_eq!(tcl_codegen_slot_traced(0), 0);
+            assert_eq!(tcl_codegen_slot_traced(9), 0, "an unbound slot is untraced");
 
             tcl_codegen_frame_pop();
             tcl_runtime_set_current_interp(ptr::null_mut());

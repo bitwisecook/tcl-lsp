@@ -282,6 +282,31 @@ pub(crate) fn home_namespace_and_base(
     }
 }
 
+/// The `(home namespace, home frame level, simple name)` identity a variable
+/// trace on `name` belongs to, following `global`/`variable`/`upvar` links to
+/// the concrete cell.
+///
+/// This is [`home_namespace_and_base`] without the loss: that helper reports a
+/// frame home as `None` and leaves the level to be recomputed from the *access*
+/// spelling, which cannot see through a link. Reading the level off the
+/// resolved place is what lets a trace question about an `upvar` alias answer
+/// for the variable the alias actually names — the identity C Tcl has for free,
+/// because there the alias and its target are one `Var`.
+pub(crate) fn trace_home(
+    frames: &FrameStack,
+    ns: &Namespaces,
+    current_ns: NsId,
+    name: &[u8],
+) -> (Option<NsId>, Option<usize>, Vec<u8>) {
+    match resolve(frames, ns, current_ns, name) {
+        Resolved::Place(p) => match p.home {
+            VarHome::Namespace(id) => (Some(id), None, p.name),
+            VarHome::Frame(level) => (None, Some(level), p.name),
+        },
+        Resolved::NoNamespace => (None, None, name.to_vec()),
+    }
+}
+
 /// The fully-qualified name `name` ultimately resolves to, following
 /// `global`/`variable`/`upvar`/`namespace upvar` links to the target variable
 /// (and array element). `Some("::ns::var")` / `Some("::ns::arr(elem)")` for a
