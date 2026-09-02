@@ -62,6 +62,11 @@ const I32_I32_I32_I32_I64_I32: &[CodegenAbiValueType] = &[
     CodegenAbiValueType::I64,
     CodegenAbiValueType::I32,
 ];
+const I32_I64_I32: &[CodegenAbiValueType] = &[
+    CodegenAbiValueType::I32,
+    CodegenAbiValueType::I64,
+    CodegenAbiValueType::I32,
+];
 const I64_I32_I32_I32: &[CodegenAbiValueType] = &[
     CodegenAbiValueType::I64,
     CodegenAbiValueType::I32,
@@ -180,6 +185,27 @@ pub enum CodegenAbiImportId {
     /// Read a Tcl value in boolean context — [`Self::ValueGetWideInt`]'s
     /// contract over an `i32` (`0`/`1`) out pointer.
     ValueGetBool,
+    /// Bind an indexed compiled slot to a named frame cell and store a value.
+    ///
+    /// The ABI v2 spelling of [`Self::LocalBind`]; both address the same cell.
+    SlotBind,
+    /// Assign the variable an indexed compiled slot addresses.
+    SlotSet,
+    /// Read the variable an indexed compiled slot addresses.
+    SlotGet,
+    /// `incr` the variable an indexed compiled slot addresses by a native i64,
+    /// writing the new value through an `i64` out pointer.
+    ///
+    /// The i32 result is `0` on success, `1` when the runtime set a Tcl error
+    /// on the interpreter (a non-integer cell, a `const`, a write-trace error,
+    /// or a new value past the wide range).
+    SlotIncrI64,
+    /// `append` a value onto the variable an indexed compiled slot addresses;
+    /// the i32 result is the Tcl completion code.
+    SlotAppend,
+    /// `lappend` a value onto the variable an indexed compiled slot addresses;
+    /// the i32 result is the Tcl completion code.
+    SlotLappend,
     /// Enter a compiled activation, so compiled code counts as an eval-loop
     /// activation for the outermost-eval error-publication rule.
     ///
@@ -251,6 +277,12 @@ impl CodegenAbiImportId {
             Self::ValueGetWideInt => tcl_import("tcl_value_get_wide_int", I32_I32, I32),
             Self::ValueGetDouble => tcl_import("tcl_value_get_double", I32_I32, I32),
             Self::ValueGetBool => tcl_import("tcl_value_get_bool", I32_I32, I32),
+            Self::SlotBind => tcl_import("tcl_codegen_slot_bind", I32_I32_I32_I32, I32),
+            Self::SlotSet => tcl_import("tcl_codegen_slot_set", I32_I32, I32),
+            Self::SlotGet => tcl_import("tcl_codegen_slot_get", I32, I32),
+            Self::SlotIncrI64 => tcl_import("tcl_codegen_slot_incr_i64", I32_I64_I32, I32),
+            Self::SlotAppend => tcl_import("tcl_codegen_slot_append", I32_I32, I32),
+            Self::SlotLappend => tcl_import("tcl_codegen_slot_lappend", I32_I32, I32),
             Self::ActivationEnter => tcl_import("tcl_codegen_activation_enter", NONE, I32),
             Self::ActivationLeave => tcl_import("tcl_codegen_activation_leave", I32, NONE),
         }
@@ -463,6 +495,70 @@ mod tests {
             assert_eq!(descriptor.name, name, "{id:?}");
             assert_eq!(descriptor.parameters, &[I32, I32][..], "{id:?}");
             assert_eq!(descriptor.results, &[I32][..], "{id:?}");
+        }
+    }
+
+    #[test]
+    fn indexed_slot_imports_address_a_cell_and_keep_the_legacy_local_spellings() {
+        use CodegenAbiValueType::{I32, I64};
+
+        let expected = [
+            (
+                CodegenAbiImportId::SlotBind,
+                "tcl_codegen_slot_bind",
+                &[I32, I32, I32, I32][..],
+            ),
+            (
+                CodegenAbiImportId::SlotSet,
+                "tcl_codegen_slot_set",
+                &[I32, I32][..],
+            ),
+            (
+                CodegenAbiImportId::SlotGet,
+                "tcl_codegen_slot_get",
+                &[I32][..],
+            ),
+            (
+                CodegenAbiImportId::SlotIncrI64,
+                "tcl_codegen_slot_incr_i64",
+                &[I32, I64, I32][..],
+            ),
+            (
+                CodegenAbiImportId::SlotAppend,
+                "tcl_codegen_slot_append",
+                &[I32, I32][..],
+            ),
+            (
+                CodegenAbiImportId::SlotLappend,
+                "tcl_codegen_slot_lappend",
+                &[I32, I32][..],
+            ),
+        ];
+        for (id, name, parameters) in expected {
+            let descriptor = id.descriptor();
+            assert_eq!(descriptor.module, "tcl", "{id:?}");
+            assert_eq!(descriptor.name, name, "{id:?}");
+            assert_eq!(descriptor.parameters, parameters, "{id:?}");
+            assert_eq!(descriptor.results, &[I32][..], "{id:?}");
+        }
+
+        // The `local_*` spellings an already-emitted module imports keep their
+        // exact shape; the two families address the same indexed cell.
+        for (slot_id, local_id) in [
+            (CodegenAbiImportId::SlotBind, CodegenAbiImportId::LocalBind),
+            (CodegenAbiImportId::SlotSet, CodegenAbiImportId::LocalSet),
+            (CodegenAbiImportId::SlotGet, CodegenAbiImportId::LocalGet),
+        ] {
+            assert_eq!(
+                slot_id.descriptor().parameters,
+                local_id.descriptor().parameters,
+                "{slot_id:?} / {local_id:?}"
+            );
+            assert_eq!(
+                slot_id.descriptor().results,
+                local_id.descriptor().results,
+                "{slot_id:?} / {local_id:?}"
+            );
         }
     }
 

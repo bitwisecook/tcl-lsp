@@ -829,7 +829,15 @@ pub unsafe extern "C" fn tcl_codegen_local_get(slot: i32) -> *mut TclObj {
     }
     // SAFETY: the bootstrap installed a live current interpreter.
     let interp = unsafe { &mut *interp };
-    let Some(name) = interp.codegen_slot_name(usize::try_from(slot).unwrap_or(0)) else {
+    let slot = usize::try_from(slot).unwrap_or(0);
+    // The indexed path: one array index to the frame's cell, taken whenever
+    // nothing can observe the read differently (an untraced plain scalar).
+    if let Some(value) = interp.codegen_slot_scalar(slot) {
+        // SAFETY: the cell owns the existing reference; the stack claims another.
+        unsafe { obj::incr_ref_count(value) };
+        return value;
+    }
+    let Some(name) = interp.codegen_slot_name(slot) else {
         return ptr::null_mut();
     };
     if interp.fire_read_trace(&name, None).is_some() {
@@ -843,6 +851,198 @@ pub unsafe extern "C" fn tcl_codegen_local_get(slot: i32) -> *mut TclObj {
     // SAFETY: the frame owns the existing reference; the stack claims another.
     unsafe { obj::incr_ref_count(value) };
     value
+}
+
+/// Resolve a compiled slot's Tcl-visible name, or `None` when it is unbound.
+fn slot_name(interp: &Interp, slot: i32) -> Option<Vec<u8>> {
+    interp.codegen_slot_name(usize::try_from(slot).ok()?)
+}
+
+/// Run one of the runtime's own read-modify-write commands over a compiled
+/// slot's variable.
+///
+/// The slot contributes the **addressing** — an O(1) index to the name its cell
+/// is bound to — and the command contributes the **semantics**. There is no
+/// second implementation of `incr`/`append`/`lappend` here: the runtime's
+/// command runs over a prebuilt argv, so the numeric tower's bignum promotion,
+/// the copy-on-write in-place growth, `const`, write traces, and every error
+/// message are exactly what interpreted Tcl produces.
+///
+/// `value`, when given, is borrowed. Returns the Tcl completion code.
+///
+/// # Safety
+/// `interp` must be the live current interpreter and `value` a live object.
+unsafe fn slot_modify(
+    interp: *mut Interp,
+    slot: i32,
+    head: &[u8],
+    value: Option<*mut TclObj>,
+    command: fn(&mut Interp, &[*mut TclObj]) -> crate::interp::Code,
+) -> crate::interp::Code {
+    // SAFETY: the caller passes the live current interpreter.
+    let interp = unsafe { &mut *interp };
+    let Some(name) = slot_name(interp, slot) else {
+        let mut message = head.to_vec();
+        message.extend_from_slice(b" on an unbound compiled slot");
+        return interp.set_error(&message);
+    };
+    let head_obj = new_string_bytes(head);
+    let name_obj = new_string_bytes(&name);
+    let mut argv = vec![head_obj, name_obj];
+    argv.extend(value);
+    // The command borrows its argv; pin every word for the call exactly as the
+    // dispatcher does, then drop the two this function created.
+    // SAFETY: every word is live for the whole call.
+    let _borrowed = unsafe { BorrowedArgv::retain(&argv) };
+    let code = command(interp, &argv);
+    drop_fresh(head_obj);
+    drop_fresh(name_obj);
+    code
+}
+
+/// `tcl_codegen_slot_incr_i64(slot, delta, out) -> status` — Tcl `incr` on the
+/// variable a compiled slot addresses, writing the new value through `out`.
+///
+/// Full `incr` semantics: the sum promotes to a bignum on overflow (Tcl
+/// integers never wrap), an existing bignum cell increments correctly, a
+/// non-integer cell raises C's `expected integer but got …`, and `const` and
+/// write traces apply. [`TCL_VALUE_GET_OK`] means `*out` was written;
+/// [`TCL_VALUE_GET_ERROR`] means the interpreter carries the Tcl error and
+/// `*out` is untouched — including the case where the new value is a bignum
+/// past the wide range, which is `integer value too large to represent` just as
+/// reading it as an `i64` anywhere else would be.
+///
+/// # Safety
+/// `out` must be null or writable, properly aligned `i64` storage.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_slot_incr_i64(slot: i32, delta: i64, out: *mut i64) -> i32 {
+    let interp = current_interp();
+    if interp.is_null() {
+        return TCL_VALUE_GET_ERROR;
+    }
+    let delta_obj = obj::new_wide_int_obj(delta);
+    // SAFETY: `interp` is live; `delta_obj` is a fresh live object.
+    let code = unsafe {
+        slot_modify(
+            interp,
+            slot,
+            b"incr",
+            Some(delta_obj),
+            crate::builtins::incr,
+        )
+    };
+    drop_fresh(delta_obj);
+    if code != crate::interp::Code::Ok {
+        return TCL_VALUE_GET_ERROR;
+    }
+    if out.is_null() {
+        return TCL_VALUE_GET_OK;
+    }
+    // SAFETY: `interp` is live; the result is `incr`'s new value.
+    let result = unsafe { (*interp).result_obj() };
+    match crate::typed_value::wide_int(result) {
+        Ok(value) => {
+            // SAFETY: `out` is writable aligned storage per the contract.
+            unsafe { out.write(value) };
+            TCL_VALUE_GET_OK
+        }
+        // SAFETY: `interp` is the live current interpreter.
+        Err(error) => unsafe { typed_read_error(interp, &error) },
+    }
+}
+
+/// `tcl_codegen_slot_append(slot, value) -> code` — Tcl `append` onto the
+/// variable a compiled slot addresses.
+///
+/// Copy-on-write is the runtime's own: an unshared plain string grows in place
+/// (amortised O(1)), anything else copies. `value` is borrowed. Returns the Tcl
+/// completion code (`0` ok, `1` error with the interpreter's message set).
+///
+/// # Safety
+/// `value` must be a live object with a caller-owned reference.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_slot_append(slot: i32, value: *mut TclObj) -> i32 {
+    let interp = current_interp();
+    if interp.is_null() || value.is_null() {
+        return 1;
+    }
+    // SAFETY: `interp` is live and `value` is caller-owned for the call.
+    let code = unsafe {
+        slot_modify(
+            interp,
+            slot,
+            b"append",
+            Some(value),
+            crate::cmd_string::append,
+        )
+    };
+    i32::try_from(code.as_int()).unwrap_or(1)
+}
+
+/// `tcl_codegen_slot_lappend(slot, value) -> code` — Tcl `lappend` onto the
+/// variable a compiled slot addresses, with the runtime's copy-on-write list
+/// growth (an uniquely owned backing vector is extended in place).
+///
+/// `value` is borrowed. Returns the Tcl completion code.
+///
+/// # Safety
+/// `value` must be a live object with a caller-owned reference.
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_slot_lappend(slot: i32, value: *mut TclObj) -> i32 {
+    let interp = current_interp();
+    if interp.is_null() || value.is_null() {
+        return 1;
+    }
+    // SAFETY: `interp` is live and `value` is caller-owned for the call.
+    let code = unsafe {
+        slot_modify(
+            interp,
+            slot,
+            b"lappend",
+            Some(value),
+            crate::cmd_list::lappend,
+        )
+    };
+    i32::try_from(code.as_int()).unwrap_or(1)
+}
+
+/// `tcl_codegen_slot_get(slot) -> obj` — the ABI v2 spelling of
+/// [`tcl_codegen_local_get`]. Both names address the same indexed cell; the
+/// `local_*` spellings stay for already-emitted modules.
+///
+/// # Safety
+/// As [`tcl_codegen_local_get`].
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_slot_get(slot: i32) -> *mut TclObj {
+    // SAFETY: forwarded per this function's contract.
+    unsafe { tcl_codegen_local_get(slot) }
+}
+
+/// `tcl_codegen_slot_set(slot, value) -> status` — the ABI v2 spelling of
+/// [`tcl_codegen_local_set`].
+///
+/// # Safety
+/// As [`tcl_codegen_local_set`].
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_slot_set(slot: i32, value: *mut TclObj) -> i32 {
+    // SAFETY: forwarded per this function's contract.
+    unsafe { tcl_codegen_local_set(slot, value) }
+}
+
+/// `tcl_codegen_slot_bind(slot, name_ptr, name_len, value) -> status` — the ABI
+/// v2 spelling of [`tcl_codegen_local_bind`].
+///
+/// # Safety
+/// As [`tcl_codegen_local_bind`].
+#[no_mangle]
+pub unsafe extern "C" fn tcl_codegen_slot_bind(
+    slot: i32,
+    name_ptr: *const u8,
+    name_len: i32,
+    value: *mut TclObj,
+) -> i32 {
+    // SAFETY: forwarded per this function's contract.
+    unsafe { tcl_codegen_local_bind(slot, name_ptr, name_len, value) }
 }
 
 /// Store a top-level or namespace variable by name.
@@ -2079,6 +2279,139 @@ mod tests {
             let sum = tcl_codegen_expr_add(tcl_codegen_local_get(0), tcl_codegen_local_get(1));
             assert_eq!(obj_bytes(sum), b"9");
             tcl_value_release(sum);
+
+            tcl_codegen_frame_pop();
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    /// The read-modify-write slot ABI is the runtime's own `incr` / `append` /
+    /// `lappend` addressed by index: full Tcl semantics, including the bignum
+    /// promotion `incr` gets from the numeric tower, and a by-name view of the
+    /// very same cell.
+    #[cfg(have_tommath)]
+    #[test]
+    fn slot_read_modify_write_runs_the_real_commands_on_the_same_cell() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            tcl_codegen_frame_push();
+
+            assert_eq!(
+                tcl_codegen_slot_bind(0, b"n".as_ptr(), 1, owned_str(b"1")),
+                0
+            );
+            let mut value: i64 = 0;
+            assert_eq!(
+                tcl_codegen_slot_incr_i64(0, 41, &mut value),
+                TCL_VALUE_GET_OK
+            );
+            assert_eq!(value, 42);
+            // The named view sees the indexed write, and vice versa.
+            assert_eq!(tcl_eval_code(box_str(b"set n")), 0);
+            assert_eq!((*interp).result_bytes(), b"42");
+            assert_eq!(tcl_eval_code(box_str(b"incr n")), 0);
+            let indexed = tcl_codegen_slot_get(0);
+            assert_eq!(obj_bytes(indexed), b"43");
+            tcl_value_release(indexed);
+
+            // `incr` promotes past the wide range instead of wrapping, and the
+            // i64 read of that new value reports C's overflow error.
+            assert_eq!(tcl_eval_code(box_str(b"set n 9223372036854775807")), 0);
+            assert_eq!(
+                tcl_codegen_slot_incr_i64(0, 1, &mut value),
+                TCL_VALUE_GET_ERROR
+            );
+            assert_eq!(
+                (*interp).result_bytes(),
+                b"integer value too large to represent"
+            );
+            assert_eq!(tcl_eval_code(box_str(b"set n")), 0);
+            assert_eq!((*interp).result_bytes(), b"9223372036854775808");
+
+            // `incr` on a non-integer cell keeps C's message.
+            assert_eq!(tcl_eval_code(box_str(b"set n abc")), 0);
+            assert_eq!(
+                tcl_codegen_slot_incr_i64(0, 1, &mut value),
+                TCL_VALUE_GET_ERROR
+            );
+            assert_eq!(
+                (*interp).result_bytes(),
+                b"expected integer but got \"abc\""
+            );
+
+            // `append` / `lappend` through the slot, seen by name.
+            assert_eq!(
+                tcl_codegen_slot_bind(1, b"s".as_ptr(), 1, owned_str(b"a")),
+                0
+            );
+            let piece = owned_str(b"bc");
+            assert_eq!(tcl_codegen_slot_append(1, piece), 0);
+            tcl_value_release(piece);
+            assert_eq!(tcl_eval_code(box_str(b"set s")), 0);
+            assert_eq!((*interp).result_bytes(), b"abc");
+
+            assert_eq!(
+                tcl_codegen_slot_bind(2, b"l".as_ptr(), 1, owned_str(b"x")),
+                0
+            );
+            let item = owned_str(b"y z");
+            assert_eq!(tcl_codegen_slot_lappend(2, item), 0);
+            tcl_value_release(item);
+            assert_eq!(tcl_eval_code(box_str(b"llength $l")), 0);
+            assert_eq!((*interp).result_bytes(), b"2");
+            assert_eq!(tcl_eval_code(box_str(b"lindex $l 1")), 0);
+            assert_eq!((*interp).result_bytes(), b"y z");
+
+            tcl_codegen_frame_pop();
+            tcl_runtime_set_current_interp(ptr::null_mut());
+            tcl_runtime_delete_interp(interp);
+        });
+    }
+
+    /// An indexed slot keeps addressing one cell across `unset` and re-creation,
+    /// and a variable trace, an `upvar` link, and `info locals` all reach that
+    /// same cell — the indexed path must never become a second variable.
+    #[cfg(have_tommath)]
+    #[test]
+    fn an_indexed_slot_survives_unset_and_stays_the_named_cell() {
+        leak_free(|| unsafe {
+            let interp = tcl_runtime_create_interp();
+            tcl_runtime_set_current_interp(interp);
+            tcl_codegen_frame_push();
+
+            assert_eq!(
+                tcl_codegen_slot_bind(0, b"v".as_ptr(), 1, owned_str(b"first")),
+                0
+            );
+            assert_eq!(tcl_eval_code(box_str(b"unset v")), 0);
+            assert!(
+                tcl_codegen_slot_get(0).is_null(),
+                "an unset cell reads as a missing variable"
+            );
+            assert_eq!(tcl_eval_code(box_str(b"set v second")), 0);
+            let value = tcl_codegen_slot_get(0);
+            assert_eq!(
+                obj_bytes(value),
+                b"second",
+                "the re-created variable refills the same cell"
+            );
+            tcl_value_release(value);
+
+            // A read trace observes the indexed read: the fast path declines
+            // whenever anything can see the difference.
+            assert_eq!(
+                tcl_eval_code(box_str(
+                    b"set ::hits 0; trace add variable v read {apply {{a b op} {incr ::hits}}}"
+                )),
+                0
+            );
+            let traced = tcl_codegen_slot_get(0);
+            assert!(!traced.is_null());
+            tcl_value_release(traced);
+            assert_eq!(tcl_eval_code(box_str(b"set ::hits")), 0);
+            assert_eq!((*interp).result_bytes(), b"1");
 
             tcl_codegen_frame_pop();
             tcl_runtime_set_current_interp(ptr::null_mut());

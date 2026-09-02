@@ -240,7 +240,7 @@ fn set(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// bignum cell increments correctly. Object-preserving (reads the cell's value
 /// object, not its string).
 #[cfg(have_tommath)]
-fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+pub(crate) fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 || argv.len() > 3 {
         return interp.wrong_args(b"incr varName ?increment?");
     }
@@ -290,7 +290,7 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// `incr` fallback for a build without the bignum tower (`have_tommath` off):
 /// `i64` only, failing loudly on overflow rather than wrapping.
 #[cfg(not(have_tommath))]
-fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+pub(crate) fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 || argv.len() > 3 {
         return interp.wrong_args(b"incr varName ?increment?");
     }

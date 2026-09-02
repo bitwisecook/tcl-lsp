@@ -118,7 +118,7 @@ fn lindex(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 /// `lappend varName ?value ...?` — append to the list in `varName` (creating it
 /// if unset), copy-on-write if the value is shared. Returns the new list.
-fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+pub(crate) fn lappend(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args(b"lappend varName ?value ...?");
     }

@@ -2145,6 +2145,24 @@ impl Interp {
             .map(<[u8]>::to_vec)
     }
 
+    /// The value a generated local slot addresses, by the **O(1) cell path**.
+    ///
+    /// Taken only when nothing can observe the read differently from a plain
+    /// cell load: the cell holds a scalar (not a link, which crosses tables and
+    /// is the coordinator's walk), and the interpreter has no variable traces at
+    /// all. `None` means "no fast path" — an unbound slot, an undefined or
+    /// linked cell, or a traced interpreter — and the caller takes the name path,
+    /// which owns the link walk, the trace firing, and the error text.
+    pub(crate) fn codegen_slot_scalar(&self, slot: usize) -> Option<*mut TclObj> {
+        if !self.traces.borrow().traces.is_empty() {
+            return None;
+        }
+        match self.frames.borrow().compiled_slot_var(slot)? {
+            crate::frame::Var::Scalar(value) => Some(*value),
+            _ => None,
+        }
+    }
+
     /// Begin an ensemble-rewrite (a forward / ensemble / constructor replacing
     /// the original command words). Returns `true` if this is the *root* rewrite
     /// (no rewrite was active) — the caller must `clear_ensemble_rewrite` when
