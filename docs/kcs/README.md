@@ -225,6 +225,10 @@ symptom with several possible causes worth telling apart. See rule 13 in
   — the SpecTcl pack quickstart: the minimal `.tclspec` shape, the
   three discovery tiers, validation, and how the running server picks
   a saved pack up.
+- [kcs-howto-author-a-sslictcl-declaration.md](kcs-howto-author-a-sslictcl-declaration.md)
+  — write a `.sslictcl` TLS declaration with the editor's help: how the
+  document is recognised, what completion offers at each level, and how to
+  read the loader's `SSLIC` diagnostics.
 - [kcs-howto-scope-an-ambient-package-to-one-dialect.md](kcs-howto-scope-an-ambient-package-to-one-dialect.md)
   — say a library is ambient under one of a pack's environments and not
   another, with an `environment { ambient … }` row and a shared version

@@ -38,6 +38,9 @@ tcl-compiler = { path = "../tcl-compiler" }
 tcl-irules = { path = "../tcl-irules" }
 # APL (iApp presentation) lexer, for the bespoke `tcl-apl` token path.
 tcl-bigip = { path = "../tcl-bigip" }
+# The SslicTcl `.sslictcl` loader, for the dialect's publishable
+# `SSLIC1xxx` diagnostics (`sslictcl_diagnostics`).
+tcl-sslictcl = { path = "../tcl-sslictcl" }
 regex = "1"
 rustc-hash = { workspace = true }
 serde = { workspace = true }

@@ -260,6 +260,53 @@ spec in the pack is named by the table, `Script` members carry no grammar, and
 each closed domain's `arg_values` are exactly the loader's accepted spellings.
 The two statements of the vocabulary therefore cannot drift.
 
+## Authoring `.sslictcl` in the editor
+
+A `.sslictcl` document is a first-class authoring target: everything below is
+registry data plus the loader, and no LSP consumer names a declaration.
+
+**How a document routes.** Four signals reach the same `sslictcl` environment,
+in the server's usual order of specificity: an explicit `# tcl-dialect:
+sslictcl` directive, an editor language id of `sslictcl` (the identity the VS
+Code, JetBrains, Sublime, Zed and Helix integrations contribute), the
+`.sslictcl` file extension, and — for a document saved under a `.tcl` name —
+the mandatory `sslictcl VERSION` header as a content signature. Whichever
+route fires, `tcl_lsp_core::sslictcl_diagnostics::applies_to` answers from the
+resolved environment's authoring surface rather than from the dialect's name,
+so aliases and all four routes agree.
+
+**What the editor provides.**
+
+| Surface | Where it comes from |
+|---|---|
+| Completion | Exactly the members of the grammar in force, and nothing else: the nine top-level declarations at the root (`SSLICTCL_DOCUMENT_GRAMMAR`, reached through `CommandRegistry::document_grammar`), that block's members inside a block, and ordinary Tcl completion inside a `predicate { … }`, whose statement carries no grammar. `oo_body::definition_grammar_at` finds the grammar; the narrowing applies because the document declares a document grammar, which is what says its bodies are closed — a script document's class body is executable Tcl and stays open. |
+| Hover / signature help | The pack's `HoverSnippet` for each statement word, whose `source` line cites this document. |
+| Semantic tokens | The shared `oo_body` walk: every declaration word paints as a keyword at any depth, and a `predicate` body — whose statement carries no grammar — drops out of declaration context. |
+| Folding | The shared body-fold walk over the same grammars: every block folds, nested blocks included. |
+| Document symbols | `tcl_lsp_core::document_symbols::declaration_symbols`, over the block tree. A declaration document has no procs, classes or namespaces for the analyser's scope walk to find; its blocks *are* its structure, so `endpoint /Common/www` and `policy corporate` are the outline, with `hsts`, `check modern` and `grade` beneath them. |
+| Diagnostics | Every `DslDiagnostic` `load_with_diagnostics` reports, published as an ordinary document diagnostic. |
+
+**Which codes appear.** The loader's own, unchanged: `SSLIC1001`–`SSLIC1012`
+as errors and `SSLIC1101`–`SSLIC1103` as notices (`SSLIC1101` and `SSLIC1103`
+are hints, `SSLIC1102` a warning). Each is ranged over the exact bytes at
+fault — the offending value word for `SSLIC1009`, the whole member statement
+for `SSLIC1007`, the referenced name for `SSLIC1011` — converted to UTF-16
+positions by the same lift every other diagnostic uses, carries the same
+`tcl-lsp` source, and honours `tclLsp.diagnostics.<CODE>`, a `# noqa`
+comment, a file-level `# tcl-lsp: disable=…` directive, and the
+`tclLsp.diagnostics.exclude` file globs exactly as any other code does.
+
+**One dialect rule.** In a document that is never evaluated, no word is a
+command call, so the analyser's `W123` "unknown command" has nothing to say:
+an unrecognised word is an unknown *declaration*, and the loader already
+reports it far better — `SSLIC1101` where an open block preserves it as a
+forwards-compatibility extension, `SSLIC1007` where a closed block rejects
+it. `sslictcl_diagnostics::SUPERSEDED_ANALYSER_CODES` states that, and it is
+applied wherever a verdict reaches a user: the push publish, the pull report,
+the quick-fixes `textDocument/codeAction` lifts from that same set, and `tcl
+diag` / `tcl lint`. Every other analyser verdict stands — an arity error on a
+declared member (`hostname a b c` → `E003`) is still an arity error.
+
 ## Where it lives
 
 | Surface | Location |
@@ -270,10 +317,14 @@ The two statements of the vocabulary therefore cannot drift.
 | Command pack | `rust/tcl-registry/src/commands/sslictcl/` |
 | Block grammars | `SSLICTCL_*_GRAMMAR` / `SSLICTCL_GRAMMARS` in `rust/tcl-registry/src/definer.rs` |
 | Loader, vocabulary table, policy, emitter | `rust/tcl-sslictcl/src/{dsl,vocabulary,policy,emit}.rs` |
+| Editor projection (diagnostics, outline) | `rust/tcl-lsp-core/src/{sslictcl_diagnostics,declaration_outline}.rs` |
+| Body vocabulary (completion, painting) | `rust/tcl-lsp-core/src/oo_body.rs` `definition_grammar_at`; `CommandRegistry::document_grammar` |
 | Contract tests | `rust/tcl-sslictcl/tests/registry_pack_drift.rs`, `rust/tcl-registry/tests/sslictcl_pack.rs`, `rust/tcl-registry/tests/detect_dialect.rs`, `rust/tcl-lsp-core/tests/semantic_tokens.rs` |
+| End-to-end tests | `rust/tcl-lsp-server/tests/e2e/sslictcl.rs`, `editors/vscode/src/test/sslictclAuthoring.test.ts`, `rust/tcl-lsp-server-wasm/test/e2e.mjs` |
 
 ## See also
 
+- [How do I author a `.sslictcl` TLS declaration in my editor?](../kcs/kcs-howto-author-a-sslictcl-declaration.md)
 - `samples/sslictcl/example.sslictcl` — a document exercising every
   declaration and member, plus an unknown word in each open block.
 - [contracts/sslictcl-source-data.md](contracts/sslictcl-source-data.md) — the

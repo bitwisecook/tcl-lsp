@@ -41,6 +41,7 @@ const dist = join(here, "..", "dist");
 const SHIPPED_SPECS = join(here, "..", "..", "..", "specs");
 
 const SPEC_URI = "file:///w/demo.tclspec";
+const SSLIC_URI = "file:///w/demo.sslictcl";
 const TCL_URI = "file:///w/demo.tcl";
 
 // The second session's workspace, served entirely from the store. Nothing here
@@ -130,6 +131,16 @@ const SPEC_SOURCE_BROKEN = `speclib demo 1.0 {
 command demo_place {
     dialects tcl8.6
     form Default {demo_place ?-cell name?
+`;
+
+// A minimal SslicTcl declaration document: the mandatory header, one block,
+// and one unrecognised top-level word the open-world rule preserves as
+// `SSLIC1101`.
+const SSLIC_SOURCE = `sslictcl 1
+endpoint /Common/www {
+    hostname www.example.test
+}
+site-owner {web platform}
 `;
 
 const TCL_SOURCE = `proc greet {name} {
@@ -572,6 +583,43 @@ async function main() {
         "a broken document produces at least one diagnostic",
         Array.isArray(broken) && broken.length > 0,
         broken ? `${broken.length}: ${broken[0].code ?? ""} ${broken[0].message}` : "none",
+    );
+
+    // ---- the .sslictcl document ------------------------------------------
+    // The sibling declarative dialect. Its `SSLIC1xxx` diagnostics come from
+    // `tcl_sslictcl`, whose transitive crypto dependencies are the reason this
+    // check exists here at all: the browser server has to keep building and
+    // running with them linked in.
+    session.notify("textDocument/didOpen", {
+        textDocument: {
+            uri: SSLIC_URI,
+            languageId: "sslictcl",
+            version: 1,
+            text: SSLIC_SOURCE,
+        },
+    });
+    await settle(250);
+
+    const sslicHover = await session.request("textDocument/hover", {
+        textDocument: { uri: SSLIC_URI },
+        position: { line: 1, character: 2 },
+    });
+    const sslicHoverText = describeHover(sslicHover.result);
+    check(
+        "hover on `endpoint` returns the SslicTcl pack's own text (.sslictcl)",
+        sslicHoverText.includes("Declare a TLS endpoint"),
+        JSON.stringify(sslicHoverText.slice(0, 70)),
+    );
+
+    const sslicDiags = await until(() => {
+        const diags = session.diagnostics.get(SSLIC_URI);
+        return diags && diags.some((d) => String(d.code ?? "").startsWith("SSLIC")) ? diags : null;
+    });
+    check(
+        "the SslicTcl loader's notice is published (.sslictcl)",
+        Array.isArray(sslicDiags) &&
+            sslicDiags.some((d) => String(d.code ?? "") === "SSLIC1101"),
+        `${sslicDiags?.map((d) => d.code).join(", ") ?? "none"}`,
     );
 
     // ---- a plain .tcl document -------------------------------------------

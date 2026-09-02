@@ -179,6 +179,26 @@ fn spectcl_packs_get_the_same_answer() {
     );
 }
 
+/// A definition body in a *script* document stays open.
+///
+/// The narrowing above is sound because a declaration document is never
+/// evaluated, so a block body genuinely admits nothing but its members. A
+/// `TclOO` class body is the opposite case: it is executable Tcl —
+/// `oo::class create C { if {[info exists ::x]} { method m {} {…} } }` is
+/// legal and runs — so `if` and `set` must still be offered there beside the
+/// class members. The gate is `CommandRegistry::document_grammar`, which only
+/// a dialect whose file is itself a declaration body declares.
+#[test]
+fn a_class_body_in_a_script_document_stays_open() {
+    let labels = labels_at("oo::class create Greeter {\n    \n}\n", "tcl9.0", 1, 4);
+    assert!(
+        labels.contains(&"set".to_owned()) && labels.contains(&"if".to_owned()),
+        "ordinary Tcl is offered in a class body, because the body is \
+         executed: {labels:?}"
+    );
+    assert!(labels.len() > 100, "…all of it, got {}", labels.len());
+}
+
 /// An ordinary Tcl document has no document grammar, so its root stays an
 /// open command position and completion is unchanged.
 #[test]

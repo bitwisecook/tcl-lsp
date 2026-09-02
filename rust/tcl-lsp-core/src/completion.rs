@@ -1820,13 +1820,21 @@ fn scoped_env_at(
         .map(|r| r.env)
 }
 
-/// The definition-body grammar in force at the cursor's command position, or
-/// `None` when the position is an ordinary open one.
+/// The definition-body grammar whose members are the **whole** answer at the
+/// cursor's command position, or `None` when the position also admits
+/// ordinary commands.
 ///
-/// Registry data decides both halves: the root answer is the dialect's
-/// document grammar, and every level below it is the same nesting rule the
-/// folding and semantic-token walks apply ([`crate::oo_body`]). No dialect or
-/// declaration name appears here.
+/// Registry data decides every part of it. Whether the document has closed
+/// bodies at all is [`CommandRegistry::document_grammar`]: a dialect whose
+/// *file* is itself a declaration body declares one, and nothing in such a
+/// document is ever evaluated, so a block inside it admits its grammar's
+/// members and nothing else. A document with no document grammar is a script,
+/// and a definition body in a script is still executable Tcl — `oo::class
+/// create C { if {…} { method m {} {…} } }` is legal and runs — so its bodies
+/// stay open and completion there is unchanged. Below the root it is the same
+/// nesting rule the folding and semantic-token walks apply
+/// ([`crate::oo_body::definition_grammar_at`]). No dialect or declaration name
+/// appears here.
 fn definition_grammar_at_position(
     source: &str,
     line: u32,
@@ -1835,6 +1843,7 @@ fn definition_grammar_at_position(
     registry: &CommandRegistry,
     profile: &'static tcl_dialect::DialectProfile,
 ) -> Option<&'static tcl_registry::definer::DefinitionBodyGrammar> {
+    registry.document_grammar()?;
     let offset = crate::definition::byte_offset_at(line_index, source, line, character);
     crate::oo_body::definition_grammar_at(
         source,

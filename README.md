@@ -936,6 +936,36 @@ Pick one per file with a `# tcl-dialect:` comment, per project in
 configuration, or let detection choose — see
 [Automatic dialect detection](#automatic-dialect-detection) below.
 
+### Authoring a `.sslictcl` TLS declaration
+
+A `.sslictcl` document states the certificates, chains, endpoints, trust
+programs, protocol and cipher catalogues, and assurance policy of a
+deployment. It is written in Tcl *syntax* and **never evaluated** — the
+loader walks the syntax tree and constructs no interpreter — and the editor
+treats it accordingly:
+
+- **completion** offers the declaration words at the top level, and inside a
+  block exactly that block's members (`hsts { … }` offers `enabled`,
+  `max-age`, `include-subdomains`, `preload` and nothing else, because
+  nothing else can be written there);
+- **hover** and **signature help** come from the vocabulary's own
+  documentation, and **semantic tokens** paint every declaration word as a
+  keyword at any nesting depth — while a `check`'s `predicate { … }` script,
+  which the loader retains verbatim, is left alone;
+- the **outline** lists the declarations (`endpoint /Common/www`, `policy
+  corporate`) with nested blocks beneath them, and every block folds;
+- **diagnostics** are the loader's own `SSLIC1001`–`SSLIC1012` errors and
+  `SSLIC1101`–`SSLIC1103` notices, ranged over the exact word at fault, and
+  they honour the same per-code `tclLsp.diagnostics.<CODE>` switches
+  everything else does. An unrecognised word in an open block is a preserved
+  extension (`SSLIC1101`), not an unknown command — the loader owns that
+  verdict, so no unknown-command hint doubles up on it.
+
+A step-by-step walkthrough is in
+[docs/kcs/kcs-howto-author-a-sslictcl-declaration.md](docs/kcs/kcs-howto-author-a-sslictcl-declaration.md);
+the vocabulary, the open/closed block rule, and the value domains are in
+[docs/design/sslictcl-vocabulary.md](docs/design/sslictcl-vocabulary.md).
+
 ### Every package in the registry
 
 Commands from these 69 packages are modelled with hover docs,
