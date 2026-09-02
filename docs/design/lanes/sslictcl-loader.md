@@ -26,7 +26,7 @@ implement exactly, never rename or extend.
 |---|-------|-------|
 | 1 | `DiagSection::Sslic` + 15 codes; ranged, recovering, coded loader API | done |
 | 2 | vocabulary 1 complete; facts in the estimator; `policy.rs` | done |
-| 3 | `SslicModel::to_sslictcl` + fixpoint round-trip | pending |
+| 3 | `SslicModel::to_sslictcl` + fixpoint round-trip | done |
 | 4 | sample document, docs, re-exports, final gates | pending |
 
 ## Decisions
@@ -88,7 +88,8 @@ notices still loads.
 | `rust/tcl-sslictcl/src/policy.rs` — `evaluate_policy` | done |
 | `rust/tcl-sslictcl/src/estimate.rs` — `EstimateInput.facts`, `Grade::rank`/`FromStr` | done |
 | `rust/bigip-report-gen/rust/src/tls.rs` — one `EstimateInput` literal (`facts: None`) | done |
-| `samples/sslictcl/example.sslictcl` | pending |
+| `rust/tcl-sslictcl/src/emit.rs` — `SslicModel::to_sslictcl`, shared `tcl_word` | done |
+| `samples/sslictcl/example.sslictcl` | done |
 | `docs/design/sslictcl-vocabulary.md` + index link | pending |
 
 ## Deltas accepted
@@ -143,6 +144,25 @@ instance of each declaration and asserts the loader reports neither
 undeclared word is rejected by a closed block and preserved by an open one.
 Adding a member to the table without teaching the parser fails the test, and
 vice versa.
+
+## Milestone 3 decisions
+
+`tcl_word` / `hex_lower` moved out of `testssl.rs` into the private `emit`
+module; `TestSslImport::to_sslictcl` keeps its exact output and delegates to a
+new `pub(crate) declaration()` the whole-model emitter embeds.
+
+Declarations are emitted in vocabulary order, maps iterate in `BTreeMap` order,
+and bodies indent four spaces per level. An endpoint that names a `chain` emits
+`chain NAME` only — re-emitting the resolved `certificate-chain` too would be
+the `SSLIC1012` pair, and the list is rebuilt from the chain on load. A
+`predicate` is re-braced verbatim rather than passed through `tcl_word`: it came
+from a braced word, so its brace nesting is balanced by construction.
+
+`TlsValue::Object` is the one thing the emitter cannot round-trip: no
+`.sslictcl` document can produce one (only the nginx adapter does), the
+vocabulary has no nested extension form, and re-loading the nested block the
+emitter writes yields it as a scalar. The alternative was dropping the data
+from the text, which is worse. Documented at the top of `emit.rs`.
 
 ## Open questions
 

@@ -15,6 +15,7 @@ pub mod chain;
 pub mod config_adapter;
 pub mod dataset;
 pub mod dsl;
+mod emit;
 pub mod estimate;
 pub mod key;
 pub mod model;
