@@ -2199,11 +2199,12 @@ mod tests {
             assert_eq!(surface_breadth(rows_of), expected, "{rows_of:?} breadth");
         }
         // The universal translation is strictly wider than any explicit
-        // gate (old rule: a catch-all loses to every scoped spec). 23 =
-        // 5 Tcl releases + 1 f5-tcl + 1 f5-irules + 9 jim + 7 vendor
+        // gate (old rule: a catch-all loses to every scoped spec). 24 =
+        // 5 Tcl releases + 1 f5-tcl + 1 f5-irules + 9 jim + 8 vendor
         // packages — the `f5-tcl` trunk family (measurements §4a) added
-        // its row in the F5 reclassification.
-        assert_eq!(specificity_breadth(&rows(None)), 23);
+        // its row in the F5 reclassification, and `sslictcl` added its
+        // vendor package with the `.sslictcl` authoring dialect (#1543).
+        assert_eq!(specificity_breadth(&rows(None)), 24);
         // A hosted attribution row adds no specificity, mirroring the old
         // specificity, which never counted `required_package`.
         let hosted = declarations_for_spec(&CommandSpec {

@@ -148,6 +148,8 @@ impl SpecSurface {
     pub const EXPECT: &'static [Self] = &[Self::package("expect")];
     /// The `SpecTcl` authoring-DSL surface.
     pub const SPECTCL: &'static [Self] = &[Self::package("spectcl")];
+    /// The `SslicTcl` TLS-assurance authoring-DSL surface.
+    pub const SSLICTCL: &'static [Self] = &[Self::package("sslictcl")];
     /// The BPF-Tcl package surface.
     pub const BPF: &'static [Self] = &[Self::package("bpf")];
     /// The BIG-IP configuration surface.

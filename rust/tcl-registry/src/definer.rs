@@ -891,6 +891,18 @@ pub enum DefinerFamily {
     /// Consumers that manufacture instances (the signature scanner, the OO
     /// analyser) must treat this family as claiming nothing.
     SpecTcl,
+    /// `SslicTcl` — the `.sslictcl` TLS-assurance DSL's declaration bodies
+    /// (`certificate NAME { … }`, `endpoint NAME { … }`, `policy NAME { … }`,
+    /// …).
+    ///
+    /// Not a class system, for the same reason [`Self::SpecTcl`] is not: a
+    /// `.sslictcl` document declares TLS facts, manufactures no instances and
+    /// dispatches nothing, so every "object" field of the grammar is empty
+    /// for it. It shares [`DefinitionBodyGrammar`] because it needs exactly
+    /// what the class definers need — a *context-sensitive* member vocabulary
+    /// — and gets folding, semantic tokens, and body recursion from the same
+    /// generic consumers.
+    SslicTcl,
 }
 
 /// The grammar of a definer command's definition body: its recognised member
@@ -1297,11 +1309,15 @@ impl DefinitionBodyGrammar {
     pub fn member_default_exported(&self, name: &str) -> bool {
         match self.family {
             DefinerFamily::TclOo => name.starts_with(|c: char| c.is_ascii_lowercase()),
-            // SpecTcl declares no members that are ever *dispatched*, so the
-            // question is vacuous for it; answering `true` keeps the visible
+            // SpecTcl and SslicTcl declare no members that are ever
+            // *dispatched*, so the question is vacuous for them; answering
+            // `true` keeps the visible
             // set equal to the declared set, which is the only reading of
             // "exported" a declaration-only family has.
-            DefinerFamily::Snit | DefinerFamily::Itcl | DefinerFamily::SpecTcl => true,
+            DefinerFamily::Snit
+            | DefinerFamily::Itcl
+            | DefinerFamily::SpecTcl
+            | DefinerFamily::SslicTcl => true,
         }
     }
 }
@@ -2347,6 +2363,196 @@ pub const SPECTCL_GRAMMARS: &[&DefinitionBodyGrammar] = &[
     &SPECTCL_DEFINITION_BODY_GRAMMAR,
     &SPECTCL_BODY_SCOPE_GRAMMAR,
     &SPECTCL_OBJECT_CLASS_GRAMMAR,
+];
+
+// SslicTcl — the `.sslictcl` TLS-assurance declaration DSL (#1543).
+//
+// Every block statement's member table is exactly the row vocabulary of that
+// block, and a *nested* block (`hsts`, `anchor`, `check`, `grade`) appears
+// twice: once as a member row of its parent's grammar, and once as its own
+// statement carrying its own grammar. That pairing is what lets the shared
+// walker switch vocabularies on the way down with no walker changes.
+
+/// A nested bare-block member row: `hsts { … }`, `grade { … }`.
+const SSLICTCL_BLOCK_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::Body)];
+
+/// A nested named-block member row: `anchor SHA256 { … }`, `check ID { … }`.
+const SSLICTCL_NAMED_BLOCK_ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::Name), (1, ArgRole::Body)];
+
+/// The rows of a `certificate NAME { … }` block.
+const SSLICTCL_CERTIFICATE_MEMBERS: &[MemberSpec] = &[
+    MemberSpec::keyword_only("pem"),
+    MemberSpec::keyword_only("material"),
+    MemberSpec::keyword_only("key"),
+];
+
+/// The rows of an `endpoint NAME { … }` block.
+const SSLICTCL_ENDPOINT_MEMBERS: &[MemberSpec] = &[
+    MemberSpec::keyword_only("hostname"),
+    MemberSpec::keyword_only("protocols"),
+    MemberSpec::keyword_only("ciphers"),
+    MemberSpec::keyword_only("groups"),
+    MemberSpec::keyword_only("signature-schemes"),
+    MemberSpec::keyword_only("certificate-chain"),
+    MemberSpec::keyword_only("chain"),
+    MemberSpec::keyword_only("policy"),
+    MemberSpec::flat("hsts", SSLICTCL_BLOCK_ROLES),
+];
+
+/// The rows of an `hsts { … }` block.
+const SSLICTCL_HSTS_MEMBERS: &[MemberSpec] = &[
+    MemberSpec::keyword_only("enabled"),
+    MemberSpec::keyword_only("max-age"),
+    MemberSpec::keyword_only("include-subdomains"),
+    MemberSpec::keyword_only("preload"),
+];
+
+/// The rows of a `testssl-import NAME { … }` block.
+const SSLICTCL_TESTSSL_IMPORT_MEMBERS: &[MemberSpec] = &[
+    MemberSpec::keyword_only("schema"),
+    MemberSpec::keyword_only("raw-json-hex"),
+];
+
+/// The rows of a `trust-program NAME { … }` block.
+const SSLICTCL_TRUST_PROGRAM_MEMBERS: &[MemberSpec] = &[
+    MemberSpec::keyword_only("client"),
+    MemberSpec::keyword_only("version"),
+    MemberSpec::keyword_only("generated-at"),
+    MemberSpec::keyword_only("source-name"),
+    MemberSpec::keyword_only("source-url"),
+    MemberSpec::keyword_only("source-revision"),
+    MemberSpec::keyword_only("source-license"),
+    MemberSpec::flat("anchor", SSLICTCL_NAMED_BLOCK_ROLES),
+];
+
+/// The rows of an `anchor SHA256 { … }` block.
+const SSLICTCL_ANCHOR_MEMBERS: &[MemberSpec] = &[
+    MemberSpec::keyword_only("subject"),
+    MemberSpec::keyword_only("der-base64"),
+    MemberSpec::keyword_only("purposes"),
+    MemberSpec::keyword_only("trusted"),
+    MemberSpec::keyword_only("distrust-after"),
+];
+
+/// The rows of a `protocol VERSION { … }` block.
+const SSLICTCL_PROTOCOL_MEMBERS: &[MemberSpec] = &[
+    MemberSpec::keyword_only("status"),
+    MemberSpec::keyword_only("score"),
+    MemberSpec::keyword_only("reference"),
+];
+
+/// The rows of a `cipher NAME { … }` block.
+const SSLICTCL_CIPHER_MEMBERS: &[MemberSpec] = &[
+    MemberSpec::keyword_only("iana-name"),
+    MemberSpec::keyword_only("openssl-name"),
+    MemberSpec::keyword_only("key-exchange"),
+    MemberSpec::keyword_only("authentication"),
+    MemberSpec::keyword_only("encryption"),
+    MemberSpec::keyword_only("bits"),
+    MemberSpec::keyword_only("forward-secrecy"),
+    MemberSpec::keyword_only("aead"),
+    MemberSpec::keyword_only("status"),
+    MemberSpec::keyword_only("protocols"),
+];
+
+/// The one row of a `chain NAME { … }` block.
+const SSLICTCL_CHAIN_MEMBERS: &[MemberSpec] = &[MemberSpec::keyword_only("certificates")];
+
+/// The rows of a `policy NAME { … }` block.
+const SSLICTCL_POLICY_MEMBERS: &[MemberSpec] = &[
+    MemberSpec::flat("check", SSLICTCL_NAMED_BLOCK_ROLES),
+    MemberSpec::flat("grade", SSLICTCL_BLOCK_ROLES),
+];
+
+/// The rows of a `check ID { … }` block. `predicate` carries a braced script
+/// that the loader retains verbatim and never evaluates, so it is a plain
+/// keyword row here and its own statement claims the body role.
+const SSLICTCL_CHECK_MEMBERS: &[MemberSpec] = &[
+    MemberSpec::keyword_only("severity"),
+    MemberSpec::keyword_only("message"),
+    MemberSpec::keyword_only("require-protocols"),
+    MemberSpec::keyword_only("forbid-protocols"),
+    MemberSpec::keyword_only("forbid-ciphers"),
+    MemberSpec::keyword_only("require-forward-secrecy"),
+    MemberSpec::keyword_only("min-key-bits"),
+    MemberSpec::keyword_only("require-hsts"),
+    MemberSpec::keyword_only("min-hsts-max-age"),
+    MemberSpec::keyword_only("predicate"),
+];
+
+/// The one row of a `grade { … }` block.
+const SSLICTCL_GRADE_MEMBERS: &[MemberSpec] = &[MemberSpec::keyword_only("minimum")];
+
+/// Build one `SslicTcl` grammar from its member table. Every field a class
+/// system uses is empty: a TLS declaration manufactures nothing, dispatches
+/// nothing, and injects no commands or variables into its blocks.
+const fn sslictcl_grammar(members: &'static [MemberSpec]) -> DefinitionBodyGrammar {
+    DefinitionBodyGrammar {
+        family: DefinerFamily::SslicTcl,
+        members,
+        implicit_vars: &[],
+        member_body_namespace_path: &[],
+        builtin_type_methods: &[],
+        builtin_object_methods: &[],
+        builtin_terminating_methods: &[],
+        member_body_commands: &[],
+        bare_word_construction: false,
+        bare_word_construction_hint: None,
+        dynamic_method_dispatch: false,
+        manufacturers: &[],
+        unknown_dispatch_method: None,
+        property_accessor_methods: &[],
+    }
+}
+
+/// The body of `certificate NAME { … }`.
+pub const SSLICTCL_CERTIFICATE_GRAMMAR: DefinitionBodyGrammar =
+    sslictcl_grammar(SSLICTCL_CERTIFICATE_MEMBERS);
+/// The body of `endpoint NAME { … }`.
+pub const SSLICTCL_ENDPOINT_GRAMMAR: DefinitionBodyGrammar =
+    sslictcl_grammar(SSLICTCL_ENDPOINT_MEMBERS);
+/// The body of `hsts { … }`.
+pub const SSLICTCL_HSTS_GRAMMAR: DefinitionBodyGrammar = sslictcl_grammar(SSLICTCL_HSTS_MEMBERS);
+/// The body of `testssl-import NAME { … }`.
+pub const SSLICTCL_TESTSSL_IMPORT_GRAMMAR: DefinitionBodyGrammar =
+    sslictcl_grammar(SSLICTCL_TESTSSL_IMPORT_MEMBERS);
+/// The body of `trust-program NAME { … }`.
+pub const SSLICTCL_TRUST_PROGRAM_GRAMMAR: DefinitionBodyGrammar =
+    sslictcl_grammar(SSLICTCL_TRUST_PROGRAM_MEMBERS);
+/// The body of `anchor SHA256 { … }`.
+pub const SSLICTCL_ANCHOR_GRAMMAR: DefinitionBodyGrammar =
+    sslictcl_grammar(SSLICTCL_ANCHOR_MEMBERS);
+/// The body of `protocol VERSION { … }`.
+pub const SSLICTCL_PROTOCOL_GRAMMAR: DefinitionBodyGrammar =
+    sslictcl_grammar(SSLICTCL_PROTOCOL_MEMBERS);
+/// The body of `cipher NAME { … }`.
+pub const SSLICTCL_CIPHER_GRAMMAR: DefinitionBodyGrammar =
+    sslictcl_grammar(SSLICTCL_CIPHER_MEMBERS);
+/// The body of `chain NAME { … }`.
+pub const SSLICTCL_CHAIN_GRAMMAR: DefinitionBodyGrammar = sslictcl_grammar(SSLICTCL_CHAIN_MEMBERS);
+/// The body of `policy NAME { … }`.
+pub const SSLICTCL_POLICY_GRAMMAR: DefinitionBodyGrammar =
+    sslictcl_grammar(SSLICTCL_POLICY_MEMBERS);
+/// The body of `check ID { … }`.
+pub const SSLICTCL_CHECK_GRAMMAR: DefinitionBodyGrammar = sslictcl_grammar(SSLICTCL_CHECK_MEMBERS);
+/// The body of `grade { … }`.
+pub const SSLICTCL_GRADE_GRAMMAR: DefinitionBodyGrammar = sslictcl_grammar(SSLICTCL_GRADE_MEMBERS);
+
+/// Every `SslicTcl` grammar, so a sweep can assert the family's invariants
+/// without enumerating the constants by hand.
+pub const SSLICTCL_GRAMMARS: &[&DefinitionBodyGrammar] = &[
+    &SSLICTCL_CERTIFICATE_GRAMMAR,
+    &SSLICTCL_ENDPOINT_GRAMMAR,
+    &SSLICTCL_HSTS_GRAMMAR,
+    &SSLICTCL_TESTSSL_IMPORT_GRAMMAR,
+    &SSLICTCL_TRUST_PROGRAM_GRAMMAR,
+    &SSLICTCL_ANCHOR_GRAMMAR,
+    &SSLICTCL_PROTOCOL_GRAMMAR,
+    &SSLICTCL_CIPHER_GRAMMAR,
+    &SSLICTCL_CHAIN_GRAMMAR,
+    &SSLICTCL_POLICY_GRAMMAR,
+    &SSLICTCL_CHECK_GRAMMAR,
+    &SSLICTCL_GRADE_GRAMMAR,
 ];
 
 #[cfg(test)]

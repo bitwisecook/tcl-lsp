@@ -389,6 +389,10 @@ pub const TCL_SOURCE_EXTENSIONS: &[&str] = &[
     // SpecTcl packs (`spec-packs.md`): a `.tclspec` is one Tcl script, sits
     // beside the code it describes, and is indexed like any other source.
     "tclspec",
+    // SslicTcl TLS declarations (#1543): a `.sslictcl` is one Tcl script that
+    // is read and never evaluated, kept beside the deployment it describes,
+    // and indexed like any other source.
+    "sslictcl",
 ];
 
 /// The `**/*.{…}` glob naming exactly [`TCL_SOURCE_EXTENSIONS`], written so it
@@ -731,6 +735,11 @@ pub fn dialect_hint_markers() -> impl Iterator<Item = &'static str> {
 /// as a whole word anywhere in the scanned head. Ordered most-specific first so
 /// an EDA-tool script never falls through to a weaker signal.
 const CONTENT_SIGNATURES: &[(&str, &[&str])] = &[
+    // SslicTcl TLS declarations. The mandatory `sslictcl VERSION` header is
+    // the document's first declaration and the word appears nowhere else in
+    // the vocabulary, so it is the most specific signature here and the one
+    // that catches a document saved under a `.tcl` name.
+    ("sslictcl", &["sslictcl"]),
     // SpecTcl command packs. `speclib` is the DSL's one loader directive and
     // its only possible top-level word, so it is both the most specific
     // signature here and the one that catches a pack saved under a `.tcl`

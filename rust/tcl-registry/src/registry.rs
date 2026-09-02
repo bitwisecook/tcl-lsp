@@ -781,6 +781,10 @@ shared_group!(
     spectcl_specs,
     crate::commands::spectcl::spectcl_command_specs
 );
+shared_group!(
+    sslictcl_specs,
+    crate::commands::sslictcl::sslictcl_command_specs
+);
 
 impl CommandRegistry {
     /// Build the default registry with core Tcl + stdlib + tcllib commands.
@@ -842,6 +846,11 @@ impl CommandRegistry {
             // underneath (hook bodies are real Tcl); this layer adds the
             // declaration vocabulary on top of it.
             SurfaceLayer::Package("spectcl") => spectcl_specs(),
+            // SslicTcl: the `.sslictcl` DSL's own declaration words. A
+            // document is an ordinary Tcl script that is read and never
+            // evaluated, so the base Tcl surface stays loaded underneath —
+            // the grammar is what says a word is not an SslicTcl declaration.
+            SurfaceLayer::Package("sslictcl") => sslictcl_specs(),
             // A core release brings no pack of its own — it records which
             // language the registry is. The EDA shells are such a release
             // plus `required_package`-gated command libraries, which ship as

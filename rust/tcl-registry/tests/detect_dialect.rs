@@ -284,6 +284,85 @@ fn spectcl_is_a_catalogued_dialect() {
     }
 }
 
+// SslicTcl — `.sslictcl` TLS declarations (issue #1543).
+
+/// The extension registration: a `.sslictcl` document opens as Tcl in the
+/// `SslicTcl` dialect with no configuration, exactly as a `.tclspec` does.
+#[test]
+fn sslictcl_extension_selects_the_sslictcl_dialect() {
+    use tcl_registry::dialects::{detect_dialect, dialect_from_extension};
+
+    assert_eq!(dialect_from_extension("site.sslictcl"), Some("sslictcl"));
+    // Case-folded and path-qualified, like every other extension rule.
+    assert_eq!(
+        dialect_from_extension("/etc/tls/Site.SslicTcl"),
+        Some("sslictcl")
+    );
+    // …and it reaches the shared detector, which is what the LSP and the CLI
+    // both resolve a document through.
+    assert_eq!(
+        detect_dialect(
+            "endpoint www { hostname www.example.com }\n",
+            Some("site.sslictcl"),
+            "tcl9.0"
+        ),
+        "sslictcl"
+    );
+}
+
+/// The mandatory `sslictcl VERSION` header is a content signature — which is
+/// what recognises a document saved under a `.tcl` name, the case the
+/// extension tier cannot reach.
+#[test]
+fn the_sslictcl_header_is_a_content_signature() {
+    use tcl_registry::dialects::detect_dialect;
+
+    let doc = "sslictcl 1\n\nendpoint www {\n    hostname www.example.com\n}\n";
+    assert_eq!(detect_dialect(doc, Some("site.tcl"), "tcl9.0"), "sslictcl");
+    // A comment merely mentioning it does not flip the dialect: full-line
+    // comments are stripped before the signature scan.
+    assert_eq!(
+        detect_dialect("# see sslictcl for the format\nset x 1\n", None, "tcl9.0"),
+        "tcl9.0"
+    );
+    // An explicit directive still outranks it.
+    assert_eq!(
+        detect_dialect(
+            &format!("# tcl-dialect: tcl8.6\n{doc}"),
+            Some("site.sslictcl"),
+            "tcl9.0"
+        ),
+        "tcl8.6"
+    );
+}
+
+/// `sslictcl` is a first-class catalogue dialect: it names a profile, parses
+/// to its own surface, and round-trips through the catalogue.
+#[test]
+fn sslictcl_is_a_catalogued_dialect() {
+    use tcl_dialect::KNOWN_DIALECTS;
+    use tcl_dialect::model::{Family, SurfaceLayer, SurfaceQuery};
+
+    assert!(KNOWN_DIALECTS.contains(&"sslictcl"));
+    assert_eq!(
+        tcl_dialect::DialectProfile::find("sslictcl")
+            .map(tcl_dialect::DialectProfile::surface_query),
+        Some(SurfaceQuery::core(Family::Tcl, "9.0").with_packages(&["sslictcl"]))
+    );
+    let profile = tcl_registry::model::ingress::resolve_environment("sslictcl").analyser_profile();
+    assert_eq!(profile.name, "sslictcl");
+    assert_eq!(profile.base_layers, &[SurfaceLayer::Package("sslictcl")]);
+    // The editor / MCP spellings canonicalise to it.
+    for alias in ["sslic-tcl", "tls-sslictcl"] {
+        assert_eq!(
+            tcl_registry::model::ingress::resolve_environment(alias)
+                .analyser_profile()
+                .name,
+            "sslictcl"
+        );
+    }
+}
+
 /// Extension→dialect routing derives from the `DialectProfile` catalog's
 /// `file_extensions` axis — every owned extension routes to its owner, and
 /// the newly catalogued routes (`.scf`, `.tmsh`, the iApp implementation

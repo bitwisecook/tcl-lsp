@@ -421,6 +421,7 @@ const DIALECT_SURFACES: &[(&str, &[SpecSurface])] = &[
     ("f5-tmsh", SpecSurface::TMSH),
     ("f5-bigip", SpecSurface::BIGIP),
     ("spectcl", SpecSurface::SPECTCL),
+    ("sslictcl", SpecSurface::SSLICTCL),
 ];
 
 /// Labels for the bits with no profile in the dialect catalogue. `tk` is the
