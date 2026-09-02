@@ -33,9 +33,126 @@
 
 use core::cmp::Ordering;
 
+use std::rc::Rc;
+
 use crate::bignum::{self, ArithError};
-use crate::obj::{self, TclObj};
+use crate::obj::{self, TclObj, TclObjType};
 use tcl_syntax::expr::{eval, BinOp, ExprNode, ExprOps, NumericCompare, UnaryOp};
+
+// ---------------------------------------------------------------------------
+// `TCL_EXPR_TYPE` — the parsed-expression internal rep.
+// ---------------------------------------------------------------------------
+
+/// The expression cache's backing: the parsed AST, plus the emulated release
+/// its registry validation was performed against.
+///
+/// The AST is behind an [`Rc`] so a reader takes an owning handle before
+/// evaluating. Evaluation runs `[cmd]` substitutions, and one of those can
+/// shimmer the very object the AST is cached on (a numeric read of an unshared
+/// condition object, say); the strong reference makes that harmless instead of
+/// a use-after-free.
+struct CachedExpr {
+    node: Rc<ExprNode>,
+    version: tcl_dialect::TclVersion,
+}
+
+/// The `expr` type descriptor — a condition or operand's parsed, validated AST.
+///
+/// There is deliberately **no** `update_string_proc`: this rep is only ever
+/// attached to an object that already carries its spelling, and nothing mutates
+/// the AST, so the string rep stays the authority and is never regenerated from
+/// the tree. [`obj::change_type`] keeps that spelling across the shimmer, and
+/// any later string mutation frees this rep exactly like any other — which is
+/// precisely the invalidation the cache needs.
+pub static TCL_EXPR_TYPE: TclObjType = TclObjType {
+    name: c"expr".as_ptr(),
+    free_int_rep_proc: Some(expr_free),
+    dup_int_rep_proc: Some(expr_dup),
+    update_string_proc: None,
+    set_from_any_proc: None,
+};
+
+extern "C" fn expr_free(obj: *mut TclObj) {
+    let p = obj::internal_rep(obj) as usize as *mut CachedExpr;
+    if p.is_null() {
+        return;
+    }
+    // SAFETY: `obj` has the expr type, so its rep is the box `cache_expr` made.
+    unsafe { drop(Box::from_raw(p)) };
+}
+
+extern "C" fn expr_dup(src: *mut TclObj, dup: *mut TclObj) {
+    // SAFETY: `src` has the expr type; the copy shares the immutable AST.
+    unsafe {
+        let src_ref = &*(obj::internal_rep(src) as usize as *const CachedExpr);
+        let boxed = Box::new(CachedExpr {
+            node: Rc::clone(&src_ref.node),
+            version: src_ref.version,
+        });
+        obj::change_type(dup, &TCL_EXPR_TYPE, Box::into_raw(boxed) as usize as u64);
+    }
+}
+
+/// The AST cached on `obj`, if it was validated for `version`.
+///
+/// A release change (an embedder pinning another emulated Tcl) invalidates the
+/// entry: the *parse* runs over the union grammar and is release-neutral, but
+/// the registry validation that admitted it is not, so a cached tree is only
+/// reusable under the release it was admitted for.
+pub(crate) fn cached_expr(
+    obj: *mut TclObj,
+    version: tcl_dialect::TclVersion,
+) -> Option<Rc<ExprNode>> {
+    if !core::ptr::eq(obj::obj_type_ptr(obj), &TCL_EXPR_TYPE) {
+        return None;
+    }
+    // SAFETY: the type check above proves the rep is a live `CachedExpr` box.
+    let cached = unsafe { &*(obj::internal_rep(obj) as usize as *const CachedExpr) };
+    (cached.version == version).then(|| Rc::clone(&cached.node))
+}
+
+/// Cache a parsed and validated AST on `obj` so the next evaluation of the same
+/// condition object reuses it instead of re-lexing its text.
+///
+/// Only a **plain string** that already carries its spelling is shimmered. That
+/// is the shape every literal condition word has, and refusing the rest keeps
+/// the cache from destroying a list/dict/numeric rep another holder still wants
+/// — the same "may we cache" reasoning as the numeric write-back, one rung up.
+pub(crate) fn cache_expr(obj: *mut TclObj, version: tcl_dialect::TclVersion, node: &Rc<ExprNode>) {
+    if !obj::obj_type_ptr(obj).is_null() || !obj::has_string_rep(obj) {
+        return;
+    }
+    let boxed = Box::new(CachedExpr {
+        node: Rc::clone(node),
+        version,
+    });
+    obj::change_type(obj, &TCL_EXPR_TYPE, Box::into_raw(boxed) as usize as u64);
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Test hook: how many expression *parses* have run since the last reset.
+    /// The cache's whole job is to keep this from growing per evaluation.
+    static EXPR_PARSE_COUNT: core::cell::Cell<u64> = const { core::cell::Cell::new(0) };
+}
+
+/// Test hook: record that the parser ran.
+#[cfg(test)]
+pub(crate) fn note_expr_parse() {
+    EXPR_PARSE_COUNT.with(|c| c.set(c.get() + 1));
+}
+
+/// Test hook: reset the parse counter and read it back.
+#[cfg(test)]
+pub(crate) fn reset_expr_parse_count() {
+    EXPR_PARSE_COUNT.with(|c| c.set(0));
+}
+
+/// Test hook: expression parses since [`reset_expr_parse_count`].
+#[cfg(test)]
+pub(crate) fn expr_parse_count() -> u64 {
+    EXPR_PARSE_COUNT.with(core::cell::Cell::get)
+}
 
 /// An expr-evaluation error: Tcl's verbatim message bytes plus an optional
 /// `-errorcode` (a pre-formatted list, e.g. `ARITH DIVZERO {divide by zero}`).

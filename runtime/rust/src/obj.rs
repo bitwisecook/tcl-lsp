@@ -320,6 +320,16 @@ pub(crate) fn double_of(obj: *mut TclObj) -> f64 {
     unsafe { (*obj).double() }
 }
 
+/// Whether `obj` already carries a materialised string rep.
+///
+/// A type whose `update_string_proc` is `None` can only be attached to an
+/// object that has one, since there would otherwise be no way back to a
+/// spelling.
+pub(crate) fn has_string_rep(obj: *mut TclObj) -> bool {
+    // SAFETY: `obj` is a live object.
+    !unsafe { (*obj).bytes }.is_null()
+}
+
 /// Whether a just-parsed numeric internal rep may be cached back onto `obj`.
 ///
 /// C Tcl caches unconditionally: `TclParseNumber` (`tclStrToD.c`) writes the rep

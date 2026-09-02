@@ -816,7 +816,12 @@ fn expr_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let Ok(src) = core::str::from_utf8(&text) else {
         return interp.set_error(b"expr operand is not valid UTF-8");
     };
-    let node = match parse_runtime_expr(interp, src) {
+    // The one-word form — `expr {$a < $b}`, the shape every compiled or hot
+    // expression takes — is exactly the text of `argv[1]`, so its parse caches
+    // on that object. A multi-word `expr` concatenates into fresh text that
+    // belongs to no object, and re-parses.
+    let cached_on = (argv.len() == 2).then(|| argv[1]);
+    let node = match parse_runtime_expr_cached(interp, cached_on, src) {
         Ok(node) => node,
         Err(e) => {
             return match e.code {
@@ -897,7 +902,7 @@ pub(crate) fn eval_bool_expr(interp: &mut Interp, cond: *mut TclObj) -> Result<b
         Some((_, line)) => interp.push_cond_line_base(line),
         None => None,
     };
-    let node = match parse_runtime_expr(interp, s) {
+    let node = match parse_runtime_expr_cached(interp, Some(cond), s) {
         Ok(node) => node,
         Err(e) => {
             if let Some(old) = saved {
@@ -944,6 +949,8 @@ fn parse_runtime_expr(
     interp: &Interp,
     source: &str,
 ) -> Result<tcl_syntax::expr::ExprNode, crate::expr::ExprError> {
+    #[cfg(test)]
+    crate::expr::note_expr_parse();
     let node = tcl_syntax::expr::parse_expr(source, None);
     tcl_registry::expr_surface::RuntimeExprSurface::for_tcl_version(interp.runtime_version())
         .validate(&node)
@@ -953,6 +960,36 @@ fn parse_runtime_expr(
                 error.error_code().as_bytes().to_vec(),
             )
         })?;
+    Ok(node)
+}
+
+/// [`parse_runtime_expr`] with the parsed, validated AST cached on the object
+/// the expression text came from (`TCL_EXPR_TYPE`, [`crate::expr::cache_expr`]).
+///
+/// Without this the condition of every `if`/`while`/`for` iteration is re-lexed,
+/// re-parsed, and re-validated from its text — the runtime finding recorded as
+/// §2.6.2 of the native-lowering plan. `cached_on` is `None` where the text
+/// belongs to no single object (a multi-word `expr`), which simply re-parses.
+///
+/// Only a *successful* parse is cached: an invalid expression must raise its
+/// error on every evaluation, and caching a failure would need the message to be
+/// replayed rather than recomputed.
+#[cfg(have_tommath)]
+fn parse_runtime_expr_cached(
+    interp: &Interp,
+    cached_on: Option<*mut TclObj>,
+    source: &str,
+) -> Result<std::rc::Rc<tcl_syntax::expr::ExprNode>, crate::expr::ExprError> {
+    let version = interp.runtime_version();
+    if let Some(obj) = cached_on {
+        if let Some(node) = crate::expr::cached_expr(obj, version) {
+            return Ok(node);
+        }
+    }
+    let node = std::rc::Rc::new(parse_runtime_expr(interp, source)?);
+    if let Some(obj) = cached_on {
+        crate::expr::cache_expr(obj, version, &node);
+    }
     Ok(node)
 }
 
@@ -986,6 +1023,98 @@ mod tests {
             String::from_utf8_lossy(&i.result_bytes())
         );
         i.result_bytes()
+    }
+
+    /// A loop's condition is parsed **once**, not once per iteration: the
+    /// parsed AST caches on the condition object as `TCL_EXPR_TYPE`. This is
+    /// the runtime finding recorded as §2.6.2 of the native-lowering plan —
+    /// `parse_runtime_expr` used to re-lex, re-parse and re-validate the
+    /// condition text on every evaluation.
+    #[cfg(have_tommath)]
+    #[test]
+    fn a_loop_condition_parses_once_for_the_whole_loop() {
+        leak_free(|i| {
+            crate::expr::reset_expr_parse_count();
+            assert_eq!(ok(i, b"set n 0; while {$n < 20} { incr n }; set n"), b"20");
+            assert_eq!(
+                crate::expr::expr_parse_count(),
+                1,
+                "twenty-one condition evaluations, one parse"
+            );
+        });
+    }
+
+    /// The cached rep sits on the condition object, keeps its spelling, and is
+    /// reused on the next evaluation of that same object.
+    #[cfg(have_tommath)]
+    #[test]
+    fn a_condition_object_caches_its_ast_and_keeps_its_spelling() {
+        leak_free(|i| {
+            let cond = crate::obj::new_string_bytes(b"1 < 2");
+            // SAFETY: the test owns this reference until it releases it below.
+            unsafe { crate::obj::incr_ref_count(cond) };
+
+            crate::expr::reset_expr_parse_count();
+            assert_eq!(crate::builtins::eval_bool_expr(i, cond), Ok(true));
+            assert_eq!(crate::expr::expr_parse_count(), 1);
+            assert!(
+                core::ptr::eq(crate::obj::obj_type_ptr(cond), &crate::expr::TCL_EXPR_TYPE),
+                "the parse caches on the condition object"
+            );
+            assert_eq!(
+                crate::interp::obj_bytes(cond),
+                b"1 < 2",
+                "the spelling survives the shimmer"
+            );
+
+            assert_eq!(crate::builtins::eval_bool_expr(i, cond), Ok(true));
+            assert_eq!(
+                crate::expr::expr_parse_count(),
+                1,
+                "the second evaluation reuses the cached AST"
+            );
+
+            // A shimmer to any other rep drops the cache, exactly like any
+            // internal rep, and the next evaluation re-parses.
+            assert_eq!(crate::list::list_length(cond), Ok(3));
+            assert!(!core::ptr::eq(
+                crate::obj::obj_type_ptr(cond),
+                &crate::expr::TCL_EXPR_TYPE
+            ));
+            assert_eq!(crate::builtins::eval_bool_expr(i, cond), Ok(true));
+            assert_eq!(crate::expr::expr_parse_count(), 2);
+
+            // SAFETY: balances the reference taken above.
+            unsafe { crate::obj::decr_ref_count(cond) };
+        });
+    }
+
+    /// The cache records the release its registry validation ran under, so an
+    /// embedder pinning another emulated Tcl re-validates rather than reusing an
+    /// admission that release never granted.
+    #[cfg(have_tommath)]
+    #[test]
+    fn a_cached_expression_is_revalidated_when_the_release_changes() {
+        leak_free(|i| {
+            let cond = crate::obj::new_string_bytes(b"1 < 2");
+            // SAFETY: the test owns this reference until it releases it below.
+            unsafe { crate::obj::incr_ref_count(cond) };
+
+            crate::expr::reset_expr_parse_count();
+            assert_eq!(crate::builtins::eval_bool_expr(i, cond), Ok(true));
+            assert_eq!(crate::expr::expr_parse_count(), 1);
+
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            assert_eq!(crate::builtins::eval_bool_expr(i, cond), Ok(true));
+            assert_eq!(
+                crate::expr::expr_parse_count(),
+                2,
+                "a release change stales the cached admission"
+            );
+
+            // SAFETY: balances the reference taken above.
+            unsafe { crate::obj::decr_ref_count(cond) };
+        });
     }
 
     #[test]
