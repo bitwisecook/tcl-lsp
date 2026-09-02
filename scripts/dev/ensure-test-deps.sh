@@ -104,7 +104,8 @@ WASMTIME_VERSION="43.0.1"
 WASI_SDK_VERSION="25.0"
 TCLLIB_TAG="tcllib-2-0"
 TCLLIB_VERSION="2.0"
-# Minimum Node.js major — must track Makefile Prerequisites, AGENTS.md, README,
+# Minimum Node.js major — must track Makefile Prerequisites, README,
+# docs/design/contracts/development-environment.md,
 # and the CI `node-version`. Distro apt/dnf packages (Ubuntu 24.04 ships Node
 # 18) fall below this, so install from NodeSource when they would.
 NODE_MIN_MAJOR="24"

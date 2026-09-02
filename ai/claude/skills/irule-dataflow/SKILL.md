@@ -6,42 +6,29 @@ allowed-tools: mcp__tcl-lsp__def_use_chains, mcp__tcl-lsp__memory_aliases, Read
 
 # Data Flow Analysis
 
-Analyse data flow in an iRule or Tcl file using compiler SSA analysis.
-
 ## Steps
 
-1. Read the iRule/Tcl file
-2. Extract def-use chain information by calling `mcp__tcl-lsp__def_use_chains`, passing the file contents you just read as `source`
-3. Extract memory alias information by calling `mcp__tcl-lsp__memory_aliases`, passing the file contents as `source`
-4. If either tool fails (e.g. parse error), report the error clearly and suggest fixes
-5. Using the def-use chains and alias data, generate a Mermaid diagram and analysis
+1. Read the file.
+2. Call `mcp__tcl-lsp__def_use_chains` and `mcp__tcl-lsp__memory_aliases`
+   with the contents as `source`. On a tool error report it and suggest
+   fixes.
+3. Draw the diagram and write the analysis.
 
-## Mermaid diagram rules
+## Mermaid rules
 
-- Use `flowchart TD` (top-down direction)
-- Create a **subgraph** for each function/event handler
-- Inside each subgraph:
-  - Use **rectangle shapes** `[var#N]` for variable definitions
-  - Use **diamond shapes** `{phi}` for phi nodes (conditional merge points)
-  - Use **hexagon shapes** `{{alias}}` for aliased variables (upvar/global)
-  - Use **red styling** for dead definitions (no uses)
-  - Use **green styling** for live definitions (has uses)
-  - Use **orange styling** for aliased variables
-- Connect definitions to uses with arrows:
-  - **Solid arrows** for direct def->use flow
-  - **Dashed arrows** for phi (conditional) flow
-  - **Dotted arrows** with label for alias relationships
-- Include lattice values (CONST/OVERDEFINED) on definition nodes where known
-- Include type information where inferred
+- `flowchart TD`; one subgraph per proc or event handler
+- `[var#N]` rectangles for definitions, `{phi}` diamonds for phi nodes,
+  `{{alias}}` hexagons for upvar/global aliases
+- Green for live definitions, red for dead ones, orange for aliases
+- Solid arrows def→use, dashed for phi flow, dotted labelled arrows for
+  aliases; lattice values (CONST / OVERDEFINED) and inferred types on
+  definition nodes where known
 
 ## Output
 
-1. The Mermaid data-flow diagram in a ```mermaid code fence
-2. A structured analysis including:
-   - **Variable flow summary**: How key variables flow through the program
-   - **Dead definitions**: Variables defined but never used (optimisation opportunities)
-   - **Alias relationships**: Variables linked via upvar/global/variable
-   - **Phi merge points**: Where variable values depend on control flow
-   - **Potential issues**: Uninitialised reads, unnecessary stores, alias confusion
+The diagram in a ```mermaid fence, then: variable flow summary, dead
+definitions (optimisation opportunities), alias relationships, phi merge
+points, and potential issues (uninitialised reads, unnecessary stores, alias
+confusion).
 
 $ARGUMENTS

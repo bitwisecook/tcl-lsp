@@ -393,8 +393,8 @@ done
 
 ## Discoverability
 
-- [`AGENTS.md`](../../../AGENTS.md) "Build, CI, and publishing"
-  section — short reference to this contract.
+- [`AGENTS.md`](../../../AGENTS.md) "Build and release" — short reference
+  to this contract.
 - [`project-layout.md`](project-layout.md) — the Rust workspace crate
   layout that the build/CI structure mirrors.
 - [`Makefile`](../../../Makefile) `publish-flow` target — prints

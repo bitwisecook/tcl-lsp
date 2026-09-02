@@ -6,44 +6,27 @@ allowed-tools: mcp__tcl-lsp__analyze, Read, Write
 
 # iRule Migrate
 
-Convert load balancer configuration from nginx, Apache, or HAProxy to an iRule.
-
 ## Steps
 
-1. Read the domain knowledge from `../_prompts/irules_system.md` (includes migration patterns)
-2. Read the source configuration file
-3. Detect the format and apply these mappings:
-
-   **nginx:**
-   - `location` -> `switch -glob [HTTP::path]` or `class match`
-   - `proxy_pass` -> `pool <pool_name>`
-   - `rewrite` -> `HTTP::uri` / `HTTP::redirect`
-   - `add_header` -> `HTTP::header insert`
-   - `return 301/302` -> `HTTP::redirect`
-   - `if ($host)` -> `string match` or `class match` on `[HTTP::host]`
-
-   **Apache:**
-   - `RewriteRule` -> `HTTP::uri` / `HTTP::redirect`
-   - `RewriteCond` -> if/switch conditions
-   - `ProxyPass` -> `pool <pool_name>`
-   - `Header set` -> `HTTP::header insert/replace`
-   - `<VirtualHost>` -> `switch` on `[HTTP::host]`
-   - `<Location>` -> `switch` on `[HTTP::path]`
-
-   **HAProxy:**
-   - `acl` -> `if` conditions or `class match`
-   - `use_backend` -> `pool <pool_name>`
-   - `http-request redirect` -> `HTTP::redirect`
-   - `http-request set-header` -> `HTTP::header replace`
-   - `http-request add-header` -> `HTTP::header insert`
-   - `frontend bind` -> handled by virtual server (note in comments)
-
-4. Generate the iRule following security best practices
-5. Write to a file and validate: Read the file, then call `mcp__tcl-lsp__analyze` with its contents as `source`
-6. If the tool fails (e.g. parse error), report the error and adjust the generated code
-7. Fix any issues and re-validate (up to 5 iterations)
-8. If issues persist after 5 iterations, report what was migrated and what remains
-9. Add comments explaining the mapping from the original config
-10. Note anything that cannot be directly translated (e.g., backend health checks, rate limiting)
+1. Read `../_prompts/irules_system.md`, then the source configuration.
+2. Detect the format and map:
+   - **nginx:** `location` → `switch -glob [HTTP::path]` or `class match`;
+     `proxy_pass` → `pool`; `rewrite` / `return 301|302` → `HTTP::uri` /
+     `HTTP::redirect`; `add_header` → `HTTP::header insert`; `if ($host)` →
+     `string match` / `class match` on `[HTTP::host]`
+   - **Apache:** `RewriteRule` → `HTTP::uri` / `HTTP::redirect`;
+     `RewriteCond` → if/switch; `ProxyPass` → `pool`; `Header set` →
+     `HTTP::header insert/replace`; `<VirtualHost>` → switch on
+     `[HTTP::host]`; `<Location>` → switch on `[HTTP::path]`
+   - **HAProxy:** `acl` → `if` / `class match`; `use_backend` → `pool`;
+     `http-request redirect` → `HTTP::redirect`; `set-header` /
+     `add-header` → `HTTP::header replace` / `insert`; `frontend bind` →
+     the virtual server (note in comments)
+3. Generate the iRule with security best practices and a comment on each
+   mapping; note what has no direct translation (health checks, rate
+   limiting).
+4. Write the file, call `mcp__tcl-lsp__analyze` with the contents as
+   `source`, fix and re-validate up to 5 iterations, then report what was
+   migrated and what remains.
 
 $ARGUMENTS
