@@ -125,10 +125,39 @@ the same place, for the same reason.
 | Analyser interaction (item 2) | done |
 | `tcl diag` parity (loader findings + supersession) | done |
 | server `lib.rs` language-id row + `dialect_for_open` routing test | done |
-| `tests/e2e/sslictcl.rs` + `tests/e2e.rs` row | remaining |
+| `tests/e2e/sslictcl.rs` + `tests/e2e.rs` row | done — 15 tests |
+| Outline + block-body completion (`declaration_outline`) | done |
 | VS Code mocha test + fixture | remaining |
 | Owner-map rows + `AGENTS.md` row | remaining |
 | Docs (`docs/capabilities.md`, READMEs, vocabulary doc) | remaining |
+
+### Two surfaces that had to be built, not just asserted
+
+The acceptance list assumed the outline and block-body completion already
+worked. Measured, they did not — and neither gap was SslicTcl-specific:
+
+* `textDocument/documentSymbol` returned `[]`. The provider walks the
+  analyser's scope tree, and a declaration document has no procs, classes or
+  namespaces in it. (A `.tclspec` document returns `[]` for the same reason.)
+* `textDocument/completion` inside `hsts { … }` returned 2216 items — the
+  whole core Tcl surface. (A `TclOO` class body returns 2109 for the same
+  reason; there is no definition-body-scoped completion in the product.)
+
+`rust/tcl-lsp-core/src/declaration_outline.rs` supplies both from registry
+data alone: a block is a statement whose spec carries a
+`DefinitionBodyGrammar`, its name is the word marked `ArgRole::Name`, its body
+the word marked `ArgRole::Body`, and its members are the grammar's rows.
+`document_symbols::declaration_symbols` lifts the tree; `completion::completions`
+consults `member_completions` before its ordinary path.
+
+Both are gated on the document being a **declaration document**
+(`is_declaration_document`, the same resolved authoring surface the loader
+diagnostics route on) rather than applied to every definition body, and that
+gate is a real distinction rather than caution: a `TclOO` class body *is*
+evaluated Tcl, so `set` and `if` are genuinely callable there and narrowing
+its completion would be wrong. An `hsts` body is not evaluated at all.
+Existing TclOO / snit / SpecTcl behaviour is unchanged, and
+`cargo test -p tcl-lsp-core` (2201 lib + 26 integration suites) stays green.
 
 ## Open uncertainties
 
@@ -143,3 +172,11 @@ the same place, for the same reason.
   **file glob** list (#1556), not a code list; the per-code switch is
   `tclLsp.diagnostics.<CODE>: false`. Both are covered by the e2e suite,
   under their real meanings.
+* The brief asks the routing test to assert the hover carries
+  `source` `SslicTcl (docs/design/sslictcl-vocabulary.md)`. The shared
+  registry-hover renderer (`hover.rs`, `registry_command_hover`) emits
+  summary, synopsis, subcommands and package/event lines and has **never**
+  rendered `HoverSnippet::source` for any command — adding it would change
+  every hover in the product. The test asserts the pack's own summary
+  instead, which no other pack carries, so it still proves which registry
+  answered.

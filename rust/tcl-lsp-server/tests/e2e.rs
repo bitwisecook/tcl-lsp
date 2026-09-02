@@ -138,6 +138,8 @@ mod server_version;
 mod signature_help;
 #[path = "e2e/spec_packs.rs"]
 mod spec_packs;
+#[path = "e2e/sslictcl.rs"]
+mod sslictcl;
 #[path = "e2e/structure.rs"]
 mod structure;
 #[path = "e2e/tcl91.rs"]
