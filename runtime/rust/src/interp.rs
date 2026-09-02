@@ -6439,9 +6439,21 @@ impl Interp {
                 }
             }
             other => {
-                let mut m = b"interp subcommand \"".to_vec();
+                // Same `bad option` shape as the `interp` ensemble's own
+                // fallthrough (`cmd_alias.rs::interp_cmd`) — the child
+                // command object (`NRChildCmd`, tclInterp.c) advertises a
+                // *shorter* list than `interp` does (no `children`,
+                // `create`, `delete`, or `exists`: those are only ever
+                // spelled `interp <op> path`, never `$child <op>`), but the
+                // shape is the same tclsh `bad option` error, not a
+                // runtime-specific message (issue #1412 item 7).
+                let mut m = b"bad option \"".to_vec();
                 m.extend_from_slice(other);
-                m.extend_from_slice(b"\" is not supported in this runtime");
+                m.extend_from_slice(
+                    b"\": must be alias, aliases, bgerror, debug, eval, expose, \
+                      hide, hidden, issafe, invokehidden, limit, marktrusted, \
+                      or recursionlimit",
+                );
                 self.error(&m)
             }
         }

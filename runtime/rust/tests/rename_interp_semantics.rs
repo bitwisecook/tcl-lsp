@@ -195,3 +195,31 @@ fn invokehidden_rejects_unknown_options_and_namespace_is_global_anchored() {
     assert_eq!(interp.eval_str(b"namespace children ::ns5"), Code::Ok);
     assert_eq!(interp.result_bytes(), b"".as_slice());
 }
+
+/// item 7: `$child subcommand` and `interp subcommand` report the same
+/// `bad option` shape on an unrecognized subcommand — `$child`'s previously
+/// said `interp subcommand "X" is not supported in this runtime`, not a
+/// tclsh error shape at all. The two lists differ (the child command object
+/// never dispatches `children`/`create`/`delete`/`exists` — those are only
+/// ever spelled `interp <op> path`), but both are real tclsh `bad option`
+/// errors.
+///
+/// tclsh9.0.4:
+///   interp create kid
+///   catch {kid bogus} e
+///   => bad option "bogus": must be alias, aliases, bgerror, debug, eval,
+///      expose, hide, hidden, issafe, invokehidden, limit, marktrusted,
+///      or recursionlimit
+#[test]
+fn child_command_bad_option_matches_the_tclsh_shape() {
+    let mut interp = Interp::new();
+    assert_eq!(interp.eval_str(b"interp create kid"), Code::Ok);
+    assert_eq!(interp.eval_str(b"catch {kid bogus} e; set e"), Code::Ok);
+    assert_eq!(
+        interp.result_bytes(),
+        b"bad option \"bogus\": must be alias, aliases, bgerror, debug, eval, \
+          expose, hide, hidden, issafe, invokehidden, limit, marktrusted, \
+          or recursionlimit"
+            .as_slice()
+    );
+}
