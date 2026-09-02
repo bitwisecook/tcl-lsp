@@ -26,6 +26,10 @@
       "location": "dynamic-arg-role"
     },
     {
+      "owner": "anchor",
+      "location": "arg[1]"
+    },
+    {
       "owner": "arg_role_resolver",
       "location": "arg[1]"
     },
@@ -98,8 +102,24 @@
       "location": "arg[0]"
     },
     {
+      "owner": "certificate",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "chain",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "check",
+      "location": "arg[1]"
+    },
+    {
       "owner": "checkbutton",
       "location": "option -command value"
+    },
+    {
+      "owner": "cipher",
+      "location": "arg[1]"
     },
     {
       "owner": "clause_grammar",
@@ -262,6 +282,10 @@
       "location": "dynamic-arg-role"
     },
     {
+      "owner": "endpoint",
+      "location": "arg[1]"
+    },
+    {
       "owner": "entry",
       "location": "option -invalidcommand value"
     },
@@ -418,6 +442,10 @@
       "location": "dynamic-arg-role"
     },
     {
+      "owner": "grade",
+      "location": "arg[0]"
+    },
+    {
       "owner": "hook",
       "location": "arg[2]"
     },
@@ -427,6 +455,10 @@
     },
     {
       "owner": "hover",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "hsts",
       "location": "arg[0]"
     },
     {
@@ -746,6 +778,18 @@
       "location": "arg[0]"
     },
     {
+      "owner": "policy",
+      "location": "arg[1]"
+    },
+    {
+      "owner": "predicate",
+      "location": "arg[0]"
+    },
+    {
+      "owner": "protocol",
+      "location": "arg[1]"
+    },
+    {
       "owner": "puts",
       "location": "dynamic-arg-role"
     },
@@ -952,6 +996,10 @@
     {
       "owner": "tcltest::test",
       "location": "option -setup value"
+    },
+    {
+      "owner": "testssl-import",
+      "location": "arg[1]"
     },
     {
       "owner": "text",
@@ -1180,6 +1228,10 @@
     {
       "owner": "trace vdelete",
       "location": "dynamic-script-timing"
+    },
+    {
+      "owner": "trust-program",
+      "location": "arg[1]"
     },
     {
       "owner": "try",

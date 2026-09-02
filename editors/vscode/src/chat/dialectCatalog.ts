@@ -51,6 +51,7 @@ export const DIALECT_CATALOG: readonly DialectEntry[] = [
   { name: "mentor-eda-tcl", label: "Mentor EDA Tcl", extensions: ["do"] },
   { name: "microchip-libero-eda-tcl", label: "Microchip Libero EDA Tcl", extensions: [] },
   { name: "spectcl", label: "SpecTcl", extensions: ["tclspec"] },
+  { name: "sslictcl", label: "SslicTcl", extensions: ["sslictcl"] },
   { name: "synopsys-eda-tcl", label: "Synopsys EDA Tcl", extensions: ["sdc", "upf"] },
   { name: "tcl8.4", label: "Tcl 8.4", extensions: [] },
   { name: "tcl8.5", label: "Tcl 8.5", extensions: [] },

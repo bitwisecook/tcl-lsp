@@ -46,7 +46,7 @@ this table follows them rather than the other way round.
 
 | Language | Extensions |
 |----------|-----------|
-| Tcl | `.tcl`, `.tk`, `.itcl`, `.tm`, `.test`, `.tclspec`, and every extension below (Zed's `tcl` config registers the whole union) |
+| Tcl | `.tcl`, `.tk`, `.itcl`, `.tm`, `.test`, `.tclspec`, `.sslictcl`, and every extension below (Zed's `tcl` config registers the whole union) |
 | iRules | `.irul`, `.irule`, `.irules` |
 | iApps | `.iapp`, `.iappimpl`, `.impl` |
 | Expect | `.exp`, `.expect` |

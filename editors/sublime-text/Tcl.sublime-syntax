@@ -28,6 +28,7 @@ file_extensions:
   - qip
   - do
   - tclspec
+  - sslictcl
   - sdc
   - upf
   - xdc
