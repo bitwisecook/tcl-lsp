@@ -550,8 +550,6 @@ Distilled from the trickiest scars in the WASM runtime history
   agent lane: goal, decisions taken and why, site inventory, behavioural
   deltas, and open uncertainties. A file there means a lane is either in
   flight or was interrupted; each is removed when its lane lands.
-- [lanes/sslictcl-dialect.md](lanes/sslictcl-dialect.md) — SslicTcl as a
-  first-class authoring dialect (#1543).
 
 ## Templates
 

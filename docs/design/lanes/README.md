@@ -22,9 +22,6 @@ orchestrator pushes — is in [`AGENTS.md`](../../../AGENTS.md) under
 
 ## In flight
 
-- [`sslictcl-dialect.md`](sslictcl-dialect.md) — SslicTcl as a first-class
-  authoring dialect (#1543, epic #1524).
-
-Every lane of the #1631 programme has landed; what each one decided lives
-in its final commit message, and what the programme left open lives in the
-redesign's §11 open-questions ledger.
+None. Every lane of the #1631 programme has landed; what each one
+decided lives in its final commit message, and what the programme left
+open lives in the redesign's §11 open-questions ledger.
