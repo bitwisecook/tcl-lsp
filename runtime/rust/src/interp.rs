@@ -566,6 +566,52 @@ pub enum Command {
     },
 }
 
+impl Command {
+    /// Whether `self` and `other` are the **same** command binding rather than
+    /// two bindings that happen to look alike.
+    ///
+    /// C answers this with the `Command *` token, and a command-delete trace is
+    /// exactly where the difference shows: a callback that re-creates the
+    /// command it is being told about (`proc foo {} …`) leaves a *different*
+    /// command at the same name, and C's deletion — which owns a captured token
+    /// whose hash entry the new command has taken over — must leave it alone.
+    /// Every shape that owns an `Rc` compares by pointer for that reason; the
+    /// rest carry their whole identity in their fields.
+    pub(crate) fn is_same_binding(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Builtin(a), Self::Builtin(b)) => std::ptr::fn_addr_eq(*a, *b),
+            (Self::Proc(a), Self::Proc(b)) => Rc::ptr_eq(a, b),
+            (Self::Ensemble(a), Self::Ensemble(b)) => Rc::ptr_eq(a, b),
+            (Self::Imported { identity: a, .. }, Self::Imported { identity: b, .. }) => {
+                Rc::ptr_eq(a, b)
+            }
+            (
+                Self::Alias {
+                    target: at,
+                    prefix: ap,
+                },
+                Self::Alias {
+                    target: bt,
+                    prefix: bp,
+                },
+            )
+            | (
+                Self::ParentAlias {
+                    target: at,
+                    prefix: ap,
+                },
+                Self::ParentAlias {
+                    target: bt,
+                    prefix: bp,
+                },
+            ) => at == bt && ap == bp,
+            (Self::ChildInterp(a), Self::ChildInterp(b)) => a == b,
+            (Self::OoObject(a), Self::OoObject(b)) => a == b,
+            _ => false,
+        }
+    }
+}
+
 thread_local! {
     /// Depth of active cross-interp (`ParentAlias`) calls. The Safe Base requires
     /// genuine re-entrant recursion across the parent/child boundary (a child's
@@ -1736,7 +1782,10 @@ impl Interp {
         self.invalidate_command_environment();
         // Command traces fire *before* the table mutation (C's TclRenameCommand:
         // the command still exists under its old name during the callback), with
-        // the fully-qualified old and new names.
+        // the fully-qualified old and new names. C deletes the command *token*
+        // it captured here, not whatever the name holds when the callback
+        // returns — so the binding is captured alongside the name.
+        let bound_before = self.namespaces.borrow().resolve(self.current_ns.get(), old);
         let old_fqn = self.resolve_cmd_fqn(old);
         if let Some(of) = &old_fqn {
             if !self.traces.borrow().cmd_traces.is_empty() {
@@ -1777,7 +1826,25 @@ impl Interp {
         } else {
             None
         };
-        let raw = if new.is_empty() && import_token.is_some() {
+        // A delete-trace callback that re-creates the command (`proc foo {} …`)
+        // has bound a *new* command at the old name. C's captured token is
+        // `CMD_DYING` and no longer owns the hash entry, so its deletion leaves
+        // the fresh command standing (`Tcl_DeleteCommandFromToken`,
+        // tclBasic.c) — `foo` still exists, and calls the new body. Deleting
+        // "whatever is at the name now" would remove the callback's work
+        // instead. This is the command half of the rule the import branch just
+        // above already applies to its own identity. Issue #1633.
+        let recreated = new.is_empty()
+            && match (
+                &bound_before,
+                self.namespaces.borrow().resolve(self.current_ns.get(), old),
+            ) {
+                (Some(before), Some(now)) => !before.is_same_binding(&now),
+                _ => false,
+            };
+        let raw = if recreated {
+            RenameOutcome::Deleted
+        } else if new.is_empty() && import_token.is_some() {
             if removed_import_fqn.is_some() {
                 RenameOutcome::Deleted
             } else {
@@ -3321,12 +3388,15 @@ impl Interp {
             .then(|| selected(true))
             .into_iter()
             .flatten();
-        let cmds: Vec<(crate::cmd_trace::VarTraceScope, Vec<u8>, bool)> = array_group
-            .chain(selected(false))
-            .map(|t| (t.scope(), t.command.clone(), t.old_style))
-            .collect();
+        // The walk order is fixed here, but *what runs* is re-read at each step:
+        // C follows `active.nextTracePtr`, which `Tcl_UntraceVar2` rewrites when
+        // a callback removes a trace mid-walk, so a trace removed during the
+        // firing does not fire in that same pass. Snapshotting the callbacks
+        // themselves would run one that is already gone (issue #1633). Ids are
+        // enough to re-find each registration, and are never reused.
+        let order: Vec<u64> = array_group.chain(selected(false)).map(|t| t.id).collect();
         drop(traces);
-        if cmds.is_empty() {
+        if order.is_empty() {
             return false;
         }
         let propagate = op == b"read" || op == b"write";
@@ -3336,7 +3406,19 @@ impl Interp {
 
         let mut errored = false;
         let op_name = String::from_utf8_lossy(op).into_owned();
-        for (scope, cmd, old_style) in cmds {
+        for id in order {
+            // Still registered? A previous callback in this same firing may have
+            // removed it (C's `nextTracePtr` rewrite).
+            let Some((scope, cmd, old_style)) = self
+                .traces
+                .borrow()
+                .traces
+                .iter()
+                .find(|t| t.id == id)
+                .map(|t| (t.scope(), t.command.clone(), t.old_style))
+            else {
+                continue;
+            };
             // Append `base element op` as properly-quoted trailing words. A
             // trace installed by the deprecated `trace variable` form is
             // called with the single `rwua` letter (C's `TCL_TRACE_OLD_STYLE`).

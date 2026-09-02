@@ -379,3 +379,70 @@ fn a_trace_added_through_an_element_alias_lands_on_the_element() {
          ELE a k write\nELE e {} write"
     );
 }
+
+// -- #1633's re-entrancy rows: what a callback changes mid-firing -----------
+
+/// A callback that removes a *later* trace stops it firing in the same pass —
+/// C's firing loop follows `active.nextTracePtr`, which `Tcl_UntraceVar2`
+/// rewrites — while one it *adds* is not picked up until the next access.
+/// `trace info` sees each change immediately, from inside the callback.
+///
+/// tclsh 8.6.16 and 9.0.4 print exactly the transcript below; the runtime used
+/// to fire `B` after `M` had removed it, because the firing loop snapshotted
+/// the callbacks up front.
+#[test]
+fn a_trace_removed_during_firing_does_not_fire_in_that_pass() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc B {n1 n2 op} { lappend ::log B }\n\
+         proc C {n1 n2 op} { lappend ::log C }\n\
+         proc M {n1 n2 op} {\n\
+         \x20   lappend ::log \"M-in: [trace info variable ::x]\"\n\
+         \x20   trace remove variable ::x write B\n\
+         \x20   trace add variable ::x write C\n\
+         \x20   lappend ::log \"M-out: [trace info variable ::x]\"\n\
+         }\n\
+         set x 0\n\
+         trace add variable x write B\n\
+         trace add variable x write M\n\
+         set x 1\n\
+         lappend ::log \"after: [trace info variable ::x]\"\n\
+         set x 2\n\
+         join $::log \\n",
+    );
+    assert_eq!(
+        got,
+        "M-in: {write M} {write B}\n\
+         M-out: {write C} {write M}\n\
+         after: {write C} {write M}\n\
+         C\n\
+         M-in: {write C} {write M}\n\
+         M-out: {write C} {write C} {write M}"
+    );
+}
+
+/// A command-delete trace whose callback re-creates the command leaves the
+/// *new* command standing: C deletes the token it captured before the callback
+/// (`CMD_DYING`, its hash entry taken over by the new command), not whatever
+/// the name holds afterwards. The old command's traces still go.
+///
+/// tclsh 8.6.16 and 9.0.4 both print the transcript below; the runtime used to
+/// delete the callback's fresh `foo`, leaving `unknown command "foo"`.
+#[test]
+fn a_delete_trace_that_recreates_the_command_leaves_it_alive() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc foo {} { return FOO }\n\
+         proc D {old new op} {\n\
+         \x20   lappend ::log [list D $old $new $op]\n\
+         \x20   proc foo {} { return FOO2 }\n\
+         }\n\
+         trace add command foo delete D\n\
+         rename foo {}\n\
+         lappend ::log \"exists: [llength [info commands foo]]\"\n\
+         lappend ::log \"call: [foo]\"\n\
+         lappend ::log \"traces: [trace info command foo]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(got, "D ::foo {} delete\nexists: 1\ncall: FOO2\ntraces: ");
+}

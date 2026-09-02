@@ -53,6 +53,17 @@ use crate::obj::TclObj;
 
 /// One registered variable trace.
 pub struct VarTrace {
+    /// This registration's identity, unique for the life of the interpreter.
+    ///
+    /// C identifies a trace by its `VarTrace *`, and the firing loop follows
+    /// `active.nextTracePtr`, which `Tcl_UntraceVar2` rewrites when it frees a
+    /// trace mid-walk — so a callback that removes a *later* trace stops it
+    /// firing in the same pass. A snapshot of the callbacks taken up front
+    /// cannot express that; a snapshot of ids can, because the id says which
+    /// registration to look for again. Ids are never reused, so a trace removed
+    /// and re-added during one firing is a different trace, exactly as it is a
+    /// different allocation in C.
+    pub id: u64,
     /// The variable name as registered (for `trace info` matching).
     pub name: Vec<u8>,
     /// The array base / scalar name (for firing).
@@ -153,6 +164,8 @@ pub struct TraceTable {
     pub cmd_traces: Vec<CmdTrace>,
     /// Live interp-wide step traces (see [`StepActive`]).
     pub step_active: Vec<StepActive>,
+    /// The id the next variable-trace registration takes (see [`VarTrace::id`]).
+    pub next_var_trace_id: u64,
     /// Variable cells whose trace callbacks are currently running. Other
     /// variables remain traceable from within a callback.
     pub active_var_scopes: Vec<VarTraceScope>,
@@ -562,7 +575,11 @@ fn var_trace_apply(
         // `trace info` / `trace remove` match is the same resolved identity,
         // because C looks the variable up and walks *that* `Var`'s list.
         let home = interp.trace_identity(&base);
-        interp.traces.borrow_mut().traces.push(VarTrace {
+        let mut table = interp.traces.borrow_mut();
+        let id = table.next_var_trace_id;
+        table.next_var_trace_id += 1;
+        table.traces.push(VarTrace {
+            id,
             name,
             base: home.base,
             elem,
@@ -572,6 +589,7 @@ fn var_trace_apply(
             ns: home.ns,
             old_style,
         });
+        drop(table);
         interp.invalidate_guard_domain(tcl_runtime_api::guard::GuardDomain::VariableTrace);
     } else {
         let (q_ns, q_level, q_base, q_elem) = var_trace_query(interp, &name);
