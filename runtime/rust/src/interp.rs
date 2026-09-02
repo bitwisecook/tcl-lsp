@@ -1877,6 +1877,35 @@ impl Interp {
         }
     }
 
+    /// The interp-path (from `self`) to the target interpreter of the alias
+    /// `alias` in the interpreter addressed by `path` — `interp target path
+    /// alias`. `None` when `path` doesn't resolve, or names no alias there.
+    ///
+    /// Every alias this runtime supports targets either its own interpreter
+    /// (`Command::Alias`, a same-interp `interp alias`) or its immediate
+    /// parent (`Command::ParentAlias`, the child-side half of a cross-interp
+    /// alias) — so the target's path from `self` is either `path` itself or
+    /// `path` with its last element dropped. C's general `Tcl_GetInterpPath`
+    /// walk (`tclInterp.c`) collapses to exactly that for every alias shape
+    /// this runtime can construct.
+    pub(crate) fn alias_target_path(
+        &mut self,
+        path: &[Vec<u8>],
+        alias: &[u8],
+    ) -> Option<Vec<Vec<u8>>> {
+        let path_owned = path.to_vec();
+        self.with_child_path(path, move |c| {
+            match c.namespaces.borrow().resolve(c.current_ns.get(), alias) {
+                Some(Command::Alias { .. }) => Some(path_owned),
+                Some(Command::ParentAlias { .. }) => {
+                    Some(path_owned[..path_owned.len().saturating_sub(1)].to_vec())
+                }
+                _ => None,
+            }
+        })
+        .flatten()
+    }
+
     /// Delete the command bound to `name` (the alias-clear form); returns whether
     /// it existed.
     pub(crate) fn delete_command(&mut self, name: &[u8]) -> bool {
@@ -3027,11 +3056,7 @@ impl Interp {
             display.extend_from_slice(k);
             display.push(b')');
         }
-        let mut m = b"can't read \"".to_vec();
-        m.extend_from_slice(&display);
-        m.extend_from_slice(b"\": ");
-        m.extend_from_slice(&msg);
-        Some(self.set_error(&m))
+        Some(self.var_trace_error(&display, b"read", &msg))
     }
 
     /// Read a variable's current value for a **read-modify-write** command
@@ -3247,6 +3272,25 @@ impl Interp {
                 // the trace chain on the first error).
                 let msg = self.result_bytes();
                 self.traces.borrow_mut().pending_err = Some(msg);
+                // C's `TclCallVarTraces` error tail (tclTrace.c 9.0.4:2662-2696)
+                // keeps the callback's own errorInfo chain and appends a
+                // `(<type> trace on "name")` frame to it; only the *result* is
+                // replaced afterwards, by `TclVarErrMsg`. The element named
+                // here is the one from the access **spelling** — C snapshots
+                // `part2` before recovering one from a linked element — so
+                // `set a(k) 2` reports `(write trace on "a(k)")` while
+                // `set e 5` through `upvar #0 a(k) e` reports
+                // `(write trace on "e")`.
+                let mut frame = op.to_vec();
+                frame.extend_from_slice(b" trace on \"");
+                frame.extend_from_slice(reported);
+                if let Some(k) = elem {
+                    frame.push(b'(');
+                    frame.extend_from_slice(k);
+                    frame.push(b')');
+                }
+                frame.push(b'"');
+                self.append_frame_noline(&frame);
                 errored = true;
                 break;
             }
@@ -3257,6 +3301,37 @@ impl Interp {
             self.result.set(saved);
         }
         errored
+    }
+
+    /// C's `TclVarErrMsg` tail after a variable trace aborted an access: the
+    /// *result* becomes `can't <verb> "<name>": <reason>` and `-errorcode`
+    /// becomes `TCL <READ|WRITE> VARNAME` (`tclVar.c` 9.0.4:1472 / :2073),
+    /// while `errorInfo` keeps the chain `TclCallVarTraces` already built — the
+    /// callback's own trace plus its `(<type> trace on "…")` frame.
+    ///
+    /// This is why it is not `set_error`: that starts a *fresh* error and would
+    /// throw the callback's trace away, leaving `errorInfo` as the bare
+    /// `can't set "x": …` line (issue #1633's errorInfo row).
+    pub(crate) fn var_trace_error(&mut self, name: &[u8], op: &[u8], reason: &[u8]) -> Code {
+        let (verb, word): (&[u8], &[u8]) = match op {
+            b"read" => (b"read", b"READ"),
+            b"array" => (b"trace array", b"ARRAY"),
+            _ => (b"set", b"WRITE"),
+        };
+        let mut msg = b"can't ".to_vec();
+        msg.extend_from_slice(verb);
+        msg.extend_from_slice(b" \"");
+        msg.extend_from_slice(name);
+        msg.extend_from_slice(b"\": ");
+        msg.extend_from_slice(reason);
+        self.set_result_bytes(&msg);
+        let mut code = b"TCL ".to_vec();
+        code.extend_from_slice(word);
+        code.extend_from_slice(b" VARNAME");
+        let mut exc = self.exc.borrow_mut();
+        exc.code = code;
+        exc.code_explicit = false;
+        Code::Error
     }
 
     /// Fire `var`'s `op` traces; on a read/write callback error return the

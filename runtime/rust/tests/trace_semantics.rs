@@ -234,3 +234,68 @@ fn an_erroring_read_trace_leaves_incr_counting_from_zero() {
         "code=0 msg=1 x=1"
     );
 }
+
+// -- #1633's errorInfo row: the trace's own trace survives the access failure
+
+/// ```tcl
+/// proc WE {n1 n2 op} { error "wboom" }
+/// set x 1
+/// trace add variable x write WE
+/// catch {set x 2} m
+/// ```
+///
+/// tclsh 8.6.16 and 9.0.4 print, byte for byte:
+///
+/// ```text
+/// wboom
+///     while executing
+/// "error "wboom" "
+///     (procedure "WE" line 1)
+///     invoked from within
+/// "WE x {} write"
+///     (write trace on "x")
+///     invoked from within
+/// "set x 2"
+/// ```
+///
+/// with `-errorcode TCL WRITE VARNAME`. The runtime used to start a *fresh*
+/// error for `can't set "x": wboom`, discarding the callback's whole chain and
+/// with it the `(write trace on "x")` frame.
+#[test]
+fn a_write_trace_error_keeps_its_chain_and_adds_the_trace_frame() {
+    let got = transcript(
+        "proc WE {n1 n2 op} { error \"wboom\" }\n\
+         set x 1\n\
+         trace add variable x write WE\n\
+         set c [catch {set x 2} m]\n\
+         set out \"$c|$m|$::errorCode|$::errorInfo\"",
+    );
+    assert_eq!(
+        got,
+        "1|can't set \"x\": wboom|TCL WRITE VARNAME|\
+         wboom\n    while executing\n\"error \"wboom\" \"\n\
+         \x20   (procedure \"WE\" line 1)\n    invoked from within\n\"WE x {} write\"\n\
+         \x20   (write trace on \"x\")\n    invoked from within\n\"set x 2\""
+    );
+}
+
+/// The read half, on an array element — the frame names the element
+/// (`(read trace on "a(k)")`) because C snapshots `part2` from the access
+/// spelling. `-errorcode` is `TCL READ VARNAME`. Same at 8.6.16 and 9.0.4.
+#[test]
+fn a_read_trace_error_names_the_element_in_its_frame() {
+    let got = transcript(
+        "proc RE {n1 n2 op} { error \"rboom\" }\n\
+         array set a {k 1}\n\
+         trace add variable a read RE\n\
+         set c [catch {set q $a(k)} m]\n\
+         set out \"$c|$m|$::errorCode|$::errorInfo\"",
+    );
+    assert_eq!(
+        got,
+        "1|can't read \"a(k)\": rboom|TCL READ VARNAME|\
+         rboom\n    while executing\n\"error \"rboom\" \"\n\
+         \x20   (procedure \"RE\" line 1)\n    invoked from within\n\"RE a k read\"\n\
+         \x20   (read trace on \"a(k)\")\n    invoked from within\n\"set q $a(k)\""
+    );
+}

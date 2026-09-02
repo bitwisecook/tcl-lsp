@@ -90,7 +90,8 @@ pub fn install(interp: &mut Interp) {
 
 pub(crate) fn var_error(interp: &mut Interp, name: &[u8], e: VarError) -> Code {
     // A write-trace error: wrap the trace's own message (stashed in pending_err)
-    // as `can't set "name": <msg>` (C's TclObjVarErrMsg).
+    // as `can't set "name": <msg>` (C's TclObjVarErrMsg), *keeping* the
+    // errorInfo chain the trace machinery already built.
     if e == VarError::TraceError {
         let reason = interp
             .traces
@@ -98,11 +99,7 @@ pub(crate) fn var_error(interp: &mut Interp, name: &[u8], e: VarError) -> Code {
             .pending_err
             .take()
             .unwrap_or_default();
-        let mut msg = b"can't set \"".to_vec();
-        msg.extend_from_slice(name);
-        msg.extend_from_slice(b"\": ");
-        msg.extend_from_slice(&reason);
-        return interp.set_error(&msg);
+        return interp.var_trace_error(name, b"write", &reason);
     }
     let verb = match e {
         VarError::IsArray => &b"\": variable is array"[..],
