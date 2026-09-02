@@ -931,3 +931,100 @@ lane was transiently red mid-session and cleared before commit, per the
 r4/r5 lanes' own note on this same trap). Every new expectation was produced
 by running its sheet through `tclsh9.0` (9.0.4) and `tclsh8.6` (8.6.16)
 directly.
+
+## r3-numeric-tower
+
+Goal: close the four numeric-tower divergences between `runtime/rust` and
+`rust/tcl-vm` — #1428 (`**`/`<<`/`>>`/`/`/`%` not routed through the shared
+tower), #1382 (`entier`/`int`/`wide`/`round` on out-of-wide floats), #1432
+(`rand`/`srand` transcribed twice), #1581 (the expr/mathfunc error taxonomy).
+Every expectation in this lane was read off `tclsh9.0` (9.0.4) and `tclsh8.6`
+(8.6.16) with `catch {expr {…}} m o; list $m [dict get $o -errorcode]`; the
+sheets live as tests, so a reader can re-derive any row in a real shell.
+
+### Decisions
+
+- **The tower owns the operator semantics; the adopter owns the error
+  surface.** `runtime/rust`'s `**`/`<<`/`>>`/`/`/`%` integer tiers now call
+  `number_tower::{int_pow,int_shr,int_div,int_mod}` over the `TowerMp`
+  libtommath adapter that already existed but had no production caller. The
+  tower keeps returning `Option` (two refusals merged); each adopter
+  disambiguates, exactly as `tcl-vm`'s `big_pow` already did — so no
+  `tcl-compiler` caller had to change. A beyond-wide exponent folds to an
+  equal-sign, equal-parity wide, which is exact because the rules past
+  `MAX_EXPONENT` depend on nothing else.
+- **`ArithError::DivideByZero` split, not overloaded.** `0 ** negative` is C's
+  `EXPON_OF_ZERO` domain error (`ARITH DOMAIN`), not a division by zero; the
+  enum's doc comment asserted the opposite and is corrected.
+- **`BigIntOps::from_f64_trunc` is a defaulted trait method, not a per-backend
+  one.** It reads the IEEE-754 fields directly, so every backend agrees bit
+  for bit, and the uninhabited `NoBig` overrides it to decline — which is what
+  keeps the const-folder's behaviour byte-for-byte unchanged.
+- **`int()`'s width is a release axis (`IntWidth`), with an `Unresolved`
+  value.** 9.0 binds `int` to the unbounded `ExprIntFunc`; 8.4-8.6 window it.
+  `Unresolved` answers only where the releases agree, so a caller with no
+  release in hand (the const-folder) can never bake in the wrong one.
+  `dispatch`/`dispatch_with_backend` keep their `Option` shape and default to
+  it.
+- **`rand`/`srand` get a shared owner next to `mathfunc`
+  (`tcl_syntax::expr::rand`).** Step, seed nudge and C's *reciprocal-multiply*
+  scaling live there; only seed storage and the nondeterministic first-seed
+  policy stay per engine. The VM's true divide differed from C by one ulp for
+  a dense seed family, which Tcl's shortest-round-trip formatting made visible.
+- **The `IllegalExprOperandType` wording axis reuses the numeric grammar's
+  ambient, not a new one.** These errors are raised inside
+  `tcl_vm::expr::arith`/`unary`, which bytecode opcodes call with no
+  interpreter in hand; `errors::ambient_release()` reads the same ambient both
+  engines already install with `number::set_runtime_syntax`.
+- **`dispatch` keeps its `Option` adapter; the fallible entry point is
+  additive.** `try_dispatch_with_backend_int_width` returns
+  `Result<_, MathFuncError>`; `dispatch*` map `Err` to `None`. The const-folder
+  therefore abstains on every error by construction — the property #1581 asks
+  for — without this lane editing `rust/tcl-compiler/**`, which another lane
+  held for the whole session.
+
+### Oracle deltas accepted
+
+- `srand(1.5)`: the issue text says both engines should accept and truncate it.
+  The oracle disagrees — tclsh 8.6.16 raises `expected integer but got "1.5"`
+  (`TCL VALUE INTEGER`) and tclsh 9.0.4 raises with an *empty* message and
+  `-errorcode NONE`, because C hands `TclGetWideBitsFromObj` a NULL interp
+  there. Both engines now refuse the operand, using 8.6's wording at every
+  release so they agree with each other; reproducing 9.0's empty message is
+  left as taxonomy work.
+- `max(1,NaN)` / `min(NaN,1)` carry `TCL VALUE DOUBLE NAN` on tclsh 9.0.4 but
+  `NONE` on 8.6.16. Both engines emit the 9.0 code; only rows the two releases
+  agree on are pinned in the engine tests.
+
+### Verification
+
+Every commit was gated with `make runtime-rust-test`, `make runtime-rust-lint`,
+`cargo test -p tcl-syntax -p tcl-vm --lib`, the four expr/mathfunc VM e2e
+suites, and `cargo clippy -p tcl-syntax -p tcl-vm --all-targets -D warnings`,
+on a tree carrying other lanes' concurrent in-flight edits — the
+`rust/tcl-compiler/src/native_lowering/` work was red on both `--lib` and
+clippy throughout and is not this lane's. One incident worth recording: an
+early edit to `runtime/rust/src/{bignum,expr}.rs` was reverted out of the
+worktree by a concurrent operation between a green test run and the commit, so
+the patch had to be reapplied from a saved script; commit early, and re-read
+before you trust a buffer.
+
+### Remaining
+
+- `rust/tcl-compiler`'s const-folder still calls the `Option` adapter rather
+  than the typed channel. It is correct — it abstains on every refusal — but
+  threading `MathFuncError` into it, so the folder could distinguish "would
+  raise" from "cannot represent", needs an edit to `tcl-compiler`, which
+  another lane owned throughout.
+- `expr {NaN + 1}` on `runtime/rust` answers `NaN` where tclsh raises
+  `cannot use non-numeric floating-point value "NaN" as left operand of "+"`.
+  The tower's `read` folds a NaN *string* to `None` (so that path raises) but
+  accepts a *typed* double NaN as an arithmetic operand. That is an
+  operand-acceptance gap, not an error-taxonomy one, so the row is dropped
+  from the #1581 sheet with a note at the call site rather than fixed here.
+- The VM's `int`/`wide`/`entier`/`round`/`isqrt` are still VM-local functions
+  rather than the shared arms (#1430's re-type). They now agree with the
+  shared arms row for row and read the same release axis, so they cannot drift
+  on the covered semantics.
+- `srand`'s 9.0 empty-message quirk (C hands `TclGetWideBitsFromObj` a NULL
+  interp) is not reproduced; both engines use 8.6's wording at every release.
