@@ -1079,31 +1079,27 @@ mod tests {
     /// A moderately nested array index (well under `MAX_SCAN_PARTS_DEPTH`)
     /// still scans into the full nested `Variable`/`index` component tree —
     /// the safety net must not fire, let alone flatten anything, on
-    /// realistic nesting depths. (The trailing `Text("))")`s are a pre-
-    /// existing, unrelated property of this scanner's `)`-terminator search
-    /// — it does not skip over a nested `$name(…)`'s own parens the way
-    /// `tcl_lexer`'s does, so only the *innermost* `)` closes each
-    /// outer-to-inner index in a multi-level chain like this one; not a
-    /// behaviour this fix changes.)
+    /// realistic nesting depths. The scanner's `)`-terminator search now
+    /// skips a nested `$name(…)`'s own parens, so each level closes on its
+    /// matching `)` and nothing spills out as trailing text — the C Tcl
+    /// reading (`set c(1) inner; set b(inner) mid; set a(mid) outer;
+    /// set x $a($b($c(1)))` yields `outer` under `tclsh9.0`).
     #[test]
     fn moderately_nested_array_index_still_scans_fully() {
         // $a($b($c(1)))
         let body = scan_parts(b"$a($b($c(1)))", true, true, true, LexerConfig::default());
         assert_eq!(
             body,
-            WordBody::Parts(vec![
-                WordPart::Variable(VarRef {
-                    name: b"a",
+            WordBody::Parts(vec![WordPart::Variable(VarRef {
+                name: b"a",
+                index: Some(vec![WordPart::Variable(VarRef {
+                    name: b"b",
                     index: Some(vec![WordPart::Variable(VarRef {
-                        name: b"b",
-                        index: Some(vec![WordPart::Variable(VarRef {
-                            name: b"c",
-                            index: Some(vec![WordPart::Text(Cow::Borrowed(&b"1"[..]))]),
-                        })]),
+                        name: b"c",
+                        index: Some(vec![WordPart::Text(Cow::Borrowed(&b"1"[..]))]),
                     })]),
-                }),
-                WordPart::Text(Cow::Borrowed(&b"))"[..])),
-            ])
+                })]),
+            }),])
         );
     }
 

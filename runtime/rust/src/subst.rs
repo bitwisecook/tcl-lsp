@@ -283,14 +283,14 @@ mod tests {
     /// self-referential index resolution via the normal `scan` ->
     /// `resolve_with` pipeline — well under `MAX_RESOLVE_PARTS_DEPTH` (64).
     /// The safety net must not alter this at all: `$arr(k)` resolves to
-    /// "val" first, so the outer becomes `$arr(val)` -> "nested-val". (The
-    /// trailing `)` is a pre-existing, unrelated property of `scan_parts`'s
-    /// `)`-terminator search — see `parse::tests::
-    /// moderately_nested_array_index_still_scans_fully` — not something this
-    /// fix changes.)
+    /// "val" first, so the outer becomes `$arr(val)` -> "nested-val", with no
+    /// trailing text: `scan_parts`'s `)`-terminator search skips the nested
+    /// `$name(…)`'s own parens (see `parse::tests::
+    /// moderately_nested_array_index_still_scans_fully`), which is the C Tcl
+    /// reading — `subst {$arr($arr(k))}` yields `nested-val` under `tclsh9.0`.
     #[test]
     fn moderately_nested_array_index_resolves_correctly() {
-        assert_eq!(subst(b"$arr($arr(k))"), b"nested-val)");
+        assert_eq!(subst(b"$arr($arr(k))"), b"nested-val");
     }
 
     /// Regression coverage for issue #996: `resolve_parts` recurses once per
