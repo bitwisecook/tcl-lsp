@@ -1797,7 +1797,7 @@ impl CompilationUnit {
         // classifies a rebound head as the command it is (issue #1275).
         let identities = crate::realm::document_realm_bindings_with_config(
             &self.source,
-            tcl_lexer::LexerConfig::for_dialect(dialect.map_or("", |profile| profile.name)),
+            tcl_lexer::LexerConfig::for_profile(dialect),
             registry,
         );
         let interproc = crate::interprocedural::build_interprocedural_analysis(
@@ -1872,7 +1872,7 @@ impl CompilationUnit {
         // classifies a rebound head as the command it is (issue #1275).
         let identities = crate::realm::document_realm_bindings_with_config(
             &self.source,
-            tcl_lexer::LexerConfig::for_dialect(dialect.map_or("", |profile| profile.name)),
+            tcl_lexer::LexerConfig::for_profile(dialect),
             registry,
         );
         let interproc = crate::interprocedural::build_interprocedural_analysis(

@@ -176,7 +176,7 @@ pub(super) fn handle_proc(
     let params = if params_computed {
         Vec::new()
     } else {
-        parse_param_list(&texts[2])
+        parse_param_list(&texts[2], ctx.rules)
     };
     let param_names: Vec<String> = params.iter().map(|p| p.name.clone()).collect();
     ctx.result.procs.insert(

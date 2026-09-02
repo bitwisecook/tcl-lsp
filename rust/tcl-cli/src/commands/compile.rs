@@ -83,7 +83,7 @@ pub fn run_dis(input: &InputArgs, optimise_on: bool) -> anyhow::Result<u8> {
     let ir = lower_to_ir_for_bytecode_with_dialect(
         &source,
         &registry,
-        tcl_lexer::LexerConfig::for_dialect(dialect.name),
+        tcl_lexer::LexerConfig::for_profile(Some(dialect)),
         Some(dialect),
     );
     let cfg = build_cfg_codegen(&ir, false);

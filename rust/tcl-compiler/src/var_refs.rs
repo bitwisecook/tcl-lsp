@@ -31,7 +31,7 @@
 
 use std::collections::{BTreeSet, HashMap, VecDeque};
 
-use tcl_lexer::{Lexer, SourceMap, Span, Token, TokenType};
+use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 
 use crate::segmenter::SegmentedCommand;
@@ -349,7 +349,10 @@ fn scan_tokens(
 ) -> BTreeSet<String> {
     let mut vars_found = BTreeSet::new();
     let source_map = SourceMap::new(source);
-    let mut lexer = Lexer::new(source);
+    // The document's grammar comes from the dialect-selected registry's own
+    // profile (the route `dynamic_names::lexer_config_for` takes): a name
+    // recovered under the wrong word grammar tracks the wrong cell.
+    let mut lexer = Lexer::with_config(source, LexerConfig::for_profile(registry.profile()));
     if quoted_body {
         lexer = lexer.as_quoted_body();
     }
@@ -413,7 +416,7 @@ fn scan_var_read_role_names(
 ) -> BTreeSet<String> {
     let mut result = BTreeSet::new();
     let source_map = SourceMap::new(source);
-    let lexer = Lexer::new(source);
+    let lexer = Lexer::with_config(source, LexerConfig::for_profile(registry.profile()));
 
     let Ok(tokens) = lexer.tokenise_all() else {
         return result;
@@ -525,12 +528,12 @@ fn deref_form(text: &str) -> &str {
     }
 }
 
-fn collect_ref_forms(text: &str, out: &mut Vec<(String, bool)>) {
+fn collect_ref_forms(text: &str, out: &mut Vec<(String, bool)>, config: LexerConfig) {
     if text.is_empty() {
         return;
     }
     let source_map = SourceMap::new(text);
-    let Ok(tokens) = Lexer::new(text).tokenise_all() else {
+    let Ok(tokens) = Lexer::with_config(text, config).tokenise_all() else {
         return;
     };
     for tok in &tokens {
@@ -556,7 +559,7 @@ fn collect_ref_forms(text: &str, out: &mut Vec<(String, bool)>) {
             TokenType::Cmd | TokenType::ExprSugar => {
                 let inner = source_map.token_text(*tok);
                 if !inner.is_empty() {
-                    collect_ref_forms(inner, out);
+                    collect_ref_forms(inner, out, config);
                 }
             }
             _ => {}
@@ -573,7 +576,16 @@ fn collect_ref_forms(text: &str, out: &mut Vec<(String, bool)>) {
 /// distinguish a scalar from an array element from a dynamic ref.
 #[must_use]
 pub fn scan_var_ref_forms(text: &str) -> Vec<String> {
-    scan_var_ref_forms_braced(text)
+    // dialect-drift-ok: compatibility shim for the call sites outside this
+    // lane (analyser, place_bridge); `scan_var_ref_forms_with_config` is what
+    // a caller holding the document's config uses.
+    scan_var_ref_forms_with_config(text, LexerConfig::default())
+}
+
+/// [`scan_var_ref_forms`] under the document's own [`LexerConfig`].
+#[must_use]
+pub fn scan_var_ref_forms_with_config(text: &str, config: LexerConfig) -> Vec<String> {
+    scan_var_ref_forms_braced_with_config(text, config)
         .into_iter()
         .map(|(f, _)| f)
         .collect()
@@ -589,8 +601,20 @@ pub fn scan_var_ref_forms(text: &str) -> Vec<String> {
 /// that is part of the name.
 #[must_use]
 pub fn scan_var_ref_forms_braced(text: &str) -> Vec<(String, bool)> {
+    // dialect-drift-ok: compatibility shim for the call sites outside this
+    // lane (analyser, def_use); the `_with_config` form below is what a
+    // caller holding the document's config uses.
+    scan_var_ref_forms_braced_with_config(text, LexerConfig::default())
+}
+
+/// [`scan_var_ref_forms_braced`] under the document's own [`LexerConfig`].
+#[must_use]
+pub fn scan_var_ref_forms_braced_with_config(
+    text: &str,
+    config: LexerConfig,
+) -> Vec<(String, bool)> {
     let mut out = Vec::new();
-    collect_ref_forms(text, &mut out);
+    collect_ref_forms(text, &mut out, config);
     out
 }
 
@@ -599,12 +623,22 @@ pub fn scan_var_ref_forms_braced(text: &str) -> Vec<(String, bool)> {
 /// recover the reads of commands nested in an argument word.
 #[must_use]
 pub fn command_subst_texts(text: &str) -> Vec<String> {
+    // dialect-drift-ok: compatibility shim for the call sites outside this
+    // lane (place_bridge); `command_subst_texts_with_config` is what a caller
+    // holding the document's config uses.
+    command_subst_texts_with_config(text, LexerConfig::default())
+}
+
+/// [`command_subst_texts`] under the document's own [`LexerConfig`], so the
+/// `[…]` boundaries it reports are the ones the document's grammar draws.
+#[must_use]
+pub fn command_subst_texts_with_config(text: &str, config: LexerConfig) -> Vec<String> {
     let mut out = Vec::new();
     if !text.contains('[') {
         return out;
     }
     let source_map = SourceMap::new(text);
-    let Ok(tokens) = Lexer::new(text).tokenise_all() else {
+    let Ok(tokens) = Lexer::with_config(text, config).tokenise_all() else {
         return out;
     };
     for tok in &tokens {

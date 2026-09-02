@@ -2150,7 +2150,10 @@ mod tests {
 
     #[test]
     fn parse_param_list_reexport_works() {
-        let params = parse_param_list("a b {c default}");
+        let params = parse_param_list(
+            "a b {c default}",
+            tcl_syntax::word_rules::WordValueRules::TCL,
+        );
         assert_eq!(params.len(), 3);
         assert_eq!(params[0].name, "a");
         assert_eq!(params[2].name, "c");

@@ -1250,10 +1250,14 @@ fn irules_top_level_declaration_heads(
     // The shared syntax boundary parser intentionally models `when`'s
     // handler-specific grammar.  Procedure declarations use the same
     // top-level lexer stream and the registry's declaration-shape owner.
+    // Deliberately the iRules grammar, whatever the document's dialect: this
+    // is the generic-Tcl fallback that keeps `when EVENT` colouring in a plain
+    // Tcl buffer. The grammar still comes from the ingress-resolved
+    // `f5-irules` environment rather than a by-name lexer preset.
     for seg in segment_commands_with_offset_and_config(
         source,
         0,
-        tcl_lexer::LexerConfig::for_file_dialect("f5-irules"),
+        tcl_lexer::LexerConfig::for_file_grammar(crate::environment_for_dialect("f5-irules").grammar()),
     ) {
         let Some(head_token) = seg.argv.first() else {
             continue;

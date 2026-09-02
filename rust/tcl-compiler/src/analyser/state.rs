@@ -1306,6 +1306,15 @@ impl Analyser {
         tcl_lexer::LexerConfig::from_grammar(self.grammar())
     }
 
+    /// This document dialect's word-value rules: how a braced word's
+    /// `\<newline>` folds and how list text divides. The [`Self::grammar`]
+    /// twin for the re-parses that split a *word* rather than re-lex a
+    /// script — a proc's parameter list, an OO member's — so they cannot
+    /// answer C Tcl's question about a JimTcl document.
+    pub(super) fn word_rules(&self) -> tcl_syntax::word_rules::WordValueRules {
+        tcl_syntax::word_rules::WordValueRules::from_grammar(&self.grammar())
+    }
+
     /// [`Self::lexer_config`] for the **whole-file** segmentation at the top of
     /// [`Self::analyse`] — the one place that stands where a Tcl runtime's
     /// `source` stands, and therefore the only place that may skip a leading

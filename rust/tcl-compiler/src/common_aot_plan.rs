@@ -1231,9 +1231,16 @@ fn direct_decision(input: &DirectInputs<'_>) -> DirectProcDecision {
     {
         return decline(DirectProcDecline::ExceptionalControlFlow);
     }
-    let Ok(formals) =
-        crate::signature_scan::params::parse_param_list_strict(&input.proc_def.params_raw)
-    else {
+    // The lowered module's own dialect — the same `Module::dialect` the
+    // interval pass reads below — so the formals divide the way this unit's
+    // runtime divides them.
+    let word_rules = tcl_syntax::word_rules::WordValueRules::of_dialect_name(
+        input.unit.ir_module.dialect.as_deref(),
+    );
+    let Ok(formals) = crate::signature_scan::params::parse_param_list_strict(
+        &input.proc_def.params_raw,
+        word_rules,
+    ) else {
         return decline(DirectProcDecline::InvalidFormalList);
     };
     if formals.last().is_some_and(|formal| formal.name == "args") {

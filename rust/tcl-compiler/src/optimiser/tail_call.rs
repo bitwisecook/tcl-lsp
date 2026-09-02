@@ -386,7 +386,12 @@ fn is_accumulator_pattern(
     self_names: &HashSet<String>,
     registry: Option<&tcl_registry::CommandRegistry>,
 ) -> bool {
-    let Some((head, _)) = parse_return_subst(value) else {
+    let Some((head, _)) = parse_return_subst(
+        value,
+        tcl_lexer::LexerConfig::for_profile(
+            registry.and_then(tcl_registry::CommandRegistry::profile),
+        ),
+    ) else {
         return false;
     };
     let head_is_expr = registry.and_then(|r| r.get(&head)).is_some_and(|s| {
@@ -572,7 +577,8 @@ fn collect_tail_sites(
             if *braced {
                 return;
             }
-            if let Some((call_head, call_args)) = parse_return_subst(v)
+            if let Some((call_head, call_args)) =
+                parse_return_subst(v, tcl_lexer::LexerConfig::for_profile(ctx.dialect))
                 && self_names.contains(&call_head)
             {
                 let rewrite_span = full_rewrite_span(ctx.source, *span);
@@ -637,10 +643,13 @@ fn collect_tail_sites(
 /// requiring exactly one top-level `Cmd` word rejects the concat, nested-close
 /// (`[a]] [b`), and trailing-text shapes a naive strip would accept (issue
 /// 152).
-fn parse_return_subst(value: &str) -> Option<(String, String)> {
+fn parse_return_subst(
+    value: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<(String, String)> {
     let v = value.trim();
     let sm = tcl_lexer::SourceMap::new(v);
-    let toks = tcl_lexer::Lexer::new(v).tokenise_all().ok()?;
+    let toks = tcl_lexer::Lexer::with_config(v, config).tokenise_all().ok()?;
     let mut words = toks.iter().filter(|t| {
         !matches!(
             t.kind,
@@ -747,21 +756,21 @@ mod tests {
     fn parse_return_subst_accepts_single_and_rejects_concat() {
         // A single command substitution parses into (head, args).
         assert_eq!(
-            parse_return_subst("[a $x]"),
+            parse_return_subst("[a $x]", tcl_lexer::LexerConfig::default()),
             Some(("a".to_owned(), "$x".to_owned()))
         );
         assert_eq!(
-            parse_return_subst("[foo]"),
+            parse_return_subst("[foo]", tcl_lexer::LexerConfig::default()),
             Some(("foo".to_owned(), String::new()))
         );
         // A concatenation of two substitutions is NOT a single subst — a naive
         // strip would yield the invalid `a $x][b $y` (issue 152).
-        assert_eq!(parse_return_subst("[a $x][b $y]"), None);
+        assert_eq!(parse_return_subst("[a $x][b $y]", tcl_lexer::LexerConfig::default()), None);
         // Trailing text after the substitution is likewise rejected.
-        assert_eq!(parse_return_subst("[a] tail"), None);
+        assert_eq!(parse_return_subst("[a] tail", tcl_lexer::LexerConfig::default()), None);
         // Not a substitution at all.
-        assert_eq!(parse_return_subst("plain"), None);
-        assert_eq!(parse_return_subst("[]"), None);
+        assert_eq!(parse_return_subst("plain", tcl_lexer::LexerConfig::default()), None);
+        assert_eq!(parse_return_subst("[]", tcl_lexer::LexerConfig::default()), None);
     }
 
     #[test]
@@ -936,15 +945,15 @@ mod tests {
     #[test]
     fn parse_return_subst_extracts_head_and_args() {
         assert_eq!(
-            parse_return_subst("[f $n]"),
+            parse_return_subst("[f $n]", tcl_lexer::LexerConfig::default()),
             Some(("f".to_string(), "$n".to_string()))
         );
         assert_eq!(
-            parse_return_subst("[g]"),
+            parse_return_subst("[g]", tcl_lexer::LexerConfig::default()),
             Some(("g".to_string(), String::new()))
         );
-        assert!(parse_return_subst("$x").is_none());
-        assert!(parse_return_subst("[]").is_none());
+        assert!(parse_return_subst("$x", tcl_lexer::LexerConfig::default()).is_none());
+        assert!(parse_return_subst("[]", tcl_lexer::LexerConfig::default()).is_none());
     }
 
     #[test]

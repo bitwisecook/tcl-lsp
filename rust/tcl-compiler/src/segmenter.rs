@@ -490,6 +490,25 @@ pub fn flatten_clause_list_elements(
     body_text: &str,
     body_tok: Token,
 ) -> Vec<(String, Token)> {
+    // dialect-drift-ok: compatibility shim for the call sites outside this
+    // lane (`analyser::diagnostics::security`, `analyser::oo`); the
+    // dialect-aware form below is what a caller holding the document's
+    // config must use.
+    flatten_clause_list_elements_with_config(source, body_text, body_tok, LexerConfig::default())
+}
+
+/// [`flatten_clause_list_elements`] under the document's own
+/// [`LexerConfig`].  The representative token kind each element is given
+/// comes from re-lexing that element's text, so it must be read under the
+/// grammar the document was lexed with — an iRules `}{`, a Jim `$(…)` or an
+/// 8.4 `{*}` classify differently otherwise.
+#[must_use]
+pub fn flatten_clause_list_elements_with_config(
+    source: &str,
+    body_text: &str,
+    body_tok: Token,
+    config: LexerConfig,
+) -> Vec<(String, Token)> {
     if body_tok.kind != TokenType::Str {
         return Vec::new();
     }
@@ -524,7 +543,7 @@ pub fn flatten_clause_list_elements(
             // one already-located element merely preserves the representative
             // token kind (`$var`, `[command]`, or bare text) that consumers
             // use for semantic classification.
-            Lexer::new(raw)
+            Lexer::with_config(raw, config)
                 .tokenise_all()
                 .ok()
                 .and_then(|tokens| {

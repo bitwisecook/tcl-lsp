@@ -367,7 +367,11 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
                     .and_then(|s| s.strip_suffix(']'))
                     .unwrap_or(value);
                 let alias_names = expr_alias_names(aliases);
-                if let Some((expr_arg, rel_base)) = extract_single_expr_arg(inner, &alias_names) {
+                if let Some((expr_arg, rel_base)) = extract_single_expr_arg_with_config(
+                    inner,
+                    &alias_names,
+                    tcl_lexer::LexerConfig::for_profile(cmd.dialect),
+                ) {
                     let expr = parse_expr_for_profile(&expr_arg, cmd.dialect);
                     // Anchor the expression text absolutely when both the
                     // `[...]` value word's content and the expr word within
@@ -640,10 +644,25 @@ pub(crate) fn extract_single_expr_arg(
     text: &str,
     expr_aliases: &HashSet<String>,
 ) -> Option<(String, Option<u32>)> {
+    // dialect-drift-ok: compatibility shim for the two call sites outside this
+    // lane (`lowering::hooks::control`, `ssa`); the dialect-aware form below is
+    // what the hook path uses.
+    extract_single_expr_arg_with_config(text, expr_aliases, tcl_lexer::LexerConfig::default())
+}
+
+/// [`extract_single_expr_arg`] under the document's own
+/// [`tcl_lexer::LexerConfig`] — the form every caller that holds the
+/// document's dialect must use, so the `[expr …]` interior is re-lexed under
+/// the grammar the document was lexed with rather than the Tcl 9.x default.
+pub(crate) fn extract_single_expr_arg_with_config(
+    text: &str,
+    expr_aliases: &HashSet<String>,
+    config: tcl_lexer::LexerConfig,
+) -> Option<(String, Option<u32>)> {
     use tcl_lexer::{Lexer, SourceMap, TokenType};
 
     let sm = SourceMap::new(text);
-    let lexer = Lexer::new(text);
+    let lexer = Lexer::with_config(text, config);
     let Ok(tokens) = lexer.tokenise_all() else {
         return None;
     };

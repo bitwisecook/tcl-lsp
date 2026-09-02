@@ -143,8 +143,12 @@ pub fn find_embedded_rules(source: &str) -> Vec<EmbeddedRule> {
 /// quoted Tcl word, as TMM does.
 fn irules_body_end(source: &str, opening_brace: usize, outer_end: usize) -> (usize, usize) {
     let tail = &source[opening_brace..outer_end.min(source.len())];
-    let Ok(tokens) = Lexer::with_config(tail, LexerConfig::for_dialect("f5-irules")).tokenise_all()
-    else {
+    // dialect-drift-ok: a tmsh BIG-IP config file, not a Tcl document — the
+    // iRules brace grammar is the fixed structural rule TMM uses to find a
+    // stanza's close brace, never a document's resolved dialect.
+    let irules_braces =
+        LexerConfig::from_grammar(tcl_dialect::grammar_of_dialect_name(Some("f5-irules")));
+    let Ok(tokens) = Lexer::with_config(tail, irules_braces).tokenise_all() else {
         return (outer_end.saturating_sub(1), outer_end);
     };
     let Some(token) = tokens

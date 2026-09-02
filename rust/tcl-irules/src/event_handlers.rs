@@ -29,7 +29,7 @@ pub fn extract_irules_event_handlers(
     source: &str,
     registry: &CommandRegistry,
 ) -> Vec<IrulesEventHandler> {
-    let config = LexerConfig::for_dialect("f5-irules");
+    let config = crate::irules_lexer_config();
     let mut inherited_priority = registry
         .event_handler_spec()
         .and_then(|spec| spec.event_handler_priority)

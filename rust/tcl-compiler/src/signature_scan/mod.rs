@@ -83,6 +83,11 @@ pub fn extract_signatures(source: &str, registry: &CommandRegistry) -> Signature
     let known_commands: std::collections::HashSet<&str> = registry.command_names().collect();
     let mut ctx = ScanCtx {
         registry: Some(registry),
+        // dialect-drift-ok: this entry point takes no dialect at all (the
+        // background workspace index calls it with source + registry only),
+        // so the scan keeps C Tcl's word-value rules until the signature
+        // carries a resolved profile; `ScanCtx::rules` is the seam for that.
+        rules: tcl_syntax::word_rules::WordValueRules::default(),
         ..ScanCtx::default()
     };
     // Heads that match the factory-wrapper token shape but are not

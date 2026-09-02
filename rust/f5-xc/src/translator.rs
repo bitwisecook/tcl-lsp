@@ -1584,7 +1584,9 @@ pub fn translate_irule_with_registry(
     // Lower under the iRules dialect so the iRules expr operators
     // (`starts_with` / `ends_with` / `contains` / `matches_glob` / …) parse
     // as the corresponding `BinOp`s rather than falling back to `Raw`.
-    let config = tcl_lexer::LexerConfig::for_dialect("f5-irules");
+    let config = tcl_lexer::LexerConfig::from_grammar(
+        tcl_registry::model::resolve_environment("f5-irules").grammar(),
+    );
     let module: Module = lower_to_ir_with_config(source, registry, config);
 
     let mut ctx = TranslationContext::new();

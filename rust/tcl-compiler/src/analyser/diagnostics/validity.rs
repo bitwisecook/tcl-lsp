@@ -495,7 +495,9 @@ pub(in crate::analyser) fn emit_invalid_formal_parameter_list_diagnostics(
         if !literal {
             continue;
         }
-        let Err(error) = crate::signature_scan::params::parse_param_list_strict(params) else {
+        let Err(error) =
+            crate::signature_scan::params::parse_param_list_strict(params, analyser.word_rules())
+        else {
             continue;
         };
         let span = super::super::utils::full_word_span(*token, &analyser.source);
@@ -537,13 +539,15 @@ pub(in crate::analyser) fn emit_invalid_lambda_parameter_list_diagnostics(
         if token.kind != tcl_lexer::TokenType::Str {
             continue;
         }
-        let Ok(fields) = tcl_syntax::list::split_list(lambda) else {
+        let word_rules = analyser.word_rules();
+        let Ok(fields) = word_rules.split_list(lambda) else {
             continue;
         };
         let Some(params) = fields.first() else {
             continue;
         };
-        let Err(error) = crate::signature_scan::params::parse_param_list_strict(params) else {
+        let Err(error) = crate::signature_scan::params::parse_param_list_strict(params, word_rules)
+        else {
             continue;
         };
         let span = super::super::utils::full_word_span(*token, &analyser.source);
@@ -2229,7 +2233,8 @@ impl Analyser {
         let Some((_, params_text)) = elements.first() else {
             return;
         };
-        let params = crate::signature_scan::params::parse_param_list(params_text);
+        let params =
+            crate::signature_scan::params::parse_param_list(params_text, self.word_rules());
         let arity = crate::signature_scan::arity::arity_of(&params);
         // Positional count starts *after* the lambda literal (index 1).
         let (nargs_min, positional_any_expand) = count_positionals(args, arg_expand, 1);

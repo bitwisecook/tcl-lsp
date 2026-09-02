@@ -27,7 +27,7 @@ use std::collections::HashSet;
 
 use crate::registry_for_dialect;
 use tcl_compiler::segmenter::segment_commands;
-use tcl_lexer::{Lexer, TokenType};
+use tcl_lexer::{Lexer, LexerConfig, TokenType};
 
 const ANSI_RESET: &str = "\x1b[0m";
 
@@ -154,7 +154,13 @@ fn highlight_ansi_inner(
     if source.is_empty() || depth > 8 {
         return source.to_owned();
     }
-    let Ok(tokens) = Lexer::new(source).tokenise_all() else {
+    // Depth 0 is the whole file (BOM prologue applies); deeper is a braced body.
+    let config = if depth == 0 {
+        LexerConfig::for_file_grammar(dialect.grammar)
+    } else {
+        LexerConfig::for_profile(Some(dialect))
+    };
+    let Ok(tokens) = Lexer::with_config(source, config).tokenise_all() else {
         return source.to_owned();
     };
     let (command_spans, subcommand_spans) = collect_command_spans(source, dialect);
@@ -208,7 +214,9 @@ pub fn highlight_html(source: &str, dialect: &'static tcl_dialect::DialectProfil
     if source.is_empty() {
         return "<pre></pre>\n".to_owned();
     }
-    let Ok(tokens) = Lexer::new(source).tokenise_all() else {
+    let Ok(tokens) =
+        Lexer::with_config(source, LexerConfig::for_file_grammar(dialect.grammar)).tokenise_all()
+    else {
         return format!("<pre>\n{}\n</pre>\n", html_escape(source));
     };
     let (command_spans, subcommand_spans) = collect_command_spans(source, dialect);

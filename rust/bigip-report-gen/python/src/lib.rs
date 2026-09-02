@@ -541,7 +541,12 @@ fn iapp_diagnostic_evidence(uri: &str, sources: Vec<(String, String)>) -> PyResu
 /// pre-escaped HTML (`<span class="tk-…">`).
 #[pyfunction]
 fn highlight_tcl(body: &str) -> String {
-    tcl_lexer::highlight_tcl_with_config(body, tcl_lexer::LexerConfig::for_dialect("f5-irules"))
+    tcl_lexer::highlight_tcl_with_config(
+        body,
+        tcl_lexer::LexerConfig::from_grammar(
+            tcl_registry::model::resolve_environment("f5-irules").grammar(),
+        ),
+    )
 }
 
 /// Render Markdown (CommonMark + GFM) to an HTML fragment for report

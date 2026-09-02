@@ -841,7 +841,10 @@ fn prior_container_elements<S: std::hash::BuildHasher>(
         // strings — `lappend` on `{a b}` starts from two `String` elements.
         if t.tcl_type() == Some(TclType::String)
             && let Some(LatticeValue::Const(ConstValue::String(text))) = ctx.const_of(target)
-            && let Ok(parsed) = tcl_syntax::list::split_list(text)
+            && let Ok(parsed) = tcl_syntax::word_rules::WordValueRules::of_profile(
+                ctx.registry.profile(),
+            )
+            .split_list(text)
         {
             if parsed.len() > MAX_EXACT_ELEMENTS {
                 return Some(Elements::Uniform(Box::new(TypeShape::String)));

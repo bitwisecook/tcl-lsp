@@ -1876,7 +1876,7 @@ impl Analyser {
         let params = if params_computed {
             Vec::new()
         } else {
-            parse_param_list(&args[1])
+            parse_param_list(&args[1], self.word_rules())
         };
         // Doc string: prefer the preceding-comment harvest from
         // the segmenter; fall back to ``extract_body_docstring``
@@ -2183,7 +2183,7 @@ impl Analyser {
         self.emit_w113_proc_shadows_builtin(&resolved_name, &qualified, name_span);
         self.emit_w314_no_absolute_name(raw_name, name_span);
 
-        let (real_params, opt_locals) = Self::opt_proc_params(&args[1]);
+        let (real_params, opt_locals) = Self::opt_proc_params(&args[1], self.word_rules());
 
         let mut doc = std::mem::take(&mut self.last_comment);
         if doc.is_empty() && args.len() >= 3 {
@@ -2317,6 +2317,7 @@ impl Analyser {
     /// line-count lint.
     fn opt_proc_params(
         optlist_text: &str,
+        rules: tcl_syntax::word_rules::WordValueRules,
     ) -> (
         Vec<crate::signature_scan::types::ParamDef>,
         Vec<crate::signature_scan::types::ParamDef>,
@@ -2327,7 +2328,7 @@ impl Analyser {
             default_value: None,
         }];
         let opt_locals: Vec<crate::signature_scan::types::ParamDef> =
-            parse_param_list(optlist_text)
+            parse_param_list(optlist_text, rules)
                 .into_iter()
                 .map(|p| crate::signature_scan::types::ParamDef {
                     name: p
@@ -2614,7 +2615,7 @@ impl Analyser {
             }
         }
 
-        let params = parse_param_list(params_text);
+        let params = parse_param_list(params_text, self.word_rules());
         let body_text: std::sync::Arc<str> = std::sync::Arc::from(body_text);
         let body_span = body_tok.span;
         // Anonymous, but keyed by source position so two lambdas never collide
@@ -6927,7 +6928,7 @@ impl Analyser {
             return None;
         }
         let actuals: Vec<Option<String>> = seg.args().iter().cloned().map(Some).collect();
-        bind_proc_formals(&proc_def.params, &actuals)?;
+        bind_proc_formals(&proc_def.params, &actuals, self.word_rules())?;
         stack.push(qname.clone());
         let result = self.static_proc_body_falls_through(&qname, proc_def.body_span, depth, stack);
         stack.pop();
@@ -7231,7 +7232,7 @@ impl Analyser {
     ) -> Option<String> {
         let actuals: Vec<Option<String>> = binding.iter().cloned().map(Some).collect();
         let mut env: std::collections::HashMap<String, String> =
-            bind_proc_formals(&candidate.params, &actuals)?
+            bind_proc_formals(&candidate.params, &actuals, self.word_rules())?
                 .into_iter()
                 .filter_map(|(name, value)| value.map(|value| (name, value)))
                 .filter(|(_, value)| !tcl_syntax::naming::is_dynamic_word(value))
@@ -8211,7 +8212,7 @@ impl Analyser {
             return None;
         }
         let mut env = std::collections::HashMap::new();
-        for (name, value) in bind_proc_formals(&proc_def.params, args)? {
+        for (name, value) in bind_proc_formals(&proc_def.params, args, self.word_rules())? {
             if let Some(value) = value {
                 env.insert(name, value);
             }
@@ -9271,6 +9272,7 @@ impl Analyser {
                     &injected.argv,
                     &mut class,
                     Some(self.analysis_context().context().authoring_query()),
+                    self.word_rules(),
                 );
             }
         }

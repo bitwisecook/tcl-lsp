@@ -279,10 +279,11 @@ fn word_uses_from_versions(
     text: &str,
     versions: &HashMap<Symbol, u32>,
     ssa: &SsaFunction,
+    config: tcl_lexer::LexerConfig,
 ) -> HashMap<Symbol, u32> {
     let mut uses: HashMap<Symbol, u32> = HashMap::new();
     let source_map = SourceMap::new(text);
-    let Ok(tokens) = Lexer::new(text).tokenise_all() else {
+    let Ok(tokens) = Lexer::with_config(text, config).tokenise_all() else {
         return uses;
     };
     for tok in tokens {
@@ -355,7 +356,12 @@ fn collect_return_taint(
         let Some(ssa_block) = fu.ssa.blocks.get(bn) else {
             continue;
         };
-        let uses = word_uses_from_versions(value, &ssa_block.exit_versions, &fu.ssa);
+        let uses = word_uses_from_versions(
+            value,
+            &ssa_block.exit_versions,
+            &fu.ssa,
+            ctx.lexer_config(),
+        );
         ret = ret.join(word_taint(
             value,
             &uses,

@@ -25,11 +25,10 @@
 //! name and whose remainder is the optional default (`a`, `{name default}`, and
 //! the escaped forms such as `a\ b` — which Tcl reads as name `a` default `b`).
 
-use std::borrow::Cow;
-
 use tcl_lexer::backslash_subst;
 use tcl_syntax::formal_params::{FormalParameter, FormalParameterError, parse_formal_parameters};
-use tcl_syntax::list::{find_element, join_list, split_list};
+use tcl_syntax::list::{find_element, join_list};
+use tcl_syntax::word_rules::WordValueRules;
 
 use super::types::ParamDef;
 
@@ -103,24 +102,33 @@ pub fn param_word_text_is_literal(word: &str) -> bool {
 /// (`{name default}`) forms. The input is the verbatim text of the
 /// proc's parameter argument; outer whitespace is tolerated.
 ///
+/// `rules` are the document dialect's word-value rules — the brace
+/// `\<newline>` axis and the list-parse axis — so the same parameter-list
+/// text divides the way the document's own runtime divides it. A caller
+/// that genuinely has no document (a doctest, a fixed internal literal)
+/// passes [`WordValueRules::TCL`].
+///
 /// ```
 /// use tcl_compiler::signature_scan::params::parse_param_list;
-/// let params = parse_param_list("a {b 1} c");
+/// use tcl_syntax::word_rules::WordValueRules;
+/// let params = parse_param_list("a {b 1} c", WordValueRules::TCL);
 /// assert_eq!(params.len(), 3);
 /// assert_eq!(params[1].name, "b");
 /// assert_eq!(params[1].default_value.as_deref(), Some("1"));
 /// ```
 #[must_use]
-pub fn parse_param_list(param_str: &str) -> Vec<ParamDef> {
-    // A parameter list is a **braced word** at the command level, so any
-    // backslash-newline line continuation has already collapsed to a space
-    // before Tcl list-parses the list. `split_list` (the list grammar) treats a
-    // backslash as escaping the next byte, so we must collapse continuations
-    // first — otherwise `a b\<newline>c` would parse as the two-word element
-    // `b c` instead of the two params `b`, `c` (issue #743).
-    let collapsed = collapse_line_continuations(param_str);
+pub fn parse_param_list(param_str: &str, rules: WordValueRules) -> Vec<ParamDef> {
+    // A parameter list is a **braced word** at the command level, so on a
+    // dialect that folds them (`BraceBackslashNewline::Folds` — every Tcl
+    // core build and the F5 fork) a backslash-newline line continuation has
+    // already collapsed to a space before Tcl list-parses the list. The list
+    // grammar treats a backslash as escaping the next byte, so the collapse
+    // must run first — otherwise `a b\<newline>c` would parse as the two-word
+    // element `b c` instead of the two params `b`, `c` (issue #743). JimTcl
+    // keeps the bytes, and `rules` is what knows which.
+    let collapsed = rules.collapse_braced_word(param_str);
     // Top-level split: each element is one parameter *spec*.
-    let Ok(specs) = split_list(&collapsed) else {
+    let Ok(specs) = rules.split_list(&collapsed) else {
         // Unbalanced braces / quotes (common while a list is being typed) —
         // fall back to a tolerant scan so we still surface partial params.
         return parse_param_list_lenient(&collapsed);
@@ -146,6 +154,7 @@ pub fn parse_param_list(param_str: &str) -> Vec<ParamDef> {
 pub fn bind_proc_formals(
     params: &[ParamDef],
     actuals: &[Option<String>],
+    rules: WordValueRules,
 ) -> Option<Vec<(String, Option<String>)>> {
     let variadic = params.last().is_some_and(|param| param.name == "args");
     let fixed_len = params.len().saturating_sub(usize::from(variadic));
@@ -159,7 +168,7 @@ pub fn bind_proc_formals(
             value.clone()
         } else {
             let raw = param.default_value.as_deref()?;
-            let mut values = split_list(raw).ok()?;
+            let mut values = rules.split_list(raw).ok()?;
             if values.len() != 1 {
                 return None;
             }
@@ -188,8 +197,9 @@ pub fn bind_proc_formals(
 /// are decoded Tcl list values rather than source-preserving display text.
 pub fn parse_param_list_strict(
     param_str: &str,
+    rules: WordValueRules,
 ) -> Result<Vec<FormalParameter>, FormalParameterError> {
-    let collapsed = collapse_line_continuations(param_str);
+    let collapsed = rules.collapse_braced_word(param_str);
     parse_formal_parameters(&collapsed)
 }
 
@@ -285,20 +295,6 @@ fn parse_param_list_lenient(param_str: &str) -> Vec<ParamDef> {
         }
     }
     params
-}
-
-/// Collapse Tcl backslash-newline line continuations to a single space.
-///
-/// A parameter list is a braced word, and Tcl collapses `\<newline>` (including
-/// `\<CR><LF>` and `\<CR>`) — plus any spaces and tabs after the newline — to
-/// one space at the command-parse level, before the value is ever list-parsed
-/// and regardless of any surrounding braces. Every other backslash escape
-/// (`\}`, `\ `, …) is left intact for the list grammar to interpret.
-///
-/// That is exactly the shared brace-word pre-pass, so this delegates rather
-/// than carrying a second copy of the rule.
-fn collapse_line_continuations(s: &str) -> Cow<'_, str> {
-    tcl_syntax::backslash::collapse_brace_continuations_str(s)
 }
 
 /// Source spans of each parameter *name*, in declaration order, within the

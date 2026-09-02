@@ -2258,7 +2258,7 @@ fn scan_value_substitutions(text: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts
     }
     let lexer = tcl_lexer::Lexer::with_source_map(
         tcl_lexer::SourceMap::new(text),
-        tcl_lexer::LexerConfig::for_dialect(dialect.map_or("", |profile| profile.name)),
+        tcl_lexer::LexerConfig::for_profile(dialect),
     );
     let Ok(tokens) = lexer.tokenise_all() else {
         return;
@@ -2303,7 +2303,7 @@ fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts,
     let commands = crate::segmenter::segment_commands_with_offset_and_config(
         source,
         0,
-        tcl_lexer::LexerConfig::for_dialect(dialect.map_or("", |profile| profile.name)),
+        tcl_lexer::LexerConfig::for_profile(dialect),
     );
     for cmd in commands {
         // Skip empty / non-literal command names — they're not

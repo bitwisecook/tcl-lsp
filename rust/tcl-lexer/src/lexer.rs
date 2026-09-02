@@ -325,6 +325,17 @@ impl LexerConfig {
         Self::from_grammar(tcl_dialect::grammar_of_dialect_name(Some(dialect)))
     }
 
+    /// The body-lexing config for the profile a compiler layer threads —
+    /// `profile.grammar` when there is one, the default grammar for a
+    /// dialect-less compile. This is the one constructor a re-lex of
+    /// document text (a body, a list word, a braced argument) should use
+    /// when its context carries an `Option<&DialectProfile>`; the grammar is
+    /// read off the profile and never resolved again from its name.
+    #[must_use]
+    pub fn for_profile(profile: Option<&tcl_dialect::DialectProfile>) -> Self {
+        Self::from_grammar(profile.map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar))
+    }
+
     /// [`Self::from_grammar`] for the entry point that lexes a **whole file**:
     /// identical, plus [`Self::leading_bom`] set from the grammar's
     /// `script_skips_leading_bom`.

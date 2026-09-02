@@ -198,6 +198,8 @@ fn collect(src: &str, depth: usize, base: usize, mode: Mode, out: &mut Vec<Highl
     if src.is_empty() || depth >= MAX_DEPTH {
         return;
     }
+    // dialect-drift-ok: the `.tclspec` DSL's own grammar, not the Tcl the pack
+    // describes — this module paints the pack file itself.
     let Ok(tokens) =
         Lexer::with_source_map(SourceMap::new(src), LexerConfig::default()).tokenise_all()
     else {

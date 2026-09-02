@@ -958,6 +958,15 @@ impl TaintCtx<'_> {
         tcl_dialect::BracedVarStyle::of_profile(self.dialect)
     }
 
+    /// The document's lexer configuration, for the helpers that re-lex a
+    /// word's own text (`interpolation_carve_out`'s literal-fragment scans).
+    /// Same reason as [`Self::braced_var`]: a re-lex under the default
+    /// grammar reads the document's bytes under rules it was not written
+    /// in, and the colour that falls out is about a different word.
+    pub(crate) fn lexer_config(self) -> tcl_lexer::LexerConfig {
+        tcl_lexer::LexerConfig::for_profile(self.dialect)
+    }
+
     pub(crate) const fn at(self, source_position: u32) -> Self {
         Self {
             source_position: Some(source_position),
@@ -1120,7 +1129,7 @@ fn word_taint_at<S: std::hash::BuildHasher>(
                 t = t.join(var_taint(name, uses, taints, ctx.ssa));
             }
         }
-        return interpolation_carve_out(word, t);
+        return interpolation_carve_out(word, t, ctx.lexer_config());
     }
 
     TaintLattice::clean()
@@ -1135,7 +1144,11 @@ fn word_taint_at<S: std::hash::BuildHasher>(
 /// fragment contains CR/LF, and the leading literal character controls
 /// option-prefix safety (`PATH_PREFIXED` / `NON_DASH_PREFIXED`). A clean
 /// join is returned unchanged.
-fn interpolation_carve_out(value: &str, joined: TaintLattice) -> TaintLattice {
+fn interpolation_carve_out(
+    value: &str,
+    joined: TaintLattice,
+    config: tcl_lexer::LexerConfig,
+) -> TaintLattice {
     if !joined.is_tainted() {
         return TaintLattice::clean();
     }
@@ -1148,10 +1161,10 @@ fn interpolation_carve_out(value: &str, joined: TaintLattice) -> TaintLattice {
         | TaintColour::URL_ENCODED
         | TaintColour::REGEX_LITERAL
         | TaintColour::SHELL_ATOM);
-    if literal_contains_crlf(value) {
+    if literal_contains_crlf(value, config) {
         colour &= !TaintColour::CRLF_FREE;
     }
-    match leading_literal_prefix_char(value) {
+    match leading_literal_prefix_char(value, config) {
         Some('/') => colour |= TaintColour::PATH_PREFIXED | TaintColour::NON_DASH_PREFIXED,
         Some('-') => colour &= !(TaintColour::NON_DASH_PREFIXED | TaintColour::PATH_PREFIXED),
         Some(_) => {
@@ -1172,9 +1185,9 @@ fn interpolation_carve_out(value: &str, joined: TaintLattice) -> TaintLattice {
 /// `\x2f` → `/`); the first `Str` (braced) token contributes its literal
 /// first char; a leading `Var` or `Cmd` token means the prefix is
 /// dynamic.
-fn leading_literal_prefix_char(value: &str) -> Option<char> {
+fn leading_literal_prefix_char(value: &str, config: tcl_lexer::LexerConfig) -> Option<char> {
     let source_map = SourceMap::new(value);
-    let tokens = Lexer::new(value).tokenise_all().ok()?;
+    let tokens = Lexer::with_config(value, config).tokenise_all().ok()?;
     for tok in tokens {
         match tok.kind {
             // End of input, or a dynamic (variable/command) prefix — no
@@ -1206,9 +1219,9 @@ fn leading_literal_prefix_char(value: &str) -> Option<char> {
 /// CR or LF.: `Esc` fragments are
 /// `backslash_subst`-rendered (so `\n` resolves to a real newline) before
 /// the scan.
-fn literal_contains_crlf(value: &str) -> bool {
+fn literal_contains_crlf(value: &str, config: tcl_lexer::LexerConfig) -> bool {
     let source_map = SourceMap::new(value);
-    let Ok(tokens) = Lexer::new(value).tokenise_all() else {
+    let Ok(tokens) = Lexer::with_config(value, config).tokenise_all() else {
         return false;
     };
     for tok in tokens {
@@ -3255,7 +3268,8 @@ fn callback_replay_list_prefix(
         )?;
         if expand.get(index).copied().unwrap_or(false) {
             values.extend(
-                tcl_syntax::list::split_list(&value)
+                tcl_syntax::word_rules::WordValueRules::from_config(&config)
+                    .split_list(&value)
                     .ok()?
                     .into_iter()
                     .map(std::borrow::Cow::into_owned),
@@ -4588,7 +4602,7 @@ fn resolve_taint_command_heads(
     let mut heads = Vec::with_capacity(contributors.len());
     for contributor in contributors {
         let head = if expanded {
-            let Ok(elements) = tcl_syntax::list::split_list(&contributor.value) else {
+            let Ok(elements) = rules.split_list(&contributor.value) else {
                 // This reaching arm raises while expanding and never invokes a
                 // command. It must not erase other arms that do reach a sink.
                 continue;

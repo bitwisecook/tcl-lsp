@@ -58,6 +58,7 @@ use tcl_registry::arg_role::ArgRole;
 use tcl_registry::definer::{DefinitionBodyGrammar, MemberRefKind, MemberSpec, MemberVisibility};
 use tcl_registry::side_effects::SideEffectTarget;
 use tcl_registry::{CommandRegistry, Traits};
+use tcl_syntax::word_rules::WordValueRules;
 
 use super::diagnostics::helpers::has_substitution;
 use super::scope::scope_at_mut;
@@ -997,6 +998,7 @@ impl Analyser {
                 argv,
                 class_def,
                 Some(self.analysis_context().context().authoring_query()),
+                self.word_rules(),
             );
             self.record_member_command_references(grammar, texts, argv, scope_path);
             if let Some(method) = collect_method_body(
@@ -1004,6 +1006,7 @@ impl Analyser {
                 texts,
                 argv,
                 Some(self.analysis_context().context().authoring_query()),
+                self.word_rules(),
             ) {
                 bodies.methods.push(method);
             }
@@ -1653,7 +1656,7 @@ impl Analyser {
         // (snit 1.x `onconfigure`'s value variable) modelled as a bound local.
         let mut params: Vec<ParamDef> = params_idx
             .and_then(|i| args.get(i))
-            .map_or_else(Vec::new, |p| parse_param_list(p));
+            .map_or_else(Vec::new, |p| parse_param_list(p, self.word_rules()));
         for i in member.indices_for_call_in(
             args,
             Some(self.analysis_context().context().authoring_query()),
@@ -2034,7 +2037,14 @@ pub(super) fn parse_oo_define_inline_in(
     }
     // Synthesise a single fake "command" matching what the
     // body walker would have produced.
-    apply_oo_subcommand_in(grammar, args, arg_tokens, class_def, dialect);
+    apply_oo_subcommand_in(
+        grammar,
+        args,
+        arg_tokens,
+        class_def,
+        dialect,
+        analyser.word_rules(),
+    );
 }
 
 /// Depth cap for [`walk_unknown_stmt`]'s recursion over nested `if`/`for`/
@@ -2430,6 +2440,7 @@ fn collect_method_body(
     texts: &[String],
     argv: &[Token],
     dialect: Option<SurfaceQuery<'_>>,
+    rules: WordValueRules,
 ) -> Option<CollectedMethodBody> {
     // Unwrap a leading `self`/`private` modifier first (issue #923 idx
     // 120): its body would otherwise never be walked at all (no internal
@@ -2476,7 +2487,7 @@ fn collect_method_body(
         .map_or_else(|| format!("<{keyword}>"), String::clone);
     let params = params_idx
         .and_then(|i| texts.get(i))
-        .map_or_else(Vec::new, |p| parse_param_list(p));
+        .map_or_else(Vec::new, |p| parse_param_list(p, rules));
     let params_tok = params_idx.and_then(|i| argv.get(i).copied());
     Some(CollectedMethodBody {
         name,
@@ -2494,6 +2505,7 @@ fn apply_oo_private(
     sub_tokens: &[Token],
     class_def: &mut ClassDef,
     dialect: Option<SurfaceQuery<'_>>,
+    rules: WordValueRules,
 ) {
     if sub_args.is_empty() {
         return;
@@ -2535,7 +2547,10 @@ fn apply_oo_private(
                 "method",
                 "private",
                 "",
-                dialect,
+                MemberDialect {
+                    surface: dialect,
+                    rules,
+                },
             ) {
                 md.visibility =
                     declared_member_visibility(member, inner_args, "private".to_string(), dialect);
@@ -2550,7 +2565,10 @@ fn apply_oo_private(
                 "classmethod",
                 "private",
                 "",
-                dialect,
+                MemberDialect {
+                    surface: dialect,
+                    rules,
+                },
             ) {
                 md.visibility =
                     declared_member_visibility(member, inner_args, "private".to_string(), dialect);
@@ -2880,6 +2898,7 @@ fn apply_oo_self(
     sub_tokens: &[Token],
     class_def: &mut ClassDef,
     dialect: Option<SurfaceQuery<'_>>,
+    rules: WordValueRules,
 ) {
     if sub_args.is_empty() {
         return;
@@ -2942,7 +2961,10 @@ fn apply_oo_self(
         "classmethod",
         "public",
         "",
-        dialect,
+        MemberDialect {
+            surface: dialect,
+            rules,
+        },
     ) {
         md.visibility = declared_member_visibility(
             member,
@@ -3053,6 +3075,7 @@ fn apply_oo_ctor_or_dtor(
     argv: &[Token],
     kind: &str,
     dialect: Option<SurfaceQuery<'_>>,
+    rules: WordValueRules,
 ) -> Option<MethodDef> {
     let synthetic_id = if kind == "constructor" {
         "<constructor>"
@@ -3067,7 +3090,10 @@ fn apply_oo_ctor_or_dtor(
             kind,
             "public",
             synthetic_id,
-            dialect,
+            MemberDialect {
+                surface: dialect,
+                rules,
+            },
         )
     })?;
     if let Some(kw) = argv.first() {
@@ -3083,7 +3109,9 @@ pub(super) fn apply_oo_subcommand(
     argv: &[Token],
     class_def: &mut ClassDef,
 ) {
-    apply_oo_subcommand_in(grammar, texts, argv, class_def, None);
+    // dialect-drift-ok: the dialect-less test/utility spelling, matching the
+    // `None` surface query it already passes.
+    apply_oo_subcommand_in(grammar, texts, argv, class_def, None, WordValueRules::TCL);
 }
 
 /// Apply one registry member using the selected dialect's concrete layout.
@@ -3093,6 +3121,7 @@ pub(super) fn apply_oo_subcommand_in(
     argv: &[Token],
     class_def: &mut ClassDef,
     dialect: Option<SurfaceQuery<'_>>,
+    rules: WordValueRules,
 ) {
     let Some(subcmd) = texts.first().map(String::as_str) else {
         return;
@@ -3165,7 +3194,16 @@ pub(super) fn apply_oo_subcommand_in(
         "method" => {
             if let Some((member, mut md)) = member.and_then(|member| {
                 extract_method_def_in(
-                    member, sub_args, sub_tokens, "method", "public", "", dialect,
+                    member,
+                    sub_args,
+                    sub_tokens,
+                    "method",
+                    "public",
+                    "",
+                    MemberDialect {
+                        surface: dialect,
+                        rules,
+                    },
                 )
                 .map(|method| (member, method))
             }) {
@@ -3191,7 +3229,10 @@ pub(super) fn apply_oo_subcommand_in(
                     "classmethod",
                     "public",
                     "",
-                    dialect,
+                    MemberDialect {
+                        surface: dialect,
+                        rules,
+                    },
                 )
                 .map(|method| (member, method))
             }) {
@@ -3206,14 +3247,30 @@ pub(super) fn apply_oo_subcommand_in(
         }
         "constructor" => {
             if let Some(md) =
-                apply_oo_ctor_or_dtor(member, sub_args, sub_tokens, argv, "constructor", dialect)
+                apply_oo_ctor_or_dtor(
+                    member,
+                    sub_args,
+                    sub_tokens,
+                    argv,
+                    "constructor",
+                    dialect,
+                    rules,
+                )
             {
                 class_def.constructors.push(md);
             }
         }
         "destructor" => {
             if let Some(md) =
-                apply_oo_ctor_or_dtor(member, sub_args, sub_tokens, argv, "destructor", dialect)
+                apply_oo_ctor_or_dtor(
+                    member,
+                    sub_args,
+                    sub_tokens,
+                    argv,
+                    "destructor",
+                    dialect,
+                    rules,
+                )
             {
                 class_def.destructor = Some(md);
             }
@@ -3242,8 +3299,8 @@ pub(super) fn apply_oo_subcommand_in(
             extract_property_defs(sub_args, sub_tokens, class_def);
         }
         "forward" => apply_oo_forward(grammar, sub_args, sub_tokens, class_def),
-        "private" => apply_oo_private(grammar, sub_args, sub_tokens, class_def, dialect),
-        "self" => apply_oo_self(grammar, sub_args, sub_tokens, class_def, dialect),
+        "private" => apply_oo_private(grammar, sub_args, sub_tokens, class_def, dialect, rules),
+        "self" => apply_oo_self(grammar, sub_args, sub_tokens, class_def, dialect, rules),
         // No `ClassDef` mutation here for the remaining subcommands.
         // ``initialise`` / ``initialize`` are class-level initialisation
         // scripts whose bodies are collected and walked separately in
@@ -3353,6 +3410,16 @@ fn collect_property_accessor_bodies(
     }
 }
 
+/// The two dialect facts extracting a member definition needs, carried
+/// together because they are read from the same document: the availability
+/// point that resolves the member's argument roles, and the word-value rules
+/// that split its parameter list.
+#[derive(Clone, Copy)]
+struct MemberDialect<'a> {
+    surface: Option<SurfaceQuery<'a>>,
+    rules: WordValueRules,
+}
+
 /// Extract a [`MethodDef`] from a method-shaped member's args.
 ///
 /// The name / parameter-list / body word positions come from `member`'s
@@ -3380,7 +3447,13 @@ fn extract_method_def(
         kind,
         visibility,
         synthetic_name,
-        None,
+        // dialect-drift-ok: the dialect-less test/utility spelling — no
+        // document is in hand, so the C Tcl rules stand in, exactly as the
+        // `None` surface query beside them does.
+        MemberDialect {
+            surface: None,
+            rules: WordValueRules::TCL,
+        },
     )
 }
 
@@ -3391,19 +3464,19 @@ fn extract_method_def_in(
     kind: &str,
     visibility: &str,
     synthetic_name: &str,
-    dialect: Option<SurfaceQuery<'_>>,
+    dialect: MemberDialect<'_>,
 ) -> Option<MethodDef> {
     let zero = tcl_lexer::Span::new(0, 0);
     let body_idx = member
-        .indices_for_call_in(args, dialect, ArgRole::Body)
+        .indices_for_call_in(args, dialect.surface, ArgRole::Body)
         .next()?;
     // A body word must be present for the member to be well-formed.
     args.get(body_idx)?;
     let name_idx = member
-        .indices_for_call_in(args, dialect, ArgRole::Name)
+        .indices_for_call_in(args, dialect.surface, ArgRole::Name)
         .next();
     let params_idx = member
-        .indices_for_call_in(args, dialect, ArgRole::ParamList)
+        .indices_for_call_in(args, dialect.surface, ArgRole::ParamList)
         .next();
 
     let name = name_idx
@@ -3411,7 +3484,7 @@ fn extract_method_def_in(
         .map_or_else(|| synthetic_name.to_string(), String::clone);
     let params = params_idx
         .and_then(|i| args.get(i))
-        .map_or_else(Vec::new, |p| parse_param_list(p));
+        .map_or_else(Vec::new, |p| parse_param_list(p, dialect.rules));
     let name_span = name_idx
         .and_then(|i| arg_tokens.get(i))
         .map_or(zero, |t| t.span);

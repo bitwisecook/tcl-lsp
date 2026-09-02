@@ -501,6 +501,8 @@ fn segment(source: &str, base_line: u32, bom: FileBom) -> Vec<Stmt> {
         source,
         LexerConfig {
             leading_bom: bom.leading(),
+            // dialect-drift-ok: `.tclspec` pack DSL source, not a document's
+            // Tcl — the pack vocabulary's own fixed grammar.
             ..LexerConfig::default()
         },
     );
@@ -579,6 +581,8 @@ pub fn speclib_version_span(source: &str) -> Option<(std::ops::Range<usize>, Str
         source,
         LexerConfig {
             leading_bom: FileBom::Skip.leading(),
+            // dialect-drift-ok: `.tclspec` pack DSL source, not a document's
+            // Tcl — the pack vocabulary's own fixed grammar.
             ..LexerConfig::default()
         },
     );

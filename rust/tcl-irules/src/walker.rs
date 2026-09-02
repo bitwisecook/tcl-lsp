@@ -191,15 +191,14 @@ pub fn extract_irules_object_references_in_closure(
     // `rename` is still a reference, and a spelling whose binding was provably
     // taken over is not (issue #1275).  Empty — and lookup-free — unless the
     // rule binds something.
-    let identities = tcl_compiler::realm::document_realm_bindings_with_config(
-        source,
-        LexerConfig::for_dialect("f5-irules"),
-        registry,
-    );
+    let config = crate::irules_lexer_config();
+    let identities =
+        tcl_compiler::realm::document_realm_bindings_with_config(source, config, registry);
     let ctx = WalkCtx {
         full: source,
         rule_module,
         registry,
+        config,
         identities: &identities,
         executable_spans: &executable_spans,
     };
@@ -219,6 +218,9 @@ struct WalkCtx<'a> {
     rule_module: Option<&'a str>,
     /// The dialect registry the argument roles and clause-list shape come from.
     registry: &'a CommandRegistry,
+    /// The iRules grammar this walk reads under, resolved once at the entry
+    /// point ([`crate::irules_lexer_config`]) and never re-derived here.
+    config: LexerConfig,
     /// The rule's statically proven command-identity facts, so every head is
     /// resolved to the command it *is* rather than the one it is spelled as
     /// (issue #1275).
@@ -278,6 +280,7 @@ fn walk(
         full,
         rule_module,
         registry,
+        config,
         identities,
         executable_spans,
     } = *ctx;
@@ -291,9 +294,7 @@ fn walk(
     // `if {expr}{body}` (`}{` valid in TMM) splits into distinct words and its
     // pool/node references are attributed to the right command, not swallowed by
     // the stock-Tcl "extra characters after close-brace" mis-segmentation.
-    for cmd in
-        segment_commands_with_offset_and_config(slice, base, LexerConfig::for_dialect("f5-irules"))
-    {
+    for cmd in segment_commands_with_offset_and_config(slice, base, config) {
         let args: Vec<&str> = cmd.args().iter().map(String::as_str).collect();
         // The head's *effective command identity*, resolved exactly as the
         // semantic-token walk resolves it (issue #1275).  Every table and

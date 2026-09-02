@@ -1761,7 +1761,9 @@ pub fn lower_proc_body<'db>(db: &'db dyn TclDb, key: ProcBodyKey<'db>) -> Arc<Sc
     // The body's own environment grammar — the key already carries the
     // dialect, so the three truncated `LexerConfig` fields the key used to
     // duplicate are derived rather than interned (redesign §11.4 E1).
-    let config = tcl_lexer::LexerConfig::for_dialect(key.dialect(db));
+    let config = tcl_lexer::LexerConfig::from_grammar(
+        tcl_lsp_core::environment_for_dialect(key.dialect(db)).grammar(),
+    );
     Arc::new(tcl_compiler::lowering::lower_proc_body_isolated(
         key.body_text(db),
         key.namespace(db),
@@ -3051,7 +3053,9 @@ impl LexerCfgKey<'_> {
     /// The full [`tcl_lexer::LexerConfig`] this key represents: the
     /// environment's own grammar plus the invariant call-site knobs.
     fn to_config(self, db: &dyn TclDb) -> tcl_lexer::LexerConfig {
-        tcl_lexer::LexerConfig::for_dialect(self.environment(db))
+        tcl_lexer::LexerConfig::from_grammar(
+            tcl_lsp_core::environment_for_dialect(self.environment(db)).grammar(),
+        )
     }
 }
 
@@ -3283,7 +3287,9 @@ pub fn compiler_check_diagnostics_uncached(
         UnitBuildOptions {
             registry,
             defer_top_level: false,
-            config: tcl_lexer::LexerConfig::for_dialect(dialect),
+            config: tcl_lexer::LexerConfig::from_grammar(
+                tcl_lsp_core::environment_for_dialect(dialect).grammar(),
+            ),
             dialect: tcl_lsp_core::optional_profile_for_dialect(dialect),
             external_call_sites,
         },

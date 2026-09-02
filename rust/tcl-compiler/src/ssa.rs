@@ -645,7 +645,11 @@ fn registry_barrier_defs(
             .filter(|(idx, word)| {
                 loop_var_list_word_is_static(tokens.and_then(|t| t.words().get(idx + 1)), word)
             })
-            .filter_map(|(_, word)| tcl_syntax::list::split_list(word).ok())
+            .filter_map(|(_, word)| {
+                tcl_syntax::word_rules::WordValueRules::of_profile(reg.profile())
+                    .split_list(word)
+                    .ok()
+            })
             .flatten()
             .map(std::borrow::Cow::into_owned)
             .filter(|name| !name.is_empty())
@@ -733,8 +737,11 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
                 // `{one name}`, `"two name"`, and `three\ name` each define
                 // one variable.  A malformed var-list makes the command fail
                 // before its body runs, so it contributes no reaching defs.
-                return tcl_syntax::list::split_list(&args[0])
-                    .map(|names| {
+                return tcl_syntax::word_rules::WordValueRules::of_profile(
+                    registry.and_then(tcl_registry::CommandRegistry::profile),
+                )
+                .split_list(&args[0])
+                .map(|names| {
                         names
                             .into_iter()
                             .map(std::borrow::Cow::into_owned)

@@ -841,11 +841,13 @@ fn scan_side_switch_body(
     base_offset: i64,
 ) {
     // iRules side-switch flow — lower under the iRules dialect so `{*}` is
-    // literal and `}{` splits words.
+    // literal and `}{` splits words.  The grammar comes from the iRules
+    // profile itself (this whole module only runs on an iRules document),
+    // never re-resolved from the name.
     let module = lower_to_ir_with_config(
         body_text,
         registry,
-        tcl_lexer::LexerConfig::for_dialect("f5-irules"),
+        tcl_lexer::LexerConfig::from_grammar(tcl_dialect::DialectProfile::irules().grammar),
     );
     let cfg_module = build_cfg(&module, false);
     for bn in cfg_order(&cfg_module.top_level) {

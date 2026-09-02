@@ -306,9 +306,10 @@ fn var_name(tok_text: &str) -> &str {
 fn text_to_segs(text: &str, env: &HashMap<String, EnvVal>) -> Vec<Seg> {
     // iRule attach reconstruction always operates on iRule bodies, so lex with
     // the f5-irules preset (`}{` valid) to match TMM.
-    let Ok(tokens) =
-        Lexer::with_source_map(SourceMap::new(text), LexerConfig::for_dialect("f5-irules"))
-            .tokenise_all()
+    let irules_grammar = LexerConfig::from_grammar(
+        tcl_registry::model::resolve_environment("f5-irules").grammar(),
+    );
+    let Ok(tokens) = Lexer::with_source_map(SourceMap::new(text), irules_grammar).tokenise_all()
     else {
         return vec![Seg::Wild];
     };

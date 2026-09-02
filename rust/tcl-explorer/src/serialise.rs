@@ -3035,8 +3035,12 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
     out.insert("worldSsa".to_owned(), serialise_world_ssa(result));
     out.insert("types".to_owned(), serialise_types(result));
     // Honour the document's dialect so the CST and segment views tokenise
-    // `{*}` / iRules braces the same way the rest of the pipeline does.
-    let lexer_config = LexerConfig::for_dialect(&result.dialect);
+    // `{*}` / iRules braces the same way the rest of the pipeline does. The
+    // grammar comes off the same ingress-resolved profile `run_pipeline`
+    // built the unit against, never a second by-name resolution.
+    let lexer_config = LexerConfig::for_file_grammar(
+        crate::environment::profile_for_dialect(&result.dialect).grammar,
+    );
     out.insert(
         "cst".to_owned(),
         crate::cst::serialise_cst(&result.source, lexer_config),

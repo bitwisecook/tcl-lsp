@@ -74,6 +74,7 @@ use crate::ir::{
 use crate::var_escape::ProcEscapeSummary;
 use crate::var_escape::interprocedural::resolve_callee;
 use tcl_registry::CommandRegistry;
+use tcl_syntax::word_rules::WordValueRules;
 
 /// Per-proc inlining policy decision.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -110,8 +111,10 @@ enum InlineSpec {
     Empty,
     /// v1 / v2 — splice these body statements verbatim.
     Verbatim(Vec<Statement>),
-    /// v3 — parameterised; rewrite per call site from this proc.
-    Parameterised(Procedure),
+    /// v3 — parameterised; rewrite per call site from this proc, whose
+    /// `params_raw` is parsed under the **module's** word-value rules
+    /// ([`WordValueRules`]) rather than a re-derived C Tcl default.
+    Parameterised(Procedure, WordValueRules),
 }
 
 // statement counting
@@ -641,6 +644,10 @@ fn build_inlinable_map(
     registry: &CommandRegistry,
 ) -> HashMap<String, InlineSpec> {
     let counts = count_static_calls(module, summaries);
+    // The module's own dialect, resolved once here — the lowered module names
+    // it, and this is the only point in the inliner's recursion that still
+    // holds the module.
+    let word_rules = WordValueRules::of_dialect_name(module.dialect.as_deref());
     let mut map = HashMap::new();
     for (qname, proc) in &module.procedures {
         if module.redefined_procedures.contains(qname) {
@@ -674,7 +681,10 @@ fn build_inlinable_map(
 
         // v3 — parameterised inline with α-renaming.
         if v3_eligible(proc, qname, summaries, registry) {
-            map.insert(qname.clone(), InlineSpec::Parameterised(proc.clone()));
+            map.insert(
+                qname.clone(),
+                InlineSpec::Parameterised(proc.clone(), word_rules),
+            );
         }
     }
     map
@@ -1249,7 +1259,9 @@ fn splice_call_site(
                     .collect(),
             )
         }
-        InlineSpec::Parameterised(proc) => splice_v3(call, proc, counter, is_terminal),
+        InlineSpec::Parameterised(proc, rules) => {
+            splice_v3(call, proc, *rules, counter, is_terminal)
+        }
     }
 }
 
@@ -1258,11 +1270,12 @@ fn splice_call_site(
 fn splice_v3(
     call: &Statement,
     proc: &Procedure,
+    rules: WordValueRules,
     counter: &mut usize,
     is_terminal: bool,
 ) -> Option<Vec<Statement>> {
     let span = call.span();
-    let (cid, mut rename, bindings) = build_param_bindings(call, proc, counter)?;
+    let (cid, mut rename, bindings) = build_param_bindings(call, proc, rules, counter)?;
 
     // Mangle every locally-written variable too.
     for name in collect_local_names(&proc.body) {
@@ -1598,6 +1611,7 @@ fn substitute_irreturn_stmt(stmt: &Statement, result_var: &str) -> Statement {
 fn build_param_bindings(
     call: &Statement,
     proc: &Procedure,
+    rules: WordValueRules,
     counter: &mut usize,
 ) -> Option<(usize, HashMap<String, String>, Vec<Statement>)> {
     let Statement::Call {
@@ -1633,7 +1647,18 @@ fn build_param_bindings(
     if has_variadic {
         let positional_count = params.len() - 1;
         if args.len() < positional_count {
-            return build_with_defaults(cid, &rename, proc, args, tokens, positional_count, true);
+            return build_with_defaults(
+                cid,
+                &rename,
+                proc,
+                &DefaultBindingSite {
+                    args,
+                    tokens,
+                    positional_count,
+                    has_variadic: true,
+                },
+                rules,
+            );
         }
         for (i, a) in args.iter().enumerate().take(positional_count) {
             bound.push(a.clone());
@@ -1666,7 +1691,18 @@ fn build_param_bindings(
             return None;
         }
         if args.len() < params.len() {
-            return build_with_defaults(cid, &rename, proc, args, tokens, params.len(), false);
+            return build_with_defaults(
+                cid,
+                &rename,
+                proc,
+                &DefaultBindingSite {
+                    args,
+                    tokens,
+                    positional_count: params.len(),
+                    has_variadic: false,
+                },
+                rules,
+            );
         }
         for (i, a) in args.iter().enumerate() {
             bound.push(a.clone());
@@ -1716,19 +1752,33 @@ fn arg_is_braced_literal(tokens: Option<&CommandTokens>, idx: usize) -> bool {
 /// declared default — Tcl proc defaults are literal (`proc p {{a $x}} …; p`
 /// binds `a` to the string `$x`, never the caller's `$x`). Without this the
 /// default path would re-substitute both in the caller frame.
+/// The call-site half of a default-filling parameter binding: the words the
+/// caller wrote, their token shapes, and the arity facts derived from the
+/// callee's formals.
+struct DefaultBindingSite<'a> {
+    args: &'a [String],
+    tokens: Option<&'a CommandTokens>,
+    positional_count: usize,
+    has_variadic: bool,
+}
+
 fn build_with_defaults(
     cid: usize,
     rename: &HashMap<String, String>,
     proc: &Procedure,
-    args: &[String],
-    tokens: Option<&CommandTokens>,
-    positional_count: usize,
-    has_variadic: bool,
+    site: &DefaultBindingSite<'_>,
+    rules: WordValueRules,
 ) -> Option<(usize, HashMap<String, String>, Vec<Statement>)> {
+    let DefaultBindingSite {
+        args,
+        tokens,
+        positional_count,
+        has_variadic,
+    } = *site;
     if proc.params_raw.is_empty() {
         return None;
     }
-    let parsed = parse_params_with_defaults(&proc.params_raw)?;
+    let parsed = parse_params_with_defaults(&proc.params_raw, rules)?;
     if parsed.len() != proc.params.len() {
         return None; // parse drift — bail safely
     }
@@ -1785,8 +1835,11 @@ fn build_with_defaults(
 /// Inlining is an execution transform, so it uses the shared strict proc
 /// grammar.  A malformed declaration declines the transform and remains on the
 /// ordinary runtime path, where Tcl reports the precise creation error.
-fn parse_params_with_defaults(param_str: &str) -> Option<Vec<(String, Option<String>)>> {
-    crate::signature_scan::params::parse_param_list_strict(param_str)
+fn parse_params_with_defaults(
+    param_str: &str,
+    rules: WordValueRules,
+) -> Option<Vec<(String, Option<String>)>> {
+    crate::signature_scan::params::parse_param_list_strict(param_str, rules)
         .ok()
         .map(|parameters| {
             parameters
