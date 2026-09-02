@@ -1391,6 +1391,34 @@ maximally.
   table, so a pack-declared core cannot yet be *lexed* with. That waits on
   the `DialectProfile` re-type (ledger C1).
 
+**Status (#1643, the environment block's first outside user).** The issue
+predates 2.0 and asked for `ambient_package NAME VERSION -dialects {…}`.
+The environment block already covers all of it — an `ambient` row states
+the placement inside the environment that has the package, which is the
+scoping the flag was reaching for — and a version shared by several
+environments is written once as a Tcl variable, because a pack is an
+evaluated program. Two things stood in the way and are now fixed. The
+capture layer preferred the file's own bytes to the evaluated invocation
+whenever the source statement at that line had the same shape, so a row
+that *substituted* was replayed with the dollar sign still in it; it now
+prefers the source text only for a statement that substitutes nothing.
+And the `environment` and `dialect` blocks were read as literal data
+while `command` blocks were evaluated — an asymmetry no author could have
+predicted, since a pack is one Tcl program. Both are now **evaluated
+scopes**: the body runs as a script, its rows are captured exactly as a
+`command` body's are, and `environment_block` / `dialect_block` stay the
+single owner of what each row means through a shared `parse_rows` seam
+that the literal reader and the evaluator both enter. So a variable, a
+`foreach`, or an `if` works inside a block, and an unknown row still
+rejects it. (`LOADER_EVAL_VERSION` bumped once for both.) The flag itself is not added: it
+cannot be desugared for the workspace and studio tiers, which §6.4 forbids
+from extending a compiled environment, and carrying it as a scoped row
+beside the placements would fork the floor model in two. `ambient_package`
+therefore stays exactly the unscoped 1.2 word it was, and a row bearing
+`-dialects` is dropped whole — an availability-narrowing word a reader
+cannot honour must not leave the wider claim standing (§6.1) — with a
+notice naming the environment spelling instead.
+
 **Status (P2-H remainder).** `provides` (with the fallback-provider
 default), `co_provides` (parsed and carried as data; the alias mechanics
 that consume it are P3+), `dynamic_surface` / `unknown_members` (mapping
@@ -1425,7 +1453,7 @@ lowering). The invocation-refinement descriptor (Q12) has since landed as
 |---|---|
 | `available {PROVIDER WINDOW…}` on commands/subcommands/options/values | the §4 algebra: `available {tcl 8.6-} {jim 0.78-}` / `available {package Tk 8.5-8.6}`; replaces `dialects` + implicit `required_package` gating |
 | `provides NAME VERSION ?VERSION…?` (pack level) | declares the package trains this pack describes, including parallel majors; commands default their provider to the pack's `provides` |
-| `environment NAME { … }` (pack level) | declares an environment definition: `core tcl 8.5 ?-build PROFILE?`, `ambient PACKAGE VERSION\|tracks-base\|keyed KEY`, `hosted PACKAGE …`, `alias NAME…`, `editor_identity ID` (selecting from the **fixed contributed set** — review B7, never minting a new editor language id), `file_extension`/`filename`/`signature` server-side detection rows, `display_name`, `policy` knobs, `help_terms {WORD …}`, `version_ceiling RELEASE` — subsumes and closes #1643 (`ambient_package -dialects`) by scoping placements to the declaring environment instead of flag-scoping a global claim |
+| `environment NAME { … }` (pack level) | declares an environment definition: `core tcl 8.5 ?-build PROFILE?`, `ambient PACKAGE VERSION\|tracks-base\|keyed KEY`, `hosted PACKAGE …`, `alias NAME…`, `editor_identity ID` (selecting from the **fixed contributed set** — review B7, never minting a new editor language id), `file_extension`/`filename`/`signature` server-side detection rows, `display_name`, `policy` knobs, `help_terms {WORD …}`, `version_ceiling RELEASE` — subsumes and closes #1643 (`ambient_package -dialects`) by scoping placements to the declaring environment instead of flag-scoping a global claim. **Shipped, and #1643 closed on it**: a shared version is an ordinary Tcl variable substituted into each `ambient` row (which needed one capture-layer fix — see the §6.2 status note below), the two-environment floor is pinned by `tests/ambient_environment_floor.rs`, the block body is an evaluated scope like a `command` body (so `foreach`/`if`/variables work in it), and the proposed flag is refused fail-closed rather than added as a second spelling |
 | `placement` spellings: `ambient` / `hosted`, versions `Pinned` / `tracks-base` / `keyed KEY` / requirement sets | closes blockers 6–8: a pack can say "hosted, floored by requirement" (Tk under tclsh — on Tk's **own** axis, per review B11) and "ambient at the BIG-IP-implied version, in this environment only" (iapps); `tracks-base` survives only for hosts that genuinely guarantee matched versions; the closed-world vendor gate re-derives from *all* declared environments, compiled and pack-declared alike |
 | `co_provides` / loader aliases (predicated) | corrected per review B11 — Tk 9 registers lowercase `tk` as the loading package and provides uppercase `Tk` via an `ifneeded` chain requiring the exact lowercase version, only when built without `TK_NO_DEPRECATED`. The spelling is a predicated relation ("requiring `Tk` requires exact `tk`; successful load co-provides `Tk`, under this build predicate"), not a flat alias; tcllib's D1 wrapper names ride the same mechanism |
 | `dynamic_surface` / `unknown_members` | the honesty escape hatch (review B6): a provider whose member set is runtime-extensible (`struct::tree` methods via `info commands`, `oo::dialect` DSLs, pave's computed methods) declares so instead of pretending closure |

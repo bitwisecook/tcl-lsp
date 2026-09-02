@@ -315,8 +315,31 @@ impl PackEnvironment {
 }
 
 /// Parse one `environment NAME { … }` block (or
-/// `environment NAME -extend { … }`), or reject it.
+/// `environment NAME -extend { … }`) written **literally**, or reject it.
+///
+/// The thin half of the reader: it splits the braced body into rows and
+/// hands them to [`parse_rows`], which owns every validation and notice.
+/// The evaluation loader runs the body as a script instead and calls
+/// [`parse_rows`] with the rows the script registered, so a block written
+/// with a variable, a `foreach`, or an `if` is validated by exactly the
+/// same code as one written out longhand.
 pub(super) fn parse(stmt: &Stmt, log: &mut Log) -> Option<PackEnvironment> {
+    let body_index = if stmt.word_text(2) == "-extend" { 3 } else { 2 };
+    let rows = stmt.arg(body_index).map(block);
+    parse_rows(stmt, rows.as_deref(), log)
+}
+
+/// Parse one `environment` declaration from its header and its already-read
+/// rows, or reject it.
+///
+/// `rows` is `None` when the declaration had no `{ … }` body word at all —
+/// the brace-on-the-next-line mistake — which is a rejection with its own
+/// notice rather than an empty block.
+pub(super) fn parse_rows(
+    stmt: &Stmt,
+    rows: Option<&[Stmt]>,
+    log: &mut Log,
+) -> Option<PackEnvironment> {
     let name = stmt.word_text(1);
     if name.is_empty() || stmt.words.get(1).is_some_and(|word| word.braced) {
         log.say(stmt.line, "`environment` needs a name and a `{ … }` block");
@@ -326,8 +349,7 @@ pub(super) fn parse(stmt: &Stmt, log: &mut Log) -> Option<PackEnvironment> {
     if extends {
         log.since(stmt.line, "environment -extend", "2.0");
     }
-    let body_index = if extends { 3 } else { 2 };
-    let Some(body) = stmt.arg(body_index) else {
+    let Some(rows) = rows else {
         log.say(
             stmt.line,
             format!("`environment {name}` has no `{{ … }}` block; the block is rejected"),
@@ -370,8 +392,8 @@ pub(super) fn parse(stmt: &Stmt, log: &mut Log) -> Option<PackEnvironment> {
     let mut rejected = false;
     let mut pending = Pending::default();
     log.scoped(format!("environment {name}"), |log| {
-        for row in block(body) {
-            if !read_row(&mut environment, &row, &mut pending, log) {
+        for row in rows {
+            if !read_row(&mut environment, row, &mut pending, log) {
                 rejected = true;
             }
         }

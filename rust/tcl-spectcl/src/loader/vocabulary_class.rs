@@ -126,6 +126,12 @@ const MARKERS: &[(&str, VocabularyClass)] = &[
     ("switch", VocabularyClass::Semantic),
     ("target", VocabularyClass::Semantic),
     ("ambient", VocabularyClass::Semantic),
+    // Anything that scopes a declaration to a dialect or an environment
+    // narrows *availability*. A build that drops the scoping keeps the
+    // unscoped claim, which is broader than the pack wrote — the one
+    // direction §6.1 forbids (issue #1643).
+    ("dialect", VocabularyClass::Semantic),
+    ("environment", VocabularyClass::Semantic),
     ("closed", VocabularyClass::Semantic),
     ("policy", VocabularyClass::Semantic),
     ("world", VocabularyClass::Semantic),
@@ -187,6 +193,22 @@ mod tests {
             "-dynamic-surface",
             "-unknown-members",
             "include",
+        ] {
+            assert_eq!(classify(word), VocabularyClass::Semantic, "{word}");
+        }
+    }
+
+    /// The §6.1 downgrade fixture for a **scoping** word (issue #1643): a
+    /// word that narrows which dialects or environments a declaration
+    /// applies to must never be dropped as decoration, because what
+    /// survives the drop is the wider claim.
+    #[test]
+    fn scoping_words_classify_semantic() {
+        for word in [
+            "-dialects",
+            "dialect_scope",
+            "-environments",
+            "environment_scope",
         ] {
             assert_eq!(classify(word), VocabularyClass::Semantic, "{word}");
         }
