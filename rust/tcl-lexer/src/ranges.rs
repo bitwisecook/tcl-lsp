@@ -651,7 +651,9 @@ pub fn command_substitution_end(source: &str, open_bracket: usize) -> Option<usi
     command_substitution_end_bytes(source.as_bytes(), open_bracket)
 }
 
-fn command_substitution_end_bytes(bytes: &[u8], open_bracket: usize) -> Option<usize> {
+/// [`command_substitution_end`] over raw bytes — the form
+/// [`crate::word_parts`] scans with (a Tcl word is bytes to the runtimes).
+pub(crate) fn command_substitution_end_bytes(bytes: &[u8], open_bracket: usize) -> Option<usize> {
     if bytes.get(open_bracket) != Some(&b'[') {
         return None;
     }
