@@ -404,3 +404,111 @@ fail.
   accumulation is not modelled.
 - **`Block`/`UpFrame` straight-line splice.** Deliberately not attempted: it
   needs a frame-shift and scope analysis this lane does not own.
+
+## r4-parser-gaps
+
+Status: **done** — all three assigned issues fixed, oracle-pinned, one
+commit each. Owner files: `runtime/rust/src/{parse,cmd_list,cmd_error,
+cmd_regex,cmd_scan,cmd_binary,cmd_control,cmd_var}.rs`,
+`runtime/rust/tests/parser_gaps.rs`.
+
+### Done
+
+1. **#1576** (`34005140`) — an unterminated `{` word tokenized best-effort
+   instead of raising `missing close-brace`. `parse.rs::build_word` checks
+   every brace-delimited (`Str`) token against `tcl_lexer::word_closer_offset`
+   before treating its content as a literal, in both the single-token fast
+   path and the rarer multi-token case (a brace fragment glued onto a prior
+   word, e.g. `{a}{b` with no close — necessarily the *last* token, since
+   nothing follows end of input). An unterminated one carries the failure as
+   `WordPart::ParseError("missing close-brace")`, the evaluator's existing
+   raise-on-reach convention for `${…}` (see #1586 below).
+2. **#1586** (folded into `5a74eb43` by a same-worktree staging race — see
+   *Note* below) — `build_word`'s `${name}` arm trusted the lexer's lenient
+   unterminated-`${` token boundary (a name read to end-of-input) as the
+   actual variable name. It now calls `tcl_lexer::braced_var_name_end`
+   directly and, on `BracedVarEnd::Unterminated`, emits
+   `WordPart::ParseError(MISSING_CLOSE_BRACE_FOR_VAR)` instead of ever
+   reaching `parse_var_ref` on lenient content — fixing both the script-word
+   case (`set x "${a{"`) and the nested case (`${a{` inside a command
+   substitution reached through `subst`). `parse_var_ref`/
+   `array_index_parse_error` dropped their now-always-false `braced`
+   parameter (the braced form never reaches them).
+3. **#1577** (`9a0d0ab9`) — `lassign`, `catch` (result/options vars), `regexp`
+   match vars, `scan`, `binary scan`, and `foreach`/`lmap` loop vars each
+   called `interp.var_set(name, …)` on the raw argument bytes, so `arr(a)`
+   became a literal scalar named `arr(a)` instead of element `a` of array
+   `arr`. All six sites (`cmd_list.rs::lassign`, `cmd_error.rs::catch_cmd` +
+   `bind_handler_vars` — `try`'s handler clause shares the identical bug and
+   now a shared `set_var_or_elem` helper, `cmd_regex.rs`'s `regexp` match-var
+   loop, `cmd_scan.rs::scan_cmd`, `cmd_binary.rs::binary_scan`,
+   `cmd_control.rs::each_loop`) now split the name with the same
+   `crate::frame::split_array_ref` + `var_set`/`var_set_elem` routing `set`/
+   `lset`/`ledit` already use, and surface the real `VarError` through
+   `crate::builtins::var_error` on failure instead of a fixed "variable is
+   array" guess. The zero-length-array-name spelling `(k)` comes along for
+   free since `split_array_ref` already resolves it (#1458 tracks that
+   owner's own correctness, separately).
+
+### Decisions
+
+- **No second name parser anywhere.** Every fix routes through an owner that
+  already existed for a sibling command (`word_closer_offset` and
+  `braced_var_name_end` from `tcl-lexer`; `split_array_ref` +
+  `var_set`/`var_set_elem` from `frame.rs`/`interp.rs`) rather than
+  reimplementing brace-balance or array-ref parsing locally.
+- **#1576/#1586 share one representation.** Both are "the eval-facing parser
+  must fail closed where the shared lexer stays lenient", and both fail the
+  same way: a `WordPart::ParseError` the evaluator already knows to raise
+  left-to-right (documented on `WordPart::ParseError` itself, extended from
+  #1586's pre-existing `${…}` case to the general brace case).
+- **Oracle-pinned, not just "doesn't crash".** Every test in
+  `runtime/rust/tests/parser_gaps.rs` asserts the exact `tclsh` message text
+  (and `-errorcode` where the issue gave it), derived by running the sheet
+  through `tclsh9.0`/`tclsh8.6` directly — several draft sheets initially
+  mis-stated the oracle (unbalanced literal braces in a test's own Tcl
+  source is a live trap for exactly this bug class) and were caught by
+  re-running them, not by trusting the first draft.
+- **Adjacent, unlisted sites were left alone.** `regsub`'s target variable
+  has the identical `arr(a)`-as-literal-scalar bug (verified against
+  `tclsh9.0`) but was not in #1577's explicit site list, so it was not
+  touched here — flagged as a follow-up instead of silently expanding scope.
+
+### Note: a commit landed under another lane's name
+
+`5a74eb43 wip(r5-trace-semantics): …` carries this lane's #1586 diff
+(`parse.rs` + `parser_gaps.rs`) alongside r5's own trace-semantics work: both
+lanes' changes were staged in the shared worktree's single git index at the
+same moment, and r5's commit swept up everything staged, not only its own
+paths — the AGENTS.md "stage only your own files, by explicit path" rule
+was followed *here* (`git add` was scoped to this lane's two files
+immediately before committing) but the race is symmetric — another lane's
+broader `git add`/`git commit` can still sweep up whatever this lane has
+staged in the same window. The code is correct, tested, and present at HEAD
+either way; only the commit attribution is wrong. No history rewrite was
+attempted (out of policy for a shared branch). Every commit after this one
+used `git commit -m … -- <explicit paths>` with nothing pre-staged, to
+close the window as tightly as possible — but the underlying race is
+cross-lane and cannot be fully closed from one lane's side alone.
+
+### Remaining / not done
+
+- **`regsub`'s target variable** (`cmd_regex.rs::regsub_cmd`) has the same
+  #1577-shaped bug (`regsub {a} xax b arr(k)` writes a literal scalar, not
+  element `k`) but was outside the issue's explicit site list — flagged as a
+  follow-up task rather than fixed inline.
+- The `quote`/`bracket` siblings of #1576 (`missing "` for an unterminated
+  `"..."` word, `missing close-bracket` for an unterminated `[...]`) are
+  **also** currently lenient in the eval path — verified against `tclsh9.0`
+  during investigation, e.g. `eval {list a "b}` returns `a b` instead of
+  raising `missing "`. #1576 named only the brace case; the quote/bracket
+  gap is real but tracked separately (no filed issue found for it at the
+  time of writing — worth filing one).
+
+### Verification
+
+`make runtime-rust-test` (589 lib + 16 `parser_gaps` + suite tests, 0
+failed) and `make runtime-rust-lint` (`cargo fmt --check` + `cargo clippy
+--locked --all-targets -- -D warnings`) both green before every commit in
+this lane, on top of a tree containing other lanes' concurrent in-flight
+edits outside this lane's files.
