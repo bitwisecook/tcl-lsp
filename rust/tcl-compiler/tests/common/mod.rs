@@ -16,7 +16,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Shared corpus/fuzz test helpers.
+//! Shared integration-test helpers.
+//!
+//! [`wasm_link`] carries the WASM whole-program real-link toolchain — the
+//! gate, the reserved-runtime build, and the scratch paths — shared by
+//! `wasm_real_link.rs` and `wasm_tiers.rs`.
 //!
 //! [`Progress`] gives long corpus sweeps **durable, flushed progress**: one line
 //! per completed file (a "chunk") and one per finding, written *and flushed* to a
@@ -29,6 +33,8 @@
 //! killed sweep can restart roughly where it stopped, and [`Progress::limit`]
 //! reads `$TCL_FUZZ_LIMIT` to cap a chunk to a bounded slice.
 #![allow(dead_code)]
+
+pub mod wasm_link;
 
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
