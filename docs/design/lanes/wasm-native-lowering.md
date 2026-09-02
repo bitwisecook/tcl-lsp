@@ -862,3 +862,72 @@ Every expectation was produced by running its own sheet through `tclsh9.0`
 (9.0.4) and `tclsh8.6` (8.6.16); the sheets are recorded in the test modules,
 so a reader can re-derive them by pasting into a real interpreter.
 
+## r5b-leftovers
+
+Status: **done** — the two follow-ups r5-trace-semantics and r4-parser-gaps
+each left behind for another lane. Owner files: `runtime/rust/src/{cmd_var,
+cmd_regex}.rs` and `runtime/rust/tests/{trace_semantics,parser_gaps}.rs`.
+
+1. **#1633 row 1 — return-after-trace.** `TclPtrSetVarIdx` (`tclVar.c`
+   9.0.4:2050-2065) stores, fires the write traces, and only *then* decides
+   what to return: the cell's current value if a trace rewrote it (still a
+   defined scalar), or an empty-string object if a trace changed the variable
+   "in some gross way" (unset it, or made it an array). `set`/`incr` — both
+   in `builtins.rs`, not this lane's file — instead echoed back the value
+   they had just stored. That is also a use-after-free once a write trace
+   replaces the same cell: the stored object's only reference is dropped out
+   from under the handler before it reads `sum`/`value` back (reproduced live
+   — `incr z` on a `z` whose write trace does `set ::z mangled` printed the
+   empty string, not `1` or `mangled`, i.e. read freed memory). Fixed without
+   touching `builtins.rs`: `cmd_var::install` re-registers `set` and (under
+   `#[cfg(have_tommath)]`) `incr`, the same override pattern `builtins.rs`
+   already documents for TclOO's `variable` — installed later in the same
+   `install()` sweep, so it wins, and nothing downstream re-registers either
+   name. Both new bodies are structurally the original ones with their store
+   tail replaced by `interp.store_var_result` (`interp.rs`, already used by
+   `append`/`lappend`/`string insert` for this identical reason — a
+   protective reference held across the store, then a trace-free read-back).
+   `incr`'s small `incr_constant_error` guard is duplicated locally (it was
+   module-private in `builtins.rs`); everything else is reused, not
+   reimplemented. Pinned (`tclsh9.0`/`tclsh8.6`, identical on both):
+   `proc w {n1 n2 op} {set ::x mangled}; trace add variable x write w; set x
+   orig` → `mangled`; the same with a trace that `unset`s its target → `""`;
+   both repeated for `incr`.
+2. **`regsub`'s target variable — element write.** `regsub -all a $s b
+   arr(k)` wrote a literal scalar named `arr(k)` instead of element `k` of
+   `arr` — the #1577 shape R4 fixed at its six explicit sites and flagged
+   this one as a follow-up rather than touch out-of-scope code. `cmd_regex.rs
+   ::regsub_cmd`'s target-variable arm now runs the same `split_array_ref` +
+   `var_set`/`var_set_elem` routing `set`, `regexp`'s match-var loop, and
+   every #1577 site already share. Pinned: `set s xax; regsub -all a $s b
+   arr(k)` → `array get arr` gives `k xbx` on both oracles.
+
+### Decisions
+
+- **The override-registration pattern, not a `builtins.rs` edit.** This
+  lane's file list is `cmd_var.rs`/`cmd_regex.rs` plus the two test files —
+  `set`/`incr` live in `builtins.rs`, another lane's file this cycle (a
+  concurrent worktree, shared with several other in-flight lanes). Rather
+  than either touching a file outside the assignment or leaving a confirmed,
+  oracle-pinned bug (including the use-after-free above) unfixed,
+  `cmd_var::install` re-registers both names with corrected bodies, using the
+  last-registration-wins override `builtins.rs` itself already relies on for
+  TclOO's `variable`. No other file changed.
+- **`store_var_result`, not a hand-rolled read-back.** It already exists
+  (`interp.rs`, r4/r5-era) for exactly this shape and is already exercised by
+  `append`/`lappend`/`string insert`; reusing it instead of re-deriving the
+  read-back logic keeps the "gross change → empty string" rule in one place.
+- **`append`/`lappend` needed no change.** Both already route through
+  `store_var_result` (`cmd_list.rs`) and were re-verified against the same
+  oracle sheets rather than assumed correct.
+
+### Verification
+
+`make runtime-rust-test` (587 lib + 23 `parser_gaps` + 22 `trace_semantics` +
+suite tests, 0 failed) and `make runtime-rust-lint` both green before each
+commit, on a tree carrying other lanes' concurrent in-flight edits outside
+this lane's files (a `runtime/rust/src/expr.rs` formatting diff from another
+lane was transiently red mid-session and cleared before commit, per the
+r4/r5 lanes' own note on this same trap). Every new expectation was produced
+by running its sheet through `tclsh9.0` (9.0.4) and `tclsh8.6` (8.6.16)
+directly.
