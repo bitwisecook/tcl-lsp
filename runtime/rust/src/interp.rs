@@ -3366,7 +3366,19 @@ impl Interp {
         let (access_ns, access_frame_level, base) = (home.ns, home.level, home.base.as_slice());
         let elem = access.match_elem.as_deref();
         let reported = access.reported.as_slice();
+        // The cell this access reaches, and the array cell containing it — C's
+        // `varPtr` and `arrayPtr`, each with its own `VAR_TRACE_ACTIVE`.
+        let cell = crate::cmd_trace::VarTraceScope::cell(base, elem, access_ns, access_frame_level);
         let traces = self.traces.borrow();
+        // "If there are already similar trace functions active for the
+        // variable, don't call them again" — C's early return on
+        // `TclIsVarTraceActive(varPtr)` (tclTrace.c 9.0.4:2513). Per *cell*: a
+        // callback writing a different element of the same array is a different
+        // `Var` and fires (issue #1574).
+        if traces.active_var_scopes.contains(&cell) {
+            return false;
+        }
+        let array_active = elem.is_some() && traces.active_var_scopes.contains(&cell.array());
         // C fires the containing array's traces before the element's own
         // (`TclCallVarTraces`, tclTrace.c 9.0.4: the `arrayPtr` loop at :2581
         // precedes the `varPtr` loop at :2623), and walks each list head→tail
@@ -3380,11 +3392,9 @@ impl Interp {
                 .filter(move |t| t.elem.is_none() == whole_array)
                 .filter(|t| {
                     crate::cmd_trace::matches(t, base, elem, op, access_ns, access_frame_level)
-                        && !traces.active_var_scopes.contains(&t.scope())
                 })
         };
-        let array_group = access
-            .whole_array
+        let array_group = (access.whole_array && !array_active)
             .then(|| selected(true))
             .into_iter()
             .flatten();
@@ -3404,18 +3414,25 @@ impl Interp {
         let saved = self.result.get();
         unsafe { obj::incr_ref_count(saved) };
 
+        // The cell is marked active for the whole firing, as C marks `varPtr`
+        // once on entry and clears it on the way out — not per callback.
+        self.traces
+            .borrow_mut()
+            .active_var_scopes
+            .push(cell.clone());
+
         let mut errored = false;
         let op_name = String::from_utf8_lossy(op).into_owned();
         for id in order {
             // Still registered? A previous callback in this same firing may have
             // removed it (C's `nextTracePtr` rewrite).
-            let Some((scope, cmd, old_style)) = self
+            let Some((cmd, old_style)) = self
                 .traces
                 .borrow()
                 .traces
                 .iter()
                 .find(|t| t.id == id)
-                .map(|t| (t.scope(), t.command.clone(), t.old_style))
+                .map(|t| (t.command.clone(), t.old_style))
             else {
                 continue;
             };
@@ -3432,13 +3449,7 @@ impl Interp {
             line.push(b' ');
             line.extend_from_slice(&obj_bytes(args));
             drop_fresh(args);
-            self.traces
-                .borrow_mut()
-                .active_var_scopes
-                .push(scope.clone());
             let code = self.eval_str(&line);
-            let popped = self.traces.borrow_mut().active_var_scopes.pop();
-            debug_assert_eq!(popped, Some(scope));
             if propagate && code == Code::Error {
                 // Capture the callback's error message; stop firing (C aborts
                 // the trace chain on the first error).
@@ -3467,6 +3478,8 @@ impl Interp {
                 break;
             }
         }
+        let popped = self.traces.borrow_mut().active_var_scopes.pop();
+        debug_assert_eq!(popped, Some(cell));
         // Restore the saved result (release the trace's, adopt our held +1).
         unsafe {
             obj::decr_ref_count(self.result.get());

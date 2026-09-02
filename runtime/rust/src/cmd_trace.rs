@@ -137,21 +137,45 @@ pub struct StepActive {
     pub command: Vec<u8>,
 }
 
-/// The resolved variable-cell identity used for the callback re-entrancy rule.
-/// An array's element traces share their base cell, as Tcl does.
+/// One variable **cell**, as the callback re-entrancy rule counts them: C sets
+/// `VAR_TRACE_ACTIVE` on the `Var` an access reached, and an array element is a
+/// `Var` of its own (`TclCallVarTraces`, tclVar.c).
+///
+/// So `elem` is part of the identity: a whole-array write trace whose callback
+/// writes a *different* element fires again, because the second element is a
+/// different cell (issue #1574). Only a write to the *same* cell — or, for the
+/// whole-array traces specifically, one reached while the array's own cell is
+/// active — is suppressed.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VarTraceScope {
     base: Vec<u8>,
+    elem: Option<Vec<u8>>,
     frame_level: Option<usize>,
     ns: Option<NsId>,
 }
 
-impl VarTrace {
-    pub(crate) fn scope(&self) -> VarTraceScope {
-        VarTraceScope {
-            base: self.base.clone(),
-            frame_level: self.frame_level,
-            ns: self.ns,
+impl VarTraceScope {
+    /// The cell an access to `(base, elem)` at this home reaches.
+    pub(crate) fn cell(
+        base: &[u8],
+        elem: Option<&[u8]>,
+        ns: Option<NsId>,
+        frame_level: Option<usize>,
+    ) -> Self {
+        Self {
+            base: base.to_vec(),
+            elem: elem.map(<[u8]>::to_vec),
+            frame_level,
+            ns,
+        }
+    }
+
+    /// The containing array's own cell — C's `arrayPtr`, whose `VAR_TRACE_ACTIVE`
+    /// gates the whole-array traces separately from the element's.
+    pub(crate) fn array(&self) -> Self {
+        Self {
+            elem: None,
+            ..self.clone()
         }
     }
 }

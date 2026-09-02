@@ -446,3 +446,59 @@ fn a_delete_trace_that_recreates_the_command_leaves_it_alive() {
     );
     assert_eq!(got, "D ::foo {} delete\nexists: 1\ncall: FOO2\ntraces: ");
 }
+
+// -- #1574: re-entrancy suppression is per `Var` cell, not per array --------
+
+/// C sets `VAR_TRACE_ACTIVE` on the `Var` an access reached, and an array
+/// element is a `Var` of its own. So a whole-array write trace whose callback
+/// writes a *different* element fires again — and one that writes the *same*
+/// element does not.
+///
+/// tclsh 8.6.16 and 9.0.4 print the transcript below. Both engines used to
+/// suppress per whole array and stop after the first firing in each pair.
+#[test]
+fn re_entrancy_is_suppressed_per_cell_not_per_array() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc W {n1 n2 op} { lappend ::log [list W $n1 $n2 $op]\n\
+         \x20   if {$n2 ne \"other\"} { set ::c(other) 1 } }\n\
+         trace add variable c write W\n\
+         set c(k) 1\n\
+         lappend ::log {= elem->elem}\n\
+         proc V {n1 n2 op} { lappend ::log [list V $n1 $n2 $op]\n\
+         \x20   if {$n2 ne \"j\"} { set ::d(j) 1 } }\n\
+         trace add variable d(k) write V\n\
+         trace add variable d(j) write V\n\
+         set d(k) 1\n\
+         lappend ::log {= same elem again}\n\
+         proc U {n1 n2 op} { lappend ::log [list U $n1 $n2 $op]; set ::e(k) 9 }\n\
+         trace add variable e(k) write U\n\
+         set e(k) 1\n\
+         join $::log \\n",
+    );
+    assert_eq!(
+        got,
+        "W c k write\nW ::c other write\n\
+         = elem->elem\nV d k write\nV ::d j write\n\
+         = same elem again\nU e k write"
+    );
+}
+
+/// The other half of C's rule: the whole-array traces have their own
+/// `VAR_TRACE_ACTIVE` gate on `arrayPtr`. While the *array's own* cell is
+/// firing (a whole-array `unset`), a callback that writes an element does not
+/// re-enter them — one firing, and the array the callback re-created survives.
+#[test]
+fn the_arrays_own_cell_gates_the_whole_array_traces() {
+    let got = transcript(
+        "set ::log {}\n\
+         proc S {n1 n2 op} { lappend ::log [list S $n1 $n2 $op]; catch {set ::g(z) 1} }\n\
+         array set g {q 1}\n\
+         trace add variable g write S\n\
+         trace add variable g unset S\n\
+         unset g\n\
+         lappend ::log \"exists: [array exists ::g]\"\n\
+         join $::log \\n",
+    );
+    assert_eq!(got, "S g {} unset\nexists: 1");
+}
