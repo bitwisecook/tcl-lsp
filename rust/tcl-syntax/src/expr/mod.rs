@@ -24,6 +24,7 @@
 //! type) and live with each consumer.
 
 pub mod ast;
+pub mod errors;
 pub mod eval;
 pub mod mathfunc;
 pub mod operators;

@@ -365,3 +365,158 @@ fn srand_refuses_a_non_integer_operand() {
         "err {expected integer but got \"abc\"} {TCL VALUE NUMBER}",
     );
 }
+
+/// Like [`both_at`] but taking the complete probe result (`ok …` / `err …`),
+/// for rows that assert an error rather than a value.
+#[track_caller]
+fn both_at_raw(body: &str, want: &str, version: tcl_dialect::TclVersion) {
+    let probe = format!(
+        "if {{[catch {{expr {{{body}}}}} m o]}} {{ list err $m [dict get $o -errorcode] }} else {{ list ok $m }}"
+    );
+    assert_eq!(
+        run_at(&probe, version),
+        want,
+        "expr {{{body}}} at {version:?}"
+    );
+    let dynamic = format!(
+        "set e {{{body}}}\nif {{[catch {{expr $e}} m o]}} {{ list err $m [dict get $o -errorcode] }} else {{ list ok $m }}"
+    );
+    assert_eq!(
+        run_at(&dynamic, version),
+        want,
+        "expr $e ({body}) at {version:?}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// #1581 — the expr/mathfunc error taxonomy on the VM.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn an_infinity_in_an_integer_conversion_is_ioverflow() {
+    const WANT: &str = "err {integer value too large to represent} {ARITH IOVERFLOW {integer value too large to represent}}";
+    for body in [
+        "entier(Inf)",
+        "int(Inf)",
+        "wide(Inf)",
+        "round(Inf)",
+        "entier(-Inf)",
+        "isqrt(Inf)",
+    ] {
+        both(body, WANT);
+    }
+    both("abs(-Inf)", "ok Inf");
+    both("double(Inf)", "ok Inf");
+    both("floor(Inf)", "ok Inf");
+}
+
+#[test]
+fn a_nan_operand_carries_the_double_nan_code() {
+    const WANT: &str = "err {floating point value is Not a Number} {TCL VALUE DOUBLE NAN}";
+    for body in [
+        "entier(NaN)",
+        "int(NaN)",
+        "round(NaN)",
+        "abs(NaN)",
+        "double(NaN)",
+        "ceil(NaN)",
+        "isqrt(NaN)",
+    ] {
+        both(body, WANT);
+    }
+}
+
+#[test]
+fn domain_errors_keep_their_own_class() {
+    both(
+        "sqrt(-1)",
+        "err {domain error: argument not in valid range} {ARITH DOMAIN {domain error: argument not in valid range}}",
+    );
+    both(
+        "isqrt(-1)",
+        "err {square root of negative argument} {ARITH DOMAIN {domain error: argument not in valid range}}",
+    );
+}
+
+#[test]
+fn boolean_context_errors_carry_their_codes() {
+    for body in [
+        "\"abc\" ? 1 : 2",
+        "\"abc\" && 1",
+        "1 && \"abc\"",
+        "\"abc\" || 0",
+    ] {
+        both(
+            body,
+            "err {expected boolean value but got \"abc\"} {TCL VALUE NUMBER}",
+        );
+    }
+    both(
+        "\"NaN\" ? 1 : 2",
+        "err {floating point value is Not a Number} {TCL VALUE DOUBLE NAN}",
+    );
+}
+
+/// The `IllegalExprOperandType` release axis on the VM: 9.0 names the value
+/// and the side and has a list branch; 8.6 names neither and has no list
+/// branch. The `-errorcode` is invariant. Every row measured on tclsh9.0.4
+/// and tclsh8.6.16.
+#[test]
+fn operand_type_errors_follow_the_release_wording() {
+    use tcl_dialect::TclVersion::{V8_6, V9_0};
+    let rows: &[(&str, &str, &str, &str)] = &[
+        (
+            "!\"abc\"",
+            "cannot use non-numeric string \"abc\" as operand of \"!\"",
+            "can't use non-numeric string as operand of \"!\"",
+            "{non-numeric string}",
+        ),
+        (
+            "~1.5",
+            "cannot use floating-point value \"1.5\" as operand of \"~\"",
+            "can't use floating-point value as operand of \"~\"",
+            "{floating-point value}",
+        ),
+        (
+            "\"abc\" + 1",
+            "cannot use non-numeric string \"abc\" as left operand of \"+\"",
+            "can't use non-numeric string as operand of \"+\"",
+            "{non-numeric string}",
+        ),
+        (
+            "1 + \"abc\"",
+            "cannot use non-numeric string \"abc\" as right operand of \"+\"",
+            "can't use non-numeric string as operand of \"+\"",
+            "{non-numeric string}",
+        ),
+        (
+            "NaN + 1",
+            "cannot use non-numeric floating-point value \"NaN\" as left operand of \"+\"",
+            "can't use non-numeric floating-point value as operand of \"+\"",
+            "{non-numeric floating-point value}",
+        ),
+    ];
+    for (body, want90, want86, code) in rows {
+        both_at_raw(
+            body,
+            &format!("err {{{want90}}} {{ARITH DOMAIN {code}}}"),
+            V9_0,
+        );
+        both_at_raw(
+            body,
+            &format!("err {{{want86}}} {{ARITH DOMAIN {code}}}"),
+            V8_6,
+        );
+    }
+    // The list branch exists only at 9.0; 8.6 reports a non-numeric string.
+    both_at_raw(
+        "\"a b\" + 1",
+        "err {cannot use a list as left operand of \"+\"} {ARITH DOMAIN list}",
+        V9_0,
+    );
+    both_at_raw(
+        "\"a b\" + 1",
+        "err {can't use non-numeric string as operand of \"+\"} {ARITH DOMAIN {non-numeric string}}",
+        V8_6,
+    );
+}

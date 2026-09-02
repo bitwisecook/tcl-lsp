@@ -32,7 +32,7 @@
 //! like `expr` itself. `rand`/`srand` carry PRNG state on the interp, so they
 //! are handled here directly rather than via the pure shared dispatch.
 
-use tcl_syntax::expr::mathfunc::{dispatch_with_backend_int_width, IntWidth, NumValue};
+use tcl_syntax::expr::mathfunc::{try_dispatch_with_backend_int_width, IntWidth, NumValue};
 use tcl_syntax::naming::qualifier_segments;
 
 use crate::interp::{obj_bytes, Code, Interp};
@@ -172,17 +172,19 @@ pub(crate) fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
 
     // `set_result` adopts a fresh rc-0 obj (retains it; no extra drop needed).
-    match dispatch_with_backend_int_width(&lname, &nums, int_width) {
-        Some(num) => {
+    // The shared dispatch's *typed* refusals (#1581): C reports an infinity in
+    // an integer conversion as `ARITH IOVERFLOW`, a NaN operand as `TCL VALUE
+    // DOUBLE NAN`, and only a genuine out-of-range argument as `ARITH DOMAIN`.
+    // Before this, every one of them became the generic domain error.
+    match try_dispatch_with_backend_int_width(&lname, &nums, int_width) {
+        Ok(num) => {
             interp.set_result(crate::bignum::math_num_to_obj(num));
             Code::Ok
         }
-        // A registered name with the right arity reaching `None` is a domain
-        // error (e.g. `sqrt(-1)`), with `-errorcode ARITH DOMAIN`.
-        None => interp.error_with_code(
-            b"domain error: argument not in valid range",
-            b"ARITH DOMAIN {domain error: argument not in valid range}",
-        ),
+        Err(e) => {
+            let err = crate::expr::math_func_err(e);
+            interp.error_with_code(&err.msg, err.code.as_deref().unwrap_or(b""))
+        }
     }
 }
 

@@ -25,21 +25,12 @@
 use num_bigint::BigInt;
 use num_traits::{FromPrimitive, Signed, ToPrimitive};
 use tcl_runtime_api::Completion;
-use tcl_syntax::expr::mathfunc::{IntWidth, NumValue, dispatch_with_backend_int_width};
+use tcl_syntax::expr::mathfunc::{IntWidth, NumValue, try_dispatch_with_backend_int_width};
 use tcl_syntax::number::{self, Number};
 
 use crate::command::err_with_code;
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
-
-/// Coerce `v` to a double for the number-flavoured math functions
-/// (`abs`/`int`/`round`/`entier`/`isqrt`/`max`/`min`). Their non-numeric error
-/// in Tcl 9 is the generic `expected number but got "…"` — not the
-/// floating-point-specific wording `as_double` produces.
-fn num_arg(v: &Value) -> Result<f64, String> {
-    v.as_double()
-        .map_err(|_| format!("expected number but got \"{}\"", v.to_str()))
-}
 
 /// Coerce `v` to a double for the classification predicates (`isnan` /
 /// `isunordered` / …), which deliberately accept a literal `NaN` — inspecting
@@ -111,6 +102,35 @@ fn domain_err() -> Completion<Value> {
     err_with_code(DOMAIN_MSG, DOMAIN_CODE)
 }
 
+/// A shared math-function refusal as a VM completion, carrying C's verbatim
+/// message and `-errorcode` (#1581): `ARITH IOVERFLOW` for an infinity
+/// reaching an integer conversion, `TCL VALUE DOUBLE NAN` for a NaN operand,
+/// `ARITH DOMAIN` otherwise. `Abstain` cannot occur here — the VM's backend
+/// has an arbitrary-precision rung and its release is resolved — so it falls
+/// back to the generic domain error, as do the two refusals the caller words
+/// itself.
+fn math_func_err(e: tcl_syntax::expr::mathfunc::MathFuncError) -> Completion<Value> {
+    let message = e.message();
+    if message.is_empty() {
+        return domain_err();
+    }
+    err_with_code(message, e.error_code())
+}
+
+/// A `finite_num_arg` / `num_or_nan` failure as a completion, with C's
+/// `-errorcode`: the VM had the right message text for a NaN and an infinity
+/// but left `errorCode` as `NONE` (#1581).
+fn num_err(message: String) -> Completion<Value> {
+    use tcl_syntax::expr::errors;
+    if message == errors::NAN_MESSAGE {
+        err_with_code(message, errors::NAN_CODE)
+    } else if message == errors::IOVERFLOW_MESSAGE {
+        err_with_code(message, errors::IOVERFLOW_CODE)
+    } else {
+        err(message)
+    }
+}
+
 fn shared_math(name: &str, args: &[Value], int_width: IntWidth) -> Completion<Value> {
     let Some(spec) = tcl_syntax::expr::mathfunc::spec(name) else {
         return err(format!("invalid command name \"tcl::mathfunc::{name}\""));
@@ -157,11 +177,11 @@ fn shared_math(name: &str, args: &[Value], int_width: IntWidth) -> Completion<Va
         Ok(nums) => nums,
         Err(e) => return e,
     };
-    match dispatch_with_backend_int_width(name, &nums, int_width) {
-        Some(NumValue::Int(i)) => ok(Value::int(i)),
-        Some(NumValue::Big(b)) => ok(crate::expr::big_value(&b)),
-        Some(NumValue::Float(f)) => ok(Value::double(f)),
-        None => domain_err(),
+    match try_dispatch_with_backend_int_width(name, &nums, int_width) {
+        Ok(NumValue::Int(i)) => ok(Value::int(i)),
+        Ok(NumValue::Big(b)) => ok(crate::expr::big_value(&b)),
+        Ok(NumValue::Float(f)) => ok(Value::double(f)),
+        Err(e) => math_func_err(e),
     }
 }
 
@@ -257,9 +277,9 @@ fn m_abs(args: &[Value]) -> Completion<Value> {
         return ok(crate::expr::big_value(&b.abs()));
     }
     match num_or_nan(x) {
-        Ok(f) if f.is_nan() => err("floating point value is Not a Number".to_string()),
+        Ok(f) if f.is_nan() => num_err(tcl_syntax::expr::errors::NAN_MESSAGE.to_string()),
         Ok(f) => ok(Value::double(f.abs())),
-        Err(m) => err(m),
+        Err(m) => num_err(m),
     }
 }
 
@@ -300,7 +320,7 @@ fn int_window(args: &[Value], name: &str) -> Completion<Value> {
     }
     match finite_num_arg(x) {
         Ok(f) => ok(Value::int(wide_window(&exact_trunc(f)))),
-        Err(m) => err(m),
+        Err(m) => num_err(m),
     }
 }
 
@@ -310,7 +330,7 @@ fn m_double(args: &[Value]) -> Completion<Value> {
         Err(c) => return c,
     };
     match x.as_double() {
-        Ok(f) if f.is_nan() => err("floating point value is Not a Number"),
+        Ok(f) if f.is_nan() => num_err(tcl_syntax::expr::errors::NAN_MESSAGE.to_string()),
         Ok(f) => ok(Value::double(f)),
         Err(e) => {
             if let Some(b) = crate::expr::value_as_bigint(x) {
@@ -320,7 +340,7 @@ fn m_double(args: &[Value]) -> Completion<Value> {
                 number::parse_whole(x.to_str().trim()),
                 Some(Number::Nan { .. })
             ) {
-                return err("floating point value is Not a Number");
+                return num_err(tcl_syntax::expr::errors::NAN_MESSAGE.to_string());
             }
             err(e.message)
         }
@@ -346,7 +366,7 @@ fn m_round(args: &[Value]) -> Completion<Value> {
         Ok(f) => ok(crate::expr::big_value(
             &num_bigint::BigInt::from_f64(f.round()).unwrap_or_default(),
         )),
-        Err(m) => err(m),
+        Err(m) => num_err(m),
     }
 }
 
@@ -370,9 +390,12 @@ fn m_isqrt(args: &[Value]) -> Completion<Value> {
         }
         return ok(crate::expr::big_value(&num_integer::Roots::sqrt(&b)));
     }
-    let f = match num_arg(x) {
+    // `finite_num_arg`, not `num_arg`: an infinity is `ARITH IOVERFLOW` and a
+    // NaN is `TCL VALUE DOUBLE NAN` here, exactly as for the other integer
+    // conversions (tclsh: `isqrt(Inf)` / `isqrt(NaN)`) — #1581.
+    let f = match finite_num_arg(x) {
         Ok(f) => f,
-        Err(m) => return err(m),
+        Err(m) => return num_err(m),
     };
     if f < 0.0 {
         return err_with_code("square root of negative argument", DOMAIN_CODE);
@@ -423,7 +446,7 @@ fn entier_named(args: &[Value], name: &str) -> Completion<Value> {
     }
     match finite_num_arg(x) {
         Ok(f) => ok(crate::expr::big_value(&exact_trunc(f))),
-        Err(m) => err(m),
+        Err(m) => num_err(m),
     }
 }
 

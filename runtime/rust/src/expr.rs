@@ -37,6 +37,8 @@ use std::rc::Rc;
 
 use crate::bignum::{self, ArithError};
 use crate::obj::{self, TclObj, TclObjType};
+use tcl_syntax::expr::errors::{OperandDesc, OperandSide};
+use tcl_syntax::expr::mathfunc::MathFuncError;
 use tcl_syntax::expr::{eval, BinOp, ExprNode, ExprOps, NumericCompare, UnaryOp};
 
 // ---------------------------------------------------------------------------
@@ -215,23 +217,42 @@ pub(crate) fn arith_err(e: ArithError) -> ExprError {
     }
 }
 
-/// `cannot use {floating-point value|non-numeric string} "VALUE" as
-/// SIDEoperand of "OP"` — C's `IllegalExprOperandType` (`tclExecute.c`). `side`
-/// is `""` for a unary op, `"left "`/`"right "` for a binary one.
-fn operand_type_err(float: bool, value: &[u8], side: &[u8], op: &[u8]) -> ExprError {
-    let mut m = b"cannot use ".to_vec();
-    m.extend_from_slice(if float {
-        b"floating-point value \""
-    } else {
-        b"non-numeric string \""
-    });
-    m.extend_from_slice(value);
-    m.extend_from_slice(b"\" as ");
-    m.extend_from_slice(side);
-    m.extend_from_slice(b"operand of \"");
-    m.extend_from_slice(op);
-    m.push(b'"');
-    ExprError::from_bytes(m)
+/// C's `IllegalExprOperandType` (`tclExecute.c`), through the shared owner
+/// [`tcl_syntax::expr::errors`]: the *wording* is a release axis (9.0 names
+/// the value and the side, 8.4-8.6 name neither and have no list branch),
+/// while the `-errorcode ARITH DOMAIN <description>` is invariant. Both were
+/// hard-coded to 9.0's form with no `-errorcode` at all before #1581.
+fn operand_type_err(desc: OperandDesc, value: &[u8], side: OperandSide, op: &[u8]) -> ExprError {
+    let release = tcl_syntax::expr::errors::ambient_release();
+    let message = tcl_syntax::expr::errors::illegal_operand_message(
+        desc,
+        &String::from_utf8_lossy(value),
+        side,
+        &String::from_utf8_lossy(op),
+        release,
+    );
+    let code = tcl_syntax::expr::errors::illegal_operand_error_code(desc, release);
+    ExprError::from_parts(message.into_bytes(), code.into_bytes())
+}
+
+/// How C describes `o` when an operator cannot use it: a NaN is a
+/// "non-numeric floating-point value", a well-formed multi-element list is
+/// 9.0's list branch, a double handed to an integer-only operator is a
+/// "floating-point value", and anything else is a "non-numeric string".
+fn operand_desc(o: *mut TclObj, float_operand: bool) -> OperandDesc {
+    if float_operand {
+        return OperandDesc::FloatingPointValue;
+    }
+    // `compare(o, o)` is `Unordered` exactly for a NaN (numeric but unusable).
+    if matches!(bignum::compare(o, o), Some(NumericCompare::Unordered)) {
+        return OperandDesc::NonNumericFloatingPointValue;
+    }
+    let bytes = obj::bytes_of(o);
+    let text = String::from_utf8_lossy(&bytes);
+    if tcl_syntax::list::max_list_length(&text) > 1 && tcl_syntax::list::split_list(&text).is_ok() {
+        return OperandDesc::List;
+    }
+    OperandDesc::NonNumericString
 }
 
 /// Map a binary operator to its source symbol (for operand-type errors).
@@ -267,12 +288,17 @@ fn binop_err(e: ArithError, op: BinOp, lp: *mut TclObj, rp: *mut TclObj) -> Expr
     } else {
         !bignum::is_numeric(lp)
     };
-    let (val, side): (Vec<u8>, &[u8]) = if left_bad {
-        (obj::bytes_of(lp), b"left ")
+    let (bad, side) = if left_bad {
+        (lp, OperandSide::Left)
     } else {
-        (obj::bytes_of(rp), b"right ")
+        (rp, OperandSide::Right)
     };
-    operand_type_err(float, &val, side, binop_sym(op))
+    operand_type_err(
+        operand_desc(bad, float),
+        &obj::bytes_of(bad),
+        side,
+        binop_sym(op),
+    )
 }
 
 /// An owned object reference (`rc +1`) that releases on drop — the discipline
@@ -351,7 +377,7 @@ pub trait ExprCtx {
 /// ([`tcl_syntax::expr::mathfunc`]) — the fallback when a function isn't an
 /// overridable command. `args` are the already-evaluated operands.
 pub fn dispatch_shared(name: &str, args: &[Owned]) -> Result<Owned, ExprError> {
-    use tcl_syntax::expr::mathfunc::{dispatch_with_backend_int_width, IntWidth, NumValue};
+    use tcl_syntax::expr::mathfunc::{try_dispatch_with_backend_int_width, IntWidth, NumValue};
     let nums: Option<Vec<NumValue<crate::bignum::TowerMp>>> = args
         .iter()
         .map(|o| crate::bignum::as_math_num(o.ptr()))
@@ -362,15 +388,35 @@ pub fn dispatch_shared(name: &str, args: &[Owned]) -> Result<Owned, ExprError> {
     // the runtime's own target release (Tcl 9.0) for `int()`'s width; the
     // interp path resolves it from `Interp::runtime_version` in
     // `cmd_mathfunc`.
-    match dispatch_with_backend_int_width(&name.to_ascii_lowercase(), &nums, IntWidth::Unbounded) {
-        Some(num) => Ok(Owned::fresh(crate::bignum::math_num_to_obj(num))),
-        None => {
+    match try_dispatch_with_backend_int_width(
+        &name.to_ascii_lowercase(),
+        &nums,
+        IntWidth::Unbounded,
+    ) {
+        Ok(num) => Ok(Owned::fresh(crate::bignum::math_num_to_obj(num))),
+        Err(MathFuncError::UnknownFunction) => {
             let mut m = b"unknown math function \"".to_vec();
             m.extend_from_slice(name.as_bytes());
             m.push(b'"');
             Err(ExprError::from_bytes(m))
         }
+        Err(e) => Err(math_func_err(e)),
     }
+}
+
+/// A shared math-function refusal as this engine's error: C's verbatim
+/// message and `-errorcode` (#1581). `Abstain` cannot occur here — the
+/// runtime's backend has an arbitrary-precision rung and its release is
+/// resolved — so it falls back to the generic domain error.
+pub(crate) fn math_func_err(e: MathFuncError) -> ExprError {
+    let message = e.message();
+    if message.is_empty() {
+        return ExprError::with_code(
+            tcl_syntax::expr::errors::DOMAIN_MESSAGE.as_bytes(),
+            tcl_syntax::expr::errors::DOMAIN_CODE.as_bytes(),
+        );
+    }
+    ExprError::with_code(message.as_bytes(), e.error_code().as_bytes())
 }
 
 /// The tower [`ExprOps`] over an [`ExprCtx`].
@@ -426,12 +472,18 @@ impl ExprOps for TowerOps<'_> {
         // left/right qualifier (`as operand of "OP"`).
         let uerr = |e: ArithError, sym: &[u8]| -> ExprError {
             match e {
-                ArithError::NonInteger => {
-                    operand_type_err(true, &obj::bytes_of(value.ptr()), b"", sym)
-                }
-                ArithError::NonNumeric => {
-                    operand_type_err(false, &obj::bytes_of(value.ptr()), b"", sym)
-                }
+                ArithError::NonInteger => operand_type_err(
+                    operand_desc(value.ptr(), true),
+                    &obj::bytes_of(value.ptr()),
+                    OperandSide::Unary,
+                    sym,
+                ),
+                ArithError::NonNumeric => operand_type_err(
+                    operand_desc(value.ptr(), false),
+                    &obj::bytes_of(value.ptr()),
+                    OperandSide::Unary,
+                    sym,
+                ),
                 other => arith_err(other),
             }
         };
@@ -445,9 +497,9 @@ impl ExprOps for TowerOps<'_> {
                     Some(NumericCompare::Ordered(_))
                 ) {
                     return Err(operand_type_err(
-                        false,
+                        operand_desc(value.ptr(), false),
                         &obj::bytes_of(value.ptr()),
-                        b"",
+                        OperandSide::Unary,
                         b"+",
                     ));
                 }
@@ -464,9 +516,9 @@ impl ExprOps for TowerOps<'_> {
                 // A `!` operand that is neither boolean nor numeric is an
                 // operand-type error (not the generic "expected boolean").
                 Err(_) => Err(operand_type_err(
-                    false,
+                    operand_desc(value.ptr(), false),
                     &obj::bytes_of(value.ptr()),
-                    b"",
+                    OperandSide::Unary,
                     b"!",
                 )),
             },
@@ -532,16 +584,24 @@ pub(crate) fn to_bool(o: *mut TclObj) -> Result<bool, ExprError> {
     let zero = Owned::fresh(obj::new_wide_int_obj(0));
     match bignum::compare(o, zero.ptr()) {
         Some(NumericCompare::Ordered(ord)) => Ok(!ord.is_eq()),
-        Some(NumericCompare::Unordered) => {
-            Err(ExprError::msg(b"floating point value is Not a Number"))
-        }
+        // A NaN is numeric but not a boolean; C stamps its own code here
+        // (tclsh: `-errorcode TCL VALUE DOUBLE NAN`) — #1581.
+        Some(NumericCompare::Unordered) => Err(ExprError::with_code(
+            tcl_syntax::expr::errors::NAN_MESSAGE.as_bytes(),
+            tcl_syntax::expr::errors::NAN_CODE.as_bytes(),
+        )),
         None => {
             // The `got <here>` tail matches C: a multi-token well-formed list
             // reads as `a list`, anything else is quoted (truncated to 50 bytes),
             // so `expr {"a b" ? 1 : 0}` reports `… but got a list`, not `"a b"`.
             let mut m = b"expected boolean value but got ".to_vec();
             m.extend_from_slice(tcl_syntax::list::describe_bad_value(s).as_bytes());
-            Err(ExprError::from_bytes(m))
+            Err(ExprError::from_parts(
+                m,
+                tcl_syntax::expr::errors::BOOLEAN_OPERAND_CODE
+                    .as_bytes()
+                    .to_vec(),
+            ))
         }
     }
 }

@@ -352,3 +352,171 @@ fn srand_refuses_a_non_integer_operand() {
         "TCL VALUE NUMBER",
     );
 }
+
+// ---------------------------------------------------------------------------
+// #1581 — the expr/mathfunc error taxonomy: IOVERFLOW / NaN codes, the
+// boolean-context codes, and the release axis for `IllegalExprOperandType`.
+// ---------------------------------------------------------------------------
+
+const IOVERFLOW: &str = "integer value too large to represent";
+const IOVERFLOW_CODE: &str = "ARITH IOVERFLOW {integer value too large to represent}";
+const NAN_MSG: &str = "floating point value is Not a Number";
+const NAN_CODE: &str = "TCL VALUE DOUBLE NAN";
+
+/// tclsh 8.6.16/9.0.4: an infinity reaching an integer conversion is
+/// `ARITH IOVERFLOW`, not the generic `ARITH DOMAIN` the runtime used to
+/// report.
+#[test]
+fn an_infinity_in_an_integer_conversion_is_ioverflow() {
+    for body in [
+        "entier(Inf)",
+        "int(Inf)",
+        "wide(Inf)",
+        "round(Inf)",
+        "entier(-Inf)",
+        "isqrt(Inf)",
+    ] {
+        expr_err(body, IOVERFLOW, IOVERFLOW_CODE);
+    }
+    // FP guard: the conversions that *can* answer with an infinity still do.
+    expr_is("abs(-Inf)", "Inf");
+    expr_is("double(Inf)", "Inf");
+    expr_is("floor(Inf)", "Inf");
+}
+
+/// tclsh 8.6.16/9.0.4: a NaN operand is `TCL VALUE DOUBLE NAN`.
+#[test]
+fn a_nan_operand_carries_the_double_nan_code() {
+    for body in [
+        "entier(NaN)",
+        "int(NaN)",
+        "round(NaN)",
+        "abs(NaN)",
+        "double(NaN)",
+        "ceil(NaN)",
+        "isqrt(NaN)",
+    ] {
+        expr_err(body, NAN_MSG, NAN_CODE);
+    }
+}
+
+/// A genuine domain error keeps its own class, and `isqrt` of a negative
+/// keeps C's specialised message with the ordinary domain code (tclsh
+/// verified).
+#[test]
+fn domain_errors_keep_their_own_class() {
+    expr_err(
+        "sqrt(-1)",
+        "domain error: argument not in valid range",
+        "ARITH DOMAIN {domain error: argument not in valid range}",
+    );
+    expr_err(
+        "isqrt(-1)",
+        "square root of negative argument",
+        "ARITH DOMAIN {domain error: argument not in valid range}",
+    );
+}
+
+/// Boolean context: tclsh 8.6.16/9.0.4 stamp `TCL VALUE NUMBER` on
+/// `expected boolean value but got "…"` and `TCL VALUE DOUBLE NAN` on a NaN
+/// there. Both were `NONE` before #1581.
+#[test]
+fn boolean_context_errors_carry_their_codes() {
+    for body in [
+        "\"abc\" ? 1 : 2",
+        "\"abc\" && 1",
+        "1 && \"abc\"",
+        "\"abc\" || 0",
+    ] {
+        expr_err(
+            body,
+            "expected boolean value but got \"abc\"",
+            "TCL VALUE NUMBER",
+        );
+    }
+    expr_err("\"NaN\" ? 1 : 2", NAN_MSG, NAN_CODE);
+}
+
+/// `IllegalExprOperandType` at Tcl 9.0: the value and the side are named, the
+/// multi-element list has its own branch, and every one carries
+/// `ARITH DOMAIN <description>`.
+#[test]
+fn operand_type_errors_use_the_9_0_wording_and_code() {
+    expr_err(
+        "!\"abc\"",
+        "cannot use non-numeric string \"abc\" as operand of \"!\"",
+        "ARITH DOMAIN {non-numeric string}",
+    );
+    expr_err(
+        "~1.5",
+        "cannot use floating-point value \"1.5\" as operand of \"~\"",
+        "ARITH DOMAIN {floating-point value}",
+    );
+    expr_err(
+        "\"abc\" + 1",
+        "cannot use non-numeric string \"abc\" as left operand of \"+\"",
+        "ARITH DOMAIN {non-numeric string}",
+    );
+    expr_err(
+        "1 + \"abc\"",
+        "cannot use non-numeric string \"abc\" as right operand of \"+\"",
+        "ARITH DOMAIN {non-numeric string}",
+    );
+    expr_err(
+        "2 & 1.5",
+        "cannot use floating-point value \"1.5\" as right operand of \"&\"",
+        "ARITH DOMAIN {floating-point value}",
+    );
+    expr_err(
+        "\"a b\" + 1",
+        "cannot use a list as left operand of \"+\"",
+        "ARITH DOMAIN list",
+    );
+    // (`expr {NaN + 1}` is a separate, pre-existing gap: the runtime's tower
+    // accepts a *typed* double NaN as an arithmetic operand and answers `NaN`
+    // where tclsh raises the operand-type error. That is an operand-acceptance
+    // bug, not a taxonomy one, and is left outside this lane.)
+}
+
+/// The same errors at Tcl 8.6: no value, no side, and no list branch — the
+/// release axis #1581 asks for. Measured on tclsh8.6.16.
+#[test]
+fn operand_type_errors_use_the_8_6_wording_at_8_6() {
+    let mut interp = Interp::new();
+    interp.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+    for (body, want) in [
+        (
+            "!\"abc\"",
+            "can't use non-numeric string as operand of \"!\"",
+        ),
+        ("~1.5", "can't use floating-point value as operand of \"~\""),
+        (
+            "\"abc\" + 1",
+            "can't use non-numeric string as operand of \"+\"",
+        ),
+        (
+            "1 + \"abc\"",
+            "can't use non-numeric string as operand of \"+\"",
+        ),
+        (
+            "2 & 1.5",
+            "can't use floating-point value as operand of \"&\"",
+        ),
+        // 8.6 has no list branch at all.
+        (
+            "\"a b\" + 1",
+            "can't use non-numeric string as operand of \"+\"",
+        ),
+    ] {
+        assert_eq!(
+            interp.eval_str(format!("expr {{{body}}}").as_bytes()),
+            Code::Error,
+            "expr {{{body}}} at 8.6"
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&interp.result_bytes()),
+            want,
+            "expr {{{body}}} at 8.6"
+        );
+    }
+}

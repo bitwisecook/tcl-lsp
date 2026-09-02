@@ -32,6 +32,7 @@ use num_bigint::BigInt;
 use num_integer::Integer;
 use num_traits::{FromPrimitive, Signed, ToPrimitive, Zero};
 use tcl_runtime_api::Code;
+use tcl_syntax::expr::errors;
 use tcl_syntax::expr::{BinOp, ExprOps, NumericCompare, UnaryOp};
 use tcl_syntax::number::{self, Number};
 use tcl_syntax::number_tower;
@@ -280,7 +281,7 @@ pub(crate) fn cvt_to_numeric(v: Value) -> Result<Value, TclError> {
 /// Like [`to_num`] but reports the C Tcl 9 operand-specific message
 /// (`cannot use non-numeric string "x" as left operand of "+"`). `side` is
 /// `"left"` / `"right"`.
-fn to_num_operand(v: &Value, side: &str, op: BinOp) -> Result<Num, TclError> {
+fn to_num_operand(v: &Value, side: errors::OperandSide, op: BinOp) -> Result<Num, TclError> {
     if let Ok(n) = v.as_int() {
         return Ok(Num::Int(n));
     }
@@ -295,27 +296,50 @@ fn to_num_operand(v: &Value, side: &str, op: BinOp) -> Result<Num, TclError> {
     if let Some(b) = value_as_bigint(v) {
         return Ok(Num::Huge(b));
     }
-    // A non-number that *is* a multi-element list gets C's distinct wording,
-    // which `IllegalExprOperandType` applies to binary operators exactly as to
-    // unary ones — `ord` is `"left "`/`"right "` there.
+    Err(operand_type_err(v, side, op.as_str()))
+}
+
+/// C's `IllegalExprOperandType`, through the shared owner
+/// ([`tcl_syntax::expr::errors`]): the *wording* is a release axis (9.0 names
+/// the value and the side and has a list branch; 8.4-8.6 name neither and
+/// have no list branch) while the `-errorcode ARITH DOMAIN <description>` is
+/// invariant. The VM emitted the 9.0 form at every `--tcl-version` and no
+/// `-errorcode` at all before #1581.
+///
+/// The release comes from the same ambient the numeric grammar already
+/// follows ([`errors::ambient_release`]), because these errors are raised
+/// from `arith`/`unary`, which bytecode opcodes call with no interpreter in
+/// hand.
+fn operand_type_err(v: &Value, side: errors::OperandSide, op: &str) -> TclError {
     let s = v.to_str();
-    if is_list_operand(&s) {
-        return Err(TclError::new(format!(
-            "cannot use a list as {side} operand of \"{}\"",
-            op.as_str()
-        )));
-    }
-    // `nan` (and `±NaN`) is a valid floating-point *value* that simply cannot be
-    // an arithmetic operand — C words that differently from a non-number string.
-    let kind = if matches!(number::parse_whole(s.trim()), Some(Number::Nan { .. })) {
-        "floating-point value"
+    let desc = if is_list_operand(&s) {
+        errors::OperandDesc::List
     } else {
-        "string"
+        match number::parse_whole(s.trim()) {
+            Some(Number::Double(_)) => errors::OperandDesc::FloatingPointValue,
+            Some(Number::Nan { .. }) => errors::OperandDesc::NonNumericFloatingPointValue,
+            _ => errors::OperandDesc::NonNumericString,
+        }
     };
-    Err(TclError::new(format!(
-        "cannot use non-numeric {kind} \"{s}\" as {side} operand of \"{}\"",
-        op.as_str()
-    )))
+    let release = errors::ambient_release();
+    TclError::with_error_code(
+        errors::illegal_operand_message(desc, &s, side, op, release),
+        errors::illegal_operand_error_code(desc, release),
+    )
+}
+
+/// The boolean-context error C raises for a value that is neither a number
+/// nor a Tcl boolean word (`expected boolean value but got "x"`,
+/// `-errorcode TCL VALUE NUMBER`) or for a NaN there
+/// (`floating point value is Not a Number`, `TCL VALUE DOUBLE NAN`). Both
+/// were `NONE` on the VM before #1581.
+fn boolean_context_err(message: String) -> TclError {
+    let code = if message == errors::NAN_MESSAGE {
+        errors::NAN_CODE
+    } else {
+        errors::BOOLEAN_OPERAND_CODE
+    };
+    TclError::with_error_code(message, code)
 }
 
 /// C `IllegalExprOperandType`'s list branch (`tclExecute.c:9089-9107`): a value
@@ -348,16 +372,7 @@ fn zero_to_negative_power() -> TclError {
 /// `non-numeric string`. (`errorCode ARITH DOMAIN <desc>` is not threaded here
 /// yet — tracked by #1581.)
 fn unary_operand_err(v: &Value, op: &str) -> TclError {
-    let s = v.to_str();
-    if is_list_operand(&s) {
-        return TclError::new(format!("cannot use a list as operand of \"{op}\""));
-    }
-    let desc = match number::parse_whole(s.trim()) {
-        Some(Number::Double(_)) => "floating-point value",
-        Some(Number::Nan { .. }) => "non-numeric floating-point value",
-        _ => "non-numeric string",
-    };
-    TclError::new(format!("cannot use {desc} \"{s}\" as operand of \"{op}\""))
+    operand_type_err(v, errors::OperandSide::Unary, op)
 }
 
 /// Floored integer division (Tcl `/`: rounds toward negative infinity) — the
@@ -510,8 +525,8 @@ fn float_operand_err(v: &Value, side: &str, op: BinOp) -> TclError {
 
 /// Apply an arithmetic / bitwise / shift binary operator to two values.
 pub fn arith(op: BinOp, a: &Value, b: &Value) -> Result<Value, TclError> {
-    let x = to_num_operand(a, "left", op)?;
-    let y = to_num_operand(b, "right", op)?;
+    let x = to_num_operand(a, errors::OperandSide::Left, op)?;
+    let y = to_num_operand(b, errors::OperandSide::Right, op)?;
     // Fast integer path: both operands fit `i128` (promotes to bignum on overflow).
     if let (Some(xi), Some(yi)) = (num_i128(&x), num_i128(&y)) {
         return int_arith(op, xi, yi);
@@ -935,7 +950,7 @@ impl ExprOps for ExprEval<'_> {
     }
 
     fn to_bool(&mut self, v: &Value) -> Result<bool, TclError> {
-        v.as_bool()
+        v.as_bool().map_err(|e| boolean_context_err(e.message))
     }
 
     fn bool_value(&mut self, b: bool) -> Value {

@@ -182,6 +182,173 @@ impl IntWidth {
     }
 }
 
+/// Why a math-function dispatch could not produce a value — C's error surface
+/// for `expr`'s function calls, carried so both engines report the same
+/// message *and* `-errorcode` instead of collapsing every refusal into one
+/// generic domain error (issue #1581).
+///
+/// The message/code pairs are tclsh 8.6.16 and 9.0.4 output, read with
+/// `catch {expr {...}} m o; list $m [dict get $o -errorcode]`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MathFuncError {
+    /// `name` is not a built-in `expr` function in any release.
+    UnknownFunction,
+    /// The call has the wrong number of arguments for the function.
+    WrongArgCount,
+    /// An infinity reached an integer conversion (`entier`/`int`/`wide`/
+    /// `round`/`isqrt`): `integer value too large to represent`,
+    /// `-errorcode ARITH IOVERFLOW {integer value too large to represent}`.
+    IntegerOverflow,
+    /// A NaN reached a function that needs a real number:
+    /// `floating point value is Not a Number`,
+    /// `-errorcode TCL VALUE DOUBLE NAN`.
+    NotANumber,
+    /// A genuine domain error (`sqrt(-1)`, `fmod(x, 0)`, `log(-1)`):
+    /// `domain error: argument not in valid range`, `-errorcode ARITH DOMAIN
+    /// {domain error: argument not in valid range}`.
+    Domain,
+    /// `isqrt` of a negative operand — C keeps its own message
+    /// (`square root of negative argument`) with the ordinary domain
+    /// `-errorcode`.
+    NegativeSqrt,
+    /// **Not a Tcl error.** There is no answer *this caller* can carry: its
+    /// backend has no arbitrary-precision rung ([`Num`], the const-folder's
+    /// shape) or it did not resolve a release and `int()`'s width is
+    /// release-dependent. A const-folder must abstain — leave the call to run
+    /// at run time — never turn this into an error.
+    Abstain,
+}
+
+impl MathFuncError {
+    /// C's verbatim message, or `""` for the two refusals that have none of
+    /// their own ([`Self::UnknownFunction`] / [`Self::WrongArgCount`] are
+    /// worded by the caller, which knows the invoked spelling, and
+    /// [`Self::Abstain`] is not an error at all).
+    #[must_use]
+    pub fn message(self) -> &'static str {
+        match self {
+            MathFuncError::IntegerOverflow => super::errors::IOVERFLOW_MESSAGE,
+            MathFuncError::NotANumber => super::errors::NAN_MESSAGE,
+            MathFuncError::Domain => super::errors::DOMAIN_MESSAGE,
+            MathFuncError::NegativeSqrt => "square root of negative argument",
+            _ => "",
+        }
+    }
+
+    /// C's verbatim `-errorcode`, or `""` when the caller supplies it.
+    /// `isqrt`'s negative-operand error reuses the ordinary domain code
+    /// (tclsh verified), even though its message differs.
+    #[must_use]
+    pub fn error_code(self) -> &'static str {
+        match self {
+            MathFuncError::IntegerOverflow => super::errors::IOVERFLOW_CODE,
+            MathFuncError::NotANumber => super::errors::NAN_CODE,
+            MathFuncError::Domain | MathFuncError::NegativeSqrt => super::errors::DOMAIN_CODE,
+            _ => "",
+        }
+    }
+}
+
+/// Whether `name` is one of the classification predicates that *inspect* a
+/// NaN or infinity rather than computing with it — the functions for which a
+/// NaN operand is the point, not an error (`isnan(NaN)` is `1`).
+fn inspects_non_finite(name: &str) -> bool {
+    matches!(
+        name,
+        "isnan" | "isinf" | "isfinite" | "isnormal" | "issubnormal" | "isunordered" | "signbit"
+    )
+}
+
+/// The integer conversions: an infinity is `ARITH IOVERFLOW` here, while
+/// `abs(Inf)` / `double(Inf)` / `floor(Inf)` all answer `Inf` (tclsh
+/// verified).
+fn converts_to_integer(name: &str) -> bool {
+    matches!(name, "entier" | "int" | "wide" | "round" | "isqrt")
+}
+
+/// Dispatch with an **error channel**: the same table as
+/// [`dispatch_with_backend_int_width`], but each refusal keeps the class C
+/// reports it as, so a runtime can stamp the right message and `-errorcode`
+/// (#1581) and a const-folder can tell "this would raise" from "I cannot
+/// represent the answer" ([`MathFuncError::Abstain`]).
+///
+/// A const-folder must abstain on **every** `Err`, never fold one into a
+/// value: the erroring call may sit in a branch that never runs.
+///
+/// # Errors
+/// See [`MathFuncError`] for the classes and their C message/`-errorcode`.
+pub fn try_dispatch_with_backend_int_width<B: super::super::number_tower::BigIntOps>(
+    name: &str,
+    args: &[NumValue<B>],
+    int_width: IntWidth,
+) -> Result<NumValue<B>, MathFuncError> {
+    let Some(spec) = spec(name) else {
+        return Err(MathFuncError::UnknownFunction);
+    };
+    let n = args.len();
+    if n < usize::from(spec.arity.min) || spec.arity.max.is_some_and(|m| n > usize::from(m)) {
+        return Err(MathFuncError::WrongArgCount);
+    }
+    if !inspects_non_finite(name) {
+        // C converts each operand before computing, and the two non-finite
+        // refusals it raises there outrank any later domain error.
+        for arg in args {
+            if let NumValue::Float(f) = arg {
+                if f.is_nan() {
+                    return Err(MathFuncError::NotANumber);
+                }
+                if f.is_infinite() && converts_to_integer(name) {
+                    return Err(MathFuncError::IntegerOverflow);
+                }
+            }
+        }
+    }
+    if name == "isqrt" && is_negative(&args[0]) {
+        return Err(MathFuncError::NegativeSqrt);
+    }
+    dispatch_with_backend_int_width(name, args, int_width).ok_or_else(|| {
+        // A finite operand the backend cannot represent exactly (no bignum
+        // rung), or `int()` with an unresolved release, is an abstention —
+        // everything else that declines is a real domain error.
+        if abstains(name, args, int_width) {
+            MathFuncError::Abstain
+        } else {
+            MathFuncError::Domain
+        }
+    })
+}
+
+/// Whether `v` is negative (`isqrt`'s own refusal, which C words specially).
+fn is_negative<B: super::super::number_tower::BigIntOps>(v: &NumValue<B>) -> bool {
+    match v {
+        NumValue::Int(i) => *i < 0,
+        NumValue::Big(b) => b.is_negative(),
+        NumValue::Float(f) => *f < 0.0,
+    }
+}
+
+/// Whether a `None` from the value table means "no answer this caller can
+/// carry" rather than "C would raise a domain error": an exact conversion
+/// whose result needs a bignum rung the backend lacks, or `int()` under an
+/// unresolved release.
+fn abstains<B: super::super::number_tower::BigIntOps>(
+    name: &str,
+    args: &[NumValue<B>],
+    int_width: IntWidth,
+) -> bool {
+    if !converts_to_integer(name) {
+        return false;
+    }
+    let beyond_wide = match &args[0] {
+        NumValue::Float(f) => f.is_finite() && finite_trunc_to_i64(*f).is_none(),
+        NumValue::Big(b) => b.to_i64().is_none(),
+        NumValue::Int(_) => false,
+    };
+    beyond_wide
+        && (B::from_f64_trunc(1.0e300).is_none()
+            || (name == "int" && int_width == IntWidth::Unresolved))
+}
+
 /// Dispatch a math function by (lowercased) `name` over already-evaluated
 /// numeric `args`. Returns `None` for an unknown function, a wrong argument
 /// count, or a domain error (matching the const-folder "give up" / runtime
