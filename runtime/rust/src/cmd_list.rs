@@ -255,22 +255,27 @@ fn lassign(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let vars = &argv[2..];
     for (i, &var) in vars.iter().enumerate() {
         let name = obj_bytes(var);
+        // `arr(a)` writes the array *element*, not a literal scalar named
+        // `arr(a)` (issue #1577) — the same `split_array_ref` + `var_set`/
+        // `var_set_elem` routing `set`/`lset` already use, so this doesn't
+        // hand-roll a second name parser.
+        let (base, elem) = crate::frame::split_array_ref(&name);
         let val = if i < elems.len() {
             elems[i]
         } else {
             obj::new_string_bytes(b"")
         };
         let fresh = i >= elems.len();
-        let r = interp.var_set(&name, val);
+        let r = match &elem {
+            Some(k) => interp.var_set_elem(&base, k, val),
+            None => interp.var_set(&base, val),
+        };
         if fresh {
             // `set` retained `val`; release our construction ref to the empty obj
             drop_fresh(val);
         }
-        if r.is_err() {
-            let mut m = b"can't set \"".to_vec();
-            m.extend_from_slice(&name);
-            m.extend_from_slice(b"\": variable is array");
-            return interp.set_error(&m);
+        if let Err(e) = r {
+            return crate::builtins::var_error(interp, &name, e);
         }
     }
     if vars.len() < elems.len() {

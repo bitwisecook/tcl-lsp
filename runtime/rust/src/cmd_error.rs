@@ -32,6 +32,7 @@
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use crate::dict;
+use crate::frame::VarError;
 use crate::interp::{drop_fresh, new_string, obj_bytes, Code, Interp};
 use crate::obj::{self, TclObj};
 
@@ -70,16 +71,16 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
     if let Some(&rv) = argv.get(2) {
         let name = obj_bytes(rv);
-        if interp.var_set(&name, result).is_err() {
-            return cant_set(interp, &name);
+        if let Err(e) = set_var_or_elem(interp, &name, result) {
+            return crate::builtins::var_error(interp, &name, e);
         }
     }
     if let Some(&ov) = argv.get(3) {
         let opts = completion_options(interp, code); // rc 0
         let name = obj_bytes(ov);
-        if interp.var_set(&name, opts).is_err() {
+        if let Err(e) = set_var_or_elem(interp, &name, opts) {
             drop_fresh(opts);
-            return cant_set(interp, &name);
+            return crate::builtins::var_error(interp, &name, e);
         }
     }
     // The error is now caught: publish the accumulated trace to the
@@ -92,11 +93,17 @@ fn catch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-fn cant_set(interp: &mut Interp, name: &[u8]) -> Code {
-    let mut m = b"can't set \"".to_vec();
-    m.extend_from_slice(name);
-    m.extend_from_slice(b"\": variable is array");
-    interp.set_error(&m)
+/// Write `obj` to `name`, routing `arr(a)` to the array *element* rather than
+/// a literal scalar named `arr(a)` (issue #1577) — the same
+/// `split_array_ref`/`var_set`/`var_set_elem` routing `set` uses, so
+/// `catch`'s result/options vars and `try`'s handler vars don't hand-roll a
+/// second name parser.
+fn set_var_or_elem(interp: &mut Interp, name: &[u8], obj: *mut TclObj) -> Result<(), VarError> {
+    let (base, elem) = crate::frame::split_array_ref(name);
+    match &elem {
+        Some(k) => interp.var_set_elem(&base, k, obj),
+        None => interp.var_set(&base, obj),
+    }
 }
 
 /// Build a completion's return-options dict from the live interpreter state.
@@ -432,16 +439,16 @@ fn bind_handler_vars(
     if let Some(rv) = names.first() {
         if !rv.is_empty() {
             let o = new_string(body_result);
-            if interp.var_set(rv, o).is_err() {
+            if let Err(e) = set_var_or_elem(interp, rv, o) {
                 drop_fresh(o);
-                cant_set(interp, rv);
+                crate::builtins::var_error(interp, rv, e);
                 return Err(());
             }
         }
     }
     if let Some(ov) = names.get(1) {
-        if interp.var_set(ov, body_opts).is_err() {
-            cant_set(interp, ov);
+        if let Err(e) = set_var_or_elem(interp, ov, body_opts) {
+            crate::builtins::var_error(interp, ov, e);
             return Err(());
         }
     }

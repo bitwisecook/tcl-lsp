@@ -17,10 +17,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Oracle-pinned regression coverage for the r4-parser-gaps lane
-//! (#1576, #1586, #1577). Every expected message/errorCode below was taken
-//! verbatim from `tclsh9.0` (9.0.4) and/or `tclsh8.6` (8.6.16); a reader can
-//! paste the sheet into a real `tclsh` and re-derive the expectation without
-//! this harness.
+//! (#1576, #1586, #1577). Every expected message/errorCode/value below was
+//! taken verbatim from `tclsh9.0` (9.0.4) and/or `tclsh8.6` (8.6.16); a
+//! reader can paste the sheet into a real `tclsh` and re-derive the
+//! expectation without this harness.
 
 use tcl_runtime::interp::{Code, Interp};
 
@@ -126,4 +126,83 @@ fn well_formed_braced_var_still_substitutes() {
     let (code, result, _) = run("set a hi\nsubst {x${a}y}");
     assert_eq!(code, Code::Ok);
     assert_eq!(result, "xhiy");
+}
+
+// ---------------------------------------------------------------------------
+// #1577 — `lassign`, `catch` (result/options vars), `regexp` match vars,
+// `scan`, `binary scan`, and `foreach`/`lmap` loop vars must write `arr(a)`
+// as the array *element*, like `set` already does, not as a literal scalar
+// named `arr(a)`. Oracle: tclsh 8.6.16/9.0.4 all agree `array get arr` comes
+// back `a p b q` (etc.) after each of these commands targets `arr(a)`/
+// `arr(b)`.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn lassign_writes_array_elements() {
+    let (code, result, _) = run("lassign {p q} arr(a) arr(b)\narray get arr");
+    assert_eq!(code, Code::Ok);
+    assert_eq!(result, "a p b q");
+}
+
+#[test]
+fn lassign_into_an_existing_array_scalar_target_still_errors_like_set() {
+    let (code, result, _) = run("array set arr {x 1}\ncatch {lassign {1} arr} e\nset e");
+    assert_eq!(code, Code::Ok);
+    assert_eq!(result, "can't set \"arr\": variable is array");
+}
+
+#[test]
+fn catch_writes_result_and_options_array_elements() {
+    let (code, result, _) =
+        run("catch {error boom} arr(a) opts(o)\nlist [array get arr] [dict get $opts(o) -code]");
+    assert_eq!(code, Code::Ok);
+    assert_eq!(result, "{a boom} 1");
+}
+
+#[test]
+fn regexp_writes_match_vars_as_array_elements() {
+    let (code, result, _) = run("regexp {(a)(b)} xabx m arr(1) arr(2)\narray get arr");
+    assert_eq!(code, Code::Ok);
+    assert_eq!(result, "1 a 2 b");
+}
+
+#[test]
+fn scan_writes_vars_as_array_elements() {
+    let (code, result, _) = run(r#"scan "12 ab" "%d %s" arr(1) arr(2)
+array get arr"#);
+    assert_eq!(code, Code::Ok);
+    assert_eq!(result, "1 12 2 ab");
+}
+
+#[test]
+fn binary_scan_writes_vars_as_array_elements() {
+    let (code, result, _) = run("binary scan AB cc arr(1) arr(2)\narray get arr");
+    assert_eq!(code, Code::Ok);
+    assert_eq!(result, "1 65 2 66");
+}
+
+#[test]
+fn foreach_writes_loop_var_as_array_element() {
+    let (code, result, _) = run("foreach arr(a) {1 2} {}\narray get arr");
+    assert_eq!(code, Code::Ok);
+    assert_eq!(result, "a 2");
+}
+
+#[test]
+fn lmap_writes_loop_var_as_array_element_too() {
+    let (code, result, _) = run("lmap arr(a) {1 2} {set arr(a)}\narray get arr");
+    assert_eq!(code, Code::Ok);
+    assert_eq!(result, "a 2");
+}
+
+/// The zero-length-array-name spelling `(k)` — base name `""` — routes
+/// through the same `split_array_ref` owner as every other element write, so
+/// it comes along for free (tracked separately as #1458 for whether the
+/// *owner itself* handles every edge of that spelling; this only pins that
+/// these six sites don't bypass it).
+#[test]
+fn zero_length_array_name_spelling_routes_through_the_same_owner() {
+    let (code, result, _) = run("lassign {v} (k)\narray get {}");
+    assert_eq!(code, Code::Ok);
+    assert_eq!(result, "k v");
 }

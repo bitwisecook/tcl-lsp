@@ -61,9 +61,20 @@ fn regexp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             if let Some(pairs) = assign {
                 let mut it = pairs.into_iter();
                 while let Some((name, val)) = it.next() {
-                    if interp.var_set(&name, val).is_err() {
-                        // `var_set` does not consume on error; drop this value
-                        // and every still-unconsumed one to stay leak-free.
+                    // `arr(a)` writes the array *element*, not a literal
+                    // scalar named `arr(a)` (issue #1577) — the same
+                    // `split_array_ref` + `var_set`/`var_set_elem` routing
+                    // `set` uses, so this doesn't hand-roll a second name
+                    // parser.
+                    let (base, elem) = crate::frame::split_array_ref(&name);
+                    let stored = match &elem {
+                        Some(k) => interp.var_set_elem(&base, k, val),
+                        None => interp.var_set(&base, val),
+                    };
+                    if stored.is_err() {
+                        // `var_set`/`var_set_elem` do not consume on error;
+                        // drop this value and every still-unconsumed one to
+                        // stay leak-free.
                         drop_fresh(val);
                         for (_, v) in it {
                             drop_fresh(v);
