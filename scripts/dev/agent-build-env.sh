@@ -25,7 +25,7 @@
 # paths of the same workspace (same package name/version/features), so
 # concurrent builds race on the same deps/ outputs.  A test run can then pass
 # or fail against code that is not in the tree being tested.  See the
-# "Parallel worktrees and agent build isolation" section of AGENTS.md and
+# docs/kcs/kcs-issue-parallel-worktree-builds-serve-stale-artefacts.md and
 # issue #1052 for the observed failure modes.
 #
 # This helper pins the build environment for the current worktree:

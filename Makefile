@@ -980,8 +980,9 @@ smoke-p: ## Smoke tier for one crate: make smoke-p P=<crate-name>
 	fi
 
 # Manual-only tier: every #[ignore]d corpus sweep, differential-fuzz gate,
-# and privileged/environment-gated test in the workspace (see AGENTS.md's
-# #[ignore] policy).  NEVER wired into prep-pr, test, check-all, or CI.
+# and privileged/environment-gated test in the workspace (see
+# docs/design/contracts/test-tiers-and-ci-gates.md).  NEVER wired into
+# prep-pr, test, check-all, or CI.
 # The corpus tests need the tmp/tcl8.x / tcl9.x / tcllib trees fetched
 # (fetch-tcl-source skill / session-start hook); the bpf-tcl privileged tests
 # need root + iproute2/bpftool + a live Linux kernel.

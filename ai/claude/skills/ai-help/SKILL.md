@@ -6,36 +6,22 @@ allowed-tools: mcp__tcl-lsp__help, Read
 
 # AI Help -- tcl-lsp feature guide
 
-Answer questions about what features the tcl-lsp extension provides and how
-to use them across VS Code, other editors, Claude Code, and the MCP server.
-
 ## Steps
 
-1. Read the feature catalogue built into the server by calling `mcp__tcl-lsp__help` (leave the `topic` argument empty for the full catalogue)
-2. If the tool fails, fall back to reading the README.md for feature information
-3. If the user asked about a **specific topic** (e.g. "how do I validate?",
-   "what MCP tools exist?", "how do I set up Neovim?"), focus on that area
-   and read the relevant editor README if needed:
-   - VS Code: `editors/vscode/package.json` (commands, settings, chat participants)
-   - Neovim: `editors/neovim/README.md`
-   - Emacs: `editors/emacs/README.md`
-   - Zed: `editors/zed/README.md`
-   - Helix: `editors/helix/README.md`
-   - Sublime Text: `editors/sublime-text/README.md`
-   - JetBrains: `editors/jetbrains/README.md`
-4. If the user asked a **general** question ("what can you do?", "help"),
-   give an overview of all feature areas with brief descriptions.
-5. Always mention that the same analysis engine powers all surfaces:
-   the LSP server, the MCP tools, the Claude Code skills, and the VS Code
-   chat participants.
+1. Call `mcp__tcl-lsp__help` (empty `topic` for the full catalogue; a
+   `topic` to search). If it fails, read `README.md`.
+2. For a specific topic ("how do I validate?", "what MCP tools exist?",
+   "set up Neovim") focus there, reading the editor's README if needed
+   (`editors/vscode/package.json` for commands, settings, and chat
+   participants; `editors/<neovim|emacs|zed|helix|sublime-text|jetbrains>/README.md`).
+   For "what can you do?" give an overview of every area.
+3. Say that one analysis engine powers every surface: the LSP server, the
+   MCP tools, the Claude Code skills, and the VS Code chat participants.
 
-## Output format
+## Output
 
-- Group features by surface area: **Editor (LSP)**, **AI Chat (VS Code)**,
-  **Claude Code Skills**, **MCP Tools**
-- Use concise bullet lists
-- Highlight the most useful commands for the user's context
-- If the user's question is about a specific editor, include setup
-  instructions from the relevant README
+Concise bullets grouped as **Editor (LSP)**, **AI Chat (VS Code)**, **Claude
+Code Skills**, **MCP Tools**; highlight what fits the user's context; include
+setup steps from the README when the question is about one editor.
 
 $ARGUMENTS

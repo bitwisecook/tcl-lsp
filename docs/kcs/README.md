@@ -33,9 +33,7 @@ symptom with several possible causes worth telling apart. See rule 13 in
 
 1. Pick a category and copy the matching template from
    [`templates/`](templates/README.md).
-2. Follow the style guide in [`STYLE.md`](STYLE.md). The short-form rules
-   are also listed in [`AGENTS.md`](../../AGENTS.md) under "Knowledge base
-   and documentation".
+2. Follow the style guide in [`STYLE.md`](STYLE.md).
 3. Link the new note from the appropriate section below.
 4. Add a cross-link to [`docs/GLOSSARY.md`](../GLOSSARY.md) for any
    complex term you use.

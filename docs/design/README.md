@@ -9,7 +9,7 @@ is structured and why, and assume the reader can read the code.
 If you are writing a user-facing answer, a how-to, a Q&A, or a feature
 description, it belongs in [`docs/kcs/`](../kcs/README.md) instead. The
 rules for the KCS/documentation split live in
-[`AGENTS.md`](../../AGENTS.md) under "Knowledge base and documentation".
+[`docs/kcs/STYLE.md`](../kcs/STYLE.md).
 
 ## Architecture and walkthroughs
 
@@ -400,6 +400,12 @@ are its rules, and what are the failure modes". One contract per file.
   idempotency and rewrite contracts.
 - [project-layout.md](contracts/project-layout.md) — repository layout
   and dependency direction.
+- [development-environment.md](contracts/development-environment.md) —
+  toolchain prerequisites, what the remote-session hook pre-installs, the
+  owner of every pinned version, and the build entry points.
+- [test-tiers-and-ci-gates.md](contracts/test-tiers-and-ci-gates.md) — the
+  smoke / deep / exhaustive tiers, the local gates before a push, the
+  `#[ignore]` and xfail policies, and the CI redundancy contract.
 - [release-and-publish.md](contracts/release-and-publish.md) —
   the four-layer build/CI/publish model, the no-marketplace-tokens-in-CI
   invariant, and the release flow.
@@ -544,10 +550,11 @@ Distilled from the trickiest scars in the WASM runtime history
 
 ## In-flight agent lanes
 
-- [lanes/README.md](lanes/README.md) — one tracking document per in-flight
-  agent lane: goal, decisions taken and why, site inventory, behavioural
-  deltas, and open uncertainties. A file there means a lane is either in
-  flight or was interrupted; each is removed when its lane lands.
+- [lanes/README.md](lanes/README.md) — the lane protocol (tracking
+  document, checkpoint commits, explicit-path staging, orchestrator pushes)
+  and one tracking document per in-flight agent lane. A file there means a
+  lane is either in flight or was interrupted; each is removed when its
+  lane lands.
 
 ## Templates
 
