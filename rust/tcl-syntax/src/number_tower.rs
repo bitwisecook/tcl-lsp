@@ -121,6 +121,47 @@ pub trait BigIntOps: Sized + Clone + Ord {
     fn bit_len(&self) -> u64;
     /// Correctly rounded conversion to an IEEE-754 double.
     fn to_f64(&self) -> f64;
+    /// The exact integer value of a **finite** double, truncated toward zero
+    /// — C's `Tcl_InitBignumFromDouble` (`tclStrToD.c`), the conversion TIP
+    /// 237's `entier()` needs: `entier(1e300)` is the full 301-digit integer,
+    /// not a saturated wide.
+    ///
+    /// `None` for a non-finite operand (the adopter's `integer value too
+    /// large to represent` / `Not a Number` errors) and for a backend with no
+    /// arbitrary-precision rung at all.
+    ///
+    /// The default implementation reads the IEEE-754 fields rather than
+    /// routing through a backend-specific float conversion, so every adopter
+    /// agrees bit for bit: a finite double is `mantissa * 2^shift` with a
+    /// 53-bit mantissa, and any magnitude the wide tier cannot already hold
+    /// has `shift > 0`.
+    fn from_f64_trunc(f: f64) -> Option<Self> {
+        if !f.is_finite() {
+            return None;
+        }
+        let truncated = f.trunc();
+        let bits = truncated.to_bits();
+        let exponent = ((bits >> 52) & 0x7FF) as i64;
+        let fraction = bits & ((1_u64 << 52) - 1);
+        if exponent == 0 {
+            // Zero or subnormal: `trunc` already made every such value ±0.
+            return Some(Self::from_i64(0));
+        }
+        let mantissa = (fraction | (1_u64 << 52)) as i64;
+        let shift = exponent - 1075;
+        let magnitude = if shift >= 0 {
+            Self::from_i64(mantissa).shl(u32::try_from(shift).ok()?)
+        } else {
+            // `trunc` cleared every fractional bit, so this shift is exact.
+            Self::from_i64(mantissa).shr(usize::try_from(-shift).ok()?)
+        };
+        Some(if truncated.is_sign_negative() {
+            magnitude.neg()
+        } else {
+            magnitude
+        })
+    }
+
     /// Exact magnitude.
     #[must_use]
     fn abs(&self) -> Self {

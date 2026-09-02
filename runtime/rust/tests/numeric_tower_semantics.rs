@@ -187,3 +187,111 @@ fn a_float_left_operand_beats_a_negative_shift_count() {
         "cannot use floating-point value \"1.5\" as left operand of \">>\""
     );
 }
+
+// ---------------------------------------------------------------------------
+// #1382 — `entier`/`int`/`wide`/`round` on a float outside the wide range.
+// The shared arms now widen through the tower's bignum rung, so the runtime
+// answers what tclsh answers instead of raising `ARITH DOMAIN`.
+// ---------------------------------------------------------------------------
+
+/// tclsh 8.6.16/9.0.4: TIP 237 makes `entier()` unbounded, so `entier(1e300)`
+/// is the exact 301-digit value of the double `1e300` — not `10^300`, and not
+/// a domain error (which is what the runtime used to raise).
+#[test]
+fn entier_of_a_beyond_wide_float_is_the_exact_integer() {
+    expr_is("entier(1e300)", E1E300);
+    expr_is("entier(-1e300)", &format!("-{E1E300}"));
+    expr_is("entier(1e20)", "100000000000000000000");
+    expr_is("entier(-1e20)", "-100000000000000000000");
+    expr_is("entier(1.9)", "1");
+    expr_is("entier(-1.9)", "-1");
+    expr_is("entier(2**64+1)", "18446744073709551617");
+}
+
+/// `round()` is unbounded in both releases too (tclsh: `round(1e300)` is the
+/// same 301-digit integer, `round(1e20)` the same 21-digit one).
+#[test]
+fn round_of_a_beyond_wide_float_is_the_exact_integer() {
+    expr_is("round(1e300)", E1E300);
+    expr_is("round(-1e300)", &format!("-{E1E300}"));
+    expr_is("round(1e20)", "100000000000000000000");
+    expr_is("round(2.5)", "3");
+    expr_is("round(-2.5)", "-3");
+}
+
+/// `wide()` truncates then takes the low 64 bits, in every release
+/// (tclsh 8.6/9.0: `wide(1e20)` is `7766279631452241920`, `wide(1e300)` is
+/// `0` because 10^300's exact double value is divisible by 2^64).
+#[test]
+fn wide_windows_the_exact_truncation() {
+    expr_is("wide(1e20)", "7766279631452241920");
+    expr_is("wide(-1e20)", "-7766279631452241920");
+    expr_is("wide(1e19)", "-8446744073709551616");
+    expr_is("wide(1e300)", "0");
+    expr_is("wide(2**64+1)", "1");
+}
+
+/// `isqrt()` on a beyond-wide float keeps its exact root as well (tclsh:
+/// `isqrt(1e300)` is a 151-digit integer).
+#[test]
+fn isqrt_of_a_beyond_wide_float_is_exact() {
+    expr_is("isqrt(1e300)", ISQRT_1E300);
+}
+
+/// `int()` is the one release-split conversion. tclsh9.0.4 binds it to the
+/// unbounded `ExprIntFunc`; tclsh8.6.16 keeps the 64-bit window. The runtime
+/// selects on its own `runtime_version`, through the shared `IntWidth` axis,
+/// so the two engines cannot disagree about which release windows.
+#[test]
+fn int_follows_the_interps_release() {
+    // Default runtime release is 9.0.
+    expr_is("int(1e20)", "100000000000000000000");
+    expr_is("int(-1e20)", "-100000000000000000000");
+    expr_is("int(1e300)", E1E300);
+    expr_is("int(2**64+1)", "18446744073709551617");
+
+    let mut interp = Interp::new();
+    interp.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+    for (body, want) in [
+        ("int(1e20)", "7766279631452241920"),
+        ("int(-1e20)", "-7766279631452241920"),
+        ("int(1e300)", "0"),
+        ("int(2**64+1)", "1"),
+        // `wide`/`entier` are release-invariant.
+        ("wide(1e20)", "7766279631452241920"),
+        ("entier(1e20)", "100000000000000000000"),
+    ] {
+        assert_eq!(
+            interp.eval_str(format!("expr {{{body}}}").as_bytes()),
+            Code::Ok,
+            "expr {{{body}}} at 8.6"
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&interp.result_bytes()),
+            want,
+            "expr {{{body}}} at 8.6"
+        );
+    }
+}
+
+/// The integer fast path keeps the operand's own object, so an integer's
+/// string rep survives the conversion (tclsh 9.0.4:
+/// `::tcl::mathfunc::entier 0x10` is `0x10`, not `16`). The release-split
+/// `int` still windows a beyond-wide operand at 8.6, which is why the fast
+/// path had to learn the axis rather than always returning the operand.
+#[test]
+fn an_integer_operand_keeps_its_own_string_rep() {
+    let (code, result, _) = run("::tcl::mathfunc::entier 0x10");
+    assert_eq!(code, Code::Ok);
+    assert_eq!(result, "0x10");
+    let (code, result, _) = run("::tcl::mathfunc::int 0x10");
+    assert_eq!(code, Code::Ok);
+    assert_eq!(result, "0x10");
+}
+
+/// The exact integer value of the double `1e300` (301 digits) — tclsh
+/// `expr {entier(1e300)}`.
+const E1E300: &str = "1000000000000000052504760255204420248704468581108159154915854115511802457988908195786371375080447864043704443832883878176942523235360430575644792184786706982848387200926575803737830233794788090059368953234970799945081119038967640880074652742780142494579258788820056842838115669472196386865459400540160";
+
+/// tclsh `expr {isqrt(1e300)}` (151 digits).
+const ISQRT_1E300: &str = "1000000000000000026252380127602209779758503108492371458359424883684651414333812736380124287612629691547944630047071980611862607399628869272326975124240";

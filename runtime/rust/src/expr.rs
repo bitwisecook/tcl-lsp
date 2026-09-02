@@ -351,14 +351,18 @@ pub trait ExprCtx {
 /// ([`tcl_syntax::expr::mathfunc`]) — the fallback when a function isn't an
 /// overridable command. `args` are the already-evaluated operands.
 pub fn dispatch_shared(name: &str, args: &[Owned]) -> Result<Owned, ExprError> {
-    use tcl_syntax::expr::mathfunc::{dispatch_with_backend, NumValue};
+    use tcl_syntax::expr::mathfunc::{dispatch_with_backend_int_width, IntWidth, NumValue};
     let nums: Option<Vec<NumValue<crate::bignum::TowerMp>>> = args
         .iter()
         .map(|o| crate::bignum::as_math_num(o.ptr()))
         .collect();
     let nums =
         nums.ok_or_else(|| ExprError::msg(b"argument to math function didn't have numeric value"))?;
-    match dispatch_with_backend(&name.to_ascii_lowercase(), &nums) {
+    // The standalone evaluator has no interp to ask for a release, so it uses
+    // the runtime's own target release (Tcl 9.0) for `int()`'s width; the
+    // interp path resolves it from `Interp::runtime_version` in
+    // `cmd_mathfunc`.
+    match dispatch_with_backend_int_width(&name.to_ascii_lowercase(), &nums, IntWidth::Unbounded) {
         Some(num) => Ok(Owned::fresh(crate::bignum::math_num_to_obj(num))),
         None => {
             let mut m = b"unknown math function \"".to_vec();

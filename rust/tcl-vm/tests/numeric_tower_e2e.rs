@@ -38,7 +38,7 @@ use std::rc::Rc;
 
 use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
-use tcl_compiler::lowering::lower_to_ir;
+use tcl_compiler::lowering::{lower_to_ir, lower_to_ir_with_dialect};
 use tcl_registry::CommandRegistry;
 use tcl_vm::{CompileError, CompileService, Vm};
 
@@ -57,6 +57,29 @@ impl CompileService for CompilerSvc {
         let cfg = build_cfg_codegen(&ir, false);
         Ok(codegen_module(&cfg, &ir, &self.registry))
     }
+
+    /// A VM pinned to a release compiles its run-time scripts for that
+    /// release's profile too, so `run_at` can evaluate `expr $e` at 8.6.
+    fn compile_for_profile(
+        &self,
+        src: &str,
+        profile: &'static tcl_dialect::DialectProfile,
+    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error_with_config(src, config)
+        {
+            return Err(CompileError(msg));
+        }
+        let ir = tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect(
+            src,
+            registry,
+            config,
+            Some(profile),
+        );
+        let cfg = build_cfg_codegen(&ir, false);
+        Ok(codegen_module(&cfg, &ir, registry))
+    }
 }
 
 #[derive(Clone)]
@@ -72,14 +95,31 @@ impl Write for Capture {
     }
 }
 
-/// Compile and run `src`; return its result string.
+/// Compile and run `src` under the VM's default (Tcl 9.0) release.
 fn run(src: &str) -> String {
-    let registry = CommandRegistry::build_default();
-    let ir = lower_to_ir(src, &registry);
+    run_at(src, tcl_dialect::TclVersion::V9_0)
+}
+
+/// Compile and run `src` with the VM pinned to `version`.
+///
+/// Compiled *for* the release and then run at it, exactly as `tclvm` does — a
+/// dialect-blind compile bakes in the newest grammar and the VM refuses to run
+/// it under a pinned older release.
+fn run_at(src: &str, version: tcl_dialect::TclVersion) -> String {
+    let dialect = version.dialect_name();
+    let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+    let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+    let ir = lower_to_ir_with_dialect(
+        src,
+        registry,
+        tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+        Some(profile),
+    );
     let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
+    let asm = codegen_module(&cfg, &ir, registry);
     let buf = Rc::new(RefCell::new(Vec::new()));
     let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
+    vm.set_runtime_version(version);
     vm.set_compiler(Box::new(CompilerSvc {
         registry: CommandRegistry::build_default(),
     }));
@@ -197,3 +237,89 @@ fn shift_edges_match_the_oracle() {
         "err {integer value too large to represent} NONE",
     );
 }
+
+// ---------------------------------------------------------------------------
+// #1382 — `entier`/`int`/`wide`/`round` on a float outside the wide range,
+// and `int()`'s release axis.
+// ---------------------------------------------------------------------------
+
+/// Assert `expr {body}` evaluates to `want` at `version`, in both the braced
+/// (const-foldable) and the dynamic form.
+#[track_caller]
+fn both_at(body: &str, want: &str, version: tcl_dialect::TclVersion) {
+    let want = format!("ok {want}");
+    let probe = format!(
+        "if {{[catch {{expr {{{body}}}}} m o]}} {{ list err $m [dict get $o -errorcode] }} else {{ list ok $m }}"
+    );
+    assert_eq!(
+        run_at(&probe, version),
+        want,
+        "expr {{{body}}} at {version:?}"
+    );
+    let dynamic = format!(
+        "set e {{{body}}}\nif {{[catch {{expr $e}} m o]}} {{ list err $m [dict get $o -errorcode] }} else {{ list ok $m }}"
+    );
+    assert_eq!(
+        run_at(&dynamic, version),
+        want,
+        "expr $e ({body}) at {version:?}"
+    );
+}
+
+#[test]
+fn entier_and_round_of_a_beyond_wide_float_are_exact() {
+    both("entier(1e300)", &format!("ok {E1E300}"));
+    both("entier(1e20)", "ok 100000000000000000000");
+    both("entier(-1e20)", "ok -100000000000000000000");
+    both("entier(1.9)", "ok 1");
+    both("entier(-1.9)", "ok -1");
+    both("entier(2**64+1)", "ok 18446744073709551617");
+    both("round(1e300)", &format!("ok {E1E300}"));
+    both("round(1e20)", "ok 100000000000000000000");
+    both("round(2.5)", "ok 3");
+    both("round(-2.5)", "ok -3");
+}
+
+#[test]
+fn wide_windows_the_exact_truncation() {
+    both("wide(1e20)", "ok 7766279631452241920");
+    both("wide(-1e20)", "ok -7766279631452241920");
+    both("wide(1e19)", "ok -8446744073709551616");
+    both("wide(1e300)", "ok 0");
+    both("wide(2**64+1)", "ok 1");
+}
+
+#[test]
+fn isqrt_of_a_beyond_wide_float_is_exact() {
+    both("isqrt(1e300)", &format!("ok {ISQRT_1E300}"));
+}
+
+/// tclsh9.0.4 binds `int` to the unbounded `ExprIntFunc`; tclsh8.6.16 keeps
+/// its signed-64-bit window. Both engines select through the shared
+/// `IntWidth` axis, so they cannot disagree about which release windows.
+#[test]
+fn int_follows_the_vms_release() {
+    use tcl_dialect::TclVersion::{V8_6, V9_0};
+    both_at("int(1e20)", "100000000000000000000", V9_0);
+    both_at("int(-1e20)", "-100000000000000000000", V9_0);
+    both_at("int(2**64+1)", "18446744073709551617", V9_0);
+    both_at("int(1e300)", E1E300, V9_0);
+
+    both_at("int(1e20)", "7766279631452241920", V8_6);
+    both_at("int(-1e20)", "-7766279631452241920", V8_6);
+    both_at("int(2**64+1)", "1", V8_6);
+    both_at("int(1e300)", "0", V8_6);
+
+    // `wide` and `entier` are release-invariant.
+    for v in [V8_6, V9_0] {
+        both_at("wide(1e20)", "7766279631452241920", v);
+        both_at("entier(1e20)", "100000000000000000000", v);
+    }
+}
+
+/// The exact integer value of the double `1e300` (301 digits) — tclsh
+/// `expr {entier(1e300)}`.
+const E1E300: &str = "1000000000000000052504760255204420248704468581108159154915854115511802457988908195786371375080447864043704443832883878176942523235360430575644792184786706982848387200926575803737830233794788090059368953234970799945081119038967640880074652742780142494579258788820056842838115669472196386865459400540160";
+
+/// tclsh `expr {isqrt(1e300)}` (151 digits).
+const ISQRT_1E300: &str = "1000000000000000026252380127602209779758503108492371458359424883684651414333812736380124287612629691547944630047071980611862607399628869272326975124240";

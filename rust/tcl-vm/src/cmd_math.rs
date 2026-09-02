@@ -25,7 +25,7 @@
 use num_bigint::BigInt;
 use num_traits::{FromPrimitive, Signed, ToPrimitive};
 use tcl_runtime_api::Completion;
-use tcl_syntax::expr::mathfunc::{NumValue, dispatch_with_backend};
+use tcl_syntax::expr::mathfunc::{IntWidth, NumValue, dispatch_with_backend_int_width};
 use tcl_syntax::number::{self, Number};
 
 use crate::command::err_with_code;
@@ -111,7 +111,7 @@ fn domain_err() -> Completion<Value> {
     err_with_code(DOMAIN_MSG, DOMAIN_CODE)
 }
 
-fn shared_math(name: &str, args: &[Value]) -> Completion<Value> {
+fn shared_math(name: &str, args: &[Value], int_width: IntWidth) -> Completion<Value> {
     let Some(spec) = tcl_syntax::expr::mathfunc::spec(name) else {
         return err(format!("invalid command name \"tcl::mathfunc::{name}\""));
     };
@@ -157,7 +157,7 @@ fn shared_math(name: &str, args: &[Value]) -> Completion<Value> {
         Ok(nums) => nums,
         Err(e) => return e,
     };
-    match dispatch_with_backend(name, &nums) {
+    match dispatch_with_backend_int_width(name, &nums, int_width) {
         Some(NumValue::Int(i)) => ok(Value::int(i)),
         Some(NumValue::Big(b)) => ok(crate::expr::big_value(&b)),
         Some(NumValue::Float(f)) => ok(Value::double(f)),
@@ -189,7 +189,7 @@ fn m_mathfunc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let name = invoked.rsplit("::").next().unwrap_or(invoked).to_owned();
     match name.as_str() {
         "abs" => m_abs(args),
-        "int" => int_window(args, "int"),
+        "int" => m_int(vm, args),
         "wide" => m_wide(args),
         "entier" => m_entier(args),
         "double" => m_double(args),
@@ -198,7 +198,7 @@ fn m_mathfunc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "bool" => m_bool(args),
         "srand" => m_srand(vm, args),
         "rand" => m_rand(vm, args),
-        name => shared_math(name, args),
+        name => shared_math(name, args, IntWidth::for_tcl_version(vm.runtime_version())),
     }
 }
 
@@ -265,6 +265,21 @@ fn m_abs(args: &[Value]) -> Completion<Value> {
 
 fn m_wide(args: &[Value]) -> Completion<Value> {
     int_window(args, "wide")
+}
+
+/// `int(x)` — the one **release-split** conversion. Tcl 9.0 binds `int` and
+/// `entier` to the same unbounded `ExprIntFunc` (`tclBasic.c`), so
+/// `int(1e20)` is `100000000000000000000` and `int(2**64+1)` is
+/// `18446744073709551617`; Tcl 8.4-8.6 keep `int`'s signed-64-bit window, so
+/// the same two are `7766279631452241920` and `1`. Measured against
+/// tclsh8.6.16 and tclsh9.0.4 (#1382). The width itself is the shared owner's
+/// ([`IntWidth`]), so the VM and the WASM runtime cannot disagree about which
+/// release windows.
+fn m_int(vm: &Vm, args: &[Value]) -> Completion<Value> {
+    match IntWidth::for_tcl_version(vm.runtime_version()) {
+        IntWidth::Unbounded => entier_named(args, "int"),
+        IntWidth::Windowed | IntWidth::Unresolved => int_window(args, "int"),
+    }
 }
 
 /// `int(x)` / `wide(x)` — one conversion since 8.6 (`int` is no longer the
@@ -362,7 +377,11 @@ fn m_isqrt(args: &[Value]) -> Completion<Value> {
     if f < 0.0 {
         return err_with_code("square root of negative argument", DOMAIN_CODE);
     }
-    ok(Value::int(isqrt_i64(f.trunc() as i64)))
+    // Truncate exactly first: `isqrt(1e300)` is a 151-digit integer, not the
+    // root of a saturated wide (tclsh 8.6.16/9.0.4).
+    ok(crate::expr::big_value(&num_integer::Roots::sqrt(
+        &exact_trunc(f),
+    )))
 }
 
 fn isqrt_i64(n: i64) -> i64 {
@@ -385,7 +404,14 @@ fn isqrt_i64(n: i64) -> i64 {
 /// double becomes the full exact integer (`entier(1e300)` is all 309 digits),
 /// with no 64-bit window — that wrap is `int`/`wide`'s ([`int_window`]).
 fn m_entier(args: &[Value]) -> Completion<Value> {
-    let x = match one(args, "entier") {
+    entier_named(args, "entier")
+}
+
+/// [`m_entier`]'s body under a caller-chosen function name, so Tcl 9.0's
+/// `int()` — which C binds to the same unbounded `ExprIntFunc` as `entier`
+/// (`tclBasic.c`) — reuses it while keeping its own arity wording.
+fn entier_named(args: &[Value], name: &str) -> Completion<Value> {
+    let x = match one(args, name) {
         Ok(v) => v,
         Err(c) => return c,
     };

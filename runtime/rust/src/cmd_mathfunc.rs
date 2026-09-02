@@ -32,7 +32,7 @@
 //! like `expr` itself. `rand`/`srand` carry PRNG state on the interp, so they
 //! are handled here directly rather than via the pure shared dispatch.
 
-use tcl_syntax::expr::mathfunc::{dispatch_with_backend, NumValue};
+use tcl_syntax::expr::mathfunc::{dispatch_with_backend_int_width, IntWidth, NumValue};
 use tcl_syntax::naming::qualifier_segments;
 
 use crate::interp::{obj_bytes, Code, Interp};
@@ -127,13 +127,20 @@ pub(crate) fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         _ => {}
     }
 
-    // `wide`/`int`/`entier` on an *integer* operand work on the tower directly,
-    // not via the f64-limited shared dispatch: `wide` wraps a too-big integer to
-    // a 64-bit signed value (C's truncation), and `int`/`entier` keep the
-    // (possibly bignum) integer exactly. (A *float* operand falls through to the
-    // shared dispatch.)
+    // Which width `int()` uses is the shared owner's release axis: Tcl 9.0
+    // binds `int` to the same unbounded `ExprIntFunc` as `entier`, 8.4-8.6
+    // keep its 64-bit window (#1382).
+    let int_width = IntWidth::for_tcl_version(interp.runtime_version());
+
+    // `wide`/`int`/`entier` on an *integer* operand work on the object directly
+    // rather than through the shared dispatch, so the result keeps the operand's
+    // own string rep (tclsh: `::tcl::mathfunc::entier 0x10` is `0x10`, not
+    // `16`). `wide` — and `int` in a windowing release — still take the low 64
+    // bits (C's truncation). A *float* operand falls through to the shared
+    // dispatch, which now has its own exact bignum path.
     if matches!(lname.as_str(), "wide" | "int" | "entier") && crate::bignum::is_integer(argv[1]) {
-        if lname == "wide" {
+        let windows = lname == "wide" || (lname == "int" && int_width == IntWidth::Windowed);
+        if windows {
             interp.set_result(obj::new_wide_int_obj(crate::bignum::truncate_to_wide(
                 argv[1],
             )));
@@ -153,7 +160,7 @@ pub(crate) fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
 
     // `set_result` adopts a fresh rc-0 obj (retains it; no extra drop needed).
-    match dispatch_with_backend(&lname, &nums) {
+    match dispatch_with_backend_int_width(&lname, &nums, int_width) {
         Some(num) => {
             interp.set_result(crate::bignum::math_num_to_obj(num));
             Code::Ok
