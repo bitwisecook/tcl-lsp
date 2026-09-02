@@ -3,9 +3,15 @@
 > **Status:** `codegen::wasm::compile_wasm` is the sole public Tcl-to-WASM
 > code-generation entry point. It selects a semantic plan from executable IR
 > first and records a typed compatibility reason when broad source-compatible
-> emission is still required. Guarded boxed `string length` and the exact
-> sealed native-i64-add demonstration are implemented but explicitly opt-in;
-> every semantic AOT pass is off by default.
+> emission is still required. The **native tier**
+> (`WasmCompileOptions::native_tier()`, plan §7 row P3) lowers every function
+> through the native lowered IR and emits it natively — every T0 and T1
+> sample but `15_switch` compiles with no `tcl_eval_code` and no
+> `tcl_expr_bool` — but it, the
+> guarded boxed `string length`, and the exact sealed native-i64-add
+> demonstration are all explicitly opt-in; every semantic AOT pass is off by
+> default. `--analysis` still selects the legacy analysis tier; `--native`
+> selects the native tier.
 
 This document describes the Rust WebAssembly (WASM) compiler and its shared Tcl
 runtime boundary. The target-independent semantic contract is defined in
@@ -75,7 +81,12 @@ The returned `WasmCompilation` retains `WasmCodegenPlan`:
 
 Explorer serialises this evidence as `codegenPlan` on the synthetic WASM module
 header. It uses stable plan, reason, detail, and operation-category spellings,
-not Rust debug output.
+not Rust debug output. `codegenPlan.nativeLowering` carries the native tier's
+record: per function `lowered` or `declined` with its reason, and per
+statement the outcome (`native`, `native-intrinsic`, `native-completion`,
+`generic-invoke`, `eval-source` with its reason, `empty`), the representation
+kinds of the values it defines, and every cell access with its storage, its
+trace-barrier decision, and whether it reused a shadow.
 
 ## Canonical plan selection
 
@@ -168,6 +179,82 @@ The decline changes typed input to one emitter; it does not select another
 implementation. This keeps runtime-evaluation compatibility working while
 making remaining semantic coverage observable. It does not imply
 package-driven extension selection or linking.
+
+## The native tier
+
+`WasmCompileOptions::native_tier()` enables four semantic passes together —
+`NativeLowering`, `RepresentationInference`, `TraceBarrierElision`,
+`CellDemotion` — and routes general mode through
+`tcl_compiler::native_lowering` and `codegen::wasm::native_emit` instead of the
+structured walk. It supersedes the leaf-command path below for every function
+the lowering accepts; the legacy walk remains the path for a function the
+lowering declines, with the typed `FunctionDecline` recorded.
+
+### Lowering
+
+Every executable block becomes one NLIR block and every executable instruction
+one statement owning that instruction's completion, so the completion spine of
+the executable IR — every `CompletionSwitch`, every handler edge — survives
+unchanged. Statements lower by registry descriptor and dispatch proof:
+
+| Executable instruction | Native shape | Proof |
+|---|---|---|
+| `ExecuteLowered(Set)` | `CellWrite` of a boxed constant, word, or expression | statically spelled cell name |
+| `ExecuteLowered(Incr)` | native `i64.add` on the cell's shadow when the interval proof admits it, else `CellIncr` (the runtime's own `incr`) | shadow live and in range |
+| `ExecuteLowered(Expr)`, conditions | native `i64`/`f64` arithmetic, comparisons, `&&`/`||`/`?:` branches; dynamic operations with a native fast path and the runtime operator on the slow edge; the runtime expression intrinsic for `[cmd]` operands | representation lattice |
+| `Invoke` resolved to `NativeLowering::Intrinsic(ChannelWrite)` | `Puts` | site dispatch proof, `puts VALUE` shape |
+| `Invoke` resolved to `NativeLowering::Completion` | `Complete{break/continue}` | site dispatch proof |
+| `Invoke` resolved to `NativeLowering::CellReadModifyWrite` | `CellIncr` / `CellAppend` | site dispatch proof, literal name |
+| every other `Invoke` | `Invoke(argv)` — the prebuilt-argv path | none needed |
+| `ExecuteOpaqueRegion`, a word with expansion, backslashes, a computed name | `EvalSource(text, reason)` — the last rung | — |
+
+Words are evaluated structurally from `WordExpr` only: the `puts` fast path
+that reparsed compatibility text (issue #1772) is gone from every tier, and a
+`[…]` word resolved to `expr` over one braced literal lowers as a native
+expression when the module keeps `expr` bound to its builtin.
+
+### Representation and cells
+
+Each value carries `NativeInt(interval)`, `NativeDouble{finite}`,
+`NativeBool`, or `Boxed(shape)`. A native integer operation is emitted only
+when the interval proof shows every result fits `i64` and every precondition
+holds (a non-zero divisor, an in-range shift); otherwise the operation is a
+dynamic op: the emitter tries the `i64` path (checked, with Tcl's floor
+division and modulo), then the `f64` path, and takes `tcl_codegen_mathop` on
+the slow edge — the runtime's own bignum and error semantics. Nothing wraps
+and nothing traps. Boxing happens at the boundary that needs a Tcl object
+(`puts`, a cell write, an argv word); unboxing through the erroring
+`tcl_value_get_*` getters is C Tcl's exact error.
+
+Top-level variables stay named cells written at the defining statement (a
+hosted module's globals stay observable), but the value *between* statements
+is the NLIR shadow: a later read reuses it unless a trace barrier was kept, an
+invocation may have written the cell, or control joined from more than one
+path. Trace barriers are decided from the module's variable-trace ledger:
+elided when no literal or dynamic `trace` target can reach the cell, kept
+with `variable-traced` or `trace-ledger-unknown` otherwise (an `incr` under an
+unknown ledger records the runtime trace-bit guard).
+
+### Emission
+
+`native_emit.rs` structurises the NLIR CFG with the dominator-tree algorithm
+of *Beyond Relooper*: merge nodes get a `block` opened by their immediate
+dominator, loop headers a `loop`, everything else is inlined where its one
+forward predecessor branches. Every value is one WASM local of its machine
+type; boxed locals are owned, released on redefinition and in the epilogue.
+Each function enters an activation (`tcl_codegen_activation_enter`), allocates
+one transient call frame for its typed out slots, completion triple, and argv
+array, and leaves the activation with its completion code.
+
+### What still declines
+
+`foreach`/`lmap` cursor loops, `switch` pattern matches, and `catch`/`try`
+completion handlers are executable-IR instructions the native lowering does
+not project yet (`iterate-lists`, `match-pattern`, `join-completion`,
+`write-completion-cell`, `operand-expression`); a function containing one
+stays on the legacy structured walk with that reason. Procedure bodies lower
+with named cells (no slot storage yet) and are still never called by the
+runtime (issue #1774, P5).
 
 ## The general tier's leaf-command path
 

@@ -15,7 +15,7 @@ Branch: `claude/wasm-codegen-architecture-5exvpu`.
 | `p0-harness` | P0 tier harness + runtime unit suite in CI | `rust/tcl-compiler/tests/wasm_tiers.rs`, `rust/tcl-compiler/tests/common/wasm_link.rs`, `samples/wasm/budgets.tsv`, `.github/workflows/ci.yml`, `scripts/dev/runtime-rust-path.sh`, `runtime/rust/examples/run_script.rs`, `runtime/rust/tests/run_script_builtin_surface.rs` | **done** — see below |
 | `p1-runtime-abi` | P1 runtime ABI v2 groundwork | `runtime/rust/src/{codegen_abi,frame,vars,interp,obj,bignum,builtins,expr}.rs`, `rust/tcl-runtime-api/src/codegen_abi.rs` | open |
 | `p2-executable-ir` | P2 executable IR total | `rust/tcl-compiler/src/executable_ir.rs` and its consumers | landed (see below) |
-| `p3-native-lowering` | P3 NLIR + native T0/T1 | new `rust/tcl-compiler/src/native_lowering/`, `codegen/wasm/backend.rs` | blocked on P1, P2 |
+| `p3-native-lowering` | P3 NLIR + native T0/T1 | `rust/tcl-registry/src/native_lowering.rs`, `rust/tcl-compiler/src/native_lowering/`, `codegen/wasm/{native_emit,ir,pipeline,backend}.rs`, `runtime/rust/src/codegen_native.rs` | landed (see below) |
 
 ## Decisions
 
@@ -29,7 +29,7 @@ Branch: `claude/wasm-codegen-architecture-5exvpu`.
   runtime treats the index as an `extern "C"` function pointer. Falls back to
   the source body when the native entry declines.
 - No emitter reads a compatibility string. `whole_var_reference` and the
-  `name.contains('(')` gates in `codegen/wasm/backend.rs` are retired by P3;
+  `name.contains('(')` gates in `codegen/wasm/backend.rs` were retired by P3;
   word shapes come from `WordExpr` only.
 
 ## Site inventory and status
@@ -1028,3 +1028,156 @@ before you trust a buffer.
   on the covered semantics.
 - `srand`'s 9.0 empty-message quirk (C hands `TclGetWideBitsFromObj` a NULL
   interp) is not reproduced; both engines use 8.6's wording at every release.
+
+## p3-native-lowering
+
+Status: **landed** for T0/T1 minus `switch`; the rest of the corpus rides the
+same tier wherever a function lowers and falls back to the structured walk,
+with a typed reason, wherever it does not. Owner files:
+`rust/tcl-registry/src/native_lowering.rs` (+ the `native_lowering` stamps in
+`commands/tcl/*_.rs`), `rust/tcl-compiler/src/native_lowering/`,
+`rust/tcl-compiler/src/codegen/wasm/{native_emit,ir,pipeline,backend}.rs`,
+`runtime/rust/src/codegen_native.rs`, the native descriptors in
+`rust/tcl-runtime-api/src/codegen_abi.rs`, the `Plan::Native` column of the
+harness, and `samples/wasm/budgets.tsv`.
+
+### Delivered
+
+1. **Registry descriptor** (`abb5a0af`). `CommandSpec::native_lowering:
+   Option<NativeLowering>` — `Intrinsic{id, arity}`,
+   `CellReadModifyWrite(CellUpdate)`, `Structured(LoweringHookId)`,
+   `Completion(CompletionCode)`, `Scope(ScopeKind)`, `Definition`, `Generic`
+   — stamped on `set incr append lappend expr puts if while for break continue
+   return proc global variable upvar`, with drift tests (every stamped
+   `Structured` hook is a real `LoweringHookId`; every `Completion` command
+   declares a closed effect footprint) and the spec-studio schema, draft,
+   help, and `fields.md` entries the field-coverage gates require. Nothing in
+   the compiler lowers by command name.
+2. **NLIR + lowering + lattices** (`f6a85035`). `native_lowering/{ir,lower,
+   representation,cells,elide}.rs`: one `NativeBlock` per executable block,
+   one `NativeStatement` per instruction owning that instruction's
+   completion, so the completion spine survives untouched. Representation is
+   `NativeInt(Interval)` / `NativeDouble{finite}` / `NativeBool` /
+   `Boxed(TypeShape)`; a native `i64` op is emitted only under an interval
+   proof (result fits, divisor non-zero, shift in range), else a dynamic op
+   (native fast path, `tcl_codegen_mathop` on the slow edge — the runtime's
+   bignum and error semantics, never a wrap or a trap). Cell shadows flow
+   along single-predecessor, non-header edges and are cleared at joins, loop
+   headers, and after any invocation whose registry footprint may write a
+   cell. Trace barriers read the module's variable-trace ledger (`elided` /
+   `kept: variable-traced` / `kept: trace-ledger-unknown`); every elision is
+   recorded per op, and the Explorer's `codegenPlan.nativeLowering` exposes
+   the whole record (status, reason, per-statement representations, cell
+   storage and barrier decisions). Four new pass ids, off by default, enabled
+   together by `WasmCompileOptions::native_tier()`.
+3. **Emission** (this commit). `codegen/wasm/native_emit.rs` structurises the
+   NLIR CFG with the *Beyond Relooper* dominator-tree algorithm (merge nodes
+   under their immediate dominator, loop headers as `loop`), gives every value
+   one local of its machine type, owns every boxed local (released on
+   redefinition and in the epilogue), and wraps every body in
+   `tcl_codegen_activation_enter`/`leave` around one transient call frame
+   (typed out-slots, completion triple, argv array). Eight new runtime
+   imports in `runtime/rust/src/codegen_native.rs`: `var_set_element`,
+   `var_incr`, `var_update` (append/lappend), `value_try_wide_int` /
+   `value_try_double` (typed reads that never set an error), `expr_eval`,
+   `mathop`, `mathfunc` (completion-triple writers). The compat-text gates in
+   `backend.rs` — `whole_var_reference`, `is_pure_cmd_subst`,
+   `parse_cmd_parts`, `name.contains('(')` — are gone from every tier, which
+   closed the five analysis-plan ledger rows for issue #1772 in the same
+   commit. `emit_wasm --native` and `Plan::Native` in the harness.
+
+### Budgets, T0/T1 (`eval_code / expr_bool / invoke_argv / native_i64_f64`)
+
+| Sample | analysis (before) | native (after) |
+|---|---|---|
+| `00_set_incr_puts` | 1 / 0 / 1 / 0 | 0 / 0 / 0 / 1 |
+| `01_string_interp` | 2 / 0 / 4 / 0 | 0 / 0 / 3 / 0 |
+| `02_arith_chain` | 3 / 0 / 3 / 0 | 0 / 0 / 1 / 16 |
+| `03_double_arith` | 2 / 0 / 5 / 0 | 0 / 0 / 2 / 16 |
+| `10_if_elseif` | 0 / 3 / 5 / 0 | 0 / 0 / 2 / 13 |
+| `11_while_loop` | 2 / 3 / 1 / 0 | 0 / 0 / 0 / 21 |
+| `12_for_loop` | 2 / 2 / 4 / 0 | 0 / 0 / 3 / 19 |
+| `13_expr_ops` | 0 / 0 / 34 / 0 | 0 / 0 / 17 / 48 |
+| `14_unbraced_expr` | 1 / 0 / 4 / 0 | 0 / 0 / 4 / 0 |
+| `15_switch` | 2 / 0 / 0 / 0 | 2 / 0 / 0 / 0 |
+
+Every T0/T1 sample except `15_switch` compiles with zero `tcl_eval_code` and
+zero `tcl_expr_bool`; `02_arith_chain` is straight-line native `i64` with one
+box at each `puts`. All 36 samples reproduce their `tclsh` oracle byte for
+byte on the native plan except `73_coroutine` (the runtime's wasm build has no
+`coroutine`; P9), which is the only native row in `EXPECTED_DIVERGENCES`. The
+analysis plan's `invoke_argv` column went up by one on several rows because
+the retired `puts` fast path now takes the generic prebuilt-argv path, which
+is the design: no emitter reads a compatibility string.
+
+### Decisions
+
+- **Function-level typed declines, not partial lowering.** A function whose
+  executable IR contains `IterateLists` (`foreach`/`lmap`), `MatchPattern`
+  (`switch`), `JoinCompletion` / `WriteCompletionCell` (`catch`/`try`), an
+  expression with a `[cmd]` operand the runtime must evaluate
+  (`operand-expression`), or a trap prefix declines as a whole
+  (`FunctionDecline::UnloweredInstruction`) and keeps the legacy structured
+  walk. Mixing the two emitters inside one function would need a shared
+  frame and local layout neither owns yet; `15_switch` is the one T1 sample
+  this leaves on the old path.
+- **`puts` is a world barrier after its first use.** The registry gives
+  `puts` no `world_effects`, so the dispatch-stability analysis treats it as
+  an unknown callback: cell shadows are cleared after it and every later
+  `puts` site is unprovable (it could have been renamed) and lowers as a
+  generic `Invoke`. That is why `02_arith_chain` still shows one
+  `invoke_argv`. Tightening `puts`'s footprint means proving the module has
+  no Tcl-level channel transform, which is a registry-semantics change, not
+  a codegen one.
+- **The legacy analysis tier lost the direct `[add …]` call with the fast
+  path.** `LegacyAnalysisSpecialisation`'s direct call into a generated
+  procedure was reachable only through the `puts` fast path's compat-text
+  word evaluation, so `puts [add $e $f]` on that tier is now two generic
+  prebuilt-argv invocations (`wasm_codegen.rs` records it). The native tier
+  emits the procedure body but the runtime never calls it either (P5's
+  table-install ABI); nothing observable changed, only a demonstration.
+- **`Unbox` failures are ordinary Tcl errors.** The typed getters
+  (`tcl_value_get_*`) set C Tcl's exact message and `-errorcode`; the
+  emitter turns their status into the statement's error completion, so the
+  surrounding `catch`/`try` (on the legacy walk) or the top level sees what
+  `tclsh` shows.
+- **Top-level variables stay named cells; procedures too, for now.**
+  `CellDemotion` records `Cell` for every top-level place (a hosted module's
+  globals must stay observable) and defers slot storage for procedure
+  bodies; the ABI's slot binding exists but the emitter does not use it yet.
+- **One frame per activation, no shadow stack.** The runtime's shadow stack
+  and the compiler's constant pool never meet: the frame is
+  `tcl_codegen_call_frame_alloc`'d, the pool sits in the reserved
+  `[0x100000, 0x200000)` gap, and every borrowed argv word is a local.
+
+### Found on the way
+
+- `runtime/rust/src/codegen_native.rs` first released its fresh head/name
+  words twice (`BorrowedArgv` drop, then `drop_fresh`), which corrupted the
+  allocator's free list and surfaced hundreds of instructions later as a
+  fault inside `dict_free` — `11_while_loop`'s first three lines printed and
+  the epilogue faulted; `12_for_loop` spun. The runtime's double-free counter
+  cannot see it because the freed chunk's first word is no longer a
+  refcount. Fixed in the same commit; a host replay of the loop
+  (`incr_result_survives_a_generic_puts_invocation_in_a_loop`) is pinned.
+- `break`/`continue` had an `InterpState` side effect and no declared state
+  transitions, so every site inside a loop widened to "unknown invocation"
+  and was unprovable; they now declare `world_effects: EMPTY` and
+  `state_transitions: EMPTY`, which is what they are.
+
+### Remaining / for other lanes
+
+- **Harness**: `15_switch` needs `MatchPattern` lowering (a native
+  `string equal`/`glob` ladder over boxed values) before the T1 budget row
+  reads 0/0; `foreach` (`IterateLists`) and `catch`/`try`
+  (`JoinCompletion`/`WriteCompletionCell`) are the next two instruction kinds
+  and unlock `21_foreach`, `50_catch_error`, `52_loop_completion`.
+- **Runtime (P5)**: native procedure bodies are emitted (`30_simple_proc`,
+  `31_recursion` lower fully) but never called — the runtime still runs the
+  source body (issue #1774); slot-based cell storage for procedures is the
+  step after the table-install ABI lands.
+- **Registry**: a `world_effects` footprint for `puts` (and `chan puts`) that
+  distinguishes "writes a channel" from "may run Tcl", so shadows and later
+  `puts` sites survive it.
+- Type hints (`LoweringInput::type_hints`) are threaded but unused; the
+  interval proofs come from literals and `incr` deltas only.

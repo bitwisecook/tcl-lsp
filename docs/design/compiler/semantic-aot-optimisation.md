@@ -114,6 +114,14 @@ The current control surface is `SemanticOptimisationPassId`:
 | `NativeInteger` | authorise native-integer proof; currently consumed only by the exact i64 addition |
 | `FrameElision` | authorise common frame-elision evidence; currently consumed only for the exact add procedure |
 | `SemanticOperationSpecialisation` | retain registry-resolved operation and boundary proofs; currently required by the sealed native add |
+| `NativeLowering` | lower a function through the native lowered IR (`native_lowering`) and let a backend emit it; a function the lowering declines stays on the general path with a typed reason |
+| `RepresentationInference` | keep values in the representation lattice (`NativeInt`/`NativeDouble`/`NativeBool`) between operations; disabled, every value is boxed and every operation dynamic with a runtime slow edge |
+| `TraceBarrierElision` | let a value stay in a native shadow across cell accesses the module's variable-trace ledger proves unobserved; disabled, every cell access keeps its barrier and every read goes to the runtime |
+| `CellDemotion` | demote a proven-local procedure variable from a named cell to an indexed slot (decision recorded; slot emission is P5) |
+
+`WasmCompileOptions::native_tier()` is the aggregate profile that enables the
+four native-tier controls together; it is shorthand for the explicit set and
+each stays independently disableable.
 
 A later transform that is not independently ablated by one of these controls
 must add its own pass identifier. In particular, general single-
