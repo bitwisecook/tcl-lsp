@@ -157,6 +157,22 @@ impl NativeCommand for HostCommandShim {
                 to_vm_value(&result),
                 tcl_vm::Value::string(String::new()),
             ),
+            // A script error crosses as the Tcl error it is: the message
+            // verbatim, and its `-errorcode` in the completion's options so
+            // `catch` and `$errorCode` see what the host command set.
+            Err(EngineError::Script { message, code }) => {
+                let options = code.map_or_else(tcl_vm::Value::empty, |code| {
+                    tcl_vm::Value::list(vec![
+                        tcl_vm::Value::string("-code"),
+                        tcl_vm::Value::int(1),
+                        tcl_vm::Value::string("-level"),
+                        tcl_vm::Value::int(0),
+                        tcl_vm::Value::string("-errorcode"),
+                        tcl_vm::Value::string(code),
+                    ])
+                });
+                Completion::new(Code::Error, tcl_vm::Value::string(message), options)
+            }
             Err(error) => Completion::new(
                 Code::Error,
                 tcl_vm::Value::string(error.to_string()),
@@ -287,6 +303,11 @@ impl Engine for TclVmEngine {
             .register_native_command(name, Rc::new(HostCommandShim { command }));
         self.host_commands.push(name.to_owned());
         Ok(())
+    }
+
+    fn remove_command(&mut self, name: &str) -> Result<bool, EngineError> {
+        self.host_commands.retain(|command| command != name);
+        Ok(self.vm.remove_command(name))
     }
 
     fn restrict_commands(&mut self, allowed: &[&str]) -> Result<(), EngineError> {

@@ -228,6 +228,17 @@ pub trait Engine {
         command: Rc<dyn HostCommand>,
     ) -> Result<(), EngineError>;
 
+    /// Remove a command registered through [`Self::define_command`], reporting
+    /// whether one of that name existed.
+    ///
+    /// The other half of the registration door: an embedder whose commands
+    /// come and go (a C extension's `Tcl_DeleteCommand`) needs the engine to
+    /// forget one, not merely to shadow it. The default declines, so an engine
+    /// that cannot unregister says so rather than leaving the command callable.
+    fn remove_command(&mut self, _name: &str) -> Result<bool, EngineError> {
+        Err(EngineError::Unsupported("removing a command"))
+    }
+
     /// Reduce the engine's command surface to exactly `allowed` plus whatever
     /// [`Self::define_command`] has registered.
     ///

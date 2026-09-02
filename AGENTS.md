@@ -26,6 +26,7 @@ tcl-compiler              IR / CFG / SSA / optimiser / codegen (WASM emitter).
 tcl-registry              Command + dialect registry; dialect detection.
 tcl-spectcl               SpecTcl `.tclspec` packs: loader, discovery, cache, install.
 tcl-vm / tcl-vm-cli       Bytecode VM + its CLI.
+tcl-cshim                 C Tcl extension shim over the engine-neutral interface (`tcl-engine-api`).
 tcl-bigip / tcl-bigip-query   BIG-IP model + the f5-query engine.
 tcl-irules                iRules dialect model + analysis.
 tcl-lsp-core              LSP feature providers (hover, completion, …).

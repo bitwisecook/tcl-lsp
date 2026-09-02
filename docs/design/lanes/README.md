@@ -22,6 +22,9 @@ orchestrator pushes — is in [`AGENTS.md`](../../../AGENTS.md) under
 
 ## In flight
 
-None. Every lane of the #1631 programme has landed; what each one
+- [c-extension-shim.md](c-extension-shim.md) — the C Tcl extension shim
+  (#1372).
+
+Otherwise none. Every lane of the #1631 programme has landed; what each one
 decided lives in its final commit message, and what the programme left
 open lives in the redesign's §11 open-questions ledger.

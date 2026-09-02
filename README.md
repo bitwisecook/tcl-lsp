@@ -1393,6 +1393,15 @@ tclvm -c 'puts [expr {6 * 7}]'
 tcl dis script.tcl
 ```
 
+#### C extension shim
+
+A command written against the C Tcl API can run on the bytecode VM through
+the `tcl-cshim` crate: compile the extension against `rust/tcl-cshim/include/tclshim.h`
+instead of `tcl.h` and load its `<Pkg>_Init` from Rust. Shimmed extensions are
+trusted native code loaded only by host configuration — a spec pack cannot
+reference one. See
+[docs/design/c-extension-shim.md](docs/design/c-extension-shim.md).
+
 ### eBPF (BPF-Tcl)
 
 A low-level packet-matching language that compiles Tcl-shaped source to eBPF —

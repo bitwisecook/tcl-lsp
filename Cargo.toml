@@ -72,6 +72,7 @@ members = [
     "rust/tcl-engine-api",
     "rust/tcl-engine-tclvm",
     "rust/tcl-spec-hooks",
+    "rust/tcl-cshim",
     "rust/bpf-tcl-ir",
     "rust/bpf-tcl-codegen",
     "rust/bpf-tcl",

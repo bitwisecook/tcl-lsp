@@ -447,6 +447,10 @@ are its rules, and what are the failure modes". One contract per file.
   execution that have landed; the version-ranges lifecycle model at every
   gateable level; and the vocabulary-tolerance policy that avoids
   per-release rebuilds.
+- [c-extension-shim.md](c-extension-shim.md) — the C Tcl extension shim
+  (`tcl-cshim`): the trust model for shimmed native code, `Tcl_Obj` to
+  structured-value marshalling, the `_Init` registration story, the C API
+  subset shimmed first, and the unbuilt WASM leg.
 - [spec-dsl-examples/tricky-surfaces.md](spec-dsl-examples/tricky-surfaces.md)
   — the DSL's acceptance rubric: the tricky Tcl surfaces (operator
   aliasing, TclOO corners, real-world options, paired tails, hooks)
