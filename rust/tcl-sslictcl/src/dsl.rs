@@ -222,6 +222,23 @@ impl Stmt {
 
 /// The document under load: the original text plus its line index, so every
 /// nested block statement can report an absolute range and a real line.
+/// The lexing grammar for a whole `.sslictcl` file.
+///
+/// Derived from the `sslictcl` dialect profile through the owner every LSP
+/// provider uses ([`LexerConfig::for_file_dialect`]), never from a copied
+/// field list: the profile selects `GRAMMAR_TCL9X`, whose
+/// `script_skips_leading_bom` is what makes a byte-order mark a file prologue
+/// rather than part of the first word. `LexerConfig::default()` reads the mark
+/// as content, so a BOM-prefixed document used to segment as
+/// `\u{FEFF}sslictcl` and report a missing header (`SSLIC1003`) for a
+/// perfectly good file.
+///
+/// Nested body slices demote this with [`LexerConfig::nested`]: a mark inside
+/// a braced body is data.
+fn file_config() -> LexerConfig {
+    LexerConfig::for_file_dialect("sslictcl")
+}
+
 struct Document {
     lines: LineIndex,
 }
@@ -239,7 +256,10 @@ impl Document {
 
     /// Segment `slice`, which starts at absolute offset `base`, into
     /// statements whose spans are absolute.
-    fn segment(slice: &str, base: u32, sink: &mut Sink) -> Option<Vec<Stmt>> {
+    ///
+    /// `config` is the lexing grammar, which the caller owns because the
+    /// byte-order-mark rule differs by position: see [`file_config`].
+    fn segment(slice: &str, base: u32, config: LexerConfig, sink: &mut Sink) -> Option<Vec<Stmt>> {
         let whole = Span::new(base, base + u32_len(slice));
         if !script_is_complete(slice) {
             sink.error(
@@ -250,7 +270,7 @@ impl Document {
             return None;
         }
         let source_map = SourceMap::new(slice);
-        let (document, warnings) = build_document(slice, LexerConfig::default());
+        let (document, warnings) = build_document(slice, config);
         if let Some(warning) = warnings.first() {
             let start = base + warning.offset;
             sink.error(
@@ -279,7 +299,9 @@ impl Document {
             );
             return None;
         }
-        Self::segment(&word.text, word.content_start, sink)
+        // A mark at the head of a nested body slice is data, not a file
+        // prologue, so the body re-lex is demoted (issue #1243).
+        Self::segment(&word.text, word.content_start, file_config().nested(), sink)
     }
 
     /// One `LIST` value: a braced Tcl list, or a single bare word.
@@ -402,7 +424,7 @@ pub fn load_with_diagnostics(source: &str) -> DslLoad {
     let mut pending = Vec::new();
     let mut saw_header = false;
 
-    let Some(rows) = Document::segment(source, 0, &mut sink) else {
+    let Some(rows) = Document::segment(source, 0, file_config(), &mut sink) else {
         return DslLoad {
             document: None,
             diagnostics: sink.items,
@@ -1881,6 +1903,53 @@ future-top value
         assert_eq!(
             load("sslictcl 1\nendpoint x body").unwrap_err().code,
             DiagCode::Sslic1006
+        );
+    }
+
+    /// A byte-order mark is a file prologue, not part of the first word.
+    ///
+    /// The `sslictcl` profile lexes with `GRAMMAR_TCL9X`, whose
+    /// `script_skips_leading_bom` is true, so a BOM-prefixed document must
+    /// load exactly as the same bytes without one — and every span must still
+    /// index the **original** string, mark included, or an editor would
+    /// underline the wrong bytes.
+    #[test]
+    fn a_leading_byte_order_mark_is_a_file_prologue() {
+        let body = "sslictcl 1\nendpoint www {\n    hostname www.example.com\n}\n";
+        let marked = format!("\u{FEFF}{body}");
+
+        let plain = load_with_diagnostics(body);
+        let with_mark = load_with_diagnostics(&marked);
+        assert!(
+            with_mark.diagnostics.is_empty(),
+            "a BOM-prefixed document loads clean: {:?}",
+            with_mark.diagnostics
+        );
+        assert_eq!(
+            with_mark.document.map(|doc| doc.model),
+            plain.document.map(|doc| doc.model),
+            "the mark changes nothing about what was declared"
+        );
+
+        // Spans index the original string: the mark is three bytes, so every
+        // range in the marked document sits three bytes later, and slicing the
+        // marked source by a reported range yields the same text.
+        let bad_plain = load_with_diagnostics("sslictcl 1\nchain c {\n    nope x\n}\n");
+        let bad_marked = load_with_diagnostics("\u{FEFF}sslictcl 1\nchain c {\n    nope x\n}\n");
+        let plain_first = bad_plain.diagnostics.first().expect("a diagnostic");
+        let marked_first = bad_marked.diagnostics.first().expect("a diagnostic");
+        assert_eq!(plain_first.code, marked_first.code);
+        assert_eq!(
+            marked_first.range.start(),
+            plain_first.range.start() + 3,
+            "the mark shifts every offset by its own width"
+        );
+        let source = "\u{FEFF}sslictcl 1\nchain c {\n    nope x\n}\n";
+        let start = marked_first.range.start() as usize;
+        let end = marked_first.range.end() as usize;
+        assert!(
+            source.get(start..end).is_some(),
+            "a reported range must slice the original source"
         );
     }
 }
