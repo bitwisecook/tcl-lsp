@@ -100,6 +100,10 @@ pub fn spec() -> CommandSpec {
         arg_role_resolver: Some(puts_arg_roles),
         return_type: Some(TclType::String),
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::ChannelWrite)),
+        native_lowering: Some(NativeLowering::Intrinsic {
+            id: IntrinsicId::ChannelWrite,
+            arity: ArityRule::Range { min: 1, max: 3 },
+        }),
         side_effects: &[SideEffect {
             target: SideEffectTarget::FileIo,
             writes: true,

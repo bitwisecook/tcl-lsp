@@ -1538,6 +1538,15 @@ pub struct CommandSpec {
     /// paths use their generic invoke emission for this command.
     pub inline_codegen_hook: Option<InlineCodegenHookId>,
 
+    /// Target-neutral native lowering shape — which native code shape the
+    /// executable-IR lowering (`tcl_compiler::native_lowering`) gives an
+    /// invocation of this command once its registry facts are resolved. A
+    /// sibling of [`Self::lowering_hook`], [`Self::codegen_hook`], and
+    /// [`Self::inline_codegen_hook`]. `None` means the generic argv
+    /// invocation ([`crate::native_lowering::NativeLowering::Generic`]); read
+    /// it through [`Self::native_lowering`].
+    pub native_lowering: Option<crate::native_lowering::NativeLowering>,
+
     /// Analyser handler-family hook ID — picks the per-command
     /// handler in the analyser's central dispatch
     /// (`tcl_compiler::analyser`). `None` means the analyser has no
@@ -2255,6 +2264,7 @@ impl CommandSpec {
         bpf_op: None,
         codegen_hook: None,
         inline_codegen_hook: None,
+        native_lowering: None,
         analyser_hook: None,
         command_table_effect: None,
         side_effects: &[],
@@ -2377,6 +2387,16 @@ impl CommandSpec {
     ///
     /// The result is deduplicated and ordered by [`crate::IntrinsicId`], so a
     /// runtime can attach every semantic identity to one live implementation
+    /// The native lowering shape this command's invocations take, defaulting
+    /// to the generic argv invocation when no descriptor is stamped.
+    #[must_use]
+    pub const fn native_lowering(&self) -> crate::native_lowering::NativeLowering {
+        match self.native_lowering {
+            Some(shape) => shape,
+            None => crate::native_lowering::NativeLowering::Generic,
+        }
+    }
+
     /// without knowing the command's subcommand layout.
     #[must_use]
     pub fn intrinsic_ids(&self) -> Vec<crate::IntrinsicId> {

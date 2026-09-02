@@ -557,6 +557,12 @@ Compiler internals: the bytecode emitter used when the command sits in value pos
 
 Only for the BPF-Tcl dialect: how this command lowers to a BPF operation. Anything outside that dialect leaves it unset.
 
+### `native_lowering` — Native lowering shape
+
+*command only* — Which native code shape the executable-IR lowering gives this command; stamped beside the lowering hook or intrinsic it mirrors. Unset is the generic argv invocation.
+
+Compiler internals: which native code shape the executable-IR lowering gives this command — a structural hook, a cell read-modify-write, an intrinsic, a fixed completion, a scope link, or a definition. It is stamped beside the lowering hook or intrinsic it mirrors; unset means the generic argv invocation through runtime dispatch.
+
 ### `analyser_hook` — Analyser hook
 
 *command and subcommand* — Per-command handler family in the analyser's central dispatch.

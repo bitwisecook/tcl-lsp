@@ -712,6 +712,15 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Typed BPF-Tcl lowering descriptor; the BPF front-end dispatches on this, never on the command name.",
     ),
     f(
+        "native_lowering",
+        "Native lowering shape",
+        HOOKS,
+        FieldKind::RustExpr {
+            hint: "Some(NativeLowering::Structured(LoweringHookId::Set))",
+        },
+        "Which native code shape the executable-IR lowering gives this command; stamped beside the lowering hook or intrinsic it mirrors. Unset is the generic argv invocation.",
+    ),
+    f(
         "analyser_hook",
         "Analyser hook",
         HOOKS,

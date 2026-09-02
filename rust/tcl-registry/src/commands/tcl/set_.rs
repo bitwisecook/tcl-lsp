@@ -124,6 +124,7 @@ pub fn spec() -> CommandSpec {
             return_value: "varName's new value when value is given, otherwise its current value.",
         }),
         lowering_hook: Some(LoweringHookId::Set),
+        native_lowering: Some(NativeLowering::Structured(LoweringHookId::Set)),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::Set),

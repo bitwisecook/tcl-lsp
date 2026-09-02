@@ -80,6 +80,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The new value stored in varName after the append.",
         }),
         lowering_hook: Some(LoweringHookId::AppendOrLappend),
+        native_lowering: Some(NativeLowering::CellReadModifyWrite(CellUpdate::Append)),
         codegen_hook: Some(CodegenHookId::Append),
         forms: FORMS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::Append),

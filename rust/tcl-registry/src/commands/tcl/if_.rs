@@ -224,6 +224,7 @@ pub fn spec() -> CommandSpec {
         arg_role_resolver: Some(if_arg_roles),
         clause_shape_check: Some(check_if_shape),
         lowering_hook: Some(crate::hooks::LoweringHookId::If),
+        native_lowering: Some(NativeLowering::Structured(crate::hooks::LoweringHookId::If)),
         return_type: Some(TclType::String),
         arg_types: &[(
             0,

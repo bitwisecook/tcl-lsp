@@ -189,6 +189,7 @@ pub fn spec() -> CommandSpec {
         frame_effect: Some(UPVAR_FRAME_EFFECT),
         repeated_args: UPVAR_REPEATED_ARGS,
         lowering_hook: Some(LoweringHookId::Upvar),
+        native_lowering: Some(NativeLowering::Scope(ScopeKind::Upvar)),
         codegen_hook: Some(CodegenHookId::Upvar),
         forms: FORMS,
         xc_translatable: Some(false),

@@ -85,6 +85,7 @@ pub mod lifecycle;
 pub mod literal_validation;
 pub mod mathfunc;
 pub mod model;
+pub mod native_lowering;
 pub mod pack_hooks;
 pub mod patterns;
 pub mod presentation;
@@ -179,6 +180,7 @@ pub mod prelude {
         LiteralArgumentIssue, LiteralArgumentIssueReason, LiteralArgumentValidation,
         LiteralValidationDecline,
     };
+    pub use crate::native_lowering::{ArityRule, CellUpdate, NativeLowering, ScopeKind};
     pub use crate::patterns::{FormatType, PatternArg, PatternType};
     pub use crate::presentation::ArgPresentation;
     pub use crate::relation::{
@@ -269,6 +271,7 @@ pub use literal_validation::{
     LiteralArgumentIssue, LiteralArgumentIssueReason, LiteralArgumentValidation,
     LiteralArgumentValidator, LiteralValidationDecline,
 };
+pub use native_lowering::{ArityRule, CellUpdate, NativeLowering, ScopeKind};
 pub use patterns::{FormatType, PatternType};
 pub use presentation::ArgPresentation;
 pub use profile_queries::VendorSurface;

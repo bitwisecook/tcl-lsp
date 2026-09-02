@@ -57,6 +57,7 @@ pub fn spec() -> CommandSpec {
             return_value: "None in normal use — control transfers to just past the innermost enclosing loop. Trapped with catch, the caught value is an empty string.",
         }),
         inline_codegen_hook: Some(InlineCodegenHookId::Break),
+        native_lowering: Some(NativeLowering::Completion(CompletionCode::Break)),
         forms: FORMS,
         ..CommandSpec::DEFAULT
     }

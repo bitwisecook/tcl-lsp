@@ -64,6 +64,7 @@ pub fn spec() -> CommandSpec {
             return_value: "The value of the evaluated expression — typically numeric, but a bare operand (e.g. `expr {$x}`) or a ternary branch can pass through an arbitrary string or list value unchanged.",
         }),
         lowering_hook: Some(LoweringHookId::Expr),
+        native_lowering: Some(NativeLowering::Structured(LoweringHookId::Expr)),
         inline_codegen_hook: Some(InlineCodegenHookId::Expr),
         forms: FORMS,
         side_effects: SIDE_EFFECTS,

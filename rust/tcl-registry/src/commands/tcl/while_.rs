@@ -65,6 +65,9 @@ pub fn spec() -> CommandSpec {
         arity: Arity::exact(2),
         arg_roles: &[(0, ArgRole::Expr), (1, ArgRole::Body)],
         lowering_hook: Some(crate::hooks::LoweringHookId::While),
+        native_lowering: Some(NativeLowering::Structured(
+            crate::hooks::LoweringHookId::While,
+        )),
         return_type: Some(TclType::String),
         arg_types: &[(
             0,
