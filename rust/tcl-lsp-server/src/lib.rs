@@ -19056,6 +19056,22 @@ impl LanguageServer for Backend {
                     message: format!("document_symbol worker panicked: {err}").into(),
                     data: None,
                 })?
+        } else if tcl_lsp_core::declaration_outline::is_declaration_document(
+            tcl_lsp_core::profile_for_dialect(&doc.dialect),
+        ) {
+            // A declaration document (`.sslictcl`) has no procs, classes or
+            // namespaces for the scope walk to find: its *blocks* are its
+            // structure, so the outline is the block tree. Same shape as the
+            // BIG-IP branch above, and for the same reason.
+            let text = doc.text.clone();
+            let profile = tcl_lsp_core::profile_for_dialect(&doc.dialect);
+            crate::rt::spawn_blocking(move || core_symbols::declaration_symbols(&text, profile))
+                .await
+                .map_err(|err| jsonrpc::Error {
+                    code: jsonrpc::ErrorCode::InternalError,
+                    message: format!("document_symbol worker panicked: {err}").into(),
+                    data: None,
+                })?
         } else if let Some(symbols) = self.db_document_symbols(&params.text_document.uri).await {
             // Served from the salsa query graph (memoised; reuses the tracked
             // file_analysis instead of re-running the full analyser).

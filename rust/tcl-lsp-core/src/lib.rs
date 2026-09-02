@@ -50,6 +50,7 @@ pub mod code_actions;
 pub mod code_lens;
 pub mod completion;
 pub mod declaration;
+pub mod declaration_outline;
 pub mod definition;
 pub mod document_floor;
 pub mod document_links;

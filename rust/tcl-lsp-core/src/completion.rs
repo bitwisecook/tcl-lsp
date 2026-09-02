@@ -707,6 +707,22 @@ pub fn completions(
     // interned profile identity, including legacy iRules aliases.
     let profile = dialect;
 
+    // A declaration document's block body admits exactly the words its
+    // grammar declares: nothing in the document is evaluated, so no core Tcl
+    // command is callable there and the member set is the *whole* answer
+    // rather than an addition to one (see `crate::declaration_outline`). A
+    // `TclOO` class body is the opposite case — real Tcl — and is unaffected.
+    if let Some(items) = crate::declaration_outline::member_completions(
+        source,
+        line,
+        character,
+        &line_index,
+        profile,
+        &partial,
+    ) {
+        return items;
+    }
+
     // Context-aware completions — switch + subcommand + event-name.
     // All three require the caller-provided registry to look up
     // the surrounding command's spec.  Without a registry we
