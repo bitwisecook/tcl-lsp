@@ -1009,6 +1009,7 @@ What an argument position *is*. Roles are how the tools know `while`'s second wo
 | Value | Meaning |
 |---|---|
 | `Body` | Tcl script body, recursed into by the analyser |
+| `OpaqueScript` | script-shaped data that folds like a body and is never analysed |
 | `Expr` | expr sub-language expression |
 | `VarWrite` | names a variable the command writes |
 | `VarRead` | names a variable the command reads |
@@ -1463,6 +1464,7 @@ The registry's behavioural vocabulary — one flag per fact a consumer might nee
 | `DECLARES_NAMESPACE` | declares the namespace its NamespaceName word names |
 | `TK_GEOMETRY_MANAGER` | a Tk geometry manager |
 | `DEFERS_BODY` | stores its script argument instead of running it; unset means the body is treated as executed |
+| `DEFINITION_BODY_MEMBER_ONLY` | legal only inside a definition body that declares it as a member |
 
 ### Value types
 

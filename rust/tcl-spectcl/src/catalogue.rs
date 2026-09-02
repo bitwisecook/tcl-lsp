@@ -57,6 +57,10 @@ const fn v(key: &'static str, doc: &'static str) -> Variant {
 /// [`ArgRole`] — how a consumer should treat an argument position.
 pub const ARG_ROLES: &[Variant] = &[
     v("Body", "Tcl script body, recursed into by the analyser"),
+    v(
+        "OpaqueScript",
+        "script-shaped data that folds like a body and is never analysed",
+    ),
     v("Expr", "expr sub-language expression"),
     v("VarWrite", "names a variable the command writes"),
     v("VarRead", "names a variable the command reads"),
@@ -575,6 +579,7 @@ mod tests {
     fn covered_arg_role(role: ArgRole) -> bool {
         match role {
             ArgRole::Body
+            | ArgRole::OpaqueScript
             | ArgRole::Expr
             | ArgRole::VarWrite
             | ArgRole::VarRead
