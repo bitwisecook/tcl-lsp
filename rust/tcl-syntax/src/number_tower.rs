@@ -537,8 +537,9 @@ mod tests {
         fn bit_len(&self) -> u64 {
             u64::from(128 - self.0.unsigned_abs().leading_zeros())
         }
+        #[allow(clippy::cast_precision_loss)]
         fn to_f64(&self) -> f64 {
-            num_traits::ToPrimitive::to_f64(&self.0).unwrap()
+            self.0 as f64
         }
     }
 
