@@ -223,3 +223,68 @@ fn child_command_bad_option_matches_the_tclsh_shape() {
             .as_slice()
     );
 }
+
+/// item 4 (fixed before this lane started, pinned here as a regression
+/// guard): the delete form of `rename` — `rename name ""` — words its
+/// missing-source error `can't delete`, not `can't rename`.
+///
+/// tclsh9.0.4:
+///   catch {rename nosuch ""} e
+///   => can't delete "nosuch": command doesn't exist
+#[test]
+fn rename_delete_form_says_cant_delete() {
+    let mut interp = Interp::new();
+    assert_eq!(
+        interp.eval_str(b"catch {rename nosuch {}} e; set e"),
+        Code::Ok
+    );
+    assert_eq!(
+        interp.result_bytes(),
+        b"can't delete \"nosuch\": command doesn't exist".as_slice()
+    );
+}
+
+/// item 6 (fixed before this lane started, pinned here as a regression
+/// guard): `interp hide`/`expose` misses raise, and `expose` refuses an
+/// occupied destination instead of overwriting it.
+///
+/// tclsh9.0.4:
+///   catch {interp hide {} nosuchcmd} e     ;# => unknown command "nosuchcmd"
+///   catch {interp expose {} nosuchhidden} e ;# => unknown hidden command "nosuchhidden"
+///   proc visible {} {return v}
+///   interp hide {} pwd myhidden
+///   catch {interp expose {} myhidden visible} e
+///   => exposed command "visible" already exists
+///   visible   ;# => v   (untouched)
+#[test]
+fn hide_and_expose_misses_and_collisions_raise() {
+    let mut interp = Interp::new();
+    assert_eq!(
+        interp.eval_str(b"catch {interp hide {} nosuchcmd} e; set e"),
+        Code::Ok
+    );
+    assert_eq!(
+        interp.result_bytes(),
+        b"unknown command \"nosuchcmd\"".as_slice()
+    );
+    assert_eq!(
+        interp.eval_str(b"catch {interp expose {} nosuchhidden} e; set e"),
+        Code::Ok
+    );
+    assert_eq!(
+        interp.result_bytes(),
+        b"unknown hidden command \"nosuchhidden\"".as_slice()
+    );
+    assert_eq!(interp.eval_str(b"proc visible {} {return v}"), Code::Ok);
+    assert_eq!(interp.eval_str(b"interp hide {} pwd myhidden"), Code::Ok);
+    assert_eq!(
+        interp.eval_str(b"catch {interp expose {} myhidden visible} e; set e"),
+        Code::Ok
+    );
+    assert_eq!(
+        interp.result_bytes(),
+        b"exposed command \"visible\" already exists".as_slice()
+    );
+    assert_eq!(interp.eval_str(b"visible"), Code::Ok);
+    assert_eq!(interp.result_bytes(), b"v".as_slice());
+}
