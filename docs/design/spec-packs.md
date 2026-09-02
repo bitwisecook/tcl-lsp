@@ -305,8 +305,10 @@ idiomatic Rust surface the DSL framework needs now. And **all
 C-required mangling lives in the shim, never in the interface** — the
 shim absorbs the impedance mismatch (string lifetimes, interp-pointer
 idioms, result codes) so the interface never grows a C-shaped wart.
-The C-Tcl shim itself is later, separate work (#1372); the interface's
-only obligation to it today is to not preclude it. The
+The C-Tcl shim's first leg has landed as `tcl-cshim`
+([c-extension-shim.md](c-extension-shim.md)): shimmed extensions are
+trusted native code loaded only by host configuration, and nothing in the
+`SpecTcl` vocabulary can reference one. The
 **hook host** is the layer above: it owns everything DSL-specific — the
 emitter verbs, per-family calling conventions and preconditions,
 abstention and error policy, fuel budgets, memoisation — and speaks
@@ -387,6 +389,7 @@ sites in the optimiser. The crates are:
 | `tcl-engine-api` | bottom | The **Tcl extension interface**: `CompileUnit` → engine handle, invoked with owned structured `Value`s (list and dict are first-class, so `words`/`ctx` never round-trip through text); `HostCommand` for embedder-registered commands; `Budget` the engine must enforce; `EngineError` distinguishing a script error, a budget blowout, and a crash. No dependencies at all — selecting one engine cannot drag in another. |
 | `tcl-engine-tclvm` | bottom | The `tcl-vm` implementation. Each interface obligation maps onto a real VM embedder API rather than a shim: `Vm::define_procedure` (compile once), `Vm::invoke_command` (now public), `Vm::register_native_command` (stateful host commands), `Vm::retain_commands` (a closed whitelist), and the enforced `commands` limit + wall-clock cap. |
 | `tcl-spec-hooks` | top | The **hook host**: emitter verbs as native commands, the per-family calling conventions and the literal-only precondition, abstention and error policy, per-pack engines, `catch_unwind`, quarantine-on-first-crash with a structured crash record, and the sandbox whitelist plus `foldlist`. Names no engine except in one convenience constructor. |
+| `tcl-cshim` | consumer 2 | The **C-Tcl shim** ([c-extension-shim.md](c-extension-shim.md)): a C extension compiled against `include/tclshim.h` registers its commands through `Engine::define_command`, with `Tcl_Obj` crossing as typed values. Trusted native, host-loaded only; unreachable from a pack or a hook body. The interface gained `Engine::remove_command` and the in-invocation `CommandRegistrar` door for it. |
 | `tcl-registry::pack_hooks` | seam | Slots, per-family thunk tables, the thread-local host, and the **shape-keyed cache**. A pack hook is a plain function pointer of the family's shipped type, so `run_const_fold` and every other consumer is unchanged and unaware. |
 
 Three consequences of the implementation are worth recording against the

@@ -151,6 +151,9 @@ symptom with several possible causes worth telling apart. See rule 13 in
 - [kcs-qa-why-w112-w118-have-no-quick-fix.md](kcs-qa-why-w112-w118-have-no-quick-fix.md)
   — why the trailing-whitespace and line-ending hints stay quick-fix-free:
   the document formatter is the safe, already-existing fix.
+- [kcs-qa-what-is-the-c-extension-shim.md](kcs-qa-what-is-the-c-extension-shim.md)
+  — what the C extension shim is, when to use it instead of a Tcl hook
+  body or a native hook, and why a spec pack can never load one.
 - [kcs-qa-when-is-a-proc-parameter-treated-as-a-constant.md](kcs-qa-when-is-a-proc-parameter-treated-as-a-constant.md)
   — when the analyser binds a procedure parameter to a compile-time
   literal from its call sites, which indirect calls (`$cmd args`, callback
