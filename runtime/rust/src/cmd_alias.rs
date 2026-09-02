@@ -114,9 +114,13 @@ fn alias_loop_error(interp: &mut Interp, simple: &[u8]) -> Code {
 
 /// The `interp` ensemble. `alias`, `aliases`, `create`, `delete`, `eval`,
 /// `exists`, `hide`, `expose`, `hidden`, `invokehidden`, `issafe`,
-/// `marktrusted`, `recursionlimit`, `bgerror`, `debug`, and `limit` dispatch
-/// here; `cancel`, `share`, `target`, and `transfer` are named in the option
-/// list but have no arm (issue #1412).
+/// `marktrusted`, `recursionlimit`, `bgerror`, `debug`, `limit`, and `target`
+/// dispatch here. `cancel` (script cancellation), `share`, and `transfer`
+/// (cross-interp channel sharing) are tclsh subcommands this runtime has no
+/// infrastructure for — no cancellation flag on eval, no channel-table
+/// sharing between interps — so, unlike `target`, implementing them is not
+/// cheap; the bad-option list below advertises only what actually dispatches
+/// here, rather than tclsh's full list (issue #1412 item 3).
 fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args(b"interp cmd ?arg ...?");
@@ -212,16 +216,54 @@ fn interp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 None => not_found_path(interp, &path),
             }
         }
+        b"target" => interp_target(interp, argv),
         other => {
             let mut m = b"bad option \"".to_vec();
             m.extend_from_slice(other);
             m.extend_from_slice(
-                b"\": must be alias, aliases, bgerror, cancel, children, create, \
+                b"\": must be alias, aliases, bgerror, children, create, \
                   debug, delete, eval, exists, expose, hide, hidden, issafe, \
-                  invokehidden, limit, marktrusted, recursionlimit, share, \
-                  target, or transfer",
+                  invokehidden, limit, marktrusted, recursionlimit, or target",
             );
             interp.set_error(&m)
+        }
+    }
+}
+
+/// `interp target path alias` — the interp-path (from this interp) to the
+/// target interpreter of `alias`, as installed in the interpreter addressed
+/// by `path`. Cheap given the two alias shapes this runtime supports
+/// (same-interp, or child-to-immediate-parent) — see
+/// [`Interp::alias_target_path`]. `cancel`/`share`/`transfer` are the other
+/// three subcommands tclsh advertises here that this runtime does not
+/// implement; unlike `target` they need infrastructure (script cancellation,
+/// cross-interp channel sharing) this runtime has none of (issue #1412 item 3).
+fn interp_target(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() != 4 {
+        return interp.wrong_args(b"interp target path alias");
+    }
+    let path = interp_path(argv[2]);
+    let alias = obj_bytes(argv[3]);
+    match interp.alias_target_path(&path, &alias) {
+        Some(target_path) => {
+            let elems: Vec<*mut TclObj> = target_path
+                .iter()
+                .map(|n| obj::new_string_bytes(n))
+                .collect();
+            interp.set_result(list::new_list_obj(&elems));
+            for e in elems {
+                drop_fresh(e);
+            }
+            Code::Ok
+        }
+        None => {
+            let mut m = b"alias \"".to_vec();
+            m.extend_from_slice(&alias);
+            m.extend_from_slice(b"\" in path \"");
+            m.extend_from_slice(&obj_bytes(argv[2]));
+            m.extend_from_slice(b"\" not found");
+            let code = crate::interp::error_code_list(&[b"TCL", b"LOOKUP", b"ALIAS", &alias]);
+            interp.error_with_code(&m, &code)
         }
     }
 }

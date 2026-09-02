@@ -96,3 +96,64 @@ fn rename_across_namespaces_rehomes_a_proc() {
     assert_eq!(interp.eval_str(b"::dst::p"), Code::Ok);
     assert_eq!(interp.result_bytes(), b"::dst".as_slice());
 }
+
+/// item 3: `interp`'s bad-option list must advertise only subcommands it
+/// dispatches. `target` is cheap (this runtime's two alias shapes make the
+/// interp-path trivial to compute) and now has an arm; `cancel`/`share`/
+/// `transfer` need infrastructure this runtime has none of (script
+/// cancellation, cross-interp channel sharing) and are dropped from the
+/// list rather than left advertised-but-undispatchable.
+///
+/// tclsh9.0.4 (for contrast — this runtime's list intentionally differs,
+/// naming only what it implements):
+///   catch {interp bogus} e
+///   => bad option "bogus": must be alias, aliases, bgerror, cancel,
+///      children, create, debug, delete, eval, exists, expose, hide,
+///      hidden, issafe, invokehidden, limit, marktrusted, recursionlimit,
+///      share, target, or transfer
+#[test]
+fn interp_bad_option_list_advertises_only_dispatched_subcommands() {
+    let mut interp = Interp::new();
+    assert_eq!(interp.eval_str(b"catch {interp bogus} e; set e"), Code::Ok);
+    assert_eq!(
+        interp.result_bytes(),
+        b"bad option \"bogus\": must be alias, aliases, bgerror, children, \
+          create, debug, delete, eval, exists, expose, hide, hidden, issafe, \
+          invokehidden, limit, marktrusted, recursionlimit, or target"
+            .as_slice()
+    );
+    // Every name still in the list dispatches — `cancel`/`share`/`transfer`
+    // must not appear (removed from the option list, not silently rejected
+    // via the fallthrough).
+    assert_eq!(interp.eval_str(b"catch {interp cancel} e; set e"), Code::Ok);
+    assert!(interp.result_bytes().starts_with(b"bad option \"cancel\""));
+}
+
+/// item 3: `interp target path alias` — the interp-path from this interp to
+/// `alias`'s target interpreter. A same-interp alias's target is the
+/// interpreter it is installed in, so `interp target {} name` for a
+/// same-interp alias returns the empty list (tclsh9.0.4-pinned:
+/// `Tcl_GetInterpPath` returns `{}` when asker and target coincide).
+///
+/// tclsh9.0.4:
+///   proc foo {} {return hi}
+///   interp alias {} bar {} foo
+///   interp target {} bar        ;# => {}  (empty list)
+///   catch {interp target {} nosuch} e
+///   => alias "nosuch" in path "" not found
+#[test]
+fn interp_target_of_a_same_interp_alias_is_the_empty_path() {
+    let mut interp = Interp::new();
+    assert_eq!(interp.eval_str(b"proc foo {} {return hi}"), Code::Ok);
+    assert_eq!(interp.eval_str(b"interp alias {} bar {} foo"), Code::Ok);
+    assert_eq!(interp.eval_str(b"interp target {} bar"), Code::Ok);
+    assert_eq!(interp.result_bytes(), b"".as_slice());
+    assert_eq!(
+        interp.eval_str(b"catch {interp target {} nosuch} e; set e"),
+        Code::Ok
+    );
+    assert_eq!(
+        interp.result_bytes(),
+        b"alias \"nosuch\" in path \"\" not found".as_slice()
+    );
+}
