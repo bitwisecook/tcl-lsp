@@ -953,6 +953,12 @@ to add another.
 Third-party and in-house commands that are not in the registry can be declared
 with [stub annotations](docs/kcs/kcs-howto-annotate-commands-with-stubs.md).
 
+A SpecTcl pack can go further and declare a shell of its own, with an
+`environment NAME { … ambient PACKAGE VERSION }` block: a library that
+comes with one shell and not another is then floored — and excused from
+`package require` — in exactly the shell that has it. See
+[how to scope an ambient package](docs/kcs/kcs-howto-scope-an-ambient-package-to-one-dialect.md).
+
 ### Dialect profiles
 
 Switch between Tcl 8.4/8.5/8.6/9.0/9.1, F5 iRules, F5 iApps, F5 tmsh, and EDA

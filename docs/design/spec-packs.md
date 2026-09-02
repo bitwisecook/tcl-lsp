@@ -648,6 +648,14 @@ whatever it declares. It closes the versioned-signature gap and adds the
   control: the require in this file, then the pack in this workspace,
   then the profile compiled into the server.
 
+  The row is **unscoped by construction**: it floors its package for
+  every document the pack is active in. Issue #1643 — filed before 2.0
+  existed — asked for a `-dialects {…}` flag to narrow it to some of the
+  pack's dialects. That flag is *not* vocabulary, and the loader refuses
+  it rather than reading it or ignoring it: see
+  ["Scoping an ambient package"](#scoping-an-ambient-package-issue-1643)
+  below for what to write instead and why the row fails closed.
+
 - **`option … -taints-var-write`.** Marks a variable-valued option whose
   linked variable can be written from external input. The bit belongs to the
   individual option argument, so an editable widget's `-variable` can be a
@@ -731,6 +739,72 @@ fails the selected shape but fits *another* declared window draws
 rather than a bare "too many arguments": the call is not malformed, it is
 written for a different release, and the two have different fixes. A
 count fitting no window at all stays an ordinary E002/E003.
+
+### Scoping an ambient package (issue #1643)
+
+`ambient_package` says "this package is here, at this version" about the
+whole pack. Issue #1643 asked for the narrower claim — *here, under this
+dialect and not that one* — and proposed spelling it as a flag,
+`ambient_package NAME VERSION -dialects {…}`. The issue predates SpecTcl
+2.0, and 2.0 answers the same question from the other end.
+
+**What to write.** State the placement inside the environment that has
+the package, with `environment NAME { ambient PACKAGE VERSION }` (the
+redesign document's §6.2). An `environment` body is an evaluated script,
+exactly as a `command` body is, so a version several environments share
+is written once as an ordinary variable and a repetitive ladder is an
+ordinary `foreach` — there is no scoping vocabulary to learn, and nothing
+says the package is ambient anywhere it is not:
+
+```tcl
+speclib mypack 2.0 {
+    set tkver 8.6
+
+    environment mypack-shell {
+        core    tcl 8.6
+        ambient Tk $tkver
+    }
+
+    environment mypack-plain {
+        core tcl 8.6
+    }
+}
+```
+
+A document that resolves to `mypack-shell` gets the Tk 8.6 floor and is
+never asked for a `package require Tk`; one that resolves to
+`mypack-plain` gets neither. Both answers come from the same placement,
+so they cannot drift apart.
+
+The block reader is still the single owner of what a row *means*: the
+body decides which rows are registered, and `environment_block` decides
+whether each one is valid. An unknown row is semantic-class vocabulary
+and rejects the whole block however it was produced.
+
+**Why the flag is refused rather than read.** Two reasons, both from the
+model rather than from taste:
+
+- **It cannot be desugared.** A `-dialects` list naming a compiled
+  environment (`tcl8.6`, `f5-irules`) means "add an ambient placement to
+  that environment", which is `environment NAME -extend { ambient … }` —
+  and §6.4's trust lattice forbids exactly that for the workspace and
+  Spec Studio tiers most packs come from. The sugar would work for
+  bundled packs and fail the whole registration for everyone else.
+- **It would fork the floor model.** A scoped row kept in the pack's own
+  ambient table reports as a pack-declared floor; the same claim written
+  as a placement reports as the environment's own. One question with two
+  answers, differing only in how it was spelled, is the parallel table
+  the #1631 redesign set out to remove.
+
+**Why the whole row is dropped.** Ignoring an unknown flag and keeping
+the row would leave the *unscoped* claim standing — the pack would floor
+the package in every dialect, including the ones it had just said the
+package is absent from. That is the compatibility contract's fail-closed
+rule read backwards: an availability-**narrowing** word that a reader
+cannot honour must not leave the wider claim behind. So the row fails
+closed, with a notice naming the environment spelling to use instead, and
+the same rule is registered generically — a scoping word is
+semantic-class vocabulary, never decoration.
 
 ## Loading and tooling
 
