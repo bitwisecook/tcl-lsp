@@ -288,3 +288,33 @@ fn hide_and_expose_misses_and_collisions_raise() {
     assert_eq!(interp.eval_str(b"visible"), Code::Ok);
     assert_eq!(interp.result_bytes(), b"v".as_slice());
 }
+
+/// A command-delete trace that re-creates the command as an **identical**
+/// alias leaves that new alias alive: command identity is per command token,
+/// not per target/prefix shape, so the in-flight `rename foo {}` must not
+/// delete the binding the callback just installed.
+///
+/// tclsh9.0.4 (and 8.6.16):
+///   proc real {args} {return R}
+///   interp alias {} foo {} real
+///   trace add command foo delete {apply {{old new op} {interp alias {} foo {} real}}}
+///   rename foo {}
+///   info commands foo   ;# => foo   (the re-created alias survives)
+///   foo                 ;# => R
+#[test]
+fn a_delete_trace_recreating_an_identical_alias_keeps_the_new_binding() {
+    let mut interp = Interp::new();
+    assert_eq!(interp.eval_str(b"proc real {args} {return R}"), Code::Ok);
+    assert_eq!(interp.eval_str(b"interp alias {} foo {} real"), Code::Ok);
+    assert_eq!(
+        interp.eval_str(
+            b"trace add command foo delete {apply {{old new op} {interp alias {} foo {} real}}}"
+        ),
+        Code::Ok
+    );
+    assert_eq!(interp.eval_str(b"rename foo {}"), Code::Ok);
+    assert_eq!(interp.eval_str(b"info commands foo"), Code::Ok);
+    assert_eq!(interp.result_bytes(), b"foo".as_slice());
+    assert_eq!(interp.eval_str(b"foo"), Code::Ok);
+    assert_eq!(interp.result_bytes(), b"R".as_slice());
+}

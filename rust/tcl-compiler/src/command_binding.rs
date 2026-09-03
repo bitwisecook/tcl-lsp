@@ -632,6 +632,22 @@ impl ModuleCommandMutations {
         self.dynamic
     }
 
+    /// Whether any command whose canonical name lies under `prefix` is
+    /// rebound — a `rename` source or target, or an `interp alias` name.
+    ///
+    /// The math-function gate asks this about `::tcl::mathfunc::`: `expr`
+    /// resolves `abs(…)` through the command table, so
+    /// `rename ::tcl::mathfunc::abs {}` must stop the compiler evaluating it
+    /// natively (C Tcl then raises `invalid command name`).
+    #[must_use]
+    pub fn rebinds_under(&self, prefix: &str) -> bool {
+        let bare = prefix.strip_prefix("::").unwrap_or(prefix);
+        self.rebound.iter().any(|name| {
+            let canonical = name.strip_prefix("::").unwrap_or(name);
+            canonical.starts_with(bare)
+        })
+    }
+
     /// True when `command_name` is not clobbered by any body mutation —
     /// i.e. the optimiser may still fold it with its original builtin
     /// semantics.

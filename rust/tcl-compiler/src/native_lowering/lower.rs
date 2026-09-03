@@ -201,7 +201,15 @@ impl<'a> Lowerer<'a> {
             CellDemotion::procedure(input.escape, input.config)
         };
         let environment = input.context.map(SemanticContext::environment_id);
+        // `expr` resolves `abs(…)` through the command table, so a native
+        // math function is only sound while nothing in the module can have
+        // replaced one: no dynamic trace, no proc declaring one, and no
+        // `rename` / `interp alias` touching the namespace (a dynamic
+        // mutation could touch anything).
+        let mutations = scan_module_command_mutations(module, input.registry);
         let mathfunc_native = !module.has_dynamic_trace
+            && !mutations.has_dynamic_mutation()
+            && !mutations.rebinds_under("::tcl::mathfunc::")
             && !module
                 .procedures
                 .keys()
@@ -213,7 +221,7 @@ impl<'a> Lowerer<'a> {
             argvs: HashMap::new(),
             ledger,
             demotion,
-            mutations: scan_module_command_mutations(module, input.registry),
+            mutations,
             proofs: analyse_dispatch_stability(input.function, input.entry_assumption),
             numbers: Numbers::of_dialect_name(environment),
             dialect: environment.and_then(DialectProfile::find),

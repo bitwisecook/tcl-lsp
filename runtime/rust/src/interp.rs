@@ -529,6 +529,8 @@ pub enum Command {
     Alias {
         target: Vec<u8>,
         prefix: Vec<Vec<u8>>,
+        /// Per-instance identity — see [`Command::is_same_binding`].
+        identity: Rc<()>,
     },
     /// A `namespace import` redirect. Ordinary imports re-resolve `source` by
     /// name; an ensemble import additionally retains the source's stable command
@@ -563,6 +565,8 @@ pub enum Command {
     ParentAlias {
         target: Vec<u8>,
         prefix: Vec<Vec<u8>>,
+        /// Per-instance identity — see [`Command::is_same_binding`].
+        identity: Rc<()>,
     },
 }
 
@@ -585,26 +589,15 @@ impl Command {
             (Self::Imported { identity: a, .. }, Self::Imported { identity: b, .. }) => {
                 Rc::ptr_eq(a, b)
             }
-            (
-                Self::Alias {
-                    target: at,
-                    prefix: ap,
-                },
-                Self::Alias {
-                    target: bt,
-                    prefix: bp,
-                },
-            )
-            | (
-                Self::ParentAlias {
-                    target: at,
-                    prefix: ap,
-                },
-                Self::ParentAlias {
-                    target: bt,
-                    prefix: bp,
-                },
-            ) => at == bt && ap == bp,
+            // Aliases carry a token like every other `Rc`-owning shape: a
+            // delete trace that recreates `foo` as an *identical* alias
+            // leaves a different command at the name, and C's deletion must
+            // leave it alone. Structural equality said "same binding" and
+            // deleted the new one.
+            (Self::Alias { identity: a, .. }, Self::Alias { identity: b, .. })
+            | (Self::ParentAlias { identity: a, .. }, Self::ParentAlias { identity: b, .. }) => {
+                Rc::ptr_eq(a, b)
+            }
             (Self::ChildInterp(a), Self::ChildInterp(b)) => a == b,
             (Self::OoObject(a), Self::OoObject(b)) => a == b,
             _ => false,
@@ -1923,8 +1916,14 @@ impl Interp {
     ) -> Result<(), Vec<u8>> {
         self.invalidate_command_environment();
         let mut namespaces = self.namespaces.borrow_mut();
-        let Some((ns, simple)) = namespaces.register_at(name, Command::Alias { target, prefix })
-        else {
+        let Some((ns, simple)) = namespaces.register_at(
+            name,
+            Command::Alias {
+                target,
+                prefix,
+                identity: Rc::new(()),
+            },
+        ) else {
             return Ok(()); // no tail to bind — nothing was registered
         };
         if namespaces.alias_chain_loops(ns, &simple) {
@@ -1945,7 +1944,14 @@ impl Interp {
         prefix: Vec<Vec<u8>>,
     ) -> bool {
         self.with_child(child, |c| {
-            c.ns_register(name, Command::ParentAlias { target, prefix });
+            c.ns_register(
+                name,
+                Command::ParentAlias {
+                    target,
+                    prefix,
+                    identity: Rc::new(()),
+                },
+            );
         })
         .is_some()
     }
@@ -1958,7 +1964,7 @@ impl Interp {
             .borrow()
             .resolve(self.current_ns.get(), name)
         {
-            Some(Command::Alias { target, prefix }) => Some((target, prefix)),
+            Some(Command::Alias { target, prefix, .. }) => Some((target, prefix)),
             _ => None,
         }
     }
@@ -6311,7 +6317,7 @@ impl Interp {
     fn invoke(&mut self, cmd: Command, argv: &[*mut TclObj]) -> Code {
         match cmd {
             Command::Builtin(f) => f(self, argv),
-            Command::Alias { target, prefix } => self.dispatch_alias(&target, &prefix, argv),
+            Command::Alias { target, prefix, .. } => self.dispatch_alias(&target, &prefix, argv),
             Command::Imported {
                 source, ensemble, ..
             } => {
@@ -6333,7 +6339,7 @@ impl Interp {
             Command::Proc(def) => self.call_proc(&def, argv),
             Command::ChildInterp(name) => self.dispatch_child(&name, argv),
             Command::OoObject(fqn) => self.oo_dispatch(&fqn, argv),
-            Command::ParentAlias { target, prefix } => {
+            Command::ParentAlias { target, prefix, .. } => {
                 self.dispatch_parent_alias(&target, &prefix, argv)
             }
         }
@@ -7140,6 +7146,7 @@ impl Interp {
             Command::ParentAlias {
                 target: b"clock".to_vec(),
                 prefix: Vec::new(),
+                identity: Rc::new(()),
             },
         );
         self.is_safe.set(true);
@@ -9304,6 +9311,7 @@ mod tests {
             let alias = |target: &[u8]| Command::Alias {
                 target: target.to_vec(),
                 prefix: Vec::new(),
+                identity: Rc::new(()),
             };
             {
                 let mut namespaces = i.namespaces.borrow_mut();

@@ -311,7 +311,17 @@ pub fn scan_var_ref(
                 index: Some(&src[name_end + 1..end - 1]),
                 next: end,
             })),
-            ArrayIndexEnd::Unterminated => Err(MISSING_PAREN),
+            // An index can be unterminated because a construct *inside* it
+            // is: C reports that inner error, not the missing `)`.
+            // `subst {$a([foo)}` is `missing close-bracket` on 8.6.16/9.0.4.
+            ArrayIndexEnd::Unterminated => {
+                // An index substitutes commands and variables as the
+                // surrounding source word does.
+                Err(
+                    error_inside_unterminated(&src[name_end + 1..], SubstFlags::default(), config)
+                        .unwrap_or(MISSING_PAREN),
+                )
+            }
         };
     }
     Ok(Some(RawVarRef {
@@ -466,7 +476,25 @@ fn error_inside_unterminated_bracket(
     flags: SubstFlags,
     config: LexerConfig,
 ) -> &'static str {
-    let mut i = at + 1;
+    error_inside_unterminated(&src[at + 1..], flags, config).unwrap_or(MISSING_CLOSE_BRACKET)
+}
+
+/// The error C reports for the first unterminated construct in `src`, or
+/// `None` when every construct inside it closes.
+///
+/// The substituted text of an unterminated `[…]` — and of an unterminated
+/// `$a(…)` — is a script C parses before it can complain about the missing
+/// closer, so an unterminated word *inside* is the error it reports:
+/// `subst {[list "abc}` is `missing "`, not `missing close-bracket`. The walk
+/// is deliberately shallow — one word level, no command splitting — because
+/// full script segmentation belongs to the boundary owner (#1786); it covers
+/// the constructs whose closers are unambiguous from here.
+fn error_inside_unterminated(
+    src: &[u8],
+    flags: SubstFlags,
+    config: LexerConfig,
+) -> Option<&'static str> {
+    let mut i = 0usize;
     while i < src.len() {
         match src[i] {
             b'\\' => i += 2,
@@ -474,13 +502,75 @@ fn error_inside_unterminated_bracket(
                 match scan_var_ref(src, i, config) {
                     Ok(Some(raw)) => i = raw.next,
                     Ok(None) => i += 1,
-                    Err(msg) => return msg,
+                    Err(msg) => return Some(msg),
                 }
+            }
+            // A nested `[…]` that closes is stepped over; one that does not
+            // carries its own (possibly deeper) error.
+            b'[' if flags.cmds => match command_substitution_end_bytes(src, i) {
+                Some(end) => i = end,
+                None => return Some(error_inside_unterminated_bracket(src, i, flags, config)),
+            },
+            b'"' if word_start(src, i) => match close_quote_offset_bytes(src, i) {
+                Some(end) => i = end + 1,
+                None => return Some(MISSING_QUOTE),
+            },
+            b'{' if word_start(src, i) => match brace_word_close(src, i) {
+                Some(end) => i = end + 1,
+                None => return Some(MISSING_CLOSE_BRACE),
+            },
+            _ => i += 1,
+        }
+    }
+    None
+}
+
+/// Whether `at` begins a word: the start, or preceded by a word separator.
+fn word_start(src: &[u8], at: usize) -> bool {
+    match at.checked_sub(1).map(|prev| src[prev]) {
+        None => true,
+        Some(c) => c.is_ascii_whitespace() || c == b'[' || c == b';',
+    }
+}
+
+/// The index of the `"` closing the quoted word opening at `at`, stepping over
+/// `\X` pairs and complete `[…]` substitutions.
+fn close_quote_offset_bytes(src: &[u8], at: usize) -> Option<usize> {
+    let mut i = at + 1;
+    while i < src.len() {
+        match src[i] {
+            b'\\' => i += 2,
+            b'[' => i = command_substitution_end_bytes(src, i)?,
+            b'"' => return Some(i),
+            _ => i += 1,
+        }
+    }
+    None
+}
+
+/// The index of the `}` closing the braced word opening at `at`, counting
+/// nesting and stepping over `\X` pairs.
+fn brace_word_close(src: &[u8], at: usize) -> Option<usize> {
+    let mut depth = 1usize;
+    let mut i = at + 1;
+    while i < src.len() {
+        match src[i] {
+            b'\\' => i += 2,
+            b'{' => {
+                depth += 1;
+                i += 1;
+            }
+            b'}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(i);
+                }
+                i += 1;
             }
             _ => i += 1,
         }
     }
-    MISSING_CLOSE_BRACKET
+    None
 }
 
 /// Whether the `$` at `at` opens a variable reference under `flags`.
@@ -531,6 +621,31 @@ fn decode_bytes_in(raw: &[u8], escapes: EscapeSyntax) -> Cow<'_, [u8]> {
 
 #[cfg(test)]
 mod tests {
+
+    /// An unterminated construct reports the *innermost* cause, as C does:
+    /// `subst {[list "abc}` is `missing "` and `subst {$a([foo)}` is
+    /// `missing close-bracket` on tclsh 8.6.16 and 9.0.4 — not the outer
+    /// `missing close-bracket` / `missing )`.
+    #[test]
+    fn an_unterminated_construct_reports_its_innermost_cause() {
+        let config = LexerConfig::default();
+        let flags = SubstFlags::default();
+        let err = |src: &[u8]| match decompose(src, flags, config) {
+            WordBody::Parts(parts) => parts.iter().find_map(|p| match p {
+                WordPart::ParseError(m) => Some(*m),
+                _ => None,
+            }),
+            WordBody::Literal(_) => None,
+        };
+        assert_eq!(err(br#"[list "abc"#), Some(MISSING_QUOTE));
+        assert_eq!(err(b"[list {abc"), Some(MISSING_CLOSE_BRACE));
+        assert_eq!(err(b"$a([foo)"), Some(MISSING_CLOSE_BRACKET));
+        // A bracket whose words all close still reports the missing bracket,
+        // and a closed one is no error at all.
+        assert_eq!(err(br#"[list "abc" def"#), Some(MISSING_CLOSE_BRACKET));
+        assert_eq!(err(br#"[list "abc"]"#), None);
+        assert_eq!(err(b"$a(plain"), Some(MISSING_PAREN));
+    }
 
     /// A compiled word's unclosed `[` is data, not `missing close-bracket`:
     /// the codegen decoded the source's `\[` to a bare `[` before the VM saw

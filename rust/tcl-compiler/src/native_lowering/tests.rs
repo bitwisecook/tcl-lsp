@@ -235,6 +235,29 @@ fn a_mixed_comparison_past_the_exact_double_range_takes_the_runtime_edge() {
 }
 
 #[test]
+fn renaming_a_math_function_stops_the_native_arm() {
+    // `expr` resolves `abs(…)` through the command table: after
+    // `rename ::tcl::mathfunc::abs {}` tclsh raises `invalid command name`,
+    // so the compiler must not keep folding it to a native absolute value.
+    let renamed = "rename ::tcl::mathfunc::abs {}\nset a -2\nputs [expr {abs($a)}]\n";
+    let (function, _) = lower(renamed, native_config()).expect("lowers");
+    assert!(
+        count(&function, |op| matches!(op, NativeOp::MathFunc { .. })) >= 1,
+        "the call must go back through the command table: {:?}",
+        all_ops(&function)
+    );
+    // Untouched, `abs` still folds to the inline compare/negate arm.
+    let plain = "set a -2\nputs [expr {abs($a)}]\n";
+    let (function, _) = lower(plain, native_config()).expect("lowers");
+    assert_eq!(
+        count(&function, |op| matches!(op, NativeOp::MathFunc { .. })),
+        0,
+        "{:?}",
+        all_ops(&function)
+    );
+}
+
+#[test]
 fn double_division_takes_the_runtime_operator() {
     // C Tcl raises ARITH DOMAIN for `0.0/0.0` but yields Inf for `1.0/0.0`,
     // and the double lattice cannot prove a divisor non-zero, so division
