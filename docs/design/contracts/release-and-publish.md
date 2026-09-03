@@ -105,14 +105,16 @@ from the laptop:
 
 ```
 1. make publish-verify          # checks that local credentials + tools are ready
-2. make release-tag V=X.Y.Z     # creates + pushes the annotated tag
-                                # (no source-file edits, no commit — hatch-vcs reads the tag)
-3. wait for ci.yml on refs/tags/vX.Y.Z; it builds + signs + attaches every
+2. make release-zed-version V=X.Y.Z
+                                # commit extension.toml before a stable release;
+                                # pre-release preparation does this automatically
+3. make release-tag V=X.Y.Z     # validates the Zed version, then creates + pushes the tag
+4. wait for ci.yml on refs/tags/vX.Y.Z; it builds + signs + attaches every
    artefact to the GitHub Release, then PAUSES the publish-vsix-marketplace,
    publish-vsix-openvsx, and publish-jetbrains-marketplace jobs for approval
    — approve the marketplace-vscode, marketplace-openvsx, and
    marketplace-jetbrains deployments when prompted
-4. make publish-zed             # local; Zed only (no token)
+5. make publish-zed             # local; Zed only (no token)
    # Sublime needs nothing: Package Control serves the release asset
 ```
 
@@ -339,11 +341,14 @@ stored, is a design conversation: it requires updating this contract and
   `publish-openvsx`, `publish-openvsx-targets`, `publish-jetbrains`,
   `publish-zed`, `publish-all`, `publish-verify`,
   `publish-flow`, `release-tag`, and the pre-release sequence
-  `release-perf`, `release-notes-perf`, `release-verify`,
+  `release-zed-version`, `release-perf`, `release-notes-perf`, `release-verify`,
   `release-prepare`, `release-rust-tag`.
 - [`scripts/release/rust_release.sh`](../../../scripts/release/rust_release.sh) —
   the 2.1.x pre-release driver (`next` / `preflight` / `perf` / `notes` /
   `verify` / `prepare` / `tag`).
+- [`scripts/release/zed_version.sh`](../../../scripts/release/zed_version.sh) —
+  the shared Zed manifest setter/checker used by preparation, builds, and the
+  final tag guard.
 - [`scripts/release/perf_release.sh`](../../../scripts/release/perf_release.sh)
   and [`scripts/release/perf_notes.py`](../../../scripts/release/perf_notes.py) —
   the release-notes performance graphs and the section that embeds them.

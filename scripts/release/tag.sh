@@ -22,11 +22,11 @@
 # Usage:  scripts/release/tag.sh X.Y.Z
 #         make release-tag V=X.Y.Z
 #
-# All version literals in the repo derive from the latest annotated tag
-# (via hatch-vcs for the Python wheel, via the Makefile + ``git describe``
-# for every editor build). A release therefore needs no source-file edits
-# and no commit on ``rust``; this script just validates state, tags HEAD,
-# and pushes the tag. The push triggers ``.github/workflows/ci.yml``,
+# Release artefact versions derive from the latest annotated tag (via
+# ``git describe``). The exception is Zed: its central registry builds the
+# extension directory at the tagged commit, so extension.toml must already
+# contain the release version. This script checks that invariant before it
+# tags HEAD and pushes the tag. The push triggers ``.github/workflows/ci.yml``,
 # which builds + publishes the release artefacts.
 set -euo pipefail
 
@@ -37,6 +37,10 @@ V="${1:?Usage: scripts/release/tag.sh X.Y.Z}"
     echo "error: '$V' is not a valid version (expected X.Y.Z)"
     exit 1
 }
+
+# A stale checked-in version would make the Zed extension download the wrong
+# server and would prevent publish_zed.sh from preparing the registry PR.
+bash "$(dirname "$0")/zed_version.sh" check "$V"
 
 # Refuse to tag a dirty tree — hatch-vcs would otherwise embed a ``+dev``
 # suffix in the wheel built from this commit later.

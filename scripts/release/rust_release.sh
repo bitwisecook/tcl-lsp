@@ -71,6 +71,7 @@ RELEASE_BRANCH=rust
 # source change swept into the release commit is exactly what that check is for.
 RELEASE_PATHS=(
     RELEASE_NOTES.md
+    editors/zed/extension.toml
     scripts/perf/results
     scripts/perf/graphs
     scripts/perf/MANIFEST.toml
@@ -239,6 +240,8 @@ cmd_verify() {
     local v; v="$(need_version "${1:-}")"
     step "Verifying the release artefacts for v$v"
 
+    bash "$HERE/zed_version.sh" check "$v"
+
     [ -f "$PERF/results/$v.json" ] ||
         die "no benchmark result at scripts/perf/results/$v.json — run: $0 perf $v"
     echo "    result:   scripts/perf/results/$v.json"
@@ -277,6 +280,9 @@ cmd_prepare() {
     done
 
     cmd_preflight "$v"
+
+    step "Setting the Zed extension version to v$v"
+    bash "$HERE/zed_version.sh" set "$v"
 
     if [ -f "$PERF/results/$v.json" ]; then
         echo

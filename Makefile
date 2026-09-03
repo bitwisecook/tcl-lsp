@@ -228,7 +228,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: build-editors build-editor-vsix verify-vsix install package-vsix publish-vsix publish-openvsx
 .PHONY: build-editor-vsix-targets package-vsix-targets publish-vsix-targets publish-openvsx-targets
 .PHONY: build-editor-jetbrains verify-jetbrains-server verify-editor-jetbrains publish-jetbrains build-editor-sublime verify-standalone-eda build-editor-zed publish-zed publish-all publish-verify publish-flow
-.PHONY: release release-tag release-sums
+.PHONY: release release-tag release-zed-version release-sums
 .PHONY: release-perf release-notes-perf release-verify release-prepare release-rust-tag
 # Rust runtime port
 .PHONY: runtime-rust-test runtime-rust-test-no-tommath runtime-rust-lint zed-query-check vm-test vm-lint
@@ -2146,17 +2146,21 @@ verify-standalone-eda: ## Prove a bare release binary with no specs/ beside it s
 
 ZED_DIR     := $(ROOT)editors/zed
 ZED_ARCHIVE := $(BUILD_DIR)/tcl-lsp-zed-$(VERSION).zip
+ZED_VERSION_SCRIPT := $(ROOT)scripts/release/zed_version.sh
 ZED_SRCS    := $(shell find $(ZED_DIR)/src -name '*.rs' 2>/dev/null)
 ZED_LANGS   := $(shell find $(ZED_DIR)/languages -type f 2>/dev/null)
 
 build-editor-zed: $(ZED_ARCHIVE) ## Build Zed extension archive (.zip)
 
-$(ZED_ARCHIVE): $(ZED_DIR)/Cargo.toml $(ZED_DIR)/extension.toml $(ZED_DIR)/LICENSE $(ZED_SRCS) $(ZED_LANGS)
+$(ZED_ARCHIVE): $(ZED_DIR)/Cargo.toml $(ZED_DIR)/extension.toml $(ZED_DIR)/LICENSE $(ZED_VERSION_SCRIPT) $(ZED_SRCS) $(ZED_LANGS)
 	@# A Zed extension is a single cross-platform WASM module, so it cannot
 	@# embed a per-platform native binary. Instead the extension downloads the
 	@# matching `tcl-lsp-server-<triple>` release asset for
-	@# the user's platform at runtime (issue #826). We only stamp the release
-	@# checked-in extension.toml version pins downloads to the right tag.
+	@# the user's platform at runtime (issue #826). The checked-in manifest
+	@# version pins downloads and must agree with every exact-tag build.
+	@if [ "$(SEMVER_VERSION)" != "0.0.0-dev" ]; then \
+		bash $(ZED_VERSION_SCRIPT) check "$(SEMVER_VERSION)"; \
+	fi
 	@echo "==> Building Zed extension WASM (native servers are downloaded at runtime)"
 	@if [ -f "$$HOME/.cargo/env" ]; then . "$$HOME/.cargo/env"; fi; \
 	if ! rustup target list --installed 2>/dev/null | grep -q wasm32-wasip2; then \
@@ -2218,6 +2222,9 @@ release-sums: claude-skills package-vsix package-vsix-targets build-editor-jetbr
 release-tag: ## Create + push the annotated release tag (V=x.y.z)
 	@bash $(ROOT)scripts/release/tag.sh $(V)
 
+release-zed-version: ## Set the committed Zed manifest version for V=x.y.z
+	@bash $(ROOT)scripts/release/zed_version.sh set $(V)
+
 # The 2.1.x pre-release line's prepare-then-tag flow. `rust_release.sh tag`
 # re-runs release-verify and checks the notes actually merged before handing
 # off to tag.sh, so it is the entry point to prefer over release-tag for a
@@ -2264,7 +2271,8 @@ publish-flow: ## Print the release + marketplace publish cheat-sheet
 	@echo "    make release-rust-tag V=X.Y.Z    # re-verifies, then tags"
 	@echo ""
 	@echo "  1. make publish-verify             # check that local credentials + tooling are ready"
-	@echo "  2. make release-tag V=X.Y.Z        # creates + pushes the annotated tag (e.g. 2.1.0)"
+	@echo "  2. make release-zed-version V=X.Y.Z # commit this change before a stable release"
+	@echo "     make release-tag V=X.Y.Z        # validates Zed version, then creates + pushes the tag"
 	@echo "     # CI builds + signs + attaches every release artefact to the GitHub Release"
 	@echo "     # then VS Code + Open VSX + JetBrains publish from CI behind the approval gate"
 	@echo "     # (see docs/design/contracts/release-and-publish.md)"
