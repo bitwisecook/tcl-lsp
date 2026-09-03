@@ -183,6 +183,12 @@ Toggle individual LSP features.  All default to `true`.
 | `selectionRange` | Smart selection |
 | `crossFileResolution` | Broader, bare-name workspace W123 inference — off by default (independent of `[xcDiagnostics]`, which is F5 XC Migration-specific). Exact C Tcl command candidates, including their cross-file E002/E003 arity checks, resolve without it; the opt-in setting only adds a deliberately lossier fallback. A workspace-injected `::tcl::mathfunc` override also resolves without it: that namespace is one table per interpreter, so the suppression is a language fact, not a cross-file inference |
 
+### `[signatureHelp]`
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `disabled_commands` | comma- or whitespace-separated command names | (none) | Suppress automatic signatures for selected built-in commands (for example `set, incr`) while retaining other built-ins and user-defined proc signatures. Names are case-sensitive and canonicalised by `tcl-syntax::naming`, the shared Tcl qualified-name owner. |
+
 ### `[formatting]`
 
 | Key | Type | Default | Description |

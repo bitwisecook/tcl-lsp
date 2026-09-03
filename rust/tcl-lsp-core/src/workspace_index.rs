@@ -1978,6 +1978,82 @@ impl IncrementalSettledTargets {
     }
 }
 
+/// The owner-resolved class edges [`WorkspaceIndex::class_edges`] builds once
+/// and [`Self::linearise`] answers any number of receivers from.
+struct ClassEdges {
+    supers_map: std::collections::HashMap<String, Vec<String>>,
+    mixins_map: std::collections::HashMap<String, Vec<String>>,
+}
+
+impl ClassEdges {
+    /// `class_q`'s full linearisation and its **mixin-free** twin — the
+    /// `superclass` spine alone.
+    ///
+    /// The two are needed together because C's call-chain builder treats the
+    /// paths differently: each mixin is entered with a *fresh copy* of the
+    /// dispatch flags, so a mixin's `unexport` empties only its own branch
+    /// while the same word on the spine decides the whole dispatch (issue
+    /// #1705).  Both come from the one canonical
+    /// [`tcl_syntax::mro::tcloo_linearise`] over the same resolved edges, so
+    /// they cannot disagree about which qualified name a bare `superclass
+    /// Device` meant.  Empty when the hierarchy is cyclic or too complex to
+    /// linearise (the shared budget guard) — consumers abstain rather than
+    /// guess.
+    fn linearise(&self, class_q: &str) -> (Vec<String>, Vec<String>) {
+        (
+            tcl_syntax::mro::tcloo_linearise(class_q, &self.supers_map, &self.mixins_map)
+                .unwrap_or_default(),
+            self.spine(class_q),
+        )
+    }
+
+    /// `class_q`'s mixin-free linearisation — the `superclass` spine alone.
+    fn spine(&self, class_q: &str) -> Vec<String> {
+        let no_mixins: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
+        tcl_syntax::mro::tcloo_linearise(class_q, &self.supers_map, &no_mixins).unwrap_or_default()
+    }
+
+    /// The spines `TclOO`'s call-chain builder walks for a receiver of class
+    /// `class_q`, in the order it walks them: every reachable `mixin` branch,
+    /// then the receiver's own spine — the cross-file twin of
+    /// `tcl_lsp_core::oo_dispatch`'s `dispatch_branch_spines`, and the same
+    /// rule, since C enters each mixin with a **fresh copy** of the dispatch
+    /// flags and so lets a branch's `export` / `unexport` govern that branch
+    /// alone (issue #1705).
+    fn branch_spines(&self, class_q: &str, linearisation: &[String]) -> Vec<Vec<String>> {
+        let mut roots: Vec<String> = Vec::new();
+        let mut queue: std::collections::VecDeque<String> =
+            std::collections::VecDeque::from([class_q.to_owned()]);
+        let mut seen: std::collections::HashSet<String> =
+            std::collections::HashSet::from([class_q.to_owned()]);
+        while let Some(root) = queue.pop_front() {
+            for spine_q in self.spine(&root) {
+                for mixin in self.mixins_map.get(&spine_q).into_iter().flatten() {
+                    if seen.insert(mixin.clone()) {
+                        roots.push(mixin.clone());
+                        queue.push_back(mixin.clone());
+                    }
+                }
+            }
+        }
+        // The linearisation is the order the chain builder reaches these
+        // classes; a root it does not list sorts last but keeps its discovery
+        // order.
+        roots.sort_by_key(|root| {
+            linearisation
+                .iter()
+                .position(|c| c == root)
+                .unwrap_or(usize::MAX)
+        });
+        roots
+            .into_iter()
+            .map(|root| self.spine(&root))
+            .chain(std::iter::once(self.spine(class_q)))
+            .collect()
+    }
+}
+
 impl WorkspaceIndex {
     /// Empty index.
     #[must_use]
@@ -3178,6 +3254,31 @@ impl WorkspaceIndex {
     /// budget guard) — consumers abstain rather than guess.
     #[must_use]
     pub fn class_linearisation(&self, class_q: &str) -> Vec<String> {
+        self.class_linearisation_and_spine(class_q).0
+    }
+
+    /// [`Self::class_linearisation`] and its **mixin-free** twin — the
+    /// `superclass` spine alone — from one edge-map build.
+    ///
+    /// The two are needed together because C's call-chain builder treats the
+    /// paths differently: each mixin is entered with a *fresh copy* of the
+    /// dispatch flags, so a mixin's `unexport` empties only its own branch
+    /// while the same word on the spine decides the whole dispatch (issue
+    /// #1705).  Resolving the edge maps is the expensive half and is
+    /// O(classes) on its own, so it is deliberately not paid twice — see
+    /// [`Self::subclass_provided_members`] for what per-call rebuilding cost
+    /// the diagnostics worker.
+    fn class_linearisation_and_spine(&self, class_q: &str) -> (Vec<String>, Vec<String>) {
+        self.class_edges().linearise(class_q)
+    }
+
+    /// The owner-resolved `superclass` / `mixin` edge maps over every indexed
+    /// class — the expensive half of [`Self::class_linearisation_and_spine`],
+    /// built once so a caller with many receivers to linearise does not pay
+    /// O(classes) name resolution per receiver (see
+    /// [`Self::subclass_provided_members`] for what per-call rebuilding cost
+    /// the diagnostics worker).
+    fn class_edges(&self) -> ClassEdges {
         let (known, tail_index) = self.class_name_universe();
         // Build the resolved edge maps over the classes reachable from
         // `class_q` (bounded: every indexed class at worst).
@@ -3203,7 +3304,10 @@ impl WorkspaceIndex {
                 }
             }
         }
-        tcl_syntax::mro::tcloo_linearise(class_q, &supers_map, &mixins_map).unwrap_or_default()
+        ClassEdges {
+            supers_map,
+            mixins_map,
+        }
     }
 
     /// The project-wide **subclass-provided method** view behind the
@@ -3414,8 +3518,52 @@ impl WorkspaceIndex {
         access: MethodAccess,
         side: MemberSide,
     ) -> Vec<&'a WorkspaceClass> {
+        let edges = self.class_edges();
+        self.dispatch_chain_over(&edges, receiver_class, method, access, side)
+    }
+
+    /// [`Self::dispatch_chain`] over edge maps the caller already has — the
+    /// form a bulk query uses so the O(classes) edge resolution behind
+    /// [`Self::class_edges`] is paid once for many receivers.
+    fn dispatch_chain_over<'a>(
+        &'a self,
+        edges: &ClassEdges,
+        receiver_class: &str,
+        method: &str,
+        access: MethodAccess,
+        side: MemberSide,
+    ) -> Vec<&'a WorkspaceClass> {
         let mut out: Vec<&WorkspaceClass> = Vec::new();
-        for class_q in self.class_linearisation(receiver_class) {
+        let linearisation = edges.linearise(receiver_class).0;
+        // The receiver's **effective** export flag, read once for the whole
+        // walk (issue #1705).  A subclass can `export` / `unexport` a name it
+        // inherits without redeclaring it: `export` / `unexport` accept a name
+        // their class does not define and create a body-less table entry whose
+        // only content is the flag, so the flag comes from the most specific
+        // spine class that *mentions* the member while the implementation
+        // still comes from the first class that declares a body.  Oracle,
+        // byte-identical on tclsh 8.6.16 and 9.0.4:
+        //
+        //     oo::class create Base   { method tick {} { return base } }
+        //     oo::class create Child  { superclass Base }
+        //     oo::define Child { unexport tick }
+        //     [Child new] tick    ;# -> unknown method "tick"
+        //     oo::class create Base3  { method tock {} { return b3 } ; unexport tock }
+        //     oo::class create Child3 { superclass Base3 ; export tock }
+        //     [Child3 new] tock   ;# -> b3
+        let branches: Vec<(Vec<String>, Option<bool>)> = if access == MethodAccess::External {
+            edges
+                .branch_spines(receiver_class, &linearisation)
+                .into_iter()
+                .map(|spine| {
+                    let state = self.spine_export_state(&spine, method, side);
+                    (spine, state)
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        for class_q in linearisation {
             // Several records of one class (its creation site plus every
             // `oo::define` stub, possibly spread over files) are all kept, and
             // the *first* is what go-to-definition answers with — so the order
@@ -3465,12 +3613,20 @@ impl WorkspaceIndex {
                 // {method Priv {} {…}; renamemethod Priv pub}` leaves `info
                 // class methods ::R4` empty while `-private` lists `pub`), so
                 // the source member's own record is what this reads.
-                let exported = if any_exports {
-                    true
-                } else if any_unexports {
-                    false
-                } else {
-                    em.method.exported
+                //
+                // …and a provider answers to the effective flag of the
+                // **branch** that reaches it, because C enters each mixin with
+                // a fresh copy of the dispatch flags and so lets a branch's
+                // `export` / `unexport` govern that branch alone.
+                let branch_state = branches
+                    .iter()
+                    .find(|(spine, _)| spine.contains(&class_q))
+                    .and_then(|(_, state)| *state);
+                let exported = match branch_state {
+                    Some(exported) => exported,
+                    None if any_exports => true,
+                    None if any_unexports => false,
+                    None => em.method.exported,
                 };
                 let visible = match access {
                     MethodAccess::External => exported && !em.method.private,
@@ -3482,6 +3638,86 @@ impl WorkspaceIndex {
             }
         }
         out
+    }
+
+    /// Which of `receivers` dispatch `method` **externally** into `family` —
+    /// the bulk form of "does [`Self::method_dispatch_chain`] land on one of
+    /// these classes", answering every receiver from one
+    /// [`Self::class_edges`] build.
+    ///
+    /// The caller is the cross-file method-family pass, which needs the answer
+    /// per inheriting class before it scans each document (issue #1705): a
+    /// captured `[self]` object command in a subclass body is a call site of
+    /// the family's declaration only when that subclass can actually dispatch
+    /// the name.  Asking [`Self::method_dispatch_chain`] once per inheritor
+    /// would re-resolve every class edge each time — the O(classes²) shape
+    /// [`Self::subclass_provided_members`] documents the cost of.
+    #[must_use]
+    pub fn external_dispatch_receivers<'a>(
+        &self,
+        receivers: impl IntoIterator<Item = &'a str>,
+        family: &[&str],
+        method: &str,
+        is_classmethod: bool,
+    ) -> std::collections::HashSet<String> {
+        let side = if is_classmethod {
+            MemberSide::ClassObject
+        } else {
+            MemberSide::Instance
+        };
+        let edges = self.class_edges();
+        receivers
+            .into_iter()
+            .filter(|cq| {
+                // Non-empty is not enough: the chain must land *in this
+                // family*.  A receiver whose external dispatch reaches some
+                // other class's implementation (a live `mixin` branch ahead of
+                // the spine, say) is dispatching that other member, and its
+                // capture belongs to that family instead.
+                self.dispatch_chain_over(&edges, cq, method, MethodAccess::External, side)
+                    .first()
+                    .is_some_and(|entry| family.contains(&entry.qualified_name.as_str()))
+            })
+            .map(ToOwned::to_owned)
+            .collect()
+    }
+
+    /// The export flag an external dispatch reads for `method` along `spine`
+    /// — the mixin-free linearisation from
+    /// [`Self::class_linearisation_and_spine`] — or `None` when no class on it
+    /// mentions the name at all, so there is no state to read and the
+    /// per-record union in [`Self::dispatch_chain`] stands.
+    ///
+    /// "Mentions" is deliberately wider than "declares": `export` / `unexport`
+    /// record a name their class need not define, and that body-less entry is
+    /// the whole point of this walk (issue #1705).  Within one class the
+    /// records are unordered across files, so the same
+    /// explicit-export-wins precedence [`Self::dispatch_chain`] applies to a
+    /// declaring class applies here too.
+    fn spine_export_state(&self, spine: &[String], method: &str, side: MemberSide) -> Option<bool> {
+        for class_q in spine {
+            let records = self.class_records(class_q);
+            let any_exports = records
+                .iter()
+                .any(|c| visibility_sets_for(c, side).0.iter().any(|e| e == method));
+            let any_unexports = records
+                .iter()
+                .any(|c| visibility_sets_for(c, side).1.iter().any(|e| e == method));
+            if any_exports {
+                return Some(true);
+            }
+            if any_unexports {
+                return Some(false);
+            }
+            if let Some(em) = self
+                .effective_members(class_q)
+                .into_iter()
+                .find(|em| em.name == method && method_side(em.method) == side)
+            {
+                return Some(em.method.exported);
+            }
+        }
+        None
     }
 
     /// Every record of the class `class_q`, in the workspace's stable order.
@@ -5657,6 +5893,214 @@ mod tests {
             }
             assert_eq!(methods, &slow, "bulk and per-class disagree on {ancestor}");
         }
+    }
+
+    #[test]
+    fn a_receivers_export_stub_decides_the_inherited_members_visibility() {
+        // Issue #1705.  `export` / `unexport` accept a name their class does
+        // not define, creating a body-less table entry whose only content is
+        // the flag; the flag comes from the most specific spine class that
+        // *mentions* the member while the implementation still comes from the
+        // first class that declares a body.  Oracle, byte-identical on tclsh
+        // 8.6.16 and 9.0.4:
+        //   oo::class create ::Base  { method tick {} { return base } }
+        //   oo::class create ::Child { superclass ::Base }
+        //   oo::define ::Child { unexport tick }
+        //   [::Child new] tick  ->  unknown method "tick": must be destroy
+        //   [::Base  new] tick  ->  base
+        let base = analyse("oo::class create ::Base { method tick {} { return 1 } }\n");
+        let child = analyse(
+            "oo::class create ::Child { superclass ::Base }\noo::define ::Child { unexport tick }\n",
+        );
+        let index = WorkspaceIndex::from_documents([
+            ("file:///base.tcl", &base),
+            ("file:///child.tcl", &child),
+        ]);
+        assert!(
+            index
+                .method_dispatch_chain("::Child", "tick", MethodAccess::External)
+                .is_empty(),
+            "the receiver's own unexport suppresses the inherited implementation",
+        );
+        // `my` ignores the export flag entirely — it still reaches `Base`.
+        assert_eq!(
+            index
+                .method_dispatch_chain("::Child", "tick", MethodAccess::Internal)
+                .iter()
+                .map(|c| c.uri.as_str())
+                .collect::<Vec<_>>(),
+            ["file:///base.tcl"],
+            "internal dispatch is not gated on the export flag",
+        );
+        // TN: the provider's own receiver is untouched by the subclass's flip.
+        assert_eq!(
+            index
+                .method_dispatch_chain("::Base", "tick", MethodAccess::External)
+                .iter()
+                .map(|c| c.uri.as_str())
+                .collect::<Vec<_>>(),
+            ["file:///base.tcl"],
+        );
+    }
+
+    #[test]
+    fn a_receivers_export_stub_revives_an_unexported_inherited_member() {
+        // The mirror direction, which a provider-only reading gets wrong the
+        // other way.  Oracle, byte-identical on tclsh 8.6.16 and 9.0.4:
+        //   oo::class create ::Base  { method tock {} { return b3 } ; unexport tock }
+        //   oo::class create ::Child { superclass ::Base ; export tock }
+        //   [::Child new] tock  ->  b3
+        //   [::Base  new] tock  ->  unknown method "tock": must be destroy
+        let base = analyse(
+            "oo::class create ::Base { method tock {} { return 1 }\n    unexport tock\n}\n",
+        );
+        let child = analyse("oo::class create ::Child { superclass ::Base\n    export tock\n}\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///base.tcl", &base),
+            ("file:///child.tcl", &child),
+        ]);
+        assert_eq!(
+            index
+                .method_dispatch_chain("::Child", "tock", MethodAccess::External)
+                .iter()
+                .map(|c| c.uri.as_str())
+                .collect::<Vec<_>>(),
+            ["file:///base.tcl"],
+            "the receiver's export revives the inherited implementation",
+        );
+        assert!(
+            index
+                .method_dispatch_chain("::Base", "tock", MethodAccess::External)
+                .is_empty(),
+            "the provider itself stays unexported",
+        );
+    }
+
+    #[test]
+    fn a_mixins_unexport_does_not_suppress_the_spine_provider() {
+        // C enters each mixin with a fresh copy of the dispatch flags, so a
+        // mixin's `unexport` empties only its own branch.  Oracle,
+        // byte-identical on tclsh 8.6.16 and 9.0.4:
+        //   oo::class create ::Mix { method tick {} { return mix } ; unexport tick }
+        //   oo::class create ::Child { superclass ::Base ; mixin ::Mix }
+        //   [::Child new] tick  ->  base
+        let base = analyse("oo::class create ::Base { method tick {} { return 1 } }\n");
+        let mix =
+            analyse("oo::class create ::Mix { method tick {} { return 2 }\n    unexport tick\n}\n");
+        let child = analyse("oo::class create ::Child { superclass ::Base\n    mixin ::Mix\n}\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///base.tcl", &base),
+            ("file:///mix.tcl", &mix),
+            ("file:///child.tcl", &child),
+        ]);
+        assert_eq!(
+            index
+                .method_dispatch_chain("::Child", "tick", MethodAccess::External)
+                .iter()
+                .map(|c| c.uri.as_str())
+                .collect::<Vec<_>>(),
+            ["file:///base.tcl"],
+            "the mixin's unexport must not suppress the superclass spine",
+        );
+    }
+
+    #[test]
+    fn a_mixin_branch_decides_its_own_providers_visibility_across_files() {
+        // Codex review on PR #1726.  A mixin that inherits the member from its
+        // own superclass and unexports the name empties *that branch* only —
+        // C enters each mixin with a fresh copy of the dispatch flags — so the
+        // receiver's spine still answers.  Oracle, byte-identical on tclsh
+        // 8.6.16 and 9.0.4:
+        //   oo::class create ::MChild { superclass ::MBase } ; unexport m
+        //   oo::class create ::D { superclass ::A ; mixin ::MChild }
+        //   [::D new] m  ->  A-m   (not MBase-m)
+        let a = analyse("oo::class create ::A { method m {} { return 1 } }\n");
+        let mbase = analyse("oo::class create ::MBase { method m {} { return 2 } }\n");
+        let mchild = analyse("oo::class create ::MChild { superclass ::MBase\n    unexport m\n}\n");
+        let d = analyse("oo::class create ::D { superclass ::A\n    mixin ::MChild\n}\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///a.tcl", &a),
+            ("file:///mbase.tcl", &mbase),
+            ("file:///mchild.tcl", &mchild),
+            ("file:///d.tcl", &d),
+        ]);
+        assert_eq!(
+            index
+                .method_dispatch_chain("::D", "m", MethodAccess::External)
+                .first()
+                .map(|c| c.uri.as_str()),
+            Some("file:///a.tcl"),
+            "the suppressed mixin branch must not answer; the spine must",
+        );
+        // TN for the permission the family pass reads: `::D` dispatches into
+        // `::A`'s family, not `::MBase`'s.
+        assert!(
+            index
+                .external_dispatch_receivers(["::D"], &["::A"], "m", false)
+                .contains("::D"),
+        );
+        assert!(
+            index
+                .external_dispatch_receivers(["::D"], &["::MBase"], "m", false)
+                .is_empty(),
+        );
+    }
+
+    #[test]
+    fn a_live_mixin_branch_outranks_the_spine_across_files() {
+        // The control: with the branch left public the mixin's inherited
+        // `::MBase::m` is what `[::D new] m` enters (tclsh 8.6.16 / 9.0.4 ->
+        // MBase-m), so the capture belongs to *its* family instead.
+        let a = analyse("oo::class create ::A { method m {} { return 1 } }\n");
+        let mbase = analyse("oo::class create ::MBase { method m {} { return 2 } }\n");
+        let mpub = analyse("oo::class create ::MPub { superclass ::MBase }\n");
+        let d = analyse("oo::class create ::D { superclass ::A\n    mixin ::MPub\n}\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///a.tcl", &a),
+            ("file:///mbase.tcl", &mbase),
+            ("file:///mpub.tcl", &mpub),
+            ("file:///d.tcl", &d),
+        ]);
+        assert_eq!(
+            index
+                .method_dispatch_chain("::D", "m", MethodAccess::External)
+                .first()
+                .map(|c| c.uri.as_str()),
+            Some("file:///mbase.tcl"),
+        );
+        assert!(
+            index
+                .external_dispatch_receivers(["::D"], &["::A"], "m", false)
+                .is_empty(),
+            "a receiver dispatching into another family must not join this one",
+        );
+    }
+
+    #[test]
+    fn a_mixin_branch_revives_its_own_bases_unexported_member_across_files() {
+        // The mirror direction inside a branch: `::NBase` unexports its own
+        // `n`, the mixin `::NChild` exports the inherited name, and tclsh
+        // 8.6.16 / 9.0.4 run `::NBase`'s body ahead of the spine's public
+        // `::A2::n`.
+        let a2 = analyse("oo::class create ::A2 { method n {} { return 1 } }\n");
+        let nbase =
+            analyse("oo::class create ::NBase { method n {} { return 2 }\n    unexport n\n}\n");
+        let nchild = analyse("oo::class create ::NChild { superclass ::NBase\n    export n\n}\n");
+        let d = analyse("oo::class create ::D { superclass ::A2\n    mixin ::NChild\n}\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///a2.tcl", &a2),
+            ("file:///nbase.tcl", &nbase),
+            ("file:///nchild.tcl", &nchild),
+            ("file:///d.tcl", &d),
+        ]);
+        assert_eq!(
+            index
+                .method_dispatch_chain("::D", "n", MethodAccess::External)
+                .first()
+                .map(|c| c.uri.as_str()),
+            Some("file:///nbase.tcl"),
+            "the branch's own export revives its base's body",
+        );
     }
 
     #[test]

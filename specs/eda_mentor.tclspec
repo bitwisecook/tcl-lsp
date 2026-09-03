@@ -26,12 +26,26 @@
 # member list is known to be partial the block also states
 # `allow_unknown_subcommands`.
 
-speclib eda_mentor 1.1 {
+speclib eda_mentor 2.0 {
 
 display_name {Siemens Questa/ModelSim}
 
+environment mentor-eda-tcl {
+    display_name    {Mentor EDA Tcl}
+    core            tcl 8.6
+    version_ceiling 8.6
+    editor_identity tcl-mentor
+    ambient         sdc keyed SdcVersion
+    ambient         upf keyed UpfVersion
+    ambient         questa keyed ToolVersion
+    ambient         questa-formal keyed ToolVersion
+    ambient         calibre keyed ToolVersion
+    file_extension  do -name {ModelSim/Questa Do Script}
+    help_terms      {mentor siemens modelsim questa calibre vsim}
+}
+
 command add {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
     allow_unknown_subcommands
 
@@ -64,7 +78,7 @@ command add {
 }
 
 command assertion {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
     allow_unknown_subcommands
 
@@ -85,7 +99,7 @@ command assertion {
 }
 
 command bc {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
     deprecated_replacement disablebp
 
@@ -100,7 +114,7 @@ command bc {
 }
 
 command bd {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {bd {filename line_number} | {id_number | label} ...}
@@ -114,7 +128,7 @@ command bd {
 }
 
 command be {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
     deprecated_replacement enablebp
 
@@ -129,7 +143,7 @@ command be {
 }
 
 command bl {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
     deprecated_replacement bp
 
@@ -144,7 +158,7 @@ command bl {
 }
 
 command bookmark {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
     allow_unknown_subcommands
 
@@ -166,7 +180,7 @@ command bookmark {
 }
 
 command bp {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {bp {filename line_number | filename:line_number | in} ?-ancestor? ?-appendinst? ?-class_randstate s? ?-cond "expr"? ?-disable? ?-id id_number | -label "label"? ?-inst region ...? ?-randstate s? ?-uvm? ?command ...?}
@@ -180,7 +194,7 @@ command bp {
 }
 
 command calibre {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package calibre
 
     form Default {calibre ?-drc | -lvs | -pex? ?-hier? ?-turbo? ?-hyper? rule_file}
@@ -193,7 +207,7 @@ command calibre {
 }
 
 command calibre_drc {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package calibre
 
     form Default {calibre_drc ?-hier? ?-turbo? rule_file}
@@ -206,7 +220,7 @@ command calibre_drc {
 }
 
 command calibre_lvs {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package calibre
 
     form Default {calibre_lvs ?-hier? ?-turbo? rule_file}
@@ -219,7 +233,7 @@ command calibre_lvs {
 }
 
 command calibre_pex {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package calibre
 
     form Default {calibre_pex ?-hier? ?-turbo? rule_file}
@@ -232,7 +246,7 @@ command calibre_pex {
 }
 
 command change {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {change variable value}
@@ -246,7 +260,7 @@ command change {
 }
 
 command checkpoint {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {checkpoint ?-dir? pathname}
@@ -260,7 +274,7 @@ command checkpoint {
 }
 
 command compare {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
     allow_unknown_subcommands
 
@@ -283,7 +297,7 @@ command compare {
 }
 
 command coverage {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {coverage <subcommand> ?arg ...?}
@@ -333,7 +347,7 @@ command coverage {
 }
 
 command dataset {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
     allow_unknown_subcommands
 
@@ -359,7 +373,7 @@ command dataset {
 }
 
 command delete {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
     allow_unknown_subcommands
 
@@ -377,7 +391,7 @@ command delete {
 }
 
 command describe {
-    dialects tcl8.6
+    available {tcl 8.6}
     arity 1..
     required_package questa
 
@@ -392,7 +406,7 @@ command describe {
 }
 
 command disablebp {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {disablebp ?id# | label?}
@@ -406,7 +420,7 @@ command disablebp {
 }
 
 command drivers {
-    dialects tcl8.6
+    available {tcl 8.6}
     arity 1..
     required_package questa
 
@@ -421,7 +435,7 @@ command drivers {
 }
 
 command enablebp {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {enablebp ?id# | label?}
@@ -435,7 +449,7 @@ command enablebp {
 }
 
 command environment {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {environment ?-dataset | -nodataset? ?pathname | -forward | -back?}
@@ -449,7 +463,7 @@ command environment {
 }
 
 command examine {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {examine name ... ?-delta delta? ?-env path? ?-event time? ?-gui? ?-handle? ?-in | -out | -inout | -ports? ?-internal? ?-expr expression? ?-name? ?-radix radix_type? ?-showbase | -noshowbase? ?-time time? ?-value?}
@@ -463,7 +477,7 @@ command examine {
 }
 
 command find {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {find <object_type> ?arg ...?}
@@ -519,7 +533,7 @@ command find {
 }
 
 command force {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {force ?-freeze | -drive | -deposit? signal_name value ?time? ?-repeat period? ?-cancel period?}
@@ -532,7 +546,7 @@ command force {
 }
 
 command formal_analyze {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa-formal
 
     form Default {formal_analyze ?-property prop_list?}
@@ -545,7 +559,7 @@ command formal_analyze {
 }
 
 command formal_compile {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa-formal
 
     form Default {formal_compile ?-d design? ?-work library?}
@@ -558,7 +572,7 @@ command formal_compile {
 }
 
 command formal_verify {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa-formal
 
     form Default {formal_verify ?-timeout time? ?-engine engine?}
@@ -571,7 +585,7 @@ command formal_verify {
 }
 
 command init_signal_driver {
-    dialects tcl8.6
+    available {tcl 8.6}
     arity 2..
     required_package questa
 
@@ -586,7 +600,7 @@ command init_signal_driver {
 }
 
 command init_signal_spy {
-    dialects tcl8.6
+    available {tcl 8.6}
     arity 2..
     required_package questa
 
@@ -601,7 +615,7 @@ command init_signal_spy {
 }
 
 command log {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {log ?-class classtype? ?-howmany? ?-filter f? ?-nofilter f? ?-flush? ?-in? ?-inout? ?-out? ?-ports? ?-internal? ?-recursive ?-depth level?? object ...}
@@ -615,7 +629,7 @@ command log {
 }
 
 command mem {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
     allow_unknown_subcommands
 
@@ -633,7 +647,7 @@ command mem {
 }
 
 command noforce {
-    dialects tcl8.6
+    available {tcl 8.6}
     arity 1..
     required_package questa
 
@@ -648,7 +662,7 @@ command noforce {
 }
 
 command onbreak {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {onbreak {script ?; script ...?}}
@@ -662,7 +676,7 @@ command onbreak {
 }
 
 command profile {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
     allow_unknown_subcommands
 
@@ -687,7 +701,7 @@ command profile {
 }
 
 command property {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
     allow_unknown_subcommands
 
@@ -704,7 +718,7 @@ command property {
 }
 
 command qrun {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {qrun ?-f file? ?-clean? ?-sv? ?-optimize? ?-top top? file_list}
@@ -717,7 +731,7 @@ command qrun {
 }
 
 command quit {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {quit ?-f | -force? ?-sim? ?-code integer?}
@@ -731,7 +745,7 @@ command quit {
 }
 
 command qverilog {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {qverilog ?vlog_and_vopt_options? ?-ccflags "opts"? ?-do dofile? ?-gui? ?-i? ?-l logfile? ?-ldflags "opts"? ?-R vsim_options? ?-stats args? ?-work library? filename ...}
@@ -745,7 +759,7 @@ command qverilog {
 }
 
 command qvhdl {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     ;# NOTE(eda): no current Siemens manual documents a `qvhdl` command — it does
@@ -763,7 +777,7 @@ command qvhdl {
 }
 
 command qwave {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     ;# NOTE(eda): no current Siemens manual documents a `qwave` command — it does
@@ -782,7 +796,7 @@ command qwave {
 }
 
 command radix {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
     allow_unknown_subcommands
 
@@ -800,7 +814,7 @@ command radix {
 }
 
 command readers {
-    dialects tcl8.6
+    available {tcl 8.6}
     arity 1..
     required_package questa
 
@@ -815,7 +829,7 @@ command readers {
 }
 
 command release {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {release signal_name}
@@ -828,7 +842,7 @@ command release {
 }
 
 command restart {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {restart ?-force? ?-nobreakpoint? ?-nolist? ?-nolog? ?-nowave? ?-noassertions? ?-nofcovers? ?-sv_seed seed_value | random?}
@@ -842,7 +856,7 @@ command restart {
 }
 
 command restore {
-    dialects tcl8.6
+    available {tcl 8.6}
     arity 1
     required_package questa
 
@@ -857,7 +871,7 @@ command restore {
 }
 
 command resume {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {resume}
@@ -870,7 +884,7 @@ command resume {
 }
 
 command run {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {run ?timesteps ?time_units?? | -all | -continue | -final | -finish | -init | -next | -step ?-current? ?n? ?-out? ?-over ?n?? ?-this?}
@@ -884,7 +898,7 @@ command run {
 }
 
 command see {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {see ?n | pre post?}
@@ -898,7 +912,7 @@ command see {
 }
 
 command signal_force {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {signal_force(<dest_object>, <value>, <rel_time>, <force_type>, <cancel_period>, <verbose>)}
@@ -912,7 +926,7 @@ command signal_force {
 }
 
 command signal_release {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {signal_release(<dest_object>, <verbose>)}
@@ -926,7 +940,7 @@ command signal_release {
 }
 
 command stack {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
     allow_unknown_subcommands
 
@@ -943,7 +957,7 @@ command stack {
 }
 
 command toggle {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {toggle <subcommand> ?arg ...?}
@@ -969,7 +983,7 @@ command toggle {
 }
 
 command transcript {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
     allow_unknown_subcommands
 
@@ -988,7 +1002,7 @@ command transcript {
 }
 
 command vcd {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
     allow_unknown_subcommands
 
@@ -1008,7 +1022,7 @@ command vcd {
 }
 
 command vcom {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {vcom ?-work library_name? ?-87 | -93 | -2002 | -2008 | -2019? ?-explicit? ?-lint? ?-suppress {msgNumber | msgGroup},...? ?-nowarn category_number? file_list}
@@ -1022,7 +1036,7 @@ command vcom {
 }
 
 command vcover {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {vcover <subcommand> ?arg ...?}
@@ -1058,7 +1072,7 @@ command vcover {
 }
 
 command vdel {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {vdel ?-ini path/questa.ini? ?-lib library_path? ?-verbose? {-all | primary ?arch_name? | -allsystemc | -obj {object_info} | -dpiobj ?object_info?}}
@@ -1071,7 +1085,7 @@ command vdel {
 }
 
 command view {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     ;# NOTE(eda): referenced from other entries (`delete -window`, "the view
@@ -1089,7 +1103,7 @@ command view {
 }
 
 command virtual {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {virtual <subcommand> ?arg ...?}
@@ -1127,7 +1141,7 @@ command virtual {
 }
 
 command vlib {
-    dialects tcl8.6
+    available {tcl 8.6}
     arity 1..
     required_package questa
 
@@ -1142,7 +1156,7 @@ command vlib {
 }
 
 command vlog {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {vlog ?-work library? ?-sv? ?+define+name=val? ?+incdir+dir? ?-lint? ?-suppress n? ?-nowarn n? file_list}
@@ -1155,7 +1169,7 @@ command vlog {
 }
 
 command vmap {
-    dialects tcl8.6
+    available {tcl 8.6}
     arity 1..
     required_package questa
 
@@ -1169,7 +1183,7 @@ command vmap {
 }
 
 command vopt {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {vopt ?arguments? design_unit -o name}
@@ -1183,7 +1197,7 @@ command vopt {
 }
 
 command vsim {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {vsim ?-c? ?-do command? ?-voptargs="args"? ?-L library_name? ?-debugdb=db_pathname? ?-wlf file_name? ?-onfinish ask | stop | exit | final? ?-gui? ?library_name.design_unit?}
@@ -1197,7 +1211,7 @@ command vsim {
 }
 
 command wave {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
     allow_unknown_subcommands
 
@@ -1225,7 +1239,7 @@ command wave {
 }
 
 command when {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
 
     form Default {when ?-fast? ?-id id#? ?-label label? ?-repeat? {when_condition_expression} {command}}
@@ -1239,7 +1253,7 @@ command when {
 }
 
 command write {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package questa
     allow_unknown_subcommands
 

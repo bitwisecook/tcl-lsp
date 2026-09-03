@@ -966,6 +966,28 @@ fn compiled_array_index_braced_var_matches_real_tclsh() {
     }
 }
 
+/// Issue #1732 — the Tcl 9 parser rejects raw brace bytes in an *array read*
+/// before evaluation, while Tcl 8 keeps them as key text. The assignment is
+/// deliberately outside the caught script: store-side `set a({key}) V` is an
+/// ordinary word and remains valid at every release.
+#[test]
+fn compiled_array_index_source_mask_follows_the_emulated_release() {
+    let script = concat!(
+        "set a({key}) V\n",
+        "puts [catch {set ignored $a({key})} message]:$message\n",
+    );
+    for version in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V8_6] {
+        assert_eq!(vm_output(script, version), "0:V", "{version:?}");
+    }
+    for version in [TclVersion::V9_0, TclVersion::V9_1] {
+        assert_eq!(
+            vm_output(script, version),
+            "1:invalid character in array index",
+            "{version:?}"
+        );
+    }
+}
+
 // Backslash-carrying `${…}` names (adversarial review of the #1568 fix)
 //
 // Every vector above uses a name whose only awkward character is a brace. A

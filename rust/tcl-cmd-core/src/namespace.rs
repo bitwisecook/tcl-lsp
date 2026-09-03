@@ -25,8 +25,8 @@
 //! `current`/`which` cores *do* read namespace state, so they are generic over
 //! the [`Namespaces`] role trait + [`ValueOps`].
 
-use tcl_runtime_api::Namespaces;
-use tcl_syntax::glob::string_match;
+use tcl_runtime_api::{Namespaces, NsId};
+use tcl_syntax::glob::{string_match, string_match_bytes};
 use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
@@ -137,6 +137,135 @@ pub fn imported_command_candidate(pattern: &str, name: &str) -> Option<String> {
         }
         Qualifier::Unqualified => (pattern_tail == name).then(|| name.to_owned()),
     }
+}
+
+/// What `namespace which` should resolve its name as.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WhichKind {
+    /// The default / `-command` form.
+    Command,
+    /// The `-variable` form.
+    Variable,
+}
+
+/// Parse the words after `namespace which` as C's `NamespaceWhichCmd` does.
+///
+/// One word is always the name, even when it starts with `-`. Two words are
+/// accepted only when the first is an unambiguous abbreviation of `-command`
+/// or `-variable`; every other shape is the command's wrong-arity path.
+#[must_use]
+pub fn which_request<T: AsRef<[u8]>>(args: &[T]) -> Option<(WhichKind, usize)> {
+    match args {
+        [_] => Some((WhichKind::Command, 0)),
+        [option, _] => {
+            let option = option.as_ref();
+            if option.len() > 1 && b"-command".starts_with(option) {
+                Some((WhichKind::Command, 1))
+            } else if option.len() > 1 && b"-variable".starts_with(option) {
+                Some((WhichKind::Variable, 1))
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+/// A validated `namespace import` pattern: the source namespace and the glob
+/// tail matched against its exported command names.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImportPattern {
+    /// The source namespace named by the pattern qualifier.
+    pub source: NsId,
+    /// The simple command-name glob after the qualifier.
+    pub tail: Vec<u8>,
+}
+
+/// Why a `namespace import` pattern cannot name a source namespace.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ImportPatternError {
+    /// The whole pattern is empty.
+    Empty,
+    /// The pattern has no namespace qualifier.
+    Unqualified(Vec<u8>),
+    /// Its qualifier names no namespace.
+    Unknown(Vec<u8>),
+    /// Its qualifier resolves back to the importing namespace.
+    SelfImport {
+        /// The written pattern.
+        pattern: Vec<u8>,
+        /// The source namespace's simple name.
+        namespace: Vec<u8>,
+    },
+}
+
+impl ImportPatternError {
+    /// The exact Tcl error result bytes for this failure.
+    #[must_use]
+    pub fn message(&self) -> Vec<u8> {
+        match self {
+            Self::Empty => b"empty import pattern".to_vec(),
+            Self::Unqualified(pattern) => {
+                let mut message = b"no namespace specified in import pattern \"".to_vec();
+                message.extend_from_slice(pattern);
+                message.push(b'"');
+                message
+            }
+            Self::Unknown(pattern) => {
+                let mut message = b"unknown namespace in import pattern \"".to_vec();
+                message.extend_from_slice(pattern);
+                message.push(b'"');
+                message
+            }
+            Self::SelfImport { pattern, namespace } => {
+                let mut message = b"import pattern \"".to_vec();
+                message.extend_from_slice(pattern);
+                message.extend_from_slice(b"\" tries to import from namespace \"");
+                message.extend_from_slice(namespace);
+                message.extend_from_slice(b"\" into itself");
+                message
+            }
+        }
+    }
+}
+
+/// Resolve and validate one `namespace import` pattern against the namespace
+/// tree. This is C's `Tcl_Import` source-namespace gate, shared by both runtime
+/// adapters before either enumerates or binds commands.
+///
+/// # Errors
+/// Empty and unqualified patterns, unknown source namespaces, and self-imports
+/// receive their distinct Tcl diagnostics.
+pub fn import_pattern<O: Namespaces + ?Sized>(
+    ops: &O,
+    destination: NsId,
+    pattern: &[u8],
+) -> Result<ImportPattern, ImportPatternError> {
+    if pattern.is_empty() {
+        return Err(ImportPatternError::Empty);
+    }
+    let qualifier = match qualifier(pattern) {
+        Qualifier::Absolute(prefix) | Qualifier::Relative(prefix) => prefix,
+        Qualifier::Unqualified => {
+            return Err(ImportPatternError::Unqualified(pattern.to_vec()));
+        }
+    };
+    let source = ops
+        .find_namespace_bytes(destination, qualifier)
+        .filter(|source| ops.namespace_is_live(*source))
+        .ok_or_else(|| ImportPatternError::Unknown(pattern.to_vec()))?;
+    if source == destination {
+        let source_name = ops.name_bytes(source);
+        let simple = tail(&source_name);
+        return Err(ImportPatternError::SelfImport {
+            pattern: pattern.to_vec(),
+            namespace: simple.to_vec(),
+        });
+    }
+    Ok(ImportPattern {
+        source,
+        tail: tail(pattern).to_vec(),
+    })
 }
 
 /// `namespace current` — the fully-qualified name of the current namespace
@@ -278,12 +407,57 @@ pub fn origin<O: Namespaces + ?Sized>(ops: &O, name: &str) -> Option<String> {
     origin_bytes(ops, name.as_bytes()).map(|fqn| String::from_utf8_lossy(&fqn).into_owned())
 }
 
-/// `namespace exists name` — whether `name` (resolved from the current
-/// namespace) names an existing namespace.
-pub fn exists<O: ValueOps + Namespaces>(ops: &mut O, name: &str) -> O::Value {
+/// A byte-valued namespace target that did not resolve.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NamespaceLookupError {
+    name: Vec<u8>,
+}
+
+impl NamespaceLookupError {
+    /// The byte-exact namespace spelling supplied by the caller.
+    #[must_use]
+    pub fn name(&self) -> &[u8] {
+        &self.name
+    }
+
+    /// Tcl's byte-exact `namespace "<name>" not found` result.
+    #[must_use]
+    pub fn message(&self) -> Vec<u8> {
+        let mut message = b"namespace \"".to_vec();
+        message.extend_from_slice(&self.name);
+        message.extend_from_slice(b"\" not found");
+        message
+    }
+}
+
+/// `namespace exists name` over a byte-valued namespace name.
+pub fn exists_bytes<O: ValueOps + Namespaces>(ops: &mut O, name: &[u8]) -> O::Value {
     let cur = Namespaces::current(ops);
-    let present = ops.find_namespace(cur, name).is_some();
+    let present = ops
+        .find_namespace_bytes(cur, name)
+        .is_some_and(|ns| ops.namespace_is_live(ns));
     ops.new_bool(present)
+}
+
+/// [`exists_bytes`] for UTF-8-keyed adapters.
+pub fn exists<O: ValueOps + Namespaces>(ops: &mut O, name: &str) -> O::Value {
+    exists_bytes(ops, name.as_bytes())
+}
+
+/// `namespace parent ?name?` over a byte-valued namespace name.
+///
+/// # Errors
+/// `namespace "<name>" not found` if `name` is given and does not resolve.
+pub fn parent_bytes<O: ValueOps + Namespaces>(
+    ops: &mut O,
+    name: Option<&[u8]>,
+) -> Result<O::Value, NamespaceLookupError> {
+    let ns = resolve_target_bytes(ops, name)?;
+    let fqn = match ops.parent(ns) {
+        Some(parent) => ops.name_bytes(parent),
+        None => Vec::new(), // the global root has no parent
+    };
+    Ok(ops.new_bytes(&fqn))
 }
 
 /// `namespace parent ?name?` — the FQN of the (named, or current) namespace's
@@ -295,16 +469,59 @@ pub fn parent<O: ValueOps + Namespaces>(
     ops: &mut O,
     name: Option<&str>,
 ) -> Result<O::Value, CmdError> {
-    let ns = resolve_target(ops, name)?;
-    let fqn = match ops.parent(ns) {
-        Some(p) => ops.name(p),
-        None => String::new(), // the global root has no parent
-    };
-    Ok(ops.new_string(fqn))
+    parent_bytes(ops, name.map(str::as_bytes))
+        .map_err(|error| CmdError::new(String::from_utf8_lossy(&error.message()).into_owned()))
+}
+
+/// `namespace children ?name? ?pattern?` over byte-valued namespace names.
+///
+/// Child names and results remain byte-exact. Valid-UTF-8 patterns use Tcl's
+/// Unicode glob semantics; an invalid-UTF-8 pattern or name follows the shared
+/// collision-free byte policy in [`string_match_bytes`]: byte identity only.
+///
+/// # Errors
+/// `namespace "<name>" not found` if `name` is given and does not resolve.
+pub fn children_bytes<O: ValueOps + Namespaces>(
+    ops: &mut O,
+    name: Option<&[u8]>,
+    pattern: Option<&[u8]>,
+) -> Result<O::Value, NamespaceLookupError> {
+    let ns = resolve_target_bytes(ops, name)?;
+    let target_fqn = ops.name_bytes(ns);
+    let qualified = pattern.map(|pattern| {
+        if pattern.starts_with(b"::") {
+            pattern.to_vec()
+        } else if target_fqn == b"::" {
+            let mut qualified = b"::".to_vec();
+            qualified.extend_from_slice(pattern);
+            qualified
+        } else {
+            let mut qualified = target_fqn.clone();
+            qualified.extend_from_slice(b"::");
+            qualified.extend_from_slice(pattern);
+            qualified
+        }
+    });
+    // Adapters retain the shared string-key hash table because its capacity and
+    // bucket chains survive entry deletion. Tcl_FirstHashEntry order is an
+    // observable part of this command's result.
+    let mut names: Vec<Vec<u8>> = ops
+        .children_hash_order(ns)
+        .into_iter()
+        .map(|child| ops.name_bytes(child))
+        .collect();
+    names.retain(|name| {
+        qualified
+            .as_deref()
+            .is_none_or(|pattern| string_match_bytes(pattern, name))
+    });
+    let items = names.iter().map(|name| ops.new_bytes(name)).collect();
+    Ok(ops.new_list(items))
 }
 
 /// `namespace children ?name? ?pattern?` — the FQNs of the (named, or current)
-/// namespace's child namespaces, glob-filtered and sorted. A pattern without a
+/// namespace's child namespaces, glob-filtered in C's hash-table iteration
+/// order. A pattern without a
 /// leading `::` is qualified with the target namespace's FQN first (C's
 /// `NamespaceChildrenCmd`).
 ///
@@ -315,41 +532,110 @@ pub fn children<O: ValueOps + Namespaces>(
     name: Option<&str>,
     pattern: Option<&str>,
 ) -> Result<O::Value, CmdError> {
-    let ns = resolve_target(ops, name)?;
-    let target_fqn = ops.name(ns);
-    let qualified = pattern.map(|p| {
-        if p.starts_with("::") {
-            p.to_string()
-        } else if target_fqn == "::" {
-            format!("::{p}")
-        } else {
-            format!("{target_fqn}::{p}")
+    children_bytes(ops, name.map(str::as_bytes), pattern.map(str::as_bytes))
+        .map_err(|error| CmdError::new(String::from_utf8_lossy(&error.message()).into_owned()))
+}
+
+/// The observable order owner for Tcl's `TCL_STRING_KEYS` hash table.
+///
+/// Namespace adapters keep one instance per namespace instead of reconstructing
+/// it from the live children: Tcl quadruples the bucket array at a 3:1 load
+/// factor and never shrinks it when entries are deleted, while each resize also
+/// reverses bucket chains. Both facts affect `Tcl_FirstHashEntry` order.
+#[derive(Clone, Debug)]
+pub struct TclStringHashOrder {
+    buckets: Vec<Vec<Vec<u8>>>,
+    entries: usize,
+}
+
+impl Default for TclStringHashOrder {
+    fn default() -> Self {
+        Self {
+            buckets: vec![Vec::new(); 4],
+            entries: 0,
         }
-    });
-    // Collect child FQNs (the ids are owned, so the `name` lookups don't alias).
-    let mut names: Vec<String> = Vec::new();
-    for child in ops.children(ns) {
-        names.push(ops.name(child));
     }
-    names.retain(|n| qualified.as_deref().is_none_or(|p| string_match(p, n)));
-    names.sort();
-    let items: Vec<O::Value> = names.iter().map(|n| ops.new_str(n)).collect();
-    Ok(ops.new_list(items))
+}
+
+impl TclStringHashOrder {
+    fn hash(bytes: &[u8]) -> usize {
+        let mut iter = bytes.iter().copied();
+        let mut result = usize::from(iter.next().unwrap_or(0));
+        for byte in iter {
+            result = result
+                .wrapping_add(result.wrapping_shl(3))
+                .wrapping_add(usize::from(byte));
+        }
+        result
+    }
+
+    /// Insert `key`, returning `false` when it already exists.
+    pub fn insert(&mut self, key: &[u8]) -> bool {
+        let bucket = Self::hash(key) & (self.buckets.len() - 1);
+        if self.buckets[bucket].iter().any(|entry| entry == key) {
+            return false;
+        }
+        self.buckets[bucket].insert(0, key.to_vec());
+        self.entries += 1;
+        if self.entries >= self.buckets.len() * 3 {
+            self.rebuild();
+        }
+        true
+    }
+
+    /// Delete `key` without shrinking or rebuilding the bucket array.
+    pub fn remove(&mut self, key: &[u8]) -> bool {
+        let bucket = Self::hash(key) & (self.buckets.len() - 1);
+        let Some(index) = self.buckets[bucket].iter().position(|entry| entry == key) else {
+            return false;
+        };
+        self.buckets[bucket].remove(index);
+        self.entries -= 1;
+        true
+    }
+
+    /// Reset a deleted namespace's table to Tcl's four static buckets.
+    pub fn clear(&mut self) {
+        *self = Self::default();
+    }
+
+    /// Live keys in `Tcl_FirstHashEntry`/`Tcl_NextHashEntry` order.
+    #[must_use]
+    pub fn keys(&self) -> Vec<&[u8]> {
+        self.buckets
+            .iter()
+            .flat_map(|chain| chain.iter().map(Vec::as_slice))
+            .collect()
+    }
+
+    fn rebuild(&mut self) {
+        let old = std::mem::take(&mut self.buckets);
+        self.buckets = vec![Vec::new(); old.len() * 4];
+        for chain in old {
+            for key in chain {
+                let bucket = Self::hash(&key) & (self.buckets.len() - 1);
+                self.buckets[bucket].insert(0, key);
+            }
+        }
+    }
 }
 
 /// Resolve the optional `name` argument to a namespace handle: the current
 /// namespace when absent, else `name` resolved from it (erroring if it doesn't
 /// exist) — the shared first step of `namespace parent`/`children`.
-fn resolve_target<O: ValueOps + Namespaces>(
-    ops: &mut O,
-    name: Option<&str>,
-) -> Result<tcl_runtime_api::NsId, CmdError> {
+fn resolve_target_bytes<O: Namespaces + ?Sized>(
+    ops: &O,
+    name: Option<&[u8]>,
+) -> Result<tcl_runtime_api::NsId, NamespaceLookupError> {
     let cur = Namespaces::current(ops);
     match name {
         None => Ok(cur),
-        Some(n) => ops
-            .find_namespace(cur, n)
-            .ok_or_else(|| CmdError::new(format!("namespace \"{n}\" not found"))),
+        Some(name) => ops
+            .find_namespace_bytes(cur, name)
+            .filter(|ns| ops.namespace_is_live(*ns))
+            .ok_or_else(|| NamespaceLookupError {
+                name: name.to_vec(),
+            }),
     }
 }
 
@@ -403,5 +689,65 @@ mod tests {
             Some("::foo::".to_owned())
         );
         assert_eq!(imported_command_candidate("::src::im*", "other"), None);
+    }
+
+    #[test]
+    fn which_request_matches_namespace_whichs_positional_option_rule() {
+        assert_eq!(which_request(&["puts"]), Some((WhichKind::Command, 0)));
+        assert_eq!(which_request(&["-command"]), Some((WhichKind::Command, 0)));
+        assert_eq!(
+            which_request(&["-com", "puts"]),
+            Some((WhichKind::Command, 1))
+        );
+        assert_eq!(
+            which_request(&["-var", "name"]),
+            Some((WhichKind::Variable, 1))
+        );
+        assert_eq!(which_request::<&str>(&[]), None);
+        assert_eq!(which_request(&["-zork", "puts"]), None);
+        assert_eq!(which_request(&["-command", "-variable", "puts"]), None);
+    }
+
+    #[test]
+    fn tcl_string_hash_order_matches_namespace_children_oracle() {
+        let names = [
+            "::order::one",
+            "::order::two",
+            "::order::three",
+            "::order::four",
+            "::order::five",
+            "::order::six",
+            "::order::seven",
+            "::order::eight",
+            "::order::nine",
+            "::order::ten",
+        ];
+        let mut table = TclStringHashOrder::default();
+        for name in names {
+            assert!(table.insert(tail(name.as_bytes())));
+        }
+        let actual: Vec<_> = table
+            .keys()
+            .into_iter()
+            .map(|key| core::str::from_utf8(key).unwrap())
+            .collect();
+        assert_eq!(
+            actual,
+            [
+                "six", "four", "three", "eight", "seven", "nine", "five", "two", "one", "ten",
+            ]
+        );
+    }
+
+    #[test]
+    fn tcl_string_hash_order_retains_resize_after_deletion() {
+        let mut table = TclStringHashOrder::default();
+        for index in 0..12 {
+            assert!(table.insert(format!("a{index}").as_bytes()));
+        }
+        for index in [1, 2, 4, 5, 6, 7, 8, 9, 10, 11] {
+            assert!(table.remove(format!("a{index}").as_bytes()));
+        }
+        assert_eq!(table.keys(), [b"a0".as_slice(), b"a3".as_slice()]);
     }
 }

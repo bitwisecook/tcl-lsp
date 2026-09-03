@@ -463,6 +463,29 @@ fn concat_keeps_backslash_escaped_trailing_space() {
     assert_eq!(result, "a b c"); // plain whitespace is trimmed
 }
 
+/// `TclParseBackslash` recognises only raw `\<LF>` as a continuation. A source
+/// channel may normalise CRLF first, but bytes passed directly to the compiler
+/// and VM retain raw CR/CRLF exactly like `Tcl_EvalObjEx` (issue #1579).
+#[test]
+fn raw_backslash_cr_is_data_not_a_line_continuation() {
+    for (source, expected) in [
+        ("set x \"a\\\rb\"; set x", "a\rb"),
+        ("set x \"a\\\r\nb\"; set x", "a\r\nb"),
+        ("set x {a\\\rb}; set x", "a\\\rb"),
+        ("set x \"a\\\nb\"; set x", "a b"),
+    ] {
+        let (ok, result, _) = run(source);
+        assert!(ok, "script should complete: {source:?}: {result:?}");
+        assert_eq!(result, expected, "{source:?}");
+    }
+
+    // The related concat edge is already owned by tcl-cmd-core's
+    // backslash-aware trim: the escaped trailing space remains data.
+    let (ok, result, _) = run("concat \"\\\\ \"");
+    assert!(ok, "concat should complete: {result:?}");
+    assert_eq!(result, "\\ ");
+}
+
 /// A codegen hook (`concat`, `llength`, …) collapses a non-braced literal
 /// argument's backslash escapes exactly like the generic per-word path — a
 /// braced word stays verbatim. Regression for concat-1.4 / llength-2.3, where
@@ -718,10 +741,11 @@ fn subst_backslash_escapes_handle_multibyte_and_hex() {
     assert_eq!(run("subst {\\x41}").1, "A");
     // Tcl 9 caps `\x` at two hex digits: the rest is literal text.
     assert_eq!(run("subst {\\x41BC}").1, "ABC");
-    // `\` then newline then leading whitespace collapses to a single space —
-    // for a CRLF line ending too.
+    // `\` then raw LF then leading whitespace collapses to a single space.
+    // The VM is handed raw script text rather than a source channel, so CRLF
+    // retains Tcl's raw-string semantics: the backslash quotes only the CR.
     assert_eq!(run("subst \"a\\\n   b\"").1, "a b");
-    assert_eq!(run("subst \"a\\\r\n   b\"").1, "a b");
+    assert_eq!(run("subst \"a\\\r\n   b\"").1, "a\r\n   b");
 }
 
 /// `info level` runs through the shared Family-B core

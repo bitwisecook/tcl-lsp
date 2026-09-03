@@ -831,6 +831,7 @@ mod tests {
             single_token_word: vec![true; args.len().saturating_add(1)],
             all_tokens: vec![span; args.len().saturating_add(1)],
             expand_word: None,
+            synthetic: None,
         }
     }
 

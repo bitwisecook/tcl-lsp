@@ -96,6 +96,7 @@ js-clock = ["dep:js-sys"]
 # End-to-end tests compile real Tcl to bytecode then run it. Dev-only, so the
 # library itself stays off the compiler (CompileService is the runtime seam).
 tcl-compiler = { path = "../tcl-compiler" }
+tcl-test-support = { path = "../tcl-test-support" }
 
 [lints]
 workspace = true

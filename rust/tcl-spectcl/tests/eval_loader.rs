@@ -37,6 +37,7 @@
 
 use std::path::{Path, PathBuf};
 
+use tcl_dialect::model::{Placement, SpecProvider};
 use tcl_spectcl::loader::{EvalOptions, Notice, Pack, evaluate_pack, evaluate_pack_with};
 use tcl_spectcl::{LoadError, Tier};
 
@@ -52,8 +53,8 @@ fn repo_root() -> PathBuf {
 /// [`tcl_spectcl::golden::shipped_packs`] owns, shared with the golden gate
 /// and its regeneration verb so no two of them can disagree about what
 /// "every shipped pack" means.
-fn inventory() -> Vec<PathBuf> {
-    tcl_spectcl::golden::shipped_packs(&repo_root())
+fn inventory() -> Vec<tcl_spectcl::golden::ShippedPackFile> {
+    tcl_spectcl::golden::shipped_pack_inventory(&repo_root())
 }
 
 /// One notice as the comparison sees it. The line is compared too: the
@@ -135,22 +136,6 @@ fn first_diff(a: &str, b: &str) -> String {
     )
 }
 
-/// The dialect a pack's commands are exercised under — the same mapping the
-/// corpus harness uses, so `command_entry_json` resolves the vendor packs
-/// through the profile that actually admits them.
-fn dialect_for(stem: &str) -> &'static str {
-    match stem {
-        "eda_xilinx" | "sdc_base" => "xilinx-eda-tcl",
-        "upf" | "eda_synopsys" => "synopsys-eda-tcl",
-        "eda_microchip" => "microchip-libero-eda-tcl",
-        "eda_cadence" => "cadence-eda-tcl",
-        "eda_quartus" => "intel-quartus-eda-tcl",
-        "eda_mentor" => "mentor-eda-tcl",
-        "irules-http-header" => "f5-irules",
-        _ => "tcl9.1",
-    }
-}
-
 /// Load with the static fast path disabled: every body goes through the
 /// interpreter, including a 20k-line declarative one.
 ///
@@ -196,8 +181,9 @@ fn every_shipped_pack_loads_identically_with_and_without_the_static_fast_path() 
     let mut commands = 0_usize;
     let mut entries = 0_usize;
     let mut notices = 0_usize;
-    for path in files {
-        let source = std::fs::read_to_string(&path).expect("readable pack");
+    for shipped in files {
+        let path = &shipped.path;
+        let source = std::fs::read_to_string(path).expect("readable pack");
         let fast = evaluate_pack(&source);
         let slow = evaluate_through_the_interpreter(&source);
 
@@ -212,11 +198,7 @@ fn every_shipped_pack_loads_identically_with_and_without_the_static_fast_path() 
 
         // Byte-identical `command_entry_json` per declared command, through
         // a real registry, under the pack's own dialect profile.
-        let stem = path
-            .file_stem()
-            .and_then(|stem| stem.to_str())
-            .unwrap_or_default();
-        let dialect = dialect_for(stem);
+        let dialect = shipped.dialect;
         assert_eq!(
             fast.commands.len(),
             slow.commands.len(),
@@ -351,6 +333,277 @@ fn a_command_body_may_template_its_own_rows() {
     let command = pack.command("lsortish").expect("loads");
     let options: Vec<&str> = command.spec.options.iter().map(|o| o.name).collect();
     assert_eq!(options, vec!["-ascii", "-dictionary", "-integer", "-real"]);
+}
+
+/// A variable set once and substituted into rows reaches the model as its
+/// **value**, at pack scope and inside a declaration body alike.
+///
+/// The capture layer prefers the file's own bytes to the evaluated
+/// invocation whenever the source statement at that line has the same
+/// shape, because evaluation loses per-word braced-ness and physical
+/// lines. That preference has to stop at a statement that substitutes:
+/// replaying `ambient Tk $tkver` verbatim hands the reader the dollar sign
+/// instead of the version, and the pack silently means something it did not
+/// say (issue #1643).
+#[test]
+fn a_variable_substitutes_into_rows_at_every_scope() {
+    let source = "speclib versioned 2.0 {\n\nset tkver 8.6\n\nenvironment probe-shell {\n    core tcl 8.6\n    ambient Tk $tkver\n}\n\ncommand demo {\n    arity 1\n    available \"package Tk $tkver-\"\n}\n\n}\n";
+    let pack = evaluate_pack(source);
+    assert!(pack.load_error.is_none(), "{:#?}", pack.notices);
+
+    // The environment's `ambient` row carries the version, not the spelling.
+    let environment = pack
+        .environments
+        .iter()
+        .find(|environment| environment.id == "probe-shell")
+        .expect("the environment block loads");
+    let placement = environment
+        .placements
+        .iter()
+        .find(|row| row.package == "Tk")
+        .expect("the ambient placement loads");
+    assert!(placement.ambient);
+    assert!(
+        matches!(&placement.version, Placement::Pinned(version) if version.to_string() == "8.6"),
+        "{:?}",
+        placement.version
+    );
+
+    // And the `available` window names the same package by value.
+    let surface = pack
+        .command("demo")
+        .expect("the command loads")
+        .spec
+        .surface
+        .expect("the available row loads");
+    assert!(
+        surface
+            .iter()
+            .any(|row| matches!(&row.provider, SpecProvider::Package(name) if *name == "Tk")),
+        "{surface:?}"
+    );
+    assert!(
+        !pack
+            .notices
+            .iter()
+            .any(|notice| notice.message.contains("$tkver")),
+        "nothing reports the unsubstituted spelling: {:?}",
+        pack.notices
+    );
+}
+
+/// An `environment` body is an evaluated **script**, exactly as a `command`
+/// body is: a `foreach` inside it registers one row per iteration, and an
+/// `if` decides whether a row is registered at all.
+///
+/// This is what makes the block the answer to #1643 rather than a second
+/// declarative dialect — the author writes ordinary Tcl, and the block
+/// reader still owns what every row it produced means.
+#[test]
+fn an_environment_body_runs_as_a_program() {
+    let source = "speclib looped 2.0 {\n\nset shipped 1\n\nenvironment looped-shell {\n    core tcl 8.6\n    foreach suffix {aaa bbb ccc} {\n        file_extension $suffix\n    }\n    if {$shipped} {\n        ambient looplib 1.5\n    }\n}\n\n}\n";
+    let pack = evaluate_pack(source);
+    assert!(pack.load_error.is_none(), "{:#?}", pack.notices);
+    assert!(pack.notices.is_empty(), "{:#?}", pack.notices);
+
+    let environment = pack
+        .environments
+        .iter()
+        .find(|environment| environment.id == "looped-shell")
+        .expect("the environment block loads");
+    let extensions: Vec<&str> = environment
+        .file_extensions
+        .iter()
+        .map(|claim| claim.extension.as_ref())
+        .collect();
+    assert_eq!(
+        extensions,
+        vec!["aaa", "bbb", "ccc"],
+        "the loop registered one row per iteration"
+    );
+    assert!(
+        environment
+            .placements
+            .iter()
+            .any(|row| row.package == "looplib" && row.ambient),
+        "the `if` registered its row: {:?}",
+        environment.placements
+    );
+}
+
+/// The block readers keep every notice they had, reached through the
+/// evaluated path.
+///
+/// An `environment` body is a script now, but it is still *that* block's
+/// body: an unknown row is semantic-class and rejects the whole block, a
+/// reserved compiled name is refused, and a `dialect` whose axes reproduce
+/// a compiled release is sent back to `environment`. None of that moved
+/// into the evaluator.
+#[test]
+fn the_block_readers_still_report_from_the_evaluated_path() {
+    let unknown = evaluate_pack(
+        "speclib probe 2.0 {\n\nenvironment probe-shell {\n    core tcl 8.6\n    invented_row yes\n}\n\n}\n",
+    );
+    assert!(
+        unknown.environments.is_empty(),
+        "an unknown row rejects the block"
+    );
+    assert!(
+        unknown
+            .notices
+            .iter()
+            .any(|notice| notice.message.contains("invented_row")),
+        "{:?}",
+        unknown.notices
+    );
+
+    let reserved =
+        evaluate_pack("speclib probe 2.0 {\n\nenvironment tcl8.6 {\n    core tcl 8.6\n}\n\n}\n");
+    assert!(reserved.environments.is_empty());
+    assert!(
+        reserved
+            .notices
+            .iter()
+            .any(|notice| notice.message.contains("compiled environment name")),
+        "{:?}",
+        reserved.notices
+    );
+
+    let missing_body = evaluate_pack("speclib probe 2.0 {\n\nenvironment probe-shell\n\n}\n");
+    assert!(missing_body.environments.is_empty());
+    assert!(
+        missing_body
+            .notices
+            .iter()
+            .any(|notice| notice.message.contains("has no `{ … }` block")),
+        "{:?}",
+        missing_body.notices
+    );
+
+    let classified =
+        evaluate_pack("speclib probe 2.0 {\n\ndialect probe-lang {\n    release tcl9.0\n}\n\n}\n");
+    assert!(classified.dialects.is_empty());
+    assert!(
+        classified
+            .notices
+            .iter()
+            .any(|notice| notice.message.contains("not a new dialect")),
+        "{:?}",
+        classified.notices
+    );
+}
+
+/// A block body is the declaration's body **word**, whatever its value
+/// looks like.
+///
+/// Evaluation hands the handler values, not words, so a one-word body
+/// (`{emit}`) is the same string a flag would be. Picking the body out by
+/// whitespace therefore missed it, staged the declaration with no body at
+/// all, and rejected `environment one-word {emit}` for its formatting
+/// rather than its content (issue #1643).
+#[test]
+fn a_block_body_is_located_by_position_not_by_whitespace() {
+    // `emit` is a pack-defined proc, so both bodies are a single bare
+    // word. The second declaration is templated, so it matches no source
+    // statement and its body comes from the argument layout alone.
+    let one_word = "speclib shaped 2.0 {\n\nproc emit {} {\n    core tcl 8.6\n    \
+                    file_extension one\n}\n\nenvironment spelled {emit}\n\n\
+                    foreach id {templated} {\n    environment $id {emit}\n}\n\n}\n";
+    let pack = evaluate_through_the_interpreter(one_word);
+    assert!(pack.load_error.is_none(), "{:#?}", pack.notices);
+    for id in ["spelled", "templated"] {
+        let environment = pack
+            .environments
+            .iter()
+            .find(|environment| environment.id == id)
+            .unwrap_or_else(|| panic!("the one-word block `{id}` loads: {:#?}", pack.notices));
+        assert!(environment.core.is_some(), "the body ran: {environment:#?}");
+        assert_eq!(
+            environment
+                .file_extensions
+                .iter()
+                .map(|claim| claim.extension.as_ref())
+                .collect::<Vec<&str>>(),
+            vec!["one"],
+            "the proc registered its row into the block"
+        );
+    }
+
+    // The empty body and the ordinary multi-row body stage and replay the
+    // same way whichever path reads them.
+    let shapes = "speclib shaped 2.0 {\n\nenvironment empty-shell {}\n\n\
+                  environment normal-shell {\n    core tcl 8.6\n    \
+                  file_extension many\n}\n\ndialect empty-lang {}\n\n}\n";
+    let fast = evaluate_pack(shapes);
+    let slow = evaluate_through_the_interpreter(shapes);
+    assert!(fast.load_error.is_none(), "{:#?}", fast.notices);
+    let keys = |pack: &Pack| {
+        let mut rows: Vec<_> = pack.notices.iter().map(notice_key).collect();
+        rows.sort();
+        rows
+    };
+    assert_eq!(keys(&fast), keys(&slow));
+    assert_eq!(
+        fast.environments
+            .iter()
+            .map(|environment| environment.id.as_str())
+            .collect::<Vec<&str>>(),
+        slow.environments
+            .iter()
+            .map(|environment| environment.id.as_str())
+            .collect::<Vec<&str>>(),
+    );
+    let normal = fast
+        .environments
+        .iter()
+        .find(|environment| environment.id == "normal-shell")
+        .expect("the multi-row block loads");
+    assert_eq!(
+        normal
+            .file_extensions
+            .iter()
+            .map(|claim| claim.extension.as_ref())
+            .collect::<Vec<&str>>(),
+        vec!["many"],
+    );
+}
+
+/// A braced name is refused on the evaluated path too.
+///
+/// `environment {custom} { … }` is the issue-#1638 mistake the block
+/// readers reject, but evaluation loses per-word braced-ness: rebuilding
+/// the header from values alone made the name look bare, and the
+/// declaration was accepted whenever the pack happened to need the
+/// interpreter.
+#[test]
+fn a_braced_block_name_is_rejected_on_both_paths() {
+    for word in ["environment", "dialect"] {
+        // The declarative pack takes the static path; the `set` makes the
+        // same declaration reach the interpreter instead.
+        let declarative =
+            format!("speclib braced 2.0 {{\n\n{word} {{custom}} {{\n    core tcl 8.6\n}}\n\n}}\n");
+        let programmed = format!(
+            "speclib braced 2.0 {{\n\nset forced 1\n\n{word} {{custom}} {{\n    \
+             core tcl 8.6\n}}\n\n}}\n"
+        );
+        for pack in [
+            evaluate_pack(&declarative),
+            evaluate_pack(&programmed),
+            evaluate_through_the_interpreter(&declarative),
+        ] {
+            assert!(
+                pack.environments.is_empty() && pack.dialects.is_empty(),
+                "`{word} {{custom}}` declares nothing: {:#?}",
+                pack.notices
+            );
+            assert!(
+                pack.notices.iter().any(|notice| notice.message
+                    == format!("`{word}` needs a name and a `{{ … }}` block")),
+                "{:?}",
+                pack.notices
+            );
+        }
+    }
 }
 
 // Determinism and budgets (§1.2)

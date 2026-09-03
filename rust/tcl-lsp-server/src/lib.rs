@@ -73,6 +73,7 @@ use tcl_lsp_core::file_ops as core_file_ops;
 use tcl_lsp_core::folding::FoldKind;
 use tcl_lsp_core::formatting as core_formatting;
 use tcl_lsp_core::hover::{self as core_hover, Hover as CoreHover, HoverKind as CoreHoverKind};
+use tcl_lsp_core::ilx_navigation as core_ilx;
 use tcl_lsp_core::implementation as core_implementation;
 use tcl_lsp_core::inlay_hints as core_inlay_hints;
 use tcl_lsp_core::linked_editing_range as core_linked_editing_range;
@@ -327,6 +328,20 @@ impl DocumentState {
     fn bump_revision(&mut self, version: i32) {
         self.revision = self.revision.saturating_add(1);
         self.version = Some(version);
+    }
+}
+
+/// A snapshot of what the editor holds for every open document, by path.
+///
+/// Built by [`Backend::open_document_texts`] and handed to the iRulesLX
+/// cross-file walk, which reads other files itself and must see the same bytes
+/// [`Backend::read_document`] would — the open buffer first, disk only for what
+/// is not open (issue #1707 review).
+struct OpenDocumentTexts(HashMap<PathBuf, Arc<str>>);
+
+impl tcl_lsp_core::ilx_navigation::OpenDocuments for OpenDocumentTexts {
+    fn text(&self, path: &Path) -> Option<Arc<str>> {
+        self.0.get(path).map(Arc::clone)
     }
 }
 
@@ -4722,6 +4737,17 @@ struct RefinementInputs<'a> {
     cross_file_resolution: bool,
 }
 
+/// The resolved per-document settings an F5 model dialect's pull report reads
+/// — everything [`Backend::f5_pull_report`] needs beyond the buffers and the
+/// URI.
+struct F5PullInputs<'a> {
+    profile: &'static tcl_dialect::DialectProfile,
+    disabled: &'a HashSet<String>,
+    severity_overrides:
+        &'a std::collections::HashMap<String, tower_lsp_server::ls_types::DiagnosticSeverity>,
+    decode_report: Option<tcl_lsp_core::source_decode::DecodeReport>,
+}
+
 /// The document-local settings shared by every pull-diagnostic workspace
 /// refinement. Keeping them together makes the pull path's central
 /// finalisation entry point explicit without repeating its configuration at
@@ -4744,6 +4770,15 @@ async fn refine_and_lift_diagnostics(
     refinement: &RefinementInputs<'_>,
     inputs: &LiftInputs<'_>,
 ) -> Result<Vec<tower_lsp_server::ls_types::Diagnostic>, crate::rt::JoinError> {
+    // A `.sslictcl` document is never evaluated, so its unrecognised words are
+    // unknown *declarations* the loader reports (`SSLIC1101` / `SSLIC1007`),
+    // not unknown commands. Drop the superseded analyser verdicts before the
+    // refinements that would otherwise chase them (the pull path and code
+    // actions do the same in `published_analyser_diagnostics`).
+    let mut analyser_diags = analyser_diags;
+    if tcl_lsp_core::sslictcl_diagnostics::applies_to(inputs.dialect) {
+        tcl_lsp_core::sslictcl_diagnostics::supersede_analyser_diagnostics(&mut analyser_diags);
+    }
     // #723 + #804: refine the analyser's single-file W120 against the workspace
     // package database and the requires inherited from entry points / `source`
     // ancestors (shared with the pull path via `refine_workspace_w120`).
@@ -4799,6 +4834,10 @@ async fn refine_and_lift_diagnostics(
     let style_line_length = inputs.style_line_length;
     let dialect = inputs.dialect.to_owned();
     let xc_for_irules = inputs.xc_diagnostics && inputs.dialect.is_irules();
+    // SslicTcl documents carry a second whole-file validator, exactly as the
+    // F5 dialects do: the `.sslictcl` loader. Resolved from the profile here
+    // rather than inside the worker so the closure captures a plain `bool`.
+    let sslictcl = tcl_lsp_core::sslictcl_diagnostics::applies_to(inputs.dialect);
     let compiler_diags = Arc::clone(compiler_diags);
     crate::rt::spawn_blocking(move || {
         // `analyser_diags` includes opt-in callback checks when enabled; direct
@@ -4829,6 +4868,23 @@ async fn refine_and_lift_diagnostics(
                 &lift_text,
                 &disabled,
                 &analysis_lifts.suppressed_lines,
+            ));
+        }
+        // Routed by dialect: a `.sslictcl` document's `SSLIC1xxx` loader
+        // findings are ordinary document diagnostics (mirrored on the pull
+        // path in `full_diagnostics_for`). The loader parses the *analysis*
+        // form — a lone `\r` terminates a command for `tclsh` — while the
+        // spans lift against the client's buffer, which the rewrite leaves
+        // byte-for-byte the same length.
+        if sslictcl {
+            let loader_text = tcl_lexer::normalise_lone_cr(&lift_text);
+            diagnostics.extend(lift_analyser_diagnostics(
+                &lift_text,
+                &tcl_lsp_core::sslictcl_diagnostics::diagnostics(
+                    &loader_text,
+                    &disabled,
+                    &analysis_lifts.suppressed_lines,
+                ),
             ));
         }
         finalise_diagnostics(
@@ -5691,6 +5747,10 @@ pub struct Backend {
     /// known by the unknown-command (W123) check; mirrored onto the salsa
     /// `AnalyserConfig`.
     extra_commands: Mutex<Vec<String>>,
+    /// Built-in command names whose automatic signature help is suppressed
+    /// (`tclLsp.signatureHelp.disabledCommands`). User-defined proc signatures
+    /// are deliberately unaffected.
+    signature_help_disabled_commands: Mutex<Vec<String>>,
     /// `tclLsp.specPacks` — extra `.tclspec` files or directories to load as
     /// `SpecTcl` packs, on top of the ones discovery finds by convention.
     spec_pack_paths: Mutex<Vec<String>>,
@@ -6624,6 +6684,9 @@ struct FolderConfig {
     shimmer_enabled: Option<bool>,
     /// `tclLsp.extraCommands` override; `None` inherits the global set.
     extra_commands: Option<Vec<String>>,
+    /// `tclLsp.signatureHelp.disabledCommands` override; `None` inherits the
+    /// global list. `Some([])` explicitly enables every built-in signature.
+    signature_help_disabled_commands: Option<Vec<String>>,
     /// `tclLsp.diagnostics.genericVariablePatterns` override. See
     /// [`FolderGenericPatterns`]: `Inherit` falls back to the global value,
     /// `BuiltinDefaults` selects the analyser's built-in set, and `Replace`
@@ -6651,6 +6714,38 @@ struct FolderConfig {
     /// carries the key, so a folder list replaces the global one rather
     /// than unioning with it.
     diagnostics_exclude: Option<Vec<String>>,
+    /// `tclLsp.iruleslx` / `.tcl-lsp.ini [iruleslx.plugins]` + `[iruleslx.rules]`
+    /// — the declared iRulesLX plugin associations (#1707). Held per folder
+    /// because the paths are folder-relative, exactly as `entry_points` is.
+    iruleslx: Vec<IlxPluginSpec>,
+}
+
+/// One `[iruleslx.plugins]` entry, with any `[iruleslx.rules]` directories
+/// declared for the same plugin, as written in the configuration.
+///
+/// Paths stay unresolved here: a relative path means "under this folder", and
+/// the folder root is only known where the config is read
+/// ([`Backend::ilx_plugin_roots`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct IlxPluginSpec {
+    /// The `PLUGIN` word of `ILX::init`.
+    plugin: String,
+    /// The workspace directory holding `extensions/`.
+    workspace: String,
+    /// Extra directories holding callers of this plugin.
+    extra_rule_dirs: Vec<String>,
+}
+
+/// The deepest workspace folder containing `uri` — the folder itself when a
+/// folder URI was passed. That is the scope whose overrides every per-folder
+/// value resolved through, so `tcl-lsp.getEffectiveConfig` reports it beside
+/// them.
+fn deepest_folder_containing(uri: &Uri, folders: &[Uri]) -> Option<String> {
+    folders
+        .iter()
+        .filter(|folder| uri_under_folder(uri.as_str(), folder.as_str()))
+        .max_by_key(|folder| folder.as_str().len())
+        .map(|folder| folder.as_str().to_owned())
 }
 
 /// Pick the value associated with the **longest** folder URI that `uri` sits
@@ -6777,6 +6872,88 @@ struct ConsumerScan {
     classmethod_cmd_names: Vec<String>,
 }
 
+/// The document-local inputs [`family_spans_in_document`] scans one document
+/// with — bundled so the cross-file references and rename passes share one
+/// call shape rather than two near-identical argument lists.
+#[derive(Clone, Copy)]
+struct FamilySpanScan<'a> {
+    source: &'a str,
+    profile: &'static tcl_dialect::DialectProfile,
+    analysis: &'a AnalysisResult,
+    method: &'a str,
+    is_classmethod: bool,
+    /// See [`core_references::InheritedReceiverFacts::extra_classmethod_cmd_names`].
+    classmethod_cmd_names: &'a [String],
+    /// The receivers the workspace proved can dispatch `method` externally —
+    /// see [`MethodFamily::external_callback_receivers`].
+    external_receivers: &'a std::collections::HashSet<String>,
+}
+
+/// Which span set a **definer** in this document contributes — the one place
+/// the two cross-file legs differ.
+#[derive(Clone, Copy)]
+enum DefinerSpans {
+    /// Everything renaming the member must rewrite, declaration included.
+    Rename,
+    /// Everything Find All References reports, with the declaration included
+    /// only when the client asked for it.
+    References { include_declaration: bool },
+}
+
+/// Every span one document contributes to a method family: its **definers'**
+/// own set (per `definer_spans`) followed by its pure **inheritors'** call
+/// sites, in the order the classes were given.
+///
+/// Shared by the cross-file references and rename passes so the two cannot
+/// disagree about what a document contributes, and so the receiver-scoped
+/// `[self]`-capture permission (issue #1705) is read the same way on both.
+fn family_spans_in_document(
+    scan: FamilySpanScan<'_>,
+    definers: &[String],
+    inheritors: &[String],
+    definer_spans: DefinerSpans,
+) -> Vec<tcl_lexer::Span> {
+    let mut all: Vec<tcl_lexer::Span> = Vec::new();
+    for cq in definers {
+        match definer_spans {
+            DefinerSpans::Rename => all.extend(core_rename::method_spans_in_document(
+                scan.source,
+                scan.profile,
+                scan.analysis,
+                cq,
+                scan.method,
+                scan.is_classmethod,
+            )),
+            DefinerSpans::References {
+                include_declaration,
+            } => all.extend(core_references::method_reference_spans_in_document(
+                scan.source,
+                scan.profile,
+                scan.analysis,
+                cq,
+                scan.method,
+                include_declaration,
+                scan.is_classmethod,
+            )),
+        }
+    }
+    for cq in inheritors {
+        all.extend(core_rename::inherited_method_spans_in_document(
+            scan.source,
+            scan.profile,
+            scan.analysis,
+            cq,
+            scan.method,
+            scan.is_classmethod,
+            core_references::InheritedReceiverFacts {
+                extra_classmethod_cmd_names: scan.classmethod_cmd_names,
+                external_callback_allowed: scan.external_receivers.contains(cq),
+            },
+        ));
+    }
+    all
+}
+
 /// The family classes one document declares: the **definers** that (re)define
 /// the method and the pure **inheritors** that only inherit it.
 #[derive(Default)]
@@ -6791,6 +6968,22 @@ struct FamilyClasses {
 struct MethodFamily {
     by_uri: Vec<(String, FamilyClasses)>,
     classmethod_cmd_names: Vec<String>,
+    /// The inheriting receivers that can dispatch the method **externally**,
+    /// so a captured `[self]` object command written in their bodies really
+    /// reaches the family's declaration (issue #1705).
+    ///
+    /// A property of the receiver, not of the provider: a subclass can
+    /// `export` / `unexport` a name it inherits without redeclaring it, and
+    /// the two halves of the answer routinely live in different documents —
+    /// the stub next to the subclass, the declared visibility next to the
+    /// base.  The workspace dispatch chain already folds both, so it decides
+    /// here, under the same index read the family itself is built from, and
+    /// the per-document scans are handed a plain fact.
+    ///
+    /// A `my` capture is not gated on this: it keeps the current object's
+    /// internal dispatch, which ignores the export flag entirely (tclsh
+    /// 8.6.16 / 9.0.4).
+    external_callback_receivers: std::collections::HashSet<String>,
 }
 
 /// One memoised workspace-class-oracle analysis — see
@@ -6932,6 +7125,7 @@ impl Backend {
             editor_library_paths: Mutex::new(Vec::new()),
             package_prefer_latest_default: Mutex::new(false),
             extra_commands: Mutex::new(Vec::new()),
+            signature_help_disabled_commands: Mutex::new(Vec::new()),
             spec_pack_paths: Mutex::new(Vec::new()),
             spec_packs: Arc::new(Mutex::new(PublishedPackSet::default())),
             spec_pack_reload: Arc::new(Mutex::new(())),
@@ -9109,6 +9303,7 @@ impl Backend {
             editor_library_paths: _,
             package_prefer_latest_default: _,
             extra_commands: _,
+            signature_help_disabled_commands: _,
             spec_pack_paths: _,
             spec_packs: _,
             spec_pack_reload: _,
@@ -9336,6 +9531,243 @@ impl Backend {
         self.workspace_index.read().await.export_snapshot()
     }
 
+    /// The iRulesLX method word under `pos`, with what it resolves to
+    /// (issue #1707).
+    ///
+    /// The dialect gate is the registry itself: `ILX::call` / `ILX::notify` are
+    /// iRules-surface specs carrying the remote-method descriptors, so a
+    /// document analysed against any other dialect's registry has no such
+    /// command, finds no site, and answers `None` here. An ordinary Tcl file
+    /// that defines its own `ILX::call` is therefore untouched.
+    async fn ilx_method_at(
+        &self,
+        uri: &Uri,
+        doc: &DocumentState,
+        path: &Path,
+        pos: Position,
+    ) -> Option<(core_ilx::MethodCall, core_ilx::IlxTarget)> {
+        let registry = self.registry_for_dialect(&doc.dialect).await;
+        let open = self.open_document_texts().await;
+        let plugins = self.ilx_plugin_roots(uri).await;
+        let document = core_ilx::IlxDocument {
+            path,
+            text: &doc.text,
+        };
+        let ctx = core_ilx::IlxContext::new(&registry, self.store.as_ref())
+            .with_open_documents(&open)
+            .with_plugins(&plugins);
+        let call = core_ilx::method_call_at(document, ctx, pos.line, pos.character)?;
+        let target = core_ilx::definition(document, ctx, &call);
+        Some((call, target))
+    }
+
+    /// Find-references for the iRulesLX method relation, or `None` when the
+    /// cursor is not on one of its two ends (issue #1707).
+    ///
+    /// The JavaScript end is gated on the document actually being an ILX
+    /// extension entry point — `…/extensions/<name>/index.js`, or whatever its
+    /// `package.json` names as `main` — so an ordinary `.js` file anywhere
+    /// else in a project is never even scanned.
+    ///
+    /// `include_decl` is the request's own `includeDeclaration`: the
+    /// `addMethod` registration is this symbol's declaration, so a client
+    /// asking for uses only does not get it — including when the request came
+    /// *from* the registration.
+    async fn ilx_references(
+        &self,
+        uri: &Uri,
+        doc: &DocumentState,
+        pos: Position,
+        include_decl: bool,
+    ) -> Option<Vec<Location>> {
+        let path = uri.to_file_path()?.into_owned();
+        let document = core_ilx::IlxDocument {
+            path: &path,
+            text: &doc.text,
+        };
+        let store = self.store.as_ref();
+        let open = self.open_document_texts().await;
+        let files = core_ilx::IlxFiles::new(store).with_open_documents(&open);
+        // Which end of the relation the cursor is on decides which dialect's
+        // registry reads the *rule* files — and which declarations apply — so
+        // the file gate is asked first; it needs no registry at all.
+        let js_end = core_ilx::is_extension_entry(&path, files);
+        // A Tcl document belongs to a workspace folder, so its own folder's
+        // declarations are the ones that describe it. A JavaScript entry point
+        // is matched by *workspace path* instead, so which folder declared it
+        // is irrelevant — see `all_ilx_plugin_roots`.
+        let plugins = if js_end {
+            self.all_ilx_plugin_roots().await
+        } else {
+            self.ilx_plugin_roots(uri).await
+        };
+        let registry = if js_end {
+            // A JavaScript source has no Tcl dialect of its own, so the rule
+            // files it is matched against are read with the dialect that owns
+            // the ILX surface.
+            self.registry_for_dialect(core_ilx::EXTENSION_RULE_DIALECT)
+                .await
+        } else {
+            self.registry_for_dialect(&doc.dialect).await
+        };
+        let ctx = core_ilx::IlxContext {
+            registry: &registry,
+            files,
+            plugins: &plugins,
+        };
+        let found = if js_end {
+            let registration = core_ilx::registration_at(document, pos.line, pos.character)?;
+            core_ilx::references_from_registration(document, ctx, &registration)
+        } else {
+            let call = core_ilx::method_call_at(document, ctx, pos.line, pos.character)?;
+            core_ilx::references(document, ctx, &call)
+        };
+        Some(
+            found
+                .iter()
+                .filter(|location| include_decl || location.kind != core_ilx::IlxSite::Registration)
+                .filter_map(Self::ilx_location)
+                .collect(),
+        )
+    }
+
+    /// `tcl-lsp.ilxReferences` — find-references from a point inside an ILX
+    /// extension's **JavaScript** entry point (issue #1707 criterion 3).
+    ///
+    /// A command rather than a `textDocument/references` route because a `.js`
+    /// file is not a Tcl document and must not become one: routing it to this
+    /// server would put JavaScript through the Tcl analyser, the workspace
+    /// index and the diagnostics pipeline, none of which have anything true to
+    /// say about it. The VS Code client instead registers a *second*
+    /// `ReferenceProvider` for `javascript` that calls this and contributes its
+    /// answers alongside the JavaScript language service's own — so the editor
+    /// shows the Tcl call sites without either provider displacing the other.
+    ///
+    /// The caller passes the buffer's current `text`, since this server holds
+    /// no copy of a document it does not own; an unsaved `addMethod` is
+    /// therefore still what navigation sees, exactly as on the Tcl side.
+    ///
+    /// The extension-entry gate is applied here as well as in the client, so a
+    /// request naming an ordinary `.js` file answers nothing rather than
+    /// scanning it.
+    ///
+    /// `{ uri, text, line, character, includeDeclaration? }` →
+    /// `Location[]`, or `null` when the position is not on a registration.
+    async fn ilx_references_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> Option<serde_json::Value> {
+        let request = args.first().and_then(serde_json::Value::as_object)?;
+        let uri = Uri::from_str(request.get("uri").and_then(serde_json::Value::as_str)?).ok()?;
+        let path = uri.to_file_path()?.into_owned();
+        let text = request.get("text").and_then(serde_json::Value::as_str)?;
+        let line = u32::try_from(request.get("line").and_then(serde_json::Value::as_u64)?).ok()?;
+        let character = u32::try_from(
+            request
+                .get("character")
+                .and_then(serde_json::Value::as_u64)?,
+        )
+        .ok()?;
+        let include_decl = request
+            .get("includeDeclaration")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(true);
+
+        let open = self.open_document_texts().await;
+        let files = core_ilx::IlxFiles::new(self.store.as_ref()).with_open_documents(&open);
+        if !core_ilx::is_extension_entry(&path, files) {
+            return None;
+        }
+        // Every declaration in the session, not just the ones the folder
+        // holding this `.js` made — see `all_ilx_plugin_roots`.
+        let plugins = self.all_ilx_plugin_roots().await;
+        // JavaScript has no Tcl dialect of its own, so the rule files it is
+        // matched against are read with the dialect that owns the ILX surface.
+        let registry = self
+            .registry_for_dialect(core_ilx::EXTENSION_RULE_DIALECT)
+            .await;
+        let ctx = core_ilx::IlxContext {
+            registry: &registry,
+            files,
+            plugins: &plugins,
+        };
+        let document = core_ilx::IlxDocument { path: &path, text };
+        let registration = core_ilx::registration_at(document, line, character)?;
+        let found = core_ilx::references_from_registration(document, ctx, &registration);
+        let locations: Vec<Location> = found
+            .iter()
+            .filter(|location| include_decl || location.kind != core_ilx::IlxSite::Registration)
+            .filter_map(Self::ilx_location)
+            .collect();
+        serde_json::to_value(locations).ok()
+    }
+
+    /// Go-to-definition for an iRulesLX method word, or `None` when the cursor
+    /// is not on one (issue #1707).
+    ///
+    /// `Some(vec![])` — an ILX method word that resolved to nothing — is a
+    /// *definitive* answer, not a fall-through. The cursor sits on an argument
+    /// of `ILX::call` / `ILX::notify`, which no other tier has a real answer
+    /// for, so letting an unresolved one continue would turn a same-named
+    /// sibling proc into a false-positive jump: the opposite of the abstention
+    /// this relation is built on.
+    async fn ilx_definition(
+        &self,
+        uri: &Uri,
+        doc: &DocumentState,
+        pos: Position,
+    ) -> Option<Vec<Location>> {
+        let path = uri.to_file_path()?.into_owned();
+        let (_, target) = self.ilx_method_at(uri, doc, &path, pos).await?;
+        Some(match target {
+            core_ilx::IlxTarget::Resolved(location) => {
+                Self::ilx_location(&location).into_iter().collect()
+            }
+            core_ilx::IlxTarget::Ambiguous { .. } | core_ilx::IlxTarget::Unresolved(_) => {
+                Vec::new()
+            }
+        })
+    }
+
+    /// The text the editor currently holds for every open document, by path.
+    ///
+    /// The cross-file half of the ILX relation reads *other* files — sibling
+    /// rules, and the extension's JavaScript — and must see the same bytes
+    /// [`Backend::read_document`] would: the open buffer when there is one,
+    /// the file on disk otherwise. Without this, find-references over a rule
+    /// with unsaved edits reports the text last written to disk (issue #1707
+    /// review).
+    ///
+    /// A snapshot rather than a per-file `read_document` round trip because
+    /// the core walk is synchronous and discovers the files itself; the map is
+    /// one `Arc` clone per open document, and the normalisation is the same
+    /// `normalise_lone_cr` pass `read_document` applies (skipped outright for
+    /// the documents that need none, which is all of them on LF and CRLF).
+    async fn open_document_texts(&self) -> OpenDocumentTexts {
+        let docs = self.documents.lock("open_document_texts").await;
+        let mut by_path = HashMap::with_capacity(docs.len());
+        for (uri, doc) in docs.iter() {
+            let Some(path) = uri.to_file_path() else {
+                continue;
+            };
+            let text: Arc<str> = if doc.has_bare_cr {
+                tcl_lexer::normalise_lone_cr(&doc.text).into_owned().into()
+            } else {
+                Arc::clone(&doc.text)
+            };
+            by_path.insert(path.into_owned(), text);
+        }
+        OpenDocumentTexts(by_path)
+    }
+
+    /// Lift an ILX location — a path plus a range — onto the wire.
+    fn ilx_location(location: &core_ilx::IlxLocation) -> Option<Location> {
+        Some(Location {
+            uri: canonical_file_uri(&location.path)?,
+            range: lift_lsp_range(location.range),
+        })
+    }
+
     /// Shared helper for the goto-definition family — runs the
     /// pure-CPU `tcl_lsp_core::definition::definition` provider
     /// off the LSP event loop and returns the matched ranges.
@@ -9343,6 +9775,10 @@ impl Backend {
         let Some(doc) = self.read_document(uri).await else {
             return Ok(Vec::new());
         };
+        // An iRulesLX method word is answered here, in full (issue #1707).
+        if let Some(locations) = self.ilx_definition(uri, &doc, pos).await {
+            return Ok(locations);
+        }
         let analysis = self
             .analysis_for(uri, doc.text.clone(), doc.dialect.clone())
             .await;
@@ -11341,10 +11777,26 @@ impl Backend {
             classes.inheritors.sort();
             classes.inheritors.dedup();
         }
+        // The family a receiver's capture may join is the set of definers
+        // this pass is about; a receiver whose external dispatch lands
+        // elsewhere is dispatching a different member (issue #1705).
+        let definer_names: Vec<&str> = by_uri
+            .values()
+            .flat_map(|classes| classes.definers.iter().map(String::as_str))
+            .collect();
+        let external_callback_receivers = index.external_dispatch_receivers(
+            by_uri
+                .values()
+                .flat_map(|classes| classes.inheritors.iter().map(String::as_str)),
+            &definer_names,
+            method,
+            is_classmethod,
+        );
         drop(index);
         MethodFamily {
             by_uri: by_uri.into_iter().collect(),
             classmethod_cmd_names,
+            external_callback_receivers,
         }
     }
     /// The cross-file **override-family** method rename, or `None` when the
@@ -11907,6 +12359,7 @@ impl Backend {
                 is_classmethod,
             )
             .await;
+        let external_callback_receivers = family.external_callback_receivers;
         let classmethod_cmd_names = family.classmethod_cmd_names;
         for (
             u,
@@ -11929,34 +12382,25 @@ impl Backend {
             let dialect = target_doc.dialect.clone();
             let method_owned = method.to_owned();
             let classmethod_cmd_names_cl = classmethod_cmd_names.clone();
+            let external_receivers_cl = external_callback_receivers.clone();
             let spans: Vec<tcl_lexer::Span> = crate::rt::spawn_blocking(move || {
-                // Resolved once for the whole closure: the profile is a pure
-                // function of `dialect`, so re-resolving it per iteration only
-                // repeats the lookup.
-                let profile = tcl_lsp_core::profile_for_dialect(&dialect);
-                let mut all: Vec<tcl_lexer::Span> = Vec::new();
-                for cq in &definers {
-                    all.extend(core_rename::method_spans_in_document(
-                        &src,
-                        profile,
-                        &analysis,
-                        cq,
-                        &method_owned,
+                family_spans_in_document(
+                    FamilySpanScan {
+                        source: &src,
+                        // Resolved once: the profile is a pure function of
+                        // `dialect`, so re-resolving it per class only repeats
+                        // the lookup.
+                        profile: tcl_lsp_core::profile_for_dialect(&dialect),
+                        analysis: &analysis,
+                        method: &method_owned,
                         is_classmethod,
-                    ));
-                }
-                for cq in &inheritors {
-                    all.extend(core_rename::inherited_method_spans_in_document(
-                        &src,
-                        profile,
-                        &analysis,
-                        cq,
-                        &method_owned,
-                        is_classmethod,
-                        &classmethod_cmd_names_cl,
-                    ));
-                }
-                all
+                        classmethod_cmd_names: &classmethod_cmd_names_cl,
+                        external_receivers: &external_receivers_cl,
+                    },
+                    &definers,
+                    &inheritors,
+                    DefinerSpans::Rename,
+                )
             })
             .await
             .unwrap_or_default();
@@ -12031,6 +12475,7 @@ impl Backend {
         let family = self
             .method_family_by_document(dialect, seed_class, method, is_classmethod)
             .await;
+        let external_callback_receivers = family.external_callback_receivers;
         let classmethod_cmd_names = family.classmethod_cmd_names;
         let mut out = Vec::new();
         for (
@@ -12057,35 +12502,27 @@ impl Backend {
             let dialect = target_doc.dialect.clone();
             let method_owned = method.to_owned();
             let classmethod_cmd_names_cl = classmethod_cmd_names.clone();
+            let external_receivers_cl = external_callback_receivers.clone();
             let spans: Vec<tcl_lexer::Span> = crate::rt::spawn_blocking(move || {
-                // Resolved once for the whole closure: the profile is a pure
-                // function of `dialect`, so re-resolving it per iteration only
-                // repeats the lookup.
-                let profile = tcl_lsp_core::profile_for_dialect(&dialect);
-                let mut all: Vec<tcl_lexer::Span> = Vec::new();
-                for cq in &definers {
-                    all.extend(core_references::method_reference_spans_in_document(
-                        &src,
-                        profile,
-                        &analysis,
-                        cq,
-                        &method_owned,
+                family_spans_in_document(
+                    FamilySpanScan {
+                        source: &src,
+                        // Resolved once: the profile is a pure function of
+                        // `dialect`, so re-resolving it per class only repeats
+                        // the lookup.
+                        profile: tcl_lsp_core::profile_for_dialect(&dialect),
+                        analysis: &analysis,
+                        method: &method_owned,
+                        is_classmethod,
+                        classmethod_cmd_names: &classmethod_cmd_names_cl,
+                        external_receivers: &external_receivers_cl,
+                    },
+                    &definers,
+                    &inheritors,
+                    DefinerSpans::References {
                         include_declaration,
-                        is_classmethod,
-                    ));
-                }
-                for cq in &inheritors {
-                    all.extend(core_rename::inherited_method_spans_in_document(
-                        &src,
-                        profile,
-                        &analysis,
-                        cq,
-                        &method_owned,
-                        is_classmethod,
-                        &classmethod_cmd_names_cl,
-                    ));
-                }
-                all
+                    },
+                )
             })
             .await
             .unwrap_or_default();
@@ -13307,16 +13744,9 @@ impl Backend {
         let parsed_uri = Uri::from_str(uri_str).ok();
         let folder_overrides = self.folder_dialect_overrides().await;
         let known_folders = self.workspace_folder_urls().await;
-        // The deepest workspace folder containing the queried URI (the folder
-        // itself when a folder URI was passed) — the scope whose overrides the
-        // values below resolved through.
-        let folder_uri = parsed_uri.as_ref().and_then(|uri| {
-            known_folders
-                .iter()
-                .filter(|folder| uri_under_folder(uri.as_str(), folder.as_str()))
-                .max_by_key(|folder| folder.as_str().len())
-                .map(|folder| folder.as_str().to_owned())
-        });
+        let folder_uri = parsed_uri
+            .as_ref()
+            .and_then(|uri| deepest_folder_containing(uri, &known_folders));
         // Resolve the dialect via the open document when the URI names one.  A
         // folder (or any other non-document) URI is not readable as a document,
         // so it resolves through the per-folder override chain before falling
@@ -13349,6 +13779,7 @@ impl Backend {
         // deliberate session override counts: it is exactly "someone chose this
         // dialect", and a caller tracing a surprising dialect must be able to
         // see it (issue #1217).
+        let iruleslx_plugins = self.reported_ilx_plugin_roots().await;
         let session_override = self.session_dialect_override.lock().await.clone();
         let dialect_explicitly_set = parsed_uri
             .as_ref()
@@ -13359,11 +13790,7 @@ impl Backend {
             Some(uri) => self.resolved_extra_commands(uri).await,
             None => self.extra_commands.lock().await.clone(),
         };
-        // Resolved through the same folder chain every provider gate uses, so a
-        // client polling this command observes the fact the provider will act
-        // on rather than the process-global one.  The two used to differ, which
-        // made a folder-scoped toggle invisible here and left the VS Code
-        // suite's toggle barrier waiting on the wrong fact (issue #1295).
+        let disabled_signatures = self.signature_disabled_for(parsed_uri.as_ref()).await;
         // Resolved through the same folder chain every provider gate uses, so a
         // client polling this command observes the fact the provider will act
         // on rather than the process-global one.  The two used to differ, which
@@ -13440,6 +13867,7 @@ impl Backend {
             // temporary chat-command override from a configured dialect.
             "session_dialect_override": session_override,
             "extra_commands": extra_commands,
+            "signature_help_disabled_commands": disabled_signatures,
             "known_folder_uris": known_folders
                 .iter()
                 .map(|f| f.as_str().to_owned())
@@ -13455,6 +13883,10 @@ impl Backend {
             "docstring_style": docstring_style_str,
             "non_ascii_mode": non_ascii_mode_str(mode),
             "disabled_diagnostics": disabled_sorted,
+            // The declared iRulesLX plugin associations (#1707), resolved to
+            // absolute paths — session-wide, so a caller can see what is
+            // configured without naming a document inside the folder.
+            "iruleslx_plugins": iruleslx_plugins,
         })))
     }
 
@@ -13711,17 +14143,17 @@ impl Backend {
         collapse_inlay_alias(&mut global_ini);
         collapse_inlay_alias(&mut cfg);
         collapse_inlay_alias(&mut primary_project);
-        let merged = config_ini::merge_settings(
-            &config_ini::merge_settings(&global_ini, &cfg),
-            &primary_project,
-        );
-        self.apply_global_config(&merged).await;
+        let global_editor = config_ini::merge_settings(&global_ini, &cfg);
+        let merged = config_ini::merge_settings(&global_editor, &primary_project);
+        self.apply_global_config_with_signature_fallback(&merged, &global_editor)
+            .await;
         // Per-folder editor configuration: VS Code resolves `tclLsp` settings
         // per scope, so pull each folder's resolved config, layer it between the
         // global `config.ini` and that folder's `.tcl-lsp.ini`, and store it for
         // longest-prefix resolution at read time.  A single-root / no-folder
         // session skips this — the global pull above is the whole story.
         if !folders.is_empty() {
+            let primary_folder = folders.first().cloned();
             let items: Vec<ConfigurationItem> = folders
                 .iter()
                 .map(|f| ConfigurationItem {
@@ -13750,8 +14182,51 @@ impl Backend {
                     })
                     .collect();
                 self.apply_folder_configs(parsed).await;
+            } else {
+                // The unscoped pull succeeded, so retain its global/editor
+                // layer, but the primary project's higher-precedence INI
+                // exclusion must not disappear merely because the scoped pull
+                // failed. Patch only that root's override into the last good
+                // folder chain; sibling values remain isolated and intact.
+                self.apply_primary_project_signature_fallback(
+                    primary_folder.as_ref(),
+                    &primary_project,
+                )
+                .await;
             }
         }
+    }
+
+    /// Preserve the primary project's signature exclusion when a scoped
+    /// configuration pull fails, without replacing any last-known sibling
+    /// folder settings.
+    async fn apply_primary_project_signature_fallback(
+        &self,
+        primary_folder: Option<&Uri>,
+        primary_project: &serde_json::Value,
+    ) {
+        let Some(primary_folder) = primary_folder else {
+            return;
+        };
+        let project_override = signature_help_disabled_commands(primary_project);
+        let mut parsed = self.folder_configs.lock().await.clone();
+        if let Some((_, config)) = parsed
+            .iter_mut()
+            .find(|(folder, _)| folder == primary_folder)
+        {
+            config.signature_help_disabled_commands = project_override;
+        } else if let Some(commands) = project_override {
+            parsed.push((
+                primary_folder.clone(),
+                FolderConfig {
+                    signature_help_disabled_commands: Some(commands),
+                    ..FolderConfig::default()
+                },
+            ));
+        } else {
+            return;
+        }
+        self.apply_folder_configs(parsed).await;
     }
 
     /// The whole `didChangeConfiguration` reload pipeline, run **once** for a
@@ -13857,7 +14332,21 @@ impl Backend {
     /// the client and then handles per-folder configs) so the apply logic is
     /// unit-testable without a live editor client.
     // A long but flat sequence of independent `tclLsp.*` knob applications.
+    #[cfg(test)]
     async fn apply_global_config(&self, cfg: &serde_json::Value) {
+        self.apply_global_config_with_signature_fallback(cfg, cfg)
+            .await;
+    }
+
+    /// Apply the primary root's merged configuration while keeping signature
+    /// suppression's folder fallback at the user/editor layers. Project INI
+    /// settings belong to their own root and must not leak into siblings whose
+    /// merged folder configuration omits `signatureHelp`.
+    async fn apply_global_config_with_signature_fallback(
+        &self,
+        cfg: &serde_json::Value,
+        signature_fallback_cfg: &serde_json::Value,
+    ) {
         if !cfg.is_object() {
             return;
         }
@@ -13865,7 +14354,7 @@ impl Backend {
             self.feature_toggles.lock().await.apply(features);
         }
         self.apply_global_library_paths(cfg).await;
-        self.apply_global_toggles(cfg).await;
+        self.apply_global_toggles(cfg, signature_fallback_cfg).await;
         self.apply_global_formatting(cfg).await;
         self.apply_global_analyser_knobs(cfg).await;
         // Mirror the applied analyser knobs onto the salsa config input so the
@@ -13927,9 +14416,21 @@ impl Backend {
         }
     }
 
-    /// The boolean / enum feature switches: `xcDiagnostics`, optimiser
-    /// enable/profile/per-code overrides, and the `shimmer` master switch.
-    async fn apply_global_toggles(&self, cfg: &serde_json::Value) {
+    /// Feature controls: per-command signature suppression, `xcDiagnostics`,
+    /// optimiser enable/profile/per-code overrides, and the `shimmer` master
+    /// switch.
+    async fn apply_global_toggles(
+        &self,
+        cfg: &serde_json::Value,
+        signature_fallback_cfg: &serde_json::Value,
+    ) {
+        // This fallback contains only the user-config and editor layers. Each
+        // project INI is represented by its FolderConfig, so the primary
+        // project's exclusions cannot bleed into a sibling root. An absent
+        // section means the list was removed from every fallback layer; reset
+        // unconditionally rather than latching stale exclusions after an edit.
+        *self.signature_help_disabled_commands.lock().await =
+            signature_help_disabled_commands(signature_fallback_cfg).unwrap_or_default();
         // `tclLsp.xcDiagnostics.enabled` is a dedicated config section (the
         // shipped VS Code setting "XC Migration: Enabled"), not a `features.*`
         // key, so it must be mapped onto the `xcDiagnostics` feature toggle
@@ -14623,6 +15124,27 @@ impl Backend {
         }
     }
 
+    /// The resolved built-in signature-help exclusion list for `uri`: a
+    /// folder override wins, else the process-global list.
+    async fn resolved_signature_help_disabled_commands(&self, uri: &Uri) -> Vec<String> {
+        let folder = {
+            let configs = self.folder_configs.lock().await;
+            longest_folder_match(&configs, uri)
+                .and_then(|f| f.signature_help_disabled_commands.clone())
+        };
+        match folder {
+            Some(v) => v,
+            None => self.signature_help_disabled_commands.lock().await.clone(),
+        }
+    }
+
+    async fn signature_disabled_for(&self, uri: Option<&Uri>) -> Vec<String> {
+        match uri {
+            Some(uri) => self.resolved_signature_help_disabled_commands(uri).await,
+            None => self.signature_help_disabled_commands.lock().await.clone(),
+        }
+    }
+
     /// The resolved `tclLsp.diagnostics.genericVariablePatterns` for `uri`: a
     /// folder override wins, else the process-global value.
     async fn resolved_generic_variable_patterns(&self, uri: &Uri) -> Option<Vec<String>> {
@@ -15029,6 +15551,93 @@ impl Backend {
         }
     }
 
+    /// The iRulesLX plugin associations declared for `uri`'s workspace folder
+    /// (issue #1707), with every path resolved against that folder's root.
+    ///
+    /// Folder-scoped for the same reason `entry_points` is: a relative path
+    /// here means "under this folder", and resolving it against every root in
+    /// a multi-root session would invent workspaces the user never declared.
+    /// A no-folder session — a single loose file — has none, and the
+    /// directory-name convention is then the whole story.
+    /// Every folder's declared iRulesLX plugin associations, resolved.
+    ///
+    /// The session-wide view `tcl-lsp.getEffectiveConfig` reports, so a client
+    /// (and the e2e config barrier) can see *that* a declaration has been
+    /// applied and *where* it resolved to, without having to name a document
+    /// inside the folder that carries it.
+    ///
+    /// It is also what the **JavaScript** end of the ILX relation resolves
+    /// against, rather than [`Self::ilx_plugin_roots`]. A declaration may point
+    /// outside the folder that made it (`prod = ../shared/ws`, or an absolute
+    /// path), and then the entry point is not under that folder at all — so a
+    /// folder-scoped lookup keyed on the `.js` URI would find nothing and fall
+    /// back to the workspace's *directory name*, which is exactly the name the
+    /// declaration exists to correct. Reverse references would then find no
+    /// callers even though Tcl-to-JavaScript navigation through the same
+    /// mapping worked (issue #1707 review).
+    ///
+    /// Widening cannot mismatch here, because the JavaScript end selects by
+    /// resolved **workspace path**: a declaration only applies when its
+    /// workspace *is* this entry point's. The Tcl end keeps the folder-scoped
+    /// lookup, where a session-wide one would make two folders that each
+    /// declare the same plugin name for their own workspace ambiguous for
+    /// both.
+    /// [`Self::all_ilx_plugin_roots`] as the JSON `tcl-lsp.getEffectiveConfig`
+    /// reports: `[{plugin, workspace, rules}]`, paths absolute.
+    async fn reported_ilx_plugin_roots(&self) -> Vec<serde_json::Value> {
+        self.all_ilx_plugin_roots()
+            .await
+            .into_iter()
+            .map(|root| {
+                serde_json::json!({
+                    "plugin": root.plugin,
+                    "workspace": root.workspace.to_string_lossy(),
+                    "rules": root
+                        .extra_rule_dirs
+                        .iter()
+                        .map(|dir| dir.to_string_lossy().into_owned())
+                        .collect::<Vec<String>>(),
+                })
+            })
+            .collect()
+    }
+
+    async fn all_ilx_plugin_roots(&self) -> Vec<core_ilx::IlxPluginRoot> {
+        let configs = self.folder_configs.lock().await;
+        let mut out: Vec<core_ilx::IlxPluginRoot> = Vec::new();
+        for (folder, fc) in configs.iter() {
+            let Some(root) = folder.to_file_path().map(std::borrow::Cow::into_owned) else {
+                continue;
+            };
+            out.extend(resolve_ilx_specs(&fc.iruleslx, &root));
+        }
+        out.sort_by(|a, b| (&a.plugin, &a.workspace).cmp(&(&b.plugin, &b.workspace)));
+        out.dedup();
+        out
+    }
+
+    async fn ilx_plugin_roots(&self, uri: &Uri) -> Vec<core_ilx::IlxPluginRoot> {
+        let configs = self.folder_configs.lock().await;
+        let mut best: Option<&(Uri, FolderConfig)> = None;
+        for entry in configs.iter() {
+            if uri_under_folder(uri.as_str(), entry.0.as_str())
+                && best.is_none_or(|b| entry.0.as_str().len() > b.0.as_str().len())
+            {
+                best = Some(entry);
+            }
+        }
+        let Some((folder, fc)) = best else {
+            return Vec::new();
+        };
+        if fc.iruleslx.is_empty() {
+            return Vec::new();
+        }
+        let Some(root) = folder.to_file_path().map(std::borrow::Cow::into_owned) else {
+            return Vec::new();
+        };
+        resolve_ilx_specs(&fc.iruleslx, &root)
+    }
+
     /// Whether `uri` matches the resolved `tclLsp.diagnostics.exclude` glob
     /// list (#1556). Path patterns are matched against the workspace-folder-
     /// relative path; name patterns against the file name alone, so a
@@ -15181,6 +15790,54 @@ impl Backend {
         })
     }
 
+    /// The pull-path report for an F5 **model** dialect — BIG-IP config or
+    /// iApp APL presentation text, which is not Tcl source and has its own
+    /// validators rather than the analyser.
+    ///
+    /// Split out of [`Self::full_diagnostics_for`] because it is a complete
+    /// alternative report rather than a step of one: it shares only the
+    /// resolved settings, and keeping it inline made the Tcl path harder to
+    /// read than either is on its own.
+    async fn f5_pull_report(
+        &self,
+        uri: &Uri,
+        text: &str,
+        analysis_text: &str,
+        language_id: &str,
+        inputs: &F5PullInputs<'_>,
+    ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+        let encoding_abstains = inputs
+            .decode_report
+            .is_some_and(|report| report.requires_abstention());
+        let mut diagnostics = if encoding_abstains {
+            Vec::new()
+        } else {
+            f5_dialect_diagnostics(
+                uri,
+                analysis_text,
+                inputs.profile,
+                language_id,
+                inputs.disabled,
+                &self.documents,
+                self.store.as_ref(),
+            )
+            .await
+            .unwrap_or_default()
+        };
+        diagnostics.extend(lift_f5_source_integrity_diagnostics(
+            text,
+            inputs.decode_report.as_ref(),
+            inputs.disabled,
+            inputs.profile,
+        ));
+        finalise_diagnostics(
+            &mut diagnostics,
+            inputs.severity_overrides,
+            encoding_abstains,
+        );
+        diagnostics
+    }
+
     async fn full_diagnostics_for(
         &self,
         uri: &Uri,
@@ -15229,30 +15886,20 @@ impl Backend {
         // analyser — mirror the push path's dispatch so a pull-mode editor
         // receives the same BIGIP/IAPP diagnostics.
         if Self::is_bigip_dialect(&dialect) || is_apl_source(uri, language_id) {
-            let encoding_abstains = decode_report.is_some_and(|r| r.requires_abstention());
-            let mut diagnostics = if encoding_abstains {
-                Vec::new()
-            } else {
-                f5_dialect_diagnostics(
+            return self
+                .f5_pull_report(
                     uri,
+                    &text,
                     &analysis_text,
-                    profile,
                     language_id,
-                    &disabled,
-                    &self.documents,
-                    self.store.as_ref(),
+                    &F5PullInputs {
+                        profile,
+                        disabled: &disabled,
+                        severity_overrides: &severity_overrides,
+                        decode_report,
+                    },
                 )
-                .await
-                .unwrap_or_default()
-            };
-            diagnostics.extend(lift_f5_source_integrity_diagnostics(
-                &text,
-                decode_report.as_ref(),
-                &disabled,
-                profile,
-            ));
-            finalise_diagnostics(&mut diagnostics, &severity_overrides, encoding_abstains);
-            return diagnostics;
+                .await;
         }
         let analysis = self
             .analysis_for(uri, analysis_text.clone(), dialect.clone())
@@ -15266,6 +15913,9 @@ impl Backend {
         // XC100-301 translatability lints — independent toggle, f5-irules only.
         let xc_on = self.xc_diagnostics_enabled(uri).await;
         let xc_for_irules = tcl_lsp_core::profile_for_dialect(&dialect).is_irules() && xc_on;
+        // The push path's SslicTcl branch, mirrored: a pull-mode editor gets
+        // the same `SSLIC1xxx` loader findings a pushed report carries.
+        let sslictcl = tcl_lsp_core::sslictcl_diagnostics::applies_to(profile);
         // Cross-file resolution + the workspace W120 / W123 refinements,
         // matching the push path — and shared verbatim with
         // `textDocument/codeAction`, which lifts its quick-fixes from this
@@ -15302,6 +15952,16 @@ impl Backend {
                     &analysis_text,
                     &disabled,
                     &analysis.suppressed_lines,
+                ));
+            }
+            if sslictcl {
+                diagnostics.extend(lift_analyser_diagnostics(
+                    &analysis_text,
+                    &tcl_lsp_core::sslictcl_diagnostics::diagnostics(
+                        &analysis_text,
+                        &disabled,
+                        &analysis.suppressed_lines,
+                    ),
                 ));
             }
             finalise_diagnostics(
@@ -15444,6 +16104,14 @@ impl Backend {
             ),
             None => analysis.diagnostics.clone(),
         };
+        // The push path's `refine_and_lift_diagnostics` supersession, mirrored:
+        // in a never-evaluated `.sslictcl` document the loader owns the verdict
+        // on an unrecognised word, so neither a pulled report nor a code action
+        // may offer the analyser's unknown-command guess over one.
+        let mut analyser_diags = analyser_diags;
+        if tcl_lsp_core::sslictcl_diagnostics::applies_to(dialect) {
+            tcl_lsp_core::sslictcl_diagnostics::supersede_analyser_diagnostics(&mut analyser_diags);
+        }
         self.refine_pull_analyser_diagnostics(
             uri,
             analyser_diags,
@@ -18437,6 +19105,22 @@ impl LanguageServer for Backend {
                     message: format!("document_symbol worker panicked: {err}").into(),
                     data: None,
                 })?
+        } else if tcl_lsp_core::declaration_outline::is_declaration_document(
+            tcl_lsp_core::profile_for_dialect(&doc.dialect),
+        ) {
+            // A declaration document (`.sslictcl`) has no procs, classes or
+            // namespaces for the scope walk to find: its *blocks* are its
+            // structure, so the outline is the block tree. Same shape as the
+            // BIG-IP branch above, and for the same reason.
+            let text = doc.text.clone();
+            let profile = tcl_lsp_core::profile_for_dialect(&doc.dialect);
+            crate::rt::spawn_blocking(move || core_symbols::declaration_symbols(&text, profile))
+                .await
+                .map_err(|err| jsonrpc::Error {
+                    code: jsonrpc::ErrorCode::InternalError,
+                    message: format!("document_symbol worker panicked: {err}").into(),
+                    data: None,
+                })?
         } else if let Some(symbols) = self.db_document_symbols(&params.text_document.uri).await {
             // Served from the salsa query graph (memoised; reuses the tracked
             // file_analysis instead of re-running the full analyser).
@@ -18765,6 +19449,14 @@ impl LanguageServer for Backend {
                 })
                 .collect();
             return Ok(Some(locations));
+        }
+        // The iRulesLX method relation, in both directions (issue #1707): from
+        // a Tcl call site, and from the `addMethod` registration in the
+        // extension's own JavaScript. Answered here, in full — the sites are
+        // literal words in two languages, which the Tcl symbol analyser has no
+        // way to relate.
+        if let Some(locations) = self.ilx_references(&uri, &doc, pos, include_decl).await {
+            return Ok((!locations.is_empty()).then_some(locations));
         }
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
@@ -20227,6 +20919,7 @@ impl LanguageServer for Backend {
             }
             "tcl-lsp.compilerExplorer" => self.compiler_explorer_command(&params.arguments).await,
             "tcl-lsp.tkPreview" => self.tk_preview_command(&params.arguments).await,
+            "tcl-lsp.ilxReferences" => Ok(self.ilx_references_command(&params.arguments).await),
             _ => Ok(None),
         }
     }
@@ -20665,6 +21358,7 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
         let pos = params.text_document_position_params.position;
+        let disabled_commands = self.resolved_signature_help_disabled_commands(&uri).await;
         // Per-dialect cached registry — same source the
         // completion handler uses.  Threading it through lets
         // `S-signature-help-rich` surface signatures for
@@ -20680,7 +21374,7 @@ impl LanguageServer for Backend {
         let exports = self.export_snapshot().await;
         let uri_key = uri.as_str().to_owned();
         let result = crate::rt::spawn_blocking(move || {
-            core_sig::signature_help_in_program(
+            core_sig::signature_help_in_program_with_options(
                 &doc.text,
                 pos.line,
                 pos.character,
@@ -20691,6 +21385,9 @@ impl LanguageServer for Backend {
                         uri: &uri_key,
                         oracle: exports.as_ref(),
                     }),
+                },
+                core_sig::SignatureHelpOptions {
+                    disabled_builtin_commands: &disabled_commands,
                 },
             )
         })
@@ -20757,6 +21454,19 @@ impl LanguageServer for Backend {
                 .namespace_hover(&uri, &analysis, &cell)
                 .await
                 .map(lift_hover));
+        }
+        // An iRulesLX method word names a JavaScript function, not a Tcl one,
+        // so it is answered here rather than by the command-documentation
+        // tiers below (issue #1707). The body always says which of the two ILX
+        // commands reached it — they share the method target but not the
+        // semantics — and, when nothing resolved, why.
+        if let Some(path) = uri.to_file_path()
+            && let Some((call, target)) = self.ilx_method_at(&uri, &doc, &path, pos).await
+        {
+            return Ok(Some(lift_hover(CoreHover {
+                value: core_ilx::hover_markdown(&call, &target),
+                kind: CoreHoverKind::Markdown,
+            })));
         }
         let text = doc.text.clone();
         let analysis_worker = Arc::clone(&analysis);
@@ -21995,6 +22705,26 @@ fn parse_folder_diagnostics(
     }
 }
 
+fn normalise_disabled_signature_commands(values: &[serde_json::Value]) -> Vec<String> {
+    let mut commands: Vec<String> = values
+        .iter()
+        .filter_map(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|command| !command.is_empty())
+        .map(tcl_lsp_core::normalise_qualified_command_name)
+        .collect();
+    commands.sort();
+    commands.dedup();
+    commands
+}
+
+fn signature_help_disabled_commands(cfg: &serde_json::Value) -> Option<Vec<String>> {
+    cfg.get("signatureHelp")
+        .and_then(|section| section.get("disabledCommands"))
+        .and_then(serde_json::Value::as_array)
+        .map(|commands| normalise_disabled_signature_commands(commands))
+}
+
 fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
     let obj = cfg.as_object()?;
     let mut fc = FolderConfig::default();
@@ -22043,6 +22773,7 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
                 .collect(),
         );
     }
+    fc.signature_help_disabled_commands = signature_help_disabled_commands(cfg);
     parse_folder_diagnostics(obj, &mut fc);
     // `tclLsp.libraryPaths` per-folder override.
     if let Some(paths) = obj
@@ -22083,6 +22814,7 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
                 .collect(),
         );
     }
+    fc.iruleslx = parse_ilx_plugins(obj);
     // The disabled-diagnostics and non-ASCII helpers expect the value wrapped
     // under `tclLsp`; the per-folder pull hands us the section content directly.
     let wrapped = serde_json::json!({ "tclLsp": cfg });
@@ -22090,6 +22822,72 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
     fc.disabled_diagnostics = settings_disabled_diagnostics(&wrapped);
     fc.severity_overrides = settings_severity_overrides(&wrapped);
     Some(fc)
+}
+
+/// `tclLsp.iruleslx.plugins` / `.rules` → the folder's declared iRulesLX plugin
+/// associations (#1707).
+///
+/// A `rules` entry for a plugin with no `plugins` entry is dropped: extra
+/// caller directories are only meaningful once the plugin's own workspace is
+/// known, and keeping a half-declaration would silently widen the search for a
+/// plugin that still resolves by the directory-name convention — an
+/// association the user did not make.
+/// Resolve one folder's declared specs against that folder's root.
+///
+/// A relative path means "under this folder"; an absolute one is taken as
+/// given. Both are lexically normalised, so a declaration written as
+/// `../shared/ws` compares equal to the same directory reached from a
+/// document's own ancestors — which is what lets the JavaScript end recognise
+/// a declared workspace.
+fn resolve_ilx_specs(specs: &[IlxPluginSpec], root: &Path) -> Vec<core_ilx::IlxPluginRoot> {
+    specs
+        .iter()
+        .map(|spec| core_ilx::IlxPluginRoot {
+            plugin: spec.plugin.clone(),
+            workspace: tcl_lsp_core::source_graph::resolve_under(root, &spec.workspace),
+            extra_rule_dirs: spec
+                .extra_rule_dirs
+                .iter()
+                .map(|dir| tcl_lsp_core::source_graph::resolve_under(root, dir))
+                .collect(),
+        })
+        .collect()
+}
+
+fn parse_ilx_plugins(obj: &serde_json::Map<String, serde_json::Value>) -> Vec<IlxPluginSpec> {
+    let Some(ilx) = obj.get("iruleslx").and_then(serde_json::Value::as_object) else {
+        return Vec::new();
+    };
+    let Some(plugins) = ilx.get("plugins").and_then(serde_json::Value::as_object) else {
+        return Vec::new();
+    };
+    let rules = ilx.get("rules").and_then(serde_json::Value::as_object);
+    let mut out: Vec<IlxPluginSpec> = plugins
+        .iter()
+        .filter_map(|(plugin, workspace)| {
+            let workspace = workspace.as_str()?.trim();
+            (!plugin.is_empty() && !workspace.is_empty()).then(|| IlxPluginSpec {
+                plugin: plugin.clone(),
+                workspace: workspace.to_owned(),
+                extra_rule_dirs: rules
+                    .and_then(|r| r.get(plugin))
+                    .and_then(serde_json::Value::as_array)
+                    .map(|dirs| {
+                        dirs.iter()
+                            .filter_map(serde_json::Value::as_str)
+                            .map(str::trim)
+                            .filter(|d| !d.is_empty())
+                            .map(str::to_owned)
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+            })
+        })
+        .collect();
+    // A JSON object has no guaranteed order; a stable one keeps the resolved
+    // candidate list (and so an ambiguity report) reproducible.
+    out.sort_by(|a, b| a.plugin.cmp(&b.plugin));
+    out
 }
 
 /// Apply one LSP content change to `text` (incremental document sync).
@@ -24840,6 +25638,7 @@ fn build_server_capabilities(
                 "tcl-lsp.setSessionDialectOverride".to_owned(),
                 "tcl-lsp.compilerExplorer".to_owned(),
                 "tcl-lsp.tkPreview".to_owned(),
+                "tcl-lsp.ilxReferences".to_owned(),
             ],
             work_done_progress_options: WorkDoneProgressOptions::default(),
         }),
@@ -25297,6 +26096,31 @@ mod tests {
         for code in ["S100", "S101", "S102", "S103", "S110"] {
             assert!(disabled.contains(code), "{code} should be suppressed");
         }
+    }
+
+    #[tokio::test]
+    async fn signature_help_disabled_commands_apply_and_clear() {
+        let backend = test_backend();
+        backend
+            .apply_global_config(&serde_json::json!({
+                "signatureHelp": { "disabledCommands": [" ::::set ", "incr", "set"] }
+            }))
+            .await;
+        assert_eq!(
+            *backend.signature_help_disabled_commands.lock().await,
+            vec!["::incr".to_owned(), "::set".to_owned()],
+        );
+
+        // Removing the setting from every merged layer must clear a previously
+        // applied list rather than latching stale suppression until restart.
+        backend.apply_global_config(&serde_json::json!({})).await;
+        assert!(
+            backend
+                .signature_help_disabled_commands
+                .lock()
+                .await
+                .is_empty()
+        );
     }
 
     #[test]
@@ -26422,6 +27246,74 @@ mod tests {
         assert_eq!(
             fc.entry_points,
             Some(vec!["main.tcl".to_owned(), "src/app.tcl".to_owned()])
+        );
+    }
+
+    #[test]
+    fn folder_config_parses_the_iruleslx_plugin_mapping() {
+        let fc = parse_folder_config(&serde_json::json!({
+            "iruleslx": {
+                "plugins": { "prod": "workspaces/ws_alpha", "other": "/abs/ws" },
+                "rules": { "prod": ["irules/http", "irules/tcp"] },
+            }
+        }))
+        .expect("folder config");
+        // Sorted by plugin name: a JSON object has no guaranteed order, and an
+        // unstable candidate list would make an ambiguity report unstable too.
+        assert_eq!(
+            fc.iruleslx,
+            vec![
+                IlxPluginSpec {
+                    plugin: "other".to_owned(),
+                    workspace: "/abs/ws".to_owned(),
+                    extra_rule_dirs: Vec::new(),
+                },
+                IlxPluginSpec {
+                    plugin: "prod".to_owned(),
+                    workspace: "workspaces/ws_alpha".to_owned(),
+                    extra_rule_dirs: vec!["irules/http".to_owned(), "irules/tcp".to_owned()],
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn an_iruleslx_rules_entry_without_a_plugin_entry_is_dropped() {
+        // Extra caller directories are only meaningful once the plugin's own
+        // workspace is known. Keeping the half-declaration would widen the
+        // search for a plugin that still resolves by the directory-name
+        // convention — an association the user never made.
+        let fc = parse_folder_config(&serde_json::json!({
+            "iruleslx": { "rules": { "prod": ["irules"] } }
+        }))
+        .expect("folder config");
+        assert!(fc.iruleslx.is_empty());
+        // …and an empty workspace path is not a declaration either.
+        let blank = parse_folder_config(&serde_json::json!({
+            "iruleslx": { "plugins": { "prod": "  " } }
+        }))
+        .expect("folder config");
+        assert!(blank.iruleslx.is_empty());
+    }
+
+    #[test]
+    fn iruleslx_paths_resolve_against_the_folder_root() {
+        let specs = vec![IlxPluginSpec {
+            plugin: "prod".to_owned(),
+            workspace: "../shared/ws".to_owned(),
+            extra_rule_dirs: vec!["irules".to_owned(), "/abs/elsewhere".to_owned()],
+        }];
+        let roots = resolve_ilx_specs(&specs, Path::new("/repo/app"));
+        assert_eq!(roots.len(), 1);
+        // Lexically normalised, so this compares equal to the same directory
+        // reached from a document's own ancestors.
+        assert_eq!(roots[0].workspace, Path::new("/repo/shared/ws"));
+        assert_eq!(
+            roots[0].extra_rule_dirs,
+            vec![
+                PathBuf::from("/repo/app/irules"),
+                PathBuf::from("/abs/elsewhere"),
+            ]
         );
     }
 
@@ -29641,6 +30533,7 @@ mod tests {
             ("tclspec", "spectcl"),
             ("tcl-spec", "spectcl"),
             ("spectcl", "spectcl"),
+            ("sslictcl", "sslictcl"),
             ("tk", "tk"),
         ] {
             assert_eq!(
@@ -29935,6 +30828,7 @@ mod tests {
             editor_library_paths: Mutex::new(Vec::new()),
             package_prefer_latest_default: Mutex::new(false),
             extra_commands: Mutex::new(Vec::new()),
+            signature_help_disabled_commands: Mutex::new(Vec::new()),
             spec_pack_paths: Mutex::new(Vec::new()),
             spec_packs: Arc::new(Mutex::new(PublishedPackSet::default())),
             spec_pack_reload: Arc::new(Mutex::new(())),
@@ -32508,6 +33402,7 @@ mod tests {
     fn parse_folder_config_reads_extra_library_and_generic_patterns() {
         let cfg = serde_json::json!({
             "extraCommands": ["mylib::send", "mylib::recv"],
+            "signatureHelp": { "disabledCommands": [" ::::set ", "incr", "set"] },
             "libraryPaths": ["/proj/lib"],
             "diagnostics": { "genericVariablePatterns": ["^proj_"] },
         });
@@ -32519,6 +33414,11 @@ mod tests {
         assert_eq!(
             fc.library_paths.as_deref(),
             Some(["/proj/lib".to_owned()].as_slice())
+        );
+        assert_eq!(
+            fc.signature_help_disabled_commands.as_deref(),
+            Some(["::incr".to_owned(), "::set".to_owned()].as_slice()),
+            "command names use the shared Tcl qualified-name canonicalisation",
         );
         assert_eq!(
             fc.generic_variable_patterns,
@@ -32562,8 +33462,10 @@ mod tests {
 
         // Global sets one extra command; proj-a overrides with its own.
         *backend.extra_commands.lock().await = vec!["globalcmd".to_owned()];
+        *backend.signature_help_disabled_commands.lock().await = vec!["::set".to_owned()];
         let fc = FolderConfig {
             extra_commands: Some(vec!["projacmd".to_owned()]),
+            signature_help_disabled_commands: Some(vec!["::incr".to_owned()]),
             generic_variable_patterns: FolderGenericPatterns::Replace(vec!["^proja_".to_owned()]),
             ..FolderConfig::default()
         };
@@ -32581,6 +33483,20 @@ mod tests {
             backend.resolved_extra_commands(&outside).await,
             vec!["globalcmd".to_owned()],
             "proj-b inherits the global extraCommands",
+        );
+        assert_eq!(
+            backend
+                .resolved_signature_help_disabled_commands(&inside)
+                .await,
+            vec!["::incr".to_owned()],
+            "proj-a replaces the global signature-help exclusion list",
+        );
+        assert_eq!(
+            backend
+                .resolved_signature_help_disabled_commands(&outside)
+                .await,
+            vec!["::set".to_owned()],
+            "proj-b inherits the global signature-help exclusion list",
         );
         // genericVariablePatterns resolve per folder.
         assert_eq!(
@@ -32601,6 +33517,115 @@ mod tests {
                 .iter()
                 .any(|(u, _)| u == &folder_a),
             "proj-a must have a per-folder AnalyserConfig handle for extraCommands",
+        );
+    }
+
+    #[tokio::test]
+    async fn primary_project_signature_exclusions_do_not_leak_into_sibling_root() {
+        let backend = test_backend();
+        let folder_a = Uri::from_str("file:///proj-a").unwrap();
+        let folder_b = Uri::from_str("file:///proj-b").unwrap();
+        let file_a = Uri::from_str("file:///proj-a/file.tcl").unwrap();
+        let file_b = Uri::from_str("file:///proj-b/file.tcl").unwrap();
+        *backend.workspace_folders.lock().await = vec![folder_a.clone(), folder_b.clone()];
+
+        let global_editor = serde_json::json!({});
+        let primary_merged = serde_json::json!({
+            "signatureHelp": { "disabledCommands": ["set"] }
+        });
+        backend
+            .apply_global_config_with_signature_fallback(&primary_merged, &global_editor)
+            .await;
+        backend
+            .apply_folder_configs(vec![
+                (
+                    folder_a,
+                    parse_folder_config(&primary_merged).expect("primary config"),
+                ),
+                (
+                    folder_b,
+                    parse_folder_config(&global_editor).expect("sibling config"),
+                ),
+            ])
+            .await;
+
+        assert_eq!(
+            backend
+                .resolved_signature_help_disabled_commands(&file_a)
+                .await,
+            vec!["::set".to_owned()],
+            "the primary project keeps its own exclusion",
+        );
+        assert!(
+            backend
+                .resolved_signature_help_disabled_commands(&file_b)
+                .await
+                .is_empty(),
+            "a sibling without an exclusion inherits only global/editor layers",
+        );
+    }
+
+    #[tokio::test]
+    async fn scoped_pull_failure_keeps_primary_project_signature_exclusions_isolated() {
+        let backend = test_backend();
+        let folder_a = Uri::from_str("file:///proj-a").unwrap();
+        let folder_b = Uri::from_str("file:///proj-b").unwrap();
+        let file_a = Uri::from_str("file:///proj-a/file.tcl").unwrap();
+        let file_b = Uri::from_str("file:///proj-b/file.tcl").unwrap();
+        *backend.workspace_folders.lock().await = vec![folder_a.clone(), folder_b.clone()];
+        *backend.signature_help_disabled_commands.lock().await = vec!["::format".to_owned()];
+
+        // A prior successful scoped pull for the sibling must survive a later
+        // scoped-request failure while the primary's project INI is recovered.
+        backend
+            .apply_folder_configs(vec![(
+                folder_b,
+                FolderConfig {
+                    signature_help_disabled_commands: Some(vec!["::incr".to_owned()]),
+                    ..FolderConfig::default()
+                },
+            )])
+            .await;
+        backend
+            .apply_primary_project_signature_fallback(
+                Some(&folder_a),
+                &serde_json::json!({
+                    "signatureHelp": { "disabledCommands": ["set"] }
+                }),
+            )
+            .await;
+
+        assert_eq!(
+            backend
+                .resolved_signature_help_disabled_commands(&file_a)
+                .await,
+            vec!["::set".to_owned()],
+            "the primary root keeps its project exclusion after a scoped pull failure",
+        );
+        assert_eq!(
+            backend
+                .resolved_signature_help_disabled_commands(&file_b)
+                .await,
+            vec!["::incr".to_owned()],
+            "the fallback must preserve and not overwrite a sibling's last scoped value",
+        );
+
+        backend
+            .apply_primary_project_signature_fallback(Some(&folder_a), &serde_json::json!({}))
+            .await;
+        assert_eq!(
+            backend
+                .resolved_signature_help_disabled_commands(&file_a)
+                .await,
+            vec!["::format".to_owned()],
+            "removing the project setting restores global/editor inheritance",
+        );
+        assert_eq!(
+            backend
+                .resolved_signature_help_disabled_commands(&file_b)
+                .await,
+            vec!["::incr".to_owned()],
+            "clearing the primary override must still leave the sibling untouched",
         );
     }
 
@@ -34149,6 +35174,51 @@ mod tests {
         // …and the registry that dialect resolves to really carries the pack.
         let reg = tcl_registry::model::ingress::static_context_for("spectcl").commands();
         assert!(reg.get("speclib").is_some(), "the SpecTcl pack is loaded");
+        assert!(reg.get("set").is_some(), "core Tcl stays underneath it");
+    }
+
+    /// Opening a `.sslictcl` activates the `SslicTcl` vocabulary.
+    ///
+    /// The `SpecTcl` test above, for the sibling declarative dialect: the
+    /// `.sslictcl` extension routes under the bare `tcl` language id every
+    /// editor sends, the mandatory `sslictcl VERSION` header is the content
+    /// signature that recognises a document saved under a `.tcl` name, and the
+    /// canonical name — which is also the editor language id — routes
+    /// directly.
+    #[tokio::test]
+    async fn dialect_for_open_routes_sslictcl_to_the_sslictcl_dialect() {
+        let backend = test_backend();
+        // As above: a folder override proves the file's own identity wins.
+        *backend.folder_dialects.lock().await = vec![(
+            Uri::from_str("file:///workspace/").unwrap(),
+            "f5-irules".to_owned(),
+        )];
+        let doc = Uri::from_str("file:///workspace/site.sslictcl").unwrap();
+        assert_eq!(
+            backend
+                .dialect_for_open(&doc, "tcl", "sslictcl 1\nendpoint /Common/www {\n}\n")
+                .await,
+            "sslictcl".to_owned(),
+            "the `.sslictcl` extension selects the SslicTcl dialect",
+        );
+        let misnamed = Uri::from_str("file:///workspace/site.tcl").unwrap();
+        assert_eq!(
+            backend
+                .dialect_for_open(&misnamed, "tcl", "sslictcl 1\n")
+                .await,
+            "sslictcl".to_owned(),
+            "the `sslictcl VERSION` header is the content signature",
+        );
+        for id in ["sslictcl"] {
+            assert_eq!(
+                backend.dialect_for_open(&doc, id, "").await,
+                "sslictcl".to_owned(),
+                "language id {id:?} names the SslicTcl dialect",
+            );
+        }
+        // …and the registry that dialect resolves to really carries the pack.
+        let reg = tcl_registry::model::ingress::static_context_for("sslictcl").commands();
+        assert!(reg.get("endpoint").is_some(), "the SslicTcl pack is loaded");
         assert!(reg.get("set").is_some(), "core Tcl stays underneath it");
     }
 

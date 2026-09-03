@@ -96,6 +96,10 @@ mod issue1556_diagnostics_exclude;
 /// path, and the facts a `source`d file contributes.
 #[path = "e2e/issue1331_crossfile_diagnostics.rs"]
 mod issue1331_crossfile_diagnostics;
+/// Issue #1707 — iRulesLX `ILX::call` / `ILX::notify` method words navigating
+/// to their `ILXServer.addMethod` registration in the extension's JavaScript.
+#[path = "e2e/issue1707_ilx_methods.rs"]
+mod issue1707_ilx_methods;
 #[path = "e2e/issue923_class_refs.rs"]
 mod issue923_class_refs;
 #[path = "e2e/issue923_crossdoc.rs"]
@@ -134,6 +138,8 @@ mod server_version;
 mod signature_help;
 #[path = "e2e/spec_packs.rs"]
 mod spec_packs;
+#[path = "e2e/sslictcl.rs"]
+mod sslictcl;
 #[path = "e2e/structure.rs"]
 mod structure;
 #[path = "e2e/tcl91.rs"]

@@ -28,9 +28,8 @@ If a note does not fit any of these six, it is probably a design doc.
 
 ## The rules
 
-These rules are enforced by review. A short-form summary also appears in
-`AGENTS.md` for quick reference; that list is numbered independently, so cite
-rules by name rather than by number when crossing between the two.
+These rules are enforced by review. `AGENTS.md` and `CONTRIBUTING.md` link
+here rather than restating them; cite rules by name, not number.
 
 ### 1. One note answers one question
 
@@ -483,6 +482,14 @@ do or something to know:
 
 The test to apply: strip out every sentence that only says the bug is
 fixed. If nothing actionable is left, delete the note.
+
+### 14. Functionality notes carry at least one concrete example
+
+A note that describes a feature, command, or tool shows it: a before/after
+code block for a transform, a code pointer showing where a diagnostic or
+hover appears, or a screenshot of a visual panel. A description with no
+example leaves the reader unsure whether they are looking at the right
+feature.
 
 ## When to link the glossary
 

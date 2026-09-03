@@ -19,6 +19,13 @@
 
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.ultimate</depends>
+    <!-- JCEF moved behind its own plugin classloader in 2026.2.  The alias
+         only exists from 2025.3.1 onward, so this must remain optional while
+         the plugin supports the 2024.1 floor (where JCEF is platform-owned).
+         The supplemental descriptor is intentionally empty: the dependency
+         edge itself is what makes JCEF classes visible on newer IDEs. -->
+    <depends optional="true"
+             config-file="com.tcllsp.jetbrains-jcef.xml">com.intellij.modules.jcef</depends>
     <depends>org.jetbrains.plugins.textmate</depends>
 
     <extensions defaultExtensionNs="com.intellij">
@@ -30,7 +37,7 @@
         <fileType name="Tcl" language="Tcl"
             implementationClass="com.tcllsp.jetbrains.TclFileType"
             fieldName="INSTANCE"
-            extensions="tcl;tk;itcl;tm;test;globals;exp;expect;scf;iapp;iappimpl;impl;tmsh;qsf;qpf;qip;do;tclspec;sdc;upf;xdc;apl"/>
+            extensions="tcl;tk;itcl;tm;test;globals;exp;expect;scf;iapp;iappimpl;impl;tmsh;qsf;qpf;qip;do;tclspec;sslictcl;sdc;upf;xdc;apl"/>
         <fileType name="iRule" language="Tcl"
             implementationClass="com.tcllsp.jetbrains.TclIruleFileType"
             fieldName="INSTANCE"
@@ -75,6 +82,11 @@
             secondary="true"/>
         <postStartupActivity
             implementation="com.tcllsp.jetbrains.SpecStudioStartupActivity"/>
+
+        <!-- Restores the file extensions SpecTcl packs claimed in an earlier
+             session before the first file is opened. -->
+        <postStartupActivity
+            implementation="com.tcllsp.jetbrains.packs.PackAssociationsStartupActivity"/>
 
         <!-- Notification group for error messages -->
         <notificationGroup id="Tcl LSP" displayType="BALLOON"/>

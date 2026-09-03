@@ -110,6 +110,19 @@ indent = { tab-width = 4, unit = "    " }
 language-servers = ["tcl-lsp"]
 auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
 
+# SslicTcl TLS declarations — the `.sslictcl` files that state a deployment's
+# certificates, endpoints, and assurance policy. They are Tcl, so they route
+# through the same server.
+[[language]]
+name = "sslictcl"
+language-id = "sslictcl"
+scope = "source.tcl"
+file-types = ["sslictcl"]
+comment-tokens = ["#"]
+indent = { tab-width = 4, unit = "    " }
+language-servers = ["tcl-lsp"]
+auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
+
 # EDA tooling. The file types are the ones the dialect catalog owns; a vendor
 # script saved as plain `.tcl` still needs a `# tcl-dialect:` comment or the
 # `dialect` setting, since `.tcl` itself names no vendor.

@@ -76,22 +76,23 @@ Place a comment in the first 5 lines of any Tcl file:
 # tcl-dialect: tcl8.4
 ```
 
-The directive name is case-insensitive.  The dialect value must be one of the
-18 `KNOWN_DIALECTS` strings — `bpf`, `cadence-eda-tcl`, `expect`, `f5-bigip`,
-`f5-iapps`, `f5-irules`, `f5-tmsh`, `intel-quartus-eda-tcl`,
-`mentor-eda-tcl`, `microchip-libero-eda-tcl`, `spectcl`, `synopsys-eda-tcl`,
-`tcl8.4`, `tcl8.5`, `tcl8.6`, `tcl9.0`, `tcl9.1`, `xilinx-eda-tcl` — matched
-exactly and case-sensitively. An
-unrecognised value makes the directive tier abstain, and detection falls
-through to the next tier rather than erroring.
+The directive name is case-insensitive. The value is an **environment
+name**, resolved through the one environment resolver
+(`tcl_registry::model::resolve_known_environment`) exactly as a
+`tclLsp.dialect` setting or `tcl-lsp.setDialect` is: a canonical id
+(`tcl8.4`, `f5-irules`, `xilinx-eda-tcl`, `tk`, `jim`, `tcl`), an alias
+(`wish` → `tk`, `irules` → `f5-irules`, `jimsh` → `jim`), a contributed
+editor identity (`tcl-irule`, `tcl90`), or an environment a loaded SpecTcl
+pack declares — matched case-sensitively, and answered as the resolved
+**canonical id**. An unrecognised value makes the directive tier abstain,
+and detection falls through to the next tier rather than erroring.
 
-`tk` is deliberately **not** in that set: it is a package plus an
-environment, never a dialect (#1631 §2), so `# tcl-dialect: tk` abstains
-today even though the e2e tests and some module docs use it. Making it
-resolve is a user-visible change to the same list the CLI's `--dialect`
-choices and the MCP `dialect_schema` enum are generated from — tracked as
-E8/D15 in
-[the #1631 open-questions ledger](../dialect-and-package-registry-redesign.md#11-the-open-questions-ledger).
+`tk` therefore resolves (#1631 E8): it is a package plus an environment,
+never a dialect (§2), and the directive selects environments. The
+`KNOWN_DIALECTS` list still feeds the CLI's `--dialect` choices and the MCP
+`dialect_schema` enum — the payload rows tracked as D15 in
+[the #1631 open-questions ledger](../dialect-and-package-registry-redesign.md#11-the-open-questions-ledger)
+— but it no longer gates the directive.
 
 The directive takes priority over shebang detection.  This allows a file to
 have a generic `#!/usr/bin/tclsh` shebang while still targeting a specific

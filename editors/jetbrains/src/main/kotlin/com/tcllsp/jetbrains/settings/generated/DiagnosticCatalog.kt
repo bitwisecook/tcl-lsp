@@ -189,6 +189,21 @@ object DiagnosticCatalog {
         DiagnosticDef("IAPP7001", "bigip", "IAPP7001: iApp implementation references a presentation field ...", true),
         DiagnosticDef("IAPP7002", "bigip", "IAPP7002: iApp presentation field is never referenced by the i...", true),
         DiagnosticDef("IAPP7003", "bigip", "IAPP7003: iApp presentation #include file could not be resolved", true),
+        DiagnosticDef("SSLIC1001", "sslictcl", "SSLIC1001: SslicTcl declaration is not valid Tcl syntax or has ...", true),
+        DiagnosticDef("SSLIC1002", "sslictcl", "SSLIC1002: SslicTcl declaration uses substitution or argument e...", true),
+        DiagnosticDef("SSLIC1003", "sslictcl", "SSLIC1003: SslicTcl document is missing its sslictcl VERSION he...", true),
+        DiagnosticDef("SSLIC1004", "sslictcl", "SSLIC1004: SslicTcl document declares its sslictcl header more ...", true),
+        DiagnosticDef("SSLIC1005", "sslictcl", "SSLIC1005: SslicTcl declaration has the wrong number of words", true),
+        DiagnosticDef("SSLIC1006", "sslictcl", "SSLIC1006: SslicTcl declaration body must be a braced literal", true),
+        DiagnosticDef("SSLIC1007", "sslictcl", "SSLIC1007: SslicTcl closed block contains an unknown member", true),
+        DiagnosticDef("SSLIC1008", "sslictcl", "SSLIC1008: SslicTcl declaration duplicates an earlier declarati...", true),
+        DiagnosticDef("SSLIC1009", "sslictcl", "SSLIC1009: SslicTcl value is outside its declared domain", true),
+        DiagnosticDef("SSLIC1010", "sslictcl", "SSLIC1010: SslicTcl declaration is missing a required member", true),
+        DiagnosticDef("SSLIC1011", "sslictcl", "SSLIC1011: SslicTcl declaration references a name that is not d...", true),
+        DiagnosticDef("SSLIC1012", "sslictcl", "SSLIC1012: SslicTcl declaration combines mutually exclusive mem...", true),
+        DiagnosticDef("SSLIC1101", "sslictcl", "SSLIC1101: SslicTcl unknown declaration preserved as an extension", true),
+        DiagnosticDef("SSLIC1102", "sslictcl", "SSLIC1102: SslicTcl document vocabulary is newer than this buil...", true),
+        DiagnosticDef("SSLIC1103", "sslictcl", "SSLIC1103: SslicTcl predicate body is retained but never evalua...", true),
     )
 
     val optimisations: List<OptimisationDef> = listOf(
@@ -235,6 +250,7 @@ object DiagnosticCatalog {
         "taint" to "Diagnostics — Taint",
         "irules" to "Diagnostics — iRules",
         "bigip" to "Diagnostics — BIG-IP Configuration",
+        "sslictcl" to "Diagnostics — SslicTcl",
         "tclpkg" to "Diagnostics — Package Manager",
     )
 
@@ -248,6 +264,7 @@ object DiagnosticCatalog {
         "taint",
         "irules",
         "bigip",
+        "sslictcl",
         "tclpkg",
     )
 }

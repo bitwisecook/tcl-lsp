@@ -67,7 +67,8 @@ fn category_for_kinds(kinds: &[&str]) -> IrulesObjectReferenceCategory {
 /// `tcl_lsp_core::minify::MAX_MINIFY_DEPTH`, this must be safe on a small
 /// ambient stack, not just a generously-sized one — same value and
 /// reasoning; see those constants' doc comments.
-const MAX_WALK_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(128);
+pub(crate) const MAX_WALK_DEPTH: tcl_core_types::RecursionLimit =
+    tcl_core_types::RecursionLimit(128);
 
 /// Consumer-safe semantic category for an iRules object reference.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -230,12 +231,34 @@ struct WalkCtx<'a> {
 /// resolves to at its own byte offset, or the spelling itself when the rule
 /// binds nothing.  Empty for a head whose binding was provably taken over,
 /// which every table and registry lookup then answers "unknown" for.
-fn resolve_head<'a>(
+pub(crate) fn resolve_head<'a>(
     identities: &'a tcl_compiler::realm::CommandBindingRealm,
     cmd: &'a SegmentedCommand,
 ) -> &'a str {
     let at = cmd.argv.first().map_or(0, |t| t.span.start());
     identities.head_words(cmd.name(), at).resolved
+}
+
+/// The registry name a resolved head is looked up under.
+///
+/// Tcl's leading `::` is an absolute-namespace marker, not a distinct command
+/// identity, so `::pool` and `pool` are one command — but only for the global
+/// iRules commands the registry actually holds: `::tcl::dict::*` is a distinct
+/// qualified core command whose declarations must stay visible under its own
+/// name.  Shared with the ILX walk ([`crate::ilx`]) so the two agree about
+/// which spelling a registry lookup uses.
+pub(crate) fn semantic_head(registry: &CommandRegistry, head: &str) -> String {
+    let canonical = tcl_syntax::naming::canonical_written_command(head);
+    if registry.get_exact(&canonical).is_some() {
+        return canonical;
+    }
+    if canonical.starts_with("::") {
+        let rooted_name = canonical.trim_start_matches("::");
+        if registry.get_exact(rooted_name).is_some() {
+            return rooted_name.to_owned();
+        }
+    }
+    canonical
 }
 
 /// Segment `slice` (a substring of the rule starting at byte `base`) and
@@ -282,22 +305,9 @@ fn walk(
         // Registry command specs are canonical unqualified iRules names;
         // Tcl's leading `::` is an absolute-namespace marker, not a distinct
         // command identity.
-        // Only canonicalise the iRules global commands this walker owns.
-        // `::tcl::dict::*` is a distinct qualified core command whose BODY
-        // declarations must remain visible to the registry.
-        let canonical = tcl_syntax::naming::canonical_written_command(head);
-        let semantic_head = if registry.get_exact(&canonical).is_some() {
-            canonical
-        } else if canonical.starts_with("::") {
-            let rooted_name = canonical.trim_start_matches("::");
-            if registry.get_exact(rooted_name).is_some() {
-                rooted_name.to_owned()
-            } else {
-                canonical
-            }
-        } else {
-            canonical
-        };
+        // Canonicalised to the name the registry holds — see `semantic_head`
+        // for why `::tcl::dict::*` is deliberately left alone.
+        let semantic_head = semantic_head(registry, head);
 
         let executable = executable_spans.contains(&(cmd.span.start(), cmd.span.end()));
         if executable {
@@ -409,7 +419,7 @@ fn walk(
 /// The clause-list word of `cmd` (`switch … {pat body …}`), per the registry's
 /// [`CaseListSpec`]: skip the command's options (and any that take a value),
 /// then its subject words; the clause list is the final braced word.
-fn case_list_word(
+pub(crate) fn case_list_word(
     cmd: &tcl_compiler::segmenter::SegmentedCommand,
     name: &str,
     args: &[&str],
@@ -429,7 +439,11 @@ fn case_list_word(
 /// The clause split is `tcl-syntax`'s, shared with the semantic-token walker: if
 /// the two disagreed about where a clause body is, they would disagree about
 /// what the code says.
-fn case_list_body_tokens(full: &str, tok: &Token, spec: &tcl_registry::CaseListSpec) -> Vec<Token> {
+pub(crate) fn case_list_body_tokens(
+    full: &str,
+    tok: &Token,
+    spec: &tcl_registry::CaseListSpec,
+) -> Vec<Token> {
     let (cstart, cend) = content_range(full, tok);
     let Some(inner) = full.get(cstart..cend) else {
         return Vec::new();
@@ -458,13 +472,13 @@ fn case_list_body_tokens(full: &str, tok: &Token, spec: &tcl_registry::CaseListS
 }
 
 /// The content byte range of a token (offset past its opening delimiter).
-fn content_range(full: &str, tok: &Token) -> (usize, usize) {
+pub(crate) fn content_range(full: &str, tok: &Token) -> (usize, usize) {
     let start = tok.span.start() as usize + tok.content_offset as usize;
     let end = (tok.span.end() as usize).min(full.len());
     (start, end)
 }
 
-fn inner_is_empty(full: &str, tok: &Token) -> bool {
+pub(crate) fn inner_is_empty(full: &str, tok: &Token) -> bool {
     let (start, end) = content_range(full, tok);
     start >= end || full[start..end].trim().is_empty()
 }
@@ -498,7 +512,7 @@ fn recurse_token(
 /// The trimmed literal `(name, span)` of argument `arg_index`, or `None` when it
 /// isn't a usable single-token literal (`$var` / `[cmd]` / multi-token /
 /// whitespace). + `_normalise_literal_name`.
-fn literal_arg_value(
+pub(crate) fn literal_arg_value(
     full: &str,
     cmd: &SegmentedCommand,
     arg_index: usize,
@@ -537,7 +551,7 @@ fn literal_arg_value(
 
 /// The variable name of a single `$var` substitution token (mirrors
 /// `_var_token_name`): `None` for array elements (`foo(bar)`).
-fn var_token_name(full: &str, tok: &Token) -> Option<String> {
+pub(crate) fn var_token_name(full: &str, tok: &Token) -> Option<String> {
     if !matches!(tok.kind, TokenType::Var) {
         return None;
     }

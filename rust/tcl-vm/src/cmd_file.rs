@@ -354,10 +354,15 @@ fn normalize(p: &str, cwd: &str) -> String {
 fn cmd_glob(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // We never error on no match (effectively always `-nocomplain`).
     let mut dir: Option<String> = None;
+    let mut join = false;
     let mut i = 0;
     while i < args.len() {
         match &*args[i].to_str() {
             "-nocomplain" => i += 1,
+            "-join" => {
+                join = true;
+                i += 1;
+            }
             "-directory" | "-dir" => {
                 dir = args.get(i + 1).map(|v| v.to_str().to_string());
                 i += 2;
@@ -373,11 +378,12 @@ fn cmd_glob(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let patterns = &args[i..];
     let base = dir.clone().unwrap_or_else(|| ".".to_string());
     let mut results: Vec<String> = Vec::new();
-    let entries = vm
-        .host()
-        .filesystem()
-        .and_then(|fs| fs.read_dir(&base).ok());
-    if let Some(entries) = entries {
+    let Some(filesystem) = vm.host().filesystem() else {
+        return ok(Value::list(Vec::new()));
+    };
+    if join {
+        glob_join(filesystem, &base, patterns, &mut results);
+    } else if let Ok(entries) = filesystem.read_dir(&base) {
         for name in entries {
             let matches = patterns.is_empty()
                 || patterns
@@ -397,4 +403,29 @@ fn cmd_glob(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     ok(Value::list(
         results.into_iter().map(Value::string).collect(),
     ))
+}
+
+fn glob_join(
+    filesystem: &dyn Filesystem,
+    directory: &str,
+    patterns: &[Value],
+    results: &mut Vec<String>,
+) {
+    let Some((pattern, remaining)) = patterns.split_first() else {
+        results.push(directory.to_owned());
+        return;
+    };
+    let Ok(entries) = filesystem.read_dir(directory) else {
+        return;
+    };
+    for entry in entries {
+        if tcl_syntax::glob::string_match(&pattern.to_str(), &entry) {
+            let path = file_join(&[Value::string(directory.to_owned()), Value::string(entry)]);
+            if remaining.is_empty() {
+                results.push(path);
+            } else {
+                glob_join(filesystem, &path, remaining, results);
+            }
+        }
+    }
 }

@@ -822,7 +822,7 @@ fn expr_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return match e.code {
                 Some(code) => interp.error_with_code(&e.msg, &code),
                 None => interp.set_error(&e.msg),
-            }
+            };
         }
     };
     let mut ctx = InterpExprCtx {
@@ -986,6 +986,18 @@ mod tests {
             String::from_utf8_lossy(&i.result_bytes())
         );
         i.result_bytes()
+    }
+
+    #[test]
+    fn raw_cr_escapes_match_tcl9() {
+        leak_free(|i| {
+            // TclParseBackslash only collapses backslash-LF. Raw CR and CRLF
+            // handed to the parser remain data; brace words preserve the slash.
+            assert_eq!(ok(i, b"set x \"a\\\rb\"; set x"), b"a\rb");
+            assert_eq!(ok(i, b"set x \"a\\\r\nb\"; set x"), b"a\r\nb");
+            assert_eq!(ok(i, b"set x {a\\\rb}; set x"), b"a\\\rb");
+            assert_eq!(ok(i, b"set x \"a\\\nb\"; set x"), b"a b");
+        });
     }
 
     #[test]

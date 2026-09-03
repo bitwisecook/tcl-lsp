@@ -43,9 +43,10 @@ use tcl_spectcl::hooks;
 use tcl_spectcl::loader::{self, HookSource};
 use tcl_spectcl::pack::PackSet;
 
-/// A pack file: one command, whose folder is a Tcl body.
-const SOURCE: &str = r"
-speclib mylib 1 {
+/// The body shared by the legacy and 2.0 spellings of the live-hook pack.
+/// Keeping one body makes the DSL release the only axis in the end-to-end
+/// comparison.
+const FOLD_SOURCE_BODY: &str = r"
     command mylib::strlen {
         arity 1
         arg 0 -role Value
@@ -55,8 +56,18 @@ speclib mylib 1 {
             fold [string length $subject]
         }
     }
-}
 ";
+
+fn fold_source(dsl_version: &str) -> String {
+    [
+        "\nspeclib mylib ",
+        dsl_version,
+        " {\n",
+        FOLD_SOURCE_BODY,
+        "}\n",
+    ]
+    .concat()
+}
 
 /// A command-prefix position whose timing depends on another argument. This
 /// exercises the new family through the loader, binder, host, thunk and the
@@ -98,7 +109,7 @@ fn pack_set_from(name: &str, source: &str) -> PackSet {
 }
 
 fn pack_set(name: &str) -> PackSet {
-    pack_set_from(name, SOURCE)
+    pack_set_from(name, &fold_source("1"))
 }
 
 fn folds(registry: &CommandRegistry) -> Vec<String> {
@@ -115,7 +126,8 @@ fn folds(registry: &CommandRegistry) -> Vec<String> {
 
 #[test]
 fn the_loader_carries_the_declared_inputs() {
-    let pack = loader::evaluate_pack(SOURCE);
+    let source = fold_source("1");
+    let pack = loader::evaluate_pack(&source);
     let command = pack.command("mylib::strlen").expect("the pack declares it");
     let [hook] = &command.hooks[..] else {
         panic!("one hook, got {:?}", command.hooks.len());
@@ -131,34 +143,49 @@ fn the_loader_carries_the_declared_inputs() {
 
 #[test]
 fn a_pack_file_folds_a_call_site_in_the_optimiser() {
-    let packs = pack_set("folds");
-    assert!(
-        packs.notices.is_empty(),
-        "the pack loads cleanly: {:?}",
-        packs.notices
-    );
+    let mut results = Vec::new();
+    for dsl_version in ["1", "2.0"] {
+        let source = fold_source(dsl_version);
+        let packs = pack_set_from(&format!("folds-{dsl_version}"), &source);
+        assert!(
+            packs.notices.is_empty(),
+            "DSL {dsl_version} pack loads cleanly: {:?}",
+            packs.notices
+        );
+        assert_eq!(
+            packs.packs.first().map(|pack| pack.dsl_version.as_str()),
+            Some(dsl_version),
+            "the loader preserves the DSL release presented to the hook adapter"
+        );
 
-    // The production adapter, and the production slot assignment.
-    let plan = hooks::plan_for(&packs);
-    assert!(!plan.is_empty(), "the pack declares one hook body");
+        // The production adapter, and the production slot assignment.
+        let plan = hooks::plan_for(&packs);
+        assert!(!plan.is_empty(), "the pack declares one hook body");
 
-    let host = Rc::new(tclvm_host());
-    for programs in plan.packs() {
-        let installed = host.install_pack_hooks(programs.clone());
-        for (installation, program) in installed.iter().zip(&programs.programs) {
-            assert_eq!(
-                installation.slot, program.slot,
-                "the host binds the slot the plan assigned, never a fresh one: {:?}",
-                installation.declined
-            );
+        let host = Rc::new(tclvm_host());
+        for programs in plan.packs() {
+            let installed = host.install_pack_hooks(programs.clone());
+            for (installation, program) in installed.iter().zip(&programs.programs) {
+                assert_eq!(
+                    installation.slot, program.slot,
+                    "DSL {dsl_version}: the host binds the slot the plan assigned, never a fresh one: {:?}",
+                    installation.declined
+                );
+            }
         }
-    }
-    pack_hooks::install_host(host);
+        pack_hooks::install_host(host);
 
-    // The registry the workspace would install — same call the LSP makes.
-    let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &packs);
-    assert_eq!(folds(&registry), vec!["5".to_string()]);
-    pack_hooks::clear_host();
+        // The registry the workspace would install — same call the LSP makes.
+        let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &packs);
+        let result = folds(&registry);
+        assert_eq!(result, vec!["5".to_string()], "DSL {dsl_version}");
+        results.push(result);
+        pack_hooks::clear_host();
+    }
+    assert_eq!(
+        results[0], results[1],
+        "legacy and 2.0 hook programs have identical live semantics"
+    );
 }
 
 #[test]

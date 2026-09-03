@@ -50,6 +50,7 @@ pub mod code_actions;
 pub mod code_lens;
 pub mod completion;
 pub mod declaration;
+pub mod declaration_outline;
 pub mod definition;
 pub mod document_floor;
 pub mod document_links;
@@ -61,6 +62,7 @@ pub mod folding;
 pub mod formatting;
 pub mod graphs;
 pub mod hover;
+pub mod ilx_navigation;
 pub mod implementation;
 pub mod inert_text;
 pub mod inlay_hints;
@@ -85,6 +87,7 @@ pub mod snippets;
 pub mod source_decode;
 pub mod source_graph;
 pub mod source_style;
+pub mod sslictcl_diagnostics;
 pub mod tcl_install;
 pub mod tk_preview;
 pub mod type_definition;
@@ -263,6 +266,11 @@ pub fn registry_for_dialect_profile(
 /// assert!(!tcl_lsp_core::VERSION.is_empty());
 /// ```
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// The shared Tcl qualified-name canonicaliser, re-exported for LSP hosts that
+/// must normalise command names before passing provider options into this
+/// crate. The semantic owner remains `tcl-syntax::naming`.
+pub use tcl_syntax::naming::normalise_qualified_name as normalise_qualified_command_name;
 
 #[cfg(test)]
 mod dialect_ingress_tests {

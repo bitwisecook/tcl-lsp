@@ -208,15 +208,30 @@ fn languages() -> Result<Vec<Language>> {
 
     // Pack-declared extensions land on the language of the dialect their
     // row routes to; rows with no `-dialect`, or whose dialect has no
-    // dedicated language, ride plain `tcl`.
+    // dedicated language, ride plain `tcl`. An `environment` block's own
+    // `file_extension` claims route the same way, to the language of the
+    // environment that declares them — the pack-declared environments'
+    // door into the generated editor manifests (D17).
     let owned: Vec<String> = langs.iter().flat_map(|l| l.extensions.clone()).collect();
     for pack in &set.packs {
-        for row in &pack.file_extensions {
-            if owned.contains(&row.extension) {
+        let mut claims: Vec<(String, Option<&str>)> = pack
+            .file_extensions
+            .iter()
+            .map(|row| (row.extension.clone(), row.dialect))
+            .collect();
+        for environment in &pack.environments {
+            claims.extend(
+                environment
+                    .file_extensions
+                    .iter()
+                    .map(|claim| (claim.extension.to_string(), Some(environment.id.as_str()))),
+            );
+        }
+        for (extension, dialect) in claims {
+            if owned.contains(&extension) {
                 continue;
             }
-            let target = row
-                .dialect
+            let target = dialect
                 .and_then(language_for_profile)
                 .unwrap_or("tcl")
                 .to_owned();
@@ -224,8 +239,8 @@ fn languages() -> Result<Vec<Language>> {
                 .iter_mut()
                 .find(|l| l.id == target)
                 .ok_or_else(|| anyhow!("pack {}: no language {target}", pack.name))?;
-            if !lang.extensions.contains(&row.extension) {
-                lang.extensions.push(row.extension.clone());
+            if !lang.extensions.contains(&extension) {
+                lang.extensions.push(extension);
             }
         }
     }

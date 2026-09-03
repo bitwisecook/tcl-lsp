@@ -123,7 +123,7 @@
 
 use tcl_core_types::RecursionLimit;
 
-use crate::substitution::{backslash_escape_end, is_line_continuation};
+use crate::substitution::{backslash_continuation_end, backslash_escape_end, is_line_continuation};
 
 /// Cap on nested `[…]` command-substitution depth for every recursive
 /// scanner in this module ([`BracketIndex`]'s `scan_cmd_sub`,
@@ -335,8 +335,8 @@ impl Builder<'_> {
                 b'\\' => {
                     // Consume the canonical Tcl escape unit. This is what
                     // distinguishes an even run (`\\\\\n`, whose newline
-                    // ends the comment) from an odd run, and it handles the
-                    // CRLF continuation spelling as one unit too.
+                    // ends the comment) from an odd run. Raw escaped CR ends
+                    // before a following LF, which still ends the comment.
                     i = backslash_escape_end(self.source, i);
                 }
                 _ => i += 1,
@@ -847,7 +847,7 @@ impl BraceBuilder<'_> {
             if just_closed_word {
                 match self.bytes[i] {
                     b' ' | b'\t' | b'\r' | b'\n' | b';' => just_closed_word = false,
-                    b'\\' if matches!(self.bytes.get(i + 1), Some(b'\n' | b'\r')) => {
+                    b'\\' if backslash_continuation_end(self.bytes, i).is_some() => {
                         just_closed_word = false;
                     }
                     // A `]` terminating the enclosing command sub is a
@@ -1147,16 +1147,13 @@ pub fn script_is_complete(source: &str) -> bool {
 }
 
 /// `true` when `b` ends with a backslash-newline continuation: an odd
-/// run of `\` immediately before the final newline (optional `\r`).
+/// run of backslashes immediately before the final LF.
 fn ends_with_line_continuation(b: &[u8]) -> bool {
     let mut k = b.len();
     if k == 0 || b[k - 1] != b'\n' {
         return false;
     }
     k -= 1; // the `\n`
-    if k > 0 && b[k - 1] == b'\r' {
-        k -= 1; // the `\r` of a CRLF
-    }
     let mut backslashes = 0usize;
     while k > 0 && b[k - 1] == b'\\' {
         backslashes += 1;
@@ -1271,7 +1268,9 @@ fn scan_complete(
         if just_closed_word {
             match b[i] {
                 b' ' | b'\t' | b'\r' | b'\n' | b';' => just_closed_word = false,
-                b'\\' if matches!(b.get(i + 1), Some(b'\n' | b'\r')) => just_closed_word = false,
+                b'\\' if backslash_continuation_end(b, i).is_some() => {
+                    just_closed_word = false;
+                }
                 b']' if stop_at_bracket => just_closed_word = false,
                 _ => return (i, Completeness::Terminal),
             }
@@ -1282,8 +1281,8 @@ fn scan_complete(
             // A backslash-newline is a line continuation (acts as
             // whitespace -> word boundary, same command); any other
             // escaped char is content.
-            b'\\' if matches!(b.get(i + 1), Some(b'\n' | b'\r')) => {
-                i = (i + 2).min(n);
+            b'\\' if let Some(end) = backslash_continuation_end(b, i) => {
+                i = end;
                 newword = true;
             }
             b'\\' => {
@@ -1451,8 +1450,8 @@ pub fn command_boundaries(source: &str) -> Vec<u32> {
         }
         match b[i] {
             b'#' if command_start => i = skip_comment(source, i),
-            b'\\' if matches!(b.get(i + 1), Some(b'\n' | b'\r')) => {
-                i = (i + 2).min(n);
+            b'\\' if let Some(end) = backslash_continuation_end(b, i) => {
+                i = end;
                 newword = true;
             }
             b'\\' => {
@@ -1765,13 +1764,17 @@ mod tests {
                 })
         );
 
-        // Comment continuations use the same canonical escape-unit decoder
-        // as the lexer: CRLF continues, while an even backslash run leaves
-        // the newline unescaped and ends the comment.
+        // Raw CRLF is not a continuation at the parser seam. The escaped CR
+        // ends before the LF, so the first bracket on the next line closes
+        // the substitution and the final bracket is an extra closer.
         let crlf = "[\r\n# hidden \\\r\n] still hidden\r\nset y 1]";
         assert_eq!(
             BracketIndex::build(crlf).events(),
-            &[(0, 1), (u32::try_from(crlf.len() - 1).unwrap(), -1)]
+            &[
+                (0, 1),
+                (u32::try_from(crlf.find(']').unwrap()).unwrap(), -1),
+                (u32::try_from(crlf.len() - 1).unwrap(), -1),
+            ]
         );
         let even = "[\n# two \\\\\n]";
         let events = BracketIndex::build(even);
@@ -2724,14 +2727,13 @@ while {1} {
             vec![first, u32::try_from(comment.len()).unwrap()]
         );
 
-        // A CRLF continuation keeps the next line inside the comment, so its
-        // `]` is inert.  The old duplicated byte loop only recognised LF and
-        // closed the substitution at this first bracket.
+        // Raw CRLF is an escaped CR followed by an unescaped LF. It ends the
+        // comment, so the first bracket closes the substitution and every
+        // following top-level newline is a command boundary.
         let crlf = "set x [\r\n# hidden \\\r\n] still hidden\r\nset y 1\r\n]\nputs done\n";
-        let first = u32::try_from(crlf.find("]\nputs").unwrap() + 2).unwrap();
         assert_eq!(
             command_boundaries(crlf),
-            vec![first, u32::try_from(crlf.len()).unwrap()]
+            vec![37, 46, 48, u32::try_from(crlf.len()).unwrap()]
         );
 
         // Escape units, rather than a raw backslash count, determine parity:

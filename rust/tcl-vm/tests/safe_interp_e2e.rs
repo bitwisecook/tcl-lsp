@@ -114,6 +114,39 @@ fn run_at(version: TclVersion, src: &str) -> (bool, String) {
     (c.code.is_ok(), out)
 }
 
+#[test]
+fn child_and_safe_platform_schemas_come_from_the_shared_owner() {
+    let mut child_keys = tcl_platform::bootstrap::entries()
+        .iter()
+        .map(|entry| entry.name())
+        .collect::<Vec<_>>();
+    child_keys.sort_unstable();
+    let (ok, out) = run("interp create child\n\
+         puts [child eval {lsort [array names ::tcl_platform]}]\n");
+    assert!(ok, "normal child schema query failed: {out}");
+    assert_eq!(out, child_keys.join(" "));
+
+    let scrubbed = tcl_platform::bootstrap::safe_scrub_keys().collect::<Vec<_>>();
+    let mut safe_keys = tcl_platform::bootstrap::entries()
+        .iter()
+        .map(|entry| entry.name())
+        .filter(|name| !scrubbed.contains(name))
+        .collect::<Vec<_>>();
+    safe_keys.sort_unstable();
+    let (ok, out) = run("interp create -safe safe\n\
+         puts [safe eval {lsort [array names ::tcl_platform]}]\n");
+    assert!(ok, "safe child schema query failed: {out}");
+    assert_eq!(out, safe_keys.join(" "));
+    assert!(safe_keys.contains(&"threaded"));
+
+    let (ok, out) = run("interp create -safe safe\n\
+         puts [safe eval {list [info exists ::env] \
+           [info exists ::tcl_library] [info exists ::auto_path] \
+           [info exists ::tclDefaultLibrary] [info exists ::tcl_pkgPath]}]\n");
+    assert!(ok, "safe child path query failed: {out}");
+    assert_eq!(out, "0 0 0 0 0");
+}
+
 /// A compile service pinned to one resolved profile, as `tclvm` wires it.
 struct ProfiledCompilerSvc {
     profile: &'static DialectProfile,

@@ -131,6 +131,7 @@ const LOADABLE_DIALECTS: &[&str] = &[
     "microchip-libero-eda-tcl",
     "bpf",
     "spectcl",
+    "sslictcl",
 ];
 
 /// Every trait bit, so the sweep queries `commands_with_trait` across the whole

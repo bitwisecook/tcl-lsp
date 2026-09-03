@@ -60,7 +60,18 @@ fn no_namespace(interp: &mut Interp, verb: &[u8], name: &[u8]) -> Code {
     m.extend_from_slice(b" \"");
     m.extend_from_slice(name);
     m.extend_from_slice(b"\": parent namespace doesn't exist");
-    interp.set_error(&m)
+    let mut error_code = b"TCL LOOKUP VARNAME ".to_vec();
+    error_code.extend_from_slice(name);
+    interp.error_with_code(&m, &error_code)
+}
+
+fn inverted_upvar(interp: &mut Interp, local: &[u8]) -> Code {
+    let mut message = b"bad variable name \"".to_vec();
+    message.extend_from_slice(local);
+    message.extend_from_slice(
+        b"\": can't create namespace variable that refers to procedure variable",
+    );
+    interp.error_with_code(&message, b"TCL UPVAR INVERTED")
 }
 
 // -- global ----------------------------------------------------------------
@@ -155,15 +166,6 @@ fn upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     while i + 1 < argv.len() {
         let other = obj_bytes(argv[i]);
         let local = obj_bytes(argv[i + 1]);
-        // The local name may not look like an array element (C's `MakeUpvar`).
-        if split_array_ref(&local).1.is_some() {
-            let mut m = b"bad variable name \"".to_vec();
-            m.extend_from_slice(&local);
-            m.extend_from_slice(
-                b"\": can't create a scalar variable that looks like an array element",
-            );
-            return interp.set_error(&m);
-        }
         let (base, elem) = split_array_ref(&other);
 
         let link = if is_qualified(&base) {
@@ -195,6 +197,20 @@ fn upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 elem,
             }
         };
+        // C resolves the other-variable first, then rejects a namespace alias
+        // to a procedure cell before inspecting the alias's element shape or
+        // parent namespace (`TCL UPVAR INVERTED`).
+        if interp.upvar_would_invert(&link, &local) {
+            return inverted_upvar(interp, &local);
+        }
+        if split_array_ref(&local).1.is_some() {
+            let mut m = b"bad variable name \"".to_vec();
+            m.extend_from_slice(&local);
+            m.extend_from_slice(
+                b"\": can't create a scalar variable that looks like an array element",
+            );
+            return interp.error_with_code(&m, b"TCL UPVAR LOCAL_ELEMENT");
+        }
         // A qualified local name (`ns::lnk`) creates a namespace link variable
         // rather than a frame local; its namespace must exist.
         if is_qualified(&local) {
@@ -204,7 +220,9 @@ fn upvar(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     let mut m = b"can't create \"".to_vec();
                     m.extend_from_slice(&local);
                     m.extend_from_slice(b"\": parent namespace doesn't exist");
-                    return interp.set_error(&m);
+                    let mut error_code = b"TCL LOOKUP VARNAME ".to_vec();
+                    error_code.extend_from_slice(&local);
+                    return interp.error_with_code(&m, &error_code);
                 }
             }
         } else {
@@ -378,6 +396,60 @@ mod tests {
                 i.result_bytes(),
                 b"can't access \"::nosuch::z\": parent namespace doesn't exist"
             );
+        });
+    }
+
+    /// The resolver classifies both homes before command-level validation:
+    /// namespace aliases may not retain procedure cells, while the missing
+    /// parent and element-name paths retain Tcl's distinct error codes.
+    #[test]
+    fn upvar_validates_semantic_homes_and_error_precedence() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(b"namespace eval x { variable ok READY }"),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"upvar #0 ::x::ok top"), Code::Ok);
+            assert_eq!(i.eval_str(b"set top"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"READY");
+
+            assert_eq!(
+                i.eval_str(
+                    b"proc inverted {} { set proc_local 1; upvar 0 proc_local ::x::link(k) }"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"inverted"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"bad variable name \"::x::link(k)\": can't create namespace variable that refers to procedure variable"
+            );
+            assert_eq!(i.eval_str(b"set ::errorCode"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"TCL UPVAR INVERTED");
+
+            for (script, message, code) in [
+                (
+                    &b"upvar #0 ::missing::x local"[..],
+                    &b"can't access \"::missing::x\": parent namespace doesn't exist"[..],
+                    &b"TCL LOOKUP VARNAME ::missing::x"[..],
+                ),
+                (
+                    b"upvar #0 x ::missing::local",
+                    b"can't create \"::missing::local\": parent namespace doesn't exist",
+                    b"TCL LOOKUP VARNAME ::missing::local",
+                ),
+                (
+                    b"upvar #0 x local(k)",
+                    b"bad variable name \"local(k)\": can't create a scalar variable that looks like an array element",
+                    b"TCL UPVAR LOCAL_ELEMENT",
+                ),
+            ] {
+                assert_eq!(i.eval_str(script), Code::Error, "{script:?}");
+                assert_eq!(i.result_bytes(), message, "{script:?}");
+                assert_eq!(i.eval_str(b"set ::errorCode"), Code::Ok, "{script:?}");
+                assert_eq!(i.result_bytes(), code, "{script:?}");
+            }
+            i.eval_str(b"unset -nocomplain ::x::ok ::x::link top");
         });
     }
 

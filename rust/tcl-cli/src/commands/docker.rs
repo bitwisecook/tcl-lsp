@@ -30,8 +30,9 @@ use std::collections::BTreeMap;
 
 use serde_json::json;
 use tcl_pkg::docker::{
-    DockerfileSpec, SUPPORTED_TCL_VERSIONS, available_recipes, generate_dockerfile,
-    tcl_install_recipe, write_dockerfile,
+    DockerfileSpec, RELEASE_TRIPLES, SUPPORTED_TCL_VERSIONS, available_recipes,
+    cli_capable_families, cli_prereq_recipe, default_cli_version, generate_dockerfile,
+    tcl_cli_install_recipe, tcl_install_recipe, write_dockerfile,
 };
 use tcl_pkg::ui;
 
@@ -44,8 +45,10 @@ pub fn run(action: &DockerCommand) -> anyhow::Result<u8> {
         DockerCommand::Recipe {
             image,
             tcl_version,
+            cli,
+            cli_version,
             json,
-        } => run_recipe(image, tcl_version, *json),
+        } => run_recipe(image, tcl_version, *cli, cli_version.as_deref(), *json),
         DockerCommand::Info { json } => run_info(*json),
     }
 }
@@ -148,12 +151,30 @@ fn run_create(action: &DockerCommand) -> anyhow::Result<u8> {
     Ok(0)
 }
 
-fn run_recipe(image: &str, tcl_version: &str, json: bool) -> anyhow::Result<u8> {
-    let recipe = match tcl_install_recipe(image, tcl_version) {
-        Ok(r) => r,
-        Err(e) => {
-            eprintln!("error: {e}");
-            return Ok(1);
+fn run_recipe(
+    image: &str,
+    tcl_version: &str,
+    cli: bool,
+    cli_version: Option<&str>,
+    json: bool,
+) -> anyhow::Result<u8> {
+    // `--cli` prints what installs the tcl CLI itself (prerequisites plus the
+    // verified release-asset fetch); the default prints what installs Tcl.
+    let recipe = if cli {
+        match cli_prereq_recipe(image) {
+            Ok(prereq) => format!("{prereq}\n\n{}", tcl_cli_install_recipe(cli_version)),
+            Err(e) => {
+                eprintln!("error: {e}");
+                return Ok(1);
+            }
+        }
+    } else {
+        match tcl_install_recipe(image, tcl_version) {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("error: {e}");
+                return Ok(1);
+            }
         }
     };
     if json {
@@ -162,6 +183,7 @@ fn run_recipe(image: &str, tcl_version: &str, json: bool) -> anyhow::Result<u8> 
             ui::json_output(&json!({
                 "image": image,
                 "tcl_version": tcl_version,
+                "kind": if cli { "cli" } else { "tcl" },
                 "recipe": recipe,
             }))
         );
@@ -173,6 +195,9 @@ fn run_recipe(image: &str, tcl_version: &str, json: bool) -> anyhow::Result<u8> 
 
 fn run_info(json: bool) -> anyhow::Result<u8> {
     let recipes = available_recipes();
+    let cli_version = default_cli_version();
+    let triples: Vec<&str> = RELEASE_TRIPLES.iter().map(|(_, _, t)| *t).collect();
+    let cli_families = cli_capable_families();
     if json {
         let families: BTreeMap<String, Vec<String>> = recipes.clone();
         println!(
@@ -180,6 +205,9 @@ fn run_info(json: bool) -> anyhow::Result<u8> {
             ui::json_output(&json!({
                 "supported_tcl_versions": SUPPORTED_TCL_VERSIONS.to_vec(),
                 "families": families,
+                "default_cli_version": cli_version,
+                "cli_target_triples": triples,
+                "cli_families": cli_families,
             }))
         );
     } else {
@@ -193,6 +221,16 @@ fn run_info(json: bool) -> anyhow::Result<u8> {
         for (family, versions) in &recipes {
             println!("  {family:12}  {}", versions.join(", "));
         }
+        println!();
+        println!("{}", ui::bold("Native tcl CLI:", colour));
+        println!(
+            "  default release  {}",
+            cli_version
+                .as_deref()
+                .unwrap_or("latest (resolved at build time)")
+        );
+        println!("  target triples   {}", triples.join(", "));
+        println!("  base families    {}", cli_families.join(", "));
     }
     Ok(0)
 }

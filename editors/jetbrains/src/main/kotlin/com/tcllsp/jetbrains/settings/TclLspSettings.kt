@@ -25,6 +25,11 @@ import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
 import com.intellij.util.xmlb.XmlSerializerUtil
 
+internal fun signatureHelpDisabledCommandsOverride(
+    inheritFromIni: Boolean,
+    editorValue: String,
+): String? = if (inheritFromIni) null else editorValue
+
 @Service
 @State(name = "TclLspSettings", storages = [Storage("TclLspSettings.xml")])
 class TclLspSettings : PersistentStateComponent<TclLspSettings> {
@@ -39,6 +44,9 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var dialect: String = "tcl8.6"
     var extraCommands: String = ""  // comma-separated
     var libraryPaths: String = ""   // comma-separated
+    // null means this editor layer inherits config.ini; an explicit empty
+    // string clears a previously configured editor override.
+    var signatureHelpDisabledCommands: String? = null  // comma-separated built-ins
 
     // Feature toggles
 
@@ -254,6 +262,21 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var diagnosticIAPP7001: Boolean = true
     var diagnosticIAPP7002: Boolean = true
     var diagnosticIAPP7003: Boolean = true
+    var diagnosticSSLIC1001: Boolean = true
+    var diagnosticSSLIC1002: Boolean = true
+    var diagnosticSSLIC1003: Boolean = true
+    var diagnosticSSLIC1004: Boolean = true
+    var diagnosticSSLIC1005: Boolean = true
+    var diagnosticSSLIC1006: Boolean = true
+    var diagnosticSSLIC1007: Boolean = true
+    var diagnosticSSLIC1008: Boolean = true
+    var diagnosticSSLIC1009: Boolean = true
+    var diagnosticSSLIC1010: Boolean = true
+    var diagnosticSSLIC1011: Boolean = true
+    var diagnosticSSLIC1012: Boolean = true
+    var diagnosticSSLIC1101: Boolean = true
+    var diagnosticSSLIC1102: Boolean = true
+    var diagnosticSSLIC1103: Boolean = true
     // @generated:diagnostic-vars:end
 
     // Style
@@ -337,8 +360,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
         val libPaths = libraryPaths.split(",")
             .map { it.trim() }
             .filter { it.isNotEmpty() }
-
-        return mapOf(
+        val settings = mutableMapOf<String, Any?>(
             "dialect" to dialect,
             "extraCommands" to extraCmds,
             "libraryPaths" to libPaths,
@@ -551,6 +573,21 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "IAPP7001" to diagnosticIAPP7001,
                 "IAPP7002" to diagnosticIAPP7002,
                 "IAPP7003" to diagnosticIAPP7003,
+                "SSLIC1001" to diagnosticSSLIC1001,
+                "SSLIC1002" to diagnosticSSLIC1002,
+                "SSLIC1003" to diagnosticSSLIC1003,
+                "SSLIC1004" to diagnosticSSLIC1004,
+                "SSLIC1005" to diagnosticSSLIC1005,
+                "SSLIC1006" to diagnosticSSLIC1006,
+                "SSLIC1007" to diagnosticSSLIC1007,
+                "SSLIC1008" to diagnosticSSLIC1008,
+                "SSLIC1009" to diagnosticSSLIC1009,
+                "SSLIC1010" to diagnosticSSLIC1010,
+                "SSLIC1011" to diagnosticSSLIC1011,
+                "SSLIC1012" to diagnosticSSLIC1012,
+                "SSLIC1101" to diagnosticSSLIC1101,
+                "SSLIC1102" to diagnosticSSLIC1102,
+                "SSLIC1103" to diagnosticSSLIC1103,
                 // @generated:diagnostic-map:end
             ).let { map ->
                 val patterns = diagnosticsGenericVariablePatterns
@@ -620,6 +657,13 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "extraPrompts" to aiExtraPrompts,
             ),
         )
+        signatureHelpDisabledCommands?.let { configured ->
+            val disabledSignatures = configured.split(",")
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+            settings["signatureHelp"] = mapOf("disabledCommands" to disabledSignatures)
+        }
+        return settings
     }
 
     companion object {
@@ -640,6 +684,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
             "mentor-eda-tcl" to "Mentor EDA Tcl",
             "microchip-libero-eda-tcl" to "Microchip Libero EDA Tcl",
             "spectcl" to "SpecTcl",
+            "sslictcl" to "SslicTcl",
             "synopsys-eda-tcl" to "Synopsys EDA Tcl",
             "tcl8.4" to "Tcl 8.4",
             "tcl8.5" to "Tcl 8.5",

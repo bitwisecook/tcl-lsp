@@ -397,10 +397,8 @@ pub fn eval_mathop(
 pub(crate) fn to_bool(o: *mut TclObj) -> Result<bool, ExprError> {
     let bytes = obj::bytes_of(o);
     let s = core::str::from_utf8(&bytes).unwrap_or("");
-    match s.trim().to_ascii_lowercase().as_str() {
-        "1" | "true" | "yes" | "on" => return Ok(true),
-        "0" | "false" | "no" | "off" => return Ok(false),
-        _ => {}
+    if let Some(value) = tcl_syntax::boolean::parse_boolean_word(s.trim()) {
+        return Ok(value);
     }
     // Any number: non-zero ⇒ true. NaN is numeric but not a boolean —
     // tclsh: `expr {NaN ? 1 : 0}` → "floating point value is Not a Number".
@@ -425,8 +423,9 @@ fn bool_obj(b: bool) -> Owned {
     Owned::fresh(obj::new_wide_int_obj(i64::from(b)))
 }
 
-/// Build an object from a literal token: a number (via the shared grammar), a
-/// boolean keyword, else a plain string.
+/// Build an object from a literal token: a number through the shared grammar,
+/// otherwise its original string spelling. Tcl preserves boolean literal text
+/// (`expr {yes}` returns `yes`); coercion happens only in a boolean context.
 fn make_literal(text: &str) -> Owned {
     use tcl_syntax::number::{parse_whole, Number};
     if let Some(n) = parse_whole(text) {
@@ -440,11 +439,6 @@ fn make_literal(text: &str) -> Owned {
             } => bignum::from_big_digits(negative, radix, &digits),
             Number::Nan { .. } => obj::new_double_obj(f64::NAN),
         });
-    }
-    match text.to_ascii_lowercase().as_str() {
-        "true" | "yes" | "on" => return bool_obj(true),
-        "false" | "no" | "off" => return bool_obj(false),
-        _ => {}
     }
     Owned::fresh(obj::new_string_bytes(text.as_bytes()))
 }
@@ -526,6 +520,18 @@ mod tests {
         assert_eq!(ok("!0"), b"1");
         assert_eq!(ok("1 ? 42 : 99"), b"42");
         assert_eq!(ok("0 ? 42 : 99"), b"99");
+    }
+
+    #[test]
+    fn boolean_prefixes_share_the_canonical_converter() {
+        for source in [
+            "true", "tru", "t", "yes", "ye", "y", "false", "f", "no", "n", "off", "of",
+        ] {
+            assert_eq!(ok(source), source.as_bytes(), "{source}");
+        }
+        assert_eq!(ok("tru ? yes : no"), b"yes");
+        assert_eq!(ok("!of"), b"1");
+        assert!(ev("o", &[]).is_err(), "on/off share the prefix o");
     }
 
     #[test]

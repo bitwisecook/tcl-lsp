@@ -1,0 +1,41 @@
+# A pack whose *environments* are programs. Two shells, one library, and the
+# version written once — the SpecTcl 2.0 answer to issue #1643's "ambient
+# here and not there". The shell that has the library says so with an
+# `ambient` row inside its own block; the plain shell only *hosts* it, so
+# there the library arrives with a `package require` and floors nothing on
+# its own.
+#
+# An `environment` body is an evaluated script, exactly like a `command`
+# body: a variable substitutes inside the braces, and a repetitive ladder is
+# an ordinary `foreach`.
+
+speclib environments 2.0 {
+
+    set libver 3.2
+
+    environment envpack-shell {
+        display_name {Envpack Shell}
+        core         tcl 8.6
+        ambient      envlib $libver
+        alias        envpack
+        policy       ambient-plus-require
+        foreach suffix {envp envs} {
+            file_extension $suffix
+        }
+    }
+
+    environment envpack-plain {
+        display_name {Envpack Plain}
+        core         tcl 8.6
+        hosted       envlib $libver-
+    }
+
+    command envlib::open {
+        arity 1
+        available "package envlib $libver-"
+        hover {
+            summary {Open an envlib handle.}
+            returns {The handle.}
+        }
+    }
+}

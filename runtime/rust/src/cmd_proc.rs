@@ -47,7 +47,7 @@ fn proc_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // (C's `Tcl_ProcObjCmd` via `TclGetNamespaceForQualName`).
     if let Some(i) = name.windows(2).rposition(|w| w == b"::") {
         let qualifier = &name[..i];
-        if !qualifier.is_empty() && interp.find_namespace_id(qualifier).is_none() {
+        if !qualifier.is_empty() && interp.find_command_namespace_id(qualifier).is_none() {
             let mut m = b"can't create procedure \"".to_vec();
             m.extend_from_slice(&name);
             m.extend_from_slice(b"\": unknown namespace");

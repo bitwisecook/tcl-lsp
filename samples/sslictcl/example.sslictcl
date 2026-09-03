@@ -1,0 +1,155 @@
+# SslicTcl vocabulary 1 — every declaration and every member.
+#
+# This document is parsed as Tcl syntax and never evaluated. It loads with
+# zero error diagnostics. The notices it does raise are deliberate:
+#
+#   SSLIC1101  the `site-owner`, `renewal-window`, `deployment-note`, and
+#              `catalogue-owner` words are not in the vocabulary. They sit in
+#              open blocks (top level, `certificate`, `endpoint`,
+#              `trust-program`) and are preserved as extensions.
+#   SSLIC1103  `policy corporate`'s `check modern` carries a `predicate`
+#              script. It is retained verbatim and never evaluated.
+
+sslictcl 1
+
+# An unknown top-level declaration: preserved (SSLIC1101).
+catalogue-owner {platform security}
+
+certificate example-leaf {
+    pem {-----BEGIN CERTIFICATE-----
+MIIB-not-a-real-certificate-only-a-shape-for-the-loader
+-----END CERTIFICATE-----}
+    key example-leaf-key
+    # Unknown member in an open block: preserved (SSLIC1101).
+    renewal-window {30 days}
+}
+
+certificate example-issuer {
+    material {-----BEGIN CERTIFICATE-----
+MIIB-not-a-real-intermediate-only-a-shape-for-the-loader
+-----END CERTIFICATE-----}
+}
+
+chain example-chain {
+    certificates {example-leaf example-issuer}
+}
+
+endpoint /Common/www {
+    hostname www.example.test
+    protocols {tls1.2 tls1.3}
+    ciphers {TLS_AES_256_GCM_SHA384 ECDHE-RSA-AES128-GCM-SHA256}
+    groups {x25519 secp256r1}
+    signature-schemes {ecdsa_secp256r1_sha256 rsa_pss_rsae_sha256}
+    chain example-chain
+    policy corporate
+    hsts {
+        enabled true
+        max-age 31536000
+        include-subdomains yes
+        preload false
+    }
+    # Unknown member in an open block: preserved (SSLIC1101).
+    site-owner {web platform}
+}
+
+endpoint /Common/legacy {
+    hostname legacy.example.test
+    protocols {tls1.0 tls1.2}
+    ciphers {AES128-SHA}
+    certificate-chain {example-leaf example-issuer}
+    policy corporate
+    hsts {
+        enabled false
+        include-subdomains no
+        preload no
+    }
+    deployment-note {scheduled for decommissioning}
+}
+
+testssl-import www-scan {
+    schema 1
+    raw-json-hex 5b7b226964223a22544c53315f33222c227365766572697479223a224f4b222c2266696e64696e67223a226f666665726564227d2c7b226964223a22425245414348222c227365766572697479223a225741524e222c2266696e64696e67223a22706f74656e7469616c6c792076756c6e657261626c65227d5d
+}
+
+trust-program example-program {
+    client mozilla
+    version 128
+    generated-at 2026-01-01T00:00:00Z
+    source-name example-observatory
+    source-url https://example.test/trust/mozilla
+    source-revision 0123456789abcdef
+    source-license CC0-1.0
+    anchor 1111111111111111111111111111111111111111111111111111111111111111 {
+        subject {CN=Example Root CA, O=Example}
+        der-base64 {MIIB-not-real-der-material}
+        purposes {server-auth client-auth}
+        trusted true
+        distrust-after 1893456000
+    }
+    anchor 2222222222222222222222222222222222222222222222222222222222222222 {
+        subject {CN=Example Retired Root, O=Example}
+        purposes {server-auth}
+        trusted false
+    }
+    catalogue-owner {trust data}
+}
+
+protocol tls1.0 {
+    status prohibited
+    score 0
+    reference RFC8996
+}
+
+protocol tls1.3 {
+    status recommended
+    score 100
+    reference RFC8446
+}
+
+cipher ECDHE-RSA-AES128-GCM-SHA256 {
+    iana-name TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+    openssl-name ECDHE-RSA-AES128-GCM-SHA256
+    key-exchange ECDHE
+    authentication RSA
+    encryption AES-128-GCM
+    bits 128
+    forward-secrecy true
+    aead true
+    status recommended
+    protocols {tls1.2}
+}
+
+cipher AES128-SHA {
+    iana-name TLS_RSA_WITH_AES_128_CBC_SHA
+    openssl-name AES128-SHA
+    key-exchange RSA
+    authentication RSA
+    encryption AES-128-CBC
+    bits 128
+    forward-secrecy false
+    aead false
+    status prohibited
+    protocols {tls1.0 tls1.1 tls1.2}
+}
+
+policy corporate {
+    check modern {
+        severity error
+        message {endpoints must offer TLS 1.3 with forward secrecy}
+        require-protocols {tls1.3}
+        forbid-protocols {ssl2 ssl3 tls1.0 tls1.1}
+        forbid-ciphers {RC4* *NULL* *EXPORT*}
+        require-forward-secrecy yes
+        min-key-bits 2048
+        require-hsts on
+        min-hsts-max-age 15552000
+        predicate {expr {[llength $ciphers] > 0}}
+    }
+    check hsts-only {
+        severity warning
+        require-hsts true
+    }
+    grade {
+        minimum A
+    }
+}

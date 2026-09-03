@@ -170,9 +170,9 @@ impl std::fmt::Display for EnvironmentRegistrationError {
                 provenance,
             } => write!(
                 f,
-                "environment `{claimed_by}` claims `{name}`, a compiled environment \
-                 name, and it registers from the {} tier; a pack-declared environment \
-                 may not claim a reserved compiled id or alias, so nothing from this \
+                "environment `{claimed_by}` claims `{name}`, a compiled or bundled \
+                 environment name, and it registers from the {} tier; a pack-declared \
+                 environment may not claim a reserved id or alias, so nothing from this \
                  registration is loaded (design §3.3/§6.4, E-R2)",
                 provenance_label(*provenance)
             ),
@@ -391,7 +391,22 @@ fn assemble(
     }
 
     let mut rebuilt = tcl_dialect::model::compiled_definitions();
-    rebuilt.extend(declared.iter().map(|definition| (*definition).clone()));
+    for definition in &declared {
+        // A bundled pack restating an environment the compiled seed already
+        // carries from that same pack (D17) replaces the seed row: the
+        // on-disk pack is authoritative, and two rows would collide.
+        let seeded = (definition.provenance == Provenance::BundledPack)
+            .then(|| {
+                rebuilt.iter().position(|seed| {
+                    seed.provenance == Provenance::BundledPack && seed.id == definition.id
+                })
+            })
+            .flatten();
+        match seeded {
+            Some(position) => rebuilt[position] = (*definition).clone(),
+            None => rebuilt.push((*definition).clone()),
+        }
+    }
     for extension in &contributed {
         let base = rebuilt.iter_mut().find(|definition| {
             definition.id.as_str() == extension.base
@@ -407,9 +422,15 @@ fn assemble(
 
     EnvironmentRegistry::new(rebuilt, generation).map_err(|error| match &error {
         EnvironmentRegistryError::ReservedName { name, claimed_by } => {
+            // The violator, not merely a definition with that id: a bundled
+            // pack restating its own seed row shares the id with the
+            // intruder claiming it.
             let provenance = declared
                 .iter()
-                .find(|definition| definition.id.as_str() == claimed_by)
+                .filter(|definition| definition.id.as_str() == claimed_by)
+                .find(|definition| {
+                    tcl_dialect::model::reserved_against(name, definition.provenance).is_some()
+                })
                 .map_or(Provenance::WorkspaceUntrusted, |definition| {
                     definition.provenance
                 });
@@ -521,7 +542,11 @@ fn triage(state: &DynamicState, sources: &[EnvironmentSource]) -> (Vec<bool>, Ve
 /// dropped while the rest register: a malformed workspace pack must not
 /// take every other pack's environments down with it. A set
 /// identical to the registered one is a no-op, generation included, so a
-/// reload that found nothing new does not invalidate downstream caches.
+/// reload that found nothing new does not invalidate downstream caches —
+/// and so is a set whose **rebuilt registry** is identical to the live
+/// one: the bundled packs restate the very rows the compiled seed already
+/// carries from them (D17), and a publish that changes no definition must
+/// not re-key every per-context generation cache in the process.
 #[must_use]
 pub fn sync_environment_sources(sources: Vec<EnvironmentSource>) -> SyncOutcome {
     let state = STATE.get_or_init(|| Mutex::new(DynamicState::default()));
@@ -567,8 +592,24 @@ pub fn sync_environment_sources(sources: Vec<EnvironmentSource>) -> SyncOutcome 
     let generation = current_generation() + 1;
     match assemble(&state.definitions, &state.extensions, &accepted, generation) {
         Ok(registry) => {
-            *live_cell().lock().expect("live environment registry lock") = Arc::new(registry);
+            let live = live_environments();
+            let same_content = registry
+                .definitions()
+                .iter()
+                .map(Arc::as_ref)
+                .eq(live.definitions().iter().map(Arc::as_ref));
             state.sources = accepted;
+            if same_content {
+                return SyncOutcome {
+                    generation: live.generation(),
+                    changed: false,
+                    declared,
+                    extended,
+                    retired,
+                    rejected,
+                };
+            }
+            *live_cell().lock().expect("live environment registry lock") = Arc::new(registry);
             SyncOutcome {
                 generation,
                 changed: true,
@@ -728,6 +769,95 @@ mod tests {
                 .iter()
                 .any(|claim| claim.extension.as_ref() == "regprobe")
         );
+    }
+
+    /// D17: a bundled pack restating an environment the compiled seed
+    /// already carries from it replaces the seed row rather than colliding
+    /// with it; a lower tier claiming the same name is refused with the
+    /// provenance named, and the bundled definition keeps resolving.
+    #[test]
+    fn a_bundled_restatement_replaces_its_seed_row_and_lower_tiers_are_refused() {
+        let _syncing = SYNCING
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let seed = tcl_dialect::model::bundled_pack_definitions()
+            .into_iter()
+            .next()
+            .expect("the bundled packs seed at least one environment");
+        let id = seed.id.as_str().to_owned();
+
+        // A verbatim restatement — what every publish of the shipped packs
+        // is — changes no definition, so the generation stays put and no
+        // downstream generation cache is invalidated.
+        let before = live_environments().generation();
+        let outcome = sync_environment_sources(vec![EnvironmentSource {
+            id: "bundled:verbatim".to_owned(),
+            definitions: vec![seed.clone()],
+            extensions: Vec::new(),
+        }]);
+        assert!(outcome.rejected.is_empty(), "{:?}", outcome.rejected);
+        assert!(
+            !outcome.changed,
+            "a verbatim restatement is content-identical"
+        );
+        assert_eq!(outcome.generation, before);
+        assert_eq!(live_environments().generation(), before);
+
+        let mut restated = seed.clone();
+        restated.display_name = arc("Restated From Disk");
+        let outcome = sync_environment_sources(vec![EnvironmentSource {
+            id: "bundled:restated".to_owned(),
+            definitions: vec![restated],
+            extensions: Vec::new(),
+        }]);
+        assert!(outcome.rejected.is_empty(), "{:?}", outcome.rejected);
+        assert_eq!(outcome.declared, 1);
+        let resolved = resolve_environment(&id);
+        assert_eq!(
+            resolved.definition.display_name.as_ref(),
+            "Restated From Disk"
+        );
+        assert_eq!(resolved.definition.provenance, Provenance::BundledPack);
+        assert_eq!(
+            live_environments()
+                .definitions()
+                .iter()
+                .filter(|definition| definition.id == seed.id)
+                .count(),
+            1,
+            "the restatement replaced the seed row"
+        );
+
+        let mut hijack = seed.clone();
+        hijack.provenance = Provenance::WorkspaceTrusted;
+        hijack.display_name = arc("Hijacked");
+        let outcome = sync_environment_sources(vec![EnvironmentSource {
+            id: "workspace:hijack".to_owned(),
+            definitions: vec![hijack],
+            extensions: Vec::new(),
+        }]);
+        assert_eq!(outcome.rejected.len(), 1, "{:?}", outcome.rejected);
+        match &outcome.rejected[0].error {
+            EnvironmentRegistrationError::Reserved {
+                name,
+                claimed_by,
+                provenance,
+            } => {
+                assert_eq!(name, &id);
+                assert_eq!(claimed_by, &id);
+                assert_eq!(*provenance, Provenance::WorkspaceTrusted);
+            }
+            other => panic!("expected Reserved, got {other:?}"),
+        }
+        let resolved = resolve_environment(&id);
+        assert_eq!(
+            resolved.definition.display_name.as_ref(),
+            seed.display_name.as_ref()
+        );
+        assert_eq!(resolved.definition.provenance, Provenance::BundledPack);
+
+        // Leave the source channel as this test found it.
+        let _ = sync_environment_sources(Vec::new());
     }
 
     /// A reserved-name claim fails with the provenance-naming error, and

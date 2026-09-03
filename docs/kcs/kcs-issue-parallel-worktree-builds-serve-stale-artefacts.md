@@ -52,6 +52,6 @@ target dir with no warning.
 ## Related
 
 - [KCS index](README.md)
-- The "Parallel worktrees and agent build isolation" section of
-  [AGENTS.md](../../AGENTS.md) — the contributor-facing rules the helper
-  script enforces.
+- [AGENTS.md](../../AGENTS.md) and the
+  [development-environment contract](../design/contracts/development-environment.md)
+  point here as the rule; `scripts/dev/agent-build-env.sh` enforces it.

@@ -99,6 +99,7 @@ impl EditorLanguageIdentityId {
         "tcl-mentor",
         "tcl-microchip",
         "tclspec",
+        "sslictcl",
         "tcl-synopsys",
         "tcl84",
         "tcl85",
@@ -563,32 +564,20 @@ impl EnvironmentRegistry {
     }
 }
 
-/// Reject non-built-in definitions claiming compiled reserved names
+/// Reject definitions claiming names reserved against their provenance
 /// (§3.3: **all** compiled canonical names are reserved, and so are the
-/// compiled aliases; editor identities are selectable by anyone — that
-/// is their B7 purpose).
+/// compiled aliases; a bundled pack's seeded names are reserved below the
+/// bundled tier; editor identities are selectable by anyone — that is
+/// their B7 purpose). See [`reserved_against`].
 fn check_reserved(definitions: &[EnvironmentDefinition]) -> Result<(), EnvironmentRegistryError> {
-    let reserved: Vec<String> = compiled_definitions()
-        .iter()
-        .flat_map(|definition| {
-            std::iter::once(definition.id.as_str().to_owned()).chain(
-                definition
-                    .aliases
-                    .iter()
-                    .map(|alias| alias.as_ref().to_owned()),
-            )
-        })
-        .collect();
+    let compiled = compiled_definitions();
     for definition in definitions {
-        if matches!(definition.provenance, Provenance::BuiltIn) {
-            continue;
-        }
         let claimed = std::iter::once(definition.id.as_str())
             .chain(definition.aliases.iter().map(AsRef::as_ref));
         for name in claimed {
-            if reserved.iter().any(|reserved| reserved == name) {
+            if let Some(reserved) = reserved_in(&compiled, name, definition.provenance) {
                 return Err(EnvironmentRegistryError::ReservedName {
-                    name: name.to_owned(),
+                    name: reserved,
                     claimed_by: definition.id.as_str().to_owned(),
                 });
             }
@@ -689,17 +678,10 @@ fn hosted_pin(package: &str, version: &str) -> PackagePlacement {
     }
 }
 
-/// The single-release-line target of a Tcl ladder release: `[R·a0,
-/// next-minor·a0)` — the release line itself, not a floor.
+/// The single-release-line target of a Tcl ladder release — see
+/// [`release_line`].
 fn tcl_line(release: Release) -> VersionSet {
-    let requirement = match release {
-        Release::TCL_8_4 => "8.4-8.5",
-        Release::TCL_8_5 => "8.5-8.6",
-        Release::TCL_8_6 => "8.6-8.7",
-        Release::TCL_9_0 => "9.0-9.1",
-        _ => "9.1-9.2",
-    };
-    reqs(VersionAxisId::core(Family::Tcl), &[requirement])
+    release_line(Family::Tcl, release)
 }
 
 /// The full Tcl ladder, for the lenient environments.
@@ -1105,6 +1087,33 @@ fn spectcl_environment() -> EnvironmentDefinition {
     }
 }
 
+fn sslictcl_environment() -> EnvironmentDefinition {
+    EnvironmentDefinition {
+        id: EnvironmentId::new("sslictcl"),
+        aliases: arcs(&["sslic-tcl", "tls-sslictcl"]),
+        display_name: arc("SslicTcl"),
+        editor_identity: EditorLanguageIdentityId::new("sslictcl"),
+        core: Some(tcl_core(Release::TCL_9_0)),
+        targets: tcl_line(Release::TCL_9_0),
+        expected_packages: Vec::new(),
+        policy_defaults: EnvironmentPolicy {
+            // A `.sslictcl` document is declarative and is never evaluated —
+            // not even its `predicate` bodies — so nothing is
+            // `package require`-able into it.
+            closed_world: WorldPolicy::Closed,
+            fixed_ensembles: false,
+            strict_ascii: false,
+            version_ceiling: Some(Release::TCL_9_0),
+        },
+        server_detection: DetectionFacts {
+            file_extensions: vec![ext("sslictcl", "SslicTcl TLS Declaration")],
+            ..DetectionFacts::default()
+        },
+        help_terms: arcs(&["sslictcl", "tls", "certificate", "endpoint"]),
+        provenance: Provenance::BuiltIn,
+    }
+}
+
 fn bpf_environment() -> EnvironmentDefinition {
     EnvironmentDefinition {
         id: EnvironmentId::new("bpf"),
@@ -1128,166 +1137,11 @@ fn bpf_environment() -> EnvironmentDefinition {
     }
 }
 
-/// The six EDA shells: a base release plus keyed tool placements. These
-/// move into `specs/eda_*.tclspec` environment blocks in a later phase
-/// (Q2); they seed compiled for now so every current name keeps
-/// resolving.
-struct Eda {
-    id: &'static str,
-    display: &'static str,
-    editor: &'static str,
-    release: Release,
-    extensions: &'static [(&'static str, &'static str)],
-    tools: &'static [&'static str],
-    help: &'static [&'static str],
-}
-
-const EDA_SHELLS: [Eda; 6] = [
-    Eda {
-        id: "cadence-eda-tcl",
-        display: "Cadence EDA Tcl",
-        editor: "tcl-cadence",
-        release: Release::TCL_8_4,
-        extensions: &[("globals", "Innovus/Genus Globals")],
-        tools: &[
-            "cadence-genus",
-            "cadence-common",
-            "cadence-innovus",
-            "cadence-xcelium",
-        ],
-        help: &[
-            "cadence",
-            "genus",
-            "innovus",
-            "tempus",
-            "xcelium",
-            "encounter",
-        ],
-    },
-    Eda {
-        id: "intel-quartus-eda-tcl",
-        display: "Intel Quartus EDA Tcl",
-        editor: "tcl-quartus",
-        release: Release::TCL_8_5,
-        extensions: &[
-            ("qsf", "Quartus Settings File"),
-            ("qpf", "Quartus Project File"),
-            ("qip", "Quartus IP File"),
-        ],
-        tools: &[
-            "quartus-project",
-            "quartus-flow",
-            "quartus-sta",
-            "quartus-sdc-ext",
-            "quartus-report",
-            "quartus-device",
-            "quartus-misc",
-        ],
-        help: &["quartus", "intel", "altera", "fpga", "quartus_sh"],
-    },
-    Eda {
-        id: "mentor-eda-tcl",
-        display: "Mentor EDA Tcl",
-        editor: "tcl-mentor",
-        release: Release::TCL_8_6,
-        extensions: &[("do", "ModelSim/Questa Do Script")],
-        tools: &["questa", "questa-formal", "calibre"],
-        help: &["mentor", "siemens", "modelsim", "questa", "calibre", "vsim"],
-    },
-    Eda {
-        id: "microchip-libero-eda-tcl",
-        display: "Microchip Libero EDA Tcl",
-        editor: "tcl-microchip",
-        release: Release::TCL_8_5,
-        extensions: &[],
-        tools: &["libero"],
-        help: &[
-            "microchip",
-            "microsemi",
-            "actel",
-            "libero",
-            "smartfusion",
-            "igloo",
-            "proasic",
-        ],
-    },
-    Eda {
-        id: "synopsys-eda-tcl",
-        display: "Synopsys EDA Tcl",
-        editor: "tcl-synopsys",
-        release: Release::TCL_8_6,
-        extensions: &[
-            ("sdc", "Synopsys Design Constraints"),
-            ("upf", "Unified Power Format"),
-        ],
-        tools: &[
-            "synopsys-dc",
-            "synopsys-pt",
-            "synopsys-icc2",
-            "synopsys-fm",
-            "synopsys",
-        ],
-        help: &[
-            "synopsys",
-            "dc_shell",
-            "design_compiler",
-            "primetime",
-            "icc2",
-            "formality",
-        ],
-    },
-    Eda {
-        id: "xilinx-eda-tcl",
-        display: "Xilinx EDA Tcl",
-        editor: "tcl-xilinx",
-        release: Release::TCL_8_5,
-        extensions: &[("xdc", "Xilinx Design Constraints")],
-        tools: &["vivado"],
-        help: &["xilinx", "vivado", "vitis", "amd", "fpga", "ise"],
-    },
-];
-
-fn eda_environments() -> Vec<EnvironmentDefinition> {
-    EDA_SHELLS
-        .into_iter()
-        .map(|shell| {
-            let mut placements = vec![
-                keyed("sdc", KeyedAxis::SdcVersion),
-                keyed("upf", KeyedAxis::UpfVersion),
-            ];
-            placements.extend(
-                shell
-                    .tools
-                    .iter()
-                    .map(|&tool| keyed(tool, KeyedAxis::ToolVersion)),
-            );
-            EnvironmentDefinition {
-                id: EnvironmentId::new(shell.id),
-                aliases: Vec::new(),
-                display_name: arc(shell.display),
-                editor_identity: EditorLanguageIdentityId::new(shell.editor),
-                core: Some(tcl_core(shell.release)),
-                targets: tcl_line(shell.release),
-                expected_packages: placements,
-                policy_defaults: open_policy(Some(shell.release)),
-                server_detection: DetectionFacts {
-                    file_extensions: shell
-                        .extensions
-                        .iter()
-                        .map(|&(extension, display_name)| ext(extension, display_name))
-                        .collect(),
-                    ..DetectionFacts::default()
-                },
-                help_terms: arcs(shell.help),
-                provenance: Provenance::BuiltIn,
-            }
-        })
-        .collect()
-}
-
 /// The compiled environment definitions: every current
 /// `DialectProfile` catalogue entry translated, plus the `tk` and
-/// plain-`tcl` environments that erase the off-catalogue profiles.
+/// plain-`tcl` environments that erase the off-catalogue profiles, plus
+/// the environments the bundled packs declare
+/// ([`bundled_pack_definitions`]), seeded at `Provenance::BundledPack`.
 #[must_use]
 pub fn compiled_definitions() -> Vec<EnvironmentDefinition> {
     let mut definitions = Vec::new();
@@ -1301,9 +1155,243 @@ pub fn compiled_definitions() -> Vec<EnvironmentDefinition> {
     definitions.push(bigip_environment());
     definitions.push(expect_environment());
     definitions.push(spectcl_environment());
+    definitions.push(sslictcl_environment());
     definitions.push(bpf_environment());
-    definitions.extend(eda_environments());
+    definitions.extend(bundled_pack_definitions());
     definitions
+}
+
+/// The single-release-line target set of one ladder release: the release
+/// line itself, `[R·a0, next-minor·a0)` — `8.6-8.7`, not a floor and not
+/// "up to the next ladder release" (`8.6-9.0` would take in 8.7, which is
+/// no release of anything). A release whose spelling is not `major.minor`
+/// (the F5 trunk's `tmos`) takes the next ladder release as its bound, or
+/// stays unbounded at the top of the ladder.
+///
+/// The one spelling of "this release line" the compiled definitions, a
+/// pack-declared `core` row and the bundled seed share, so the forms of
+/// one environment target the same set.
+#[must_use]
+pub fn release_line(family: Family, release: Release) -> VersionSet {
+    let axis = VersionAxisId::core(family);
+    let spelling = release.as_str();
+    let next_minor = spelling.split_once('.').and_then(|(major, minor)| {
+        let minor: u32 = minor.parse().ok()?;
+        Some(format!("{major}.{}", minor + 1))
+    });
+    let requirement = match (next_minor, family.next_release(release)) {
+        (Some(next), _) => format!("{spelling}-{next}"),
+        (None, Some(next)) => format!("{spelling}-{}", next.as_str()),
+        (None, None) => format!("{spelling}-"),
+    };
+    VersionSet::from_requirements(axis, &[requirement])
+        .unwrap_or_else(|_| VersionSet::empty(VersionAxisId::core(family)))
+}
+
+/// The compiled spelling `name` collides with when a definition of
+/// `provenance` claims it, if any.
+///
+/// Two reservation strengths (§3.3, §6.4): a **built-in** id or alias is
+/// reserved against every other provenance, and a spelling the **bundled
+/// packs** seed ([`bundled_pack_definitions`]) is reserved against every
+/// provenance below the bundled tier — the bundled pack that declared it
+/// restates it on every publish, and nothing else may claim it.
+#[must_use]
+pub fn reserved_against(name: &str, provenance: Provenance) -> Option<String> {
+    reserved_in(&compiled_definitions(), name, provenance)
+}
+
+/// [`reserved_against`] over an already-built compiled set, so a whole
+/// registry can be checked without rebuilding the seed per claimed name.
+fn reserved_in(
+    compiled: &[EnvironmentDefinition],
+    name: &str,
+    provenance: Provenance,
+) -> Option<String> {
+    for definition in compiled {
+        let claimable = match definition.provenance {
+            Provenance::BuiltIn => provenance == Provenance::BuiltIn,
+            Provenance::BundledPack => {
+                matches!(provenance, Provenance::BuiltIn | Provenance::BundledPack)
+            }
+            _ => true,
+        };
+        if claimable {
+            continue;
+        }
+        if definition.id.as_str() == name {
+            return Some(definition.id.as_str().to_owned());
+        }
+        if let Some(alias) = definition
+            .aliases
+            .iter()
+            .find(|alias| alias.as_ref() == name)
+        {
+            return Some(alias.to_string());
+        }
+    }
+    None
+}
+
+/// One `environment` block of a bundled pack, as `cargo xtask
+/// gen-bundled-environments` projects it into
+/// [`bundled_environments::BUNDLED_ENVIRONMENTS`].
+///
+/// The packs under `specs/` are the source of truth for these
+/// environments (redesign D17); this table is their compiled projection,
+/// held equal to them by the generator's `--check` gate and by
+/// `tcl-spectcl`'s pack parity test. It exists so the environments resolve
+/// at generation 0 — before, or without, a pack publish — everywhere a name
+/// is resolved: the acceptance gates in `tcl-registry`, the MCP server, the
+/// `xtask` generators, and the closed-world package derivation that runs
+/// while the packs themselves are still being merged.
+#[derive(Debug, Clone, Copy)]
+pub struct BundledEnvironmentRow {
+    /// The block's canonical id.
+    pub id: &'static str,
+    /// `display_name`, defaulting to the id.
+    pub display_name: &'static str,
+    /// `alias` rows.
+    pub aliases: &'static [&'static str],
+    /// `editor_identity`, a contributed id.
+    pub editor_identity: Option<&'static str>,
+    /// The `core` row.
+    pub core: Option<BundledCore>,
+    /// `ambient` / `hosted` rows, in declaration order.
+    pub placements: &'static [BundledPlacement],
+    /// The `policy` word.
+    pub world_policy: WorldPolicy,
+    /// `version_ceiling`, a release on the core's ladder.
+    pub version_ceiling: Option<&'static str>,
+    /// `file_extension EXT -name NAME` rows.
+    pub file_extensions: &'static [(&'static str, &'static str)],
+    /// `filename` rows.
+    pub filenames: &'static [&'static str],
+    /// `signature` rows.
+    pub signatures: &'static [&'static str],
+    /// `help_terms` words.
+    pub help_terms: &'static [&'static str],
+}
+
+/// A bundled block's `core FAMILY RELEASE ?-build P?` row.
+#[derive(Debug, Clone, Copy)]
+pub struct BundledCore {
+    /// The compiled family.
+    pub family: Family,
+    /// The release spelling on that family's ladder.
+    pub release: &'static str,
+    /// The build profile.
+    pub build: BuildProfileId,
+}
+
+/// A bundled block's `ambient` / `hosted` row.
+#[derive(Debug, Clone, Copy)]
+pub struct BundledPlacement {
+    /// The package name.
+    pub package: &'static str,
+    /// The version word.
+    pub version: BundledVersion,
+    /// Ambient (no `package require`) vs hosted.
+    pub ambient: bool,
+}
+
+/// The version word of a bundled placement row, as the block spelt it.
+#[derive(Debug, Clone, Copy)]
+pub enum BundledVersion {
+    /// A fixed version (`ambient Expect 5.45.4`).
+    Pinned(&'static str),
+    /// `tracks-base`.
+    TracksBase,
+    /// `keyed KEY`.
+    Keyed(KeyedAxis),
+    /// A requirement on the package's own axis (`hosted Tk 8.5-`).
+    Requirement(&'static str),
+}
+
+fn ladder_release(family: Family, spelling: &str) -> Release {
+    family
+        .releases()
+        .iter()
+        .copied()
+        .find(|release| release.as_str() == spelling)
+        .unwrap_or_else(|| {
+            panic!("generated bundled row names `{spelling}` on the {family:?} ladder")
+        })
+}
+
+impl BundledEnvironmentRow {
+    /// The definition this row seeds — the same total conversion a loaded
+    /// block makes, at `Provenance::BundledPack`.
+    fn definition(&self) -> EnvironmentDefinition {
+        let core = self.core.map(|core| CoreProfileSelector {
+            family: core.family,
+            default_release: ladder_release(core.family, core.release),
+            build: core.build,
+        });
+        let targets = core.map_or_else(
+            || VersionSet::empty(VersionAxisId::core(Family::Tcl)),
+            |core| release_line(core.family, core.default_release),
+        );
+        let version_ceiling = self.version_ceiling.map(|spelling| {
+            let family = core
+                .expect("a generated ceiling always sits on its core's ladder")
+                .family;
+            ladder_release(family, spelling)
+        });
+        EnvironmentDefinition {
+            id: EnvironmentId::new(self.id),
+            aliases: arcs(self.aliases),
+            display_name: arc(self.display_name),
+            editor_identity: self.editor_identity.and_then(EditorLanguageIdentityId::new),
+            core,
+            targets,
+            expected_packages: self
+                .placements
+                .iter()
+                .map(|placement| PackagePlacement {
+                    package: arc(placement.package),
+                    version: match placement.version {
+                        BundledVersion::Pinned(version) => Placement::Pinned(ver(version)),
+                        BundledVersion::TracksBase => Placement::TracksBase,
+                        BundledVersion::Keyed(axis) => Placement::Keyed(axis),
+                        BundledVersion::Requirement(requirement) => Placement::Requirement(reqs(
+                            VersionAxisId::package(placement.package),
+                            &[requirement],
+                        )),
+                    },
+                    ambient: placement.ambient,
+                })
+                .collect(),
+            policy_defaults: EnvironmentPolicy {
+                closed_world: self.world_policy,
+                fixed_ensembles: false,
+                strict_ascii: false,
+                version_ceiling,
+            },
+            server_detection: DetectionFacts {
+                file_extensions: self
+                    .file_extensions
+                    .iter()
+                    .map(|&(extension, display_name)| ext(extension, display_name))
+                    .collect(),
+                filenames: arcs(self.filenames),
+                content_signatures: arcs(self.signatures),
+                shebang_words: Vec::new(),
+                directive_names: Vec::new(),
+            },
+            help_terms: arcs(self.help_terms),
+            provenance: Provenance::BundledPack,
+        }
+    }
+}
+
+/// The environments the bundled packs declare, from the generated table.
+#[must_use]
+pub fn bundled_pack_definitions() -> Vec<EnvironmentDefinition> {
+    super::bundled_environments::BUNDLED_ENVIRONMENTS
+        .iter()
+        .map(BundledEnvironmentRow::definition)
+        .collect()
 }
 
 #[cfg(test)]
@@ -1311,6 +1399,7 @@ mod tests {
     use super::*;
     use crate::DialectProfile;
     use crate::KNOWN_DIALECTS;
+    use crate::TclVersion;
 
     #[test]
     fn every_old_name_and_alias_resolves() {
@@ -1471,7 +1560,7 @@ mod tests {
         let bigip = registry.resolve("f5-bigip").expect("bigip");
         assert!(bigip.core.is_none(), "identity-only: no Tcl core");
 
-        for id in ["spectcl", "bpf"] {
+        for id in ["spectcl", "sslictcl", "bpf"] {
             let env = registry.resolve(id).expect(id);
             assert_eq!(
                 env.policy_defaults.closed_world,
@@ -1553,7 +1642,7 @@ mod tests {
             }
         }
         // A closed vendor shell declares none, so it cannot host Tk at all.
-        for id in ["f5-irules", "bpf", "spectcl", "xilinx-eda-tcl"] {
+        for id in ["f5-irules", "bpf", "spectcl", "sslictcl", "xilinx-eda-tcl"] {
             let definition = registry.resolve(id).expect(id);
             assert!(
                 !definition
@@ -1594,6 +1683,7 @@ mod tests {
             ("tcl9.1", Some("tcl91")),
             ("f5-irules", Some("tcl-irule")),
             ("spectcl", Some("tclspec")),
+            ("sslictcl", Some("sslictcl")),
             ("tk", None),
             ("bpf", None),
         ];
@@ -1668,6 +1758,138 @@ mod tests {
                 "tcl-apl".to_owned()
             ))
         );
+    }
+
+    /// D17: the environments the bundled packs declare seed the compiled
+    /// registry at `Provenance::BundledPack`, and their names are reserved
+    /// one step below the built-in ones — restatable by the bundled tier,
+    /// refused from every other.
+    #[test]
+    fn bundled_pack_names_are_reserved_below_the_bundled_tier() {
+        let seeded = bundled_pack_definitions();
+        assert!(!seeded.is_empty(), "the bundled packs declare environments");
+        for definition in &seeded {
+            assert_eq!(definition.provenance, Provenance::BundledPack);
+            let id = definition.id.as_str();
+            assert_eq!(
+                reserved_against(id, Provenance::BundledPack),
+                None,
+                "{id}: the bundled tier restates its own environment"
+            );
+            for provenance in [
+                Provenance::User,
+                Provenance::WorkspaceTrusted,
+                Provenance::WorkspaceUntrusted,
+                Provenance::StudioOverride,
+                Provenance::Document,
+            ] {
+                assert_eq!(
+                    reserved_against(id, provenance).as_deref(),
+                    Some(id),
+                    "{id}: reserved against {provenance:?}"
+                );
+            }
+        }
+        // A built-in name stays reserved against the bundled tier too.
+        assert_eq!(
+            reserved_against("tcl8.6", Provenance::BundledPack).as_deref(),
+            Some("tcl8.6")
+        );
+        assert_eq!(reserved_against("tcl8.6", Provenance::BuiltIn), None);
+
+        // The registry enforces the same rule at construction: a workspace
+        // definition claiming a bundled name is a typed error, while a
+        // bundled restatement of a *different* id is fine.
+        let bundled_id = seeded[0].id.as_str().to_owned();
+        let mut hijack = compiled_definitions();
+        hijack.retain(|definition| definition.id.as_str() != bundled_id);
+        let mut intruder = bpf_environment();
+        intruder.id = EnvironmentId::new(&bundled_id);
+        intruder.provenance = Provenance::WorkspaceTrusted;
+        hijack.push(intruder);
+        assert_eq!(
+            EnvironmentRegistry::new(hijack, 1).err(),
+            Some(EnvironmentRegistryError::ReservedName {
+                name: bundled_id.clone(),
+                claimed_by: bundled_id,
+            })
+        );
+    }
+
+    /// D17's residue, held equal: the six vendor `DialectProfile` rows stay
+    /// compiled as the lexer's grammar key (ledger D5) and the editor
+    /// catalogues' key (D15), so each must agree with the pack-declared
+    /// environment on every identity fact both carry.
+    #[test]
+    fn every_bundled_environment_agrees_with_its_catalogue_profile() {
+        let seeded = bundled_pack_definitions();
+        for definition in &seeded {
+            let id = definition.id.as_str();
+            let profile = DialectProfile::find(id)
+                .unwrap_or_else(|| panic!("{id}: a bundled environment keeps its profile row"));
+            assert_eq!(
+                definition.display_name.as_ref(),
+                profile.display_name,
+                "{id}"
+            );
+            assert_eq!(
+                definition
+                    .editor_identity
+                    .map(EditorLanguageIdentityId::as_str),
+                profile.editor_language_id,
+                "{id}"
+            );
+            let extensions: Vec<(&str, &str)> = definition
+                .server_detection
+                .file_extensions
+                .iter()
+                .map(|claim| (claim.extension.as_ref(), claim.display_name.as_ref()))
+                .collect();
+            let profile_extensions: Vec<(&str, &str)> = profile
+                .file_extensions
+                .iter()
+                .map(|row| (row.extension, row.display_name))
+                .collect();
+            assert_eq!(extensions, profile_extensions, "{id}");
+            let terms: Vec<&str> = definition.help_terms.iter().map(AsRef::as_ref).collect();
+            assert_eq!(terms, profile.help_terms, "{id}");
+            let core = definition.core.expect("a vendor shell selects a Tcl core");
+            assert_eq!(core.family, Family::Tcl, "{id}");
+            assert_eq!(
+                Some(core.default_release.as_str()),
+                profile.runtime_base.map(TclVersion::version_string),
+                "{id}: base release"
+            );
+            assert_eq!(
+                definition
+                    .policy_defaults
+                    .version_ceiling
+                    .map(Release::as_str),
+                profile.version_ceiling.map(TclVersion::version_string),
+                "{id}: ceiling"
+            );
+            for pin in profile.libraries {
+                let placement = definition
+                    .expected_packages
+                    .iter()
+                    .find(|placement| placement.package.as_ref() == pin.package)
+                    .unwrap_or_else(|| panic!("{id}: the block places `{}`", pin.package));
+                assert_eq!(placement.ambient, pin.ambient, "{id}: `{}`", pin.package);
+            }
+            assert_eq!(
+                definition.expected_packages.len(),
+                profile.libraries.len(),
+                "{id}: the block places exactly the profile's libraries"
+            );
+        }
+        let profiles: Vec<&str> = DialectProfile::all()
+            .iter()
+            .filter(|profile| profile.name.ends_with("-eda-tcl"))
+            .map(|profile| profile.name)
+            .collect();
+        let mut seeded_ids: Vec<&str> = seeded.iter().map(|d| d.id.as_str()).collect();
+        seeded_ids.sort_unstable();
+        assert_eq!(seeded_ids, profiles, "every vendor shell is pack-declared");
     }
 
     #[test]

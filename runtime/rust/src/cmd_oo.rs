@@ -45,6 +45,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
 use tcl_core_types::RecursionLimit;
+use tcl_registry::commands::tcl::{
+    info_oo_subcommands, resolve_info_oo_properties_option, resolve_tcloo_property_kind,
+    resolve_tcloo_property_option, InfoOoEnsembleKind, InfoOoPropertiesOption, TclOoPropertyKind,
+    TclOoPropertyOption,
+};
 
 use crate::interp::{
     obj_bytes, CallMeta, Code, Command, Interp, MethodFrameWhat, Param, ProcFrame,
@@ -648,21 +653,17 @@ fn prop_define(interp: &mut Interp, argv: &[*mut TclObj], use_instance: bool) ->
         let mut getter: Option<Vec<u8>> = None;
         let mut setter: Option<Vec<u8>> = None;
         while i < argv.len() && obj_bytes(argv[i]).first() == Some(&b'-') {
-            let opt = obj_bytes(argv[i]);
-            // Options accept unambiguous prefixes (`-g`/`-k`/`-s`).
-            let optname: &[u8] = match prefix_match(&opt, &[b"-get", b"-kind", b"-set"]) {
-                Some(o) => o,
-                None => {
-                    let mut m = b"bad option \"".to_vec();
-                    m.extend_from_slice(&opt);
-                    m.extend_from_slice(b"\": must be -get, -kind, or -set");
+            let opt_word = obj_bytes(argv[i]);
+            let option = match resolve_tcloo_property_option(&opt_word) {
+                Ok(option) => option,
+                Err(message) => {
                     let mut code = b"TCL LOOKUP INDEX option ".to_vec();
-                    code.extend_from_slice(&opt);
-                    return interp.error_with_code(&m, &code);
+                    code.extend_from_slice(&opt_word);
+                    return interp.error_with_code(&message, &code);
                 }
             };
             if i + 1 >= argv.len() {
-                let what: &[u8] = if optname == b"-kind" {
+                let what: &[u8] = if option == TclOoPropertyOption::Kind {
                     b"kind value"
                 } else {
                     b"body"
@@ -670,38 +671,34 @@ fn prop_define(interp: &mut Interp, argv: &[*mut TclObj], use_instance: bool) ->
                 let mut m = b"missing ".to_vec();
                 m.extend_from_slice(what);
                 m.extend_from_slice(b" to go with ");
-                m.extend_from_slice(optname);
+                m.extend_from_slice(option.name().as_bytes());
                 m.extend_from_slice(b" option");
                 return interp.error_with_code(&m, b"TCL WRONGARGS");
             }
             let val = obj_bytes(argv[i + 1]);
             i += 2;
-            match optname {
-                b"-get" => getter = Some(val),
-                b"-set" => setter = Some(val),
-                b"-kind" => match prefix_match(&val, &[b"readable", b"readwrite", b"writable"]) {
-                    Some(b"readable") => {
+            match option {
+                TclOoPropertyOption::Get => getter = Some(val),
+                TclOoPropertyOption::Set => setter = Some(val),
+                TclOoPropertyOption::Kind => match resolve_tcloo_property_kind(&val) {
+                    Ok(TclOoPropertyKind::Readable) => {
                         kind_ro = true;
                         kind_wo = false;
                     }
-                    Some(b"writable") => {
+                    Ok(TclOoPropertyKind::Writable) => {
                         kind_wo = true;
                         kind_ro = false;
                     }
-                    Some(b"readwrite") => {
+                    Ok(TclOoPropertyKind::ReadWrite) => {
                         kind_ro = false;
                         kind_wo = false;
                     }
-                    _ => {
-                        let mut m = b"bad kind \"".to_vec();
-                        m.extend_from_slice(&val);
-                        m.extend_from_slice(b"\": must be readable, readwrite, or writable");
+                    Err(message) => {
                         let mut code = b"TCL LOOKUP INDEX kind ".to_vec();
                         code.extend_from_slice(&val);
-                        return interp.error_with_code(&m, &code);
+                        return interp.error_with_code(&message, &code);
                     }
                 },
-                _ => unreachable!(),
             }
         }
         let readable = !kind_wo;
@@ -733,17 +730,6 @@ fn prop_define(interp: &mut Interp, argv: &[*mut TclObj], use_instance: bool) ->
     }
     interp.set_result_bytes(b"");
     Code::Ok
-}
-
-/// Unambiguous-prefix match of `arg` against `cands` (Tcl option-table style):
-/// the exact name, else the unique candidate it prefixes, else `None` — the
-/// shared `Tcl_GetIndexFromObjStruct` matcher.
-fn prefix_match<'a>(arg: &[u8], cands: &'a [&'a [u8]]) -> Option<&'a [u8]> {
-    use tcl_cmd_core::prefix::Resolution;
-    match tcl_cmd_core::prefix::scan(cands, arg, false) {
-        Resolution::Exact(i) | Resolution::UniquePrefix(i) => Some(cands[i]),
-        Resolution::Ambiguous | Resolution::NoMatch => None,
-    }
 }
 
 fn property_method_name(prefix: &[u8], prop: &[u8]) -> Vec<u8> {
@@ -950,15 +936,15 @@ fn oxford_join(items: &[Vec<u8>]) -> Vec<u8> {
 fn parse_property_opts(interp: &mut Interp, opts: &[*mut TclObj]) -> Result<(bool, bool), Code> {
     let (mut all, mut writable) = (false, false);
     for &a in opts {
-        match obj_bytes(a).as_slice() {
-            b"-all" => all = true,
-            b"-readable" => writable = false,
-            b"-writable" => writable = true,
-            other => {
-                let mut m = b"bad option \"".to_vec();
-                m.extend_from_slice(other);
-                m.extend_from_slice(b"\": must be -all, -readable, or -writable");
-                return Err(interp.set_error(&m));
+        let word = obj_bytes(a);
+        match resolve_info_oo_properties_option(&word) {
+            Ok(InfoOoPropertiesOption::All) => all = true,
+            Ok(InfoOoPropertiesOption::Readable) => writable = false,
+            Ok(InfoOoPropertiesOption::Writable) => writable = true,
+            Err(message) => {
+                let mut code = b"TCL LOOKUP INDEX option ".to_vec();
+                code.extend_from_slice(&word);
+                return Err(interp.error_with_code(&message, &code));
             }
         }
     }
@@ -3194,86 +3180,15 @@ fn classvariable_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 // -- info object / info class (called from cmd_info) -------------------------
 
-/// Canonical `info object`/`info class` subcommands (in C's listing order, used
-/// for prefix resolution and the `unknown or ambiguous subcommand` message).
-const INFO_OBJECT_SUBS: &[&[u8]] = &[
-    b"call",
-    b"class",
-    b"creationid",
-    b"definition",
-    b"filters",
-    b"forward",
-    b"isa",
-    b"methods",
-    b"methodtype",
-    b"mixins",
-    b"namespace",
-    b"properties",
-    b"variables",
-    b"vars",
-];
-const INFO_CLASS_SUBS: &[&[u8]] = &[
-    b"call",
-    b"constructor",
-    b"definition",
-    b"definitionnamespace",
-    b"destructor",
-    b"filters",
-    b"forward",
-    b"instances",
-    b"methods",
-    b"methodtype",
-    b"mixins",
-    b"properties",
-    b"subclasses",
-    b"superclasses",
-    b"variables",
-];
-
-/// Resolve a (possibly abbreviated) `info object`/`info class` subcommand to its
-/// canonical name — exact name or unique prefix, matching the C ensemble. On a
-/// miss or an ambiguous prefix, set the `unknown or ambiguous subcommand` error.
-fn info_sub_resolve<'a>(
-    interp: &mut Interp,
-    sub: &[u8],
-    cands: &'a [&'a [u8]],
-) -> Result<&'a [u8], Code> {
-    if let Some(c) = cands.iter().find(|c| **c == sub) {
-        return Ok(c);
-    }
-    let mut it = cands.iter().filter(|c| c.starts_with(sub));
-    if let (Some(c), None) = (it.next(), it.next()) {
-        return Ok(c);
-    }
-    let mut m = b"unknown or ambiguous subcommand \"".to_vec();
-    m.extend_from_slice(sub);
-    m.extend_from_slice(b"\": must be ");
-    for (i, c) in cands.iter().enumerate() {
-        if i > 0 {
-            // Tcl ensemble style: ", or " before the last of 3+, " or " for 2.
-            m.extend_from_slice(if i == cands.len() - 1 {
-                if cands.len() == 2 {
-                    b" or " as &[u8]
-                } else {
-                    b", or "
-                }
-            } else {
-                b", "
-            });
-        }
-        m.extend_from_slice(c);
-    }
-    Err(interp.set_error(&m))
-}
-
 /// `info object subcommand object ?arg?`.
 pub(crate) fn info_object(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
         return wrong_args(interp, b"info object subcommand ?arg ...?");
     }
-    let sub = match info_sub_resolve(interp, &obj_bytes(argv[2]), INFO_OBJECT_SUBS) {
-        Ok(s) => s,
-        Err(c) => return c,
+    let subcommands = info_oo_subcommands(InfoOoEnsembleKind::Object, interp.runtime_version());
+    let sub = match subcommands.resolve(&obj_bytes(argv[2])) {
+        Ok(sub) => sub.as_bytes(),
+        Err(message) => return interp.set_error(&message),
     };
     // `creationid` has its own arg-count message (it errors at 0 *or* 2+ names).
     if sub == b"creationid" && argv.len() != 4 {
@@ -3866,9 +3781,10 @@ pub(crate) fn info_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
         return wrong_args(interp, b"info class subcommand ?arg ...?");
     }
-    let sub = match info_sub_resolve(interp, &obj_bytes(argv[2]), INFO_CLASS_SUBS) {
-        Ok(s) => s,
-        Err(c) => return c,
+    let subcommands = info_oo_subcommands(InfoOoEnsembleKind::Class, interp.runtime_version());
+    let sub = match subcommands.resolve(&obj_bytes(argv[2])) {
+        Ok(sub) => sub.as_bytes(),
+        Err(message) => return interp.set_error(&message),
     };
     if sub == b"call" && argv.len() != 5 {
         return wrong_args(interp, b"info class call className methodName");
@@ -6444,6 +6360,47 @@ mod tests {
     }
 
     #[test]
+    fn tip558_property_and_info_options_match_tcl_prefix_diagnostics() {
+        leak_free(|i| {
+            ok(i, b"oo::class create parent");
+            assert_eq!(
+                i.eval_str(b"oo::configurable create P {property x -}"),
+                Code::Error
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"ambiguous option \"-\": must be -get, -kind, or -set"
+            );
+            assert_eq!(
+                i.eval_str(b"oo::configurable create Q {property x -kind r}"),
+                Code::Error
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"ambiguous kind \"r\": must be readable, readwrite, or writable"
+            );
+
+            ok(
+                i,
+                b"oo::configurable create C {superclass parent; property x}",
+            );
+            ok(i, b"C create o");
+            assert_eq!(ok(i, b"info class properties C -a"), b"-x");
+            assert_eq!(ok(i, b"info object properties o -a"), b"-x");
+            assert_eq!(i.eval_str(b"info class properties C {}"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"ambiguous option \"\": must be -all, -readable, or -writable"
+            );
+            assert_eq!(i.eval_str(b"info object properties o -"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"ambiguous option \"-\": must be -all, -readable, or -writable"
+            );
+        });
+    }
+
+    #[test]
     fn tip558_property_storage_and_introspection() {
         leak_free(|i| {
             ok(i, b"oo::class create parent");
@@ -7085,6 +7042,55 @@ mod tests {
             );
             // A non-object reports an error (without surrounding quotes).
             assert_eq!(i.eval_str(b"info object creationid nosuch"), Code::Error);
+        });
+    }
+
+    #[test]
+    fn info_oo_ensemble_resolution_and_release_gates_match_tcl() {
+        leak_free(|i| {
+            use tcl_dialect::TclVersion;
+
+            i.set_runtime_version(TclVersion::V9_0);
+            ok(i, b"oo::class create C; set o [C new]");
+            assert_eq!(ok(i, b"info object cl $o"), b"::C");
+            assert_eq!(i.eval_str(b"info object bogus $o"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"unknown or ambiguous subcommand \"bogus\": must be call, class, creationid, definition, filters, forward, isa, methods, methodtype, mixins, namespace, properties, variables, or vars"
+            );
+            assert_eq!(i.eval_str(b"info class def C nope"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                b"unknown or ambiguous subcommand \"def\": must be call, constructor, definition, definitionnamespace, destructor, filters, forward, instances, methods, methodtype, mixins, properties, subclasses, superclasses, or variables"
+            );
+            assert_eq!(ok(i, b"info class definitionnamespace C"), b"");
+
+            i.set_runtime_version(TclVersion::V8_6);
+            for (script, expected) in [
+                (
+                    &b"info object creationid $o"[..],
+                    &b"unknown or ambiguous subcommand \"creationid\": must be call, class, definition, filters, forward, isa, methods, methodtype, mixins, namespace, variables, or vars"[..],
+                ),
+                (
+                    &b"info object properties $o"[..],
+                    &b"unknown or ambiguous subcommand \"properties\": must be call, class, definition, filters, forward, isa, methods, methodtype, mixins, namespace, variables, or vars"[..],
+                ),
+                (
+                    &b"info class definitionnamespace C"[..],
+                    &b"unknown or ambiguous subcommand \"definitionnamespace\": must be call, constructor, definition, destructor, filters, forward, instances, methods, methodtype, mixins, subclasses, superclasses, or variables"[..],
+                ),
+                (
+                    &b"info class properties C"[..],
+                    &b"unknown or ambiguous subcommand \"properties\": must be call, constructor, definition, destructor, filters, forward, instances, methods, methodtype, mixins, subclasses, superclasses, or variables"[..],
+                ),
+            ] {
+                assert_eq!(i.eval_str(script), Code::Error);
+                assert_eq!(i.result_bytes(), expected);
+            }
+            // With the 9.0-only definitionnamespace row absent, `def` is once
+            // again the unique prefix of `definition`.
+            assert_eq!(i.eval_str(b"info class def C nope"), Code::Error);
+            assert_eq!(i.result_bytes(), b"unknown method \"nope\"");
         });
     }
 
