@@ -273,8 +273,16 @@ export interface PackCommandView {
 /** The reply to a write-back: the new document, and how it was reached. */
 export interface PackWrite {
   source: string;
-  /** How the store wrote the edit: byte splice, full render, or vocabulary upgrade. */
-  writeback?: "spliced" | "rerendered" | "vocabulary-upgraded";
+  /**
+   * How the store wrote the edit: byte splice, full render, vocabulary
+   * upgrade — or `patched`, which did not touch `source` at all.
+   *
+   * A `patched` write is the E-R12 answer to a **programmed** document: the
+   * author's program is never rewritten, so the edit stands in a patch pack
+   * over it instead. The document pane therefore will not show it, which is
+   * the one thing the author has to be told.
+   */
+  writeback?: "spliced" | "rerendered" | "vocabulary-upgraded" | "patched";
   /** Previous SpecTcl vocabulary when this edit required newer DSL words. */
   upgraded_from?: string;
   /** New declared SpecTcl vocabulary paired with `upgraded_from`. */
