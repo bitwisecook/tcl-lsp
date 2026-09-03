@@ -606,6 +606,7 @@ fn walk_region(
     config: LexerConfig,
     ctx: &str,
     level: usize,
+    max_depth: usize,
     tallies: &mut [Tally],
     failures: &mut Vec<String>,
 ) {
@@ -626,7 +627,7 @@ fn walk_region(
         .filter(|t| t.kind == TokenType::Expand)
         .count();
 
-    if level >= NEST_DEPTH || failures.len() >= MAX_FAILURES {
+    if level >= max_depth || failures.len() >= MAX_FAILURES {
         return;
     }
     for &tok in &tokens {
@@ -658,7 +659,15 @@ fn walk_region(
             start.character.get() + 2,
             child.base_offset(),
         );
-        walk_region(&child, config, &child_ctx, level + 1, tallies, failures);
+        walk_region(
+            &child,
+            config,
+            &child_ctx,
+            level + 1,
+            max_depth,
+            tallies,
+            failures,
+        );
         if failures.len() >= MAX_FAILURES {
             return;
         }
@@ -681,11 +690,10 @@ fn gather(dir: &Path, exts: &[&str], out: &mut Vec<PathBuf>) {
     }
 }
 
-/// Walk `samples/`, the Tcl 9.0.4 script library, and the tcllib modules
-/// under all three dialects.  Skips silently when a corpus is absent.
-#[test]
-fn owner_matches_segmenter_over_corpora() {
-    let root = repo_root();
+/// Corpus roots. `tcllib` is by far the largest (56M vs 7.5M for the other
+/// two together) and dominates the cost of a nested walk, so the two tiers
+/// below differ only in whether it is descended into.
+fn corpus_files(root: &std::path::Path, with_tcllib: bool) -> Vec<PathBuf> {
     let mut files = Vec::new();
     gather(
         &root.join("samples"),
@@ -693,24 +701,27 @@ fn owner_matches_segmenter_over_corpora() {
         &mut files,
     );
     gather(&root.join("tmp/tcl9.0.4/library"), &["tcl"], &mut files);
-    gather(&root.join("tmp/tcllib-2.0/modules"), &["tcl"], &mut files);
-    if files.is_empty() {
-        eprintln!("[differential_group] skipped: no corpus present");
-        return;
+    if with_tcllib {
+        gather(&root.join("tmp/tcllib-2.0/modules"), &["tcl"], &mut files);
     }
     files.sort();
+    files
+}
 
+/// Compare every file in `files` at every dialect, descending `max_depth`
+/// levels into `{…}` / `[…]` bodies.
+fn run_corpus(files: &[PathBuf], max_depth: usize) -> (usize, Vec<Tally>) {
     let mut checked = 0usize;
     let mut failures: Vec<String> = Vec::new();
-    let mut tallies = vec![Tally::default(); NEST_DEPTH + 1];
-    for path in &files {
+    let mut tallies = vec![Tally::default(); max_depth + 1];
+    for path in files {
         let Ok(src) = fs::read_to_string(path) else {
             continue;
         };
         checked += 1;
         for (name, make) in CONFIGS {
             // Level 0 is the original top-level comparison, unchanged —
-            // same `check`, same context string.  Levels 1..=NEST_DEPTH are
+            // same `check`, same context string.  Levels 1..=max_depth are
             // the added nested coverage.
             let ctx = format!("{name}:{}", path.display());
             walk_region(
@@ -718,6 +729,7 @@ fn owner_matches_segmenter_over_corpora() {
                 make(),
                 &ctx,
                 0,
+                max_depth,
                 &mut tallies,
                 &mut failures,
             );
@@ -726,45 +738,91 @@ fn owner_matches_segmenter_over_corpora() {
             break;
         }
     }
-    assert!(checked > 0, "corpus present but no readable files");
     assert!(
         failures.is_empty(),
         "owner/segmenter divergence over {checked} corpus files:\n{}",
         failures.join("\n")
     );
+    (checked, tallies)
+}
 
+fn report(label: &str, checked: usize, tallies: &[Tally]) {
     let top = tallies[0];
     let nested = tallies[1..]
         .iter()
         .fold(Tally::default(), |acc, t| acc.add(*t));
-    eprintln!(
-        "[differential_group] {checked} corpus files x {} dialects: owner == segmenter",
-        CONFIGS.len()
-    );
+    eprintln!("[differential_group] {label}: {checked} files x 3 dialects: owner == segmenter");
     eprintln!(
         "[differential_group]   top level: {} regions, {} commands, {} words, {} {{*}}",
         top.regions, top.commands, top.words, top.expands
     );
-    for (level, t) in tallies.iter().enumerate().skip(1) {
+    for (i, t) in tallies[1..].iter().enumerate() {
         eprintln!(
-            "[differential_group]   nested L{level}: {} bodies, {} commands, {} words, {} {{*}}",
-            t.regions, t.commands, t.words, t.expands
+            "[differential_group]   nested L{}: {} bodies, {} commands, {} words, {} {{*}}",
+            i + 1,
+            t.regions,
+            t.commands,
+            t.words,
+            t.expands
         );
     }
     eprintln!(
         "[differential_group]   nested total: {} bodies, {} commands, {} words, {} {{*}}",
         nested.regions, nested.commands, nested.words, nested.expands
     );
+}
 
-    // The point of the descent.  `{*}` is written inside proc / loop
-    // bodies, and a body is one opaque `Str` token at its own level, so the
-    // top-level walk measured **zero** `{*}` over the whole corpus.  If
-    // this ever falls back to zero the corpus has stopped exercising
-    // expansion and the harness is no longer the net #1786 needs.
+/// The CI tier: top-level grouping over **every** corpus exactly as before,
+/// plus nested bodies in `samples/` and the Tcl 9.0.4 library.
+///
+/// Nested coverage is what makes this harness able to see `{*}` at all — at
+/// top level the corpus contains **zero** `Expand` tokens, because
+/// `tokenise_all` does not descend into braced bodies. Dropping it from CI
+/// would leave the `{*}` behaviour change in `runtime/rust::parse.rs`
+/// guarded only by this file's literal edge-case table.
+///
+/// tcllib is descended into only by
+/// [`owner_matches_segmenter_over_corpora_deep`]: it is 56M against 7.5M for
+/// the other two and dominates the cost, while the `{*}` shapes it adds are
+/// the same ones `samples/` and the 9.0.4 library already cover.
+#[test]
+fn owner_matches_segmenter_over_corpora() {
+    let root = repo_root();
+    let all = corpus_files(&root, true);
+    if all.is_empty() {
+        eprintln!("[differential_group] skipped: no corpus present");
+        return;
+    }
+    // Unchanged from before the nested walk existed: every corpus, top level.
+    let (checked, top_tallies) = run_corpus(&all, 0);
+    assert!(checked > 0, "corpus present but no readable files");
+    report("top level, all corpora", checked, &top_tallies);
+
+    // The added coverage, on the two corpora that are cheap to descend.
+    let (nested_checked, tallies) = run_corpus(&corpus_files(&root, false), NEST_DEPTH);
     assert!(
-        nested.expands > 0,
-        "the nested walk must exercise `{{*}}` from the corpus \
-         (top level saw {})",
-        top.expands
+        tallies[1..].iter().any(|t| t.expands > 0),
+        "the nested walk must exercise `{{*}}` from the corpus (top level saw 0)"
     );
+    report("nested, samples + tcl9.0.4", nested_checked, &tallies);
+}
+
+/// The exhaustive tier: the same walk with tcllib included.
+///
+/// `docs/design/contracts/test-tiers-and-ci-gates.md` rule 2 — a permanently
+/// expensive corpus sweep over `tmp/tcl*` and tcllib belongs behind
+/// `--ignored`, never in `prep-pr`, `test`, `check-all` or CI. Measured: 58s
+/// for this test against 8s for the CI tier above, and 629 `{*}` sites
+/// against 55 — tcllib is 92% of the cost for shapes already covered.
+#[test]
+#[ignore = "corpus sweep over tcllib; run explicitly with --ignored"]
+fn owner_matches_segmenter_over_corpora_deep() {
+    let files = corpus_files(&repo_root(), true);
+    if files.is_empty() {
+        eprintln!("[differential_group] skipped: no corpus present");
+        return;
+    }
+    let (checked, tallies) = run_corpus(&files, NEST_DEPTH);
+    assert!(checked > 0, "corpus present but no readable files");
+    report("samples + tcl9.0.4 + tcllib", checked, &tallies);
 }
