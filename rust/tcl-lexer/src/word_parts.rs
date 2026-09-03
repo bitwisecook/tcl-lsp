@@ -142,6 +142,18 @@ pub struct SubstFlags {
     /// that as a flag on the shared scan keeps the VM on this owner instead of
     /// justifying a private copy.
     pub bare_var_refs: bool,
+    /// Whether an unterminated `[` is literal data rather than C's
+    /// `missing close-bracket`.
+    ///
+    /// False everywhere C Tcl parses source: there an unclosed bracket is a
+    /// parse error. True for the same one consumer as [`bare_var_refs`] —
+    /// `tcl-vm`'s compiled-word `PUSH` operands — because the codegen has
+    /// already decoded that word's source escapes, so the `\[` a source word
+    /// wrote to *prevent* substitution arrives here as a bare `[` with no
+    /// closer. C never reaches this state: it parsed and balanced the source
+    /// long before, so a surviving unclosed `[` in a compiled word is always
+    /// data (`expr {$ch eq "\["}`), never a parse error to re-raise.
+    pub unclosed_bracket_is_data: bool,
 }
 
 impl Default for SubstFlags {
@@ -152,6 +164,7 @@ impl Default for SubstFlags {
             cmds: true,
             backslashes: true,
             bare_var_refs: true,
+            unclosed_bracket_is_data: false,
         }
     }
 }
@@ -166,6 +179,7 @@ impl SubstFlags {
             cmds: true,
             backslashes: true,
             bare_var_refs: false,
+            unclosed_bracket_is_data: true,
         }
     }
 }
@@ -400,18 +414,24 @@ fn decompose_at_depth(
             }
             lit_start = i;
         } else if flags.cmds && c == b'[' {
-            flush_text(&mut parts, src, lit_start, i, flags, config.escapes);
             match command_subst_close(src, i, flags, config) {
                 Ok(end) => {
+                    flush_text(&mut parts, src, lit_start, i, flags, config.escapes);
                     parts.push(WordPart::Command(&src[i + 1..end - 1]));
                     i = end;
+                    lit_start = i;
                 }
+                // A compiled word's unclosed `[` is data the codegen already
+                // decoded, not a parse error. Nothing is flushed: the bracket
+                // stays inside the literal run it sits in, so a word with
+                // nothing else to substitute still collapses to one `Literal`.
+                Err(_) if flags.unclosed_bracket_is_data => i += 1,
                 Err(msg) => {
+                    flush_text(&mut parts, src, lit_start, i, flags, config.escapes);
                     parts.push(WordPart::ParseError(msg));
                     return WordBody::Parts(parts);
                 }
             }
-            lit_start = i;
         } else if flags.backslashes && c == b'\\' && i + 1 < len {
             // Step over the escaped byte so an escaped `$` / `[` is not a
             // substitution boundary. Only the byte immediately after the
@@ -511,6 +531,42 @@ fn decode_bytes_in(raw: &[u8], escapes: EscapeSyntax) -> Cow<'_, [u8]> {
 
 #[cfg(test)]
 mod tests {
+
+    /// A compiled word's unclosed `[` is data, not `missing close-bracket`:
+    /// the codegen decoded the source's `\[` to a bare `[` before the VM saw
+    /// it, so re-raising C's parse error breaks `expr {$ch eq "\["}`
+    /// (tclsh 8.6.16 / 9.0.4 both answer with the comparison, not an error).
+    /// A source word keeps the error.
+    #[test]
+    fn an_unclosed_bracket_is_data_only_for_a_compiled_word() {
+        let config = LexerConfig::default();
+        let compiled = SubstFlags::compiled_word();
+        // Nothing substituted after all, so both collapse to a borrowed
+        // `Literal` by the `TCL_TOKEN_SIMPLE_WORD` rule.
+        assert_eq!(decompose(b"[", compiled, config), WordBody::Literal(b"["));
+        assert_eq!(
+            decompose(b"a[b", compiled, config),
+            WordBody::Literal(b"a[b")
+        );
+        // A closed bracket still substitutes, and text after an unclosed one
+        // is not emitted twice.
+        assert_eq!(
+            decompose(b"x[y]z[w", compiled, config),
+            WordBody::Parts(vec![
+                WordPart::Text(Cow::Borrowed(b"x")),
+                WordPart::Command(b"y"),
+                WordPart::Text(Cow::Borrowed(b"z[w")),
+            ])
+        );
+        // A source word keeps C's parse error.
+        assert_eq!(
+            decompose(b"a[b", SubstFlags::default(), config),
+            WordBody::Parts(vec![
+                WordPart::Text(Cow::Borrowed(b"a")),
+                WordPart::ParseError(MISSING_CLOSE_BRACKET),
+            ])
+        );
+    }
     use std::fmt::Write as _;
 
     use super::*;

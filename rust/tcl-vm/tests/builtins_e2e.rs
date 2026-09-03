@@ -1658,6 +1658,24 @@ fn list_element_quoting_balanced_braces() {
     out_eq("set f {a[b}\nputs [list $f]\n", "{a[b}\n");
 }
 
+/// An escaped bracket in an **expr** operand: the codegen decodes `"\["` to a
+/// bare `[`, so the compiled word reaches the VM with an unclosed bracket and
+/// nothing left to close it. That is data, not C's `missing close-bracket` —
+/// tclsh 8.6.16 and 9.0.4 both answer the comparison. Treating it as a parse
+/// error broke every `if {$ch eq "\["}` in a guest script.
+#[test]
+fn an_escaped_bracket_in_an_expr_operand_is_data() {
+    out_eq("set ch {[}\nputs [expr {$ch eq \"\\[\"}]\n", "1\n");
+    out_eq("puts [expr {\"\\[\" eq \"\\[\"}]\n", "1\n");
+    out_eq(
+        "set ch {[}\nif {$ch eq \"\\[\"} { puts hit } else { puts miss }\n",
+        "hit\n",
+    );
+    // The closing half still behaves, and a real substitution still runs.
+    out_eq("set ch {]}\nputs [expr {$ch eq \"\\]\"}]\n", "1\n");
+    out_eq("puts [expr {[string length ab] + 1}]\n", "3\n");
+}
+
 #[test]
 fn escaped_brackets_not_double_substituted() {
     // A word carrying an escaped bracket (`\[` / `\]`) must be backslash-decoded
