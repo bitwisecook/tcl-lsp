@@ -32,6 +32,7 @@ use tcl_lexer::{Lexer, SourceMap, Token, TokenType};
 use tcl_registry::{ArgRole, CaseListSpec, CommandRegistry, Traits};
 
 use super::config::FormatterConfig;
+use tcl_syntax::word_rules::WordValueRules;
 
 /// Depth cap for [`format_body`]'s (and [`format_case_list_body`]'s) recursion
 /// over nested control-flow bodies — issue #996. Reuses their existing
@@ -143,6 +144,12 @@ struct ParsedCommand {
 /// before a real newline) alone rather than treating it as a continuation.
 fn normalise_backslash_newline(text: &str, keep_preceding: bool) -> String {
     if keep_preceding {
+        // dialect-drift-ok: this reconstructs a *quoted* argument's or a
+        // command substitution's interior, never a braced word, so the
+        // dialect's `brace_backslash_newline` axis (which only governs what a
+        // `{…}` word's bytes are) does not apply — every modelled runtime,
+        // JimTcl included, folds a continuation here. The helper's name is the
+        // shared collapse's, not a claim about braces.
         tcl_syntax::backslash::collapse_brace_continuations_str(text).into_owned()
     } else {
         tcl_syntax::backslash::collapse_separator_continuations_str(text).into_owned()
@@ -173,6 +180,9 @@ fn reconstruct_raw(sm: &SourceMap, tok: Token, in_quotes: bool) -> String {
             }
         }
         TokenType::Expand => "{*}".to_owned(),
+        // `JimTcl`'s `$(…)`: reconstruct the sugar around the expression
+        // body, or formatting a Jim file rewrites `$($a*2)` to `$a*2`.
+        TokenType::ExprSugar => format!("$({})", sm.token_text(tok)),
         _ => sm.token_text(tok).to_owned(),
     }
 }
@@ -209,17 +219,19 @@ fn reconstruct_arg(sm: &SourceMap, arg: &CommandArg, braced_vars: bool) -> Strin
 /// pieces joined by a space produced `{a\ b}` — one *optional* parameter `a`
 /// defaulting to `b` (issue #1196).
 ///
-/// Two shared pieces do the work, in the order C Tcl applies them:
+/// Two shared pieces do the work, in the order C Tcl applies them, and both
+/// under the **document's** dialect rather than a re-derived default:
 ///
-/// 1. [`tcl_syntax::backslash::collapse_brace_continuations_str`] — the
-///    script-level `\<newline>` pre-pass, which applies even inside braces.
+/// 1. [`WordValueRules::collapse_braced_word`] — the script-level
+///    `\<newline>` pre-pass, which applies even inside braces on a dialect
+///    that folds it (`JimTcl` keeps the bytes).
 /// 2. [`tcl_syntax::list::normalise_spacing`] — the list split/merge.
 ///
 /// A list that does not parse (an unmatched brace or quote — routine while a
 /// signature is being typed) has no canonical rendering, so the original text
 /// is preserved verbatim.
-fn normalise_param_list(text: &str) -> String {
-    let collapsed = tcl_syntax::backslash::collapse_brace_continuations_str(text);
+fn normalise_param_list(text: &str, rules: WordValueRules) -> String {
+    let collapsed = rules.collapse_braced_word(text);
     match tcl_syntax::list::normalise_spacing(&collapsed) {
         Ok(rendered) => format!("{{{rendered}}}"),
         Err(_) => format!("{{{text}}}"),
@@ -1065,7 +1077,7 @@ fn render_lambda_literal_arg(
         current_line_len,
         never_inline,
     );
-    let params_rendered = normalise_param_list(&elems.params);
+    let params_rendered = normalise_param_list(&elems.params, config.word_rules());
     let body_rendered = body_parts.concat();
     match elems.namespace.as_deref() {
         Some(ns) => {
@@ -1260,7 +1272,7 @@ fn case_list_body_index(
     // odd pattern/body prefix shape formatter recovery supports. Empty and
     // otherwise malformed values remain byte-semantically opaque.
     let last = args.len().checked_sub(1)?;
-    let elements = tcl_syntax::list::split_list(args[last]).ok()?;
+    let elements = config.word_rules().split_list(args[last]).ok()?;
     if elements.is_empty() || elements.len().is_multiple_of(2) {
         return None;
     }
@@ -1345,7 +1357,7 @@ fn reconstruct_command(
             }
             ArgKind::ParamList => {
                 maybe_space(&mut parts, false, config.space_between_braces);
-                parts.push(normalise_param_list(&arg.text));
+                parts.push(normalise_param_list(&arg.text, config.word_rules()));
                 in_brace_chain = false;
             }
             ArgKind::Keyword => {
@@ -2515,7 +2527,8 @@ mod tests {
             "two parameters were fused into one defaulted parameter:\n{out}"
         );
         // The parsed signature agrees: two params, neither defaulted.
-        let params = tcl_compiler::signature_scan::params::parse_param_list("a b");
+        let params =
+            tcl_compiler::signature_scan::params::parse_param_list("a b", WordValueRules::TCL);
         assert_eq!(params.len(), 2);
         assert!(params.iter().all(|p| !p.has_default));
     }
@@ -2530,7 +2543,8 @@ mod tests {
             out.starts_with("proc f {{a b} c} {"),
             "escaped-space spec lost its element identity:\n{out}"
         );
-        let params = tcl_compiler::signature_scan::params::parse_param_list("{a b} c");
+        let params =
+            tcl_compiler::signature_scan::params::parse_param_list("{a b} c", WordValueRules::TCL);
         assert_eq!(params.len(), 2);
         assert_eq!(params[0].name, "a");
         assert_eq!(params[0].default_value.as_deref(), Some("b"));

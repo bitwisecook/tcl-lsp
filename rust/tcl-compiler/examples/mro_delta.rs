@@ -231,7 +231,14 @@ fn build_worksheet(data: &[FileData], merged: &HashMap<String, ClassDef>) -> Wor
 
     let cfg = AblationConfig::full();
     for fd in data {
-        let (reports, _stats) = analyse_dispatch(&fd.cu, merged, &fd.sites, &fd.ns, &cfg);
+        let (reports, _stats) = analyse_dispatch(
+            &fd.cu,
+            merged,
+            &fd.sites,
+            &fd.ns,
+            &cfg,
+            tcl_lexer::LexerConfig::default(),
+        );
         for r in reports {
             let Some(method) = &r.method else { continue };
             let ship = shipping_code(&fd.diagnostics, r.offset);

@@ -773,7 +773,12 @@ pub(super) fn constructed_script_words(
     registry: &CommandRegistry,
 ) -> Option<Vec<String>> {
     let inner = word.strip_prefix('[').and_then(|w| w.strip_suffix(']'))?;
-    let words = super::words_from_text(inner);
+    // The registry carries the environment's profile, so the constructed
+    // words are divided under the document's own grammar.
+    let words = super::words_from_text_with_config(
+        inner,
+        tcl_lexer::LexerConfig::for_profile(registry.profile()),
+    );
     let (builder, constructed) = words.split_first()?;
     if !registry.get(builder).is_some_and(|spec| {
         matches!(

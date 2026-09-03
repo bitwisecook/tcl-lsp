@@ -38,6 +38,7 @@ fn resolve(src: &str) -> Vec<SiteReport> {
         &a.var_command_sites,
         &ns,
         &AblationConfig::full(),
+        tcl_lexer::LexerConfig::default(),
     );
     reports
 }

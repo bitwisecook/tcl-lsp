@@ -87,17 +87,20 @@ fn terminator_read_names(
     scanner: &mut VarReferenceScanner,
     registry: &CommandRegistry,
 ) -> HashSet<String> {
+    let grammar = registry
+        .profile()
+        .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar);
     let mut names: HashSet<String> = HashSet::new();
     match &block.terminator {
         Some(Terminator::Branch { condition, .. }) => {
-            names.extend(vars_in_expr(condition));
+            names.extend(vars_in_expr(condition, grammar));
         }
         Some(Terminator::Return { value, expr, .. }) => {
             if let Some(v) = value {
                 names.extend(scanner.scan_word(v, registry));
             }
             if let Some(e) = expr {
-                names.extend(vars_in_expr(e));
+                names.extend(vars_in_expr(e, grammar));
             }
         }
         _ => {}

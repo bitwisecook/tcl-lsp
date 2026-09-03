@@ -60,7 +60,7 @@ use crate::types::{
     Elements, MAX_EXACT_ELEMENTS, TypeKind, TypeLattice, TypeShape, join_elements, shape_join,
     type_join,
 };
-use crate::value_shapes::{is_pure_var_ref, parse_command_substitution};
+use crate::value_shapes::{is_pure_var_ref, parse_command_substitution_with_config};
 
 // Float literal pattern: requires a decimal point so that forms like `1e3`
 // (no `.`) are NOT classified as floats.
@@ -839,9 +839,10 @@ fn prior_container_elements<S: std::hash::BuildHasher>(
         }
         // A pure string constant parses to a known element count of pure
         // strings — `lappend` on `{a b}` starts from two `String` elements.
+        let rules = tcl_syntax::word_rules::WordValueRules::of_profile(ctx.registry.profile());
         if t.tcl_type() == Some(TclType::String)
             && let Some(LatticeValue::Const(ConstValue::String(text))) = ctx.const_of(target)
-            && let Ok(parsed) = tcl_syntax::list::split_list(text)
+            && let Ok(parsed) = rules.split_list(text)
         {
             if parsed.len() > MAX_EXACT_ELEMENTS {
                 return Some(Elements::Uniform(Box::new(TypeShape::String)));
@@ -939,7 +940,10 @@ fn value_word_type<S: std::hash::BuildHasher>(
     // Command substitution: [cmd ...].
     if stripped.starts_with('[')
         && stripped.ends_with(']')
-        && let Some((cmd, args)) = parse_command_substitution(stripped)
+        && let Some((cmd, args)) = parse_command_substitution_with_config(
+            stripped,
+            tcl_lexer::LexerConfig::for_profile(ctx.registry.profile()),
+        )
     {
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
         // The registry's result↔element fact refines the declared return
@@ -1679,7 +1683,10 @@ fn infer_return_value_type<S: std::hash::BuildHasher>(
     // Command substitution: `[cmd ...]`.
     if stripped.starts_with('[')
         && stripped.ends_with(']')
-        && let Some((cmd, args)) = parse_command_substitution(stripped)
+        && let Some((cmd, args)) = parse_command_substitution_with_config(
+            stripped,
+            tcl_lexer::LexerConfig::for_profile(registry.profile()),
+        )
     {
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
         return return_type_for_command(registry, &cmd, &arg_refs, known_classes, namespace);
@@ -2336,8 +2343,11 @@ mod tests {
     /// As [`infer_str`] but parses under `dialect` (the iRules string
     /// predicates only tokenise as operators in the iRules dialect) and reads
     /// numerals under that dialect's grammar.
-    fn infer_str_dialect(src: &str, dialect: Option<&tcl_dialect::DialectProfile>) -> TypeLattice {
-        let node = crate::parse_expr(src, dialect.map(|profile| profile.name));
+    fn infer_str_dialect(
+        src: &str,
+        dialect: Option<&'static tcl_dialect::DialectProfile>,
+    ) -> TypeLattice {
+        let node = crate::parse_expr_for_profile(src, dialect);
         infer_expr_type(
             &node,
             &HashMap::new(),

@@ -31,12 +31,18 @@ use std::net::{Ipv4Addr, Ipv6Addr};
 
 use regex::Regex;
 use serde_json::{Value, json};
-use tcl_compiler::segmenter::segment_commands_with_offset;
-use tcl_lexer::LineIndex;
+use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+use tcl_lexer::{LexerConfig, LineIndex};
 use tcl_lsp_core::refactor::{extract_to_datagroup, walk_commands};
 use tcl_syntax::switch_body::parse_braced_pairs;
 
 const DIALECT: &str = "f5-irules";
+
+/// This module's whole job is scanning iRules source (`DIALECT` is fixed),
+/// so its lexing grammar is resolved once, here, rather than per call.
+fn config() -> LexerConfig {
+    LexerConfig::from_grammar(crate::environment::profile_for_dialect(DIALECT).grammar)
+}
 
 /// MCP handler: `{candidates:[…], total:int}` for the `source` argument.
 pub fn suggest_datagroup_extractions(args: &Value) -> Value {
@@ -85,7 +91,7 @@ fn suggest(source: &str) -> Vec<Value> {
     let line_index = LineIndex::new(source);
     let mut out = Vec::new();
 
-    for (texts, line, character) in walk_commands(source, registry) {
+    for (texts, line, character) in walk_commands(source, registry, config()) {
         let Some(head) = texts.first() else { continue };
         let mut cand = match head.as_str() {
             "if" => analyse_if_chain(&texts, line),
@@ -96,7 +102,7 @@ fn suggest(source: &str) -> Vec<Value> {
             let cursor =
                 line_index.offset_at_utf16(line, tcl_lexer::Utf16Col::new(character), source);
             c.has_static_extraction =
-                extract_to_datagroup(source, cursor, "", registry, &line_index).is_some();
+                extract_to_datagroup(source, cursor, "", registry, &line_index, config()).is_some();
         }
         if let Some(c) = cand {
             out.push(c.into_json());
@@ -321,7 +327,7 @@ enum SetOrReturn {
 /// Parse a single-command arm body via the segmenter (like the Rust static
 /// extractor's `parse_set_or_return`, keeping only the kind + `set` variable).
 fn parse_set_or_return(text: &str) -> Option<SetOrReturn> {
-    let commands = segment_commands_with_offset(text, 0);
+    let commands = segment_commands_with_offset_and_config(text, 0, config());
     if commands.len() != 1 || commands[0].texts.is_empty() {
         return None;
     }

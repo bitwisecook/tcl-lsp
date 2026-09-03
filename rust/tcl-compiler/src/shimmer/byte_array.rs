@@ -64,7 +64,7 @@ use crate::ir::Statement;
 use crate::naming::normalise_var_name;
 use crate::sccp::cfg_order;
 use crate::ssa::{SsaFunction, Symbol, ValueKey};
-use crate::value_shapes::{is_pure_var_ref, parse_command_substitution};
+use crate::value_shapes::{is_pure_var_ref, parse_command_substitution_with_config};
 use crate::var_refs::vars_in_word;
 
 use std::collections::HashSet;
@@ -364,7 +364,10 @@ impl<'a> ByteCorruption<'a> {
                 .then(|| self.prov.get(&(sym, ver)).cloned())
                 .flatten();
         }
-        if let Some((cmd, cargs)) = parse_command_substitution(a) {
+        if let Some((cmd, cargs)) = parse_command_substitution_with_config(
+            a,
+            tcl_lexer::LexerConfig::for_profile(self.registry.profile()),
+        ) {
             let ce = resolve_cmd_effect(self.registry, &cmd, &cargs);
             if is_payload_getter(self.payload_layouts, &cmd, &cargs) {
                 return Some(ByteProvInfo::binary(None, cmd));
@@ -453,7 +456,10 @@ impl<'a> ByteCorruption<'a> {
         let key = (sym, ver);
         let val = value.trim();
 
-        if let Some((cmd, cargs)) = parse_command_substitution(val) {
+        if let Some((cmd, cargs)) = parse_command_substitution_with_config(
+            val,
+            tcl_lexer::LexerConfig::for_profile(self.registry.profile()),
+        ) {
             if is_payload_getter(self.payload_layouts, &cmd, &cargs) {
                 self.prov.insert(key, ByteProvInfo::binary(Some(span), cmd));
                 return;

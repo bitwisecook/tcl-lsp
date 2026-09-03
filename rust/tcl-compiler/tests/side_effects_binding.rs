@@ -89,7 +89,7 @@ fn classify(
     reg: &CommandRegistry,
     command: &str,
     args: &[&str],
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> CommandSideEffects {
     let owned: Vec<String> = args.iter().map(|s| (*s).to_owned()).collect();
     classify_side_effects(reg, command, &owned, dialect, None)
@@ -768,7 +768,7 @@ fn classify_file_io_does_not_kill_unknown_region() {
 fn assert_conformance_target(
     reg: &CommandRegistry,
     command: &str,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     expected: SideEffectTarget,
 ) {
     let r = classify(reg, command, &[], dialect);

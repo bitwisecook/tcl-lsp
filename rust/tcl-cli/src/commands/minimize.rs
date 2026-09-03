@@ -168,13 +168,14 @@ fn short_for(name: &str, names_seen: &mut HashMap<String, String>) -> Option<Str
 /// command arguments.
 fn collect_rename_edits(
     source: &str,
+    config: LexerConfig,
     names_seen: &mut HashMap<String, String>,
 ) -> Vec<(usize, usize, String)> {
     let mut edits: Vec<(usize, usize, String)> = Vec::new();
     let sm = SourceMap::new(source);
 
     // 1. `$`/`${}` references — VAR tokens (rename the scalar/array base).
-    if let Ok(tokens) = Lexer::new(source).tokenise_all() {
+    if let Ok(tokens) = Lexer::with_config(source, config).tokenise_all() {
         for tok in &tokens {
             if tok.kind != TokenType::Var {
                 continue;
@@ -194,7 +195,7 @@ fn collect_rename_edits(
     // below anyway; only the segmented command shapes matter here).
     let (cmds, _) = segment_with_recovery(
         source,
-        LexerConfig::default(),
+        config,
         &tcl_compiler::analyser::utils::RecoveryKnownCommands::default(),
     );
     for cmd in &cmds {
@@ -320,7 +321,11 @@ pub fn minimize_diagnostic(
     let mut did_rename = false;
     if rename {
         let mut names_seen: HashMap<String, String> = HashMap::new();
-        let edits = collect_rename_edits(&reduced, &mut names_seen);
+        let edits = collect_rename_edits(
+            &reduced,
+            LexerConfig::for_file_grammar(dialect.grammar),
+            &mut names_seen,
+        );
         if !edits.is_empty() {
             let candidate = apply_edits(&reduced, &edits);
             if fires(&candidate, code, dialect) {

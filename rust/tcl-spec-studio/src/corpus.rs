@@ -255,19 +255,25 @@ impl Stmt {
 
 /// Every statement in `source`, following script arguments as the registry
 /// declares them.
-fn statements(registry: &CommandRegistry, source: &str, depth: usize, out: &mut Vec<Stmt>) {
+fn statements(
+    registry: &CommandRegistry,
+    config: LexerConfig,
+    source: &str,
+    depth: usize,
+    out: &mut Vec<Stmt>,
+) {
     if depth > MAX_DEPTH {
         return;
     }
     let source_map = SourceMap::new(source);
-    let (document, _warnings) = build_document(source, LexerConfig::default());
+    let (document, _warnings) = build_document(source, config);
     for segment in segments_from_document(document, &source_map) {
         let words = segment.texts.clone();
         let head = words.first().cloned().unwrap_or_default();
         let args: Vec<&str> = words.iter().skip(1).map(String::as_str).collect();
         for index in registry.arg_indices_for_role(&head, &args, ArgRole::Body) {
             if let Some(body) = args.get(index) {
-                statements(registry, body, depth + 1, out);
+                statements(registry, config, body, depth + 1, out);
             }
         }
         out.push(Stmt { words });
@@ -285,9 +291,9 @@ struct Arm {
 /// The list is `pattern script pattern script …`, one pair per line by
 /// convention — which is exactly what the segmenter reports as a "command" of
 /// two words, so the same parse serves.
-fn arms(body: &str) -> Vec<Arm> {
+fn arms(body: &str, config: LexerConfig) -> Vec<Arm> {
     let source_map = SourceMap::new(body);
-    let (document, _warnings) = build_document(body, LexerConfig::default());
+    let (document, _warnings) = build_document(body, config);
     let mut out: Vec<Arm> = Vec::new();
     for segment in segments_from_document(document, &source_map) {
         let mut words = segment.texts.iter();
@@ -376,18 +382,21 @@ fn consumes_a_value(script: &str) -> bool {
 #[must_use]
 pub fn scan(body: &str, params: &[ParamDef], dialect: &str) -> Shape {
     let registry = crate::environment::store_for_dialect(dialect);
+    // The body is the authored pack's own Tcl, so it is read under the
+    // grammar of the environment the pack is being authored for.
+    let config = LexerConfig::for_profile(Some(crate::environment::profile_for_dialect(dialect)));
     let mut stmts = Vec::new();
-    statements(registry, body, 0, &mut stmts);
+    statements(registry, config, body, 0, &mut stmts);
 
     let mut shape = Shape::default();
-    options_from_dispatch(&stmts, &mut shape);
-    values_from_dispatch(&stmts, params, &mut shape);
+    options_from_dispatch(&stmts, config, &mut shape);
+    values_from_dispatch(&stmts, params, config, &mut shape);
     callbacks(&stmts, params, &mut shape);
     shape
 }
 
 /// Options from a `switch` over option words, or an `if` chain comparing one.
-fn options_from_dispatch(stmts: &[Stmt], shape: &mut Shape) {
+fn options_from_dispatch(stmts: &[Stmt], config: LexerConfig, shape: &mut Shape) {
     // Preserve first-seen order, and let a later site upgrade a flag to a
     // value option rather than contradict it.
     let mut found: Vec<OptionShape> = Vec::new();
@@ -412,7 +421,7 @@ fn options_from_dispatch(stmts: &[Stmt], shape: &mut Shape) {
             let Some(last) = stmt.words.last() else {
                 continue;
             };
-            for arm in arms(last) {
+            for arm in arms(last, config) {
                 if arm.pattern == "--" {
                     terminator = true;
                     continue;
@@ -490,7 +499,12 @@ fn options_from_dispatch(stmts: &[Stmt], shape: &mut Shape) {
 /// The two are the same evidence read against the parameter list: a dispatch
 /// on the **first** parameter of a proc whose tail is variadic selects *tails*
 /// — that is a subcommand table. Anything else closes a value set.
-fn values_from_dispatch(stmts: &[Stmt], params: &[ParamDef], shape: &mut Shape) {
+fn values_from_dispatch(
+    stmts: &[Stmt],
+    params: &[ParamDef],
+    config: LexerConfig,
+    shape: &mut Shape,
+) {
     let positions: BTreeMap<&str, usize> = params
         .iter()
         .enumerate()
@@ -508,7 +522,7 @@ fn values_from_dispatch(stmts: &[Stmt], params: &[ParamDef], shape: &mut Shape) 
         let Some(last) = stmt.words.last() else {
             continue;
         };
-        let all = arms(last);
+        let all = arms(last, config);
         let has_default = all.iter().any(|a| a.pattern == "default");
         let literals: Vec<String> = all
             .iter()

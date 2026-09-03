@@ -27,7 +27,7 @@ use std::collections::HashSet;
 use serde_json::{Map, Value, json};
 use tcl_compiler::analyser::{Analyser, AnalysisResult, Diagnostic};
 use tcl_dialect::DialectProfile;
-use tcl_lexer::{LineIndex, SourceMap, Span, Utf16Col};
+use tcl_lexer::{LexerConfig, LineIndex, SourceMap, Span, Utf16Col};
 use tcl_lsp_core::definition::LspRange;
 use tcl_registry::CommandRegistry;
 use tcl_registry::events::EventRegistry;
@@ -516,12 +516,15 @@ fn refactor_at(
         u32,
         &CommandRegistry,
         &LineIndex,
+        LexerConfig,
     ) -> Option<tcl_lsp_core::refactor::Refactoring>,
 ) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
     let (idx, off) = cursor(source, arg_u32(args, "line"), arg_u32(args, "character"));
-    match f(source, off, &registry(&dialect), &idx) {
+    let config =
+        LexerConfig::from_grammar(crate::environment::profile_for_dialect(&dialect).grammar);
+    match f(source, off, &registry(&dialect), &idx, config) {
         Some(r) => refactoring_json(source, &r),
         None => Value::Null,
     }
@@ -551,7 +554,9 @@ fn brace_expr(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
     let (_idx, off) = cursor(source, arg_u32(args, "line"), arg_u32(args, "character"));
-    match tcl_lsp_core::refactor::brace_expr(source, off, &registry(&dialect)) {
+    let config =
+        LexerConfig::from_grammar(crate::environment::profile_for_dialect(&dialect).grammar);
+    match tcl_lsp_core::refactor::brace_expr(source, off, &registry(&dialect), config) {
         Some(r) => refactoring_json(source, &r),
         None => Value::Null,
     }
@@ -1031,9 +1036,16 @@ fn extract_datagroup(args: &Value) -> Value {
     let (line_index, cursor) = cursor(source, arg_u32(args, "line"), arg_u32(args, "character"));
     let dg_name = arg_str(args, "dg_name");
     let reg = registry(IRULES_DIALECT);
-    let Some(r) =
-        tcl_lsp_core::refactor::extract_to_datagroup(source, cursor, dg_name, &reg, &line_index)
-    else {
+    let config =
+        LexerConfig::from_grammar(crate::environment::profile_for_dialect(IRULES_DIALECT).grammar);
+    let Some(r) = tcl_lsp_core::refactor::extract_to_datagroup(
+        source,
+        cursor,
+        dg_name,
+        &reg,
+        &line_index,
+        config,
+    ) else {
         return Value::Null;
     };
     let Some(dg) = r.data_group.as_ref() else {
@@ -1074,6 +1086,8 @@ fn refactor(args: &Value) -> Value {
         source,
     );
     let analysis = analyse(source, &dialect);
+    let config =
+        LexerConfig::from_grammar(crate::environment::profile_for_dialect(&dialect).grammar);
     let mut available: Vec<Value> = Vec::new();
     let mut push = |tool: &str, r: Option<tcl_lsp_core::refactor::Refactoring>| {
         if let Some(r) = r {
@@ -1099,19 +1113,26 @@ fn refactor(args: &Value) -> Value {
     );
     push(
         "if_to_switch",
-        tcl_lsp_core::refactor::if_to_switch(source, start_off, &reg, &line_index),
+        tcl_lsp_core::refactor::if_to_switch(source, start_off, &reg, &line_index, config),
     );
     push(
         "switch_to_dict",
-        tcl_lsp_core::refactor::switch_to_dict(source, start_off, &reg, &line_index),
+        tcl_lsp_core::refactor::switch_to_dict(source, start_off, &reg, &line_index, config),
     );
     push(
         "brace_expr",
-        tcl_lsp_core::refactor::brace_expr(source, start_off, &reg),
+        tcl_lsp_core::refactor::brace_expr(source, start_off, &reg, config),
     );
     push(
         "extract_datagroup",
-        tcl_lsp_core::refactor::extract_to_datagroup(source, start_off, "", &reg, &line_index),
+        tcl_lsp_core::refactor::extract_to_datagroup(
+            source,
+            start_off,
+            "",
+            &reg,
+            &line_index,
+            config,
+        ),
     );
     json!({ "total": available.len(), "available": available })
 }

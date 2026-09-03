@@ -57,7 +57,7 @@ use crate::rendered_properties::{RenderedProperties, RenderedValueProps};
 use crate::sccp::cfg_order;
 use crate::ssa::{SsaFunction, ValueKey};
 use crate::taint::{TaintColour, TaintLattice};
-use crate::value_shapes::{is_pure_var_ref, parse_command_substitution};
+use crate::value_shapes::{is_pure_var_ref, parse_command_substitution_with_config};
 
 /// A W201 diagnostic emitted by [`find_path_concat_warnings`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -179,6 +179,7 @@ pub fn find_path_concat_warnings<S1, S2, S3>(
     rendered_props: &HashMap<ValueKey, RenderedValueProps, S1>,
     taints: &HashMap<ValueKey, TaintLattice, S2>,
     executable_blocks: &HashSet<BlockId, S3>,
+    config: tcl_lexer::LexerConfig,
 ) -> Vec<PathConcatWarning>
 where
     S1: std::hash::BuildHasher,
@@ -220,7 +221,7 @@ where
             if is_pure_var_ref(trimmed) {
                 continue;
             }
-            if parse_command_substitution(trimmed).is_some() {
+            if parse_command_substitution_with_config(trimmed, config).is_some() {
                 continue;
             }
             // A URL scheme separator (`://`) marks a URL, not a filesystem
@@ -344,6 +345,7 @@ mod tests {
             &fu.rendered_props,
             &fu.taints,
             &fu.sccp.executable_blocks,
+            tcl_lexer::LexerConfig::for_profile(registry().profile()),
         )
     }
 

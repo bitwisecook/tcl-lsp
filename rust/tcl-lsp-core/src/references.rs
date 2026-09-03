@@ -1175,8 +1175,12 @@ fn ensemble_subcommand_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         include_declaration,
         ..
     } = *ctx;
-    let (head, sub, is_dollar) =
-        crate::definition::instance_method_at_cursor(source, line, character)?;
+    let (head, sub, is_dollar) = crate::definition::instance_method_at_cursor(
+        source,
+        line,
+        character,
+        tcl_lexer::LexerConfig::for_profile(Some(ctx.dialect)),
+    )?;
     if is_dollar {
         return None;
     }
@@ -1214,8 +1218,12 @@ fn instance_method_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         include_declaration,
         ..
     } = *ctx;
-    let (inst, method, is_dollar) =
-        crate::definition::instance_method_at_cursor(source, line, character)?;
+    let (inst, method, is_dollar) = crate::definition::instance_method_at_cursor(
+        source,
+        line,
+        character,
+        tcl_lexer::LexerConfig::for_profile(Some(ctx.dialect)),
+    )?;
     // Three receiver spellings reach an instance method, and all must be
     // recognised here — `definition.rs` and `hover.rs` already handle them.
     // `$obj m` names an instance *variable* whose class is known; `my m` /
@@ -1231,7 +1239,10 @@ fn instance_method_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         match crate::definition::receiver_instance_class_at(analysis, &inst, is_dollar, cursor) {
             Some(class_q) => (class_q.clone(), true),
             None if crate::definition::is_self_dispatch_keyword(&inst)
-                || crate::definition::is_self_receiver_call(&inst) =>
+                || crate::definition::is_self_receiver_call(
+                    &inst,
+                    tcl_lexer::LexerConfig::for_profile(Some(ctx.dialect)),
+                ) =>
             {
                 (
                     crate::definition::enclosing_class_at(analysis, cursor)?.to_owned(),
@@ -1293,8 +1304,12 @@ fn classmethod_call_site_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         include_declaration,
         ..
     } = *ctx;
-    let (inst, method, is_dollar) =
-        crate::definition::instance_method_at_cursor(source, line, character)?;
+    let (inst, method, is_dollar) = crate::definition::instance_method_at_cursor(
+        source,
+        line,
+        character,
+        tcl_lexer::LexerConfig::for_profile(Some(ctx.dialect)),
+    )?;
     if is_dollar {
         return None;
     }
@@ -2301,10 +2316,12 @@ fn scan_my_method_region(
                     ctx.dialect,
                     &source[h_start..h_end],
                 ) == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
-                    || cmd
-                        .texts
-                        .first()
-                        .is_some_and(|t| crate::definition::is_self_receiver_call(t)));
+                    || cmd.texts.first().is_some_and(|t| {
+                        crate::definition::is_self_receiver_call(
+                            t,
+                            tcl_lexer::LexerConfig::for_profile(Some(ctx.dialect)),
+                        )
+                    }));
             if head_is_self_dispatch {
                 let n_start = name_tok.span.start() as usize;
                 let n_end = name_tok.span.end() as usize;
@@ -2678,8 +2695,10 @@ fn command_prefix_target_in_region(
 /// Whether a command-substitution word is exactly the registry-declared
 /// current `TclOO` receiver form valid on a method frame's command path.
 fn exact_self_receiver_call(ctx: MyMethodScan<'_>, receiver: &str) -> bool {
-    let Some((written, args)) = tcl_compiler::value_shapes::parse_command_substitution(receiver)
-    else {
+    let Some((written, args)) = tcl_compiler::value_shapes::parse_command_substitution_with_config(
+        receiver,
+        tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar),
+    ) else {
         return false;
     };
     // A rooted spelling bypasses a method frame's command path. Reject it
@@ -4154,7 +4173,13 @@ fn case_list_clause_body_regions(
     let (Some(text), Some(tok)) = (cmd.texts.get(i + 1), cmd.argv.get(i + 1).copied()) else {
         return Some(Vec::new());
     };
-    let clauses = tcl_compiler::segmenter::flatten_case_list_clauses(source, text, tok, case_list);
+    let clauses = tcl_compiler::segmenter::flatten_case_list_clauses(
+        source,
+        text,
+        tok,
+        case_list,
+        tcl_lexer::LexerConfig::for_profile(Some(profile)),
+    );
     let mut out = Vec::new();
     for (_, (body_text, body_tok)) in clauses {
         if body_text != "-" {

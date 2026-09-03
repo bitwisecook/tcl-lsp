@@ -2328,7 +2328,7 @@ fn collect_expr_reads(
     let Some((inner, base)) = inner_of(source, expr_tok) else {
         return;
     };
-    let Ok(tokens) = tcl_lexer::Lexer::new(inner).tokenise_all() else {
+    let Ok(tokens) = tcl_lexer::Lexer::with_config(inner, lexer_config).tokenise_all() else {
         return;
     };
     for tok in tokens {

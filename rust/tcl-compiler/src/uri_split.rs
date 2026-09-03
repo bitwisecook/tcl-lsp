@@ -52,7 +52,7 @@ use crate::ir::Statement;
 use crate::naming::normalise_var_name;
 use crate::ssa::{Phi, SsaFunction, SsaStatement, Symbol, ValueKey, Version};
 use crate::taint::{TaintWarning, is_irules_dialect};
-use crate::value_shapes::{is_pure_var_ref, parse_command_substitution};
+use crate::value_shapes::{is_pure_var_ref, parse_command_substitution_with_config};
 
 /// Maximum depth for backward SSA tracing (prevents infinite loops on
 /// pathological phi chains).
@@ -143,13 +143,17 @@ struct TraceCtx<'a> {
     families: &'a UriFamilies,
     def_sites: &'a HashMap<ValueKey, (BlockId, usize)>,
     phi_index: &'a HashMap<ValueKey, Phi>,
+    /// The document's own lexing configuration, resolved from the
+    /// dialect profile at the entry point and used for every re-read of
+    /// command-substitution text below.
+    config: tcl_lexer::LexerConfig,
 }
 
 // Tcl quoting helper
 
 /// Strip surrounding Tcl quoting (double-quotes or braces) from a word.
 ///
-/// `parse_command_substitution` uses naive whitespace splitting, so
+/// `parse_command_substitution_with_config` uses naive whitespace splitting, so
 /// arguments arrive with their outer quoting intact.
 fn strip_tcl_quotes(arg: &str) -> &str {
     let stripped = arg.trim();
@@ -357,7 +361,9 @@ fn trace_to_uri_family(
         }
         Statement::AssignValue { value, .. } => {
             let value = value.trim();
-            if let Some((cmd_name, cmd_args)) = parse_command_substitution(value) {
+            if let Some((cmd_name, cmd_args)) =
+                parse_command_substitution_with_config(value, ctx.config)
+            {
                 if is_uri_getter(ctx.families, &cmd_name, &cmd_args) {
                     return Some(cmd_name);
                 }
@@ -408,7 +414,7 @@ fn arg_traces_to_uri_family(
 
     if input_arg.starts_with('[')
         && input_arg.ends_with(']')
-        && let Some((cmd, args)) = parse_command_substitution(input_arg)
+        && let Some((cmd, args)) = parse_command_substitution_with_config(input_arg, ctx.config)
         && is_uri_getter(ctx.families, &cmd, &args)
     {
         return Some(cmd);
@@ -597,7 +603,7 @@ fn expr_traces_to_uri(
 ) -> Option<String> {
     match node {
         ExprNode::Command { text, .. } => {
-            let (cmd, args) = parse_command_substitution(text)?;
+            let (cmd, args) = parse_command_substitution_with_config(text, ctx.config)?;
             if is_uri_getter(ctx.families, &cmd, &args) {
                 Some(cmd)
             } else {
@@ -683,7 +689,7 @@ fn check_expr_command(
     ssa_versions: &HashMap<Symbol, Version>,
     ctx: TraceCtx<'_>,
 ) -> Option<ExprHit> {
-    let (cmd_name, cmd_args) = parse_command_substitution(text)?;
+    let (cmd_name, cmd_args) = parse_command_substitution_with_config(text, ctx.config)?;
 
     if is_string_cmd(&cmd_name) && !cmd_args.is_empty() {
         let sub = cmd_args[0].as_str();
@@ -792,6 +798,7 @@ fn extract_split_info<S: std::hash::BuildHasher>(
     ssa_stmt: &SsaStatement,
     sccp_values: Option<&HashMap<ValueKey, LatticeValue, S>>,
     ssa: &SsaFunction,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<(String, Option<String>)> {
     match stmt {
         Statement::Call { command, args, .. } if is_split_cmd(command) => {
@@ -803,7 +810,7 @@ fn extract_split_info<S: std::hash::BuildHasher>(
         }
         Statement::AssignValue { value, .. } => {
             let value = value.trim();
-            let (cmd, args) = parse_command_substitution(value)?;
+            let (cmd, args) = parse_command_substitution_with_config(value, config)?;
             if !is_split_cmd(&cmd) {
                 return None;
             }
@@ -824,6 +831,7 @@ fn extract_string_match_info<S: std::hash::BuildHasher>(
     ssa_stmt: &SsaStatement,
     sccp_values: Option<&HashMap<ValueKey, LatticeValue, S>>,
     ssa: &SsaFunction,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<(&'static str, Option<String>, String)> {
     fn from_args<S: std::hash::BuildHasher>(
         cmd: &str,
@@ -873,7 +881,7 @@ fn extract_string_match_info<S: std::hash::BuildHasher>(
         }
         Statement::AssignValue { value, .. } => {
             let value = value.trim();
-            let (cmd, args) = parse_command_substitution(value)?;
+            let (cmd, args) = parse_command_substitution_with_config(value, config)?;
             from_args(&cmd, &args, &ssa_stmt.uses, sccp_values, ssa)
         }
         _ => None,
@@ -895,7 +903,8 @@ fn check_statement<S: std::hash::BuildHasher>(
     let stmt_span = stmt.span();
 
     // 1. split detection.
-    if let Some((input_arg, Some(sep))) = extract_split_info(stmt, ssa_stmt, sccp_values, ctx.ssa)
+    if let Some((input_arg, Some(sep))) =
+        extract_split_info(stmt, ssa_stmt, sccp_values, ctx.ssa, ctx.config)
         && sep.chars().any(|c| QUERY_CHARS.contains(&c))
         && let Some(uri_cmd) = arg_traces_to_uri_family(&input_arg, ssa_stmt, ctx)
     {
@@ -913,7 +922,7 @@ fn check_statement<S: std::hash::BuildHasher>(
 
     // 2. string match / string first.
     if let Some((sub_cmd, Some(pattern), input_arg)) =
-        extract_string_match_info(stmt, ssa_stmt, sccp_values, ctx.ssa)
+        extract_string_match_info(stmt, ssa_stmt, sccp_values, ctx.ssa, ctx.config)
         && let Some(uri_cmd) = arg_traces_to_uri_family(&input_arg, ssa_stmt, ctx)
     {
         if sub_cmd == "string match" {
@@ -1003,7 +1012,7 @@ pub fn find_uri_split_suggestions<S, B>(
     sccp_values: Option<&HashMap<ValueKey, LatticeValue, S>>,
     executable_blocks: &HashSet<BlockId, B>,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Vec<TaintWarning>
 where
     S: std::hash::BuildHasher,
@@ -1025,6 +1034,7 @@ where
         families: &families,
         def_sites: &def_sites,
         phi_index: &phi_index,
+        config: tcl_lexer::LexerConfig::for_profile(dialect),
     };
 
     let mut warnings: Vec<TaintWarning> = Vec::new();
@@ -1103,6 +1113,7 @@ mod tests {
             families: &families,
             def_sites: &def_sites,
             phi_index: &phi_index,
+            config: tcl_lexer::LexerConfig::default(),
         };
         let uses: HashMap<Symbol, u32> = HashMap::new();
         let mut node = ExprNode::Var {
@@ -1123,7 +1134,7 @@ mod tests {
 
     fn warnings_for_dialect(
         source: &str,
-        dialect: Option<&tcl_dialect::DialectProfile>,
+        dialect: Option<&'static tcl_dialect::DialectProfile>,
     ) -> Vec<TaintWarning> {
         let r = registry();
         let cu = CompilationUnit::build_for(source, &r, false);
@@ -1395,6 +1406,40 @@ set m [string match "/api/*" $uri]"#,
         );
         assert_eq!(ws.len(), 1, "got {ws:?}");
         assert!(ws[0].message.contains("HTTP::path"));
+    }
+
+    /// Regression (dialect-blind `parse_command_substitution` shim removal):
+    /// the `[…]` value of a `set` is re-read here, and that re-read must use
+    /// the *document's* grammar, not the plain-Tcl default.
+    ///
+    /// Under the iRules grammar a word that started with `{` ends at its
+    /// closing brace and the next character begins a new word, so
+    /// `{/api/*}{x}` is **two** words: the `string match` pattern is
+    /// `{/api/*}` and the *input* word is the literal `{x}` — nothing traces
+    /// back to `HTTP::uri`, so no IRULE3103 is due. Read under the default
+    /// grammar it is one word, `$uri` lands in the input position, and the
+    /// check reports a suggestion the document never justifies.
+    #[test]
+    fn string_match_assignment_reads_words_under_the_document_grammar() {
+        let ws = warnings_for(
+            r"set uri [HTTP::uri]
+set m [string match {/api/*}{x} $uri]",
+        );
+        assert!(
+            ws.is_empty(),
+            "the `}}{{` word break leaves `$uri` out of the input position, got {ws:?}"
+        );
+        // Control: the same call with a single pattern word does fire, so the
+        // silence above is the word split, not a dead check.
+        let control = warnings_for(
+            r"set uri [HTTP::uri]
+set m [string match {/api/*} $uri]",
+        );
+        assert_eq!(
+            control.len(),
+            1,
+            "control expected one IRULE3103, got {control:?}"
+        );
     }
 
     #[test]

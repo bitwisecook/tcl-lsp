@@ -71,9 +71,9 @@ pub use inline_proc::{inline_proc, inline_proc_in_program};
 pub use inline_variable::inline_variable;
 pub use switch_to_dict::switch_to_dict;
 
-use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset};
+use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_dialect::BracedVarStyle;
-use tcl_lexer::{LineIndex, Token, TokenType};
+use tcl_lexer::{LexerConfig, LineIndex, Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 use tcl_syntax::switch_body::parse_braced_pairs;
 
@@ -308,17 +308,22 @@ pub fn command_span_offsets(source: &str, cmd: &SegmentedCommand) -> (u32, u32) 
 /// first word equals `name` is returned.
 ///
 /// Body words are re-segmented at their absolute offset
-/// ([`segment_commands_with_offset`]) so the returned command's spans
-/// are always in the outer source buffer's offset space — the caller can
-/// slice `source` with them directly.
+/// ([`segment_commands_with_offset_and_config`]) so the returned command's
+/// spans are always in the outer source buffer's offset space — the caller
+/// can slice `source` with them directly.
+///
+/// `config` is the document's [`LexerConfig`] — every re-segmentation this
+/// walk performs, at any nesting depth, lexes under it rather than the
+/// default grammar.
 #[must_use]
 pub fn find_command_at(
     source: &str,
     cursor: u32,
     predicate: Option<&str>,
     registry: &CommandRegistry,
+    config: LexerConfig,
 ) -> Option<SegmentedCommand> {
-    find_command_at_inner(source, cursor, predicate, registry, 0)
+    find_command_at_inner(source, cursor, predicate, registry, config, 0)
 }
 
 /// Recursively walk every command in `source`, including those nested inside
@@ -326,45 +331,65 @@ pub fn find_command_at(
 /// bodies, …). Returns `(texts, line, character)` per command — `texts` is the
 /// command's words (name first), `(line, character)` is the 0-based
 /// (UTF-16-counted) position of its start.
+///
+/// `config` is the document's [`LexerConfig`], threaded into every
+/// re-segmentation the walk performs.
 #[must_use]
-pub fn walk_commands(source: &str, registry: &CommandRegistry) -> Vec<(Vec<String>, u32, u32)> {
+pub fn walk_commands(
+    source: &str,
+    registry: &CommandRegistry,
+    config: LexerConfig,
+) -> Vec<(Vec<String>, u32, u32)> {
     let line_index = LineIndex::new(source);
     let mut out = Vec::new();
-    walk_commands_inner(source, source, 0, registry, &line_index, 0, &mut out);
+    walk_commands_inner(
+        &WalkCtx {
+            full: source,
+            registry,
+            config,
+            line_index: &line_index,
+        },
+        source,
+        0,
+        0,
+        &mut out,
+    );
     out
 }
 
+/// What a nested-command walk carries unchanged through its recursion:
+/// the whole document, the registry that classifies body words, the
+/// document's lexer config and its line index.
+struct WalkCtx<'a> {
+    full: &'a str,
+    registry: &'a CommandRegistry,
+    config: LexerConfig,
+    line_index: &'a LineIndex,
+}
+
 fn walk_commands_inner(
-    full: &str,
+    ctx: &WalkCtx<'_>,
     slice: &str,
     offset: u32,
-    registry: &CommandRegistry,
-    line_index: &LineIndex,
     depth: u32,
     out: &mut Vec<(Vec<String>, u32, u32)>,
 ) {
     if MAX_COMMAND_SEARCH_DEPTH.exceeded(depth) {
         return;
     }
-    for cmd in segment_commands_with_offset(slice, offset) {
-        let pos = line_index.position_at_utf16(cmd.span.start(), full);
+    for cmd in segment_commands_with_offset_and_config(slice, offset, ctx.config) {
+        let pos = ctx.line_index.position_at_utf16(cmd.span.start(), ctx.full);
         out.push((cmd.texts.clone(), pos.line, pos.character.get()));
         // Spans here are absolute into `full` (the segmenter was given
         // `offset`), so the lambda splitter reads from `full` too.
-        for body in body_words(full, &cmd, registry) {
-            let Some(body_slice) = full.get(body.inner_start as usize..body.inner_end as usize)
+        for body in body_words(ctx.full, &cmd, ctx.registry) {
+            let Some(body_slice) = ctx
+                .full
+                .get(body.inner_start as usize..body.inner_end as usize)
             else {
                 continue;
             };
-            walk_commands_inner(
-                full,
-                body_slice,
-                body.inner_start,
-                registry,
-                line_index,
-                depth + 1,
-                out,
-            );
+            walk_commands_inner(ctx, body_slice, body.inner_start, depth + 1, out);
         }
     }
 }
@@ -381,12 +406,13 @@ fn find_command_at_inner(
     cursor: u32,
     predicate: Option<&str>,
     registry: &CommandRegistry,
+    config: LexerConfig,
     depth: u32,
 ) -> Option<SegmentedCommand> {
     if MAX_COMMAND_SEARCH_DEPTH.exceeded(depth) {
         return None;
     }
-    for cmd in segment_commands_with_offset(source, 0) {
+    for cmd in segment_commands_with_offset_and_config(source, 0, config) {
         let (cmd_start, cmd_end) = command_span_offsets(source, &cmd);
         if cursor < cmd_start || cursor > cmd_end {
             continue;
@@ -398,6 +424,7 @@ fn find_command_at_inner(
                 cursor.saturating_sub(body.inner_start),
                 predicate,
                 registry,
+                config,
                 depth + 1,
             ) {
                 // Relocate the inner command's spans back into `source`.
@@ -628,7 +655,8 @@ mod tests {
         let src = "proc handler {m} {\n    if {$m eq \"GET\"} { go }\n}";
         // Cursor on the inner `if` (line 1).
         let cursor = u32::try_from(src.find("if {").unwrap()).unwrap() + 1;
-        let cmd = find_command_at(src, cursor, Some("if"), &reg).expect("inner if");
+        let cmd = find_command_at(src, cursor, Some("if"), &reg, LexerConfig::default())
+            .expect("inner if");
         assert_eq!(cmd.name(), "if");
         // The returned span is in the outer buffer's offsets.
         let (s, _e) = command_span_offsets(src, &cmd);
@@ -649,7 +677,8 @@ mod tests {
         let src = "proc handler {} {\n    apply {{m} {\n        if {$m eq \"GET\"} {\n            puts get\n        } elseif {$m eq \"POST\"} {\n            puts post\n        } else {\n            puts other\n        }\n    }} $x\n}\n";
         // Cursor on the `if` inside the lambda body.
         let cursor = u32::try_from(src.find("if {$m").unwrap()).unwrap() + 1;
-        let cmd = find_command_at(src, cursor, Some("if"), &reg).expect("if inside apply lambda");
+        let cmd = find_command_at(src, cursor, Some("if"), &reg, LexerConfig::default())
+            .expect("if inside apply lambda");
         assert_eq!(cmd.name(), "if");
         // The returned span is in the outer buffer's offsets.
         let (start, _end) = command_span_offsets(src, &cmd);
@@ -670,7 +699,7 @@ mod tests {
         // Cursor on the `if` *parameter name* in the argument list.
         let cursor = u32::try_from(src.find("{if}").unwrap()).unwrap() + 1;
         assert!(
-            find_command_at(src, cursor, Some("if"), &reg).is_none(),
+            find_command_at(src, cursor, Some("if"), &reg, LexerConfig::default()).is_none(),
             "a parameter word named `if` is not an `if` command"
         );
     }

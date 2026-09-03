@@ -54,7 +54,8 @@ use super::ctx::ScanCtx;
 use super::handlers;
 use super::types::SignatureCommandInvocation;
 use crate::segmenter::{
-    SegmentedCommand, segment_commands_with_offset, segment_commands_with_recovery,
+    SegmentedCommand, segment_commands_with_offset_and_config,
+    segment_commands_with_recovery_and_config,
 };
 
 /// Walk *source* as a Tcl script, emitting records for every command
@@ -76,10 +77,10 @@ pub(super) fn scan(
     ctx: &mut ScanCtx,
 ) {
     let commands = match body_token {
-        None => segment_commands_with_recovery(source, known_commands),
+        None => segment_commands_with_recovery_and_config(source, known_commands, ctx.config),
         Some(tok) => {
             let base = tok.span.start() + u32::from(tok.content_offset);
-            segment_commands_with_offset(source, base)
+            segment_commands_with_offset_and_config(source, base, ctx.config)
         }
     };
     for cmd in commands {
@@ -528,7 +529,7 @@ pub(super) fn scan_factory_candidates(
     ctx: &mut ScanCtx,
 ) {
     let base = body_tok.span.start() + u32::from(body_tok.content_offset);
-    let commands = segment_commands_with_offset(body_text, base);
+    let commands = segment_commands_with_offset_and_config(body_text, base, ctx.config);
     for cmd in commands {
         if cmd.is_partial || cmd.argv.is_empty() {
             continue;

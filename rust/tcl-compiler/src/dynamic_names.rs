@@ -426,7 +426,7 @@ fn pattern_matches(pattern: &[NamePiece], candidate: &str) -> bool {
 ///
 /// `registry_for_dialect` / `registry_for_profile` stamp the dialect profile
 /// on the registry, and that profile's `grammar` is the very field
-/// [`LexerConfig::for_dialect`] reads, so the two cannot drift.  A
+/// [`LexerConfig::for_profile`] reads, so the two cannot drift.  A
 /// hand-assembled registry carries no profile and answers the default
 /// (Tcl-8.5+) config, which is what a caller with no dialect view had anyway.
 /// A caller that already holds the document's own config (the compile
@@ -434,11 +434,7 @@ fn pattern_matches(pattern: &[NamePiece], candidate: &str) -> bool {
 /// pass that instead.
 #[must_use]
 pub fn lexer_config_for(registry: &CommandRegistry) -> LexerConfig {
-    registry
-        .profile()
-        .map_or_else(LexerConfig::default, |profile| {
-            LexerConfig::from_grammar(profile.grammar)
-        })
+    LexerConfig::for_profile(registry.profile())
 }
 
 /// Compute the [`DynamicNameBarrier`] for `cfg`.
@@ -606,7 +602,7 @@ fn scan_text(
         *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
         return;
     }
-    for inner in crate::var_refs::command_subst_texts(text) {
+    for inner in crate::var_refs::command_subst_texts_with_config(text, config) {
         scan_script_text(&inner, registry, barrier, depth + 1, config);
     }
 }

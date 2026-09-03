@@ -18,7 +18,7 @@
 
 //! Convert an `if`/`elseif` equality chain to a `switch` statement.
 
-use tcl_lexer::LineIndex;
+use tcl_lexer::{LexerConfig, LineIndex};
 use tcl_registry::CommandRegistry;
 
 use super::{RefactorEdit, Refactoring, find_command_at, reindent_body};
@@ -151,14 +151,18 @@ fn render_switch_pattern(value: &str) -> String {
 }
 
 /// Convert an `if`/`elseif` chain at byte offset `cursor` to a `switch`.
+///
+/// `config` is the document's [`LexerConfig`], threaded into the command
+/// search's re-segmentation.
 #[must_use]
 pub fn if_to_switch(
     source: &str,
     cursor: u32,
     registry: &CommandRegistry,
     line_index: &LineIndex,
+    config: LexerConfig,
 ) -> Option<Refactoring> {
-    let cmd = find_command_at(source, cursor, Some("if"), registry)?;
+    let cmd = find_command_at(source, cursor, Some("if"), registry, config)?;
     let texts = &cmd.texts;
     if texts.len() < 3 {
         return None;
@@ -272,7 +276,7 @@ mod tests {
     fn run(source: &str, cursor: u32) -> Option<Refactoring> {
         let reg = super::super::test_registry();
         let li = LineIndex::new(source);
-        if_to_switch(source, cursor, &reg, &li)
+        if_to_switch(source, cursor, &reg, &li, LexerConfig::default())
     }
 
     #[test]

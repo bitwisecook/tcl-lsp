@@ -29,12 +29,35 @@ source.
 
 ### Grammar facts
 
-`CodegenCtx` also carries the target release's *grammar facts*, each threaded
-from `IrModule::dialect`: `numbers` (`NumberSyntax`), `escapes`
-(`EscapeSyntax`), `braced_var` (`BracedVarStyle`), and the `expr` half of the
-same fact for re-parsed expression text. They exist because codegen decodes
-text — literal words, normalised word spellings, expression source — and the
-grammar that text obeys is release-dependent.
+`CodegenCtx` carries **one** `LexerGrammar` (`expr_grammar`), resolved once
+in `codegen_module` from the unit's dialect name through
+`grammar_of_dialect_name`, and every grammar fact it reads — `numbers`
+(`NumberSyntax`), `escapes` (`EscapeSyntax`), `braced_var`
+(`BracedVarStyle`), `word_rules` (`WordValueRules`), and the grammar
+`parse_compile_expr` re-parses expression text under — is a field of that one
+value. They exist because codegen decodes text — literal words, normalised
+word spellings, expression source — and the grammar that text obeys is
+dialect-dependent. That they are one value is the invariant: before it, a
+named compile emitted numerals under a grammar resolved from the name and
+re-parsed `expr` under the profile's, and for `tk` the two disagreed about
+`010` inside a single compile. See `dialect-profile-model.md` §2.5 for how
+the name reaches codegen and why it is the document's own.
+
+**Scope, stated deliberately.** The grammar codegen *decodes under* is the
+document's resolved dialect today — a JimTcl unit's literals, escapes and
+word splitting are read as Jim wrote them. What codegen *emits*, and what the
+bytecode VM and `runtime/rust` execute, is **Tcl 9 semantics only**: the
+projected profile a non-Tcl dialect resolves to carries
+`vm_runtime_version = V9_0`; Jim's `$(…)` lowers to the same `AssignExpr`
+a bracketed `expr` does in `set` and `return` (so the emitted bytecode is
+Tcl 9's expression evaluation of the body) and stays an opaque dynamic word
+elsewhere; and Jim's own list, dict and `expr` semantics are not modelled
+by any pass. That is the intended state,
+not an omission: the backends target Tcl 9, and dialect-aware emission and
+execution is an **eventual** — the readiness requirement met now is that
+codegen consumes only the point-derived grammar and profile, never a dialect
+name or a per-consumer table, so a future dialect-keyed backend has one value
+to key on and nothing to unpick.
 
 `braced_var` resolves where a `${…}` variable name ends: `Tcl_ParseVarName`
 took the *first* close brace through 8.6 and balances nested braces from 9.0.

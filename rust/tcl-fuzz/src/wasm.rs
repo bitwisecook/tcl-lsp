@@ -76,7 +76,12 @@ fn compile_to_wasm(src: &str) -> Result<Vec<u8>, String> {
     let src = src.to_owned();
     let result = std::panic::catch_unwind(move || {
         let registry = CommandRegistry::build_default();
-        let unit = CompilationUnit::build_for(&src, &registry, false);
+        let unit = CompilationUnit::build_for_with_config(
+            &src,
+            &registry,
+            false,
+            tcl_lexer::LexerConfig::for_profile(registry.profile()),
+        );
         compile_wasm(
             &unit,
             &registry,

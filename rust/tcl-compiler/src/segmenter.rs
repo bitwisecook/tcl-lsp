@@ -278,6 +278,9 @@ pub fn word_piece(sm: &SourceMap<'_>, tok: Token) -> String {
             }
         }
         TokenType::Cmd => format!("[{text}]"),
+        // `JimTcl`'s `$(…)`: the token text is the expression body, so the
+        // logical word keeps the sugar around it rather than losing it.
+        TokenType::ExprSugar => format!("$({text})"),
         _ => text.to_owned(),
     }
 }
@@ -349,6 +352,8 @@ pub fn segment_commands(source: &str) -> Vec<SegmentedCommand> {
 /// consumers see absolute offsets into the outer source buffer.
 #[must_use]
 pub fn segment_commands_with_offset(source: &str, base_offset: u32) -> Vec<SegmentedCommand> {
+    // dialect-drift-ok: the dialect-blind entry point; a caller holding the
+    // document's config uses `segment_commands_with_offset_and_config`.
     segment_commands_with_offset_and_config(source, base_offset, LexerConfig::default())
 }
 
@@ -481,11 +486,18 @@ pub fn body_text_in_region<'t>(
 /// `source` is the document `body_tok`'s span indexes into; the split runs
 /// over [`contiguous_prefix`] of `body_text` so the rebased element spans are
 /// truthful even for a compound `{…}x` clause-list word (issue #1325).
+///
+/// The representative token kind each element is given comes from re-lexing
+/// that element's text, so it must be read under the grammar the document was
+/// lexed with — an iRules `}{`, a Jim `$(…)` or an 8.4 `{*}` classify
+/// differently otherwise, which is why `config` is required rather than
+/// defaulted.
 #[must_use]
-pub fn flatten_clause_list_elements(
+pub fn flatten_clause_list_elements_with_config(
     source: &str,
     body_text: &str,
     body_tok: Token,
+    config: LexerConfig,
 ) -> Vec<(String, Token)> {
     if body_tok.kind != TokenType::Str {
         return Vec::new();
@@ -521,7 +533,7 @@ pub fn flatten_clause_list_elements(
             // one already-located element merely preserves the representative
             // token kind (`$var`, `[command]`, or bare text) that consumers
             // use for semantic classification.
-            Lexer::new(raw)
+            Lexer::with_config(raw, config)
                 .tokenise_all()
                 .ok()
                 .and_then(|tokens| {
@@ -558,8 +570,9 @@ pub fn flatten_case_list_clauses(
     text: &str,
     tok: Token,
     case: &tcl_registry::CaseListSpec,
+    config: LexerConfig,
 ) -> Vec<((String, Token), (String, Token))> {
-    let elements = flatten_clause_list_elements(source, text, tok);
+    let elements = flatten_clause_list_elements_with_config(source, text, tok, config);
     let shape = tcl_syntax::case_list::CaseListShape {
         clause_flags: case.clause_flags,
         clause_value_flags: case.clause_value_flags,
@@ -619,12 +632,13 @@ pub fn segment_commands_incremental(
     old_text: &str,
     old_commands: &[SegmentedCommand],
     new_text: &str,
+    config: tcl_lexer::LexerConfig,
 ) -> Vec<SegmentedCommand> {
     if old_text == new_text {
         return old_commands.to_vec();
     }
     if old_commands.is_empty() {
-        return segment_commands(new_text);
+        return segment_commands_with_offset_and_config(new_text, 0, config);
     }
     let prefix = common_prefix_len(old_text, new_text);
     // `lo` = start of the last old command beginning at or before the
@@ -640,7 +654,11 @@ pub fn segment_commands_incremental(
         .filter(|c| c.span.start() < lo)
         .cloned()
         .collect();
-    out.extend(segment_commands_with_offset(&new_text[lo as usize..], lo));
+    out.extend(segment_commands_with_offset_and_config(
+        &new_text[lo as usize..],
+        lo,
+        config,
+    ));
     out
 }
 
@@ -684,6 +702,8 @@ pub fn segment_commands_with_recovery<S>(
 where
     S: std::hash::BuildHasher,
 {
+    // dialect-drift-ok: the dialect-blind entry point; a caller holding the
+    // document's config uses `segment_commands_with_recovery_and_config`.
     segment_commands_with_recovery_and_config(source, known_commands, LexerConfig::default())
 }
 
@@ -1065,7 +1085,12 @@ mod tests {
                 1,
             );
 
-            let elements = flatten_clause_list_elements(&source, body, token);
+            let elements = flatten_clause_list_elements_with_config(
+                &source,
+                body,
+                token,
+                LexerConfig::default(),
+            );
             assert_eq!(
                 elements
                     .iter()
@@ -1099,7 +1124,8 @@ mod tests {
             1,
         );
 
-        let elements = flatten_clause_list_elements(source, body, token);
+        let elements =
+            flatten_clause_list_elements_with_config(source, body, token, LexerConfig::default());
         assert_eq!(
             elements
                 .iter()
@@ -1159,7 +1185,8 @@ mod tests {
             projected(&segment_commands_incremental(
                 old,
                 &segment_commands(old),
-                new
+                new,
+                tcl_lexer::LexerConfig::default()
             )),
             projected(&segment_commands(new)),
         );
@@ -1169,7 +1196,8 @@ mod tests {
             projected(&segment_commands_incremental(
                 old,
                 &segment_commands(old),
-                new2
+                new2,
+                tcl_lexer::LexerConfig::default()
             )),
             projected(&segment_commands(new2)),
         );
@@ -1179,7 +1207,8 @@ mod tests {
             projected(&segment_commands_incremental(
                 old,
                 &segment_commands(old),
-                new3
+                new3,
+                tcl_lexer::LexerConfig::default()
             )),
             projected(&segment_commands(new3)),
         );
@@ -1189,7 +1218,8 @@ mod tests {
             projected(&segment_commands_incremental(
                 old,
                 &segment_commands(old),
-                new4
+                new4,
+                tcl_lexer::LexerConfig::default()
             )),
             projected(&segment_commands(new4)),
         );
@@ -1231,7 +1261,12 @@ mod tests {
                 }
                 let ins = inserts[(rng.next_u32() as usize) % inserts.len()];
                 let new = format!("{}{}{}", &base[..s], ins, &base[e..]);
-                let inc = segment_commands_incremental(base, &old_cmds, &new);
+                let inc = segment_commands_incremental(
+                    base,
+                    &old_cmds,
+                    &new,
+                    tcl_lexer::LexerConfig::default(),
+                );
                 let full = segment_commands(&new);
                 assert_eq!(
                     projected(&inc),

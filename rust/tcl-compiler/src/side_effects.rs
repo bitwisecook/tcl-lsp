@@ -638,7 +638,7 @@ pub fn classify_side_effects(
     registry: &CommandRegistry,
     command: &str,
     args: &[String],
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     callee_summary: Option<&CalleeSummary>,
 ) -> CommandSideEffects {
     if let Some(summary) = callee_summary {
@@ -827,7 +827,7 @@ pub fn classify_side_effects(
 /// [`CommandSideEffects`].
 fn classify_from_callee_summary(
     summary: &CalleeSummary,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> CommandSideEffects {
     let reads = summary.effect_reads;
     let writes = summary.effect_writes;
@@ -883,7 +883,7 @@ fn classify_variable_assignment(
     args: &[String],
     idx: usize,
     traits: Traits,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> CommandSideEffects {
     let varname = &args[idx];
     let (scope, ns) = scope_from_varname(varname);
@@ -1024,7 +1024,7 @@ fn lift_registry_side(s: RegistryConnectionSide) -> ConnectionSide {
 /// stay at their defaults.
 fn lift_registry_effect(
     e: RegistrySideEffect,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> SideEffect {
     let mut effect = SideEffect::new(lift_registry_target(e.target), e.reads, e.writes);
     effect.connection_side = lift_registry_side(e.connection_side);
@@ -1045,7 +1045,7 @@ fn dialect_side_effect_hints(
     registry: &CommandRegistry,
     command: &str,
     subcommand: Option<&str>,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Option<Vec<SideEffect>> {
     let generation = dialect.map(crate::environment_ingress::context_for_profile);
     let hints = tcl_registry::model::side_effect_hints_in_context(
@@ -1064,7 +1064,9 @@ fn dialect_side_effect_hints(
     )
 }
 
-fn fallback_unknown_write(dialect: Option<&tcl_dialect::DialectProfile>) -> CommandSideEffects {
+fn fallback_unknown_write(
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+) -> CommandSideEffects {
     CommandSideEffects {
         effects: vec![SideEffect::new(SideEffectTarget::Unknown, true, true)],
         dialect: dialect.map(|profile| profile.name.to_owned()),

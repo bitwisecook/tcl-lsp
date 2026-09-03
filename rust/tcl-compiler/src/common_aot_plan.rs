@@ -663,7 +663,11 @@ fn function_units(unit: &CompilationUnit) -> impl Iterator<Item = (&str, &Functi
     )
 }
 
-fn call_sites<'a>(caller: &str, function: &'a FunctionUnit) -> Vec<CallCandidate<'a>> {
+fn call_sites<'a>(
+    caller: &str,
+    function: &'a FunctionUnit,
+    lexer_config: tcl_lexer::LexerConfig,
+) -> Vec<CallCandidate<'a>> {
     let mut out = Vec::new();
     for (block, cfg_block) in &function.cfg.blocks {
         let Some(ssa_block) = function.ssa.blocks.get(block) else {
@@ -699,7 +703,10 @@ fn call_sites<'a>(caller: &str, function: &'a FunctionUnit) -> Vec<CallCandidate
             });
             for (argument_index, argument) in args.iter().enumerate() {
                 if let Some((nested, nested_args)) =
-                    crate::value_shapes::parse_command_substitution(argument)
+                    crate::value_shapes::parse_command_substitution_with_config(
+                        argument,
+                        lexer_config,
+                    )
                 {
                     out.push(CallCandidate {
                         id: DirectCallSiteId {
@@ -752,7 +759,11 @@ fn collect_direct_calls(
     let mut propagated: HashMap<(String, usize), Option<TypeLattice>> = HashMap::new();
     for (caller_name, function) in function_units(unit) {
         let bindings = analyse_command_binding(&function.cfg, registry, &[]);
-        for site in call_sites(caller_name, function) {
+        for site in call_sites(
+            caller_name,
+            function,
+            tcl_lexer::LexerConfig::for_profile(registry.profile()),
+        ) {
             let binding =
                 bindings.binding_at(site.block, site.statement_index as usize, &site.command);
             let resolved =
@@ -844,7 +855,11 @@ fn collect_semantic_calls(
     let mut decisions = BTreeMap::new();
     for (caller, function) in function_units(unit) {
         let bindings = analyse_command_binding(&function.cfg, registry, &[]);
-        for site in call_sites(caller, function) {
+        for site in call_sites(
+            caller,
+            function,
+            tcl_lexer::LexerConfig::for_profile(registry.profile()),
+        ) {
             if site.id.nested_argument.is_some() {
                 continue;
             }
@@ -918,7 +933,12 @@ fn semantic_call_decision(input: &SemanticCallInputs<'_>) -> SemanticCallDecisio
     let mut arguments = Vec::with_capacity(input.site.args.len());
     for (index, argument) in input.site.args.iter().enumerate() {
         let outer_argument = u32::try_from(index).unwrap_or(u32::MAX);
-        if crate::value_shapes::parse_command_substitution(argument).is_some() {
+        if crate::value_shapes::parse_command_substitution_with_config(
+            argument,
+            tcl_lexer::LexerConfig::for_profile(input.registry.profile()),
+        )
+        .is_some()
+        {
             let nested = DirectCallSiteId {
                 function: input.site.id.function.clone(),
                 block: input.site.block,
@@ -1231,9 +1251,16 @@ fn direct_decision(input: &DirectInputs<'_>) -> DirectProcDecision {
     {
         return decline(DirectProcDecline::ExceptionalControlFlow);
     }
-    let Ok(formals) =
-        crate::signature_scan::params::parse_param_list_strict(&input.proc_def.params_raw)
-    else {
+    // The lowered module's own dialect — the same `Module::dialect` the
+    // interval pass reads below — so the formals divide the way this unit's
+    // runtime divides them.
+    let word_rules = tcl_syntax::word_rules::WordValueRules::of_dialect_name(
+        input.unit.ir_module.dialect.as_deref(),
+    );
+    let Ok(formals) = crate::signature_scan::params::parse_param_list_strict(
+        &input.proc_def.params_raw,
+        word_rules,
+    ) else {
         return decline(DirectProcDecline::InvalidFormalList);
     };
     if formals.last().is_some_and(|formal| formal.name == "args") {

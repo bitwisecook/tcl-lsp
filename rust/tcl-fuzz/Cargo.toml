@@ -54,6 +54,8 @@ serde_json = { version = "1", features = ["preserve_order"] }
 tcl-bytecode = { path = "../tcl-bytecode" }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-registry = { path = "../tcl-registry" }
+# The document lexing configuration threaded into the lowering entry point.
+tcl-lexer = { path = "../tcl-lexer" }
 tcl-vm = { path = "../tcl-vm" }
 # The ordered Tcl release enum, for recording (and comparing) which release
 # each engine in a differential pair emulates — see `src/version.rs` and

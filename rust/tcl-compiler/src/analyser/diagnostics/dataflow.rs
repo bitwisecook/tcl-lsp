@@ -963,7 +963,7 @@ file; this call falls through to the 'unknown' handler."
             // as used and skip W214.  Saves the W214 over-emit on
             // ``proc f {x} { return [expr {$x + 1}] }``-style bodies.
             if let Some(body_source) = ir_proc.body_source.as_deref()
-                && body_references_param(body_source, param)
+                && body_references_param(body_source, param, self.lexer_config())
             {
                 continue;
             }
@@ -1497,7 +1497,7 @@ file; this call falls through to the 'unknown' handler."
                 reads.extend(scanner.scan_word(v, registry));
             }
             if let Some(e) = expr {
-                reads.extend(crate::var_refs::vars_in_expr(e));
+                reads.extend(crate::var_refs::vars_in_expr(e, self.grammar()));
             }
 
             for name in reads {
@@ -1615,6 +1615,7 @@ file; this call falls through to the 'unknown' handler."
         use crate::ir::Statement;
         use std::fmt::Write as _;
 
+        let config = self.lexer_config();
         // var name -> (def_block, def_stmt_idx); idx == -1 means "from the
         // start of the block" (the embedded-condition no-match target).
         let mut provably_unset: std::collections::HashMap<String, (crate::cfg::BlockId, i32)> =
@@ -1670,6 +1671,7 @@ file; this call falls through to the 'unknown' handler."
                     *true_target,
                     *false_target,
                     &mut provably_unset,
+                    config,
                 );
             }
         }
@@ -1739,6 +1741,7 @@ file; this call falls through to the 'unknown' handler."
         true_target: crate::cfg::BlockId,
         false_target: crate::cfg::BlockId,
         provably_unset: &mut std::collections::HashMap<String, (crate::cfg::BlockId, i32)>,
+        config: tcl_lexer::LexerConfig,
     ) {
         let (cmd_node, no_match_target) = match condition {
             ExprNode::Command { .. } => (condition, false_target),
@@ -1758,7 +1761,7 @@ file; this call falls through to the 'unknown' handler."
             .strip_prefix('[')
             .and_then(|s| s.strip_suffix(']'))
             .unwrap_or(text);
-        let segs = crate::segmenter::segment_commands(inner);
+        let segs = crate::segmenter::segment_commands_with_offset_and_config(inner, 0, config);
         let Some(seg) = segs.first() else {
             return;
         };
@@ -2159,6 +2162,7 @@ file; this call falls through to the 'unknown' handler."
             // this dialect says it means (`0755` is 493 up to 8.6, 755 from
             // 9.0), and this process analyses documents of several dialects.
             crate::intervals::numbers_for_dialect(Some(self.profile)),
+            self.grammar(),
         ) {
             let span = fu.abs_span(finding.span);
             if span.is_empty() {
@@ -2208,6 +2212,7 @@ file; this call falls through to the 'unknown' handler."
             // The document's own numeral grammar, alongside the character model
             // — both dialect-derived facts, both threaded rather than ambient.
             crate::intervals::numbers_for_dialect(Some(self.profile)),
+            self.grammar(),
         );
         for f in findings {
             if f.span.is_empty() {
@@ -2647,7 +2652,13 @@ fn barrier_body_locally_sets(
         .arg_indices_for_role(command, &arg_strs, tcl_registry::ArgRole::Body)
         .into_iter()
         .filter_map(|idx| args.get(idx))
-        .flat_map(|body_text| crate::segmenter::segment_commands(body_text))
+        .flat_map(|body_text| {
+            crate::segmenter::segment_commands_with_offset_and_config(
+                body_text,
+                0,
+                tcl_lexer::LexerConfig::for_profile(registry.profile()),
+            )
+        })
         .filter(|seg| seg.texts.first().map(String::as_str) == Some("set"))
         .filter_map(|seg| {
             seg.texts
@@ -2905,15 +2916,15 @@ fn skip_options(args: &[String], value_opts: &[&str]) -> usize {
 /// runs in the *namespace* frame, not the caller's — does **not** falsely
 /// recover a read of the caller's parameter.  Other bodies (`eval`, `if`,
 /// loops) run in the caller frame, so their `$param` reads still count.
-pub(super) fn body_references_param(body: &str, param: &str) -> bool {
+pub(super) fn body_references_param(
+    body: &str,
+    param: &str,
+    config: tcl_lexer::LexerConfig,
+) -> bool {
     if param.is_empty() {
         return false;
     }
-    let cmds = crate::segmenter::segment_commands_with_offset_and_config(
-        body,
-        0,
-        tcl_lexer::LexerConfig::default(),
-    );
+    let cmds = crate::segmenter::segment_commands_with_offset_and_config(body, 0, config);
     for cmd in &cmds {
         // `namespace eval NS BODY` — the trailing body word evaluates in NS's
         // frame, so exclude it; the NS-name word (e.g. `namespace eval $x …`)

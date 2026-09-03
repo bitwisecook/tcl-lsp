@@ -248,7 +248,7 @@ pub fn defs_from_expr(expr: &ExprNode, registry: &CommandRegistry) -> Vec<String
             .and_then(|s| s.strip_suffix(']'))
             .unwrap_or(cmd_text);
 
-        let words = tokenise_to_words(text);
+        let words = tokenise_to_words(text, registry);
         let Some((cmd_word, arg_words)) = words.split_first() else {
             continue;
         };
@@ -284,14 +284,13 @@ pub fn defs_from_expr(expr: &ExprNode, registry: &CommandRegistry) -> Vec<String
 /// Scans the body text for commands with `ArgRole::VarWrite` arguments
 /// (e.g. `set x 1` inside a `catch` body).
 ///
-/// Split under the default grammar: no dialect config reaches this
-/// expression-level harvest, and its result is suppress-only (it can only
-/// silence a read-before-set warning, never assert one).  The
-/// soundness-carrying consumer of the same splitter — the dynamic-name
-/// barrier — passes the document's config instead (issue #1393).
+/// Split under the **document's** grammar, taken from the dialect-selected
+/// registry's own profile (the route [`crate::dynamic_names::lexer_config_for`]
+/// takes): a second, differently-configured tokenisation would disagree with
+/// the IR about which argument sits in a variable-name position.
 fn defs_from_body_script(body_text: &str, registry: &CommandRegistry) -> Vec<String> {
     let mut defs = Vec::new();
-    for words in tokenise_command_words(body_text, LexerConfig::default()) {
+    for words in tokenise_command_words(body_text, LexerConfig::for_profile(registry.profile())) {
         let Some((cmd_word, arg_words)) = words.split_first() else {
             continue;
         };
@@ -330,7 +329,7 @@ pub(crate) fn condition_command_out_vars(
             .strip_prefix('[')
             .and_then(|s| s.strip_suffix(']'))
             .unwrap_or(trimmed);
-        cmd_substitution_out_vars(&tokenise_to_words(inner), registry, &mut out, 0);
+        cmd_substitution_out_vars(&tokenise_to_words(inner, registry), registry, &mut out, 0);
     }
     out
 }
@@ -460,8 +459,9 @@ fn script_text_out_vars_at(
     out: &mut Vec<String>,
     depth: u32,
 ) {
-    // Suppress-only and dialect-config-free, as `defs_from_body_script` is.
-    for words in tokenise_command_words(body, LexerConfig::default()) {
+    // The document's grammar, from the registry's profile — as
+    // `defs_from_body_script` does.
+    for words in tokenise_command_words(body, LexerConfig::for_profile(registry.profile())) {
         cmd_substitution_out_vars(&words, registry, out, depth + 1);
     }
 }
@@ -560,13 +560,11 @@ fn collect_expr_commands_at(expr: &ExprNode, out: &mut Vec<String>, depth: u32) 
 
 /// Tokenise source text into a flat list of words (single command).
 ///
-/// Dialect-blind on purpose: the callers are expression-level harvests
-/// (`[cmd …]` text lifted out of an `ExprNode`) whose facts are
-/// suppress-only, and no dialect config reaches them.  The
-/// soundness-carrying caller — the dynamic-name barrier — passes the
-/// document's own config to [`tokenise_command_words`] instead.
-fn tokenise_to_words(source: &str) -> Vec<CommandWord> {
-    tokenise_command_words(source, LexerConfig::default())
+/// Split under the document's grammar, taken from the dialect-selected
+/// `registry`'s own profile — the same route [`defs_from_body_script`] uses,
+/// so one document is tokenised one way whichever harvest asks.
+fn tokenise_to_words(source: &str, registry: &CommandRegistry) -> Vec<CommandWord> {
+    tokenise_command_words(source, LexerConfig::for_profile(registry.profile()))
         .into_iter()
         .next()
         .unwrap_or_default()
@@ -844,7 +842,7 @@ mod tests {
 
     #[test]
     fn tokenise_simple_command() {
-        let words = tokenise_to_words("set x 1");
+        let words = tokenise_to_words("set x 1", &CommandRegistry::build_default());
         let texts: Vec<&str> = words.iter().map(|w| w.text.as_str()).collect();
         assert_eq!(texts, vec!["set", "x", "1"]);
         assert!(words.iter().all(|w| !w.substituted));
@@ -852,7 +850,7 @@ mod tests {
 
     #[test]
     fn tokenise_keeps_both_spellings_and_the_substitution_flag() {
-        let words = tokenise_to_words("set $x {a $b}");
+        let words = tokenise_to_words("set $x {a $b}", &CommandRegistry::build_default());
         let texts: Vec<&str> = words.iter().map(|w| w.text.as_str()).collect();
         let raws: Vec<&str> = words.iter().map(|w| w.raw.as_str()).collect();
         // The reconstructed text canonicalises the substitution to its braced

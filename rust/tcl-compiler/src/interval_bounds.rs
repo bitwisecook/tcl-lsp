@@ -45,7 +45,7 @@ use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::intervals::{Interval, build_guard_index, compute_intervals_with, refine_interval};
 use crate::ir::Statement;
-use crate::segmenter::segment_commands;
+use crate::segmenter::segment_commands_with_offset_and_config;
 use crate::ssa::{Phi, SsaFunction, Symbol, ValueKey, Version};
 
 /// `(name, version) → Phi` index over every block, for length resolution
@@ -234,16 +234,16 @@ fn plain_var_name(arg: &str) -> Option<String> {
 }
 
 /// Element count of a static Tcl list literal, or `None` if not literal.
-fn literal_list_length(text: &str) -> Option<i64> {
+fn literal_list_length(text: &str, rules: tcl_syntax::word_rules::WordValueRules) -> Option<i64> {
     if text.contains('$') || text.contains('[') {
         return None;
     }
-    i64::try_from(crate::tcl_expr_eval::split_tcl_list(text).len()).ok()
+    i64::try_from(crate::tcl_expr_eval::split_tcl_list(text, rules).len()).ok()
 }
 
 /// If a value word is exactly `[list a b c]` with no substitution / expansion,
 /// its element count, else `None`.
-fn list_command_length(value: &str) -> Option<i64> {
+fn list_command_length(value: &str, grammar: tcl_dialect::LexerGrammar) -> Option<i64> {
     let inner = value.trim().strip_prefix('[')?.strip_suffix(']')?;
     // `{*}` argument expansion makes the element count unknown at this layer:
     // the segmenter strips the `{*}` prefix, so `[list {*}{a b}]` looks like a
@@ -252,7 +252,11 @@ fn list_command_length(value: &str) -> Option<i64> {
     if inner.contains("{*}") {
         return None;
     }
-    let cmds = segment_commands(inner);
+    let cmds = segment_commands_with_offset_and_config(
+        inner,
+        0,
+        tcl_lexer::LexerConfig::from_grammar(grammar),
+    );
     let cmd = cmds.first()?;
     if cmds.len() != 1 || cmd.name() != "list" {
         return None;
@@ -265,13 +269,17 @@ fn list_command_length(value: &str) -> Option<i64> {
 }
 
 /// Length of list-valued SSA versions established from literal-list assignments.
-fn list_length_map(ssa: &SsaFunction) -> HashMap<ValueKey, i64> {
+fn list_length_map(
+    ssa: &SsaFunction,
+    grammar: tcl_dialect::LexerGrammar,
+) -> HashMap<ValueKey, i64> {
+    let rules = tcl_syntax::word_rules::WordValueRules::from_grammar(&grammar);
     let mut lengths = HashMap::new();
     for sb in ssa.blocks.values() {
         for s in &sb.statements {
             let n = match &s.statement {
-                Statement::AssignConst { value, .. } => literal_list_length(value),
-                Statement::AssignValue { value, .. } => list_command_length(value),
+                Statement::AssignConst { value, .. } => literal_list_length(value, rules),
+                Statement::AssignValue { value, .. } => list_command_length(value, grammar),
                 _ => None,
             };
             if let Some(n) = n {
@@ -366,10 +374,14 @@ fn classify(index: Interval, length: i64, is_lset: bool) -> Option<&'static str>
 
 /// If `text` is exactly `[lindex …]` / `[string index …]`, its candidate; else
 /// `None`.  `lset` is excluded (its first arg is a var *name*).
-fn parse_index_sub(text: &str) -> Option<Candidate> {
+fn parse_index_sub(text: &str, grammar: tcl_dialect::LexerGrammar) -> Option<Candidate> {
     let s = text.trim();
     let inner = s.strip_prefix('[')?.strip_suffix(']')?;
-    let cmds = segment_commands(inner);
+    let cmds = segment_commands_with_offset_and_config(
+        inner,
+        0,
+        tcl_lexer::LexerConfig::from_grammar(grammar),
+    );
     let cmd = cmds.first()?;
     let args = cmd.args();
     match cmd.name() {
@@ -392,11 +404,11 @@ fn parse_index_sub(text: &str) -> Option<Candidate> {
 /// Index accesses embedded as `[…]` command substitutions inside an expression,
 /// restricted to *guaranteed-to-evaluate* positions (short-circuit operands and
 /// non-selected ternary arms are skipped).
-fn index_subs_in_expr(expr: &ExprNode) -> Vec<Candidate> {
+fn index_subs_in_expr(expr: &ExprNode, grammar: tcl_dialect::LexerGrammar) -> Vec<Candidate> {
     let mut out = Vec::new();
     walk_eager(expr, &mut |e| {
         if let ExprNode::Command { text, .. } = e
-            && let Some(c) = parse_index_sub(text)
+            && let Some(c) = parse_index_sub(text, grammar)
         {
             out.push(c);
         }
@@ -498,7 +510,7 @@ fn walk_eager_at(expr: &ExprNode, visit: &mut impl FnMut(&ExprNode), depth: u32)
 }
 
 /// All index accesses a statement performs.
-fn statement_candidates(stmt: &Statement) -> Vec<Candidate> {
+fn statement_candidates(stmt: &Statement, grammar: tcl_dialect::LexerGrammar) -> Vec<Candidate> {
     let mut out = Vec::new();
     match stmt {
         Statement::Call { command, args, .. } => {
@@ -518,25 +530,25 @@ fn statement_candidates(stmt: &Statement) -> Vec<Candidate> {
                 });
             }
             for a in args {
-                if let Some(c) = parse_index_sub(a) {
+                if let Some(c) = parse_index_sub(a, grammar) {
                     out.push(c);
                 }
             }
         }
         Statement::AssignValue { value, .. } => {
-            if let Some(c) = parse_index_sub(value) {
+            if let Some(c) = parse_index_sub(value, grammar) {
                 out.push(c);
             }
         }
         Statement::Barrier { args, .. } => {
             for a in args {
-                if let Some(c) = parse_index_sub(a) {
+                if let Some(c) = parse_index_sub(a, grammar) {
                     out.push(c);
                 }
             }
         }
         Statement::AssignExpr { expr, .. } | Statement::ExprEval { expr, .. } => {
-            out.extend(index_subs_in_expr(expr));
+            out.extend(index_subs_in_expr(expr, grammar));
         }
         _ => {}
     }
@@ -544,16 +556,16 @@ fn statement_candidates(stmt: &Statement) -> Vec<Candidate> {
         expr: Some(expr), ..
     } = stmt
     {
-        out.extend(index_subs_in_expr(expr));
+        out.extend(index_subs_in_expr(expr, grammar));
     }
     out
 }
 
 /// Cheap pre-scan: any index access with a plain `$var` index?
-fn has_candidate(cfg: &CfgFunction, ssa: &SsaFunction) -> bool {
+fn has_candidate(cfg: &CfgFunction, ssa: &SsaFunction, grammar: tcl_dialect::LexerGrammar) -> bool {
     for sb in ssa.blocks.values() {
         for s in &sb.statements {
-            for c in statement_candidates(&s.statement) {
+            for c in statement_candidates(&s.statement, grammar) {
                 if plain_var_name(&c.index_arg).is_some() {
                     return true;
                 }
@@ -565,16 +577,16 @@ fn has_candidate(cfg: &CfgFunction, ssa: &SsaFunction) -> bool {
         match &block.terminator {
             Some(Terminator::Return { value, expr, .. }) => {
                 if let Some(v) = value
-                    && let Some(c) = parse_index_sub(v)
+                    && let Some(c) = parse_index_sub(v, grammar)
                 {
                     cands.push(c);
                 }
                 if let Some(e) = expr {
-                    cands.extend(index_subs_in_expr(e));
+                    cands.extend(index_subs_in_expr(e, grammar));
                 }
             }
             Some(Terminator::Branch { condition, .. }) => {
-                cands.extend(index_subs_in_expr(condition));
+                cands.extend(index_subs_in_expr(condition, grammar));
             }
             _ => {}
         }
@@ -592,28 +604,6 @@ fn has_candidate(cfg: &CfgFunction, ssa: &SsaFunction) -> bool {
 /// passes the document's own grammar — see
 /// [`crate::intervals::compute_intervals`] for why `Tcl90` is the fallback and
 /// what it costs on an 8.x target.
-#[must_use]
-pub fn find_interval_bounds<S1, S2>(
-    cfg: &CfgFunction,
-    ssa: &SsaFunction,
-    values: &HashMap<ValueKey, LatticeValue, S1>,
-    executable: &std::collections::HashSet<BlockId, S2>,
-    characters: Option<StringCharacterModel>,
-) -> Vec<BoundsFinding>
-where
-    S1: std::hash::BuildHasher,
-    S2: std::hash::BuildHasher,
-{
-    find_interval_bounds_with(
-        cfg,
-        ssa,
-        values,
-        executable,
-        characters,
-        NumberSyntax::default(),
-    )
-}
-
 /// Dynamic out-of-range findings for this function (empty if none).
 /// `executable` restricts to SCCP-reachable blocks.
 ///
@@ -630,12 +620,13 @@ pub fn find_interval_bounds_with<S1, S2>(
     executable: &std::collections::HashSet<BlockId, S2>,
     characters: Option<StringCharacterModel>,
     numbers: NumberSyntax,
+    grammar: tcl_dialect::LexerGrammar,
 ) -> Vec<BoundsFinding>
 where
     S1: std::hash::BuildHasher,
     S2: std::hash::BuildHasher,
 {
-    if !has_candidate(cfg, ssa) {
+    if !has_candidate(cfg, ssa, grammar) {
         return Vec::new();
     }
     let ctx = BoundsCtx {
@@ -643,13 +634,14 @@ where
         ssa,
         numbers,
         intervals: compute_intervals_with(cfg, ssa, values, numbers),
-        guard_index: build_guard_index(cfg, ssa),
+        guard_index: build_guard_index(cfg, ssa, grammar),
         pred_counts: cfg
             .predecessors()
             .into_iter()
             .map(|(bid, preds)| (bid, preds.len()))
             .collect(),
-        lengths: list_length_map(ssa),
+        lengths: list_length_map(ssa, grammar),
+        grammar,
         str_lengths: string_length_map(ssa, characters),
         phi_index: ssa
             .blocks
@@ -673,7 +665,7 @@ where
         let bn = *bid;
         for (idx, s) in sb.statements.iter().enumerate() {
             let span = statement_span(&s.statement);
-            for cand in statement_candidates(&s.statement) {
+            for cand in statement_candidates(&s.statement, grammar) {
                 if let Some(span) = span {
                     let site = CandidateSite {
                         bn,
@@ -715,6 +707,10 @@ struct BoundsCtx<'a> {
     str_lengths: HashMap<ValueKey, i64>,
     phi_index: PhiIndex<'a>,
     defs: DefIndex<'a>,
+    /// The document dialect's lexer grammar — how a literal list word divides
+    /// and where a `[…]` substitution's word boundaries fall, so a length
+    /// proof matches the document's own parser.
+    grammar: tcl_dialect::LexerGrammar,
 }
 
 /// The single index-access call site `process` evaluates: the versions
@@ -753,7 +749,10 @@ impl BoundsCtx<'_> {
             );
         }
         // A *value* arg: literal list, or `$l`.
-        if let Some(lit) = literal_list_length(&cand.list_arg) {
+        if let Some(lit) = literal_list_length(
+            &cand.list_arg,
+            tcl_syntax::word_rules::WordValueRules::from_grammar(&self.grammar),
+        ) {
             return Some(lit);
         }
         let list_name = plain_var_name(&cand.list_arg)?;
@@ -858,12 +857,12 @@ impl BoundsCtx<'_> {
             }) => {
                 let Some(span) = span else { return };
                 if let Some(v) = value
-                    && let Some(cand) = parse_index_sub(v)
+                    && let Some(cand) = parse_index_sub(v, self.grammar)
                 {
                     self.process(&cand, &exit_site(*span), findings);
                 }
                 if let Some(e) = expr {
-                    for cand in index_subs_in_expr(e) {
+                    for cand in index_subs_in_expr(e, self.grammar) {
                         self.process(&cand, &exit_site(*span), findings);
                     }
                 }
@@ -872,7 +871,7 @@ impl BoundsCtx<'_> {
                 condition, span, ..
             }) => {
                 let Some(span) = span else { return };
-                for cand in index_subs_in_expr(condition) {
+                for cand in index_subs_in_expr(condition, self.grammar) {
                     self.process(&cand, &exit_site(*span), findings);
                 }
             }
@@ -972,20 +971,6 @@ fn has_division(cfg: &CfgFunction, ssa: &SsaFunction) -> bool {
 /// thread a dialect yet (`tcl-explorer`'s divide-by-zero view). Every in-crate
 /// caller passes the document's own grammar — see
 /// [`crate::intervals::compute_intervals`] for why `Tcl90` is the fallback.
-#[must_use]
-pub fn find_divide_by_zero<S1, S2>(
-    cfg: &CfgFunction,
-    ssa: &SsaFunction,
-    values: &HashMap<ValueKey, LatticeValue, S1>,
-    executable: &std::collections::HashSet<BlockId, S2>,
-) -> Vec<DivZeroFinding>
-where
-    S1: std::hash::BuildHasher,
-    S2: std::hash::BuildHasher,
-{
-    find_divide_by_zero_with(cfg, ssa, values, executable, NumberSyntax::default())
-}
-
 /// Divisions / modulo whose divisor is provably `[0, 0]` (a runtime error).
 ///
 /// Sound: the divisor's interval (guard-narrowed at the use site) must be
@@ -1002,6 +987,7 @@ pub fn find_divide_by_zero_with<S1, S2>(
     values: &HashMap<ValueKey, LatticeValue, S1>,
     executable: &std::collections::HashSet<BlockId, S2>,
     numbers: NumberSyntax,
+    grammar: tcl_dialect::LexerGrammar,
 ) -> Vec<DivZeroFinding>
 where
     S1: std::hash::BuildHasher,
@@ -1011,7 +997,7 @@ where
         return Vec::new();
     }
     let intervals = compute_intervals_with(cfg, ssa, values, numbers);
-    let guard_index = build_guard_index(cfg, ssa);
+    let guard_index = build_guard_index(cfg, ssa, grammar);
     let pred_counts: HashMap<BlockId, usize> = cfg
         .predecessors()
         .into_iter()
@@ -1147,11 +1133,13 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let cu = CompilationUnit::build_for(src, &registry, false);
         let fu = &cu.top_level;
-        super::find_divide_by_zero(
+        super::find_divide_by_zero_with(
             &fu.cfg,
             &fu.ssa,
             &fu.sccp.values,
             &fu.sccp.executable_blocks,
+            tcl_dialect::NumberSyntax::default(),
+            tcl_dialect::LexerGrammar::default(),
         )
         .iter()
         .map(|d| d.op)

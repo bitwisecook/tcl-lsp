@@ -20,6 +20,7 @@
 //! `expr $a + $b` to the braced `expr {$a + $b}` form for safety and
 //! performance.
 
+use tcl_lexer::LexerConfig;
 use tcl_registry::CommandRegistry;
 
 use super::{RefactorEdit, Refactoring, find_command_at, token_end_offset};
@@ -28,9 +29,17 @@ use crate::code_actions::ActionKind;
 /// Convert the `expr` command at `cursor` to braced form, or `None` when the
 /// cursor is not on an `expr` command, the expr has no arguments, or it is
 /// already braced.
+///
+/// `config` is the document's [`LexerConfig`] — the command search re-lexes
+/// nested bodies under it.
 #[must_use]
-pub fn brace_expr(source: &str, cursor: u32, registry: &CommandRegistry) -> Option<Refactoring> {
-    let cmd = find_command_at(source, cursor, Some("expr"), registry)?;
+pub fn brace_expr(
+    source: &str,
+    cursor: u32,
+    registry: &CommandRegistry,
+    config: LexerConfig,
+) -> Option<Refactoring> {
+    let cmd = find_command_at(source, cursor, Some("expr"), registry, config)?;
 
     // Need at least the command word plus one argument.
     if cmd.argv.len() < 2 {
@@ -99,7 +108,7 @@ mod tests {
     fn braces_a_quoted_expr() {
         let src = "expr \"$a + $b\"\n";
         let cursor = offset(src, 0, 0);
-        let r = brace_expr(src, cursor, &reg()).expect("expr at cursor");
+        let r = brace_expr(src, cursor, &reg(), LexerConfig::default()).expect("expr at cursor");
         assert_eq!(r.title, "Brace expr for safety and performance");
         assert_eq!(r.apply(src), "expr {$a + $b}\n");
         assert_eq!(r.edits.len(), 1);
@@ -108,7 +117,8 @@ mod tests {
     #[test]
     fn braces_a_bare_expr() {
         let src = "expr $a + $b\n";
-        let r = brace_expr(src, offset(src, 0, 0), &reg()).expect("expr at cursor");
+        let r = brace_expr(src, offset(src, 0, 0), &reg(), LexerConfig::default())
+            .expect("expr at cursor");
         assert_eq!(r.apply(src), "expr {$a + $b}\n");
     }
 
@@ -118,19 +128,20 @@ mod tests {
         // quoted expression. It must be braced whole, not quote-unwrapped into
         // the invalid `{1" + "2}` (issue 180).
         let src = "expr \"1\" + \"2\"\n";
-        let r = brace_expr(src, offset(src, 0, 0), &reg()).expect("expr at cursor");
+        let r = brace_expr(src, offset(src, 0, 0), &reg(), LexerConfig::default())
+            .expect("expr at cursor");
         assert_eq!(r.apply(src), "expr {\"1\" + \"2\"}\n");
     }
 
     #[test]
     fn already_braced_is_none() {
         let src = "expr {$a + $b}\n";
-        assert!(brace_expr(src, offset(src, 0, 0), &reg()).is_none());
+        assert!(brace_expr(src, offset(src, 0, 0), &reg(), LexerConfig::default()).is_none());
     }
 
     #[test]
     fn off_target_is_none() {
         let src = "set x 5\n";
-        assert!(brace_expr(src, offset(src, 0, 0), &reg()).is_none());
+        assert!(brace_expr(src, offset(src, 0, 0), &reg(), LexerConfig::default()).is_none());
     }
 }

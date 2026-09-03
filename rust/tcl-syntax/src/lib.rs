@@ -64,3 +64,4 @@ pub mod switch_body;
 pub mod value;
 pub mod var_conformance;
 pub mod vector_ops;
+pub mod word_rules;

@@ -645,7 +645,11 @@ fn registry_barrier_defs(
             .filter(|(idx, word)| {
                 loop_var_list_word_is_static(tokens.and_then(|t| t.words().get(idx + 1)), word)
             })
-            .filter_map(|(_, word)| tcl_syntax::list::split_list(word).ok())
+            .filter_map(|(_, word)| {
+                tcl_syntax::word_rules::WordValueRules::of_profile(reg.profile())
+                    .split_list(word)
+                    .ok()
+            })
             .flatten()
             .map(std::borrow::Cow::into_owned)
             .filter(|name| !name.is_empty())
@@ -733,14 +737,17 @@ pub fn defs_of_with_registry(stmt: &Statement, registry: Option<&CommandRegistry
                 // `{one name}`, `"two name"`, and `three\ name` each define
                 // one variable.  A malformed var-list makes the command fail
                 // before its body runs, so it contributes no reaching defs.
-                return tcl_syntax::list::split_list(&args[0])
-                    .map(|names| {
-                        names
-                            .into_iter()
-                            .map(std::borrow::Cow::into_owned)
-                            .collect()
-                    })
-                    .unwrap_or_default();
+                return tcl_syntax::word_rules::WordValueRules::of_profile(
+                    registry.and_then(tcl_registry::CommandRegistry::profile),
+                )
+                .split_list(&args[0])
+                .map(|names| {
+                    names
+                        .into_iter()
+                        .map(std::borrow::Cow::into_owned)
+                        .collect()
+                })
+                .unwrap_or_default();
             }
             if let Some(reg) = registry {
                 let defs = registry_barrier_defs(reg, command, args, tokens.as_ref());
@@ -1110,6 +1117,7 @@ pub(crate) type ArrayElems = FxHashMap<String, BTreeSet<String>>;
 
 /// Collect every constant-keyed array element defined or read in `func`.
 fn collect_array_elems(func: &cfg::Function, registry: &CommandRegistry) -> ArrayElems {
+    let grammar = registry_grammar(registry);
     let mut scanner = VarReferenceScanner::new(VarScanOptions {
         include_var_read_roles: true,
         recurse_cmd_substitutions: true,
@@ -1136,7 +1144,7 @@ fn collect_array_elems(func: &cfg::Function, registry: &CommandRegistry) -> Arra
         }
         match &block.terminator {
             Some(cfg::Terminator::Branch { condition, .. }) => {
-                for u in condition.vars_element_qualified() {
+                for u in condition.vars_element_qualified_with_grammar(grammar) {
                     note(&u, &mut elems);
                 }
             }
@@ -1147,7 +1155,7 @@ fn collect_array_elems(func: &cfg::Function, registry: &CommandRegistry) -> Arra
                     }
                 }
                 if let Some(e) = expr {
-                    for u in e.vars_element_qualified() {
+                    for u in e.vars_element_qualified_with_grammar(grammar) {
                         note(&u, &mut elems);
                     }
                 }
@@ -1236,6 +1244,7 @@ fn nonlocal_names_and_defsites(
         include_reads_before_write: false,
         element_qualified: true,
     });
+    let grammar = registry_grammar(registry);
     let mut nonlocal_names: FxHashSet<String> = FxHashSet::default();
     let mut defsites: FxHashMap<String, FxHashSet<BlockId>> = FxHashMap::default();
 
@@ -1268,14 +1277,14 @@ fn nonlocal_names_and_defsites(
         let mut term_uses: Vec<String> = Vec::new();
         match &block.terminator {
             Some(cfg::Terminator::Branch { condition, .. }) => {
-                term_uses.extend(condition.vars_element_qualified());
+                term_uses.extend(condition.vars_element_qualified_with_grammar(grammar));
             }
             Some(cfg::Terminator::Return { value, expr, .. }) => {
                 if let Some(v) = value {
                     term_uses.extend(scanner.scan_word(v, registry));
                 }
                 if let Some(e) = expr {
-                    term_uses.extend(e.vars_element_qualified());
+                    term_uses.extend(e.vars_element_qualified_with_grammar(grammar));
                 }
             }
             _ => {}
@@ -1479,7 +1488,9 @@ pub fn uses_of_classified(
 
     match stmt {
         Statement::ExprEval { expr, .. } => {
-            found.substituted.extend(expr_vars_for(scanner, expr));
+            found
+                .substituted
+                .extend(expr_vars_for(scanner, expr, registry_grammar(registry)));
         }
 
         Statement::AssignConst { .. }
@@ -1518,7 +1529,9 @@ pub fn uses_of_classified(
                 sink.extend(scanner.scan_word(v, registry));
             }
             if let Some(e) = expr {
-                found.substituted.extend(expr_vars_for(scanner, e));
+                found
+                    .substituted
+                    .extend(expr_vars_for(scanner, e, registry_grammar(registry)));
             }
         }
 
@@ -1686,15 +1699,23 @@ fn set_value_reads(
     registry: &CommandRegistry,
 ) -> BTreeSet<String> {
     let trimmed = value.trim();
+    // The registry carries the environment's profile: the `[expr …]` interior
+    // is re-lexed, and its expression parsed, under the document's grammar.
+    let profile = registry.profile();
     if let Some(inner) = trimmed.strip_prefix('[').and_then(|s| s.strip_suffix(']'))
-        && let Some((expr_arg, _)) =
-            crate::lowering_hooks::extract_single_expr_arg(inner, &HashSet::new())
+        && let Some((expr_arg, _)) = crate::lowering_hooks::extract_single_expr_arg_with_config(
+            inner,
+            &HashSet::new(),
+            tcl_lexer::LexerConfig::for_profile(profile),
+        )
     {
-        let expr = crate::parse_expr(&expr_arg, None);
+        let expr = crate::parse_expr_for_profile(&expr_arg, profile);
         return if scanner.element_qualified() {
-            expr.vars_element_qualified().into_iter().collect()
+            expr.vars_element_qualified_with_grammar(registry_grammar(registry))
+                .into_iter()
+                .collect()
         } else {
-            vars_in_expr(&expr)
+            vars_in_expr(&expr, registry_grammar(registry))
         };
     }
     scanner.scan_word(value, registry)
@@ -1816,7 +1837,7 @@ fn uses_in_assignment(
             expr,
             ..
         } => {
-            vars_found.extend(expr_vars_for(scanner, expr));
+            vars_found.extend(expr_vars_for(scanner, expr, registry_grammar(registry)));
             if is_dynamic_write_target(name, *name_braced) {
                 vars_found.extend(scanner.scan_word(name, registry));
             } else {
@@ -1859,16 +1880,27 @@ fn uses_in_assignment(
     }
 }
 
+/// The document's lexer grammar, read off the registry's own resolved
+/// profile — the expression AST's `Raw` fallback text is re-lexed under it.
+fn registry_grammar(registry: &CommandRegistry) -> tcl_dialect::LexerGrammar {
+    registry
+        .profile()
+        .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar)
+}
+
 /// The expression-AST variable reads, named per the scanner's qualification
 /// mode — element-qualified for the SSA build, base names otherwise.
 fn expr_vars_for(
     scanner: &VarReferenceScanner,
     expr: &crate::expr_ast::ExprNode,
+    grammar: tcl_dialect::LexerGrammar,
 ) -> BTreeSet<String> {
     if scanner.element_qualified() {
-        expr.vars_element_qualified().into_iter().collect()
+        expr.vars_element_qualified_with_grammar(grammar)
+            .into_iter()
+            .collect()
     } else {
-        vars_in_expr(expr)
+        vars_in_expr(expr, grammar)
     }
 }
 
@@ -1939,6 +1971,7 @@ fn scan_command_words(
                 described,
                 word: arg,
                 name: &name,
+                config: tcl_lexer::LexerConfig::for_profile(registry.profile()),
             });
             match class {
                 UseClass::Quoted => out.quoted.insert(name),
@@ -1983,6 +2016,10 @@ struct BracedWordSite<'a> {
     word: &'a str,
     /// The name the scan found inside it.
     name: &'a str,
+    /// The document's lexing configuration — the word is re-segmented as a
+    /// script below, and that re-read must draw the same word boundaries the
+    /// document's own grammar draws.
+    config: tcl_lexer::LexerConfig,
 }
 
 /// How this statement consumes `site.name`.
@@ -2011,7 +2048,7 @@ fn braced_word_class(site: &BracedWordSite<'_>) -> UseClass {
     if !site.braced || site.evaluated_in_frame {
         return UseClass::Substituted;
     }
-    if site.described || word_sets_name(site.word, site.name) {
+    if site.described || word_sets_name(site.word, site.name, site.config) {
         return UseClass::Quoted;
     }
     UseClass::Substituted
@@ -2024,11 +2061,11 @@ fn braced_word_class(site: &BracedWordSite<'_>) -> UseClass {
 /// The `Call` twin of the analyser's `barrier_body_locally_sets`, which
 /// recovers the same fact for an opaque `Statement::Barrier` body. Segmenting
 /// is skipped unless the word plausibly holds a `set` at all.
-fn word_sets_name(word: &str, name: &str) -> bool {
+fn word_sets_name(word: &str, name: &str, config: tcl_lexer::LexerConfig) -> bool {
     if !word.contains("set") {
         return false;
     }
-    crate::segmenter::segment_commands(word)
+    crate::segmenter::segment_commands_with_offset_and_config(word, 0, config)
         .into_iter()
         .filter(|seg| seg.texts.first().map(String::as_str) == Some("set"))
         .filter_map(|seg| seg.texts.get(1).map(|w| normalise_var_name(w).to_owned()))
@@ -2132,7 +2169,9 @@ fn reads_in_stmt(
             clauses, else_body, ..
         } => {
             for clause in clauses {
-                reads.substituted.extend(vars_in_expr(&clause.condition));
+                reads
+                    .substituted
+                    .extend(vars_in_expr(&clause.condition, registry_grammar(registry)));
                 reads.merge(reads_in_script(&clause.body, scanner, registry));
             }
             if let Some(eb) = else_body {
@@ -2142,7 +2181,9 @@ fn reads_in_stmt(
         Statement::While {
             condition, body, ..
         } => {
-            reads.substituted.extend(vars_in_expr(condition));
+            reads
+                .substituted
+                .extend(vars_in_expr(condition, registry_grammar(registry)));
             reads.merge(reads_in_script(body, scanner, registry));
         }
         Statement::For {
@@ -2153,7 +2194,9 @@ fn reads_in_stmt(
             ..
         } => {
             reads.merge(reads_in_script(init, scanner, registry));
-            reads.substituted.extend(vars_in_expr(condition));
+            reads
+                .substituted
+                .extend(vars_in_expr(condition, registry_grammar(registry)));
             reads.merge(reads_in_script(next, scanner, registry));
             reads.merge(reads_in_script(body, scanner, registry));
         }
@@ -2528,10 +2571,11 @@ fn intern_terminator_reads(
     scanner: &mut VarReferenceScanner,
     registry: &CommandRegistry,
 ) {
+    let grammar = registry_grammar(registry);
     for block in func.blocks.values() {
         match &block.terminator {
             Some(cfg::Terminator::Branch { condition, .. }) => {
-                for u in condition.vars_element_qualified() {
+                for u in condition.vars_element_qualified_with_grammar(grammar) {
                     interner.intern(&u);
                 }
             }
@@ -2542,7 +2586,7 @@ fn intern_terminator_reads(
                     }
                 }
                 if let Some(e) = expr {
-                    for u in e.vars_element_qualified() {
+                    for u in e.vars_element_qualified_with_grammar(grammar) {
                         interner.intern(&u);
                     }
                 }

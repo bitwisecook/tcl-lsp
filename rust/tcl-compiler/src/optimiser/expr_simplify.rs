@@ -254,7 +254,8 @@ fn try_rewrite_assign_expr(
     // produces same-complexity rewrites (`$x ** 2` → `$x * $x`).
     // Running instcombine first keeps the categorisation stable.
     let rendered_expr = crate::expr_ast::render_expr(expr);
-    let (simplified, inst_changed) = instcombine_expr_typed(&rendered_expr, false, numeric);
+    let (simplified, inst_changed) =
+        instcombine_expr_typed(&rendered_expr, false, numeric, ctx.dialect);
     if inst_changed {
         ctx.report(Optimisation::new(
             DiagCode::O110,
@@ -264,7 +265,8 @@ fn try_rewrite_assign_expr(
         ));
         return;
     }
-    let (reduced, sred_changed) = try_strength_reduce_expr_typed(&rendered_expr, numeric);
+    let (reduced, sred_changed) =
+        try_strength_reduce_expr_typed(&rendered_expr, numeric, ctx.dialect);
     if sred_changed {
         ctx.report(Optimisation::new(
             DiagCode::O113,

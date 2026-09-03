@@ -380,6 +380,15 @@ impl FormatterConfig {
         LexerConfig::from_grammar(self.profile.grammar)
     }
 
+    /// The document dialect's word-value rules — how a braced word's
+    /// `\<newline>` folds and how list text divides — read off the same
+    /// resolved profile [`Self::lexer_config`] reads, so the formatter
+    /// re-renders a parameter list the way the document's runtime parses it.
+    #[must_use]
+    pub fn word_rules(&self) -> tcl_syntax::word_rules::WordValueRules {
+        tcl_syntax::word_rules::WordValueRules::from_grammar(&self.profile.grammar)
+    }
+
     /// The availability point the profile's own release(s) contribute, or
     /// `None` when the profile is the permissive fallback — i.e. no dialect
     /// was declared, so every keyword the handed registry declares stays a

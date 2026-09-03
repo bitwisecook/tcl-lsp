@@ -28,7 +28,7 @@ use std::collections::BTreeMap;
 
 use tcl_compiler::ir::{Module, Script, Statement, SwitchArm, SwitchMode, when_event_name};
 use tcl_compiler::lowering::lower_to_ir_with_config;
-use tcl_compiler::segmenter::segment_commands;
+use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
 use tcl_syntax::expr::ast::{BinOp, ExprNode, UnaryOp, expr_text};
@@ -137,9 +137,16 @@ fn split_first_word(s: &str) -> Option<(&str, &str)> {
 /// Split `[cmd arg1 "arg2"]` into argv parts (command name + args), using
 /// the Tcl segmenter's word reconstruction. Returns an empty vec when the
 /// text is not exactly one command.
+///
+/// This crate only ever translates iRules text, so the segmenter reads it
+/// under the iRules grammar — the same resolution
+/// [`translate_irule_with_registry`] performs for the whole document.
 fn parse_command_parts(text: &str) -> Vec<String> {
     let inner = strip_brackets(text);
-    let cmds = segment_commands(inner);
+    let config = tcl_lexer::LexerConfig::from_grammar(
+        tcl_registry::model::resolve_environment("f5-irules").grammar(),
+    );
+    let cmds = segment_commands_with_offset_and_config(inner, 0, config);
     if cmds.len() != 1 {
         return Vec::new();
     }
@@ -1584,7 +1591,9 @@ pub fn translate_irule_with_registry(
     // Lower under the iRules dialect so the iRules expr operators
     // (`starts_with` / `ends_with` / `contains` / `matches_glob` / …) parse
     // as the corresponding `BinOp`s rather than falling back to `Raw`.
-    let config = tcl_lexer::LexerConfig::for_dialect("f5-irules");
+    let config = tcl_lexer::LexerConfig::from_grammar(
+        tcl_registry::model::resolve_environment("f5-irules").grammar(),
+    );
     let module: Module = lower_to_ir_with_config(source, registry, config);
 
     let mut ctx = TranslationContext::new();
