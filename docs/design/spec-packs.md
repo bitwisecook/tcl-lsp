@@ -305,8 +305,10 @@ idiomatic Rust surface the DSL framework needs now. And **all
 C-required mangling lives in the shim, never in the interface** — the
 shim absorbs the impedance mismatch (string lifetimes, interp-pointer
 idioms, result codes) so the interface never grows a C-shaped wart.
-The C-Tcl shim itself is later, separate work (#1372); the interface's
-only obligation to it today is to not preclude it. The
+The C-Tcl shim's first leg has landed as `tcl-cshim`
+([c-extension-shim.md](c-extension-shim.md)): shimmed extensions are
+trusted native code loaded only by host configuration, and nothing in the
+`SpecTcl` vocabulary can reference one. The
 **hook host** is the layer above: it owns everything DSL-specific — the
 emitter verbs, per-family calling conventions and preconditions,
 abstention and error policy, fuel budgets, memoisation — and speaks
@@ -387,6 +389,7 @@ sites in the optimiser. The crates are:
 | `tcl-engine-api` | bottom | The **Tcl extension interface**: `CompileUnit` → engine handle, invoked with owned structured `Value`s (list and dict are first-class, so `words`/`ctx` never round-trip through text); `HostCommand` for embedder-registered commands; `Budget` the engine must enforce; `EngineError` distinguishing a script error, a budget blowout, and a crash. No dependencies at all — selecting one engine cannot drag in another. |
 | `tcl-engine-tclvm` | bottom | The `tcl-vm` implementation. Each interface obligation maps onto a real VM embedder API rather than a shim: `Vm::define_procedure` (compile once), `Vm::invoke_command` (now public), `Vm::register_native_command` (stateful host commands), `Vm::retain_commands` (a closed whitelist), and the enforced `commands` limit + wall-clock cap. |
 | `tcl-spec-hooks` | top | The **hook host**: emitter verbs as native commands, the per-family calling conventions and the literal-only precondition, abstention and error policy, per-pack engines, `catch_unwind`, quarantine-on-first-crash with a structured crash record, and the sandbox whitelist plus `foldlist`. Names no engine except in one convenience constructor. |
+| `tcl-cshim` | consumer 2 | The **C-Tcl shim** ([c-extension-shim.md](c-extension-shim.md)): a C extension compiled against `include/tclshim.h` registers its commands through `Engine::define_command`, with `Tcl_Obj` crossing as typed values. Trusted native, host-loaded only; unreachable from a pack or a hook body. The interface gained `Engine::remove_command` and the in-invocation `CommandRegistrar` door for it. |
 | `tcl-registry::pack_hooks` | seam | Slots, per-family thunk tables, the thread-local host, and the **shape-keyed cache**. A pack hook is a plain function pointer of the family's shipped type, so `run_const_fold` and every other consumer is unchanged and unaware. |
 
 Three consequences of the implementation are worth recording against the
@@ -645,6 +648,14 @@ whatever it declares. It closes the versioned-signature gap and adds the
   control: the require in this file, then the pack in this workspace,
   then the profile compiled into the server.
 
+  The row is **unscoped by construction**: it floors its package for
+  every document the pack is active in. Issue #1643 — filed before 2.0
+  existed — asked for a `-dialects {…}` flag to narrow it to some of the
+  pack's dialects. That flag is *not* vocabulary, and the loader refuses
+  it rather than reading it or ignoring it: see
+  ["Scoping an ambient package"](#scoping-an-ambient-package-issue-1643)
+  below for what to write instead and why the row fails closed.
+
 - **`option … -taints-var-write`.** Marks a variable-valued option whose
   linked variable can be written from external input. The bit belongs to the
   individual option argument, so an editable widget's `-variable` can be a
@@ -729,6 +740,72 @@ rather than a bare "too many arguments": the call is not malformed, it is
 written for a different release, and the two have different fixes. A
 count fitting no window at all stays an ordinary E002/E003.
 
+### Scoping an ambient package (issue #1643)
+
+`ambient_package` says "this package is here, at this version" about the
+whole pack. Issue #1643 asked for the narrower claim — *here, under this
+dialect and not that one* — and proposed spelling it as a flag,
+`ambient_package NAME VERSION -dialects {…}`. The issue predates SpecTcl
+2.0, and 2.0 answers the same question from the other end.
+
+**What to write.** State the placement inside the environment that has
+the package, with `environment NAME { ambient PACKAGE VERSION }` (the
+redesign document's §6.2). An `environment` body is an evaluated script,
+exactly as a `command` body is, so a version several environments share
+is written once as an ordinary variable and a repetitive ladder is an
+ordinary `foreach` — there is no scoping vocabulary to learn, and nothing
+says the package is ambient anywhere it is not:
+
+```tcl
+speclib mypack 2.0 {
+    set tkver 8.6
+
+    environment mypack-shell {
+        core    tcl 8.6
+        ambient Tk $tkver
+    }
+
+    environment mypack-plain {
+        core tcl 8.6
+    }
+}
+```
+
+A document that resolves to `mypack-shell` gets the Tk 8.6 floor and is
+never asked for a `package require Tk`; one that resolves to
+`mypack-plain` gets neither. Both answers come from the same placement,
+so they cannot drift apart.
+
+The block reader is still the single owner of what a row *means*: the
+body decides which rows are registered, and `environment_block` decides
+whether each one is valid. An unknown row is semantic-class vocabulary
+and rejects the whole block however it was produced.
+
+**Why the flag is refused rather than read.** Two reasons, both from the
+model rather than from taste:
+
+- **It cannot be desugared.** A `-dialects` list naming a compiled
+  environment (`tcl8.6`, `f5-irules`) means "add an ambient placement to
+  that environment", which is `environment NAME -extend { ambient … }` —
+  and §6.4's trust lattice forbids exactly that for the workspace and
+  Spec Studio tiers most packs come from. The sugar would work for
+  bundled packs and fail the whole registration for everyone else.
+- **It would fork the floor model.** A scoped row kept in the pack's own
+  ambient table reports as a pack-declared floor; the same claim written
+  as a placement reports as the environment's own. One question with two
+  answers, differing only in how it was spelled, is the parallel table
+  the #1631 redesign set out to remove.
+
+**Why the whole row is dropped.** Ignoring an unknown flag and keeping
+the row would leave the *unscoped* claim standing — the pack would floor
+the package in every dialect, including the ones it had just said the
+package is absent from. That is the compatibility contract's fail-closed
+rule read backwards: an availability-**narrowing** word that a reader
+cannot honour must not leave the wider claim behind. So the row fails
+closed, with a notice naming the environment spelling to use instead, and
+the same rule is registered generically — a scoping word is
+semantic-class vocabulary, never decoration.
+
 ## Loading and tooling
 
 - **A pack is a logical unit, not a file.** Authors group however they
@@ -776,6 +853,88 @@ count fitting no window at all stays an ordinary E002/E003.
   (drafts round-trip through it), and the `spec-author` skill emits the
   DSL for the private-library path. `tcl spec build` pre-warms the same
   cache — an optimisation, never a requirement.
+
+### Editor registration of pack-claimed file extensions
+
+A pack's `file_extension NAME -dialect D` row (and the `file_extensions` of a
+pack-declared `environment` block) routes the extension server-side the moment
+the pack is discovered. The editor is a step behind: it learns its
+extension-to-language mapping from a static manifest written long before the
+user's pack existed, so the file opens as plain text and the language client
+never attaches (issue #1626).
+
+The server closes that gap by *advertising* the pairs. `pack_file_extensions`
+appears on the `tcl-lsp.getEffectiveConfig` result and again in the
+`tcl-lsp/specPacksReloaded` notification, which is sent once a reload has
+fully landed — a client cannot derive that moment for itself. Each row carries
+the extension, the claiming pack, the dialect, and the **existing** editor
+language id the extension should ride, because no editor can mint a new
+language id at runtime.
+
+Registration is therefore a per-editor problem, and reversibility is the hard
+half: reconciliation has to delete as well as add, so "did we write this"
+must be answerable exactly.
+
+#### VS Code
+
+The advertised set is projected into **workspace-scoped**
+`files.associations`, and the entries the extension owns are remembered in
+workspace state as `{glob: languageId}` — the value written, not just the key.
+An entry is ours only while the configuration still says what we last wrote
+there, so a user who retargets `*.foo` by hand takes ownership permanently: it
+is neither rewritten nor retired. Globs are case-folded per character
+(`*.[fF][oO][oO]`), matching the server's case-insensitive routing.
+Already-open documents are flipped onto the new language with
+`setTextDocumentLanguage`, but only for the associations reconciliation
+actually owns.
+
+#### JetBrains
+
+`FileTypeManager` associations are **IDE-global** — there is no
+workspace-scoped layer to write into — so the JetBrains half (issue #1650)
+keeps its own ledger instead of relying on a scope to contain the damage.
+
+- **What is registered.** Each advertised row maps onto a file type the plugin
+  already contributes: `language_id` `tcl-irule` selects the **iRule** type,
+  every other id (including plain `tcl`) selects **Tcl**. Association happens
+  through `FileTypeManager.associate` with an `ExtensionFileNameMatcher`, on
+  the event dispatch thread inside a write action; the platform fires its own
+  file-types-changed event from there, so editors already showing a
+  newly-associated file re-detect without further help.
+- **The ownership ledger.** The application-level `TclLspPackAssociations`
+  state persists `{extension: fileTypeName}` for the associations *the plugin
+  itself installed*. An association is retired only when the extension is no
+  longer claimed **and** the IDE still reports exactly the file type the ledger
+  records. Anything else — an extension the plugin never claimed, or one whose
+  association the user has since changed — is dropped from the ledger and left
+  alone.
+- **Manual associations win.** Before claiming an extension the plugin asks
+  `FileTypeManager.getFileTypeByExtension`. If anything already owns it, the
+  claim is skipped and never recorded, so a later pack removal cannot delete a
+  user's mapping. That covers a user who mapped the extension to the plugin's
+  own Tcl type by hand: the plugin did not install it, so the plugin will not
+  remove it.
+- **Restart survival.** The ledger is persisted, and IDE file-type
+  associations persist on their own, so nothing is torn down at shutdown. The
+  first report of the next session is what retires an association whose pack
+  has gone: the extension is absent from the claim set, the recorded file type
+  still matches, so it is removed.
+- **Multi-project.** Associations are global but claims are per project. The
+  service keeps one claim set per open project and registers their **union**;
+  an association is retired only when no open project still claims it. If two
+  projects map the same extension to different file types the plain **Tcl**
+  type wins — both file types use the same language, so it is the safe
+  superset. A project that has not started its server yet contributes nothing,
+  so at startup an association can briefly retire and return; the file type
+  settles as soon as that project's server reports. A closing project drops
+  its claims through its own project service, and what it alone claimed is
+  retired there and then — but only while another project is still open,
+  because every project closes in turn when the IDE exits and a pass with
+  nothing left would retire the lot.
+- **Attachment follows the claim.** The plugin decides whether to start the
+  language server from the file's extension, so a dynamically-claimed
+  extension is added to that set too — otherwise the file would open as Tcl
+  and still get no server.
 
 ### Workspace trust: the setting is gated, the workspace tier is not
 
@@ -861,6 +1020,32 @@ it produces. The rules below keep the first without paying for the second.
   A runaway `foreach` is therefore a budget notice naming its axis, not a hung
   tool, which is what makes it safe to run a *generated* pack through
   `spectcl_check` before reading a line of it.
+
+### Declaring an environment: `environment NAME { … }`
+
+A pack that describes a shell — an interpreter with packages already
+loaded, its own file extensions, a fixed base release — declares it as an
+environment, and the six bundled EDA packs do (`specs/eda_*.tclspec`; the
+compiled shells they replaced are gone, D17). The rows, in the order the
+shipped blocks write them:
+
+| row | meaning |
+|---|---|
+| `display_name {TEXT}` | the human-facing name (defaults to the id) |
+| `core FAMILY RELEASE ?-build PROFILE?` | the base release; a compiled family or a `dialect` block the pack declares |
+| `version_ceiling RELEASE` | the upper-bound release for option gating (§5.2 of the redesign), on the core's ladder |
+| `editor_identity ID` | one of the **contributed** editor language ids — an environment selects, never mints |
+| `ambient PACKAGE VERSION\|tracks-base\|keyed KEY` | a package present with no `package require`; `keyed` names an external version axis (`ToolVersion`, `SdcVersion`, `UpfVersion`, `BigipVersion`) |
+| `hosted PACKAGE REQUIREMENT` | an installable package, floored on its own axis |
+| `alias NAME` | a retired or convenience spelling that resolves here |
+| `file_extension EXT ?-name TEXT?`, `filename NAME`, `signature TEXT` | server-side detection facts |
+| `policy open\|closed\|ambient-plus-require` | resolution strictness |
+| `help_terms {WORD …}` | the lower-case terms `tcl help --dialect` filters the knowledge base by |
+
+Compiled names are reserved; a bundled pack's names are reserved against
+every lower tier; an unknown row rejects the block (it is all semantic
+vocabulary). `environment NAME -extend { … }` adds detection facts and
+placements to an environment declared elsewhere.
 
 ### Composing a surface: `include from … into …`
 

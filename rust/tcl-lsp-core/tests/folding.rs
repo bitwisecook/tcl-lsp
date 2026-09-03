@@ -287,3 +287,46 @@ fn a_bom_inside_a_nested_body_is_data() {
         "only the outer proc folds — the marked inner head is not `proc`; got {regions:?}",
     );
 }
+
+/// An `ArgRole::OpaqueScript` word still folds.
+///
+/// `SslicTcl`'s `predicate { … }` is script-shaped data the loader retains
+/// verbatim and never evaluates, so it is deliberately not an
+/// `ArgRole::Body` — but a reader still wants to collapse it. Folding asks
+/// `ArgRole::folds_as_block`, not "is it a body", which is what keeps the
+/// presentation question and the analysis question apart.
+#[test]
+fn a_retained_opaque_script_still_folds() {
+    let src = "sslictcl 1\n\
+               policy baseline {\n\
+               \x20   check bespoke {\n\
+               \x20       severity warning\n\
+               \x20       predicate {\n\
+               \x20           some retained words\n\
+               \x20           and more of them\n\
+               \x20       }\n\
+               \x20   }\n\
+               }\n";
+    let registry = static_context_for("sslictcl").commands();
+    let ranges = folding_ranges(
+        src,
+        tcl_registry::model::ingress::resolve_environment("sslictcl").analyser_profile(),
+        registry,
+    );
+    // The predicate's braced word opens on line 4 and closes on line 7.
+    assert!(
+        ranges
+            .iter()
+            .any(|r| r.kind == FoldKind::Region && r.start_line == 4 && r.end_line >= 6),
+        "the retained predicate must still fold: {ranges:?}"
+    );
+    // …and so do the declaration blocks around it.
+    for open_line in [1, 2] {
+        assert!(
+            ranges
+                .iter()
+                .any(|r| r.kind == FoldKind::Region && r.start_line == open_line),
+            "the block opening on line {open_line} must fold: {ranges:?}"
+        );
+    }
+}

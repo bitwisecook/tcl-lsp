@@ -66,6 +66,7 @@ const SEARCH_ROOTS: &[&str] = &[
     "rust/tcl-compiler/src",
     "rust/tcl-lsp-core/src",
     "rust/tcl-lsp-server/src",
+    "rust/tcl-sslictcl/src",
 ];
 
 /// Recursively collect `.rs` files under `dir`, skipping `target/`, test

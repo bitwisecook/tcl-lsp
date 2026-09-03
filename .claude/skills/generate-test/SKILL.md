@@ -1,107 +1,54 @@
 ---
 name: generate-test
 description: >
-  Generate iRule test scripts using the Event Orchestrator framework.
-  Analyzes an iRule to extract events, commands, pools, data groups,
-  and variables, then produces a complete test file with assertions.
-  Auto-detects multi-TMM / CMP-sensitive patterns and adds fakeCMP
-  distribution tests when appropriate.
-allowed-tools: Bash, Read, Write, Glob, Grep
+  Generate iRule test scripts for the Event Orchestrator framework
+  (rust/tcl-irule-test). Extracts events, commands, pools, data groups, and
+  variables, enumerates CFG paths, and produces a test file with one case per
+  path plus a fakeCMP multi-TMM scenario when static:: or table state is
+  CMP-sensitive.
+allowed-tools: mcp__tcl-lsp__generate_irule_test, mcp__tcl-lsp__irule_cfg_paths, mcp__tcl-lsp__fakecmp_suggest_sources, mcp__tcl-lsp__fakecmp_which_tmm, Bash, Read, Write, Glob, Grep
 ---
 
 # Generate iRule Test
 
-Generates a complete test script for an iRule using the Event Orchestrator
-test framework (`tooling/irule_test/tcl/orchestrator.tcl`).
+Framework: `rust/tcl-irule-test/tcl/orchestrator.tcl`; contract
+`docs/design/contracts/irule-test-framework.md`; worked examples
+`example_test.tcl` and `example_multi_tmm_test.tcl` beside the framework.
 
-## Usage
+## Steps
 
-```bash
-python3 -m ai.claude.tcl_ai generate-test <irule_file>
-```
+1. Read the iRule. Call `mcp__tcl-lsp__irule_cfg_paths` with its contents as
+   `source`: every path to a terminal action (pool / reject / redirect …)
+   with its branch conditions, priority, taint warnings, and
+   test-generation questions. Prioritise security-sensitive actions and the
+   `else` / `default` paths — those are the under-tested ones.
+2. Call `mcp__tcl-lsp__generate_irule_test` with the same `source`. It
+   returns a runnable scaffold: the framework source chain,
+   `::orch::configure_tests` with profiles, iRule, and setup, one
+   `::orch::test` per event and per CFG path with request parameters derived
+   from the conditions, pool / data-group / header assertions, and a
+   multi-TMM scenario when it sees `static::` writes outside `RULE_INIT`,
+   `static::` counters, or `table incr` / `table set` shared state.
+3. Tighten the scaffold: answer the generator's questions, replace
+   placeholders with values the conditions actually select, delete cases the
+   iRule cannot reach, add assertions the scaffold could not infer.
+4. Multi-TMM: plan sources with `mcp__tcl-lsp__fakecmp_suggest_sources`
+   (`tmm_count`, `count`) and confirm a tuple with `fakecmp_which_tmm`. Write
+   the test for the *desired* behaviour — a CMP bug (a `static::` counter
+   with 4 TMMs allows 4× the limit) should fail it.
+5. Write the file and run it: `tclsh test_<name>.tcl`; `::orch::done` exits
+   non-zero on failure.
 
-## What it does
-
-1. **Extracts metadata** from the iRule source:
-   - Events used (HTTP_REQUEST, CLIENT_ACCEPTED, etc.)
-   - iRule commands (HTTP::uri, pool, table, etc.)
-   - Object references (pool names, data groups, nodes)
-   - Variable patterns (static::, connection-scoped)
-   - Profile requirements (TCP, HTTP, SSL, DNS)
-
-2. **Analyzes control flow** using the compiler IR:
-   - Walks the IR to extract all unique paths through if/switch/loop branches
-   - Each path records the chain of conditions leading to a terminal action
-   - Generates one test case per code path for full branch coverage
-   - Falls back to template-based generation if CFG analysis produces no paths
-
-3. **Generates test script** with:
-   - Framework source chain (compat84 → orchestrator)
-   - `::orch::configure_tests` with profiles, iRule source, and setup
-   - CFG-informed `::orch::test` cases targeting each branch path
-   - Request parameters derived from branch conditions (host, URI, headers)
-   - Pool/datagroup/header assertions
-   - Exit with `::orch::done` for pass/fail summary
-
-3. **Detects multi-TMM patterns** automatically:
-   - `static::` writes in hot events (not just RULE_INIT)
-   - Counter/rate-limiter patterns using `static::`
-   - `table incr`/`table set` shared-state patterns
-   - When detected, adds a multi-TMM scenario using `fakecmp_suggest_sources`
-
-## Examples
-
-### Generate a test for a simple routing iRule
-```
-$ python3 -m ai.claude.tcl_ai generate-test samples/for_screenshots/ai-scene.irul
-```
-
-### Generate and run immediately
-```
-$ python3 -m ai.claude.tcl_ai generate-test my_irule.tcl > test_my_irule.tcl
-$ tclsh test_my_irule.tcl
-```
-
-### Use fakeCMP tools to plan multi-TMM distribution
-```tcl
-# In a generated or hand-written test:
-set plan [::orch::fakecmp_suggest_sources -count 2]
-foreach tmm_id [::orch::tmm_ids] {
-    set sources [dict get $plan $tmm_id]
-    foreach {addr port} $sources {
-        ::orch::configure -client_addr $addr -client_port $port
-        ::orch::run_http_request -host app.example.com
-    }
-}
-```
-
-## When to use
-
-- When writing tests for a new or modified iRule
-- When you need to verify CMP/multi-TMM behavior
-- When migrating from manual testing to automated test scripts
-- As a starting point that you then customize with specific assertions
-
-## Key framework commands
+## Framework API
 
 | Command | Purpose |
 |---|---|
-| `::orch::configure_tests -profiles ... -irule {...}` | Set up test defaults |
-| `::orch::test "name" "desc" -body {...}` | Define a test case |
-| `::orch::run_http_request -host ... -uri ...` | Simulate HTTP traffic |
-| `::orch::assert_pool_selected pool_name` | Assert pool routing |
-| `::orch::assert_equal $actual $expected` | Assert equality |
-| `::orch::assert {$expr} "message"` | Assert condition |
-| `::orch::fakecmp_suggest_sources -count N` | Plan TMM distribution |
-| `::orch::fakecmp_which_tmm addr port dst_addr dst_port` | Query TMM for tuple |
-| `::orch::done` | Print summary, return exit code |
-
-## Reference
-
-- Framework source: `tooling/irule_test/tcl/orchestrator.tcl`
-- Example tests: `tooling/irule_test/tcl/example_test.tcl`, `example_multi_tmm_test.tcl`
-- KCS documentation: `docs/kcs/kcs-irule-test-framework.md`
-- MCP tools: `generate_irule_test`, `irule_cfg_paths`, `fakecmp_which_tmm`, `fakecmp_suggest_sources`
-- CLI: `python3 -m ai.claude.tcl_ai cfg-paths <irule_file>` — extract control flow paths
+| `::orch::configure_tests -profiles {TCP HTTP} -irule {…} -setup {…} [-tmm_count N -tmm_select auto]` | defaults for every test; `-tmm_select auto` hashes with fakeCMP |
+| `::orch::test "name" "desc" -body {…}` | isolated case, state reset |
+| `::orch::run_http_request -host … -uri … -method …`, `::orch::run_next_request` | simulate a request, keep-alive follow-up |
+| `::orch::assert_that <subject> <verb> <value>` | subjects `pool_selected`, `http_uri`, `http_host`, `http_path`, `http_method`, `http_status`, `http_header "Name"`, `decision <cat> <action>`, `log`, `event`, `var <name>`; verbs `equals`, `not_equals`, `contains`, `starts_with`, `ends_with`, `matches`, `was_called`, `was_called_with`, `was_not_called` |
+| `::orch::assert_pool_selected`, `assert_equal`, `assert {expr} msg` | classic assertions |
+| `::orch::fakecmp_suggest_sources -count N`, `fakecmp_which_tmm a p da dp`, `tmm_ids` | multi-TMM planning |
+| `::orch::done` | summary and exit code |
 
 $ARGUMENTS

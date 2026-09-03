@@ -29,6 +29,30 @@
 pub enum ArgRole {
     /// Tcl script body — recursively analysed.
     Body,
+    /// A braced word that **looks** like a script and is deliberately never
+    /// treated as one: retained-verbatim data that a reader folds like a body
+    /// and that no analysis descends into.
+    ///
+    /// Distinct from [`Self::Body`] on exactly the axis every script consumer
+    /// asks about ([`Self::carries_script`] is `false`), and from
+    /// [`Self::Value`] on the axis a *presentation* consumer asks about
+    /// ([`Self::folds_as_block`] is `true`). `Value` would lose the fold and
+    /// invite a formatter to reflow the bytes; `Body` would put the word in
+    /// the reference graph, the call-hierarchy, the callback-surface inventory
+    /// and the unresolved-command pass — claiming an execution that never
+    /// happens.
+    ///
+    /// `SslicTcl`'s `predicate { … }` is the case that motivated it: the
+    /// vocabulary's whole never-evaluated guarantee is that the loader stores
+    /// the braced word's exact inner text and neither parses, analyses, nor
+    /// runs it. A future vocabulary may learn to evaluate it; until one does,
+    /// describing it as executable is a claim the implementation does not
+    /// make.
+    ///
+    /// Stamp it only where the bytes are genuinely inert *here*. A script that
+    /// some other command will later `eval` is a [`Self::Body`] or a
+    /// [`Self::CommandPrefix`] at the position that runs it.
+    OpaqueScript,
     /// Expression (`expr` sub-language).
     Expr,
     /// Variable name written by the command (`set`, `incr`, `lassign`).
@@ -221,6 +245,7 @@ impl ArgRole {
     /// rather than the subset it happened to think of.
     pub const ALL: &'static [Self] = &[
         Self::Body,
+        Self::OpaqueScript,
         Self::Expr,
         Self::VarWrite,
         Self::VarRead,
@@ -283,12 +308,58 @@ impl ArgRole {
     ///
     /// [`ArgRole::CommandPrefix`] is deliberately *not* script-bearing: its
     /// first word is a callable **reference**, not code. Recursing it would read
-    /// a bareword proc name as a script.
+    /// a bareword proc name as a script. Nor is [`ArgRole::OpaqueScript`],
+    /// whose word is script-*shaped* data that nothing here ever runs.
     #[must_use]
     pub const fn carries_script(self) -> bool {
         match self {
             Self::Body | Self::Expr | Self::LambdaLiteral => true,
-            Self::CommandPrefix
+            Self::OpaqueScript
+            | Self::CommandPrefix
+            | Self::CommandName
+            | Self::CommandNameProbe
+            | Self::VarWrite
+            | Self::VarRead
+            | Self::LoopVarList
+            | Self::ParamList
+            | Self::Name
+            | Self::Pattern
+            | Self::Option
+            | Self::Value
+            | Self::Subcommand
+            | Self::OptionTerminator
+            | Self::FormatString
+            | Self::ScanFormat
+            | Self::Channel
+            | Self::Index
+            | Self::NamespaceName
+            | Self::Result
+            | Self::Boolean
+            | Self::NumericOrBoolean
+            | Self::Keyword => false,
+        }
+    }
+
+    /// Whether an argument in this role is a **braced block a reader can
+    /// collapse** — the question folding asks, which is not the question
+    /// analysis asks.
+    ///
+    /// [`Self::Body`] is both foldable and executable; [`Self::OpaqueScript`]
+    /// is foldable and inert. Keeping the two questions apart is the whole
+    /// reason the second role exists, and reading this rather than testing for
+    /// `Body` is what stops a folding consumer from silently deciding the
+    /// answer for itself.
+    ///
+    /// The match is exhaustive on purpose: a new [`ArgRole`] that can hold a
+    /// braced block fails to compile until someone decides which side it falls
+    /// on.
+    #[must_use]
+    pub const fn folds_as_block(self) -> bool {
+        match self {
+            Self::Body | Self::OpaqueScript => true,
+            Self::Expr
+            | Self::LambdaLiteral
+            | Self::CommandPrefix
             | Self::CommandName
             | Self::CommandNameProbe
             | Self::VarWrite
@@ -335,6 +406,7 @@ impl ArgRole {
         match self {
             Self::VarWrite | Self::VarRead => true,
             Self::Body
+            | Self::OpaqueScript
             | Self::Expr
             | Self::LambdaLiteral
             | Self::CommandPrefix
@@ -387,7 +459,8 @@ impl ArgRole {
     pub const fn braced_word_evaluated_in_frame(self) -> bool {
         match self {
             Self::Body | Self::Expr => true,
-            Self::LambdaLiteral
+            Self::OpaqueScript
+            | Self::LambdaLiteral
             | Self::CommandPrefix
             | Self::CommandName
             | Self::CommandNameProbe

@@ -1907,10 +1907,9 @@ jobs:
           artefact-name: vsix-darwin-arm64
 
   # ---------------------------------------------------------------------
-  # build-claude-skills builds the AI zipapp first (since `make
-  # claude-skills` bundles the AI zipapp into the skills release zip),
-  # smokes both, then attests and uploads the skills zip + the AI zipapp.
-  # Stays standalone because it produces TWO artefacts in one go.
+  # build-claude-skills packages the Claude Code skills bundle, then attests
+  # and uploads it. The skills drive the native MCP server, so nothing here
+  # builds or ships the retired AI zipapp any more.
   # ---------------------------------------------------------------------
   build-claude-skills:
     if: startsWith(github.ref, 'refs/tags/v')

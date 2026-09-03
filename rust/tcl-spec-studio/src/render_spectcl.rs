@@ -1026,6 +1026,7 @@ fn dialect_names(expr: &str) -> Option<Vec<&'static str>> {
         ("TMSH", &["f5-tmsh"]),
         ("BIGIP", &["f5-bigip"]),
         ("SPECTCL", &["spectcl"]),
+        ("SSLICTCL", &["sslictcl"]),
     ];
     // A row list is `SpecSurface::CONST` or `surface![CONST, CONST…]`.
     let inner = expr

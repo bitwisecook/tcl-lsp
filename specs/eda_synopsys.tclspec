@@ -17,12 +17,29 @@
 # from the registry modules, which reported no unwritable field on any command
 # here; this file is hand-maintained from now on.
 
-speclib eda_synopsys 1.1 {
+speclib eda_synopsys 2.0 {
 
 display_name {Synopsys EDA Shells}
 
+environment synopsys-eda-tcl {
+    display_name    {Synopsys EDA Tcl}
+    core            tcl 8.6
+    version_ceiling 8.6
+    editor_identity tcl-synopsys
+    ambient         sdc keyed SdcVersion
+    ambient         upf keyed UpfVersion
+    ambient         synopsys-dc keyed ToolVersion
+    ambient         synopsys-pt keyed ToolVersion
+    ambient         synopsys-icc2 keyed ToolVersion
+    ambient         synopsys-fm keyed ToolVersion
+    ambient         synopsys keyed ToolVersion
+    file_extension  sdc -name {Synopsys Design Constraints}
+    file_extension  upf -name {Unified Power Format}
+    help_terms      {synopsys dc_shell design_compiler primetime icc2 formality}
+}
+
 command analyze {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {analyze -format format ?-library lib? ?-define define_list? ?-work work? file_list}
@@ -35,7 +52,7 @@ command analyze {
 }
 
 command characterize {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {characterize ?-constraints? instance_list}
@@ -48,7 +65,7 @@ command characterize {
 }
 
 command check_design {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {check_design ?-summary? ?-no_warnings?}
@@ -61,7 +78,7 @@ command check_design {
 }
 
 command check_library {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {check_library ?-mw_library_name phys_library_name_list? ?-logic_library_name logic_library_name_list? ?-cells cell_list?}
@@ -74,7 +91,7 @@ command check_library {
 }
 
 command clock_opt {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-icc2
 
     form Default {clock_opt ?-effort high|medium|low?}
@@ -87,7 +104,7 @@ command clock_opt {
 }
 
 command compile {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {compile ?-map_effort effort? ?-area_effort effort? ?-incremental_mapping? ?-exact_map? ?-no_design_rule? ?-scan?}
@@ -100,7 +117,7 @@ command compile {
 }
 
 command compile_ultra {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {compile_ultra ?-incremental? ?-retime? ?-scan? ?-no_autoungroup? ?-no_boundary_optimization? ?-gate_clock? ?-timing_high_effort_script?}
@@ -113,7 +130,7 @@ command compile_ultra {
 }
 
 command connect_net {
-    dialects tcl8.6
+    available {tcl 8.6}
     arity 2..
     required_package synopsys-dc
 
@@ -127,7 +144,7 @@ command connect_net {
 }
 
 command create_cell {
-    dialects tcl8.6
+    available {tcl 8.6}
     arity 2
     required_package synopsys-dc
 
@@ -141,7 +158,7 @@ command create_cell {
 }
 
 command create_floorplan {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-icc2
 
     form Default {create_floorplan ?-core_utilization util? ?-core_aspect_ratio ratio? ?-left_io2core dist? ?-bottom_io2core dist? ?-right_io2core dist? ?-top_io2core dist?}
@@ -154,7 +171,7 @@ command create_floorplan {
 }
 
 command create_net {
-    dialects tcl8.6
+    available {tcl 8.6}
     arity 1
     required_package synopsys-dc
 
@@ -168,7 +185,7 @@ command create_net {
 }
 
 command create_port {
-    dialects tcl8.6
+    available {tcl 8.6}
     arity 1..
     required_package synopsys-dc
 
@@ -182,7 +199,7 @@ command create_port {
 }
 
 command current_instance {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {current_instance ?instance_name?}
@@ -195,7 +212,7 @@ command current_instance {
 }
 
 command disconnect_net {
-    dialects tcl8.6
+    available {tcl 8.6}
     arity 2..
     required_package synopsys-dc
 
@@ -209,7 +226,7 @@ command disconnect_net {
 }
 
 command elaborate {
-    dialects tcl8.6
+    available {tcl 8.6}
     arity 1..
     required_package synopsys-dc
 
@@ -223,7 +240,7 @@ command elaborate {
 }
 
 command get_timing_paths {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-pt
 
     form Default {get_timing_paths ?-from from_list? ?-through through_list? ?-to to_list? ?-delay_type max|min|min_max|max_rise|max_fall|min_rise|min_fall? ?-max_paths n? ?-nworst n? ?-slack_lesser_than value?}
@@ -236,7 +253,7 @@ command get_timing_paths {
 }
 
 command group {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {group ?-design_name name? ?-cell_name name? cell_list}
@@ -249,7 +266,7 @@ command group {
 }
 
 command initialize_floorplan {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-icc2
 
     form Default {initialize_floorplan ?-core_utilization util? ?-core_offset offset?}
@@ -262,7 +279,7 @@ command initialize_floorplan {
 }
 
 command insert_clock_gating {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {insert_clock_gating ?-regular_only? ?-global? ?-no_hier?}
@@ -275,7 +292,7 @@ command insert_clock_gating {
 }
 
 command insert_dft {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {insert_dft}
@@ -288,7 +305,7 @@ command insert_dft {
 }
 
 command link {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {link ?-remove_sub_design?}
@@ -301,7 +318,7 @@ command link {
 }
 
 command list_designs {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {list_designs ?design_list? ?-show_file?}
@@ -314,7 +331,7 @@ command list_designs {
 }
 
 command match {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-fm
 
     form Default {match}
@@ -327,7 +344,7 @@ command match {
 }
 
 command optimize_netlist {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {optimize_netlist -area}
@@ -340,7 +357,7 @@ command optimize_netlist {
 }
 
 command place_opt {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-icc2
 
     form Default {place_opt ?-effort high|medium|low?}
@@ -353,7 +370,7 @@ command place_opt {
 }
 
 command printvar {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys
 
     form Default {printvar ?pattern? ?-user_defined? ?-application?}
@@ -366,7 +383,7 @@ command printvar {
 }
 
 command read_db {
-    dialects tcl8.6
+    available {tcl 8.6}
     arity 1..
     required_package synopsys-dc
 
@@ -380,7 +397,7 @@ command read_db {
 }
 
 command read_ddc {
-    dialects tcl8.6
+    available {tcl 8.6}
     arity 1..
     required_package synopsys-dc
 
@@ -394,7 +411,7 @@ command read_ddc {
 }
 
 command read_def {
-    dialects tcl8.6
+    available {tcl 8.6}
     arity 1..
     required_package synopsys-icc2
 
@@ -408,7 +425,7 @@ command read_def {
 }
 
 command read_file {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {read_file file_list ?-define macro_names? ?-format format_name? ?-ilm? ?-library library_name? ?-rtl? ?-single_file single_file_name? ?-work library_name? ?-scenarios scenario_list? ?-active_scenarios active_scenario_list? ?-names_file file_list?}
@@ -421,7 +438,7 @@ command read_file {
 }
 
 command read_lef {
-    dialects tcl8.6
+    available {tcl 8.6}
     arity 1
     required_package synopsys-icc2
 
@@ -435,7 +452,7 @@ command read_lef {
 }
 
 command read_sdc {
-    dialects tcl8.6
+    available {tcl 8.6}
     arity 1..
     required_package synopsys
 
@@ -449,7 +466,7 @@ command read_sdc {
 }
 
 command read_verilog {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {read_verilog ?-netlist|-rtl? verilog_files}
@@ -462,7 +479,7 @@ command read_verilog {
 }
 
 command read_vhdl {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {read_vhdl ?-netlist? file_names}
@@ -475,7 +492,7 @@ command read_vhdl {
 }
 
 command remove_cell {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {remove_cell cell_list|-all}
@@ -488,7 +505,7 @@ command remove_cell {
 }
 
 command remove_design {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {remove_design ?-all? ?-designs? ?design_list?}
@@ -501,7 +518,7 @@ command remove_design {
 }
 
 command report_analysis_coverage {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-pt
 
     form Default {report_analysis_coverage ?-status_details status_list? ?-check_type check_type_list? ?-exclude_untested? ?-sort_by sort_field? ?-significant_digits digits? ?-nosplit? ?-pre_commands command_list? ?-post_commands command_list?}
@@ -514,7 +531,7 @@ command report_analysis_coverage {
 }
 
 command report_bottleneck {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-pt
 
     form Default {report_bottleneck ?-cost_type cost_type? ?-delay_type delay_type? ?-slack_lesser_than slack_limit? ?-from from_list|-rise_from from_list|-fall_from from_list? ?-to to_list|-rise_to to_list|-fall_to to_list? ?-through through_list? ?-rise_through through_list? ?-fall_through through_list? ?-max_cells cell_count? ?-max_paths path_count? ?-nworst_paths paths_per_endpoint? ?-group group_name? ?-significant_digits digits? ?-nosplit?}
@@ -527,7 +544,7 @@ command report_bottleneck {
 }
 
 command report_cell {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {report_cell ?-connections? ?-verbose? ?-physical? ?-only_physical? ?-nosplit? ?-significant_digits digits? ?cell_list?}
@@ -540,7 +557,7 @@ command report_cell {
 }
 
 command report_clock_gating {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {report_clock_gating ?-no_hier? ?-verbose? ?-gated? ?-ungated? ?-gating_elements? ?-only cell_list? ?-nosplit? ?-physical? ?-multi_stage? ?-style? ?-structure? ?-scenario scenario_list?}
@@ -553,7 +570,7 @@ command report_clock_gating {
 }
 
 command report_congestion {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {report_congestion}
@@ -566,7 +583,7 @@ command report_congestion {
 }
 
 command report_delay_calculation {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-pt
 
     form Default {report_delay_calculation ?-min|-max? ?-from_rise_transition value? ?-from_fall_transition value? -from from_pin -to to_pin|-of_objects objects ?-nosplit? ?-thresholds? ?-crosstalk?}
@@ -579,7 +596,7 @@ command report_delay_calculation {
 }
 
 command report_design {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {report_design ?-nosplit? ?-verbose?}
@@ -592,7 +609,7 @@ command report_design {
 }
 
 command report_hierarchy {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {report_hierarchy ?-nosplit? ?-full? ?-noleaf?}
@@ -605,7 +622,7 @@ command report_hierarchy {
 }
 
 command report_net {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {report_net ?-connections? ?-verbose? ?-noflat? ?-transition_times? ?-only_physical? ?-cell_degradation? ?-min? ?-physical? ?-nosplit? ?-significant_digits digits? ?-max_toggle_rate? ?-scenario scenario_list? ?net_list?}
@@ -618,7 +635,7 @@ command report_net {
 }
 
 command report_qor {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {report_qor ?-nosplit? ?-summary?}
@@ -631,7 +648,7 @@ command report_qor {
 }
 
 command report_reference {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {report_reference ?-nosplit? ?-hierarchy?}
@@ -644,7 +661,7 @@ command report_reference {
 }
 
 command report_status {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {report_status ?-verbose?}
@@ -657,7 +674,7 @@ command report_status {
 }
 
 command route_auto {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-icc2
 
     form Default {route_auto ?-max_detail_route_iterations n?}
@@ -670,7 +687,7 @@ command route_auto {
 }
 
 command route_opt {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-icc2
 
     form Default {route_opt ?-effort high|medium|low?}
@@ -683,7 +700,7 @@ command route_opt {
 }
 
 command set_app_var {
-    dialects tcl8.6
+    available {tcl 8.6}
     arity 2
     required_package synopsys
 
@@ -697,7 +714,7 @@ command set_app_var {
 }
 
 command set_clock_gating_style {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {set_clock_gating_style ?-sequential_cell none|latch? ?-minimum_bitwidth minsize_value? ?-setup setup_value? ?-hold hold_value? ?-positive_edge_logic logic_spec? ?-negative_edge_logic logic_spec? ?-control_point none|before|after? ?-control_signal scan_enable|test_mode? ?-observation_point true|false? ?-observation_logic_depth depth_value? ?-max_fanout max_fanout_count? ?-num_stages num_stages_count? ?-no_sharing? ?-gicg_pos_cell cell_name? ?-gicg_neg_cell cell_name?}
@@ -710,7 +727,7 @@ command set_clock_gating_style {
 }
 
 command set_host_options {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys
 
     form Default {set_host_options ?-max_cores n?}
@@ -723,7 +740,7 @@ command set_host_options {
 }
 
 command set_implementation_design {
-    dialects tcl8.6
+    available {tcl 8.6}
     arity 1
     required_package synopsys-fm
 
@@ -737,7 +754,7 @@ command set_implementation_design {
 }
 
 command set_reference_design {
-    dialects tcl8.6
+    available {tcl 8.6}
     arity 1
     required_package synopsys-fm
 
@@ -751,7 +768,7 @@ command set_reference_design {
 }
 
 command set_scan_configuration {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {set_scan_configuration ?-add_lockup true|false? ?-chain_count integer|-max_length integer|-exact_length integer|-count_per_domain integer? ?-clock_mixing no_mix|mix_edges|mix_clocks|mix_clocks_not_edges? ?-create_dedicated_scan_out_ports true|false? ?-internal_clocks single|none|multi? ?-insert_terminal_lockup true|false? ?-lockup_type latch|flip_flop? ?-mix_internal_clock_driver true|false? ?-partition vertical|horizontal? ?-style multiplexed_flip_flop|clocked_scan|lssd|aux_clock_lssd|combinational|none?}
@@ -764,7 +781,7 @@ command set_scan_configuration {
 }
 
 command set_technology {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {set_technology ?technology?}
@@ -777,7 +794,7 @@ command set_technology {
 }
 
 command size_cell {
-    dialects tcl8.6
+    available {tcl 8.6}
     arity 2
     required_package synopsys-dc
 
@@ -791,7 +808,7 @@ command size_cell {
 }
 
 command swap_cell {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-pt
 
     form Default {swap_cell cell_list swap_in ?-dont_preserve_constraints? ?-file file_name? ?-format db|Verilog|EDIF|VHDL?}
@@ -804,7 +821,7 @@ command swap_cell {
 }
 
 command ungroup {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {ungroup ?-all? ?-flatten? ?-start_level n? ?-simple_names? ?cells?}
@@ -817,7 +834,7 @@ command ungroup {
 }
 
 command uniquify {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {uniquify ?-force? ?-dont_skip_empty_designs?}
@@ -830,7 +847,7 @@ command uniquify {
 }
 
 command update_timing {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-pt
 
     form Default {update_timing ?-full?}
@@ -843,7 +860,7 @@ command update_timing {
 }
 
 command verify {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-fm
 
     form Default {verify ?-verbose?}
@@ -856,7 +873,7 @@ command verify {
 }
 
 command write {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {write ?-format ddc|verilog|svsim|vhdl? ?-hierarchy? ?-no_implicit? ?-modified? ?-output output_file_name? ?-names_file name_mapping_files? ?-donot_expand_dw? ?-scenarios scenario_list? ?design_list? ?-library library_name?}
@@ -869,7 +886,7 @@ command write {
 }
 
 command write_def {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-icc2
 
     form Default {write_def ?-version version? file_name}
@@ -882,7 +899,7 @@ command write_def {
 }
 
 command write_file {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-dc
 
     form Default {write_file ?-format ddc|verilog|svsim|vhdl? ?-hierarchy? ?-no_implicit? ?-modified? ?-output output_file_name? ?-names_file name_mapping_files? ?-donot_expand_dw? ?-scenarios scenario_list? ?design_list? ?-library library_name?}
@@ -895,7 +912,7 @@ command write_file {
 }
 
 command write_gds {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys-icc2
 
     form Default {write_gds ?-long_names? ?-output file_name?}
@@ -908,7 +925,7 @@ command write_gds {
 }
 
 command write_sdc {
-    dialects tcl8.6
+    available {tcl 8.6}
     required_package synopsys
 
     form Default {write_sdc file_name ?-version sdc_version? ?-compress compression? ?-include categories_list? ?-nosplit?}

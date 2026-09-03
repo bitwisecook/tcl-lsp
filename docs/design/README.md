@@ -9,7 +9,7 @@ is structured and why, and assume the reader can read the code.
 If you are writing a user-facing answer, a how-to, a Q&A, or a feature
 description, it belongs in [`docs/kcs/`](../kcs/README.md) instead. The
 rules for the KCS/documentation split live in
-[`AGENTS.md`](../../AGENTS.md) under "Knowledge base and documentation".
+[`docs/kcs/STYLE.md`](../kcs/STYLE.md).
 
 ## Architecture and walkthroughs
 
@@ -191,6 +191,13 @@ rule itself, its single Rust home, and its conformance gates live in
   reaches the `ILXServer.addMethod` registration that implements it, the
   workspace-directory association rule, the JavaScript registration forms that
   are supported, and the forms that abstain.
+- [sslictcl-vocabulary.md](sslictcl-vocabulary.md) — the `.sslictcl`
+  vocabulary-1 reference: its classification as an authoring *environment*
+  over Tcl 9.0, every declaration and member, the value domains, the
+  open/closed rule that carries a newer document on an older build, the
+  never-evaluated guarantee, name resolution, the `(check_id, endpoint)`
+  policy-finding identity, the `SSLIC1xxx` diagnostics, and how the registry
+  pack restates the same table.
 - [contracts/sslictcl-source-data.md](contracts/sslictcl-source-data.md) —
   the embedded SslicTcl source-data layout, provenance/hash schema, offline
   drift gate, explicit refresh command, and release freshness contract.
@@ -395,6 +402,12 @@ are its rules, and what are the failure modes". One contract per file.
   idempotency and rewrite contracts.
 - [project-layout.md](contracts/project-layout.md) — repository layout
   and dependency direction.
+- [development-environment.md](contracts/development-environment.md) —
+  toolchain prerequisites, what the remote-session hook pre-installs, the
+  owner of every pinned version, and the build entry points.
+- [test-tiers-and-ci-gates.md](contracts/test-tiers-and-ci-gates.md) — the
+  smoke / deep / exhaustive tiers, the local gates before a push, the
+  `#[ignore]` and xfail policies, and the CI redundancy contract.
 - [release-and-publish.md](contracts/release-and-publish.md) —
   the four-layer build/CI/publish model, the no-marketplace-tokens-in-CI
   invariant, and the release flow.
@@ -447,6 +460,10 @@ are its rules, and what are the failure modes". One contract per file.
   execution that have landed; the version-ranges lifecycle model at every
   gateable level; and the vocabulary-tolerance policy that avoids
   per-release rebuilds.
+- [c-extension-shim.md](c-extension-shim.md) — the C Tcl extension shim
+  (`tcl-cshim`): the trust model for shimmed native code, `Tcl_Obj` to
+  structured-value marshalling, the `_Init` registration story, the C API
+  subset shimmed first, and the unbuilt WASM leg.
 - [spec-dsl-examples/tricky-surfaces.md](spec-dsl-examples/tricky-surfaces.md)
   — the DSL's acceptance rubric: the tricky Tcl surfaces (operator
   aliasing, TclOO corners, real-world options, paired tails, hooks)
@@ -535,10 +552,11 @@ Distilled from the trickiest scars in the WASM runtime history
 
 ## In-flight agent lanes
 
-- [lanes/README.md](lanes/README.md) — one tracking document per in-flight
-  agent lane: goal, decisions taken and why, site inventory, behavioural
-  deltas, and open uncertainties. A file there means a lane is either in
-  flight or was interrupted; each is removed when its lane lands.
+- [lanes/README.md](lanes/README.md) — the lane protocol (tracking
+  document, checkpoint commits, explicit-path staging, orchestrator pushes)
+  and one tracking document per in-flight agent lane. A file there means a
+  lane is either in flight or was interrupted; each is removed when its
+  lane lands.
 - [lanes/wasm-native-lowering.md](lanes/wasm-native-lowering.md) — the WASM
   native-lowering programme: one section per sub-lane (P0–P3, R3–R10) with
   decisions, ABI additions, and status.

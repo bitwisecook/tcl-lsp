@@ -6,40 +6,16 @@ allowed-tools: mcp__tcl-lsp__event_info, mcp__tcl-lsp__command_info, Read
 
 # iRule Event/Command Reference
 
-Look up event or command information from the iRules registry.
-
 ## Steps
 
-1. Read the domain knowledge from `../_prompts/irules_system.md`
-2. Determine what the user is asking about:
-   - If they mention an event name (e.g. HTTP_REQUEST, CLIENT_ACCEPTED), look up event info
-   - If they mention a command (e.g. HTTP::header, IP::client_addr), look up command info
-   - If unclear, ask for clarification
-3. Run the appropriate lookup:
-
-   For events: call `mcp__tcl-lsp__event_info` with the event name as `event_name`
-
-   For commands: call `mcp__tcl-lsp__command_info` with the command name as `command_name`
-
-4. If the tool fails (e.g. unknown event/command name), report the error and suggest similar event/command names if possible
-5. Present the registry metadata (authoritative facts), then provide practical guidance:
-
-   For events:
-   - When it fires
-   - Common commands to use
-   - Available request/response data
-   - Performance and safety notes
-   - Minimal useful example
-
-   For commands:
-   - Syntax and options
-   - Valid/invalid events
-   - Typical usage patterns
-   - Common mistakes
-
-## Important
-
-The registry metadata is authoritative -- always present it as facts.
-Supplement with practical guidance, but clearly separate facts from advice.
+1. Read `../_prompts/irules_system.md`.
+2. An event name (HTTP_REQUEST, CLIENT_ACCEPTED) → `mcp__tcl-lsp__event_info`
+   with `event_name`; a command (HTTP::header, IP::client_addr) →
+   `mcp__tcl-lsp__command_info` with `command_name`; unclear → ask. On an
+   unknown name, report it and suggest similar names.
+3. Present the registry metadata as facts, then clearly separated guidance.
+   Events: when it fires, common commands, available request/response data,
+   performance and safety notes, a minimal example. Commands: syntax and
+   options, valid and invalid events, typical usage, common mistakes.
 
 $ARGUMENTS

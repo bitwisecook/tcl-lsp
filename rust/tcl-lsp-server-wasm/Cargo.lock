@@ -1489,6 +1489,7 @@ dependencies = [
  "tcl-irules",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-sslictcl",
  "tcl-syntax",
 ]
 
@@ -1627,7 +1628,9 @@ dependencies = [
  "serde_json",
  "sha2",
  "tcl-compiler",
+ "tcl-core-types",
  "tcl-lexer",
+ "tcl-syntax",
  "x509-parser",
 ]
 

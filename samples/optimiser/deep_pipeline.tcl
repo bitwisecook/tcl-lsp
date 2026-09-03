@@ -1,7 +1,6 @@
 # Deep optimiser stress sample.
 #
-# Run: uv run python ai/claude/tcl_ai.py optimize --profile aggressive \
-#          samples/optimiser/deep_pipeline.tcl
+# Run: tcl opt --profile aggressive samples/optimiser/deep_pipeline.tcl
 #
 # This program is deliberately layered so that each optimisation exposes
 # the next, driving the multi-pass (aggressive) optimiser through many
@@ -21,8 +20,11 @@
 #
 # It runs unchanged on C Tcl 9 (tclsh9.0) and prints one deterministic
 # line, so the optimised / formatted / minified forms can each be executed
-# and diffed for behavioural equivalence — the property
-# tests/test_optimiser_deep_sample.py asserts.
+# and diffed for behavioural equivalence:
+#
+#   for form in "opt --profile aggressive" format minify; do
+#       tcl $form samples/optimiser/deep_pipeline.tcl | tclsh9.0
+#   done
 #
 # Expected output:  tcl v9.0 score=62 x2=124
 

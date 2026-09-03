@@ -475,3 +475,63 @@ fn run_tcl_allow_failure(args: &[&str]) -> Vec<u8> {
         .expect("failed to spawn tcl binary")
         .stdout
 }
+
+/// A `.sslictcl` document terminated with lone `\r` must draw the same loader
+/// findings as the `\n` form. `tclsh` ends a command at a bare CR, but the
+/// lexer treats one as horizontal whitespace, so the loader has to read the
+/// normalised analysis text — exactly as the server does before publishing
+/// `SSLIC1xxx`. Without that, every declaration collapses into one command and
+/// the CLI disagrees with the editor on a file the editor handles correctly.
+#[test]
+fn diag_reads_a_cr_terminated_sslictcl_document_the_way_the_editor_does() {
+    let lf = "sslictcl 1\nsite-owner {a}\nrenewal-window {b}\ndeployment-note {c}\n";
+    let cr = lf.replace('\n', "\r");
+
+    let lf_codes = sslictcl_diag_rows("lf", lf);
+    let cr_codes = sslictcl_diag_rows("cr", &cr);
+
+    // Three unknown top-level words, each preserved as an extension on its own
+    // line — the whole point of the vocabulary's forwards-compatibility rule.
+    assert_eq!(
+        lf_codes,
+        vec![
+            ("SSLIC1101".to_owned(), 2),
+            ("SSLIC1101".to_owned(), 3),
+            ("SSLIC1101".to_owned(), 4),
+        ],
+        "the `\\n` form is the reference reading"
+    );
+    assert_eq!(
+        cr_codes, lf_codes,
+        "a lone-CR document must read identically to the `\\n` one"
+    );
+}
+
+/// Run `tcl diag --json` over one `.sslictcl` document written to a scratch
+/// file (so the dialect routes by extension, not by content signature), and
+/// return its `SSLIC*` rows as `(code, line)` pairs in report order.
+fn sslictcl_diag_rows(tag: &str, text: &str) -> Vec<(String, u64)> {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("clock")
+        .as_nanos();
+    let dir = std::env::temp_dir().join(format!("tcl-cli-sslictcl-{tag}-{nanos}"));
+    std::fs::create_dir_all(&dir).expect("scratch dir");
+    let path = dir.join("doc.sslictcl");
+    std::fs::write(&path, text).expect("write document");
+
+    let out = run_tcl_allow_failure(&["diag", path.to_str().expect("utf-8 path"), "--json"]);
+    let report: serde_json::Value = serde_json::from_slice(&out).expect("diag JSON");
+    let rows = report[0]["diagnostics"]
+        .as_array()
+        .expect("diagnostics array")
+        .iter()
+        .filter_map(|d| {
+            let code = d["code"].as_str()?;
+            code.starts_with("SSLIC")
+                .then(|| (code.to_owned(), d["line"].as_u64().expect("line")))
+        })
+        .collect();
+    std::fs::remove_dir_all(&dir).ok();
+    rows
+}

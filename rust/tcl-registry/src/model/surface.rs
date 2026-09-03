@@ -182,6 +182,7 @@ pub const VENDOR_SURFACE_BRIDGE: &[(&str, &str)] = &[
     ("f5-tmsh", "tmsh"),
     ("expect", "expect"),
     ("spectcl", "spectcl"),
+    ("sslictcl", "sslictcl"),
     ("bpf", "bpf"),
     ("f5-bigip", "bigip"),
 ];
@@ -194,8 +195,9 @@ pub const VENDOR_SURFACE_BRIDGE: &[(&str, &str)] = &[
 /// closed-world surface — a Tk command really is narrowly authored.
 /// Whether such a package is *active* is [`is_closed_world_package`]'s
 /// separate job.
-pub const VENDOR_SURFACE_PACKAGES: &[&str] =
-    &["iapps", "tmsh", "Tk", "expect", "spectcl", "bpf", "bigip"];
+pub const VENDOR_SURFACE_PACKAGES: &[&str] = &[
+    "iapps", "tmsh", "Tk", "expect", "spectcl", "sslictcl", "bpf", "bigip",
+];
 
 /// The vendor-surface package of the environment named
 /// `environment_id`, if the interim bridge carries one.
@@ -269,6 +271,7 @@ pub fn points_answer_alike(left: &SurfaceQuery<'_>, right: &SurfaceQuery<'_>) ->
         SpecSurface::TK,
         SpecSurface::EXPECT,
         SpecSurface::SPECTCL,
+        SpecSurface::SSLICTCL,
         SpecSurface::BPF,
         SpecSurface::BIGIP,
         SpecSurface::TK_AND_TCL,
@@ -647,8 +650,9 @@ mod tests {
     fn none_dialects_translate_to_every_provider_the_old_mask_admitted() {
         let rows = declarations_for_spec(&spec_with(None));
         // Four core families (`f5-tcl` joined the tree in the F5
-        // reclassification, measurements §4a) + seven vendor packages.
-        assert_eq!(rows.len(), 11);
+        // reclassification, measurements §4a) + eight vendor packages
+        // (`sslictcl` joined with the `.sslictcl` authoring dialect, #1543).
+        assert_eq!(rows.len(), 12);
         for family in Family::ALL {
             assert!(
                 rows.iter()

@@ -390,6 +390,33 @@ collide on one bit and `trait_keys` needs no deduplication by bit value — a
 hand-numbered `1 << N` table can silently give two traits the same bit, and the
 studio would then render a spec claiming a trait its author never set.
 
+## Parity with native specs
+
+Anything a native `.rs` `CommandSpec` (or an attached descriptor) can express,
+a `.tclspec` pack must be able to express too, and the studio must round-trip
+it. A registry change is **not complete** until four surfaces move together:
+
+1. **Registry** — the field or descriptor on the type, with its coverage
+   witness in `rust/tcl-spec-studio/src/coverage.rs` (an exhaustive
+   destructuring plus a `Field` entry, so the build breaks until the studio
+   knows about it).
+2. **Loader** — a documented spelling in `rust/tcl-spectcl/src/loader.rs`,
+   recorded in the frozen-syntax memo
+   (`docs/design/spec-dsl-examples/README.md`) and its coverage matrix.
+3. **Renderer** — `render_spectcl.rs` emits the spelling (non-default values
+   only), and the `spectcl_roundtrip` gate proves draft → DSL → loader →
+   draft loses nothing.
+4. **Studio form** — `schema.rs` / `draft.rs` / `help.rs` surface it.
+
+The only sanctioned exception is an explicit entry in `render_spectcl.rs`'s
+`GAPS` table naming the field, its documented spelling, and why it cannot
+round-trip yet (`DraftOpaque` for genuinely opaque function pointers,
+`Excluded` for deliberate design exclusions); a `TODO(spectcl)` comment in
+rendered output is the visible trace. A field native specs can set but a pack
+cannot say, with no `GAPS` entry, is a bug. New DSL words are **additive**:
+the `speclib` version word revs (1.0 → 1.1), `VOCABULARY_VERSION` bumps only
+on meaning changes, and the loader keeps accepting every older vocabulary.
+
 ## Publishing
 
 The page ships to GitHub Pages at `/spec-studio/` alongside the compiler

@@ -420,7 +420,7 @@ profiles and the jim branch:
 | `spectcl` | environment (recommended) or dialect — **Q3** | grammar is `GRAMMAR_TCL9X` verbatim; the DSL words are a command surface (`rust/tcl-registry/src/commands/spectcl/`) |
 | `bpf` | environment (recommended) or dialect — **Q3** | grammar is `GRAMMAR_TCL9X` verbatim; its real content is a codegen target and a command surface |
 | `f5-bigip` | **neither** — a separate language surface | own tokeniser (`rust/tcl-bigip/src/conf_tokens.rs`), own tree-sitter grammar; keeps its identity/routing entry but leaves the Tcl dialect axis — **Q3** |
-| future `sslictcl` (#1543) | dialect if it earns a grammar axis; otherwise environment | the classification rule decides at proposal time, not by precedent |
+| `sslictcl` (#1543) | **environment** `sslictcl` = tcl@9.0 + sslictcl pack (package surface) — **ruled 2026-09** | The classification rule decided against a grammar axis: a `.sslictcl` document is `GRAMMAR_TCL9X` verbatim, and what makes it a dialect at all is the availability half — the declaration vocabulary (`certificate` / `endpoint` / `trust-program` / `protocol` / `cipher` / `chain` / `policy`, `rust/tcl-registry/src/commands/sslictcl/`) that must exist inside a `.sslictcl` document and nowhere else. The vocabulary **evaluates nothing** — not even a `predicate { … }` body, which the loader retains verbatim — so the environment is closed-world with base Tcl still loaded underneath, exactly as `spectcl` is. `CommandSpec` was **not** extended: the whole vocabulary is expressible with the existing fields plus `DefinerFamily::SslicTcl` definition-body grammars |
 
 ## 3. The three concepts
 
@@ -764,8 +764,10 @@ environment attaches its documents to a generic contributed Tcl identity
 while the server tracks the real environment. A pack may request
 detection patterns; the editor adapter reports whether it can apply them
 dynamically (VS Code: workspace `files.associations` per #1626; JetBrains:
-#1650; Zed/Sublime: static manifests only) — the design never promises a
-new native file type where the host cannot register one.
+IDE-global `FileTypeManager` associations with a persisted ledger of what
+the plugin installed, per #1650; Zed/Sublime: static manifests only) — the
+design never promises a new native file type where the host cannot register
+one.
 
 - **Environments are the only user-facing names.** All six ingress kinds —
   `# tcl-dialect:` directives, `tclLsp.dialect` settings and
@@ -784,10 +786,18 @@ new native file type where the host cannot register one.
   environment rows over the family ladders, so today's flat spellings keep
   working everywhere while pickers can group by family.
 - **Packs can declare environments.** A SpecTcl pack may carry an
-  `environment` block (§6.2). The six EDA catalogue shells move into
-  `specs/eda_*.tclspec`; the compiled-in environment set shrinks to the
-  core families' ladders plus `f5-irules`, `f5-iapps`, `f5-tmsh`,
-  `expect`, `tk`, `spectcl`, `bpf` (per **Q2/Q3** rulings). Environment
+  `environment` block (§6.2). **Landed (D17, 2026-09-02):** the six EDA
+  catalogue shells live in `specs/eda_*.tclspec` as `environment` blocks
+  and the hand-written compiled rows are deleted; the compiled-in
+  environment set is the core families' ladders plus `f5-irules`,
+  `f5-iapps`, `f5-tmsh`, `expect`, `tk`, `spectcl`, `bpf` (per **Q2/Q3**
+  rulings) — plus a **generated projection of the bundled packs' blocks**
+  (`cargo xtask gen-bundled-environments` →
+  `rust/tcl-dialect/src/model/bundled_environments.rs`, drift-gated),
+  seeded at `Provenance::BundledPack` so the six resolve at generation 0
+  everywhere a name is resolved before, or without, a pack publish. A
+  bundled pack restates its own seed row on every publish (an on-disk
+  `specs/` edit wins); every lower tier is refused the name. Environment
   values are `Arc`-held dynamic data with generation-keyed identity — see
   the dynamism note above — unlike the loaded `CommandSpec`s, which stay
   leaked-static.
@@ -976,12 +986,14 @@ all. A document whose extension a pack-declared environment claims routes
 to it through the ordinary ingress, with no setting and nothing in the
 file, and stops routing when the pack is deleted.
 
-**Intent, not shipped:** the `# tcl-dialect:` directive should accept
-environment names and aliases, making `# tcl-dialect: tk` (used in e2e
-tests today) coherent. `detect_dialect_directive` still gates on
-`KNOWN_DIALECTS`, which has no `tk` row, so the directive still abstains
-and falls through to the next tier — see §9's defect 5 and §11's E8/D15,
-where it is a user-visible payload change rather than a local fix.
+**Landed (E8, 2026-09-02):** the `# tcl-dialect:` directive resolves
+through the same environment resolver every other ingress uses
+(`resolve_known_environment`): canonical ids, aliases (`wish` → `tk`,
+`irules` → `f5-irules`), contributed editor identities, and any
+environment a loaded pack declares — answering the resolved canonical id.
+`# tcl-dialect: tk` is coherent, and a name no environment carries still
+makes the tier abstain. `KNOWN_DIALECTS` no longer gates the directive;
+the CLI/MCP payload rows it still feeds stay under D15.
 
 ### 5.2 Activation and `package require` processing
 
@@ -1347,7 +1359,10 @@ maximally.
   `available` row is an error (Q3). Legacy `dialects` is untouched.
 - **`environment NAME { … }`** — `core`, `ambient`, `hosted`, `alias`,
   `editor_identity`, `file_extension`, `filename`, `signature`,
-  `display_name`, `policy`. Parsed, validated, and carried on the pack as
+  `display_name`, `policy`, and (D17) `help_terms {WORD …}` — the
+  lower-case help-index filter terms — and `version_ceiling RELEASE` — the
+  §5.2 upper bound for option gating, a release on the `core` family's
+  ladder. Parsed, validated, and carried on the pack as
   `PackEnvironment`, with `to_definition` converting to an
   `EnvironmentDefinition` at the declaring tier's `Provenance`. Compiled
   canonical names and aliases are reserved (§3.3): a block claiming one is
@@ -1375,6 +1390,34 @@ maximally.
   `LexerConfig` is built from a `&'static DialectProfile` out of a compiled
   table, so a pack-declared core cannot yet be *lexed* with. That waits on
   the `DialectProfile` re-type (ledger C1).
+
+**Status (#1643, the environment block's first outside user).** The issue
+predates 2.0 and asked for `ambient_package NAME VERSION -dialects {…}`.
+The environment block already covers all of it — an `ambient` row states
+the placement inside the environment that has the package, which is the
+scoping the flag was reaching for — and a version shared by several
+environments is written once as a Tcl variable, because a pack is an
+evaluated program. Two things stood in the way and are now fixed. The
+capture layer preferred the file's own bytes to the evaluated invocation
+whenever the source statement at that line had the same shape, so a row
+that *substituted* was replayed with the dollar sign still in it; it now
+prefers the source text only for a statement that substitutes nothing.
+And the `environment` and `dialect` blocks were read as literal data
+while `command` blocks were evaluated — an asymmetry no author could have
+predicted, since a pack is one Tcl program. Both are now **evaluated
+scopes**: the body runs as a script, its rows are captured exactly as a
+`command` body's are, and `environment_block` / `dialect_block` stay the
+single owner of what each row means through a shared `parse_rows` seam
+that the literal reader and the evaluator both enter. So a variable, a
+`foreach`, or an `if` works inside a block, and an unknown row still
+rejects it. (`LOADER_EVAL_VERSION` bumped once for both.) The flag itself is not added: it
+cannot be desugared for the workspace and studio tiers, which §6.4 forbids
+from extending a compiled environment, and carrying it as a scoped row
+beside the placements would fork the floor model in two. `ambient_package`
+therefore stays exactly the unscoped 1.2 word it was, and a row bearing
+`-dialects` is dropped whole — an availability-narrowing word a reader
+cannot honour must not leave the wider claim standing (§6.1) — with a
+notice naming the environment spelling instead.
 
 **Status (P2-H remainder).** `provides` (with the fallback-provider
 default), `co_provides` (parsed and carried as data; the alias mechanics
@@ -1410,7 +1453,7 @@ lowering). The invocation-refinement descriptor (Q12) has since landed as
 |---|---|
 | `available {PROVIDER WINDOW…}` on commands/subcommands/options/values | the §4 algebra: `available {tcl 8.6-} {jim 0.78-}` / `available {package Tk 8.5-8.6}`; replaces `dialects` + implicit `required_package` gating |
 | `provides NAME VERSION ?VERSION…?` (pack level) | declares the package trains this pack describes, including parallel majors; commands default their provider to the pack's `provides` |
-| `environment NAME { … }` (pack level) | declares an environment definition: `core tcl 8.5 ?-build PROFILE?`, `ambient PACKAGE VERSION\|tracks-base\|keyed KEY`, `hosted PACKAGE …`, `alias NAME…`, `editor_identity ID` (selecting from the **fixed contributed set** — review B7, never minting a new editor language id), `file_extension`/`filename`/`signature` server-side detection rows, `display_name`, `policy` knobs — subsumes and closes #1643 (`ambient_package -dialects`) by scoping placements to the declaring environment instead of flag-scoping a global claim |
+| `environment NAME { … }` (pack level) | declares an environment definition: `core tcl 8.5 ?-build PROFILE?`, `ambient PACKAGE VERSION\|tracks-base\|keyed KEY`, `hosted PACKAGE …`, `alias NAME…`, `editor_identity ID` (selecting from the **fixed contributed set** — review B7, never minting a new editor language id), `file_extension`/`filename`/`signature` server-side detection rows, `display_name`, `policy` knobs, `help_terms {WORD …}`, `version_ceiling RELEASE` — subsumes and closes #1643 (`ambient_package -dialects`) by scoping placements to the declaring environment instead of flag-scoping a global claim. **Shipped, and #1643 closed on it**: a shared version is an ordinary Tcl variable substituted into each `ambient` row (which needed one capture-layer fix — see the §6.2 status note below), the two-environment floor is pinned by `tests/ambient_environment_floor.rs`, the block body is an evaluated scope like a `command` body (so `foreach`/`if`/variables work in it), and the proposed flag is refused fail-closed rather than added as a second spelling |
 | `placement` spellings: `ambient` / `hosted`, versions `Pinned` / `tracks-base` / `keyed KEY` / requirement sets | closes blockers 6–8: a pack can say "hosted, floored by requirement" (Tk under tclsh — on Tk's **own** axis, per review B11) and "ambient at the BIG-IP-implied version, in this environment only" (iapps); `tracks-base` survives only for hosts that genuinely guarantee matched versions; the closed-world vendor gate re-derives from *all* declared environments, compiled and pack-declared alike |
 | `co_provides` / loader aliases (predicated) | corrected per review B11 — Tk 9 registers lowercase `tk` as the loading package and provides uppercase `Tk` via an `ifneeded` chain requiring the exact lowercase version, only when built without `TK_NO_DEPRECATED`. The spelling is a predicated relation ("requiring `Tk` requires exact `tk`; successful load co-provides `Tk`, under this build predicate"), not a flat alias; tcllib's D1 wrapper names ride the same mechanism |
 | `dynamic_surface` / `unknown_members` | the honesty escape hatch (review B6): a provider whose member set is runtime-extensible (`struct::tree` methods via `info commands`, `oo::dialect` DSLs, pave's computed methods) declares so instead of pretending closure |
@@ -1833,7 +1876,9 @@ gates on (adopted verbatim from the review):
   `IAPPS|TMSH` sources into two packs + shared `values`/`descriptor`
   tables), expect, and the EDA environment shells move into their packs
   incrementally with the same behaviour and trust gates; the Rust
-  catalogue shrinks to core. **The F5 half is additionally gated on the
+  catalogue shrinks to core. **The EDA shells moved (D17, 2026-09-02)**
+  — six `environment` blocks, the compiled table deleted, a generated
+  seed and a parity fixture holding the packs to what the table said. **The F5 half is additionally gated on the
   §0.2 evidence programme**: `BigIpExecutionContext` keying, the
   conformance corpus with its acceptance-matrix coverage, the tmsh
   syntax axis, and the policy overlays land before any F5 row migrates;
@@ -2254,14 +2299,13 @@ open here is also in §11.
    tests and module docs, rejected by the server-side directive tier
    (`tk` is not in `KNOWN_DIALECTS`).
 
-   **State: still open.** `detect_dialect_directive` still gates on
-   `KNOWN_DIALECTS`, which still has 18 names and none of them is `tk`, so
-   `# tcl-dialect: tk` still abstains and falls through to the next
-   detection tier. §5.1's "finally coherent" is intent, not shipped
-   behaviour. The fix is not local: `KNOWN_DIALECTS` is also the CLI's
-   `--dialect` choices, the MCP `dialect_schema` enum and the explorer
-   dropdown — exactly the *payload* halves ledger rows T1/T3/T6 hold open
-   — so adding one name there is a user-visible surface change. §11.
+   **State: FIXED (E8, 2026-09-02).** `detect_dialect_directive` resolves
+   its candidate through `resolve_known_environment` — the resolver every
+   other ingress uses — so `tk`, `wish`, every alias and every
+   pack-declared environment resolve to their canonical id, and an unknown
+   name still abstains. `KNOWN_DIALECTS` is untouched: it still feeds the
+   CLI's `--dialect` choices, the MCP `dialect_schema` enum and the
+   explorer dropdown — the payload halves D15 holds open.
 6. **Ungated hand-written map**: `editors/sublime-text/plugin.py`
    `_SYNTAX_DIALECT_MAP` (and its missing `tcl8.6`/`tcl9.1` rows).
 
@@ -2597,13 +2641,13 @@ declined to make and named precisely rather than working around.
 | D10 | **Registry generations** (review B8, invariant I7). The loader still leaks per load (`Box::leak` in `tcl-spectcl/src/loader.rs`); no `RegistryGeneration` type exists | A Spec Studio session editing a mass-migrated surface leaks hundreds of MB — ~3.1 MB per generation of ~2,400 specs. It is a **P2 prerequisite** for any mass migration, so it also blocks P3's and P5's conversion halves | Move dynamic pack specs into an arena/`Arc<RegistryGeneration>`, return generation-bound handles, key salsa on the generation id — gated by the 1,000-reload allocator test |
 | D11 | **Shared `InvocationSpec`** (review B6). Taint sinks, forms, deprecation replacements and effects are copied field by field into `SubCommand` instead of living in one invocation capability model | Honest specs for method-level sinks (ticklecharts' file write, SpiceGenTcl's `runAndRead`) — census gaps G7/G15 | The refactor, behind the four-surface parity rule |
 | D12 | ~~**`tcl spec build --emit rust`** (ruling R7) and the pack-level, `dialect`-block-aware renderer it needs.~~ **RETIRED as a non-goal (owner, 2026-08-28, Q1).** The shipped cores stay native Rust — `commands/{tcl,irules}`, and the stdlib, tcllib and Tk surfaces with them — so there is no AOT endgame to build towards and ruling **R7** is withdrawn. Jim is the one carve-out (Q6): its surface is authored as SpecTcl and *loaded*, not compiled to Rust. The WASM-only per-command renderer stays as it is, for the studio. | Nothing | Nothing — this is closed |
-| D13 | **`--restyle`** — **owner ruling 2026-08-27: build it.** `tcl spec upgrade` grows the flag; it is mostly wiring `export_pack`'s existing shorthand logic to a CLI switch. | Nothing else | Building it |
-| D14 | **Ledger T9 — the `spec-author` skill.** `ai/claude/skills/spec-author/SKILL.md` still instructs authors to declare `speclib <name> 1.1` and describes 1.1 as the newest vocabulary | Every pack a model or a human authors from the skill is two majors stale, and will not carry `available`, `environment`, `dialect`, `provides` or `include` | Refresh the skill for 2.0: the new words, `dialect` blocks, the `available` algebra, and the upgrade workflow |
+| D13 | ~~**`--restyle`** — **owner ruling 2026-08-27: build it.**~~ **LANDED (2026-09-02).** `tcl spec upgrade --restyle` re-emits the rewritten pack through `export_pack` in canonical form (comments and author layout dropped), proves it under `--verify`, and refuses a **programmed** pack whole — `available?` at registration, or a top-level statement that is not one of the recorded registration calls — per E-R12; a partial upgrade keeps its TODO markers and is not restyled | — | Done |
+| D14 | ~~**Ledger T9 — the `spec-author` skill.**~~ **LANDED (2026-09-02).** The skill declares `speclib <name> 2.0` and teaches the script model: canonical form by default, a variable for a shared version and a `foreach` over an adjacent data table only when repetition is the problem, `-available` rows over `available?`, `tcl spec export` before shipping, `environment NAME { ambient … }` for ambient packages, `tcl spec upgrade [--restyle]` for 1.x sources | — | Done |
 | D15 | **The tooling payload rows** (ledger T1, T3, T4, T6, T7, F9, F12/T13, B10, B11, T10, T12). Every *ingress* moved onto the seam; the *user-visible* payloads did not — the CLI's `--dialect` possible values, the MCP `dialect_schema` enum, the studio picker, `registry-dump --all-dialects`, `listDialects`, `callback-surfaces` row ids, the hand-written Sublime `_SYNTAX_DIALECT_MAP`, `_registry_data.tcl`, and the hardcoded `tcl8.6` defaults | Environment names becoming the user-facing vocabulary — which is also what ruling R9's KCS "Applies-to" regeneration waits on, and what defect §9.5 (`# tcl-dialect: tk`) needs | Each is a deliberate user-visible surface change: re-key the payload, regenerate the artefact, and accept the diff. They were held because a name change is not a refactor |
 | D16 | **The per-distinct-profile reference evaluator** (§5.4, review B10). P1b shipped two token-local detectors (lifecycle windows, numerals) — the only pair §5.4 licenses without the reference. The reference itself was not built | Every other range axis: escapes, `${a{b}c}`, expr comments and operators, `{*}`, the leading-BOM rule, differential constant folding at the endpoints, `package require` satisfiability per target, numerals *inside* compound `expr` bodies, and the W151 fix-its | Build the multi-profile evaluation, then admit each per-pair detector only after the differential corpus/fuzz gate proves it equivalent |
 | D17-P | **A package version window in `available` is parsed, reported, and then dropped.** `available {package Tk 8.7-}` validates the range and carries only the name, so the row admits wherever Tk is present at any version. The loader says so at load ("a per-package version window has no `SpecTcl` 1.x field, so only the package name is carried"), so an author is not misled — but a consumer still gets the over-permissive answer, and version-gated package APIs cannot be expressed. Found by the Codex review on [#1725](https://github.com/bitwisecook/tcl-lsp/pull/1725) | Per-package version gating; the same shape as D17-J's remainder | `SurfaceQuery::packages` becomes name-and-version rather than name-only, and `SpecSurface::package_in`'s windows are then answerable. Both halves move together with D17-J's point change |
 | D17-J | **Jim's own commands can be *written* but not yet *read*. Half done (Q13).** A surface row names its family, so `available {jim 0.81-}` is expressible and Jim's 74 measured additions — `loop`, `range`, `lsubst`, `alias`, `local`, `upcall`, `xtrace`, `ref`/`getref`/`setref`, `timerate`, the `os.*` and `json::*` rows, the arithmetic command forms — can be authored from a pack and do enter the assembled registry. What cannot yet happen is *resolving* one: a `jim` document's authoring point is `(Tcl, 8.6)` — the ancestry anchor, which is how the shared core specs resolve without 76 re-authored copies — and `surface_admits` matches the queried family exactly, by design (Q6: the ancestry edge is a carrier, not an answer). So a `Core(Jim)` row is admitted by no point any document asks at, and such a command is silently absent from dispatch and completion. Found by the Codex review on [#1725](https://github.com/bitwisecook/tcl-lsp/pull/1725) | Jim's additions stay unauthorable in practice, and the same shape blocks any future family that inherits a surface and adds to it | A point that carries the document's **own** family alongside its ancestry anchor — `AuthoringScope::core` becomes a small ordered list and `SurfaceQuery::core` with it, so `surface_admits` can accept a row from either, nearest first. Every `SurfaceQuery` construction site moves with it; no row data changes. One secondary residue stands regardless: `binary` and `zlib` are on the roster unconditionally although `--minimal` compiles both out, because the build-capability vocabulary covers utf-8 and the math extension, not per-extension configure flags |
-| D17 | **No shipped pack declares an environment** (Q2). The `environment` block, its live registration, its retirement and its detection routing all work and are proved end to end over a workspace pack; not one of the eight bundled `specs/*.tclspec` packs uses one. **Owner ruling 2026-08-28 (Q2): confirmed — the EDA shells move into their `.tclspec`s.** This is now scheduled work rather than an option. The naming question it was asked with was answered on 2026-08-28: **`Environment` stays** — platform, target and host were considered and rejected. | The "fully centralised end-state": six EDA catalogue shells are still compiled-in | Adding `environment` blocks to the six `specs/eda_*.tclspec` packs and deleting the compiled shells, with the editor catalogues regenerated from the packs |
+| D17 | ~~**No shipped pack declares an environment** (Q2).~~ **LANDED (2026-09-02).** The six `specs/eda_*.tclspec` packs moved to `speclib … 2.0` through `tcl spec upgrade` (`--verify` byte-identical) and carry `environment NAME { … }` blocks — base release, `version_ceiling`, editor identity, keyed `sdc`/`upf`/tool placements, extension claims, `help_terms` — and the compiled `EDA_SHELLS` table is deleted. Parity: `tcl-spectcl/tests/eda_environment_packs.rs` holds the pack-declared definitions field-for-field to the snapshot `eda_environments()` produced before deletion (`tests/fixtures/eda_environment_shells.txt`). **Residue, by design:** the environments must resolve at generation 0 (the `tcl-registry` acceptance gates, the MCP server, the `xtask` generators and the closed-world derivation during pack merge all resolve names before a publish), so `cargo xtask gen-bundled-environments` projects the blocks into a generated, drift-gated seed (`rust/tcl-dialect/src/model/bundled_environments.rs`, `Provenance::BundledPack`) — the Q1 two-backends pattern; the bundled tier restates the rows on publish — a content-identical publish is generation-neutral, so the restatement re-keys no per-context cache — and lower tiers are refused the names. The six `DialectProfile` catalogue rows stay as the lexer's grammar key (D5) and the editor-catalogue key (D15), held equal to the seed by `every_bundled_environment_agrees_with_its_catalogue_profile`; the generators therefore emit unchanged artefacts, and `gen-editor-extensions` now also routes environment-block extension claims | — | Done |
 | D18 | **The gap rulings that did not land as code** (companion §4). **R1** — **done (one-vocabulary lane)**: `stub_overlay.rs` is deleted and stubs ingest as provenance-tagged `SurfaceDeclaration`s through `tcl_registry::model::declaration`, read through the one `DocumentCommandSurface` door (Q22). **R2** — special variables are still `special_vars.rs`'s compiled Rust table rather than SpecTcl declarations, so Jim's `env` and picol 2's capital-initial globals have no home (Q23); the private dialect-name ingress *is* gone. **R3** — `FILE_SCOPED_ENVS` is still a hardcoded one-row Rust table (`("tclpkg.tcl", &TCLPKG_MANIFEST_ENV)`) rather than a detection-scoped environment whose surface is a pack. **R4** — `render_spectcl`'s `is_dialect_set` still matches `"dialects" \| "safe_on_uninit"` together, conflating a behaviour predicate with availability (ledger T8). **R5** — the hook `ctx` dict still carries only a `dialect` key; no `environment` key was added (Q25). **R7's other half** — `tcl spec check` was never promoted from MCP to a CLI verb; `tcl spec` has `import`, `upgrade` and `export`. **R9** — the KCS "Applies-to" controlled vocabulary is unregenerated. **R10** — **done (one-vocabulary lane)**: the one-oracle *gate* is written. Visibility narrowing where that is enough (`Analyser::builtin_command_names` and `model::declaration::DeclaredSurface::get` are `pub(crate)`, beside P1-G's cache doors and `ProfileQueries`), plus a second **owned-spelling** family in `retired-api-gate` — each centralised answer (`CommandExistenceOracle` / `command_existence_oracle` / `builtin_command_names` / `w123_registry_known_names`, `has_command_in_this_dialect` / `all_dialect_command_names`, `command_binding_transitions` / `command_table_transitions`, `DeclaredSurface`) is scoped to the file prefixes that own it, with a `// one-oracle-ok:` waiver that requires a ledger §3 row. The retired family additionally holds this lane's deletions (`StubOverlay` and friends, `command_table_effect(`, `command_table_effects`, `detect_rename`, `detect_interp_alias`, `detect_interp_alias_delete`, `is_interp_alias_shape`), and the needle matcher's boundary rule now applies only at an end the needle itself spells with an identifier character, so a needle carrying its own punctuation matches | Each blocks a different small thing; together they are why the centralisation ledger's completion criterion is unmet. R10 **is now closed**, which is what stops the retirements P1-G, P1a and this lane proved from silently un-proving themselves | Each is independently landable. R10's shape — visibility narrowing where it is enough, plus a call-site sweep with a ledger-entry escape hatch, in the shape `retired-api-gate` demonstrates — is what shipped; full `pub(crate)` on `CommandRegistry::command_names` / `get_for_dialect` was **not** attempted, because ~45 production call sites read them for spec *content* rather than as an existence answer, so the sweep carries that half |
 
 ### 11.3 Evidence gaps
@@ -2643,4 +2687,4 @@ what a reader should believe.
 | E5 | `LexerConfig::for_dialect`'s doc comment said `expand_syntax` is true for "iApps, tmsh, Expect, EDA flavours" and `irules_brace_separator` is "true only for iRules" | Measurement §4a moved both: `GRAMMAR_F5_TCL` is `expand_syntax: false`, `irules_brace_separator: true`, and all three F5 catalogue rows select it (P1-G) | **Fixed by P8** — comment corrected in place |
 | E6 | `grammar.rs` and `expr_lexer.rs` named "plain `tcl`, iRules" as the `None`-expr-base dialects (§9.3) | The `None`-base rows are `f5-bigip`, `PLAIN_TCL` and `TK_PROFILE`; `f5-irules` has always carried `Some(V8_4)` | **Fixed by P8** — both comments corrected |
 | E7 | `dialect-detection.md` listed 16 `KNOWN_DIALECTS` names; `dialect-profile-model.md` §8 said "16 catalog entries" | Both are 18, and the detection doc's list omitted `microchip-libero-eda-tcl` and `spectcl` | **Fixed by P8** |
-| E8 | §5.1: the directive "accepts environment names and aliases — making `# tcl-dialect: tk` … finally coherent" | `detect_dialect_directive` still gates on `KNOWN_DIALECTS`, which has no `tk` row, so the directive still abstains | **Still open** — it is D15's payload change, not a local fix. §9.5 records it; §5.1 now marks the sentence as intent |
+| E8 | ~~§5.1: the directive \"accepts environment names and aliases — making `# tcl-dialect: tk` … finally coherent\"~~ | ~~`detect_dialect_directive` still gates on `KNOWN_DIALECTS`~~ | **Fixed (2026-09-02).** The directive resolves through `resolve_known_environment`: names, aliases, editor identities and pack-declared environments, answering the canonical id; unknown names abstain. §5.1 and §9.5 record it. The D15 payload rows (CLI/MCP enums) are untouched |

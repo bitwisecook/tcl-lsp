@@ -6,82 +6,38 @@ allowed-tools: mcp__tcl-lsp__suggest_datagroup_extractions, mcp__tcl-lsp__extrac
 
 # iRule Data-Group Analysis
 
-Analyse an iRule for data-group extraction opportunities.
-
 ## Steps
 
-1. Read the domain knowledge from `../_prompts/irules_system.md` (includes data-groups reference)
-2. Read the iRule file to analyse
-3. Find all candidates by calling `mcp__tcl-lsp__suggest_datagroup_extractions`, passing the file contents you just read as `source`.
-   This returns structured context for each candidate:
-   - Pattern type (if_chain, switch, or_chain)
-   - Inferred value type (ip, integer, string)
-   - Whether CIDR notation is present
-   - Body shape (identical, set_mapping, return_mapping, complex)
-   - Confidence level (high = mechanical, medium = needs review, low = use judgement)
-4. If the tool fails (e.g. file not found or parse error), report the error clearly and suggest fixes
-5. For **high-confidence** candidates, run the static extractor by calling `mcp__tcl-lsp__extract_datagroup`, passing the file contents as `source` plus the candidate's cursor position as `line` and `character` (and optionally `dg_name`). Unlike the old `--line` argument, this tool takes the `line`/`character` cursor coordinates of the candidate.
-   This produces both the rewritten iRule code and the tmsh data-group definition.
-6. For **medium/low-confidence** candidates, use AI reasoning to:
-   - Choose an appropriate data-group name based on the domain context
-   - Decide whether to consolidate related patterns into a single data-group
-   - Determine the correct `class match` operator (equals, contains, starts_with)
-   - Handle CIDR ranges correctly (IP data-groups with network prefixes)
-   - Generate the data-group definition with proper typing
-7. For each extraction, provide:
-   - The original inline code
-   - The replacement using `class match` / `class lookup`
-   - The complete tmsh data-group definition:
-     ```
-     ltm data-group internal <name> {
-         records {
-             <key> { data <value> }
-         }
-         type <string|ip|integer>
-     }
-     ```
-   - The performance benefit explanation
-8. Apply the changes to the file using the Edit tool
-9. If no data-group opportunities exist, explain why the current approach is acceptable
+1. Read `../_prompts/irules_system.md` (data-group reference), then the
+   iRule.
+2. Call `mcp__tcl-lsp__suggest_datagroup_extractions` with the contents as
+   `source`. Each candidate carries its pattern (if_chain, switch, or_chain),
+   inferred value type (ip, integer, string), CIDR flag, body shape
+   (identical, set_mapping, return_mapping, complex), and confidence. On a
+   tool error report it and suggest fixes.
+3. **High confidence:** call `mcp__tcl-lsp__extract_datagroup` with `source`
+   plus the candidate's `line` and `character` (optionally `dg_name`); it
+   returns the rewritten iRule and the tmsh definition.
+4. **Medium / low:** decide by hand — a domain-appropriate name, whether to
+   consolidate related patterns, the `class match` operator (equals,
+   contains, starts_with), CIDR handling for ip types — and write the
+   definition.
+5. For each extraction show the inline code, the `class match` /
+   `class lookup` replacement, the tmsh definition
+   (`ltm data-group internal <name> { records { <key> { data <value> } } type <string|ip|integer> }`),
+   and the performance benefit; then apply with Edit. If nothing qualifies,
+   say why the current approach is acceptable.
 
-## Data-group type reference
+## Reference
 
-| Value type | Examples | class operator |
-|------------|----------|----------------|
+| Type | Examples | Operators |
+|---|---|---|
 | string | `"/api/v1"`, `"example.com"` | `equals`, `starts_with`, `contains` |
-| ip | `10.0.0.0/8`, `192.168.1.1`, `::1` | `equals` (supports CIDR matching) |
-| integer | `80`, `443`, `8080` | `equals` |
+| ip | `10.0.0.0/8`, `192.168.1.1`, `::1` | `equals` (CIDR-aware) |
+| integer | `80`, `443` | `equals` |
 
-## Common patterns
-
-### Membership test (identical bodies)
-```tcl
-# Before: if/elseif chain
-if { $host eq "a.com" } { pool web_pool } elseif { $host eq "b.com" } { pool web_pool }
-
-# After: class match
-if { [class match $host equals allowed_hosts] } { pool web_pool }
-```
-
-### Value lookup (different bodies)
-```tcl
-# Before: switch mapping
-switch -exact -- $uri {
-    "/api" { pool api_pool }
-    "/web" { pool web_pool }
-}
-
-# After: class lookup
-pool [class lookup $uri uri_pool_map]
-```
-
-### IP allowlist with CIDR
-```tcl
-# Before: nested if
-if { [IP::addr [IP::client_addr] equals 10.0.0.0/8] } { ... }
-
-# After: IP data-group (handles CIDR natively)
-if { [class match [IP::client_addr] equals trusted_networks] } { ... }
-```
+Membership test (identical bodies) → `if { [class match $host equals allowed_hosts] } { pool web_pool }`.
+Value lookup (different bodies) → `pool [class lookup $uri uri_pool_map]`.
+IP allowlist → `if { [class match [IP::client_addr] equals trusted_networks] } { ... }`.
 
 $ARGUMENTS

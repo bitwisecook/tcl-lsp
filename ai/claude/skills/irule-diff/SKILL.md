@@ -6,25 +6,16 @@ allowed-tools: mcp__tcl-lsp__irule_with_context, Read
 
 # iRule Diff
 
-Compare two iRule versions and analyse the differences.
-
 ## Steps
 
-1. Read the domain knowledge from `../_prompts/irules_system.md`
-2. Read both iRule files (the user should provide two file paths)
-3. Run context analysis on both files: call `mcp__tcl-lsp__irule_with_context` once with the contents of `$FILE_A` as `config_text`, and again with the contents of `$FILE_B` as `config_text`
-4. If the analysis tool fails on either file, fall back to manual source comparison and note that LSP analysis was unavailable
-5. Compare the two versions and explain:
-   - **Semantic changes** -- What changed in behaviour (not just line diffs)?
-   - **Events** -- Any events added, removed, or reordered?
-   - **Security implications** -- Do the changes introduce or fix security issues?
-   - **Performance implications** -- Any changes to hot-path efficiency?
-   - **Breaking changes** -- Could these changes affect traffic handling?
-6. If the user asked a specific question about the diff, focus on that
-
-## Output format
-
-Focus on what matters operationally. Be concise. Use headings for each
-analysis section.
+1. Read `../_prompts/irules_system.md`, then both files.
+2. Call `mcp__tcl-lsp__irule_with_context` once per file with its contents
+   as `config_text`. If either call fails, compare the sources by hand and
+   say LSP analysis was unavailable.
+3. Explain, concisely and operationally, with a heading each: semantic
+   changes (behaviour, not lines); events added, removed, or reordered;
+   security implications; performance implications on the hot path;
+   breaking changes to traffic handling. Focus on any specific question
+   asked.
 
 $ARGUMENTS

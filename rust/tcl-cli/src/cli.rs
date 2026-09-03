@@ -579,11 +579,6 @@ pub struct SpecUpgradeArgs {
     #[arg(value_name = "FILE", required = true)]
     pub files: Vec<PathBuf>,
 
-    /// Report what would change without writing anything; exits non-zero if
-    /// any file is behind the newest vocabulary.
-    #[arg(long)]
-    pub check: bool,
-
     /// The vocabulary the files are expected to declare.
     #[arg(long, value_name = "VERSION", default_value = "1.0")]
     pub from: String,
@@ -592,18 +587,47 @@ pub struct SpecUpgradeArgs {
     #[arg(long, value_name = "VERSION", default_value = "2.0")]
     pub to: String,
 
+    #[command(flatten)]
+    pub proof: SpecUpgradeProof,
+
+    #[command(flatten)]
+    pub shape: SpecUpgradeShape,
+}
+
+/// The `tcl spec upgrade` switches that report or prove instead of writing.
+#[derive(Debug, Args)]
+pub struct SpecUpgradeProof {
+    /// Report what would change without writing anything; exits non-zero if
+    /// any file is behind the newest vocabulary.
+    #[arg(long)]
+    pub check: bool,
+
     /// Prove the upgrade is behaviour-preserving instead of writing it: the
     /// original and the rewritten pack must produce byte-identical registry
     /// snapshots (upgrade spec U9). Implies --check.
     #[arg(long)]
     pub verify: bool,
+}
 
+/// The `tcl spec upgrade` switches that change the rewritten pack's shape
+/// rather than its spelling.
+#[derive(Debug, Args)]
+pub struct SpecUpgradeShape {
     /// Hoist a uniform `required_package` (the pack-level default, or one
     /// identical row in every command) to a pack-level `provides`
     /// declaration (upgrade spec U6). Off by default: it changes the
     /// pack's shape, not just its spelling.
     #[arg(long = "infer-provides")]
     pub infer_provides: bool,
+
+    /// Re-emit the upgraded pack in canonical 2.0 form — straight-line
+    /// registration calls at the house layout, through the same renderer
+    /// `tcl spec export` uses. Comments and author layout do not survive
+    /// it. A programmed pack (one whose `speclib` body runs rather than
+    /// registers) is refused whole, never rewritten (design E-R12), and a
+    /// partially upgraded file keeps its TODO markers instead.
+    #[arg(long)]
+    pub restyle: bool,
 }
 
 /// Flags of `tcl spec import`.
@@ -1025,7 +1049,8 @@ pub enum DockerCommand {
         /// Docker ENV as key=value (repeatable).
         #[arg(long)]
         env: Vec<String>,
-        /// tcl CLI zipapp version to download (default: latest known).
+        /// tcl-lsp release to install the native tcl CLI from
+        /// (default: this binary's own release; empty resolves the latest).
         #[arg(long = "cli-version")]
         cli_version: Option<String>,
         /// Overwrite existing Dockerfile.
@@ -1042,6 +1067,13 @@ pub enum DockerCommand {
         /// Tcl version.
         #[arg(long = "tcl-version", default_value = "8.6", value_parser = ["8.4", "8.5", "8.6", "9.0"])]
         tcl_version: String,
+        /// Show the native tcl CLI install recipe instead of the Tcl one.
+        #[arg(long)]
+        cli: bool,
+        /// tcl-lsp release the --cli recipe pins
+        /// (default: this binary's own release; empty resolves the latest).
+        #[arg(long = "cli-version")]
+        cli_version: Option<String>,
         /// Emit JSON output.
         #[arg(long)]
         json: bool,

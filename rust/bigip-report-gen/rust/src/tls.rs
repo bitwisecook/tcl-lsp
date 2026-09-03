@@ -54,6 +54,7 @@ pub(crate) fn collect_tls(
                 certificates: &endpoint.certificates,
                 trust_store: &dataset.trust,
                 testssl: None,
+                facts: None,
                 unix_time: analysis_time,
             });
             let mut estimate_value = serde_json::to_value(result).unwrap_or(J::Null);

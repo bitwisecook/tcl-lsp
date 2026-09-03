@@ -2,144 +2,66 @@
 name: code-review
 description: >
   Comprehensive code review of pending changes in the repository. Critiques
-  quality, simplicity, correctness, dead code, LSP/editor integration
-  completeness, KCS currency, AI/CLI tooling, compiler explorer usage,
-  test coverage, and Tcl dialect compatibility (8.4-9.0).
+  quality, simplicity, correctness, dead code, the registry rule, LSP/editor
+  integration completeness, KCS currency, AI/CLI tooling, compiler explorer
+  visibility, test coverage, and Tcl dialect compatibility (8.4–9.1).
 allowed-tools: Bash, Read, Glob, Grep
 ---
 
 # Code Review
 
-Perform a thorough review of the current changes in the repository. Make no
-modifications — only critique.
+Review the current changes. Critique only; change nothing.
 
 ## Gather context
 
-1. Ask the user what the changes are about — what problem they solve, what
-   feature they add, or what refactoring they perform. Use this context to
-   guide your review.
-2. Identify the scope of the changes:
-   ```bash
-   git diff main --stat
-   git diff main --name-only
-   ```
-3. Read every changed file. For large diffs, read the full diff:
-   ```bash
-   git diff main -- <file>
-   ```
+1. Ask what the change is for (problem, feature, refactor); review against that.
+2. Scope: `git diff rust --stat` and `git diff rust --name-only` (`rust` is
+   the active branch).
+3. Read every changed file; for a large diff, `git diff rust -- <file>`.
 
-## Review checklist
+## Checklist
 
-Work through each area below. For each area, note findings as **pass**,
-**concern**, or **action required**. Skip areas that are not relevant to the
-changes.
+Mark each area **pass**, **concern**, or **action required**; skip areas the
+change does not touch.
 
-### 1. Quality and simplicity
+1. **Quality and simplicity** — as simple as it reasonably can be; no
+   premature abstraction, leftover shim, or compatibility layer; no dead,
+   replaced, or unreachable code; names per `CONTRIBUTING.md` (UK spelling,
+   explicit, no ambiguous single letters).
+2. **Correctness** — sound logic, edge cases, off-by-one, bounds, silent
+   failures. Tcl semantics: namespaces and qualified names, `interp alias` /
+   `rename`, `unknown`, shimmering, `package` / `source` / `auto_index`,
+   `uplevel` / `upvar`, `namespace eval`, `interp`, `trace`. Version-specific
+   features gated per dialect (8.4–9.1).
+3. **Registry rule** — no per-command `match` in a consumer; the fact lives on
+   `CommandSpec` (`AGENTS.md`). A new command lands with its WASM backing.
+4. **Performance** — obvious algorithmic wins taken; no needless allocation
+   or repeated lookup on a hot path.
+5. **LSP and editors** — a diagnostics / completion / hover / token /
+   code-action / formatting change reaches every editor (VS Code, Neovim,
+   Zed, Emacs, Helix, Sublime, JetBrains); `make codegen` re-run when a
+   diagnostic or optimisation changed; new capabilities registered.
+6. **Docs** — KCS note created or updated and indexed; README and the owning
+   design doc current (`CONTRIBUTING.md` § *Documentation required for a
+   PR*).
+7. **AI and CLI surfaces** — `ai/claude/skills/`, the `.j2` prompt templates,
+   MCP tools (`rust/tcl-mcp`), and the `tcl` / `f5-query` CLIs updated when a
+   diagnostic, command, or feature they expose changed.
+8. **Compiler explorer** — a bytecode / IR / pass change is visible in
+   `tcl explore` (`rust/tcl-explorer`).
+9. **Tests** — positive, negative, edge (empty, boundary, dialect); no
+   shipped xfails; fuzz-shaped tests `#[ignore]`d; iRule changes carry Event
+   Orchestrator tests.
+10. **Tcl completeness** — think through: ensembles (`-map`, `-unknown`),
+    aliases and `rename`, `unknown` and auto-loading, shimmering (the `K`
+    idiom), package loading and version resolution, `source` / `auto_path`,
+    scoping (`uplevel`, `upvar`, `variable`, `global`, `namespace upvar`),
+    coroutines (8.6+), TclOO (mixins, filters, MRO), zipfs (9.0).
 
-- Is the code as simple as it can reasonably be?
-- Are there unnecessary abstractions, premature generalisations, or
-  over-engineered helpers?
-- Are there structures, shims, or legacy compatibility layers that are no
-  longer necessary?
-- Is there dead code, replaced code, or unreachable paths?
-- Do names follow project conventions (UK spelling, explicit names, no
-  ambiguous single-letter variables)?
+## Output
 
-### 2. Correctness
-
-- Is the logic sound? Are edge cases handled?
-- Are there off-by-one errors, missing bounds checks, or silent failures?
-- For Tcl language features: consider namespaces, qualified names, aliases,
-  `unknown` proc, shimmering, `package` loading, `source`, `auto_index`,
-  `uplevel`/`upvar` scoping, `namespace eval`, `interp`, `rename`, and
-  `trace` interactions.
-- Is the code compatible with all supported Tcl dialects (8.4, 8.5, 8.6,
-  9.0)? Are version-specific features gated appropriately?
-
-### 3. Optimisations
-
-- Are obvious optimisations done (algorithmic improvements, avoiding
-  redundant work, caching where appropriate)?
-- Are there hot paths doing unnecessary allocations or repeated lookups?
-
-### 4. LSP and editor integration
-
-- If the change affects diagnostics, completions, hovers, semantic tokens,
-  code actions, or formatting: is the integration complete for **all**
-  editors (VS Code, Neovim, Zed, Emacs, Helix, Sublime, JetBrains)?
-- Were editor settings regenerated (`make gen-editor-settings`) if
-  diagnostics or optimisations changed?
-- Are new LSP capabilities registered in the server capabilities?
-
-### 5. KCS documentation
-
-- Are relevant KCS notes created or updated to reflect the changes?
-- Is `docs/kcs/README.md` updated if new notes were added?
-- Does the README reflect new or changed features?
-
-### 6. AI tooling and CLI
-
-- Are AI skills (`ai/claude/skills/`) updated if the change affects
-  skill-relevant behaviour (new diagnostics, commands, features)?
-- Is `ai/claude/tcl_ai.py` updated if new analysis capabilities were added?
-- Is the command registry (`compiler/registry/` engine + `dialects/` spec
-  packs) updated if commands were added or changed?
-- Are MCP tools updated if applicable?
-
-### 7. Compiler explorer
-
-- If the change affects bytecode, IR, or compilation: does the compiler
-  explorer (`explorer/`) reflect it?
-- Are new passes or optimisations visible in the explorer output?
-
-### 8. Tests
-
-- Are there tests covering the positive case (expected behaviour)?
-- Are there tests covering the negative case (error handling, invalid input)?
-- Are edge cases tested (empty input, boundary values, dialect differences)?
-- Do tests follow the xfail policy (no shipping xfails)?
-- For iRule changes: are Event Orchestrator tests included?
-
-### 9. Tcl language completeness
-
-Think through whether the solution handles these Tcl-specific concerns:
-
-- **Namespaces**: qualified names, `namespace eval`, `namespace import/export`,
-  `namespace path`, nested namespaces, `::` resolution
-- **Aliases and rename**: `interp alias`, `rename`, effect on call tracking
-- **unknown proc**: fallback resolution, `namespace unknown`, auto-loading
-- **Shimmering**: string/list/dict representation changes, `K` combinator
-  idiom, performance implications
-- **Package loading**: `package require`, `package ifneeded`, `pkgIndex.tcl`,
-  version resolution, `package forget`
-- **Source and auto_index**: `source` path resolution, `auto_path`,
-  `auto_mkindex`, lazy loading
-- **Variable scoping**: `uplevel`, `upvar`, `variable`, `global`,
-  `namespace upvar`, call stack depth implications
-- **Ensemble commands**: `namespace ensemble`, sub-command dispatch,
-  `-map` and `-unknown` options
-- **Coroutines** (8.6+): `coroutine`, `yield`, `yieldto`, stack behaviour
-- **OO** (8.6+): `oo::class`, mixins, filters, method resolution order
-- **Zipfs** (9.0): embedded filesystem, `zipfs mount`
-
-## Output format
-
-### Summary
-
-One-paragraph overview of the change quality.
-
-### Findings
-
-Group findings by review area. For each finding:
-
-- **Severity**: pass / concern / action required
-- **Location**: file path and line number(s)
-- **Description**: what the issue is
-- **Suggestion**: how to address it (if applicable)
-
-### Verdict
-
-Overall assessment: **approve**, **approve with suggestions**, or
-**request changes**. Summarise the key items that need attention.
+**Summary** — one paragraph. **Findings** — by area: severity, `file:line`,
+description, suggestion. **Verdict** — approve / approve with suggestions /
+request changes, naming the items that need attention.
 
 $ARGUMENTS

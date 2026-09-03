@@ -26,12 +26,24 @@
 # The SDC-shared constraint/query commands live in sdc_base, which rides
 # along with the xilinx-eda-tcl profile.
 
-speclib eda_xilinx 1.1 {
+speclib eda_xilinx 2.0 {
 
 display_name {AMD Xilinx Vivado}
 
+environment xilinx-eda-tcl {
+    display_name    {Xilinx EDA Tcl}
+    core            tcl 8.5
+    version_ceiling 8.5
+    editor_identity tcl-xilinx
+    ambient         sdc keyed SdcVersion
+    ambient         upf keyed UpfVersion
+    ambient         vivado keyed ToolVersion
+    file_extension  xdc -name {Xilinx Design Constraints}
+    help_terms      {xilinx vivado vitis amd fpga ise}
+}
+
 command add_bp {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -51,7 +63,7 @@ command add_bp {
     }
 }
 command add_cells_to_pblock {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -81,7 +93,7 @@ add_cells_to_pblock pb_cpuEngine [get_cells cpuEngine/*] \
     }
 }
 command add_condition {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -110,7 +122,7 @@ stop }}
     }
 }
 command add_drc_checks {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -140,7 +152,7 @@ command add_drc_checks {
     }
 }
 command add_files {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -172,7 +184,7 @@ command add_files {
     }
 }
 command add_force {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -198,7 +210,7 @@ command add_force {
     }
 }
 command add_hw_hbm_pc {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 3..
@@ -217,7 +229,7 @@ command add_hw_hbm_pc {
     }
 }
 command add_hw_probe_enum {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 3..
@@ -243,7 +255,7 @@ command add_hw_probe_enum {
     }
 }
 command add_peripheral_interface {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -269,7 +281,7 @@ command add_peripheral_interface {
     }
 }
 command add_qor_checks {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -294,7 +306,7 @@ command add_qor_checks {
     }
 }
 command add_to_power_rail {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -317,7 +329,7 @@ command add_to_power_rail {
     }
 }
 command add_wave {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -359,7 +371,7 @@ command add_wave {
     }
 }
 command add_wave_divider {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -389,7 +401,7 @@ command add_wave_divider {
     }
 }
 command add_wave_group {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -416,7 +428,7 @@ command add_wave_group {
     }
 }
 command add_wave_marker {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -442,7 +454,7 @@ command add_wave_marker {
     }
 }
 command add_wave_virtual_bus {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -476,7 +488,7 @@ command add_wave_virtual_bus {
     }
 }
 command all_cpus {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -496,7 +508,7 @@ command all_cpus {
     }
 }
 command all_dsps {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -516,7 +528,7 @@ command all_dsps {
     }
 }
 command all_ffs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -536,7 +548,7 @@ command all_ffs {
     }
 }
 command all_hsios {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -556,7 +568,7 @@ command all_hsios {
     }
 }
 command all_latches {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -576,7 +588,7 @@ command all_latches {
     }
 }
 command all_rams {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -596,7 +608,7 @@ command all_rams {
     }
 }
 command apply_bd_automation {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -628,7 +640,7 @@ command apply_bd_automation {
     }
 }
 command apply_board_connection {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -655,7 +667,7 @@ command apply_board_connection {
     }
 }
 command apply_hw_ila_trigger {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -677,7 +689,7 @@ command apply_hw_ila_trigger {
     }
 }
 command archive_project {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -710,7 +722,7 @@ archive_project -force -exclude_run_results proj3.zip}
     }
 }
 command assign_bd_address {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -761,7 +773,7 @@ command assign_bd_address {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command auto_bd_connect {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -784,7 +796,7 @@ command auto_bd_connect {
     }
 }
 command auto_detect_xpm {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -806,7 +818,7 @@ auto_detect_xpm}
     }
 }
 command boot_hw_device {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -829,7 +841,7 @@ command boot_hw_device {
     }
 }
 command calc_config_time {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -861,7 +873,7 @@ command calc_config_time {
     }
 }
 command can_resolve_reference {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -881,7 +893,7 @@ command can_resolve_reference {
     }
 }
 command check_syntax {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -905,7 +917,7 @@ command check_syntax {
     }
 }
 command checkpoint_vcd {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -928,7 +940,7 @@ command checkpoint_vcd {
     }
 }
 command clear_noc_solution {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -947,7 +959,7 @@ command clear_noc_solution {
     }
 }
 command close_bd_design {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -967,7 +979,7 @@ command close_bd_design {
     }
 }
 command close_design {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -988,7 +1000,7 @@ close_design}
     }
 }
 command close_hw_manager {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -1008,7 +1020,7 @@ command close_hw_manager {
     }
 }
 command close_hw_target {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -1028,7 +1040,7 @@ command close_hw_target {
     }
 }
 command close_project {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -1051,7 +1063,7 @@ close_project -delete}
     }
 }
 command close_saif {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -1071,7 +1083,7 @@ command close_saif {
     }
 }
 command close_sim {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -1093,7 +1105,7 @@ command close_sim {
     }
 }
 command close_vcd {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -1116,7 +1128,7 @@ command close_vcd {
     }
 }
 command close_wave_config {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -1138,7 +1150,7 @@ command close_wave_config {
     }
 }
 command commit_hw_hbm {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -1159,7 +1171,7 @@ commit_hw_hbm [get_hw_hbm *HBM_2]}
     }
 }
 command commit_hw_mig {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -1179,7 +1191,7 @@ command commit_hw_mig {
     }
 }
 command commit_hw_sio {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -1198,7 +1210,7 @@ command commit_hw_sio {
     }
 }
 command commit_hw_sysmon {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -1219,7 +1231,7 @@ commit_hw_sysmon [lindex [get_hw_sysmons] 0]}
     }
 }
 command commit_hw_vio {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -1238,7 +1250,7 @@ command commit_hw_vio {
     }
 }
 command compile_c {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -1259,7 +1271,7 @@ command compile_c {
     }
 }
 command compile_simlib {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -1308,7 +1320,7 @@ command compile_simlib {
     }
 }
 command config_compile_simlib {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -1335,7 +1347,7 @@ command config_compile_simlib {
     }
 }
 command config_design_analysis {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -1356,7 +1368,7 @@ command config_design_analysis {
     }
 }
 command config_flows {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -1404,7 +1416,7 @@ command config_flows {
     }
 }
 command config_hw_sio_gts {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -1425,7 +1437,7 @@ command config_hw_sio_gts {
     }
 }
 command config_implementation {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -1446,7 +1458,7 @@ command config_implementation {
     }
 }
 command config_ip_cache {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -1522,7 +1534,7 @@ command config_ip_cache {
     }
 }
 command config_linter {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -1544,7 +1556,7 @@ command config_linter {
     }
 }
 command linter {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -1560,7 +1572,7 @@ command linter {
     }
 }
 command config_timing_analysis {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -1596,7 +1608,7 @@ command config_timing_analysis {
     }
 }
 command config_timing_corners {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -1629,7 +1641,7 @@ config_timing_corners -corner slow -delay_type min_max}
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command config_webtalk {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -1655,7 +1667,7 @@ command config_webtalk {
     }
 }
 command connect_bd_intf_net {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -1680,7 +1692,7 @@ command connect_bd_intf_net {
     }
 }
 command connect_bd_net {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -1705,7 +1717,7 @@ command connect_bd_net {
     }
 }
 command connect_debug_cores {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -1730,7 +1742,7 @@ command connect_debug_cores {
     }
 }
 command connect_debug_port {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -1755,7 +1767,7 @@ connect_debug_port myCore/PROBE1 [get_nets [list m0_ack_o m0_cyc_i \
     }
 }
 command connect_hw_server {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -1779,7 +1791,7 @@ command connect_hw_server {
     }
 }
 command connect_net {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -1819,7 +1831,7 @@ connect_net -net myEnable -objects {enableIn myDMA/en}}
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command convert_ip {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -1839,7 +1851,7 @@ command convert_ip {
     }
 }
 command convert_ips {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -1864,7 +1876,7 @@ command convert_ips {
     }
 }
 command convert_ngc {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -1892,7 +1904,7 @@ command convert_ngc {
     }
 }
 command copy_bd_objs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -1916,7 +1928,7 @@ command copy_bd_objs {
     }
 }
 command copy_constraints {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -1937,7 +1949,7 @@ command copy_constraints {
     }
 }
 command copy_ip {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -1960,7 +1972,7 @@ command copy_ip {
     }
 }
 command copy_run {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -1983,7 +1995,7 @@ command copy_run {
     }
 }
 command create_bd_addr_seg {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -2009,7 +2021,7 @@ command create_bd_addr_seg {
     }
 }
 command create_bd_cell {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -2036,7 +2048,7 @@ command create_bd_cell {
     }
 }
 command create_bd_design {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -2060,7 +2072,7 @@ command create_bd_design {
     }
 }
 command create_bd_intf_net {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -2080,7 +2092,7 @@ command create_bd_intf_net {
     }
 }
 command create_bd_intf_pin {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -2106,7 +2118,7 @@ create_bd_intf_pin -mode Slave -vlnv xilinx.com:user:dma_rtl:1.0 data_in}
     }
 }
 command create_bd_intf_port {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -2138,7 +2150,7 @@ command create_bd_intf_port {
     }
 }
 command create_bd_intf_tlm_port {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -2159,7 +2171,7 @@ command create_bd_intf_tlm_port {
     }
 }
 command create_bd_net {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -2179,7 +2191,7 @@ command create_bd_net {
     }
 }
 command create_bd_pin {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -2207,7 +2219,7 @@ command create_bd_pin {
     }
 }
 command create_bd_port {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -2240,7 +2252,7 @@ command create_bd_port {
     }
 }
 command create_bd_tlm_port {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -2259,7 +2271,7 @@ command create_bd_tlm_port {
     }
 }
 command create_cell {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -2283,7 +2295,7 @@ command create_cell {
     }
 }
 command create_cluster_configuration {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -2313,7 +2325,7 @@ command create_cluster_configuration {
     }
 }
 command create_dashboard_gadget {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -2336,7 +2348,7 @@ command create_dashboard_gadget {
     }
 }
 command create_dataflow_design {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -2359,7 +2371,7 @@ command create_dataflow_design {
     }
 }
 command create_debug_core {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -2380,7 +2392,7 @@ create_debug_core myCore ila}
     }
 }
 command create_debug_port {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -2401,7 +2413,7 @@ create_debug_port myCore probe}
     }
 }
 command create_drc_check {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -2437,7 +2449,7 @@ command create_drc_check {
     }
 }
 command create_drc_ruledeck {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -2457,7 +2469,7 @@ command create_drc_ruledeck {
     }
 }
 command create_drc_violation {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -2484,7 +2496,7 @@ command create_drc_violation {
     }
 }
 command create_fileset {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -2518,7 +2530,7 @@ command create_fileset {
     }
 }
 command create_gui_custom_command {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -2550,7 +2562,7 @@ command create_gui_custom_command {
     }
 }
 command create_gui_custom_command_arg {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -2578,7 +2590,7 @@ command create_gui_custom_command_arg {
     }
 }
 command create_hw_axi_txn {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -2619,7 +2631,7 @@ command create_hw_axi_txn {
     }
 }
 command create_hw_bitstream {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -2647,7 +2659,7 @@ command create_hw_bitstream {
     }
 }
 command create_hw_cfgmem {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -2669,7 +2681,7 @@ command create_hw_cfgmem {
     }
 }
 command create_hw_device {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -2697,7 +2709,7 @@ command create_hw_device {
     }
 }
 command create_hw_probe {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -2721,7 +2733,7 @@ command create_hw_probe {
     }
 }
 command create_hw_sio_link {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -2744,7 +2756,7 @@ command create_hw_sio_link {
     }
 }
 command create_hw_sio_linkgroup {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -2768,7 +2780,7 @@ command create_hw_sio_linkgroup {
     }
 }
 command create_hw_sio_scan {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -2794,7 +2806,7 @@ run_hw_sio_scan [get_hw_sio_scans $xil_newScan]}
     }
 }
 command create_hw_sio_sweep {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -2820,7 +2832,7 @@ run_hw_sio_sweep [get_hw_sio_sweeps $xil_newSweep]}
     }
 }
 command create_hw_target {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -2845,7 +2857,7 @@ command create_hw_target {
     }
 }
 command create_interface {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -2867,7 +2879,7 @@ command create_interface {
     }
 }
 command create_ip {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -2901,7 +2913,7 @@ command create_ip {
     }
 }
 command create_ip_run {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -2923,7 +2935,7 @@ command create_ip_run {
     }
 }
 command create_macro {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -2943,7 +2955,7 @@ command create_macro {
     }
 }
 command create_net {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -2966,7 +2978,7 @@ command create_net {
     }
 }
 command create_noc_connection {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -2991,7 +3003,7 @@ command create_noc_connection {
     }
 }
 command create_noc_interface {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -3015,7 +3027,7 @@ command create_noc_interface {
     }
 }
 command create_partition_def {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -3041,7 +3053,7 @@ command create_partition_def {
     }
 }
 command create_pblock {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -3061,7 +3073,7 @@ command create_pblock {
     }
 }
 command create_peripheral {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 4..
@@ -3083,7 +3095,7 @@ command create_peripheral {
     }
 }
 command create_pin {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -3107,7 +3119,7 @@ command create_pin {
     }
 }
 command create_port {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -3137,7 +3149,7 @@ command create_port {
     }
 }
 command create_port_on_reconfigurable_module {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -3164,7 +3176,7 @@ command create_port_on_reconfigurable_module {
     }
 }
 command create_power_rail {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -3189,7 +3201,7 @@ command create_power_rail {
     }
 }
 command create_pr_configuration {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -3216,7 +3228,7 @@ command create_pr_configuration {
     }
 }
 command create_project {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -3245,7 +3257,7 @@ command create_project {
     }
 }
 command create_property {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -3279,7 +3291,7 @@ command create_property {
     }
 }
 command create_qor_check {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -3308,7 +3320,7 @@ command create_qor_check {
     }
 }
 command create_qor_ruledeck {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -3330,7 +3342,7 @@ command create_qor_ruledeck {
     }
 }
 command create_reconfig_module {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -3363,7 +3375,7 @@ command create_reconfig_module {
     }
 }
 command create_report_config {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -3399,7 +3411,7 @@ command create_report_config {
     }
 }
 command create_rqs_runs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -3424,7 +3436,7 @@ command create_rqs_runs {
     }
 }
 command create_run {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -3462,7 +3474,7 @@ command create_run {
     }
 }
 command create_single_pass_run {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -3484,7 +3496,7 @@ command create_single_pass_run {
     }
 }
 command create_slack_histogram {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -3535,7 +3547,7 @@ command create_slack_histogram {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command create_sysgen {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -3555,7 +3567,7 @@ command create_sysgen {
     }
 }
 command create_testbench {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -3592,7 +3604,7 @@ command create_testbench {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command create_violation {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -3623,7 +3635,7 @@ command create_violation {
     }
 }
 command create_waiver {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -3676,7 +3688,7 @@ command create_waiver {
     }
 }
 command create_wave_config {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -3696,7 +3708,7 @@ command create_wave_config {
     }
 }
 command create_xps {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -3716,7 +3728,7 @@ command create_xps {
     }
 }
 command current_bd_design {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -3736,7 +3748,7 @@ command current_bd_design {
     }
 }
 command current_bd_instance {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -3756,7 +3768,7 @@ command current_bd_instance {
     }
 }
 command current_board {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -3777,7 +3789,7 @@ current_board}
     }
 }
 command current_board_part {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -3798,7 +3810,7 @@ current_board_part}
     }
 }
 command current_fileset {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -3820,7 +3832,7 @@ command current_fileset {
     }
 }
 command current_frame {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -3845,7 +3857,7 @@ command current_frame {
     }
 }
 command current_hw_cfgmem {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -3870,7 +3882,7 @@ command current_hw_cfgmem {
     }
 }
 command current_hw_device {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -3890,7 +3902,7 @@ command current_hw_device {
     }
 }
 command current_hw_ila {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -3910,7 +3922,7 @@ command current_hw_ila {
     }
 }
 command current_hw_ila_data {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -3930,7 +3942,7 @@ command current_hw_ila_data {
     }
 }
 command current_hw_server {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -3950,7 +3962,7 @@ command current_hw_server {
     }
 }
 command current_hw_target {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -3970,7 +3982,7 @@ command current_hw_target {
     }
 }
 command current_pr_configuration {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -3990,7 +4002,7 @@ command current_pr_configuration {
     }
 }
 command current_project {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -4010,7 +4022,7 @@ command current_project {
     }
 }
 command current_run {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -4034,7 +4046,7 @@ command current_run {
     }
 }
 command current_scope {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -4054,7 +4066,7 @@ command current_scope {
     }
 }
 command current_sim {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -4074,7 +4086,7 @@ command current_sim {
     }
 }
 command current_time {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -4096,7 +4108,7 @@ command current_time {
     }
 }
 command current_vcd {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -4116,7 +4128,7 @@ command current_vcd {
     }
 }
 command current_vivado_preferences {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -4135,7 +4147,7 @@ command current_vivado_preferences {
     }
 }
 command current_wave_config {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -4155,7 +4167,7 @@ command current_wave_config {
     }
 }
 command decrypt_bitstream {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -4183,7 +4195,7 @@ command decrypt_bitstream {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command delete_bd_design {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -4202,7 +4214,7 @@ command delete_bd_design {
     }
 }
 command delete_bd_objs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -4222,7 +4234,7 @@ command delete_bd_objs {
     }
 }
 command delete_clock_networks_results {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -4241,7 +4253,7 @@ command delete_clock_networks_results {
     }
 }
 command delete_dashboard_gadgets {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -4260,7 +4272,7 @@ command delete_dashboard_gadgets {
     }
 }
 command delete_debug_core {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -4280,7 +4292,7 @@ command delete_debug_core {
     }
 }
 command delete_debug_port {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -4300,7 +4312,7 @@ command delete_debug_port {
     }
 }
 command delete_drc_check {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -4320,7 +4332,7 @@ command delete_drc_check {
     }
 }
 command delete_drc_ruledeck {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -4346,7 +4358,7 @@ command delete_drc_ruledeck {
     }
 }
 command delete_fileset {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -4368,7 +4380,7 @@ command delete_fileset {
     }
 }
 command delete_hw_axi_txn {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -4388,7 +4400,7 @@ command delete_hw_axi_txn {
     }
 }
 command delete_hw_bitstream {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -4410,7 +4422,7 @@ command delete_hw_bitstream {
     }
 }
 command delete_hw_cfgmem {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -4430,7 +4442,7 @@ command delete_hw_cfgmem {
     }
 }
 command delete_hw_probe {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -4450,7 +4462,7 @@ command delete_hw_probe {
     }
 }
 command delete_hw_target {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -4470,7 +4482,7 @@ command delete_hw_target {
     }
 }
 command delete_interface {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -4492,7 +4504,7 @@ command delete_interface {
     }
 }
 command delete_ip_run {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -4513,7 +4525,7 @@ command delete_ip_run {
     }
 }
 command delete_macros {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -4533,7 +4545,7 @@ command delete_macros {
     }
 }
 command delete_noc_connection {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -4554,7 +4566,7 @@ command delete_noc_connection {
     }
 }
 command delete_noc_interface {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -4575,7 +4587,7 @@ command delete_noc_interface {
     }
 }
 command delete_partition_defs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -4599,7 +4611,7 @@ command delete_partition_defs {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command delete_pblock {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -4621,7 +4633,7 @@ command delete_pblock {
     }
 }
 command delete_pblocks {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -4645,7 +4657,7 @@ command delete_pblocks {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command delete_port {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -4665,7 +4677,7 @@ command delete_port {
     }
 }
 command delete_power_rails {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -4684,7 +4696,7 @@ command delete_power_rails {
     }
 }
 command delete_power_results {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -4707,7 +4719,7 @@ delete_power_results -name my_set}
     }
 }
 command delete_pr_configurations {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -4727,7 +4739,7 @@ command delete_pr_configurations {
     }
 }
 command delete_property {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -4747,7 +4759,7 @@ command delete_property {
     }
 }
 command delete_qor_checks {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -4769,7 +4781,7 @@ command delete_qor_checks {
     }
 }
 command delete_qor_ruledecks {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -4791,7 +4803,7 @@ command delete_qor_ruledecks {
     }
 }
 command delete_qor_suggestions {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -4811,7 +4823,7 @@ command delete_qor_suggestions {
     }
 }
 command delete_reconfig_modules {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -4833,7 +4845,7 @@ command delete_reconfig_modules {
     }
 }
 command delete_report_configs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -4853,7 +4865,7 @@ command delete_report_configs {
     }
 }
 command delete_rpm {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -4875,7 +4887,7 @@ command delete_rpm {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command delete_run {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -4897,7 +4909,7 @@ command delete_run {
     }
 }
 command delete_runs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -4919,7 +4931,7 @@ command delete_runs {
     }
 }
 command delete_timing_results {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -4945,7 +4957,7 @@ command delete_timing_results {
     }
 }
 command delete_utilization_results {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -4967,7 +4979,7 @@ command delete_utilization_results {
     }
 }
 command delete_waivers {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -4989,7 +5001,7 @@ command delete_waivers {
     }
 }
 command describe {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -5008,7 +5020,7 @@ command describe {
     }
 }
 command detect_hw_sio_links {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -5030,7 +5042,7 @@ command detect_hw_sio_links {
     }
 }
 command disconnect_bd_intf_net {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -5052,7 +5064,7 @@ command disconnect_bd_intf_net {
     }
 }
 command disconnect_bd_net {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -5072,7 +5084,7 @@ command disconnect_bd_net {
     }
 }
 command disconnect_debug_port {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -5094,7 +5106,7 @@ command disconnect_debug_port {
     }
 }
 command disconnect_hw_server {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -5114,7 +5126,7 @@ command disconnect_hw_server {
     }
 }
 command disconnect_net {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -5142,7 +5154,7 @@ command disconnect_net {
     }
 }
 command display_hw_ila_data {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -5167,7 +5179,7 @@ display_hw_ila_data [get_hw_ila_datas hw_ila_file]}
     }
 }
 command display_hw_sio_scan {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -5187,7 +5199,7 @@ command display_hw_sio_scan {
     }
 }
 command encrypt {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -5215,7 +5227,7 @@ command encrypt {
     }
 }
 command endgroup {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -5234,7 +5246,7 @@ command endgroup {
     }
 }
 command exclude_bd_addr_seg {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -5257,7 +5269,7 @@ exclude_bd_addr_seg [get_bd_addr_segs microblaze_1/Data/SEG_axi_gpio_1_Reg]}
     }
 }
 command execute_hw_svf {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -5278,7 +5290,7 @@ execute_hw_svf -verbose C:/Data/k7_design.svf}
     }
 }
 command export_as_example_design {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -5304,7 +5316,7 @@ command export_as_example_design {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command export_bd_design {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -5327,7 +5339,7 @@ command export_bd_design {
     }
 }
 command export_bd_synth {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -5351,7 +5363,7 @@ command export_bd_synth {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command export_hardware {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -5377,7 +5389,7 @@ command export_hardware {
     }
 }
 command export_ip_user_files {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -5409,7 +5421,7 @@ command export_ip_user_files {
     }
 }
 command export_simulation {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -5469,7 +5481,7 @@ command export_simulation {
     }
 }
 command export_xsim_coverage {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -5507,7 +5519,7 @@ command export_xsim_coverage {
     }
 }
 command extract_files {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -5532,7 +5544,7 @@ command extract_files {
     }
 }
 command filter {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -5555,7 +5567,7 @@ command filter {
     }
 }
 command finalize_eco {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -5574,7 +5586,7 @@ command finalize_eco {
     }
 }
 command find_bd_objs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -5609,7 +5621,7 @@ command find_bd_objs {
     }
 }
 command find_routing_path {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -5649,7 +5661,7 @@ set_property FIXED_ROUTE $fndPath [get_nets wbOutputData_OBUF[14]]}
     }
 }
 command find_top {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -5673,7 +5685,7 @@ command find_top {
     }
 }
 command flush_vcd {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -5695,7 +5707,7 @@ command flush_vcd {
     }
 }
 command generate_base_platform {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -5722,7 +5734,7 @@ command generate_base_platform {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command generate_bd_design {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -5745,7 +5757,7 @@ command generate_bd_design {
     }
 }
 command generate_black_key {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -5771,7 +5783,7 @@ command generate_black_key {
     }
 }
 command generate_hier_access {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -5800,7 +5812,7 @@ command generate_hier_access {
     }
 }
 command generate_hwh {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -5822,7 +5834,7 @@ command generate_hwh {
     }
 }
 command generate_mem_files {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -5843,7 +5855,7 @@ command generate_mem_files {
     }
 }
 command generate_ml_strategies {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -5869,7 +5881,7 @@ command generate_ml_strategies {
     }
 }
 command generate_parallel_reports {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -5887,7 +5899,7 @@ command generate_parallel_reports {
     }
 }
 command generate_pblock {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -5912,7 +5924,7 @@ command generate_pblock {
     }
 }
 command generate_peripheral {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -5940,7 +5952,7 @@ command generate_peripheral {
     }
 }
 command generate_puf_kek {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -5972,7 +5984,7 @@ command generate_puf_kek {
     }
 }
 command generate_reports {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -5992,7 +6004,7 @@ command generate_reports {
     }
 }
 command generate_rl_platform {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6016,7 +6028,7 @@ command generate_rl_platform {
     }
 }
 command generate_shx_platform {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6038,7 +6050,7 @@ command generate_shx_platform {
     }
 }
 command generate_switch_network_for_noc {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6060,7 +6072,7 @@ command generate_switch_network_for_noc {
     }
 }
 command generate_target {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -6081,7 +6093,7 @@ command generate_target {
     }
 }
 command generate_vcd_ports {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -6100,7 +6112,7 @@ command generate_vcd_ports {
     }
 }
 command get_bd_addr_segs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6133,7 +6145,7 @@ command get_bd_addr_segs {
     }
 }
 command get_bd_addr_spaces {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6158,7 +6170,7 @@ command get_bd_addr_spaces {
     }
 }
 command get_bd_cells {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6182,7 +6194,7 @@ command get_bd_cells {
     }
 }
 command get_bd_designs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6206,7 +6218,7 @@ command get_bd_designs {
     }
 }
 command get_bd_intf_nets {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6233,7 +6245,7 @@ command get_bd_intf_nets {
     }
 }
 command get_bd_intf_pins {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6258,7 +6270,7 @@ command get_bd_intf_pins {
     }
 }
 command get_bd_intf_ports {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6282,7 +6294,7 @@ command get_bd_intf_ports {
     }
 }
 command get_bd_nets {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6309,7 +6321,7 @@ command get_bd_nets {
     }
 }
 command get_bd_pins {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6334,7 +6346,7 @@ command get_bd_pins {
     }
 }
 command get_bd_ports {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6357,7 +6369,7 @@ command get_bd_ports {
     }
 }
 command get_bd_regs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6379,7 +6391,7 @@ command get_bd_regs {
     }
 }
 command get_bel_pins {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6404,7 +6416,7 @@ command get_bel_pins {
     }
 }
 command get_bels {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6432,7 +6444,7 @@ command get_bels {
     }
 }
 command get_board_bus_nets {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6458,7 +6470,7 @@ command get_board_bus_nets {
     }
 }
 command get_board_buses {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6484,7 +6496,7 @@ command get_board_buses {
     }
 }
 command get_board_component_interfaces {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6510,7 +6522,7 @@ command get_board_component_interfaces {
     }
 }
 command get_board_component_modes {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6536,7 +6548,7 @@ command get_board_component_modes {
     }
 }
 command get_board_component_pins {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6561,7 +6573,7 @@ command get_board_component_pins {
     }
 }
 command get_board_components {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6587,7 +6599,7 @@ command get_board_components {
     }
 }
 command get_board_interface_ports {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6613,7 +6625,7 @@ command get_board_interface_ports {
     }
 }
 command get_board_ip_preferences {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6639,7 +6651,7 @@ command get_board_ip_preferences {
     }
 }
 command get_board_jumpers {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6664,7 +6676,7 @@ command get_board_jumpers {
     }
 }
 command get_board_parameters {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6689,7 +6701,7 @@ command get_board_parameters {
     }
 }
 command get_board_part_interfaces {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6714,7 +6726,7 @@ command get_board_part_interfaces {
     }
 }
 command get_board_part_pins {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6739,7 +6751,7 @@ command get_board_part_pins {
     }
 }
 command get_board_parts {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6764,7 +6776,7 @@ command get_board_parts {
     }
 }
 command get_boards {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6789,7 +6801,7 @@ command get_boards {
     }
 }
 command get_cdc_violations {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6814,7 +6826,7 @@ get_cdc_violations}
     }
 }
 command get_cfgmem_parts {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6839,7 +6851,7 @@ command get_cfgmem_parts {
     }
 }
 command get_clock_regions {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6864,7 +6876,7 @@ command get_clock_regions {
     }
 }
 command get_cluster_configurations {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6887,7 +6899,7 @@ command get_cluster_configurations {
     }
 }
 command get_constant_paths {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -6913,7 +6925,7 @@ command get_constant_paths {
     }
 }
 command get_dashboard_gadgets {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6933,7 +6945,7 @@ command get_dashboard_gadgets {
     }
 }
 command get_dataflow_paths {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6967,7 +6979,7 @@ command get_dataflow_paths {
     }
 }
 command get_debug_cores {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -6992,7 +7004,7 @@ command get_debug_cores {
     }
 }
 command get_debug_ports {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7019,7 +7031,7 @@ command get_debug_ports {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command get_delays {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7047,7 +7059,7 @@ command get_delays {
     }
 }
 command get_designs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7070,7 +7082,7 @@ command get_designs {
     }
 }
 command get_dfx_footprint {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7124,7 +7136,7 @@ command get_dfx_footprint {
     }
 }
 command get_drc_checks {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7154,7 +7166,7 @@ command get_drc_checks {
     }
 }
 command get_drc_ruledecks {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7179,7 +7191,7 @@ command get_drc_ruledecks {
     }
 }
 command get_drc_violations {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7204,7 +7216,7 @@ command get_drc_violations {
     }
 }
 command get_example_designs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7230,7 +7242,7 @@ report_property -all $x}}
     }
 }
 command get_files {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7262,7 +7274,7 @@ command get_files {
     }
 }
 command get_filesets {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7287,7 +7299,7 @@ command get_filesets {
     }
 }
 command get_gcc_versions {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7306,7 +7318,7 @@ command get_gcc_versions {
     }
 }
 command get_generated_clocks {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7333,7 +7345,7 @@ command get_generated_clocks {
     }
 }
 command get_gui_custom_command_args {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7357,7 +7369,7 @@ command get_gui_custom_command_args {
     }
 }
 command get_gui_custom_commands {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7379,7 +7391,7 @@ command get_gui_custom_commands {
     }
 }
 command get_hierarchy_separator {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7399,7 +7411,7 @@ command get_hierarchy_separator {
     }
 }
 command get_highlighted_objects {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7425,7 +7437,7 @@ command get_highlighted_objects {
     }
 }
 command get_hw_axi_txns {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7449,7 +7461,7 @@ command get_hw_axi_txns {
     }
 }
 command get_hw_axis {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7474,7 +7486,7 @@ command get_hw_axis {
     }
 }
 command get_hw_cfgmems {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7497,7 +7509,7 @@ command get_hw_cfgmems {
     }
 }
 command get_hw_ddrmcs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7522,7 +7534,7 @@ command get_hw_ddrmcs {
     }
 }
 command get_hw_devices {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7547,7 +7559,7 @@ command get_hw_devices {
     }
 }
 command get_hw_hbmmcs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7571,7 +7583,7 @@ command get_hw_hbmmcs {
     }
 }
 command get_hw_hbms {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7598,7 +7610,7 @@ command get_hw_hbms {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command get_hw_ila_data {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7617,7 +7629,7 @@ command get_hw_ila_data {
     }
 }
 command get_hw_ila_datas {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7642,7 +7654,7 @@ command get_hw_ila_datas {
     }
 }
 command get_hw_ilas {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7667,7 +7679,7 @@ command get_hw_ilas {
     }
 }
 command get_hw_migs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7692,7 +7704,7 @@ command get_hw_migs {
     }
 }
 command get_hw_pcies {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7719,7 +7731,7 @@ command get_hw_pcies {
     }
 }
 command get_hw_probes {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7744,7 +7756,7 @@ command get_hw_probes {
     }
 }
 command get_hw_servers {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7767,7 +7779,7 @@ command get_hw_servers {
     }
 }
 command get_hw_sio_commons {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7792,7 +7804,7 @@ command get_hw_sio_commons {
     }
 }
 command get_hw_sio_gtgroups {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7817,7 +7829,7 @@ command get_hw_sio_gtgroups {
     }
 }
 command get_hw_sio_gts {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7842,7 +7854,7 @@ command get_hw_sio_gts {
     }
 }
 command get_hw_sio_iberts {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7867,7 +7879,7 @@ command get_hw_sio_iberts {
     }
 }
 command get_hw_sio_linkgroups {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7892,7 +7904,7 @@ command get_hw_sio_linkgroups {
     }
 }
 command get_hw_sio_links {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7917,7 +7929,7 @@ command get_hw_sio_links {
     }
 }
 command get_hw_sio_plls {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7942,7 +7954,7 @@ command get_hw_sio_plls {
     }
 }
 command get_hw_sio_rxs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7967,7 +7979,7 @@ command get_hw_sio_rxs {
     }
 }
 command get_hw_sio_scans {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -7992,7 +8004,7 @@ command get_hw_sio_scans {
     }
 }
 command get_hw_sio_sweeps {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8017,7 +8029,7 @@ command get_hw_sio_sweeps {
     }
 }
 command get_hw_sio_txs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8042,7 +8054,7 @@ command get_hw_sio_txs {
     }
 }
 command get_hw_softmcs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8067,7 +8079,7 @@ command get_hw_softmcs {
     }
 }
 command get_hw_sysmon_reg {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -8087,7 +8099,7 @@ command get_hw_sysmon_reg {
     }
 }
 command get_hw_sysmons {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8112,7 +8124,7 @@ command get_hw_sysmons {
     }
 }
 command get_hw_targets {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8137,7 +8149,7 @@ command get_hw_targets {
     }
 }
 command get_hw_vios {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8162,7 +8174,7 @@ command get_hw_vios {
     }
 }
 command get_interfaces {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8187,7 +8199,7 @@ command get_interfaces {
     }
 }
 command get_io_standards {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8212,7 +8224,7 @@ command get_io_standards {
     }
 }
 command get_iobanks {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8237,7 +8249,7 @@ command get_iobanks {
     }
 }
 command get_ip_upgrade_results {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8259,7 +8271,7 @@ command get_ip_upgrade_results {
     }
 }
 command get_ipdefs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8288,7 +8300,7 @@ command get_ipdefs {
     }
 }
 command get_ips {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8318,7 +8330,7 @@ command get_ips {
     }
 }
 command get_macros {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8341,7 +8353,7 @@ command get_macros {
     }
 }
 command get_marked_objects {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8365,7 +8377,7 @@ command get_marked_objects {
     }
 }
 command get_methodology_checks {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8390,7 +8402,7 @@ command get_methodology_checks {
     }
 }
 command get_methodology_violations {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8416,7 +8428,7 @@ get_methodology_violations}
     }
 }
 command get_msg_config {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8449,7 +8461,7 @@ command get_msg_config {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command get_msg_count {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8480,7 +8492,7 @@ command get_msg_count {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command get_msg_limit {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8508,7 +8520,7 @@ command get_msg_limit {
     }
 }
 command get_net_delays {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8540,7 +8552,7 @@ command get_net_delays {
     }
 }
 command get_noc_connections {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8564,7 +8576,7 @@ command get_noc_connections {
     }
 }
 command get_noc_interfaces {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8590,7 +8602,7 @@ command get_noc_interfaces {
     }
 }
 command get_noc_logical_instances {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8614,7 +8626,7 @@ command get_noc_logical_instances {
     }
 }
 command get_noc_logical_paths {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8638,7 +8650,7 @@ command get_noc_logical_paths {
     }
 }
 command get_noc_net_routes {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8662,7 +8674,7 @@ command get_noc_net_routes {
     }
 }
 command get_nodes {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8698,7 +8710,7 @@ command get_nodes {
     }
 }
 command get_objects {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8730,7 +8742,7 @@ get_objects}
     }
 }
 command get_package_pins {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8755,7 +8767,7 @@ command get_package_pins {
     }
 }
 command get_param {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -8775,7 +8787,7 @@ command get_param {
     }
 }
 command get_partition_defs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8798,7 +8810,7 @@ command get_partition_defs {
     }
 }
 command get_parts {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8822,7 +8834,7 @@ command get_parts {
     }
 }
 command get_path_groups {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8844,7 +8856,7 @@ command get_path_groups {
     }
 }
 command get_pblocks {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8870,7 +8882,7 @@ command get_pblocks {
     }
 }
 command get_pips {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8903,7 +8915,7 @@ command get_pips {
     }
 }
 command get_pkgpin_bytegroups {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8928,7 +8940,7 @@ command get_pkgpin_bytegroups {
     }
 }
 command get_pkgpin_nibbles {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8953,7 +8965,7 @@ command get_pkgpin_nibbles {
     }
 }
 command get_power_rails {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -8975,7 +8987,7 @@ command get_power_rails {
     }
 }
 command get_pplocs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9003,7 +9015,7 @@ command get_pplocs {
     }
 }
 command get_pr_configurations {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9026,7 +9038,7 @@ command get_pr_configurations {
     }
 }
 command get_primitives {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9056,7 +9068,7 @@ command get_primitives {
     }
 }
 command get_projects {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9079,7 +9091,7 @@ command get_projects {
     }
 }
 command get_property {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -9103,7 +9115,7 @@ command get_property {
     }
 }
 command get_qor_checks {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9129,7 +9141,7 @@ command get_qor_checks {
     }
 }
 command get_qor_ruledecks {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9156,7 +9168,7 @@ command get_qor_ruledecks {
     }
 }
 command get_qor_suggestions {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9177,7 +9189,7 @@ command get_qor_suggestions {
     }
 }
 command get_reconfig_modules {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9202,7 +9214,7 @@ command get_reconfig_modules {
     }
 }
 command get_report_configs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9227,7 +9239,7 @@ command get_report_configs {
     }
 }
 command get_runs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9252,7 +9264,7 @@ command get_runs {
     }
 }
 command get_scopes {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9278,7 +9290,7 @@ command get_scopes {
     }
 }
 command get_selected_objects {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9300,7 +9312,7 @@ command get_selected_objects {
     }
 }
 command get_sim_versions {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9319,7 +9331,7 @@ command get_sim_versions {
     }
 }
 command get_simulators {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9342,7 +9354,7 @@ command get_simulators {
     }
 }
 command get_site_pins {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9367,7 +9379,7 @@ command get_site_pins {
     }
 }
 command get_site_pips {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9391,7 +9403,7 @@ command get_site_pips {
     }
 }
 command get_sites {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9418,7 +9430,7 @@ command get_sites {
     }
 }
 command get_slrs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9443,7 +9455,7 @@ command get_slrs {
     }
 }
 command get_speed_models {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9474,7 +9486,7 @@ puts [format "%6.3f : %s" [get_property DELAY [lindex $x 0 ]] \
     }
 }
 command get_stacks {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9495,7 +9507,7 @@ command get_stacks {
     }
 }
 command get_template_bd_designs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9515,7 +9527,7 @@ command get_template_bd_designs {
     }
 }
 command get_tiles {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9540,7 +9552,7 @@ command get_tiles {
     }
 }
 command get_timing_arcs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9567,7 +9579,7 @@ command get_timing_arcs {
     }
 }
 command get_timing_paths {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9639,7 +9651,7 @@ command get_timing_paths {
     }
 }
 command get_value {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -9662,7 +9674,7 @@ command get_value {
     }
 }
 command get_vivado_tier {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9681,7 +9693,7 @@ command get_vivado_tier {
     }
 }
 command get_waivers {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9714,7 +9726,7 @@ command get_waivers {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command get_wave_config {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9739,7 +9751,7 @@ command get_wave_config {
     }
 }
 command get_wave_configs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9762,7 +9774,7 @@ command get_wave_configs {
     }
 }
 command get_waves {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -9791,7 +9803,7 @@ command get_waves {
     }
 }
 command get_wires {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9822,7 +9834,7 @@ command get_wires {
     }
 }
 command group_bd_cells {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9845,7 +9857,7 @@ command group_bd_cells {
     }
 }
 command has_dedicated_connection {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9866,7 +9878,7 @@ command has_dedicated_connection {
     }
 }
 command help {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9899,7 +9911,7 @@ command help {
     }
 }
 command highlight_objects {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -9926,7 +9938,7 @@ command highlight_objects {
     }
 }
 command implement_debug_core {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9945,7 +9957,7 @@ command implement_debug_core {
     }
 }
 command implement_mig_cores {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -9972,7 +9984,7 @@ command implement_mig_cores {
     }
 }
 command implement_xphy_cores {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -10001,7 +10013,7 @@ command implement_xphy_cores {
     }
 }
 command implement_xpm_cores {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -10027,7 +10039,7 @@ command implement_xpm_cores {
     }
 }
 command import_files {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -10059,7 +10071,7 @@ command import_files {
     }
 }
 command import_ip {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -10083,7 +10095,7 @@ command import_ip {
     }
 }
 command import_synplify {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -10108,7 +10120,7 @@ import_synplify -copy_sources C:/Data/syn_data.prj}
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command import_xise {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -10131,7 +10143,7 @@ command import_xise {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command import_xst {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -10154,7 +10166,7 @@ import_xst C:/Data/ise_designs/drp_des.xst}
     }
 }
 command include_bd_addr_seg {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -10174,7 +10186,7 @@ command include_bd_addr_seg {
     }
 }
 command infer_diff_pairs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -10196,7 +10208,7 @@ infer_diff_pairs C:/Vivado_Install/io_1.xdc -file_type xdc}
     }
 }
 command instantiate_example_design {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -10229,7 +10241,7 @@ instantiate_example_design -design myFirstZynq \
     }
 }
 command instantiate_template_bd_design {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -10256,7 +10268,7 @@ command instantiate_template_bd_design {
     }
 }
 command iphys_opt_design {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -10329,7 +10341,7 @@ command iphys_opt_design {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command ipx::add_bus_interface {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     form Default {ipx::add_bus_interface -abstraction_type_vlnv vlnv -bus_type_vlnv vlnv interface_name component}
@@ -10343,7 +10355,7 @@ command ipx::add_bus_interface {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command ipx::package_project {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     form Default {ipx::package_project ?-root_dir dir? ?-import_files? ?-force?}
@@ -10355,7 +10367,7 @@ command ipx::package_project {
     }
 }
 command launch_chipscope_analyzer {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -10378,7 +10390,7 @@ command launch_chipscope_analyzer {
     }
 }
 command launch_impact {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -10404,7 +10416,7 @@ command launch_impact {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command launch_modelsim {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -10429,7 +10441,7 @@ command launch_modelsim {
     }
 }
 command launch_runs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -10482,7 +10494,7 @@ command launch_runs {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command launch_sdk {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -10507,7 +10519,7 @@ command launch_sdk {
     }
 }
 command launch_simulation {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -10554,7 +10566,7 @@ command launch_simulation {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command launch_xsim {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -10582,7 +10594,7 @@ command launch_xsim {
     }
 }
 command limit_vcd {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -10604,7 +10616,7 @@ command limit_vcd {
     }
 }
 command list_board_parameters {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -10622,7 +10634,7 @@ command list_board_parameters {
     }
 }
 command list_features {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -10642,7 +10654,7 @@ command list_features {
     }
 }
 command list_hw_samples {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -10662,7 +10674,7 @@ command list_hw_samples {
     }
 }
 command list_param {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -10682,7 +10694,7 @@ command list_param {
     }
 }
 command list_property {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -10705,7 +10717,7 @@ command list_property {
     }
 }
 command list_property_value {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -10728,7 +10740,7 @@ command list_property_value {
     }
 }
 command list_targets {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -10748,7 +10760,7 @@ command list_targets {
     }
 }
 command load_core_init {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -10766,7 +10778,7 @@ command load_core_init {
     }
 }
 command load_features {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -10786,7 +10798,7 @@ command load_features {
     }
 }
 command lock_design {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -10811,7 +10823,7 @@ command lock_design {
     }
 }
 command log_saif {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -10831,7 +10843,7 @@ command log_saif {
     }
 }
 command log_vcd {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -10857,7 +10869,7 @@ command log_vcd {
     }
 }
 command log_wave {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -10880,7 +10892,7 @@ command log_wave {
     }
 }
 command ltrace {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -10900,7 +10912,7 @@ command ltrace {
     }
 }
 command make_bd_intf_pins_external {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -10920,7 +10932,7 @@ command make_bd_intf_pins_external {
     }
 }
 command make_bd_pins_external {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -10940,7 +10952,7 @@ command make_bd_pins_external {
     }
 }
 command make_diff_pair_ports {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -10959,7 +10971,7 @@ command make_diff_pair_ports {
     }
 }
 command make_wrapper {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -10994,7 +11006,7 @@ command make_wrapper {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command manage_user_drc_rule {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -11024,7 +11036,7 @@ command manage_user_drc_rule {
     }
 }
 command mark_objects {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -11050,7 +11062,7 @@ command mark_objects {
     }
 }
 command modify_debug_ports {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -11072,7 +11084,7 @@ command modify_debug_ports {
     }
 }
 command move_bd_cells {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -11094,7 +11106,7 @@ command move_bd_cells {
     }
 }
 command move_dashboard_gadget {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -11121,7 +11133,7 @@ command move_dashboard_gadget {
     }
 }
 command move_files {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -11145,7 +11157,7 @@ command move_files {
     }
 }
 command move_pblock {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -11170,7 +11182,7 @@ command move_pblock {
     }
 }
 command move_wave {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -11196,7 +11208,7 @@ command move_wave {
     }
 }
 command open_bd_design {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -11216,7 +11228,7 @@ command open_bd_design {
     }
 }
 command open_checkpoint {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -11239,7 +11251,7 @@ command open_checkpoint {
     }
 }
 command open_example_project {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -11267,7 +11279,7 @@ command open_example_project {
     }
 }
 command open_hw_manager {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -11287,7 +11299,7 @@ command open_hw_manager {
     }
 }
 command open_hw_platform {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -11309,7 +11321,7 @@ command open_hw_platform {
     }
 }
 command open_hw_target {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -11335,7 +11347,7 @@ command open_hw_target {
     }
 }
 command open_io_design {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -11361,7 +11373,7 @@ command open_io_design {
     }
 }
 command open_project {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -11385,7 +11397,7 @@ command open_project {
     }
 }
 command open_report {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -11415,7 +11427,7 @@ command open_report {
     }
 }
 command open_run {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -11439,7 +11451,7 @@ command open_run {
     }
 }
 command open_saif {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -11459,7 +11471,7 @@ command open_saif {
     }
 }
 command open_vcd {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -11481,7 +11493,7 @@ command open_vcd {
     }
 }
 command open_wave_config {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -11501,7 +11513,7 @@ command open_wave_config {
     }
 }
 command open_wave_database {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -11526,7 +11538,7 @@ current_fileset}
     }
 }
 command opt_design {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -11593,7 +11605,7 @@ command opt_design {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command package_bd_design {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -11614,7 +11626,7 @@ command package_bd_design {
     }
 }
 command pause_hw_hbm_amon {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -11634,7 +11646,7 @@ command pause_hw_hbm_amon {
     }
 }
 command phys_opt_design {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -11708,7 +11720,7 @@ command phys_opt_design {
     }
 }
 command place_cell {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -11728,7 +11740,7 @@ command place_cell {
     }
 }
 command place_design {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -11782,7 +11794,7 @@ command place_design {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command place_pblocks {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -11806,7 +11818,7 @@ command place_pblocks {
     }
 }
 command place_ports {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -11831,7 +11843,7 @@ command place_ports {
     }
 }
 command platform_verify {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -11858,7 +11870,7 @@ command platform_verify {
     }
 }
 command power_opt_design {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -11877,7 +11889,7 @@ command power_opt_design {
     }
 }
 command pr_recombine {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -11899,7 +11911,7 @@ command pr_recombine {
     }
 }
 command pr_subdivide {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     ;# NOTE(xilinx): the Syntax line brackets -cell, -subcells and <from_dcp>,
@@ -11924,7 +11936,7 @@ command pr_subdivide {
     }
 }
 command pr_verify {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -11957,7 +11969,7 @@ command pr_verify {
     }
 }
 command program_hw_cfgmem {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -11982,7 +11994,7 @@ command program_hw_cfgmem {
     }
 }
 command program_hw_devices {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -12041,7 +12053,7 @@ command program_hw_devices {
     }
 }
 command ptrace {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -12061,7 +12073,7 @@ command ptrace {
     }
 }
 command read_bd {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -12081,7 +12093,7 @@ command read_bd {
     }
 }
 command read_checkpoint {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -12116,7 +12128,7 @@ command read_checkpoint {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command read_chipscope_cdc {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -12138,7 +12150,7 @@ command read_chipscope_cdc {
     }
 }
 command read_csv {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -12159,7 +12171,7 @@ command read_csv {
     }
 }
 command read_edif {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -12179,7 +12191,7 @@ command read_edif {
     }
 }
 command read_hw_ila_data {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -12199,7 +12211,7 @@ command read_hw_ila_data {
     }
 }
 command read_hw_sio_scan {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -12219,7 +12231,7 @@ command read_hw_sio_scan {
     }
 }
 command read_hw_sio_sweep {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -12240,7 +12252,7 @@ display_hw_sio_scan [get_hw_sio_scans {SCAN_86}]}
     }
 }
 command read_ip {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -12260,7 +12272,7 @@ command read_ip {
     }
 }
 command read_iphys_opt_tcl {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -12314,7 +12326,7 @@ read_iphys_opt_tcl -shift_register_opt -placement_opt C:/Data/my_iphys_opt.tcl}
     }
 }
 command read_mem {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -12334,7 +12346,7 @@ command read_mem {
     }
 }
 command read_noc_solution {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -12354,7 +12366,7 @@ command read_noc_solution {
     }
 }
 command read_qor_suggestions {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -12374,7 +12386,7 @@ command read_qor_suggestions {
     }
 }
 command read_saif {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -12398,7 +12410,7 @@ command read_saif {
     }
 }
 command read_schematic {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -12420,7 +12432,7 @@ command read_schematic {
     }
 }
 command read_twx {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -12444,7 +12456,7 @@ command read_twx {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command read_vcd {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -12472,7 +12484,7 @@ command read_vcd {
     }
 }
 command read_verilog {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -12495,7 +12507,7 @@ command read_verilog {
     }
 }
 command read_vhdl {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -12522,7 +12534,7 @@ command read_vhdl {
     }
 }
 command read_xdc {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -12554,7 +12566,7 @@ command read_xdc {
     }
 }
 command readback_hw_cfgmem {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -12587,7 +12599,7 @@ command readback_hw_cfgmem {
     }
 }
 command readback_hw_device {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -12617,7 +12629,7 @@ command readback_hw_device {
     }
 }
 command redo {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -12638,7 +12650,7 @@ command redo {
     }
 }
 command refresh_design {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -12659,7 +12671,7 @@ command refresh_design {
     }
 }
 command refresh_hw_axi {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -12679,7 +12691,7 @@ command refresh_hw_axi {
     }
 }
 command refresh_hw_ddrmc {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -12702,7 +12714,7 @@ command refresh_hw_ddrmc {
     }
 }
 command refresh_hw_device {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -12726,7 +12738,7 @@ command refresh_hw_device {
     }
 }
 command refresh_hw_hbm {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -12749,7 +12761,7 @@ command refresh_hw_hbm {
     }
 }
 command refresh_hw_hbmmc {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -12770,7 +12782,7 @@ command refresh_hw_hbmmc {
     }
 }
 command refresh_hw_mig {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -12793,7 +12805,7 @@ command refresh_hw_mig {
     }
 }
 command refresh_hw_pcie {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -12812,7 +12824,7 @@ command refresh_hw_pcie {
     }
 }
 command refresh_hw_server {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -12833,7 +12845,7 @@ command refresh_hw_server {
     }
 }
 command refresh_hw_sio {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -12856,7 +12868,7 @@ command refresh_hw_sio {
     }
 }
 command refresh_hw_softmc {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -12879,7 +12891,7 @@ command refresh_hw_softmc {
     }
 }
 command refresh_hw_sysmon {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -12902,7 +12914,7 @@ command refresh_hw_sysmon {
     }
 }
 command refresh_hw_target {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -12923,7 +12935,7 @@ command refresh_hw_target {
     }
 }
 command refresh_hw_vio {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -12945,7 +12957,7 @@ command refresh_hw_vio {
     }
 }
 command refresh_meminit {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -12963,7 +12975,7 @@ command refresh_meminit {
     }
 }
 command regenerate_bd_layout {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -12990,7 +13002,7 @@ command regenerate_bd_layout {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command register_drc_rule {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -13021,7 +13033,7 @@ command register_drc_rule {
     }
 }
 command register_proc {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -13041,7 +13053,7 @@ command register_proc {
     }
 }
 command reimport_files {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -13063,7 +13075,7 @@ command reimport_files {
     }
 }
 command relaunch_sim {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -13083,7 +13095,7 @@ command relaunch_sim {
     }
 }
 command remove_bps {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -13109,7 +13121,7 @@ command remove_bps {
     }
 }
 command remove_cell {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -13128,7 +13140,7 @@ command remove_cell {
     }
 }
 command remove_cells_from_pblock {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -13147,7 +13159,7 @@ command remove_cells_from_pblock {
     }
 }
 command remove_cluster_configurations {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -13166,7 +13178,7 @@ command remove_cluster_configurations {
     }
 }
 command remove_conditions {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -13188,7 +13200,7 @@ command remove_conditions {
     }
 }
 command remove_drc_checks {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -13217,7 +13229,7 @@ command remove_drc_checks {
     }
 }
 command remove_files {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -13239,7 +13251,7 @@ command remove_files {
     }
 }
 command remove_forces {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -13260,7 +13272,7 @@ command remove_forces {
     }
 }
 command remove_from_power_rail {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -13280,7 +13292,7 @@ command remove_from_power_rail {
     }
 }
 command remove_gui_custom_command_args {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -13301,7 +13313,7 @@ command remove_gui_custom_command_args {
     }
 }
 command remove_gui_custom_commands {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -13320,7 +13332,7 @@ command remove_gui_custom_commands {
     }
 }
 command remove_hw_hbm_pc {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 3..
@@ -13341,7 +13353,7 @@ run_hw_hbm_amon [get_hw_hbms *HBM_2]}
     }
 }
 command remove_hw_probe_enum {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -13370,7 +13382,7 @@ command remove_hw_probe_enum {
     }
 }
 command remove_hw_sio_link {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -13390,7 +13402,7 @@ command remove_hw_sio_link {
     }
 }
 command remove_hw_sio_linkgroup {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -13410,7 +13422,7 @@ command remove_hw_sio_linkgroup {
     }
 }
 command remove_hw_sio_scan {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -13430,7 +13442,7 @@ command remove_hw_sio_scan {
     }
 }
 command remove_hw_sio_sweep {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -13450,7 +13462,7 @@ command remove_hw_sio_sweep {
     }
 }
 command remove_net {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -13471,7 +13483,7 @@ command remove_net {
     }
 }
 command remove_pin {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -13490,7 +13502,7 @@ command remove_pin {
     }
 }
 command remove_port {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -13509,7 +13521,7 @@ command remove_port {
     }
 }
 command remove_wave {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -13529,7 +13541,7 @@ command remove_wave {
     }
 }
 command rename_cell {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -13551,7 +13563,7 @@ command rename_cell {
     }
 }
 command rename_net {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -13573,7 +13585,7 @@ command rename_net {
     }
 }
 command rename_pin {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -13595,7 +13607,7 @@ command rename_pin {
     }
 }
 command rename_port {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -13617,7 +13629,7 @@ command rename_port {
     }
 }
 command rename_ref {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -13643,7 +13655,7 @@ command rename_ref {
     }
 }
 command reorder_files {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -13677,7 +13689,7 @@ command reorder_files {
     }
 }
 command replace_bd_cell {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -13704,7 +13716,7 @@ command replace_bd_cell {
     }
 }
 command report_bd_diffs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -13753,7 +13765,7 @@ command report_bd_diffs {
     }
 }
 command report_bps {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -13773,7 +13785,7 @@ command report_bps {
     }
 }
 command report_bus_skew {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -13834,7 +13846,7 @@ command report_bus_skew {
     }
 }
 command report_carry_chains {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -13866,7 +13878,7 @@ command report_carry_chains {
     }
 }
 command report_cdc {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -13918,7 +13930,7 @@ command report_cdc {
     }
 }
 command report_clock_interaction {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -13964,7 +13976,7 @@ report_clock_interaction -delay_type min_max \
     }
 }
 command report_clock_networks {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -14007,7 +14019,7 @@ command report_clock_networks {
     }
 }
 command report_clock_uncertainty {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -14054,7 +14066,7 @@ command report_clock_uncertainty {
     }
 }
 command report_clock_utilization {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -14088,7 +14100,7 @@ command report_clock_utilization {
     }
 }
 command report_clocks {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -14114,7 +14126,7 @@ command report_clocks {
     }
 }
 command report_compile_order {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -14151,7 +14163,7 @@ command report_compile_order {
     }
 }
 command report_conditions {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -14171,7 +14183,7 @@ command report_conditions {
     }
 }
 command report_config_flows {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -14205,7 +14217,7 @@ command report_config_flows {
     }
 }
 command report_config_implementation {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -14234,7 +14246,7 @@ command report_config_implementation {
     }
 }
 command report_config_timing {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -14270,7 +14282,7 @@ puts $timeConfig}
     }
 }
 command report_constant_paths {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -14310,7 +14322,7 @@ command report_constant_paths {
     }
 }
 command report_control_sets {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -14346,7 +14358,7 @@ command report_control_sets {
     }
 }
 command report_datasheet {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -14387,7 +14399,7 @@ command report_datasheet {
     }
 }
 command report_debug_core {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -14419,7 +14431,7 @@ command report_debug_core {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command report_default_switching_activity {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -14449,7 +14461,7 @@ command report_default_switching_activity {
     }
 }
 command report_design_analysis {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -14545,7 +14557,7 @@ command report_design_analysis {
     }
 }
 command report_dfx_summary {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -14579,7 +14591,7 @@ command report_dfx_summary {
     }
 }
 command report_disable_timing {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -14613,7 +14625,7 @@ command report_disable_timing {
     }
 }
 command report_drc {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -14661,7 +14673,7 @@ command report_drc {
     }
 }
 command report_drivers {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -14681,7 +14693,7 @@ command report_drivers {
     }
 }
 command report_environment {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -14711,7 +14723,7 @@ command report_environment {
     }
 }
 command report_exceptions {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -14775,7 +14787,7 @@ command report_exceptions {
     }
 }
 command report_frames {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -14795,7 +14807,7 @@ command report_frames {
     }
 }
 command report_high_fanout_nets {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -14857,7 +14869,7 @@ command report_high_fanout_nets {
     }
 }
 command report_hw_axi_txn {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -14885,7 +14897,7 @@ report_hw_axi_txn [get_hw_axi_txns read_txn]}
     }
 }
 command report_hw_ddrmc {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -14916,7 +14928,7 @@ command report_hw_ddrmc {
     }
 }
 command report_hw_mig {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -14947,7 +14959,7 @@ command report_hw_mig {
     }
 }
 command report_hw_pcie {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -14978,7 +14990,7 @@ command report_hw_pcie {
     }
 }
 command report_hw_softmc {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -15006,7 +15018,7 @@ command report_hw_softmc {
     }
 }
 command report_hw_targets {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -15026,7 +15038,7 @@ command report_hw_targets {
     }
 }
 command report_incremental_reuse {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -15061,7 +15073,7 @@ report_incremental_reuse}
     }
 }
 command report_io {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -15093,7 +15105,7 @@ command report_io {
     }
 }
 command report_ip_status {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -15127,7 +15139,7 @@ command report_ip_status {
     }
 }
 command report_methodology {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -15173,7 +15185,7 @@ command report_methodology {
     }
 }
 command report_noc {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -15203,7 +15215,7 @@ command report_noc {
     }
 }
 command report_noc_qos {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -15224,7 +15236,7 @@ command report_noc_qos {
     }
 }
 command report_npi_addresses {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -15251,7 +15263,7 @@ command report_npi_addresses {
     }
 }
 command report_objects {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -15271,7 +15283,7 @@ command report_objects {
     }
 }
 command report_operating_conditions {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -15329,7 +15341,7 @@ command report_operating_conditions {
     }
 }
 command report_param {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -15359,7 +15371,7 @@ command report_param {
     }
 }
 command report_phys_opt {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -15387,7 +15399,7 @@ command report_phys_opt {
     }
 }
 command report_place_status {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -15435,7 +15447,7 @@ command report_place_status {
     }
 }
 command report_power_opt {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -15469,7 +15481,7 @@ command report_power_opt {
     }
 }
 command report_pr_configuration_analysis {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -15505,7 +15517,7 @@ command report_pr_configuration_analysis {
     }
 }
 command report_property {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -15537,7 +15549,7 @@ command report_property {
     }
 }
 command report_pulse_width {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -15586,7 +15598,7 @@ command report_pulse_width {
     }
 }
 command report_qor_assessment {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -15626,7 +15638,7 @@ command report_qor_assessment {
     }
 }
 command report_qor_suggestions {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -15671,7 +15683,7 @@ command report_qor_suggestions {
     }
 }
 command report_ram_utilization {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -15705,7 +15717,7 @@ command report_ram_utilization {
     }
 }
 command report_route_status {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -15760,7 +15772,7 @@ command report_route_status {
     }
 }
 command report_run_status {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -15778,7 +15790,7 @@ command report_run_status {
     }
 }
 command report_scopes {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -15798,7 +15810,7 @@ command report_scopes {
     }
 }
 command report_sim_device {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -15826,7 +15838,7 @@ command report_sim_device {
     }
 }
 command report_sim_env {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -15850,7 +15862,7 @@ command report_sim_env {
     }
 }
 command report_sim_version {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -15875,7 +15887,7 @@ command report_sim_version {
     }
 }
 command report_simlib_info {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -15899,7 +15911,7 @@ command report_simlib_info {
     }
 }
 command report_slr_crossing {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -15933,7 +15945,7 @@ command report_slr_crossing {
     }
 }
 command report_ssn {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -15967,7 +15979,7 @@ command report_ssn {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command report_sso {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -16011,7 +16023,7 @@ command report_sso {
     }
 }
 command report_stacks {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -16032,7 +16044,7 @@ command report_stacks {
     }
 }
 command report_switching_activity {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -16076,7 +16088,7 @@ command report_switching_activity {
     }
 }
 command report_synchronizer_mtbf {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -16107,7 +16119,7 @@ command report_synchronizer_mtbf {
     }
 }
 command report_timing_summary {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -16180,7 +16192,7 @@ command report_timing_summary {
     }
 }
 command report_transformed_primitives {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -16206,7 +16218,7 @@ command report_transformed_primitives {
     }
 }
 command report_utilization {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -16267,7 +16279,7 @@ command report_utilization {
     }
 }
 command report_values {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -16293,7 +16305,7 @@ command report_values {
     }
 }
 command report_waivers {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -16333,7 +16345,7 @@ command report_waivers {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command reset_default_switching_activity {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -16355,7 +16367,7 @@ command reset_default_switching_activity {
     }
 }
 command reset_drc {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -16377,7 +16389,7 @@ command reset_drc {
     }
 }
 command reset_drc_check {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -16398,7 +16410,7 @@ command reset_drc_check {
     }
 }
 command reset_hw_axi {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -16419,7 +16431,7 @@ command reset_hw_axi {
     }
 }
 command reset_hw_ila {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -16441,7 +16453,7 @@ command reset_hw_ila {
     }
 }
 command reset_hw_pcie {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -16460,7 +16472,7 @@ command reset_hw_pcie {
     }
 }
 command reset_hw_vio_activity {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -16480,7 +16492,7 @@ command reset_hw_vio_activity {
     }
 }
 command reset_hw_vio_outputs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -16500,7 +16512,7 @@ command reset_hw_vio_outputs {
     }
 }
 command reset_methodology {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -16522,7 +16534,7 @@ command reset_methodology {
     }
 }
 command reset_methodology_check {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -16543,7 +16555,7 @@ command reset_methodology_check {
     }
 }
 command reset_msg_config {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -16580,7 +16592,7 @@ reset_msg_config -id "Common 17-81" -default_severity}
     }
 }
 command reset_msg_count {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -16602,7 +16614,7 @@ command reset_msg_count {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command reset_msg_limit {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -16633,7 +16645,7 @@ command reset_msg_limit {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command reset_msg_severity {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -16653,7 +16665,7 @@ command reset_msg_severity {
     }
 }
 command reset_operating_conditions {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -16692,7 +16704,7 @@ command reset_operating_conditions {
     }
 }
 command reset_param {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -16712,7 +16724,7 @@ command reset_param {
     }
 }
 command reset_project {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -16737,7 +16749,7 @@ command reset_project {
     }
 }
 command reset_property {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -16759,7 +16771,7 @@ command reset_property {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command reset_run {
-    dialects tcl8.5
+    available {tcl 8.5}
     arity 1
     required_package vivado
     deprecated_replacement reset_runs
@@ -16773,7 +16785,7 @@ command reset_run {
     }
 }
 command reset_runs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -16793,7 +16805,7 @@ command reset_runs {
     }
 }
 command reset_simulation {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -16818,7 +16830,7 @@ command reset_simulation {
     }
 }
 command reset_ssn {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -16839,7 +16851,7 @@ command reset_ssn {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command reset_sso {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -16859,7 +16871,7 @@ command reset_sso {
     }
 }
 command reset_switching_activity {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -16894,7 +16906,7 @@ command reset_switching_activity {
     }
 }
 command reset_target {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -16913,7 +16925,7 @@ command reset_target {
     }
 }
 command reset_timing {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -16938,7 +16950,7 @@ command reset_timing {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command reset_ucf {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -16958,7 +16970,7 @@ command reset_ucf {
     }
 }
 command resize_net_bus {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -16982,7 +16994,7 @@ resize_net_bus tempBus -from 0 -to 7}
     }
 }
 command resize_pblock {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -17013,7 +17025,7 @@ command resize_pblock {
     }
 }
 command resize_pin_bus {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -17035,7 +17047,7 @@ command resize_pin_bus {
     }
 }
 command resize_port_bus {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -17057,7 +17069,7 @@ command resize_port_bus {
     }
 }
 command restart {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -17077,7 +17089,7 @@ command restart {
     }
 }
 command resume_hw_hbm_amon {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -17097,7 +17109,7 @@ command resume_hw_hbm_amon {
     }
 }
 command route_design {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -17156,7 +17168,7 @@ command route_design {
     }
 }
 command run {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -17177,7 +17189,7 @@ command run {
     }
 }
 command run_hw_axi {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -17198,7 +17210,7 @@ command run_hw_axi {
     }
 }
 command run_hw_hbm_amon {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -17218,7 +17230,7 @@ command run_hw_hbm_amon {
     }
 }
 command run_hw_ila {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -17244,7 +17256,7 @@ command run_hw_ila {
     }
 }
 command run_hw_sio_scan {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -17264,7 +17276,7 @@ command run_hw_sio_scan {
     }
 }
 command run_hw_sio_sweep {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -17284,7 +17296,7 @@ command run_hw_sio_sweep {
     }
 }
 command run_noc_compiler {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -17302,7 +17314,7 @@ command run_noc_compiler {
     }
 }
 command run_state_hw_jtag {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -17328,7 +17340,7 @@ command run_state_hw_jtag {
     }
 }
 command runtest_hw_jtag {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -17360,7 +17372,7 @@ command runtest_hw_jtag {
     }
 }
 command save_bd_design {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -17380,7 +17392,7 @@ command save_bd_design {
     }
 }
 command save_bd_design_as {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -17405,7 +17417,7 @@ command save_bd_design_as {
     }
 }
 command save_constraints {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -17427,7 +17439,7 @@ command save_constraints {
     }
 }
 command save_constraints_as {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -17454,7 +17466,7 @@ command save_constraints_as {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command save_design {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -17480,7 +17492,7 @@ command save_design {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command save_design_as {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -17504,7 +17516,7 @@ command save_design_as {
     }
 }
 command save_project_as {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -17531,7 +17543,7 @@ command save_project_as {
     }
 }
 command save_wave_config {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -17554,7 +17566,7 @@ C:/Data/project/newTest}
     }
 }
 command scan_dr_hw_jtag {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -17582,7 +17594,7 @@ command scan_dr_hw_jtag {
     }
 }
 command scan_ir_hw_jtag {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -17610,7 +17622,7 @@ command scan_ir_hw_jtag {
     }
 }
 command select_objects {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -17631,7 +17643,7 @@ command select_objects {
     }
 }
 command select_wave_objects {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -17654,7 +17666,7 @@ command select_wave_objects {
     }
 }
 command set_bus_skew {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -17695,7 +17707,7 @@ command set_bus_skew {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command set_default_switching_activity {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -17719,7 +17731,7 @@ command set_default_switching_activity {
     }
 }
 command set_delay_model {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -17741,7 +17753,7 @@ command set_delay_model {
     }
 }
 command set_external_delay {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -17766,7 +17778,7 @@ command set_external_delay {
     }
 }
 command set_hw_sysmon_reg {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 3..
@@ -17786,7 +17798,7 @@ command set_hw_sysmon_reg {
     }
 }
 command set_input_jitter {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -17807,7 +17819,7 @@ set_input_jitter procClk 0.3}
     }
 }
 command set_logic_unconnected {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -17827,7 +17839,7 @@ command set_logic_unconnected {
     }
 }
 command set_max_time_borrow {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -17847,7 +17859,7 @@ command set_max_time_borrow {
     }
 }
 command set_msg_config {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -17885,7 +17897,7 @@ command set_msg_config {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command set_msg_limit {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -17914,7 +17926,7 @@ command set_msg_limit {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command set_msg_severity {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -17934,7 +17946,7 @@ command set_msg_severity {
     }
 }
 command set_noc_phase {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -17973,7 +17985,7 @@ command set_noc_phase {
     }
 }
 command set_package_pin_val {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 3..
@@ -17992,7 +18004,7 @@ command set_package_pin_val {
     }
 }
 command set_param {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -18012,7 +18024,7 @@ command set_param {
     }
 }
 command set_part {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -18032,7 +18044,7 @@ command set_part {
     }
 }
 command set_power_opt {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -18061,7 +18073,7 @@ power_opt_design}
     }
 }
 command set_property {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 3..
@@ -18085,7 +18097,7 @@ command set_property {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command set_speed_grade {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -18105,7 +18117,7 @@ command set_speed_grade {
     }
 }
 command set_switching_activity {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -18143,7 +18155,7 @@ command set_switching_activity {
     }
 }
 command set_system_jitter {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -18164,7 +18176,7 @@ set_system_jitter 0.1}
     }
 }
 command set_value {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -18186,7 +18198,7 @@ command set_value {
     }
 }
 command setup_pr_configurations {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -18216,7 +18228,7 @@ command setup_pr_configurations {
     }
 }
 command show_objects {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -18238,7 +18250,7 @@ command show_objects {
     }
 }
 command show_schematic {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -18265,7 +18277,7 @@ command show_schematic {
     }
 }
 command split_diff_pair_ports {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -18285,7 +18297,7 @@ command split_diff_pair_ports {
     }
 }
 command start_gui {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -18303,7 +18315,7 @@ command start_gui {
     }
 }
 command start_vcd {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -18326,7 +18338,7 @@ command start_vcd {
     }
 }
 command startgroup {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -18346,7 +18358,7 @@ command startgroup {
     }
 }
 command step {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -18366,7 +18378,7 @@ command step {
     }
 }
 command stop {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -18389,7 +18401,7 @@ stop }}
     }
 }
 command stop_gui {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -18408,7 +18420,7 @@ command stop_gui {
     }
 }
 command stop_hw_hbm_amon {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -18428,7 +18440,7 @@ command stop_hw_hbm_amon {
     }
 }
 command stop_hw_sio_scan {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -18448,7 +18460,7 @@ command stop_hw_sio_scan {
     }
 }
 command stop_hw_sio_sweep {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -18468,7 +18480,7 @@ command stop_hw_sio_sweep {
     }
 }
 command stop_vcd {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -18491,7 +18503,7 @@ command stop_vcd {
     }
 }
 command swap_locs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -18511,7 +18523,7 @@ command swap_locs {
     }
 }
 command synth_design {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -18623,7 +18635,7 @@ command synth_design {
     }
 }
 command synth_ip {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -18645,7 +18657,7 @@ command synth_ip {
     }
 }
 command tandem_verify {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -18668,7 +18680,7 @@ command tandem_verify {
     }
 }
 command terminate_runs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -18688,7 +18700,7 @@ command terminate_runs {
     }
 }
 command tie_unused_pins {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -18710,7 +18722,7 @@ command tie_unused_pins {
     }
 }
 command undo {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -18732,7 +18744,7 @@ command undo {
     }
 }
 command ungroup_bd_cells {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -18754,7 +18766,7 @@ command ungroup_bd_cells {
     }
 }
 command unhighlight_objects {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -18781,7 +18793,7 @@ command unhighlight_objects {
     }
 }
 command unmark_objects {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -18806,7 +18818,7 @@ command unmark_objects {
     }
 }
 command unplace_cell {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -18826,7 +18838,7 @@ command unplace_cell {
     }
 }
 command unregister_proc {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -18846,7 +18858,7 @@ command unregister_proc {
     }
 }
 command unselect_objects {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -18866,7 +18878,7 @@ command unselect_objects {
     }
 }
 command update_bd_boundaries {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -18890,7 +18902,7 @@ command update_bd_boundaries {
     }
 }
 command update_calibration_scheme {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -18909,7 +18921,7 @@ command update_calibration_scheme {
     }
 }
 command update_clock_routing {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -18933,7 +18945,7 @@ update_clock_routing}
     }
 }
 command update_compile_order {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -18955,7 +18967,7 @@ command update_compile_order {
     }
 }
 command update_design {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -18989,7 +19001,7 @@ command update_design {
     }
 }
 command update_files {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -19020,7 +19032,7 @@ command update_files {
     }
 }
 command update_hw_firmware {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -19054,7 +19066,7 @@ command update_hw_firmware {
     }
 }
 command update_hw_gpio {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -19073,7 +19085,7 @@ command update_hw_gpio {
     }
 }
 command update_ip_catalog {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -19114,7 +19126,7 @@ update_ip_catalog -rebuild}
     }
 }
 command update_macro {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -19139,7 +19151,7 @@ update_macro usbMacro0 {rx_active_reg X0Y0 \
     }
 }
 command update_module_reference {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -19159,7 +19171,7 @@ command update_module_reference {
     }
 }
 command update_noc_qos {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -19179,7 +19191,7 @@ command update_noc_qos {
     }
 }
 command update_sw_parameters {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -19200,7 +19212,7 @@ update_sw_parameters}
     }
 }
 command update_timing {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -19221,7 +19233,7 @@ command update_timing {
     }
 }
 command upgrade_bd_cells {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -19246,7 +19258,7 @@ command upgrade_bd_cells {
     }
 }
 command upgrade_ip {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -19272,7 +19284,7 @@ command upgrade_ip {
     }
 }
 command upgrade_project {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -19297,7 +19309,7 @@ command upgrade_project {
     }
 }
 command upload_hw_ila_data {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -19319,7 +19331,7 @@ upload_hw_ila_data [current_hw_ila]}
     }
 }
 command validate_bd_design {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -19350,7 +19362,7 @@ command validate_bd_design {
     }
 }
 command validate_board_files {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -19373,7 +19385,7 @@ command validate_board_files {
     }
 }
 command validate_cluster_configurations {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -19396,7 +19408,7 @@ command validate_cluster_configurations {
     }
 }
 command validate_hw_platform {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -19417,7 +19429,7 @@ command validate_hw_platform {
     }
 }
 command validate_ip {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -19439,7 +19451,7 @@ command validate_ip {
     }
 }
 command validate_noc {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -19461,7 +19473,7 @@ command validate_noc {
     }
 }
 command verify_hw_devices {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -19495,7 +19507,7 @@ command verify_hw_devices {
     }
 }
 command version {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -19516,7 +19528,7 @@ command version {
     }
 }
 command wait_on_hw_ila {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -19540,7 +19552,7 @@ display_hw_ila_data [upload_hw_ila_data hw_ila_1]}
     }
 }
 command wait_on_hw_sio_scan {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -19563,7 +19575,7 @@ wait_on_hw_sio_scan [lindex [get_hw_sio_scans {SCAN_0}] 0]}
     }
 }
 command wait_on_hw_sio_sweep {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -19588,7 +19600,7 @@ wait_on_hw_sio_sweep [lindex [get_hw_sio_sweeps {SWEEP_0}] 0]}
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command wait_on_run {
-    dialects tcl8.5
+    available {tcl 8.5}
     arity 1
     required_package vivado
     deprecated_replacement wait_on_runs
@@ -19602,7 +19614,7 @@ command wait_on_run {
     }
 }
 command wait_on_runs {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -19626,7 +19638,7 @@ command wait_on_runs {
     }
 }
 command write_abstract_shell {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -19648,7 +19660,7 @@ command write_abstract_shell {
     }
 }
 command write_bd_layout {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -19677,7 +19689,7 @@ command write_bd_layout {
     }
 }
 command write_bd_tcl {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -19730,7 +19742,7 @@ command write_bd_tcl {
     }
 }
 command write_bitstream {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -19769,7 +19781,7 @@ command write_bitstream {
     }
 }
 command write_bmm {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -19790,7 +19802,7 @@ command write_bmm {
     }
 }
 command write_bsdl {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -19813,7 +19825,7 @@ command write_bsdl {
     }
 }
 command write_cfgmem {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -19856,7 +19868,7 @@ config_memory1}
     }
 }
 command write_checkpoint {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -19892,7 +19904,7 @@ command write_checkpoint {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command write_chipscope_cdc {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -19912,7 +19924,7 @@ command write_chipscope_cdc {
     }
 }
 command write_csv {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -19933,7 +19945,7 @@ command write_csv {
     }
 }
 command write_debug_probes {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -19957,7 +19969,7 @@ command write_debug_probes {
     }
 }
 command write_device_image {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -19990,7 +20002,7 @@ command write_device_image {
     }
 }
 command write_edif {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -20021,7 +20033,7 @@ command write_edif {
     }
 }
 command write_hw_ila_data {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -20047,7 +20059,7 @@ command write_hw_ila_data {
     }
 }
 command write_hw_platform {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -20085,7 +20097,7 @@ command write_hw_platform {
     }
 }
 command write_hw_platform_metadata {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -20105,7 +20117,7 @@ command write_hw_platform_metadata {
     }
 }
 command write_hw_sio_scan {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -20127,7 +20139,7 @@ command write_hw_sio_scan {
     }
 }
 command write_hw_sio_sweep {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 2..
@@ -20148,7 +20160,7 @@ command write_hw_sio_sweep {
     }
 }
 command write_hw_stapl {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -20168,7 +20180,7 @@ command write_hw_stapl {
     }
 }
 command write_hw_svf {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -20190,7 +20202,7 @@ write_hw_svf C:/Data/k7_design.svf}
     }
 }
 command write_ibis {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -20225,7 +20237,7 @@ command write_ibis {
     }
 }
 command write_inferred_xdc {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -20268,7 +20280,7 @@ command write_inferred_xdc {
     }
 }
 command write_ip_tcl {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -20295,7 +20307,7 @@ command write_ip_tcl {
     }
 }
 command write_iphys_opt_tcl {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -20318,7 +20330,7 @@ command write_iphys_opt_tcl {
     }
 }
 command write_mem_info {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -20343,7 +20355,7 @@ command write_mem_info {
     }
 }
 command write_messages {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -20375,7 +20387,7 @@ command write_messages {
 ;# NOTE(xilinx): absent from UG835 2026.1 — kept for older scripts; last
 ;# documented in the release its source row cites.
 command write_ncd {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -20396,7 +20408,7 @@ command write_ncd {
     }
 }
 command write_noc_qos {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -20418,7 +20430,7 @@ command write_noc_qos {
     }
 }
 command write_noc_solution {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -20440,7 +20452,7 @@ command write_noc_solution {
     }
 }
 command write_peripheral {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -20459,7 +20471,7 @@ command write_peripheral {
     }
 }
 command write_project_tcl {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -20507,7 +20519,7 @@ command write_project_tcl {
     }
 }
 command write_qor_suggestions {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -20537,7 +20549,7 @@ write_qor_suggestions C:/Data/qor_results.rqs}
     }
 }
 command write_schematic {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -20568,7 +20580,7 @@ command write_schematic {
     }
 }
 command write_sdf {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -20602,7 +20614,7 @@ command write_sdf {
     }
 }
 command write_verilog {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -20650,7 +20662,7 @@ command write_verilog {
     }
 }
 command write_vhdl {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..
@@ -20691,7 +20703,7 @@ command write_vhdl {
     }
 }
 command write_waivers {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -20722,7 +20734,7 @@ command write_waivers {
     }
 }
 command write_xdc {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -20769,7 +20781,7 @@ command write_xdc {
     }
 }
 command write_xsim_coverage {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 0..
@@ -20793,7 +20805,7 @@ command write_xsim_coverage {
     }
 }
 command xsim {
-    dialects tcl8.5
+    available {tcl 8.5}
     required_package vivado
 
     arity 1..

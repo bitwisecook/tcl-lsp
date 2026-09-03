@@ -181,12 +181,13 @@ pub fn run_upgrade(args: &SpecUpgradeArgs) -> anyhow::Result<u8> {
     let options = UpgradeOptions {
         from: args.from.clone(),
         to: args.to.clone(),
-        infer_provides: args.infer_provides,
+        infer_provides: args.shape.infer_provides,
+        restyle: args.shape.restyle,
     };
     // `--verify` proves an upgrade rather than performing one, so it never
     // writes: the whole claim it makes is about bytes that are already on
     // disk versus bytes that would be.
-    let dry_run = args.check || args.verify;
+    let dry_run = args.proof.check || args.proof.verify;
     let mut incomplete = 0u32;
 
     for file in &args.files {
@@ -218,7 +219,7 @@ pub fn run_upgrade(args: &SpecUpgradeArgs) -> anyhow::Result<u8> {
                 );
                 continue;
             }
-            UpgradeStatus::Upgraded | UpgradeStatus::Partial => {}
+            UpgradeStatus::Upgraded | UpgradeStatus::Partial | UpgradeStatus::Restyled => {}
         }
 
         let partial = outcome.status == UpgradeStatus::Partial;
@@ -227,7 +228,7 @@ pub fn run_upgrade(args: &SpecUpgradeArgs) -> anyhow::Result<u8> {
         }
         report_upgrade(&outcome, &format!("{name}"), dry_run);
 
-        if args.verify {
+        if args.proof.verify {
             match verify_snapshots(file, &source, &outcome.source) {
                 Ok(true) => println!("  verify: registry snapshots are byte-identical (U9)"),
                 Ok(false) => {
@@ -279,6 +280,28 @@ fn report_upgrade(outcome: &UpgradeOutcome, name: &str, dry_run: bool) {
     }
     for row in &outcome.deferred {
         println!("  {}: TODO {}", row.line, row.reason);
+    }
+    if outcome.restyled {
+        println!(
+            "  {} in canonical form (comments and author layout dropped)",
+            if dry_run {
+                "would re-emit"
+            } else {
+                "re-emitted"
+            }
+        );
+    }
+    for loss in &outcome.restyle_losses {
+        eprint_status(
+            warn_style(),
+            format!(
+                "restyle {name}:{}: `{}` word quoted rather than written verbatim: {:?}",
+                loss.line, loss.word, loss.text
+            ),
+        );
+    }
+    if let Some(reason) = &outcome.restyle_skipped {
+        eprint_status(warn_style(), format!("not restyled {name}: {reason}"));
     }
     // U7: the rewritten file must need nothing newer than it declares.
     for site in &outcome.above_target {

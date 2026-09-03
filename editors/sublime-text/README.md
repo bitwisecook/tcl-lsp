@@ -199,6 +199,7 @@ you can change at any time.
 | `mentor-eda-tcl` | Mentor EDA Tcl |
 | `microchip-libero-eda-tcl` | Microchip Libero EDA Tcl |
 | `spectcl` | SpecTcl |
+| `sslictcl` | SslicTcl |
 | `synopsys-eda-tcl` | Synopsys EDA Tcl |
 | `tcl8.4` | Tcl 8.4 |
 | `tcl8.5` | Tcl 8.5 |

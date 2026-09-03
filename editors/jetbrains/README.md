@@ -34,6 +34,40 @@ All features from the tcl-lsp server are supported:
 - **Compiler Explorer** tool window (IR, CFG, SSA, optimiser, shimmer) — also
   available by right-clicking a Tcl/iRule file → **Open In Tcl Compiler Explorer**
 - **Dialect support**: Tcl 8.4–9.0, F5 iRules, F5 iApps, EDA Tools
+- **Pack-declared file extensions** registered as the packs that claim them
+  load and unload (see below)
+
+## Pack-declared file extensions
+
+A SpecTcl pack can claim a file extension of its own with a
+`file_extension` row, or through the `file_extensions` of an `environment`
+block. The server routes those extensions as soon as it discovers the pack,
+but the IDE learns its file types from the plugin's static manifest, so a
+`.irulex` file would otherwise open as plain text with no server attached.
+
+The plugin registers the claimed extensions with `FileTypeManager` while their
+packs are loaded, and retires them again when the packs go. `tcl-irule` rows
+land on the **iRule** file type; everything else lands on **Tcl**. Two things
+are worth knowing, because JetBrains file-type associations are IDE-wide
+rather than per project:
+
+- **A mapping you made by hand always wins.** If the extension is already
+  associated with any file type — including the plugin's own — the plugin
+  leaves it alone and never removes it. It only ever retires an association it
+  installed itself and that still points where it left it. The ledger of what
+  it installed is kept in `TclLspPackAssociations.xml` beside your other IDE
+  settings.
+- **Several open projects share one set of associations.** The plugin
+  registers the union of what every open project's server reports, and drops
+  an extension only when no open project still claims it. Closing a project
+  retires what it alone claimed straight away, as long as another project is
+  still open. A project whose server has not started yet claims nothing, so
+  shortly after IDE startup an extension can disappear and come back once that
+  project's server reports.
+
+Nothing is torn down when the IDE exits, so the associations survive a
+restart. If a pack has been deleted in the meantime, the first report of the
+next session is what removes its extension.
 
 ## Installation
 

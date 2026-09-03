@@ -37,13 +37,15 @@ private val SPEC_LOG = Logger.getInstance("com.tcllsp.jetbrains.SpecStudio")
 
 class SpecStudioToolWindowFactory : ToolWindowFactory, DumbAware {
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
+        if (!isJcefSupported()) return
         val panel = SpecStudioPanel(project)
         val content = ContentFactory.getInstance().createContent(panel.browser.component, "", false)
         content.setDisposer(panel)
         toolWindow.contentManager.addContent(content)
     }
 
-    override fun shouldBeAvailable(project: Project): Boolean = project.basePath != null
+    override fun shouldBeAvailable(project: Project): Boolean =
+        project.basePath != null && isJcefSupported()
 }
 
 internal class SpecStudioPanel(private val project: Project) : Disposable {
