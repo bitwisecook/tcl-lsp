@@ -208,8 +208,16 @@ pub unsafe extern "C" fn tcl_codegen_var_incr(
     let name = unsafe { input_bytes(name_ptr, name_len) };
     let interp = unsafe { &mut *interp };
     // SAFETY: `delta` is live per the contract.
-    let code =
-        unsafe { run_named_cell_command(interp, b"incr", name, &[delta], crate::builtins::incr) };
+    // The trace-safe `incr`, not `builtins::incr`: see `cmd_var::installed_incr`.
+    let code = unsafe {
+        run_named_cell_command(
+            interp,
+            b"incr",
+            name,
+            &[delta],
+            crate::cmd_var::installed_incr(),
+        )
+    };
     if code != Code::Ok {
         return ptr::null_mut();
     }
@@ -524,6 +532,34 @@ mod tests {
     use crate::codegen_abi::tcl_runtime_set_current_interp;
     use crate::counters;
     use crate::interp::obj_bytes;
+
+    /// A compiled `incr` on a cell whose write trace rewrites it must return
+    /// the cell's post-trace value, exactly as the interpreted `incr` does
+    /// (#1633 row 1). Dispatching `builtins::incr` here instead of the
+    /// registered trace-safe body returned the pre-trace sum — and dropped the
+    /// only reference to it while doing so.
+    #[cfg(have_tommath)]
+    #[test]
+    fn a_compiled_incr_returns_the_value_a_write_trace_left() {
+        leak_free(|interp| {
+            let setup = b"set x 1\n                 proc R {n1 n2 op} { set ::x 99 }\n                 trace add variable x write R\n";
+            assert_eq!(interp.eval_str(setup), Code::Ok);
+            let delta = obj::new_wide_int_obj(1);
+            // SAFETY: a live name range and a live delta on the current interp.
+            let result = unsafe { tcl_codegen_var_incr(b"x".as_ptr(), 1, delta) };
+            crate::interp::drop_fresh(delta);
+            assert!(!result.is_null(), "the incr completed");
+            assert_eq!(
+                String::from_utf8_lossy(&obj_bytes(result)),
+                "99",
+                "the trace's value, not the pre-trace sum"
+            );
+            // SAFETY: the call handed us one reference.
+            unsafe { obj::decr_ref_count(result) };
+            assert_eq!(interp.eval_str(b"set x"), Code::Ok);
+            assert_eq!(String::from_utf8_lossy(&interp.result_bytes()), "99");
+        });
+    }
 
     fn leak_free(body: impl FnOnce(&mut Interp)) {
         counters::reset();

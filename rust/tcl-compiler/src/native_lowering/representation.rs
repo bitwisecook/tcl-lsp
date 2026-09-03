@@ -149,6 +149,23 @@ pub const fn double_result_defined(op: DoubleOp) -> bool {
     }
 }
 
+/// Whether every integer in `interval` converts to `f64` without rounding.
+///
+/// `|v| <= 2^53` is the exact-integer range of a double. Outside it the
+/// conversion is lossy, and Tcl compares an integer with a double *exactly*
+/// (`tclExecute.c` widens to the shared comparator rather than to `f64`):
+/// `9007199254740993 == 9007199254740992.0` is false on 8.6.16 and 9.0.4,
+/// and the integer compares *greater*. Promoting both sides to `f64` would
+/// answer true, so a mixed comparison stays native only inside this range.
+#[must_use]
+pub const fn exactly_representable_as_double(interval: Interval) -> bool {
+    const LIMIT: i64 = 1 << 53;
+    match (interval.lo, interval.hi) {
+        (Some(lo), Some(hi)) => lo >= -LIMIT && hi <= LIMIT,
+        _ => false,
+    }
+}
+
 /// The native comparison a Tcl numeric comparison maps to.
 #[must_use]
 pub const fn cmp_op(op: BinOp) -> Option<CmpOp> {

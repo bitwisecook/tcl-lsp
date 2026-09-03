@@ -143,6 +143,26 @@ fn incr_constant_error(
     None
 }
 
+/// The `incr` the command table actually holds: the trace-safe one wherever
+/// the numeric tower is linked.
+///
+/// Compiled code must dispatch through this rather than naming
+/// `builtins::incr` directly. `builtins::incr` calls `set_result(sum)` after
+/// the write traces have run, so a trace that rewrites or unsets the cell can
+/// drop the only reference to that fresh sum — the use-after-free #1633 row 1
+/// fixes for interpreted `incr`. A compiled `incr` reaching the old body would
+/// resurface it, and return the pre-trace value.
+pub(crate) fn installed_incr() -> fn(&mut Interp, &[*mut TclObj]) -> Code {
+    #[cfg(have_tommath)]
+    {
+        incr_cmd
+    }
+    #[cfg(not(have_tommath))]
+    {
+        crate::builtins::incr
+    }
+}
+
 /// `incr varName ?increment?` — overrides `builtins::incr`'s store/result tail
 /// only; the numeric-tower add is unchanged.
 #[cfg(have_tommath)]

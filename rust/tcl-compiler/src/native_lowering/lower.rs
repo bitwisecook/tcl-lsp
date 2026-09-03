@@ -45,8 +45,8 @@ use super::ir::{
     NativeStatement, NativeTerminator, NativeType, NativeValue, NativeValueId,
 };
 use super::representation::{
-    Representation, cmp_op, double_op, double_result_defined, int_op, numeric_hint,
-    proven_int_result, proven_neg_result,
+    Representation, cmp_op, double_op, double_result_defined, exactly_representable_as_double,
+    int_op, numeric_hint, proven_int_result, proven_neg_result,
 };
 use super::{
     CellAccessKind, CellAccessRecord, FunctionDecline, FunctionReport, FunctionStatus,
@@ -1400,7 +1400,15 @@ impl<'a> Lowerer<'a> {
                     });
                     return Ok(dst);
                 }
-                (l, r) if l.is_native_numeric() && r.is_native_numeric() => {
+                // A mixed int/double comparison is only exact while the
+                // integer side converts to `f64` without rounding; outside
+                // that range the dynamic edge's exact comparator is the only
+                // right answer.
+                (l, r)
+                    if l.is_native_numeric()
+                        && r.is_native_numeric()
+                        && mixed_compare_is_exact(l, r) =>
+                {
                     let lhs = self.promote_double(lhs);
                     let rhs = self.promote_double(rhs);
                     let dst = self.new_value(NativeType::Bool, Representation::NativeBool);
@@ -2052,4 +2060,18 @@ fn unreachable_completion(function: &ExecutableFunction) -> crate::executable_ir
         .map(instruction_completion)
         .next()
         .unwrap_or_else(|| crate::executable_ir::CompletionId::new(function.id, 0))
+}
+
+/// Whether comparing these two native numeric representations through `f64`
+/// gives Tcl's answer. Two doubles always do; a mixed pair only while the
+/// integer side is exactly representable (see
+/// [`exactly_representable_as_double`]). Two integers never reach here.
+fn mixed_compare_is_exact(l: &Representation, r: &Representation) -> bool {
+    match (l, r) {
+        (Representation::NativeInt(i), Representation::NativeDouble { .. })
+        | (Representation::NativeDouble { .. }, Representation::NativeInt(i)) => {
+            exactly_representable_as_double(*i)
+        }
+        _ => true,
+    }
 }

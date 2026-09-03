@@ -1012,11 +1012,14 @@ jobs:
       # No `--no-run` downgrade: the point of this job is that the link really
       # executes, and building the test binary without running it would be
       # exactly the vacuity #1542 is about.
-      - name: cargo test --test wasm_real_link (toolchain required)
+      # `wasm_tiers` rides the same gate: its sample-oracle tests return early
+      # when the toolchain is absent, so anywhere but here they pass without
+      # linking a single sample — the vacuity this job exists to prevent.
+      - name: cargo test --test wasm_real_link --test wasm_tiers (toolchain required)
         if: needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
         env:
           TCL_REQUIRE_WASM_LINK: '1'
-        run: cargo test -p tcl-compiler --test wasm_real_link -- --test-threads=1
+        run: cargo test -p tcl-compiler --test wasm_real_link --test wasm_tiers -- --test-threads=1
 
       # The language server's wasip1 arm (rt.rs `mod wasi`) has no in-tree
       # consumer until the WASI transport crate lands, so nothing else in CI

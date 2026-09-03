@@ -976,7 +976,8 @@ pub unsafe extern "C" fn tcl_codegen_slot_incr_i64(slot: i32, delta: i64, out: *
             slot,
             b"incr",
             Some(delta_obj),
-            crate::builtins::incr,
+            // The trace-safe `incr` — see `cmd_var::installed_incr`.
+            crate::cmd_var::installed_incr(),
         )
     };
     drop_fresh(delta_obj);

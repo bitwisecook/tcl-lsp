@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 use tcl_registry::CommandRegistry;
 
 use super::elide::{BarrierDecision, BarrierKept, IncrGuard};
-use super::ir::{NativeFunction, NativeOp};
+use super::ir::{CompareKind, NativeFunction, NativeOp};
 use super::{
     FunctionDecline, FunctionReport, LoweringInput, NativeLoweringDecline, StatementOutcome,
     lower_function,
@@ -198,6 +198,39 @@ fn loop_counters_read_from_the_cell_take_the_dynamic_fast_path() {
         outcomes(&report, "invoke").contains(&StatementOutcome::NativeCompletion),
         "`break`/`continue` lower to their completion codes: {:?}",
         outcomes(&report, "invoke")
+    );
+}
+
+#[test]
+fn a_mixed_comparison_past_the_exact_double_range_takes_the_runtime_edge() {
+    // tclsh 8.6.16 / 9.0.4: `9007199254740993 == 9007199254740992.0` is 0 and
+    // the integer compares *greater*. Both sides through `f64` would answer 1,
+    // so the native compare is only taken while the integer is exact in f64.
+    let big = "set a 9007199254740993\nset b 9007199254740992.0\nputs [expr {$a == $b}]\n";
+    let (function, _) = lower(big, native_config()).expect("lowers");
+    assert_eq!(
+        count(&function, |op| matches!(
+            op,
+            NativeOp::Compare {
+                kind: CompareKind::F64,
+                ..
+            }
+        )),
+        0,
+        "{:?}",
+        all_ops(&function)
+    );
+    // A small integer against a double still compares natively.
+    let small = "set a 3\nset b 2.5\nputs [expr {$a > $b}]\n";
+    let (function, _) = lower(small, native_config()).expect("lowers");
+    assert!(
+        count(&function, |op| matches!(
+            op,
+            NativeOp::Compare {
+                kind: CompareKind::F64,
+                ..
+            }
+        )) >= 1
     );
 }
 
