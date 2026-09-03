@@ -44,8 +44,9 @@
 # remote origins for the opt-in GitHub release fetcher (which is the one
 # feature on the page that uses the network, and says so beside itself).
 #
-# Requires: the rustup wasm32-unknown-unknown target, wasm-bindgen-cli (matching
-# the wasm-bindgen crate version resolved in Cargo.lock), python3 (for the
+# Requires: the rustup wasm32-unknown-unknown target, a WASM-capable C compiler
+# (`make ensure-rust-deps` provisions one), wasm-bindgen-cli (matching the
+# wasm-bindgen crate version resolved in Cargo.lock), python3 (for the
 # byte-safe asset injection), the front-end bundles under
 # `../tcl-spec-studio/web/dist/` (`cd ../tcl-spec-studio/web && npm ci && npm run
 # build`), and the language server worker's `dist/` from
@@ -54,6 +55,8 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=../../scripts/dev/wasm-cc-env.sh
+. "$here/../../scripts/dev/wasm-cc-env.sh"
 web="$here/../tcl-spec-studio/web"
 assets="$here/../bigip-report-gen/assets"
 lspdist="$here/../tcl-lsp-server-wasm/dist"
@@ -68,6 +71,7 @@ mkdir -p "$dist/assets" "$dist/lsp"
 
 echo "==> Spec Studio $version"
 
+wasm_cc_prepare
 echo "==> cargo build --target wasm32-unknown-unknown --release"
 ( cd "$here" && CARGO_TARGET_DIR="$here/target" cargo build --target wasm32-unknown-unknown --release )
 wasm="$here/target/wasm32-unknown-unknown/release/tcl_spec_studio_wasm.wasm"

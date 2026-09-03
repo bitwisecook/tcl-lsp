@@ -92,6 +92,9 @@ jobs:
   #                    scripted LSP sessions targeted, while failing safe when
   #                    path detection is ambiguous.  Both transports sit on the
   #                    same `tcl-lsp-server` closure, so one flag gates both.
+  #   wasm_cc_changed — a wasm32-unknown-unknown crate or the shared compiler
+  #                    bootstrap changed. It gates the macOS-only proof that a
+  #                    clean stock runner provisions a capable C compiler.
   #   spectcl_compat_changed — SpecTcl or its TclVM/compiler/registry/runtime
   #                    and exact-reference-toolchain closure changed. Runs the
   #                    non-vacuous 15+3+4+2+1 compatibility lane.
@@ -120,6 +123,7 @@ jobs:
       python_changed: ${{ steps.paths.outputs.python_changed }}
       ext_changed: ${{ steps.paths.outputs.ext_changed }}
       lsp_wasm_changed: ${{ steps.paths.outputs.lsp_wasm_changed }}
+      wasm_cc_changed: ${{ steps.paths.outputs.wasm_cc_changed }}
       spectcl_compat_changed: ${{ steps.paths.outputs.spectcl_compat_changed }}
       runtime_rust_changed: ${{ steps.paths.outputs.runtime_rust_changed }}
       docs_only: ${{ steps.paths.outputs.docs_only }}
@@ -198,6 +202,7 @@ jobs:
           python_changed=false
           ext_changed=false
           lsp_wasm_changed=false
+          wasm_cc_changed=false
           spectcl_compat_changed=false
           runtime_rust_changed=false
           docs_only=true
@@ -214,6 +219,10 @@ jobs:
               case "$f" in
                 rust/f5-xc/* | rust/tcl-bigip/* | rust/tcl-bytecode/* | rust/tcl-cmd-core/* | rust/tcl-compiler/* | rust/tcl-core-types/* | rust/tcl-diagram/* | rust/tcl-dialect/* | rust/tcl-engine-api/* | rust/tcl-engine-tclvm/* | rust/tcl-explorer/* | rust/tcl-host-native/* | rust/tcl-irules/* | rust/tcl-lexer/* | rust/tcl-lsp-core/* | rust/tcl-lsp-db/* | rust/tcl-lsp-server/* | rust/tcl-lsp-server-wasm/* | rust/tcl-lsp-server-wasi/* | rust/tcl-platform/* | rust/tcl-regex/* | rust/tcl-registry/* | rust/tcl-runtime-api/* | rust/tcl-spec-hooks/* | rust/tcl-spectcl/* | rust/tcl-sslictcl/* | rust/tcl-syntax/* | rust/tcl-userdirs/* | rust/tcl-version/* | rust/tcl-vm/* | .cargo/config.toml | scripts/verify-wasm-externref.mjs | Cargo.toml | Cargo.lock | rust-toolchain.toml | Makefile | .github/workflows/ci.yml)
                   lsp_wasm_changed=true ;;
+              esac
+              case "$f" in
+                rust/tcl-explorer-wasm/* | rust/tcl-vm-wasm/* | rust/tcl-spec-studio-wasm/* | rust/tcl-lsp-server-wasm/* | rust/bigip-query-wasm/* | rust/bigip-report-gen/wasm/* | scripts/dev/ensure-test-deps.sh | scripts/dev/wasm-cc-env.sh | scripts/dev/test-wasm-cc-env.sh | Cargo.toml | Cargo.lock | rust-toolchain.toml | Makefile | .github/workflows/ci.yml)
+                  wasm_cc_changed=true ;;
               esac
               if scripts/dev/spectcl-compat-path.sh "$f"; then
                 spectcl_compat_changed=true
@@ -243,6 +252,7 @@ jobs:
             python_changed=true
             ext_changed=true
             lsp_wasm_changed=true
+            wasm_cc_changed=true
             spectcl_compat_changed=true
             runtime_rust_changed=true
             docs_only=false
@@ -251,11 +261,12 @@ jobs:
             echo "python_changed=$python_changed"
             echo "ext_changed=$ext_changed"
             echo "lsp_wasm_changed=$lsp_wasm_changed"
+            echo "wasm_cc_changed=$wasm_cc_changed"
             echo "spectcl_compat_changed=$spectcl_compat_changed"
             echo "runtime_rust_changed=$runtime_rust_changed"
             echo "docs_only=$docs_only"
           } >>"$GITHUB_OUTPUT"
-          echo "python_changed=$python_changed ext_changed=$ext_changed lsp_wasm_changed=$lsp_wasm_changed spectcl_compat_changed=$spectcl_compat_changed runtime_rust_changed=$runtime_rust_changed docs_only=$docs_only"
+          echo "python_changed=$python_changed ext_changed=$ext_changed lsp_wasm_changed=$lsp_wasm_changed wasm_cc_changed=$wasm_cc_changed spectcl_compat_changed=$spectcl_compat_changed runtime_rust_changed=$runtime_rust_changed docs_only=$docs_only"
 
   # Fast PR gate.  Runs on every PR and every push.  Covers the Rust fast
   # checks through the central `make rust-check` contract: root and standalone
@@ -313,6 +324,39 @@ jobs:
         # restores from, so pushes to rust keep it warm.
         if: needs.channel.outputs.prerelease != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
         run: make rust-check
+
+  # Apple clang deliberately omits the WebAssembly backend. Exercise the
+  # complete standalone-crate gate on a stock macOS runner whenever its owned
+  # compiler/bootstrap surface changes: ensure-rust-deps must install wasi-sdk,
+  # select it through CC_wasm32_unknown_unknown, and prove it with a real C
+  # compile before ring or another cc-rs consumer starts. This job has no
+  # dependants and is not a release gate, so a job-level path skip is safe and
+  # avoids allocating a macOS runner for unrelated changes.
+  macos-wasm-check:
+    if: ${{ github.event_name == 'pull_request' && needs.channel.outputs.wasm_cc_changed == 'true' }}
+    needs: [channel]
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
+          cache-key: macos-wasm-check
+          cache-workspaces: |
+            .
+            editors/zed
+            rust/tcl-explorer-wasm
+            rust/tcl-vm-wasm
+            rust/tcl-spec-studio-wasm
+            rust/tcl-lsp-server-wasm
+
+      - name: Provision and exercise the macOS WASM compiler
+        run: make check-rust
 
   # Build the native tcl-lsp-server release binary ONCE and share it via
   # artifact with every job that just needs to *run* it rather than build it

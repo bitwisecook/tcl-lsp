@@ -57,6 +57,10 @@ Tiers, policies, and the CI redundancy contract:
   from `.claude/hooks/session-start.sh` before the first instruction; never
   `apt install` by hand. Versions and their owners:
   [development-environment.md](docs/design/contracts/development-environment.md).
+- On macOS, run `make ensure-rust-deps` before a WASM build. It provisions the
+  pinned wasi-sdk because stock Apple clang has no WebAssembly backend; the
+  build probes and exports its clang as `CC_wasm32_unknown_unknown` before
+  Cargo can reach a C dependency.
 - **Parallel worktrees:** never share a `CARGO_TARGET_DIR` across
   concurrently-building worktrees — cargo serves a sibling branch's rlibs and
   the resulting green or red is untrustworthy (#1052). `source
