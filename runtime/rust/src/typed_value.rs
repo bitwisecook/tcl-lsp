@@ -202,15 +202,43 @@ fn read_double(obj: *mut TclObj) -> Option<f64> {
             obj::cache_double_rep(obj, value);
             Some(value)
         }
-        // A parsed `Big` is beyond `i64` by construction; without the tower the
-        // magnitude is only needed for its sign and non-zeroness.
-        Number::Big { negative, .. } => Some(if negative {
-            f64::NEG_INFINITY
-        } else {
-            f64::INFINITY
-        }),
+        // A parsed `Big` is beyond `i64`, but it still has a real double
+        // widening: C answers `1e23` for `99999999999999999999999`, not an
+        // infinity, and only overflows past `f64`'s range. This used to
+        // report ±Inf for every `Big` on the theory that the magnitude was
+        // wanted only for its sign and non-zeroness — true of the boolean
+        // read above, false of this one, which is what
+        // `tcl_codegen_value_get_double` returns.
+        Number::Big {
+            negative,
+            radix,
+            digits,
+        } => {
+            let magnitude = big_magnitude_as_double(radix, &digits);
+            Some(if negative { -magnitude } else { magnitude })
+        }
         Number::Nan { .. } => Some(f64::NAN),
     }
+}
+
+/// Widen a beyond-wide magnitude to `f64` without a bignum — the tower-less
+/// stand-in for `mp_get_double`.
+///
+/// A decimal magnitude goes through Rust's own parser, which is correctly
+/// rounded and answers infinity exactly where the value really is past
+/// `f64::MAX`. A power-of-two radix folds digit by digit: every scaling step
+/// is an exact binary shift, so only the digit additions round, and each of
+/// those is below the running value's ULP once the magnitude passes `2^53`.
+#[cfg(not(have_tommath))]
+fn big_magnitude_as_double(radix: tcl_syntax::number::Radix, digits: &str) -> f64 {
+    let base = radix as u32;
+    if base == 10 {
+        return digits.parse::<f64>().unwrap_or(f64::INFINITY);
+    }
+    let scale = f64::from(base);
+    digits.chars().fold(0.0_f64, |acc, digit| {
+        acc * scale + f64::from(digit.to_digit(base).unwrap_or(0))
+    })
 }
 
 /// The shared number grammar over an object's string rep (tower-less build).

@@ -40,10 +40,14 @@
 
 use std::path::PathBuf;
 
+#[cfg(have_tommath)]
 use tcl_runtime::interp::{Code, Interp};
 
 /// Evaluate `script` on a default-constructed interp — the same interpreter
 /// `examples/run_script` builds — and return the completion code plus result.
+///
+/// Only the tower-gated rows below drive a script, so this follows them.
+#[cfg(have_tommath)]
 fn eval(script: &str) -> (Code, String) {
     let mut interp = Interp::new();
     let code = interp.eval_str(script.as_bytes());
@@ -51,6 +55,11 @@ fn eval(script: &str) -> (Code, String) {
     (code, result)
 }
 
+// The control-flow builtins (`if`, `expr`, …) are registered only when the
+// numeric tower is present — without libtommath there is no `expr` to
+// evaluate a condition with — so this pins the configuration the runtime
+// actually ships and CI always builds.
+#[cfg(have_tommath)]
 #[test]
 fn the_default_interp_carries_the_control_flow_builtins() {
     // `info commands <name>` is the engine's own answer to "is this
@@ -70,6 +79,11 @@ fn the_default_interp_carries_the_control_flow_builtins() {
     }
 }
 
+// The control-flow builtins (`if`, `expr`, …) are registered only when the
+// numeric tower is present — without libtommath there is no `expr` to
+// evaluate a condition with — so this pins the configuration the runtime
+// actually ships and CI always builds.
+#[cfg(have_tommath)]
 #[test]
 fn a_plain_if_catch_sheet_runs_through_the_default_interp() {
     // The shape #1589 could not run: a differential sheet's ordinary control

@@ -331,12 +331,18 @@ pub(crate) fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
+/// The tower-less `incr`'s current-value read, through the **same**
+/// read-trace chokepoint the tower build uses.
+///
+/// C's `TclPtrIncrObjVar` fetches with `TclPtrGetVarIdx`, so `incr x` on a
+/// read-traced `x` fires `read` and then `write`, and a read trace that
+/// errors leaves the fetch NULL — which C counts as 0 (#1633, pinned in
+/// `tests/trace_semantics.rs`). Reaching for `var_get`/`var_get_elem`
+/// directly, as this did, skipped the read entirely: `incr` and an array
+/// element fired only their `write`.
 #[cfg(not(have_tommath))]
-fn read_cell(interp: &Interp, base: &[u8], elem: &Option<Vec<u8>>) -> Option<Vec<u8>> {
-    let obj = match elem {
-        Some(k) => interp.var_get_elem(base, k),
-        None => interp.var_get(base),
-    }?;
+fn read_cell(interp: &mut Interp, base: &[u8], elem: &Option<Vec<u8>>) -> Option<Vec<u8>> {
+    let obj = interp.read_for_update(base, elem.as_deref())?;
     Some(obj_bytes(obj))
 }
 

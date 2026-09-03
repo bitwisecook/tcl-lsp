@@ -456,6 +456,9 @@ fn a_delete_trace_that_recreates_the_command_leaves_it_alive() {
 ///
 /// tclsh 8.6.16 and 9.0.4 print the transcript below. Both engines used to
 /// suppress per whole array and stop after the first firing in each pair.
+// The sheet drives the traces with `if`, which only the tower build
+// registers (no `expr`, no condition to evaluate).
+#[cfg(have_tommath)]
 #[test]
 fn re_entrancy_is_suppressed_per_cell_not_per_array() {
     let got = transcript(

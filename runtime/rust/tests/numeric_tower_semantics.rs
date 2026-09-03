@@ -19,6 +19,12 @@
 //! Oracle-pinned coverage for the r3-numeric-tower lane (#1428, #1382,
 //! #1432, #1581) on the `runtime/rust` engine.
 //!
+//! Every row here goes through `expr`, which exists only when the numeric
+//! tower does: a build whose libtommath cross-compile was unavailable
+//! registers no `expr` at all, so the whole file is gated on the tower
+//! rather than asserting the semantics of a command that configuration does
+//! not have. CI always builds with libtommath.
+//!
 //! Every expected value, message and `-errorcode` below was read verbatim
 //! out of `tclsh9.0` (9.0.4) — and, where the two releases agree, also
 //! `tclsh8.6` (8.6.16) — with the sheet
@@ -31,6 +37,8 @@
 //! harness. The matching pins for the bytecode VM live in
 //! `rust/tcl-vm/tests/numeric_tower_e2e.rs`; the two files assert the same
 //! rows so the engines cannot drift.
+
+#![cfg(have_tommath)]
 
 use tcl_runtime::interp::{Code, Interp};
 
