@@ -112,6 +112,10 @@ jobs:
   #                    the committed lockfile by
   #                    scripts/dev/test-runtime-rust-paths.sh, so it cannot
   #                    silently narrow.
+  #   runner_policy_changed — the self-hosted runner policy or its contract
+  #                    test changed.  Such PRs prove themselves on an isolated
+  #                    GitHub-hosted runner; an unreviewed scheduling edit must
+  #                    not execute on, overload, or strand the protected host.
   channel:
     runs-on: ubuntu-24.04
     permissions:
@@ -126,6 +130,7 @@ jobs:
       wasm_cc_changed: ${{ steps.paths.outputs.wasm_cc_changed }}
       spectcl_compat_changed: ${{ steps.paths.outputs.spectcl_compat_changed }}
       runtime_rust_changed: ${{ steps.paths.outputs.runtime_rust_changed }}
+      runner_policy_changed: ${{ steps.paths.outputs.runner_policy_changed }}
       docs_only: ${{ steps.paths.outputs.docs_only }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -205,6 +210,7 @@ jobs:
           wasm_cc_changed=false
           spectcl_compat_changed=false
           runtime_rust_changed=false
+          runner_policy_changed=false
           docs_only=true
           if [ "$ok" = "true" ]; then
             while IFS= read -r f; do
@@ -223,6 +229,10 @@ jobs:
               case "$f" in
                 rust/tcl-explorer-wasm/* | rust/tcl-vm-wasm/* | rust/tcl-spec-studio-wasm/* | rust/tcl-lsp-server-wasm/* | rust/bigip-query-wasm/* | rust/bigip-report-gen/wasm/* | scripts/dev/ensure-test-deps.sh | scripts/dev/wasm-cc-env.sh | scripts/dev/test-wasm-cc-env.sh | Cargo.toml | Cargo.lock | rust-toolchain.toml | Makefile | .github/workflows/ci.yml)
                   wasm_cc_changed=true ;;
+              esac
+              case "$f" in
+                .github/workflows/ci.yml | scripts/dev/test-rust-tests-runner.sh)
+                  runner_policy_changed=true ;;
               esac
               if scripts/dev/spectcl-compat-path.sh "$f"; then
                 spectcl_compat_changed=true
@@ -255,6 +265,7 @@ jobs:
             wasm_cc_changed=true
             spectcl_compat_changed=true
             runtime_rust_changed=true
+            runner_policy_changed=true
             docs_only=false
           fi
           {
@@ -264,9 +275,10 @@ jobs:
             echo "wasm_cc_changed=$wasm_cc_changed"
             echo "spectcl_compat_changed=$spectcl_compat_changed"
             echo "runtime_rust_changed=$runtime_rust_changed"
+            echo "runner_policy_changed=$runner_policy_changed"
             echo "docs_only=$docs_only"
           } >>"$GITHUB_OUTPUT"
-          echo "python_changed=$python_changed ext_changed=$ext_changed lsp_wasm_changed=$lsp_wasm_changed wasm_cc_changed=$wasm_cc_changed spectcl_compat_changed=$spectcl_compat_changed runtime_rust_changed=$runtime_rust_changed docs_only=$docs_only"
+          echo "python_changed=$python_changed ext_changed=$ext_changed lsp_wasm_changed=$lsp_wasm_changed wasm_cc_changed=$wasm_cc_changed spectcl_compat_changed=$spectcl_compat_changed runtime_rust_changed=$runtime_rust_changed runner_policy_changed=$runner_policy_changed docs_only=$docs_only"
 
   # Fast PR gate.  Runs on every PR and every push.  Covers the Rust fast
   # checks through the central `make rust-check` contract: root and standalone
@@ -775,15 +787,23 @@ jobs:
     # `lsp-e2e` does, so shortening the test jobs cuts cost and the local
     # `make test-rust` loop rather than PR turnaround.
     #
-    # It is the ONLY job routed to the self-hosted runner, and that
-    # is deliberate: the box has one runner instance, so anything sent there
-    # executes serially and queues behind this job.
+    # It is the ONLY job routed to the self-hosted runner, and that is
+    # deliberate.  `tank` is one physical host but may have multiple runner
+    # registrations; the job-level concurrency group is therefore the source
+    # of truth that keeps these CPU- and memory-heavy suites serial on that
+    # host.  Fork PRs and PRs changing this runner policy use a run-specific
+    # group because they execute on separate GitHub-hosted machines and must
+    # retain their normal parallelism.  The latter also makes policy changes
+    # fail safely: a broken scheduler edit cannot strand the protected host.
     #
     # Untrusted code must never reach the self-hosted runner, so PRs from forks
     # stay on GitHub-hosted; everything else (push, dispatch, and PRs from
     # branches in this repo, which only collaborators can create) goes to `tank`.
     needs: [channel]
-    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && 'tank' || 'ubuntu-26.04' }}
+    runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || needs.channel.outputs.runner_policy_changed == 'true')) && 'ubuntu-26.04' || 'tank' }}
+    concurrency:
+      group: rust-tests-${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || needs.channel.outputs.runner_policy_changed == 'true')) && format('hosted-{0}', github.run_id) || 'tank' }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
