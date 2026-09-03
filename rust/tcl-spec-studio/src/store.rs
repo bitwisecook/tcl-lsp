@@ -576,8 +576,10 @@ impl PackStore {
                 .iter()
                 .zip(&self.pack.registrations)
                 .all(|(statement, registration)| {
-                    statement.words.first().map(String::as_str) == Some(registration.word())
-                        && statement.words.get(1).map_or("", String::as_str) == registration.arg(1)
+                    let paired = statement.words.first().map(String::as_str)
+                        == Some(registration.word())
+                        && statement.words.get(1).map_or("", String::as_str) == registration.arg(1);
+                    paired && (statement.inside_pack || stated_verbatim(statement, registration))
                 })
     }
 
@@ -593,22 +595,29 @@ impl PackStore {
     /// an ordinary document a program: every edit after it then went silently
     /// to a patch pack instead of into the document (E-R12).
     ///
-    /// The discrimination survives the widening. Text the loader reads and
-    /// drops — a half-typed `command`, an unknown property — is recorded like
-    /// any other statement and pairs off; a statement that *runs* is recorded
-    /// as nothing at all, so the counts still disagree and the document is
-    /// still a program.
+    /// The discrimination survives the widening. A statement that *runs* is
+    /// recorded as nothing at all, so the counts still disagree and the
+    /// document is still a program; text the loader reads and drops — a
+    /// half-typed `command`, an unknown property — is recorded like any other
+    /// statement and pairs off. A statement outside the block that registers
+    /// is held to [`stated_verbatim`] as well, because outside is exactly
+    /// where the head-and-first-argument comparison is too weak to tell a
+    /// declaration from the program that computed it.
     fn document_statements(&self) -> Vec<Segmented> {
         let body = pack_body(&self.source);
         let mut seen_pack = false;
         let mut out = Vec::new();
-        for statement in segments(&self.source) {
+        for mut statement in segments(&self.source) {
             if !seen_pack && statement.words.first().map(String::as_str) == Some("speclib") {
                 seen_pack = true;
                 if let Some(body) = body.clone() {
-                    out.extend(segments(&self.source[body]));
+                    out.extend(segments(&self.source[body]).into_iter().map(|mut inner| {
+                        inner.inside_pack = true;
+                        inner
+                    }));
                 }
             } else {
+                statement.inside_pack = false;
                 out.push(statement);
             }
         }
@@ -2008,6 +2017,30 @@ struct Segmented {
     words: Vec<String>,
     span: std::ops::Range<usize>,
     spans: Vec<WordSpan>,
+    /// Whether the statement is one the `speclib` block holds, rather than
+    /// one the file states outside it. Set by
+    /// [`PackStore::document_statements`]; `false` for a bare body read on
+    /// its own, which is the shape every other caller reads.
+    inside_pack: bool,
+}
+
+/// Whether `statement` states, word for word, what `registration` recorded.
+///
+/// The [`PackStore::straight_line`] pairing reads the head and the first
+/// argument, which is enough for a declaration inside the block: the loader
+/// records that block's statements, so a computed one shows up as a count
+/// that does not match. Outside the block there is no such backstop —
+/// `default dialects [list tcl9.0]` registers `default dialects tcl9.0` and
+/// pairs on both words it compares — so the rest of the words have to be
+/// read. A word that was substituted differs from the value it evaluated to,
+/// and the document is a program after all.
+fn stated_verbatim(statement: &Segmented, registration: &Registration) -> bool {
+    statement
+        .words
+        .iter()
+        .enumerate()
+        .all(|(index, word)| word == registration.arg(index))
+        && registration.arg(statement.words.len()).is_empty()
 }
 
 /// A word's byte ranges: `outer` includes any `{ }` / `" "` delimiters,
@@ -2048,6 +2081,7 @@ fn segments(source: &str) -> Vec<Segmented> {
                 words: segment.texts.clone(),
                 span: segment.span.start() as usize..segment.span.end() as usize,
                 spans,
+                inside_pack: false,
             }
         })
         .collect()

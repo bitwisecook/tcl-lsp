@@ -372,17 +372,30 @@ fn a_stray_word_outside_the_block_is_not_a_program() {
         );
     }
 
-    // The discrimination this rests on: a statement the loader *runs* is not
+    // The discrimination this rests on. A statement the loader *runs* is not
     // recorded as a registration, so it still fails to pair and still marks
-    // the document a program. Only inert text — a word the loader read and
-    // dropped — pairs off and stays editable.
-    for program in ["set version 1.2", "proc helper {} { return 1 }"] {
+    // the document a program. One that registers but computes a word — the
+    // head and the first argument pair with the value it evaluated to — is
+    // caught by reading the rest of the words: outside the block there is no
+    // count mismatch to fall back on, and a re-render would drop the line.
+    for program in [
+        "set version 1.2",
+        "proc helper {} { return 1 }",
+        "default dialects [list tcl9.0]",
+    ] {
         let source = format!("{program}\n{base}");
         assert!(
             PackStore::from_source(&source).programmed().is_some(),
             "a `{program}` outside the block is a program and must not be rewritten"
         );
     }
+
+    // Its static twin states what it registers, so it stays editable.
+    assert_eq!(
+        PackStore::from_source(format!("default dialects tcl9.0\n{base}")).programmed(),
+        None,
+        "a statement outside the block that states what it registers is not a program"
+    );
 
     let mut store = PackStore::from_source(format!("{base}\ncommand\n"));
     let write = store.set_command("widget::paint", &draft_named("widget::paint"), false);
