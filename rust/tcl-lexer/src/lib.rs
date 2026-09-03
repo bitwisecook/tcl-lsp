@@ -111,9 +111,9 @@ pub use tokens::{ByteCol, SourcePosition, Token, TokenType, Utf16Col, Utf16Posit
 // neighbour the same way.  The module itself stays public for the constants
 // and the doc entry point.
 pub use word_parts::{
-    MISSING_CLOSE_BRACE, MISSING_CLOSE_BRACKET, MISSING_PAREN, MISSING_QUOTE, RawVarRef,
-    SpannedPart, SubstFlags, VarRef, WordBody, WordPart, command_subst_close, decompose,
-    decompose_spanned, quoted_word_close, scan_var_ref,
+    EXTRA_AFTER_CLOSE_BRACE, MISSING_CLOSE_BRACE, MISSING_CLOSE_BRACKET, MISSING_PAREN,
+    MISSING_QUOTE, RawVarRef, SpannedPart, SubstFlags, VarRef, WordBody, WordPart,
+    command_subst_close, decompose, decompose_spanned, quoted_word_close, scan_var_ref,
 };
 
 /// Return the physical line numbers whose first non-horizontal-whitespace

@@ -309,3 +309,108 @@ fn regsub_writes_its_target_variable_as_an_array_element() {
     assert_eq!(code, Code::Ok);
     assert_eq!(result, "k xbx");
 }
+
+// ---------------------------------------------------------------------------
+// #1786 — text welded straight onto a `{…}` word's close-brace. The boundary
+// question moved to `tcl_lexer::script::group_commands`, which records the
+// weld as `WordSpan::welded_after_close`; this eval-facing engine turns it
+// into C's hard error, closing a gap both Rust groupers had (and disagreed
+// about: this crate welded `{a}` and `$b` into one `Bare` word, the compiler's
+// segmenter split them into two, and C accepts neither).
+//
+// Oracle, measured on tclsh 8.4.20 / 8.5.19 / 8.6.16 / 9.0.4 / 9.1b0 — every
+// row identical on every release:
+//
+//   {a}b        {a}$b       {a}[b]      {}x        {a}{b}      {a}{*}$b
+//   set x {a}b              set x {a}{*}$y         list {a}{*}$b
+//     -> code 1, `extra characters after close-brace`, -errorcode NONE
+//
+// and it is a *parse*-time failure of the command: `set x {a}[side]` leaves
+// `x` unset without running `side`. Earlier commands of the same script have
+// already run, since `Tcl_EvalEx` parses one command at a time — pinned below
+// by `sfx pre`.
+//
+// One ordering nuance is deliberately NOT pinned, because this engine does not
+// yet match it: C parses every word of a command before substituting any, so
+// `list [side] {a}b` — side effect in an *earlier* word than the welded one —
+// never runs `side`, while this engine substitutes word by word and does. That
+// gap predates #1786 and is shared by every `WordPart::ParseError` (`list
+// [side] "unterminated` behaves the same way); closing it means pre-scanning a
+// command's words in `Interp::eval_words`, which is the `word_parts` module
+// doc's "C's script-parsing order" consumer note, not this lane's change.
+//
+// Not welded, and still accepted (measured the same on 8.6.16 / 9.0.4):
+// `a{b}c`, `x{a}y`, `$a{b}c`, `[b]{c}d` — a `{` away from word start is an
+// ordinary literal byte, and the lexer never emits a `Str` token for it — and
+// `{a} {b}` / `list a {*}{b c} d`, which have a real separator between them.
+// ---------------------------------------------------------------------------
+
+/// Every welded shape raises C's message, with `-errorcode NONE`.
+#[test]
+fn text_welded_onto_a_close_brace_raises_extra_characters() {
+    for sheet in [
+        "{a}b",
+        "{a}$b",
+        "{a}[b]",
+        "{}x",
+        "{a}{b}",
+        "{a}{*}$b",
+        "set x {a}b",
+        "set x {a}{*}$y",
+        "list {a}{*}$b",
+        "list [list a] {a}b",
+    ] {
+        let (code, result, error_code) = run(sheet);
+        assert_eq!(code, Code::Error, "{sheet}");
+        assert_eq!(result, "extra characters after close-brace", "{sheet}");
+        assert_eq!(error_code, "NONE", "{sheet}");
+    }
+}
+
+/// The failure is the *command's*, not the word's: nothing the command would
+/// have substituted runs, and the variable it would have written stays unset —
+/// while a command earlier in the same script has already run and kept its
+/// effect.
+#[test]
+fn a_welded_close_brace_fails_the_command_before_it_substitutes_anything() {
+    let (code, result, _) = run("set ::ran {}\n\
+         proc sfx {t} { lappend ::ran $t; return S$t }\n\
+         sfx pre\n\
+         set ::x {a}[sfx inner]");
+    assert_eq!(code, Code::Error);
+    assert_eq!(result, "extra characters after close-brace");
+
+    // The same sheet under `catch`, so the interpreter survives to be asked
+    // what actually ran: `pre` (an earlier command) yes, `inner` (a word of
+    // the failing command) no, and `::x` was never written.
+    let (code, result, _) = run("set ::ran {}\n\
+         proc sfx {t} { lappend ::ran $t; return S$t }\n\
+         sfx pre\n\
+         catch {set ::x {a}[sfx inner]} e\n\
+         list $e $::ran [info exists ::x]");
+    assert_eq!(code, Code::Ok);
+    assert_eq!(
+        result, "{extra characters after close-brace} pre 0",
+        "tclsh 8.6.16/9.0.4: the error, only `pre` ran, `x` unset"
+    );
+}
+
+/// A `{` that is not at the start of a word is an ordinary literal byte, and a
+/// real separator between two braced words is not a weld — neither may trip
+/// the new error.
+#[test]
+fn a_brace_away_from_word_start_or_after_a_separator_is_not_a_weld() {
+    for (sheet, want) in [
+        ("list a{b}c", "a{b}c"),
+        ("list x{a}y", "x{a}y"),
+        ("set a A\nlist $a{b}c", "A{b}c"),
+        ("list [list q]{c}d", "q{c}d"),
+        ("list {a} {b}", "a b"),
+        ("list a {*}{b c} d", "a b c d"),
+        ("list {a}", "a"),
+    ] {
+        let (code, result, _) = run(sheet);
+        assert_eq!(code, Code::Ok, "{sheet}: {result}");
+        assert_eq!(result, want, "{sheet}");
+    }
+}

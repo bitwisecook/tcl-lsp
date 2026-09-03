@@ -9791,11 +9791,15 @@ mod tests {
         });
         leak_free(|i| {
             i.set_runtime_version(TclVersion::V8_4);
-            // No expansion under 8.4: the recovered `{*}{a b}` is one word,
-            // never two. (tclsh8.4 reports `extra characters after
-            // close-brace`; surfacing that hard lex error through this
-            // engine's parse-or-nothing seam is a residual gap.)
-            assert_eq!(ok(i, b"llength [list {*}{a b}]"), b"1");
+            // No expansion under 8.4 (TIP 157 is 8.5+), so `{*}{a b}` is a
+            // braced word `{*}` with `{a b}` welded onto its close-brace —
+            // which C rejects. Measured on tclsh8.4.20: `llength [list
+            // {*}{a b}]` reports `extra characters after close-brace`, where
+            // 8.5.19/8.6.16/9.0.4/9.1b0 all answer `2`. This engine used to
+            // recover it as one word and answer `1`; the boundary owner's
+            // `welded_after_close` (#1786) closed that residual gap.
+            assert_eq!(i.eval_str(b"llength [list {*}{a b}]"), Code::Error);
+            assert_eq!(i.result_bytes(), b"extra characters after close-brace");
         });
 
         // #1462 — the `${…}` delimiting rule: 8.x stops at the first `}`

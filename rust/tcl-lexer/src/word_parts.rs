@@ -114,6 +114,25 @@ pub const MISSING_CLOSE_BRACKET: &str = "missing close-bracket";
 /// (`Tcl_ParseBraces` → `TCL_PARSE_MISSING_BRACE`, `tclParse.c`).
 pub const MISSING_CLOSE_BRACE: &str = "missing close-brace";
 
+/// C Tcl's error for text welded straight onto a `{…}` word's close-brace
+/// (`Tcl_ParseCommand` → `TCL_PARSE_BRACE_EXTRA`, `tclParse.c`: after
+/// `Tcl_ParseBraces` returns, the next byte must be a separator or a command
+/// terminator).
+///
+/// Measured on 8.6.16 and 9.0.4: `{a}b`, `{a}$b`, `{a}[b]`, `{}x`, `{a}{b}`
+/// and `{a}{*}$b` all report `extra characters after close-brace`, and the
+/// error is raised while the *command* is parsed — no word of that command is
+/// substituted (`list [side] {a}b` never runs `side`) — though earlier
+/// commands of the same script have already run, since `Tcl_EvalEx` parses one
+/// command at a time.
+///
+/// The lexer reports the same text as a recoverable warning
+/// (`Lexer::tokenise_all_with_warnings`) because the LSP must keep tokenising
+/// broken source; `tcl_lexer::script::WordSpan::welded_after_close` is the
+/// boundary owner's spelling of the same fact, and `runtime/rust` turns it
+/// into this error.
+pub const EXTRA_AFTER_CLOSE_BRACE: &str = "extra characters after close-brace";
+
 /// C Tcl's error for a `$name(` array reference whose index never closes
 /// (`Tcl_ParseVarName` → `TCL_PARSE_MISSING_PAREN`, `tclParse.c`).
 /// `subst {$x(}` reports `missing )` on 8.6.16 and 9.0.4.
