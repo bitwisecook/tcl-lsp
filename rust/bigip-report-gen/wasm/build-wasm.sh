@@ -21,17 +21,21 @@
 # hosting page (`dist/index.html`) that runs the whole pipeline in the browser —
 # upload a UCS/SCF, get a standalone HTML report, entirely client-side.
 #
-# Requires: the rustup wasm32-unknown-unknown target, wasm-bindgen-cli (matching
-# the wasm-bindgen crate version pinned in Cargo.toml), and python3 (for the
-# byte-safe asset injection). Node, if present, is used to verify the module.
+# Requires: the rustup wasm32-unknown-unknown target, a WASM-capable C compiler
+# (`make ensure-rust-deps` provisions one), wasm-bindgen-cli (matching the
+# wasm-bindgen crate version pinned in Cargo.toml), and python3 (for the byte-
+# safe asset injection). Node, if present, is used to verify the module.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=../../../scripts/dev/wasm-cc-env.sh
+. "$here/../../../scripts/dev/wasm-cc-env.sh"
 dist="$here/dist"
 out="$(mktemp -d)"
 trap 'rm -rf "$out"' EXIT
 mkdir -p "$dist"
 
+wasm_cc_prepare
 echo "==> cargo build --target wasm32-unknown-unknown --release"
 ( cd "$here" && cargo build --target wasm32-unknown-unknown --release )
 wasm="$here/target/wasm32-unknown-unknown/release/bigip_report_wasm.wasm"

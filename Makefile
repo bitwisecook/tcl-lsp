@@ -13,6 +13,8 @@
 #     `stable` channel pinned in rust-toolchain.toml; current stable is 1.98.0,
 #     released 2026-08-18.  `Cargo.toml` `rust-version` is authoritative.
 #   - Node.js 24+ with npm
+#   - macOS WASM builds: `make ensure-rust-deps` installs the pinned wasi-sdk;
+#     stock Apple clang has no wasm32 backend.
 #
 
 SHELL := /bin/bash
@@ -208,7 +210,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Tests
 .PHONY: test test-ext test-emacs test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all print-server-targets-jetbrains
 .PHONY: xtask-check xtask-editor-extensions xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle xtask-sslictcl-data xtask-runtime-stdlib tcltest-sweep tcltest-sweep-check xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-api-ownership
-.PHONY: xtask-workflow-sync xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-gen-tmlanguage-keywords xtask-option-registry-drift xtask-callback-inventory check-tcl-reference-toolchains check-spectcl-compat-paths check-runtime-rust-paths xtask-dialect-drift
+.PHONY: xtask-workflow-sync xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-gen-tmlanguage-keywords xtask-option-registry-drift xtask-callback-inventory check-tcl-reference-toolchains check-spectcl-compat-paths check-runtime-rust-paths check-wasm-cc-env xtask-dialect-drift
 # Lint / format / typecheck
 .PHONY: lint format lint-ts format-ts typecheck-ts check-rust check-rust-pr _check-rust-pr rust-deny
 .PHONY: build-report-assets build-report-pyz lint-report-ts typecheck-report-ts check-report-assets lint-spec-studio-ts typecheck-spec-studio-ts
@@ -757,7 +759,7 @@ coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extens
 # --- Native (cargo xtask) check gates.  These need the Rust toolchain, so CI
 # runs them in the rust-tests job (rust-gate.yml / ci.yml).  `xtask-check` is
 # the CI aggregate.
-xtask-check: check-tcl-reference-toolchains check-spectcl-compat-paths check-runtime-rust-paths xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
+xtask-check: check-tcl-reference-toolchains check-spectcl-compat-paths check-runtime-rust-paths check-wasm-cc-env xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
 
 check-tcl-reference-toolchains: ## Verify pinned C Tcl patchlevels across shell setup and Rust oracle discovery
 	@echo "==> Checking C Tcl reference toolchain ownership"
@@ -771,6 +773,10 @@ check-spectcl-compat-paths: ## Verify CI's SpecTcl dependency closure and centra
 check-runtime-rust-paths: ## Verify CI's standalone-runtime dependency closure and job wiring (#1768)
 	@echo "==> Checking standalone runtime CI path ownership"
 	@bash scripts/dev/test-runtime-rust-paths.sh
+
+check-wasm-cc-env: ## Verify wasm32 C-compiler selection and dependency diagnostics
+	@echo "==> Checking wasm32 C compiler bootstrap"
+	@bash scripts/dev/test-wasm-cc-env.sh
 
 xtask-runtime-stdlib: ## Verify the embedded Tcl stdlib version, provenance, hashes, and FILES table
 	@echo "==> Checking embedded Tcl standard-library provenance (cargo xtask)"
@@ -1253,6 +1259,8 @@ check-rust: ensure-rust-deps ## Rust fmt-check + clippy on the workspace and exc
 		echo "       Set SKIP_CHECK_RUST=1 to skip."; \
 		exit 1; \
 	fi; \
+	. $(ROOT)scripts/dev/wasm-cc-env.sh; \
+	wasm_cc_prepare; \
 	$(MAKE) --no-print-directory -C $(ROOT) _check-rust-pr; \
 	if [ -f "$(ZED_DIR)/Cargo.toml" ]; then \
 		echo "==> Checking Zed extension (fmt + clippy --target wasm32-wasip2 + host tests)"; \
@@ -1355,7 +1363,7 @@ ensure-tcl-deps: ## Install Tcl shells needed by Tcl/tclpkg tests and bytecode c
 ensure-tcl90-reference: ## Install the exact manifest-pinned Tcl 9.0 reference interpreter
 	@$(MAKE) TCL_LSP_TCL_RELEASES=9.0 ensure-tcl-deps
 
-ensure-rust-deps: ## Install Rust/rustup + wasm32-wasip2 target needed by check-rust
+ensure-rust-deps: ## Install Rust targets and macOS's wasm32-capable C compiler needed by check-rust
 	@if [ -n "$${SKIP_CHECK_RUST:-}" ] || [ -n "$${SKIP_RUST:-}" ]; then \
 		echo "==> Rust dependency install skipped"; \
 	else \
@@ -1371,7 +1379,7 @@ ensure-rust-deps: ## Install Rust/rustup + wasm32-wasip2 target needed by check-
 			SKIP_OPENSSL=1 \
 			SKIP_PING=1 \
 			SKIP_RGXG=1 \
-			SKIP_WASI_SDK=1 \
+			$(if $(filter Darwin,$(SERVER_UNAME_S)),,SKIP_WASI_SDK=1) \
 			SKIP_PYTHON_TK=1 \
 			SKIP_UV=1 \
 			SKIP_TCLLIB=1 \
@@ -1676,7 +1684,10 @@ explorer-wasm: ## Build the Rust → WASM compiler-explorer core into the tcl GU
 	@command -v wasm-pack >/dev/null 2>&1 || { \
 		echo "wasm-pack not found — run 'make ensure-rust-deps' or 'cargo install wasm-pack'"; \
 		exit 1; }
-	@echo "==> Building tcl-explorer-wasm (wasm-pack --target no-modules)"
+	@set -eu; \
+	. $(ROOT)scripts/dev/wasm-cc-env.sh; \
+	wasm_cc_prepare; \
+	echo "==> Building tcl-explorer-wasm (wasm-pack --target no-modules)"; \
 	cd $(EXPLORER_WASM_DIR) && wasm-pack build --target no-modules --release \
 		--out-dir $(BUILD_DIR)/explorer-wasm --out-name tcl_explorer_wasm
 	@# wasm-opt is intentionally NOT run (also disabled inside wasm-pack via
@@ -1710,7 +1721,10 @@ TCL_VM_WASM_DIR := $(ROOT)rust/tcl-vm-wasm
 tcl-vm-wasm: ## Build the bytecode VM as a self-contained wasm32 cdylib (the primary wasm compile target)
 	@rustup target list --installed 2>/dev/null | grep -q wasm32-unknown-unknown \
 		|| rustup target add wasm32-unknown-unknown
-	@echo "==> Building tcl-vm-wasm (VM + compiler → wasm32-unknown-unknown cdylib, no imports/WASI)"
+	@set -eu; \
+	. $(ROOT)scripts/dev/wasm-cc-env.sh; \
+	wasm_cc_prepare; \
+	echo "==> Building tcl-vm-wasm (VM + compiler → wasm32-unknown-unknown cdylib, no imports/WASI)"; \
 	cd $(TCL_VM_WASM_DIR) && cargo build --release --target wasm32-unknown-unknown
 	@mkdir -p $(BUILD_DIR)/tcl-vm-wasm
 	cp $(TCL_VM_WASM_DIR)/target/wasm32-unknown-unknown/release/tcl_vm_wasm.wasm \

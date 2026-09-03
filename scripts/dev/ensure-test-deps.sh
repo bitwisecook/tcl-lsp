@@ -29,17 +29,18 @@
 #   * ``kotlinc`` — the JetBrains plugin's DiagnosticCatalog.kt compile
 #     check.
 #   * ``rustup`` + Rust stable at least as new as the workspace's authoritative
-#     ``rust-version`` + the ``wasm32-wasip2`` target — the Zed
-#     extension's clippy check in ``make check-rust`` cross-compiles to
-#     WASI Preview 2 and fails without that target installed.  Installs
+#     ``rust-version`` + the ``wasm32-wasip2`` and
+#     ``wasm32-unknown-unknown`` targets — the Zed extension and standalone
+#     browser crates in ``make check-rust`` need them. Installs
 #     the latest stable toolchain (rather than a pinned version) so it
 #     tracks the same channel as the local ``cargo`` developers expect.
 #   * ``wasmtime`` — the Rust WASM codegen tests run wasm32-wasi binaries
 #     through the Wasmtime CLI.
 #   * ``wasm-merge`` / ``wasm-opt`` — Binaryen tools used by bundled WASM
 #     tests and asyncify runtime builds.
-#   * ``wasi-sdk`` — clang + WASI sysroot for the wasm cross-compile of
-#     libtommath (the numeric tower) in ``runtime/rust/build.rs``.
+#   * ``wasi-sdk`` — a wasm-capable clang for browser-crate C dependencies
+#     (required on macOS, whose Apple clang omits the backend) plus the WASI
+#     sysroot for libtommath in ``runtime/rust/build.rs``.
 #   * ``emacs`` — the headless eglot regression suite.
 #   * ``xvfb-run`` — Linux headless VS Code extension tests when DISPLAY is
 #     unset.
@@ -82,6 +83,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # shellcheck source=tcl-reference-toolchains.sh
 . "$SCRIPT_DIR/tcl-reference-toolchains.sh"
+# shellcheck source=wasm-cc-env.sh
+. "$SCRIPT_DIR/wasm-cc-env.sh"
 tcl_reference_load_toolchains "$REPO_ROOT"
 
 TCL_REFERENCE_SOURCE_PARENT="${TCL_LSP_TCL_SOURCE_PARENT:-$REPO_ROOT/tmp}"
@@ -935,22 +938,29 @@ ensure_binaryen() {
 }
 
 # ---------------------------------------------------------------- wasi-sdk
-# clang + WASI sysroot for the wasm cross-compile of libtommath (the numeric
-# tower) in runtime/rust/build.rs.  Installed to /opt/wasi-sdk-<ver> and
-# symlinked /opt/wasi-sdk, which build.rs auto-discovers (or set WASI_SDK_PATH).
-# Without it, runtime/rust's wasm build drops the tower (expr/mathop/mathfunc/
-# lseq) with a warning.
+# WebAssembly-capable clang plus a WASI sysroot. Installed to
+# /opt/wasi-sdk-<ver> and symlinked /opt/wasi-sdk, which both wasm-cc-env.sh
+# and runtime/rust/build.rs discover (or set WASI_SDK_PATH). Stock Apple clang
+# has no wasm backend; without the sysroot, runtime/rust's wasm build also
+# drops the numeric tower (expr/mathop/mathfunc/lseq) with a warning.
 
 ensure_wasi_sdk() {
     if [ "${SKIP_WASI_SDK:-}" = "1" ]; then info "SKIP_WASI_SDK=1 — skipping wasi-sdk"; return 0; fi
     local link="/opt/wasi-sdk"
-    if [ -x "${WASI_SDK_PATH:-$link}/bin/clang" ]; then
-        info "wasi-sdk already present ($("${WASI_SDK_PATH:-$link}/bin/clang" --version 2>/dev/null | head -1))"
+    local sdk_root="${WASI_SDK_PATH:-$link}"
+    local sdk_clang="$sdk_root/bin/clang"
+    if [ -x "$sdk_clang" ] && wasm_cc_probe "$sdk_clang" >/dev/null 2>&1; then
+        info "wasi-sdk already present ($(wasm_cc_run "$sdk_clang" --version 2>/dev/null | head -1))"
         return 0
     fi
     if [ "$CHECK_ONLY" -eq 1 ]; then
-        note_missing "wasi-sdk ${WASI_SDK_VERSION} (would install for $OS/$ARCH → ${link})"
+        note_missing "wasi-sdk ${WASI_SDK_VERSION} with a wasm32-unknown-unknown-capable C compiler (would install for $OS/$ARCH → ${link})"
         return 0
+    fi
+    if [ -n "${WASI_SDK_PATH:-}" ]; then
+        echo "ERROR: WASI_SDK_PATH '$WASI_SDK_PATH' does not contain a clang capable of targeting wasm32-unknown-unknown." >&2
+        echo "       Fix or unset WASI_SDK_PATH so the managed SDK can be installed at $link." >&2
+        return 1
     fi
 
     local sdk_os sdk_arch
@@ -1022,7 +1032,11 @@ ensure_wasi_sdk() {
     $SUDO mkdir -p "$prefix"
     $SUDO tar -xzf "$tmpdir/$tarball" -C "$prefix" --strip-components=1
     $SUDO ln -sfn "$prefix" "$link"
-    info "Installed wasi-sdk to ${prefix} (symlinked ${link}); runtime/rust/build.rs auto-discovers it"
+    if ! wasm_cc_probe "$link/bin/clang" >/dev/null 2>&1; then
+        echo "ERROR: installed wasi-sdk clang cannot target wasm32-unknown-unknown" >&2
+        return 1
+    fi
+    info "Installed wasi-sdk to ${prefix} (symlinked ${link}); Rust WASM builds and runtime/rust/build.rs auto-discover it"
 }
 
 # ---------------------------------------------------------------- tshark

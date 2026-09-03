@@ -22,12 +22,15 @@
 # ties the two to `postMessage`. Three plain files, no bundler — a page loads
 # `worker.js` with `new Worker(...)` and speaks raw LSP JSON-RPC to it.
 #
-# Requires: the rustup wasm32-unknown-unknown target and wasm-bindgen-cli
-# (matching the wasm-bindgen crate version resolved in Cargo.lock). Node, if
-# present, also verifies the module.
+# Requires: the rustup wasm32-unknown-unknown target, a WASM-capable C compiler
+# (`make ensure-rust-deps` provisions one), and wasm-bindgen-cli (matching the
+# wasm-bindgen crate version resolved in Cargo.lock). Node, if present, also
+# verifies the module.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=../../scripts/dev/wasm-cc-env.sh
+. "$here/../../scripts/dev/wasm-cc-env.sh"
 dist="$here/dist"
 mkdir -p "$dist"
 
@@ -44,6 +47,7 @@ mkdir -p "$dist"
 # worse than native's. Match the native budget.
 STACK_SIZE=$((64 * 1024 * 1024))
 
+wasm_cc_prepare
 echo "==> cargo build --target wasm32-unknown-unknown --release (stack ${STACK_SIZE} bytes)"
 (
     cd "$here"

@@ -19,7 +19,12 @@ names are the executable truth.
   kotlinc, Wasmtime, Binaryen, wasi-sdk, emacs, xvfb, tshark, …) on
   Debian/Ubuntu, RHEL-family, or macOS. Idempotent; `SKIP_<TOOL>=1` skips one
   tool; `--check` reports without installing. `make ensure-rust-deps` adds
-  the `wasm32-wasip2` target.
+  the Rust WASM targets and, on macOS, installs the pinned wasi-sdk. Stock
+  Apple clang has no WebAssembly backend, so every `wasm32-unknown-unknown`
+  entry point sources `scripts/dev/wasm-cc-env.sh`: it selects the owned SDK
+  (or an explicit `CC_wasm32_unknown_unknown`) and compiles a tiny C object for
+  the exact target before Cargo starts. An executable named `clang` that fails
+  that probe is reported as missing by `ensure-test-deps.sh --check`.
 
 ## Remote agent sessions
 
@@ -88,7 +93,7 @@ publishing) and the publish-secret invariant are in
 
 - `.claude/hooks/session-start.sh`, `.claude/settings.json`
 - `scripts/dev/ensure-test-deps.sh`, `scripts/dev/agent-build-env.sh`,
-  `scripts/dev/tcl-reference-toolchains.sh`
+  `scripts/dev/wasm-cc-env.sh`, `scripts/dev/tcl-reference-toolchains.sh`
 - `.claude/skills/fetch-tcl-source/fetch_tcl_source.sh`
 - `rust-toolchain.toml`, `Cargo.toml`, `.github/workflows/ci.yml`
 

@@ -21,15 +21,19 @@
 # Python package, so `f5report` can embed a live in-browser query console
 # without needing the wasm toolchain at report-generation time.
 #
-# Requires: rustup wasm32-unknown-unknown target, wasm-bindgen-cli (matching the
+# Requires: rustup wasm32-unknown-unknown target, a WASM-capable C compiler
+# (`make ensure-rust-deps` provisions one), wasm-bindgen-cli (matching the
 # wasm-bindgen crate version pinned in Cargo.toml), and wasm-opt (binaryen).
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=../../scripts/dev/wasm-cc-env.sh
+. "$here/../../scripts/dev/wasm-cc-env.sh"
 vendor="$here/../bigip-report-gen/assets"
 out="$(mktemp -d)"
 trap 'rm -rf "$out"' EXIT
 
+wasm_cc_prepare
 echo "==> cargo build --target wasm32-unknown-unknown --release"
 ( cd "$here" && cargo build --target wasm32-unknown-unknown --release )
 wasm="$here/target/wasm32-unknown-unknown/release/bigip_query_wasm.wasm"

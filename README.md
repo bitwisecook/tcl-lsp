@@ -2023,6 +2023,10 @@ an INI file you can commit alongside the project.
 - Node.js 24+ with npm (pinned to v12 via `packageManager`; run `corepack enable npm`)
 - VS Code 1.93+
 
+On macOS, run `make ensure-rust-deps` before the Rust/WASM gates. Stock Apple
+clang has no WebAssembly backend, so this installs and selects the pinned
+wasi-sdk compiler used for `wasm32-unknown-unknown` C dependencies.
+
 ```sh
 git clone https://github.com/bitwisecook/tcl-lsp && cd tcl-lsp
 make test                  # the whole suite
