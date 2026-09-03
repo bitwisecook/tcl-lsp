@@ -159,6 +159,87 @@ fn join_binding(a: &Binding, b: &Binding) -> Binding {
     Binding::of(BindingKind::Unknown)
 }
 
+/// Record a namespace transition's effect on command *resolution*.
+///
+/// Returns `false` when the target namespace is not literal, which the caller
+/// takes as the lattice top: the transition could have landed anywhere.
+///
+/// An import binds each pattern's *tail* in the target namespace, so a
+/// literal, glob-free pattern is exact — `namespace import -force
+/// ::evil::answer` shadowing a declared `::ns::answer`. A glob (`::lib::*`)
+/// names commands this scan cannot enumerate, so only the *target* namespace
+/// becomes opaque, and a name elsewhere — including in the namespace imported
+/// *from* — stays trustworthy.
+fn collect_namespace_resolution(
+    transition: &NamespaceTransition,
+    site: &str,
+    rebound: &mut std::collections::HashSet<String>,
+    resolution: &mut bool,
+    opaque: &mut std::collections::HashSet<String>,
+) -> bool {
+    let (namespace, patterns) = match transition {
+        NamespaceTransition::Import {
+            namespace,
+            patterns,
+        }
+        | NamespaceTransition::Forget {
+            namespace,
+            patterns,
+        } => (namespace, Some(patterns)),
+        NamespaceTransition::SetPath { namespace, .. }
+        | NamespaceTransition::SetUnknown { namespace, .. }
+        | NamespaceTransition::Ensemble { namespace }
+        | NamespaceTransition::Delete { namespace } => (namespace, None),
+        // Creating a namespace, or changing its export list, resolves nothing
+        // differently for a caller in it.
+        NamespaceTransition::Ensure { .. } | NamespaceTransition::Export { .. } => return true,
+    };
+    *resolution = true;
+    let Some(target) = transition_namespace(namespace, site) else {
+        return false;
+    };
+    let Some(patterns) = patterns else {
+        opaque.insert(target);
+        return true;
+    };
+    for pattern in patterns {
+        match literal_subject(pattern) {
+            Some(text) if !text.contains(['*', '?', '[']) => {
+                let tail = text.rsplit("::").next().unwrap_or(text);
+                rebound.insert(nqn(&join_ns(&target, tail)));
+            }
+            _ => {
+                opaque.insert(target.clone());
+            }
+        }
+    }
+    true
+}
+
+/// The namespace a [`NamespaceTransitionTarget`] denotes: the invocation's own
+/// namespace for `Current`, the literal text for a `Named` operand, and `None`
+/// when the operand is not literal (the caller then takes the lattice top).
+fn transition_namespace(
+    target: &tcl_registry::NamespaceTransitionTarget,
+    current: &str,
+) -> Option<String> {
+    match target {
+        tcl_registry::NamespaceTransitionTarget::Current => Some(nqn(current)),
+        tcl_registry::NamespaceTransitionTarget::Named(subject) => {
+            literal_subject(subject).map(nqn)
+        }
+    }
+}
+
+/// `ns` + `tail` as one qualified name, without doubling the separator.
+fn join_ns(ns: &str, tail: &str) -> String {
+    if ns == "::" {
+        format!("::{tail}")
+    } else {
+        format!("{ns}::{tail}")
+    }
+}
+
 fn literal_subject(subject: &TransitionSubject) -> Option<&str> {
     match subject {
         TransitionSubject::Literal(value) => Some(value),
@@ -629,6 +710,13 @@ pub struct ModuleCommandMutations {
     /// the target namespace, because the pattern list is a Tcl value this
     /// scan does not evaluate.
     resolution_changed: bool,
+    /// Namespaces whose command resolution was changed in a way this scan
+    /// cannot enumerate — a globbed or non-literal `namespace import`, a
+    /// `namespace path`/`unknown`/`ensemble`, or a namespace delete. A name
+    /// *in* one of these is no longer trustworthy; a name outside them is
+    /// unaffected, which is what keeps `namespace import ::lib::*` into
+    /// `::app` from distrusting `::lib::helper` itself.
+    opaque_namespaces: std::collections::HashSet<String>,
 }
 
 impl ModuleCommandMutations {
@@ -639,6 +727,17 @@ impl ModuleCommandMutations {
     #[must_use]
     pub const fn has_dynamic_mutation(&self) -> bool {
         self.dynamic
+    }
+
+    /// Whether `name` sits in a namespace whose resolution this scan could
+    /// not enumerate — see [`Self::opaque_namespaces`].
+    fn import_shadowed(&self, name: &str) -> bool {
+        if self.opaque_namespaces.is_empty() {
+            return false;
+        }
+        let qualified = nqn(name);
+        let namespace = crate::optimiser::helpers::naming::namespace_from_qualified(&qualified);
+        self.opaque_namespaces.contains(&namespace)
     }
 
     /// Whether any body changes namespace command *resolution* — see
@@ -670,7 +769,7 @@ impl ModuleCommandMutations {
     /// semantics.
     #[must_use]
     pub fn trusts(&self, command_name: &str) -> bool {
-        if self.dynamic {
+        if self.dynamic || self.import_shadowed(command_name) {
             return false;
         }
         !self.names.contains(&nqn(command_name))
@@ -688,6 +787,7 @@ impl ModuleCommandMutations {
             rebound: std::collections::HashSet::new(),
             dynamic: true,
             resolution_changed: true,
+            opaque_namespaces: std::collections::HashSet::new(),
         }
     }
 
@@ -704,6 +804,11 @@ impl ModuleCommandMutations {
             rebound,
             dynamic: self.dynamic,
             resolution_changed: self.resolution_changed,
+            opaque_namespaces: {
+                let mut v: Vec<String> = self.opaque_namespaces.iter().cloned().collect();
+                v.sort_unstable();
+                v
+            },
         }
     }
 
@@ -723,7 +828,7 @@ impl ModuleCommandMutations {
     /// `rename otherProc thisName` or `interp alias {} thisName {} other`.
     #[must_use]
     pub fn trusts_proc_binding(&self, proc_name: &str) -> bool {
-        if self.dynamic {
+        if self.dynamic || self.import_shadowed(proc_name) {
             return false;
         }
         !self.rebound.contains(&nqn(proc_name))
@@ -744,6 +849,7 @@ pub struct CommandTrustSnapshot {
     /// Part of the key: a memo taken with namespace command resolution
     /// unperturbed must not be reused once a `namespace import` appears.
     resolution_changed: bool,
+    opaque_namespaces: Vec<String>,
 }
 
 impl CommandTrustSnapshot {
@@ -755,6 +861,7 @@ impl CommandTrustSnapshot {
             rebound: self.rebound.iter().cloned().collect(),
             dynamic: self.dynamic,
             resolution_changed: self.resolution_changed,
+            opaque_namespaces: self.opaque_namespaces.iter().cloned().collect(),
         }
     }
 }
@@ -802,10 +909,12 @@ fn collect_proc_rebindings(
     rebound: &mut std::collections::HashSet<String>,
     dynamic: &mut bool,
     resolution: &mut bool,
+    opaque: &mut std::collections::HashSet<String>,
 ) {
     if !matches!(stmt, Statement::Call { .. } | Statement::Barrier { .. }) {
         return;
     }
+    let ns_of_site = namespace;
     if let Some(facts) = invocation_facts(stmt, registry)
         && let Some(transitions) = facts.state_transitions.declared()
     {
@@ -876,18 +985,24 @@ fn collect_proc_rebindings(
                 }
                 // Resolution changes, not rebindings: no name moves, but what
                 // a name resolves to in some namespace does.
-                StateTransition::Namespace(
-                    NamespaceTransition::Import { .. }
-                    | NamespaceTransition::Forget { .. }
-                    | NamespaceTransition::SetPath { .. }
-                    | NamespaceTransition::SetUnknown { .. }
-                    | NamespaceTransition::Ensemble { .. }
-                    | NamespaceTransition::Delete { .. },
-                ) => *resolution = true,
+                //
+                // An import binds each pattern's *tail* in the target
+                // namespace, so a literal, glob-free pattern is exact — that
+                // is `namespace import -force ::evil::answer` shadowing a
+                // declared `::ns::answer`. A glob (`::lib::*`) names commands
+                // this scan cannot enumerate, so only the *target* namespace
+                // becomes opaque; a name elsewhere stays trustworthy.
+                StateTransition::Namespace(transition) => {
+                    if !collect_namespace_resolution(
+                        transition, ns_of_site, rebound, resolution, opaque,
+                    ) {
+                        *dynamic = true;
+                        return;
+                    }
+                }
                 StateTransition::CommandBinding(CommandBindingTransition::Define { .. })
                 | StateTransition::Interpreter(_)
                 | StateTransition::VariableCellAlias(_)
-                | StateTransition::Namespace(_)
                 | StateTransition::Trace(_)
                 | StateTransition::ObjectDispatch(_)
                 | StateTransition::Widen(_) => {}
@@ -933,6 +1048,7 @@ struct RebindState<'a> {
     rebound: &'a mut std::collections::HashSet<String>,
     dynamic: &'a mut bool,
     resolution: &'a mut bool,
+    opaque: &'a mut std::collections::HashSet<String>,
 }
 
 /// Apply the gen of every `Call` / `Barrier` in `script` (recursing into
@@ -966,6 +1082,7 @@ fn walk_body_calls(
                     rebind.rebound,
                     rebind.dynamic,
                     rebind.resolution,
+                    rebind.opaque,
                 );
                 stmt_gen(stmt, state, registry);
                 collect_tampered_builtins(state, registry, rebind.names, rebind.dynamic);
@@ -1041,6 +1158,9 @@ pub fn scan_module_command_mutations(
     let mut rebound = std::collections::HashSet::new();
     let mut dynamic = false;
     let mut resolution_changed = false;
+    // Set when a `namespace eval` body's target namespace is not literal.
+    let mut opaque_body_namespace = false;
+    let mut opaque_namespaces = std::collections::HashSet::new();
 
     let mut visit = |script: &crate::ir::Script, namespace: &str| {
         let mut state = State::default();
@@ -1049,6 +1169,7 @@ pub fn scan_module_command_mutations(
             rebound: &mut rebound,
             dynamic: &mut dynamic,
             resolution: &mut resolution_changed,
+            opaque: &mut opaque_namespaces,
         };
         walk_body_calls(script, &mut state, registry, namespace, &mut rebind, 0);
     };
@@ -1064,7 +1185,17 @@ pub fn scan_module_command_mutations(
     // `rename` inside a `namespace eval` was equally invisible before.
     for (qname, unit) in &ir_module.body_units {
         let namespace = crate::optimiser::helpers::naming::namespace_from_qualified(qname);
+        // `namespace eval $n { rename answer {} }` registers its body under a
+        // synthetic qname built from the *unevaluated* operand, so qualifying
+        // this body's relative names under it would attribute the mutation to
+        // a namespace that does not exist (`::$n::answer`) and leave the real
+        // one trusted. The target is unknown, so the whole module is: take the
+        // existing lattice top rather than invent a namespace.
+        let opaque_namespace = namespace.contains('$') || namespace.contains('[');
         visit(&unit.body, &namespace);
+        if opaque_namespace {
+            opaque_body_namespace = true;
+        }
     }
     for (mqname, method) in &ir_module.methods {
         let namespace = crate::optimiser::helpers::naming::namespace_from_qualified(mqname);
@@ -1074,8 +1205,9 @@ pub fn scan_module_command_mutations(
     ModuleCommandMutations {
         names,
         rebound,
-        dynamic,
+        dynamic: dynamic || opaque_body_namespace,
         resolution_changed,
+        opaque_namespaces,
     }
 }
 
@@ -1088,6 +1220,38 @@ mod tests {
         let reg = CommandRegistry::build_default();
         let cu = CompilationUnit::build_for(src, &reg, false);
         (cu, reg)
+    }
+
+    /// A `namespace import` that shadows a proc declared in the same
+    /// namespace must distrust that binding — tclsh answers `EVIL` for the
+    /// sheet below, so folding `::ns::answer` with the declared body is
+    /// wrong. A *globbed* import elsewhere must not distrust the source
+    /// namespace it imports *from*, or an ordinary `namespace import ::lib::*`
+    /// would stop every fold in `::lib`.
+    #[test]
+    fn an_import_shadowing_a_declared_proc_distrusts_only_its_namespace() {
+        let reg = CommandRegistry::build_default();
+        let shadowed = "namespace eval ::evil { proc answer {} {return EVIL} ; namespace export answer }\n             namespace eval ::ns { proc answer {} { return 42 } ; namespace import -force ::evil::answer }\n";
+        let cu = CompilationUnit::build_for(shadowed, &reg, false);
+        let m = scan_module_command_mutations(&cu.ir_module, &reg);
+        assert!(
+            !m.trusts_proc_binding("::ns::answer"),
+            "the import shadows the declared proc"
+        );
+        assert!(
+            m.trusts_proc_binding("::evil::answer"),
+            "the namespace imported *from* is untouched"
+        );
+
+        // A wildcard import makes only its target namespace opaque.
+        let wildcard = "namespace eval ::lib { proc helper {} { return 1 } ; namespace export helper }\n             namespace eval ::app { namespace import ::lib::* }\n";
+        let cu = CompilationUnit::build_for(wildcard, &reg, false);
+        let m = scan_module_command_mutations(&cu.ir_module, &reg);
+        assert!(!m.trusts_proc_binding("::app::helper"));
+        assert!(
+            m.trusts_proc_binding("::lib::helper"),
+            "the imported-from namespace still folds"
+        );
     }
 
     #[test]

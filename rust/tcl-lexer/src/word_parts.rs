@@ -508,13 +508,25 @@ fn error_inside_unterminated(
     let mut i = 0usize;
     let mut command_position = true;
     let mut closable = true;
+    // Whether the scan is inside a word. A `"` or `{` only opens one at a word
+    // boundary, and a `#` only opens a comment at the start of a *word* that
+    // is also at command position — an escaped byte is word content, so
+    // `[\;# {` is a word `\;#` then a `{` word (C: `missing close-brace`),
+    // not a comment.
+    let mut in_word = false;
     while i < src.len() {
         let c = src[i];
         match c {
-            b'\\' => i += 2,
+            // An escape is word content: it starts a word if one was not
+            // open, and it is never a separator.
+            b'\\' => {
+                in_word = true;
+                command_position = false;
+                i += 2;
+            }
             // A comment runs to the end of the line, and a `"` or `{` inside
             // it opens nothing.
-            b'#' if command_position => {
+            b'#' if command_position && !in_word => {
                 while i < src.len() && src[i] != b'\n' {
                     i += 1;
                 }
@@ -526,6 +538,7 @@ fn error_inside_unterminated(
                     Err(msg) => return Some(msg),
                 }
                 command_position = false;
+                in_word = true;
             }
             // `closable` collapses the pathological all-`[` template to a
             // linear walk: with no `]` left in the buffer no bracket from here
@@ -534,40 +547,49 @@ fn error_inside_unterminated(
                 if let Some(end) = command_substitution_end_bytes(src, i) {
                     i = end;
                     command_position = false;
+                    in_word = true;
                 } else {
                     pending.get_or_insert(MISSING_CLOSE_BRACKET);
                     closable = src[i..].contains(&b']');
                     i += 1;
                     // The unclosed bracket opens a nested script.
                     command_position = true;
+                    in_word = false;
                 }
             }
             b'[' => {
                 pending.get_or_insert(MISSING_CLOSE_BRACKET);
                 i += 1;
                 command_position = true;
+                in_word = false;
             }
-            b'"' if word_start(src, i) => match close_quote_offset_bytes(src, i) {
+            b'"' if !in_word => match close_quote_offset_bytes(src, i) {
                 Ok(end) => {
                     i = end + 1;
                     command_position = false;
+                    in_word = true;
                 }
                 Err(msg) => return Some(msg),
             },
-            b'{' if word_start(src, i) => match brace_word_close(src, i) {
+            b'{' if !in_word => match brace_word_close(src, i) {
                 Some(end) => {
                     i = end + 1;
                     command_position = false;
+                    in_word = true;
                 }
                 None => return Some(MISSING_CLOSE_BRACE),
             },
             b'\n' | b';' => {
                 command_position = true;
+                in_word = false;
                 i += 1;
             }
             _ => {
-                if !c.is_ascii_whitespace() {
+                if c.is_ascii_whitespace() {
+                    in_word = false;
+                } else {
                     command_position = false;
+                    in_word = true;
                 }
                 i += 1;
             }
@@ -582,14 +604,6 @@ fn starts_var_ref(src: &[u8], at: usize, flags: SubstFlags) -> bool {
         Some(b'{') => true,
         Some(&c) => flags.bare_var_refs && is_var_name_byte(c),
         None => false,
-    }
-}
-
-/// Whether `at` begins a word: the start, or preceded by a word separator.
-fn word_start(src: &[u8], at: usize) -> bool {
-    match at.checked_sub(1).map(|prev| src[prev]) {
-        None => true,
-        Some(c) => c.is_ascii_whitespace() || c == b'[' || c == b';',
     }
 }
 
@@ -712,6 +726,12 @@ mod tests {
 "#),
             Some(MISSING_CLOSE_BRACKET)
         );
+        // An escaped byte is word content, so the `#` after `\;` is data (the
+        // `{` then opens a word) and the `"` after the escaped blank is inside
+        // the `foo` word, not a word opener. tclsh 9.0.4 answers
+        // `missing close-brace` and `missing close-bracket`.
+        assert_eq!(err(br"[\;# {"), Some(MISSING_CLOSE_BRACE));
+        assert_eq!(err(br#"[foo\ "abc"#), Some(MISSING_CLOSE_BRACKET));
     }
 
     /// The walk over an unterminated bracket is iterative: a template of many
