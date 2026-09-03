@@ -46,6 +46,10 @@
 //!   question for **any** delimited word (`${name}` included) answered
 //!   from the word's own [`Span`], for callers that kept a span but not
 //!   the [`Token`] it came from.
+//! - [`group_commands`], [`CommandSpan`], [`WordSpan`], [`WordKind`] —
+//!   the one owner of command and word boundaries (issue #1786): a
+//!   token-stream grouper both `tcl-compiler` and `runtime/rust` fold
+//!   onto, reporting spans and token indices only.  See [`script`].
 //! - [`Lexer`], [`LexerConfig`], [`LexError`] — the lexer itself.
 //!   Handles EOF, SEP, EOL, COMMENT, and plain ESC tokens; every other
 //!   construct is surfaced as a `SyntaxError` (in strict-quoting mode)
@@ -59,6 +63,7 @@ mod highlight;
 mod lexer;
 mod line_index;
 mod ranges;
+pub mod script;
 mod source_map;
 mod span;
 mod structural_index;
@@ -84,6 +89,7 @@ pub use ranges::{
     scan_array_index, word_append_offset, word_closer_offset, word_closer_offset_at,
     word_end_position, word_span, word_span_at,
 };
+pub use script::{CommandSpan, WordKind, WordSpan, group_commands};
 pub use source_map::SourceMap;
 pub use span::Span;
 pub use structural_index::{
@@ -106,8 +112,8 @@ pub use tokens::{ByteCol, SourcePosition, Token, TokenType, Utf16Col, Utf16Posit
 // and the doc entry point.
 pub use word_parts::{
     MISSING_CLOSE_BRACE, MISSING_CLOSE_BRACKET, MISSING_PAREN, MISSING_QUOTE, RawVarRef,
-    SubstFlags, VarRef, WordBody, WordPart, command_subst_close, decompose, quoted_word_close,
-    scan_var_ref,
+    SpannedPart, SubstFlags, VarRef, WordBody, WordPart, command_subst_close, decompose,
+    decompose_spanned, quoted_word_close, scan_var_ref,
 };
 
 /// Return the physical line numbers whose first non-horizontal-whitespace

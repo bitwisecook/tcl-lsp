@@ -1967,7 +1967,11 @@ fn nested_words(
     if segment.is_partial {
         return Err(NativeLoweringDecline::UnmodelledCommandSubstitution);
     }
-    let tokens = CommandTokens::from_segmented(segment);
+    // The nested script is a sub-lex: its own text, segmented at the document
+    // offset it sits at, so the word model reads `inner` and still reports
+    // document spans (`SourceMap::with_base` is that sub-lexing contract).
+    let sm = tcl_lexer::SourceMap::new(inner).with_base(base, 0, 0);
+    let tokens = CommandTokens::from_segmented(&sm, config, segment);
     if tokens.word_exprs.is_empty() {
         return Err(NativeLoweringDecline::MissingCommandTokens);
     }

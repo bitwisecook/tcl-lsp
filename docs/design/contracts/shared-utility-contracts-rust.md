@@ -42,14 +42,14 @@ entry point, or gate moves without this contract being updated.
 | boolean words | `rust/tcl-syntax/src/boolean.rs` | `parse_boolean_word`; `truthiness_with` | fixed boolean vocabulary; number axis per release | none |
 | quotes / braces / word spans | `rust/tcl-lexer/src/ranges.rs` | `close_quote_offset`; `word_closer_offset`; `word_span_at`; `braced_var_name_end` | `${...}` close rule per release (`BracedVarStyle`); tmsh brace mode per dialect | none |
 | array-index source scan | `rust/tcl-lexer/src/ranges.rs`; `rust/tcl-dialect/src/grammar.rs` | `scan_array_index`; `ArrayIndexSyntax` | `LexerGrammar::array_index` per release | none |
-| word substitution components | `rust/tcl-lexer/src/word_parts.rs` | `decompose`; `scan_var_ref`; `command_subst_close`; `quoted_word_close`; `SubstFlags`; `WordPart`; `WordBody`; `VarRef`; `RawVarRef`; `MISSING_QUOTE`; `MISSING_CLOSE_BRACKET`; `MISSING_CLOSE_BRACE`; `MISSING_PAREN` | `LexerConfig` per emulated release (`${...}` close rule, array-index source mask, escape grammar); compiled-word vs source-word `$` spelling | none |
+| word substitution components | `rust/tcl-lexer/src/word_parts.rs` | `decompose`; `decompose_spanned`; `scan_var_ref`; `command_subst_close`; `quoted_word_close`; `SubstFlags`; `WordPart`; `SpannedPart`; `WordBody`; `VarRef`; `RawVarRef`; `MISSING_QUOTE`; `MISSING_CLOSE_BRACKET`; `MISSING_CLOSE_BRACE`; `MISSING_PAREN` | `LexerConfig` per emulated release (`${...}` close rule, array-index source mask, escape grammar); compiled-word vs source-word `$` spelling | none |
 | indices | `rust/tcl-cmd-core/src/index.rs` | `resolve_with`; `drill` | grammar-parameterised, inheriting the number axis | none |
 | option words / subcommands | `rust/tcl-cmd-core/src/prefix.rs`; `rust/tcl-cmd-core/src/ensemble.rs`; `rust/tcl-registry/src/hover.rs`; `rust/tcl-registry/src/spec.rs` | `OptionTable`; `OptionSpec`; `SubCommand`; `first_positional_index`; `ensemble::EnsembleToken`; `ensemble::InvocationLayout`; `ensemble::invocation_layout`; `ensemble::UNKNOWN_DELETED_MESSAGE`; `ensemble::UNKNOWN_DELETED_ERROR_CODE`; `ensemble::CREATE_OPTIONS`; `ensemble::CONFIG_OPTIONS`; `ensemble::SUBCOMMANDS`; `ensemble::resolve_subcommand`; `ensemble::subcommand_choices`; `ensemble::unknown_subcommand_message`; `ensemble::validate_map_targets` | option surface per release/dialect; ensemble token lifecycle and invocation layout invariant | `xtask-option-registry-drift` |
 | trace argument decoding | `rust/tcl-cmd-core/src/trace.rs` | `TraceKind`; `resolve_option`; `resolve_type`; `parse_ops`; `parse_legacy_variable_ops`; `legacy_ops_letters`; `callback_op_word` | option surface per release (the 8.x-only `variable`/`vdelete`/`vinfo` forms) | none |
 | sort numeric parsing | `rust/tcl-cmd-core/src/sort.rs` | `parse_wide`; `parse_real` | `NumberSyntax` per release | none |
 | command errors | `rust/tcl-cmd-core/src/error.rs` | `CmdError`; `wrong_args`; `bad_choice` | invariant | none |
 | expression grammar / evaluation | `rust/tcl-syntax/src/expr/parser.rs`; `rust/tcl-syntax/src/expr/eval.rs`; `rust/tcl-registry/src/expr_surface.rs` | `parse_expr`; `eval`; `RuntimeExprSurface` | `RuntimeExprSurface` per release | none |
-| command / word segmentation | `rust/tcl-compiler/src/segmenter.rs` | `SegmentedCommand`; `segment_commands` | `LexerConfig` per document dialect | none |
+| command / word segmentation | `rust/tcl-lexer/src/script.rs`; `rust/tcl-compiler/src/segmenter.rs`; `rust/tcl-compiler/src/parsing/syntax/build.rs`; `rust/tcl-compiler/src/parsing/syntax/segment.rs` | `group_commands`; `CommandSpan`; `WordSpan`; `WordKind`; `SegmentedCommand`; `segment_commands` | `LexerConfig` per document dialect | none |
 | iRules execution boundaries and placement | `rust/tcl-syntax/src/event_handler.rs`; `rust/tcl-registry/src/events.rs`; `rust/tcl-registry/src/registry.rs`; `rust/tcl-irules/src/when_block.rs`; `rust/tcl-irules/src/executable.rs` | `event_handlers`; `event_handlers_with_head_predicate`; `script_commands`; `top_level_when_handlers_with_registry_and_head_resolver`; `IrulesDeclarationArguments`; `IrulesExecutionContext`; `IrulesCommandPlacement`; `IrulesTopLevelDeclaration`; `IrulesTopLevelEffect`; `CommandRegistry::irules_command_placement`; `CommandRegistry::irules_event_declaration`; `CommandRegistry::irules_top_level_declaration`; `CommandRegistry::irules_top_level_declaration_shape`; `CommandRegistry::irules_top_level_effect`; `when_blocks`; `irules_executable_commands` | caller-supplied `LexerConfig`; offset-keyed resolved command identity; exact single-braced declaration body; declaration-only top level; known-event roots; call-reachable procedure bodies; stateful priority (`0..=1000`, default 500) | `xtask-gen-ai-diagnostics` |
 | text similarity | `rust/tcl-compiler/src/text.rs` | `edit_distance`; `rank_suggestions`; `rank_containment_suggestions` | invariant | none |
 | per-command knowledge | `rust/tcl-registry/src/spec.rs`; `rust/tcl-registry/src/hooks.rs`; `rust/tcl-registry/src/registry.rs` | `CommandSpec`; `SubCommand`; `CommandRegistry` | per release/dialect | `xtask-command-backing` |
@@ -326,8 +326,14 @@ entry point, or gate moves without this contract being updated.
   `segmenter.rs` / `ir.rs` `WordExpr` builder. Only one raised C's `missing
   close-bracket`; only one found a `]` without being fooled by a brace,
   quote or comment in the substituted script; only one decoded a literal
-  run's escapes. `runtime/rust` and `tcl-vm` are consumers now; the
-  compiler's segmenter is the remaining adopter (see below).
+  run's escapes. All four are consumers now: `runtime/rust`, `tcl-vm`, and
+  — since #1785 — the compiler, whose `WordExpr` builder moved out of
+  `ir.rs`'s fragment walk into `word_expr.rs` over `decompose_spanned`.
+  The segmenter keeps what it owns, command and word boundaries; only the
+  within-word breakdown is the owner's. `differential_word_expr` holds a
+  frozen copy of the walk that was replaced and asserts the new production
+  against it across crafted edge cases, the sample corpus and tcllib, so
+  the adoption's behaviour changes are enumerated rather than assumed.
 
   The module sits in `tcl-lexer` because its dependencies already do —
   `braced_var_name_end`, `scan_array_index`, `command_substitution_end`,
