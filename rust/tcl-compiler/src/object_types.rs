@@ -52,7 +52,7 @@ use tcl_registry::CommandRegistry;
 
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::Statement;
-use crate::value_shapes::parse_command_substitution;
+use crate::value_shapes::parse_command_substitution_with_config;
 
 /// The source extent of one owning scope, plus the keys a
 /// [`ObjectHandleFacts::by_scope`] lookup at an offset inside it may use.
@@ -892,7 +892,10 @@ fn scan_assign_edges(
     if !v.starts_with('[') {
         return;
     }
-    let Some((cmd, args)) = parse_command_substitution(v) else {
+    let Some((cmd, args)) = parse_command_substitution_with_config(
+        v,
+        tcl_lexer::LexerConfig::for_profile(ctx.registry.profile()),
+    ) else {
         return;
     };
     // Proc-return edge: `set A [make …]`, tolerating the `::` global
@@ -1153,7 +1156,10 @@ fn harvest_unit(fu: &FunctionUnit, registry: &CommandRegistry, sink: &mut FactSi
         for stmt in &block.statements {
             match stmt {
                 Statement::AssignValue { name, value, .. } => {
-                    if let Some((head, args)) = parse_command_substitution(value.trim()) {
+                    if let Some((head, args)) = parse_command_substitution_with_config(
+                        value.trim(),
+                        tcl_lexer::LexerConfig::for_profile(registry.profile()),
+                    ) {
                         if let Some(class) = constructor_class_of(&head, &args, registry) {
                             sink.bind(&fu.name, name, class);
                         }
@@ -1203,7 +1209,10 @@ fn harvest_unit(fu: &FunctionUnit, registry: &CommandRegistry, sink: &mut FactSi
 /// written with or without the leading `::` global qualifier; the registry's
 /// [`CommandRegistry::object_class`] strips it as [`CommandRegistry::get`] does.
 fn constructor_class<'r>(value: &str, registry: &'r CommandRegistry) -> Option<&'r str> {
-    let (head, args) = parse_command_substitution(value.trim())?;
+    let (head, args) = parse_command_substitution_with_config(
+        value.trim(),
+        tcl_lexer::LexerConfig::for_profile(registry.profile()),
+    )?;
     constructor_class_of(&head, &args, registry)
 }
 

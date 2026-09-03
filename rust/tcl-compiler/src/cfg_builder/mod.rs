@@ -193,6 +193,17 @@ pub(crate) struct CfgBuilder {
     /// Current `lower_script` recursion depth, bounded by [`MAX_LOWER_DEPTH`]
     /// so deeply-nested bodies cannot overflow the stack.
     depth: u32,
+    /// The document's lexer configuration.  The embedded-substitution scans
+    /// below (`command_heads_in_text`, `upvar_defs_from_text`,
+    /// `global_write_defs_from_text`, `builtin_write_defs_from_text`) re-lex
+    /// an IR statement's own argument text to find its `[…]` tokens and split
+    /// each one into words, so they must read it under the grammar the
+    /// document was lexed with — under `f5-irules` `}{` separates two words,
+    /// under Jim `$(…)` is one, under 8.4 `{*}` is literal — or the head they
+    /// credit is not the head that runs. Defaults to
+    /// `LexerConfig::default()`; the pipeline threads the document's config
+    /// through [`build_cfg_with_config`] and friends.
+    config: tcl_lexer::LexerConfig,
 }
 
 /// Maximum nesting depth for the recursive `lower_script` descent.
@@ -255,12 +266,22 @@ impl CfgBuilder {
             caller_frame_barrier: crate::dynamic_names::DynamicNameBarrier::default(),
             alias_observed_vars: std::collections::BTreeSet::new(),
             depth: 0,
+            // dialect-drift-ok: the builder's own default; the pipeline
+            // replaces it via `with_lexer_config` from the unit's config.
+            config: tcl_lexer::LexerConfig::default(),
         }
     }
 
     /// Enable `try` exception-edge recording (analysis builds).
     fn with_faithful_exceptions(mut self) -> Self {
         self.faithful_exceptions = true;
+        self
+    }
+
+    /// Read every embedded `[…]` substitution under the document's own
+    /// grammar (see [`Self::config`]).
+    fn with_lexer_config(mut self, config: tcl_lexer::LexerConfig) -> Self {
+        self.config = config;
         self
     }
 
@@ -345,7 +366,7 @@ impl CfgBuilder {
     /// the same abstention direction as the dynamic-name barrier
     /// ([`crate::dynamic_names`]).
     fn record_caller_frame_barrier(&mut self, stmt: &Statement) {
-        for command in Self::called_command_names(stmt) {
+        for command in Self::called_command_names(stmt, self.config) {
             if let Some(info) = self.upvar_procs.get(command.as_str()) {
                 self.caller_frame_barrier =
                     self.caller_frame_barrier.union(info.caller_frame_barrier());
@@ -558,7 +579,7 @@ impl CfgBuilder {
             // target variable as a side effect; record it so copy / constant
             // propagation (O100) does not propagate a stale value past the
             // mutation (FP-OPT-06).
-            for d in Self::builtin_write_defs_from_text(text) {
+            for d in Self::builtin_write_defs_from_text(text, self.config) {
                 if !embedded_extras.contains(&d) {
                     embedded_extras.push(d);
                 }
@@ -575,7 +596,7 @@ impl CfgBuilder {
     /// raised wherever a call appears — `helper $x`, `set y [helper $x]`,
     /// and `if {[helper $x]} …` alike. Bounded by
     /// [`MAX_EMBEDDED_SUBST_DEPTH`], like every other bracket descent here.
-    fn called_command_names(stmt: &Statement) -> Vec<String> {
+    fn called_command_names(stmt: &Statement, config: tcl_lexer::LexerConfig) -> Vec<String> {
         let mut out: Vec<String> = Vec::new();
         let mut texts: Vec<&str> = Vec::new();
         match stmt {
@@ -589,21 +610,26 @@ impl CfgBuilder {
             _ => {}
         }
         for text in texts {
-            Self::command_heads_in_text(text, 0, &mut out);
+            Self::command_heads_in_text(text, 0, &mut out, config);
         }
         out
     }
 
     /// Accumulate the head word of every `[…]` substitution in *text*,
     /// descending into nested brackets.
-    fn command_heads_in_text(text: &str, depth: u32, out: &mut Vec<String>) {
+    fn command_heads_in_text(
+        text: &str,
+        depth: u32,
+        out: &mut Vec<String>,
+        config: tcl_lexer::LexerConfig,
+    ) {
         use tcl_lexer::{Lexer, SourceMap, TokenType};
 
         if !text.contains('[') || depth >= MAX_EMBEDDED_SUBST_DEPTH {
             return;
         }
         let sm = SourceMap::new(text);
-        let Ok(tokens) = Lexer::new(text).tokenise_all() else {
+        let Ok(tokens) = Lexer::with_config(text, config).tokenise_all() else {
             return;
         };
         for tok in &tokens {
@@ -611,10 +637,10 @@ impl CfgBuilder {
                 continue;
             }
             let inner = sm.token_text(*tok);
-            if let Some(head) = words_from_text(inner).first() {
+            if let Some(head) = words_from_text_with_config(inner, config).first() {
                 out.push(head.clone());
             }
-            Self::command_heads_in_text(inner, depth + 1, out);
+            Self::command_heads_in_text(inner, depth + 1, out, config);
         }
     }
 
@@ -646,7 +672,7 @@ impl CfgBuilder {
         }
 
         let sm = SourceMap::new(text);
-        let lexer = Lexer::new(text);
+        let lexer = Lexer::with_config(text, self.config);
         let Ok(tokens) = lexer.tokenise_all() else {
             return Vec::new();
         };
@@ -658,7 +684,7 @@ impl CfgBuilder {
             }
             // Inner text of `[...]`, re-lexed for word extraction.
             let inner = sm.token_text(*tok);
-            let words = words_from_text(inner);
+            let words = words_from_text_with_config(inner, self.config);
             if let Some(cmd) = words.first()
                 && let Some(info) = self.upvar_procs.get(cmd.as_str())
             {
@@ -724,7 +750,7 @@ impl CfgBuilder {
         }
 
         let sm = SourceMap::new(text);
-        let lexer = Lexer::new(text);
+        let lexer = Lexer::with_config(text, self.config);
         let Ok(tokens) = lexer.tokenise_all() else {
             return Vec::new();
         };
@@ -735,7 +761,7 @@ impl CfgBuilder {
                 continue;
             }
             let inner = sm.token_text(*tok);
-            let words = words_from_text(inner);
+            let words = words_from_text_with_config(inner, self.config);
             if let Some(cmd) = words.first()
                 && let Some(info) = self.global_write_procs.get(cmd.as_str())
             {
@@ -846,14 +872,14 @@ impl CfgBuilder {
     /// propagation pass treats the substitution as a kill-site for them. Only
     /// literal targets are returned — a `$`-substituted or computed target name
     /// is not statically known. Recurses into nested substitutions.
-    fn builtin_write_defs_from_text(text: &str) -> Vec<String> {
+    fn builtin_write_defs_from_text(text: &str, config: tcl_lexer::LexerConfig) -> Vec<String> {
         use tcl_lexer::{Lexer, SourceMap, TokenType};
 
         if !text.contains('[') {
             return Vec::new();
         }
         let sm = SourceMap::new(text);
-        let Ok(tokens) = Lexer::new(text).tokenise_all() else {
+        let Ok(tokens) = Lexer::with_config(text, config).tokenise_all() else {
             return Vec::new();
         };
 
@@ -873,7 +899,7 @@ impl CfgBuilder {
                 continue;
             }
             let inner = sm.token_text(*tok);
-            let words = words_from_text(inner);
+            let words = words_from_text_with_config(inner, config);
             let Some(cmd) = words.first().map(String::as_str) else {
                 continue;
             };
@@ -895,7 +921,7 @@ impl CfgBuilder {
                 }
             }
             // Nested substitutions inside this one (`[set y [incr x]]`).
-            for d in Self::builtin_write_defs_from_text(inner) {
+            for d in Self::builtin_write_defs_from_text(inner, config) {
                 record(Some(&d), &mut defs);
             }
         }
@@ -1741,7 +1767,30 @@ pub fn prepare_cfg_context(module: &Module) -> CfgContext {
 /// [`prepare_cfg_context`] for the per-module scan.
 #[must_use]
 pub fn build_cfg(module: &Module, defer_top_level: bool) -> CfgModule {
-    build_cfg_inner(module, defer_top_level, true)
+    // The module carries its dialect *name*; resolve it once through the
+    // grammar owner so a host or test that builds a CFG straight from a
+    // module still lexes its bodies under the module's grammar. A caller
+    // holding the document's config uses `build_cfg_with_config`.
+    build_cfg_inner(
+        module,
+        defer_top_level,
+        true,
+        tcl_lexer::LexerConfig::from_grammar(tcl_dialect::grammar_of_dialect_name(
+            module.dialect.as_deref(),
+        )),
+    )
+}
+
+/// [`build_cfg`] with the document's own [`tcl_lexer::LexerConfig`], threaded
+/// into every embedded-`[…]` re-lex the builder performs (see
+/// [`CfgBuilder::config`]).
+#[must_use]
+pub fn build_cfg_with_config(
+    module: &Module,
+    defer_top_level: bool,
+    config: tcl_lexer::LexerConfig,
+) -> CfgModule {
+    build_cfg_inner(module, defer_top_level, true, config)
 }
 
 /// Build CFGs for codegen (bytecode / WASM): the plain, byte-identical loop /
@@ -1753,10 +1802,34 @@ pub fn build_cfg(module: &Module, defer_top_level: bool) -> CfgModule {
 /// bytecode / CFG shape identical to the unannotated source.
 #[must_use]
 pub fn build_cfg_codegen(module: &Module, defer_top_level: bool) -> CfgModule {
-    build_cfg_inner(module, defer_top_level, false)
+    // See `build_cfg`: the module's dialect name resolves once through the
+    // grammar owner.
+    build_cfg_inner(
+        module,
+        defer_top_level,
+        false,
+        tcl_lexer::LexerConfig::from_grammar(tcl_dialect::grammar_of_dialect_name(
+            module.dialect.as_deref(),
+        )),
+    )
 }
 
-fn build_cfg_inner(module: &Module, defer_top_level: bool, faithful: bool) -> CfgModule {
+/// [`build_cfg_codegen`] with the document's own [`tcl_lexer::LexerConfig`].
+#[must_use]
+pub fn build_cfg_codegen_with_config(
+    module: &Module,
+    defer_top_level: bool,
+    config: tcl_lexer::LexerConfig,
+) -> CfgModule {
+    build_cfg_inner(module, defer_top_level, false, config)
+}
+
+fn build_cfg_inner(
+    module: &Module,
+    defer_top_level: bool,
+    faithful: bool,
+    config: tcl_lexer::LexerConfig,
+) -> CfgModule {
     let (upvar_procs, proc_params, global_write_procs) = prepare_cfg_context(module);
 
     let new_builder = |inline: bool| {
@@ -1765,7 +1838,8 @@ fn build_cfg_inner(module: &Module, defer_top_level: bool, faithful: bool) -> Cf
             upvar_procs.clone(),
             proc_params.clone(),
             global_write_procs.clone(),
-        );
+        )
+        .with_lexer_config(config);
         if faithful {
             b.with_faithful_exceptions()
         } else {
@@ -1792,43 +1866,47 @@ fn build_cfg_inner(module: &Module, defer_top_level: bool, faithful: bool) -> Cf
 /// invalidation pass — use [`build_cfg`] when a whole module is
 /// available and call-site def invalidation matters.
 #[must_use]
-pub fn build_cfg_function(name: &str, script: &Script, inline_loops: bool) -> Function {
-    let mut builder = CfgBuilder::new(inline_loops);
+pub fn build_cfg_function(
+    name: &str,
+    script: &Script,
+    inline_loops: bool,
+    config: tcl_lexer::LexerConfig,
+) -> Function {
+    let mut builder = CfgBuilder::new(inline_loops).with_lexer_config(config);
     builder.build_function(name, script)
 }
 
 /// Build a CFG for a single script body with an explicit upvar
-/// context (from [`prepare_cfg_context`]). Used for `TclOO` method
-/// bodies, which are lowered to their own [`Function`]s
-/// outside [`build_cfg`] (methods are deliberately excluded from
-/// [`CfgModule::procedures`] — codegen never emits them) but still
-/// need the same call-site def invalidation as procs.
+/// context (from [`prepare_cfg_context`]), reading every embedded `[…]`
+/// substitution under the document's own [`tcl_lexer::LexerConfig`].
 ///
-/// The maps usually come straight from [`prepare_cfg_context`] (default
-/// hasher); the signature is generalised over `BuildHasher` and rehashes
-/// into the builder's default-hashed maps on entry.
+/// Used for `TclOO` method bodies, which are lowered to their own
+/// [`Function`]s outside [`build_cfg`] (methods are deliberately excluded
+/// from [`CfgModule::procedures`] — codegen never emits them) but still
+/// need the same call-site def invalidation as procs.
 #[must_use]
-pub fn build_cfg_function_with_upvars<S1, S2, S3>(
+pub fn build_cfg_function_with_upvars_and_config<S1, S2, S3>(
     name: &str,
     script: &Script,
     inline_loops: bool,
     upvar_procs: HashMap<String, UpvarInfo, S1>,
     proc_params: HashMap<String, Vec<String>, S2>,
     global_write_procs: HashMap<String, GlobalWriteInfo, S3>,
+    config: tcl_lexer::LexerConfig,
 ) -> Function
 where
     S1: std::hash::BuildHasher,
     S2: std::hash::BuildHasher,
     S3: std::hash::BuildHasher,
 {
-    // Rehash into the builder's default-hashed maps (cheap, once per function).
     let upvar_procs: HashMap<String, UpvarInfo> = upvar_procs.into_iter().collect();
     let proc_params: HashMap<String, Vec<String>> = proc_params.into_iter().collect();
     let global_write_procs: HashMap<String, GlobalWriteInfo> =
         global_write_procs.into_iter().collect();
     let mut builder =
         CfgBuilder::new_with_upvars(inline_loops, upvar_procs, proc_params, global_write_procs)
-            .with_faithful_exceptions();
+            .with_faithful_exceptions()
+            .with_lexer_config(config);
     builder.build_function(name, script)
 }
 
@@ -2284,11 +2362,11 @@ pub(crate) fn switch_escaping_jumps(stmt: &Statement, depth: u32) -> (bool, bool
 /// runtime-computed list is never claimed non-empty.  `foreach` stores a braced
 /// list with its outer braces stripped (`{1 2 3}` → `1 2 3`), so a literal
 /// splits directly.
-fn list_literal_nonempty(text: &str) -> bool {
+fn list_literal_nonempty(text: &str, rules: tcl_syntax::word_rules::WordValueRules) -> bool {
     if text.is_empty() || text.contains('$') || text.contains('[') {
         return false;
     }
-    !crate::tcl_expr_eval::split_tcl_list(text).is_empty()
+    !crate::tcl_expr_eval::split_tcl_list(text, rules).is_empty()
 }
 
 /// True when a `foreach`/`lmap` provably iterates ≥1 time.
@@ -2296,13 +2374,16 @@ fn list_literal_nonempty(text: &str) -> bool {
 /// `foreach` runs `max` over its iterator groups, so *any* non-empty iterator
 /// list guarantees at least one iteration (shorter lists just pad their loop
 /// vars with `""`).
-pub(crate) fn foreach_runs_at_least_once(stmt: &Statement) -> bool {
+pub(crate) fn foreach_runs_at_least_once(
+    stmt: &Statement,
+    rules: tcl_syntax::word_rules::WordValueRules,
+) -> bool {
     let Statement::Foreach { iterators, .. } = stmt else {
         return false;
     };
     iterators
         .iter()
-        .any(|it| list_literal_nonempty(&it.list_arg))
+        .any(|it| list_literal_nonempty(&it.list_arg, rules))
 }
 
 impl CfgBuilder {
@@ -2433,11 +2514,17 @@ fn is_catchable_throw(command: &str) -> bool {
 /// [`crate::naming::normalise_var_name`].
 ///
 /// Returns an empty list when the text fails to lex.
-pub(super) fn words_from_text(text: &str) -> Vec<String> {
+/// `config` is the document's own [`tcl_lexer::LexerConfig`] — where the word
+/// boundaries fall is a dialect fact (`}{` under iRules, `$(…)` under Jim,
+/// `{*}` from 8.5 on).
+pub(super) fn words_from_text_with_config(
+    text: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Vec<String> {
     use tcl_lexer::{Lexer, SourceMap, TokenType};
 
     let sm = SourceMap::new(text);
-    let lexer = Lexer::new(text);
+    let lexer = Lexer::with_config(text, config);
     let Ok(tokens) = lexer.tokenise_all() else {
         return Vec::new();
     };
@@ -2702,7 +2789,12 @@ mod tests {
 
     #[test]
     fn empty_script_produces_entry_exit() {
-        let func = build_cfg_function("::test", &Script::new(), true);
+        let func = build_cfg_function(
+            "::test",
+            &Script::new(),
+            true,
+            tcl_lexer::LexerConfig::default(),
+        );
         assert_eq!(func.name, "::test");
         assert!(func.blocks.contains_key(&func.entry));
         // entry → exit
@@ -2727,7 +2819,7 @@ mod tests {
                 value_span: None,
             },
         ]);
-        let func = build_cfg_function("::test", &script, true);
+        let func = build_cfg_function("::test", &script, true, tcl_lexer::LexerConfig::default());
         // Entry block should have both statements.
         let entry = &func.blocks[&func.entry];
         assert_eq!(entry.statements.len(), 2);
@@ -2757,7 +2849,7 @@ mod tests {
                 value_span: None,
             },
         ]);
-        let func = build_cfg_function("::test", &script, true);
+        let func = build_cfg_function("::test", &script, true, tcl_lexer::LexerConfig::default());
         let entry = &func.blocks[&func.entry];
         // Only one statement before the return terminator.
         assert_eq!(entry.statements.len(), 1);
@@ -2789,7 +2881,7 @@ mod tests {
             else_body: None,
             else_span: None,
         }]);
-        let func = build_cfg_function("::test", &script, true);
+        let func = build_cfg_function("::test", &script, true, tcl_lexer::LexerConfig::default());
         // Should have at least: entry, if_then, if_next, if_end, exit
         assert!(func.blocks.len() >= 4);
         // Entry block should have a Branch terminator.
@@ -2842,7 +2934,7 @@ mod tests {
             raw_args: vec!["{set inner 1}".into(), "result".into()],
             tokens: None,
         }]);
-        let func = build_cfg_function("::test", &script, true);
+        let func = build_cfg_function("::test", &script, true, tcl_lexer::LexerConfig::default());
         let entry = &func.blocks[&func.entry];
         // Should have a Call to "catch" with defs.
         assert!(entry.statements.iter().any(|s| matches!(
@@ -2889,7 +2981,7 @@ mod tests {
             is_array_iteration: false,
             raw_tokens: None,
         }]);
-        let func = build_cfg_function("::test", &script, true);
+        let func = build_cfg_function("::test", &script, true, tcl_lexer::LexerConfig::default());
         let mut found_groups: Option<Vec<usize>> = None;
         for block in func.blocks.values() {
             for stmt in &block.statements {
@@ -3338,7 +3430,12 @@ mod tests {
         // the function only sees the script, not a module.
         let module = lower_module("proc setter {} { upvar 1 caller_x x }\nsetter");
         // Build only the top-level CFG via the no-context API.
-        let func = build_cfg_function("::top", &module.top_level, true);
+        let func = build_cfg_function(
+            "::top",
+            &module.top_level,
+            true,
+            tcl_lexer::LexerConfig::default(),
+        );
         let defs = find_call_defs(&func, "setter").expect("setter call should be in top-level CFG");
         assert!(
             defs.is_empty(),
@@ -3364,9 +3461,13 @@ mod tests {
         None
     }
 
+    fn words_from_text_cfg(text: &str) -> Vec<String> {
+        words_from_text_with_config(text, tcl_lexer::LexerConfig::default())
+    }
+
     #[test]
     fn words_from_text_extracts_word_list() {
-        let words = words_from_text("step 1 two");
+        let words = words_from_text_cfg("step 1 two");
         assert_eq!(
             words,
             vec!["step".to_string(), "1".to_string(), "two".to_string()],
@@ -3375,13 +3476,13 @@ mod tests {
 
     #[test]
     fn words_from_text_prefixes_dollar_for_vars() {
-        let words = words_from_text("step $varname");
+        let words = words_from_text_cfg("step $varname");
         assert_eq!(words, vec!["step".to_string(), "$varname".to_string()]);
     }
 
     #[test]
     fn words_from_text_handles_empty() {
-        assert!(words_from_text("").is_empty());
+        assert!(words_from_text_cfg("").is_empty());
     }
 
     #[test]

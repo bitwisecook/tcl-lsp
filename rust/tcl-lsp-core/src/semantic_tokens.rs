@@ -1250,10 +1250,16 @@ fn irules_top_level_declaration_heads(
     // The shared syntax boundary parser intentionally models `when`'s
     // handler-specific grammar.  Procedure declarations use the same
     // top-level lexer stream and the registry's declaration-shape owner.
+    // Deliberately the iRules grammar, whatever the document's dialect: this
+    // is the generic-Tcl fallback that keeps `when EVENT` colouring in a plain
+    // Tcl buffer. The grammar still comes from the ingress-resolved
+    // `f5-irules` environment rather than a by-name lexer preset.
     for seg in segment_commands_with_offset_and_config(
         source,
         0,
-        tcl_lexer::LexerConfig::for_file_dialect("f5-irules"),
+        tcl_lexer::LexerConfig::for_file_grammar(
+            crate::environment_for_dialect("f5-irules").grammar(),
+        ),
     ) {
         let Some(head_token) = seg.argv.first() else {
             continue;
@@ -2747,7 +2753,10 @@ fn collection_head_element_classes<'a>(
 ) -> Option<&'a std::collections::HashSet<String>> {
     use tcl_registry::types::ReturnElements;
 
-    let (cmd, args) = tcl_compiler::value_shapes::parse_command_substitution(head_text)?;
+    let (cmd, args) = tcl_compiler::value_shapes::parse_command_substitution_with_config(
+        head_text,
+        tcl_lexer::LexerConfig::for_profile(registry.profile()),
+    )?;
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
     let resolved = registry.resolve_call(&cmd, &arg_refs, None)?;
     let ReturnElements::ElementOf { container_arg } = resolved.return_elements()? else {
@@ -2876,7 +2885,10 @@ fn constructor_class_of_head<'r>(
     head_text: &str,
     registry: &'r CommandRegistry,
 ) -> Option<&'r str> {
-    let (cmd, args) = tcl_compiler::value_shapes::parse_command_substitution(head_text)?;
+    let (cmd, args) = tcl_compiler::value_shapes::parse_command_substitution_with_config(
+        head_text,
+        tcl_lexer::LexerConfig::for_profile(registry.profile()),
+    )?;
     registry.exported_manufacturer_method(&cmd, args.first()?)?;
     registry.object_class(&cmd).map(|c| c.class_name)
 }
@@ -3004,9 +3016,13 @@ fn insert_self_method_overrides(
     // they stay matched by name here.
     let is_self_head = crate::definition::is_self_dispatch_keyword(head)
         || object_handle_name(head).is_some_and(|n| n == "self" || n == "this")
-        || tcl_compiler::value_shapes::parse_command_substitution(head).is_some_and(
-            |(cmd, args)| registry.is_self_receiver_call(&cmd, args.first().map(String::as_str)),
-        );
+        || tcl_compiler::value_shapes::parse_command_substitution_with_config(
+            head,
+            tcl_lexer::LexerConfig::for_profile(registry.profile()),
+        )
+        .is_some_and(|(cmd, args)| {
+            registry.is_self_receiver_call(&cmd, args.first().map(String::as_str))
+        });
     if !is_self_head {
         return;
     }
@@ -3032,7 +3048,10 @@ fn user_constructor_class_of_head(
     registry: &CommandRegistry,
 ) -> Option<String> {
     let hierarchy = hierarchy?;
-    let (cmd, args) = tcl_compiler::value_shapes::parse_command_substitution(head_text)?;
+    let (cmd, args) = tcl_compiler::value_shapes::parse_command_substitution_with_config(
+        head_text,
+        tcl_lexer::LexerConfig::for_profile(registry.profile()),
+    )?;
     // This layer may know the user class but not the document that established
     // its metaclass.  Use the registry's conservative exported-manufacturer
     // union: ambiguity abstains, while a new family automatically widens the
@@ -5550,7 +5569,14 @@ fn scan_loop_vars(
         base_offset,
         tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar).at_depth(depth),
     ) {
-        bind_loop_vars_for_call(full_source, &seg, registry, collections, handles);
+        bind_loop_vars_for_call(
+            full_source,
+            &seg,
+            registry,
+            tcl_syntax::word_rules::WordValueRules::of_profile(Some(dialect)),
+            collections,
+            handles,
+        );
         // Recurse into braced-script words (loop bodies, proc / method / class
         // bodies, `namespace eval` blocks, `if`/`switch` arms, …) and into
         // `[…]` command substitutions (a loop can be `return [dict map …]`).
@@ -5674,7 +5700,10 @@ fn bind_object_handle(
         tcl_registry::HandleClassSource::ConstructionValue(_) => {
             let Some(hierarchy) = classes else { return };
             let Some((cmd, args)) =
-                tcl_compiler::value_shapes::parse_command_substitution(bound.class_word)
+                tcl_compiler::value_shapes::parse_command_substitution_with_config(
+                    bound.class_word,
+                    tcl_lexer::LexerConfig::for_profile(registry.profile()),
+                )
             else {
                 return;
             };
@@ -5790,6 +5819,7 @@ fn bind_loop_vars_for_call(
     source: &str,
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
+    rules: tcl_syntax::word_rules::WordValueRules,
     collections: &ObjectClassMap,
     handles: &mut ObjectClassMap,
 ) {
@@ -5812,7 +5842,7 @@ fn bind_loop_vars_for_call(
         };
         // Segment text is not a Tcl list parser. Prove the word is static,
         // then use the shared Tcl list grammar; malformed values abstain.
-        let Some(var_names) = static_loop_var_names(source, seg, idx + 1) else {
+        let Some(var_names) = static_loop_var_names(source, seg, idx + 1, rules) else {
             continue;
         };
         let keyed = registry
@@ -5837,6 +5867,7 @@ fn static_loop_var_names(
     source: &str,
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     word_index: usize,
+    rules: tcl_syntax::word_rules::WordValueRules,
 ) -> Option<Vec<String>> {
     if seg.is_partial || seg.single_token_word.get(word_index) != Some(&true) {
         return None;
@@ -5864,7 +5895,7 @@ fn static_loop_var_names(
         tcl_syntax::list::find_element(raw, 0).ok()??;
     }
     let text = seg.texts.get(word_index)?;
-    tcl_syntax::list::split_list(text).ok().map(|elements| {
+    rules.split_list(text).ok().map(|elements| {
         elements
             .into_iter()
             .map(std::borrow::Cow::into_owned)
@@ -10972,7 +11003,12 @@ mod tests {
                 .into_iter()
                 .next()
                 .expect("one command");
-            static_loop_var_names(src, &command, 1)
+            static_loop_var_names(
+                src,
+                &command,
+                1,
+                tcl_syntax::word_rules::WordValueRules::default(),
+            )
         };
 
         assert_eq!(

@@ -216,7 +216,11 @@ fn handle_eval(
     for ref_ in scanner.scan_word(&body, registry) {
         state.escape(&ref_, defs);
     }
-    let sub_module = crate::lowering::lower_to_ir(&body, registry);
+    let sub_module = crate::lowering::lower_to_ir_with_config(
+        &body,
+        registry,
+        tcl_lexer::LexerConfig::for_profile(registry.profile()),
+    );
     escape_every_name_touched_tree(&sub_module.top_level.statements, state, defs, registry);
 }
 
@@ -246,7 +250,11 @@ fn handle_catch(
     for ref_ in scanner.scan_word(body, registry) {
         state.escape(&ref_, defs);
     }
-    let sub_module = crate::lowering::lower_to_ir(body, registry);
+    let sub_module = crate::lowering::lower_to_ir_with_config(
+        body,
+        registry,
+        tcl_lexer::LexerConfig::for_profile(registry.profile()),
+    );
     escape_every_name_touched_tree(&sub_module.top_level.statements, state, defs, registry);
 }
 
@@ -843,7 +851,12 @@ mod tests {
     fn analyse(src: &str) -> CfgEscapeResult {
         let registry = CommandRegistry::build_default();
         let m = lower_to_ir(src, &registry);
-        let cfg = build_cfg_function("::top", &m.top_level, true);
+        let cfg = build_cfg_function(
+            "::top",
+            &m.top_level,
+            true,
+            tcl_lexer::LexerConfig::default(),
+        );
         let ssa = build_ssa(&cfg, &registry);
         analyse_cfg_function(&cfg, &ssa, std::iter::empty::<String>())
     }

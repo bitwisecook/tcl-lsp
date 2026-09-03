@@ -495,7 +495,9 @@ pub(in crate::analyser) fn emit_invalid_formal_parameter_list_diagnostics(
         if !literal {
             continue;
         }
-        let Err(error) = crate::signature_scan::params::parse_param_list_strict(params) else {
+        let Err(error) =
+            crate::signature_scan::params::parse_param_list_strict(params, analyser.word_rules())
+        else {
             continue;
         };
         let span = super::super::utils::full_word_span(*token, &analyser.source);
@@ -537,13 +539,15 @@ pub(in crate::analyser) fn emit_invalid_lambda_parameter_list_diagnostics(
         if token.kind != tcl_lexer::TokenType::Str {
             continue;
         }
-        let Ok(fields) = tcl_syntax::list::split_list(lambda) else {
+        let word_rules = analyser.word_rules();
+        let Ok(fields) = word_rules.split_list(lambda) else {
             continue;
         };
         let Some(params) = fields.first() else {
             continue;
         };
-        let Err(error) = crate::signature_scan::params::parse_param_list_strict(params) else {
+        let Err(error) = crate::signature_scan::params::parse_param_list_strict(params, word_rules)
+        else {
             continue;
         };
         let span = super::super::utils::full_word_span(*token, &analyser.source);
@@ -2229,7 +2233,8 @@ impl Analyser {
         let Some((_, params_text)) = elements.first() else {
             return;
         };
-        let params = crate::signature_scan::params::parse_param_list(params_text);
+        let params =
+            crate::signature_scan::params::parse_param_list(params_text, self.word_rules());
         let arity = crate::signature_scan::arity::arity_of(&params);
         // Positional count starts *after* the lambda literal (index 1).
         let (nargs_min, positional_any_expand) = count_positionals(args, arg_expand, 1);
@@ -4757,9 +4762,12 @@ pub(super) fn last_literal_set_value_for_var(
             && cmd.texts.len() >= 4
             && cmd.texts[2].contains(var_name)
         {
-            let shadows = crate::tcl_expr_eval::split_tcl_list(&cmd.texts[2])
-                .iter()
-                .any(|el| el.split_whitespace().next() == Some(var_name));
+            let shadows = crate::tcl_expr_eval::split_tcl_list(
+                &cmd.texts[2],
+                tcl_syntax::word_rules::WordValueRules::from_config(&config),
+            )
+            .iter()
+            .any(|el| el.split_whitespace().next() == Some(var_name));
             if shadows {
                 return None;
             }

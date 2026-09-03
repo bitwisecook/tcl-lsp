@@ -124,6 +124,8 @@ fn statements(source: &str, base_line: u32) -> Result<Vec<Stmt>, DslError> {
         });
     }
     let source_map = SourceMap::new(source);
+    // dialect-drift-ok: the SslicTcl declarative DSL, not a Tcl document — a
+    // fixed vocabulary that forbids substitution and has no dialect axis.
     let (document, warnings) = build_document(source, LexerConfig::default());
     let mut line_starts = vec![0];
     for (offset, byte) in source.bytes().enumerate() {

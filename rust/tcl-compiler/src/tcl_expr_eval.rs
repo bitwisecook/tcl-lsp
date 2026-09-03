@@ -143,7 +143,14 @@ pub type Env = HashMap<String, EnvValue>;
 pub fn eval_tcl_expr(node: &ExprNode, env: &Env) -> Option<TclValue> {
     // No dialect context: decline the iRules word-operator fold rather than
     // assume plain Tcl (safe — see `FoldOps::is_irules`).
-    eval_with_config(node, env, None, None, false)
+    eval_with_config(
+        node,
+        env,
+        None,
+        None,
+        false,
+        tcl_syntax::word_rules::WordValueRules::default(),
+    )
 }
 
 /// Like [`eval_tcl_expr`] but resolves the *dialect* so a leading-zero decimal
@@ -167,6 +174,7 @@ pub fn eval_tcl_expr_in_dialect(
         leading_zero_is_octal(dialect),
         math_func_ceiling_for_dialect(dialect),
         dialect.is_irules(),
+        tcl_syntax::word_rules::WordValueRules::of_profile(Some(dialect)),
     )
 }
 
@@ -188,7 +196,14 @@ pub fn eval_tcl_expr_with_octal(
     // The caller has resolved the octal policy but not a dialect string, so
     // (as with `eval_tcl_expr`) decline the iRules word-operator fold rather
     // than assume plain Tcl.
-    eval_with_config(node, env, octal, None, false)
+    eval_with_config(
+        node,
+        env,
+        octal,
+        None,
+        false,
+        tcl_syntax::word_rules::WordValueRules::default(),
+    )
 }
 
 /// Like [`eval_tcl_expr_with_octal`] but for the (more common) optimiser call
@@ -203,7 +218,7 @@ pub fn eval_tcl_expr_with_octal_and_dialect(
     node: &ExprNode,
     env: &Env,
     octal: Option<bool>,
-    profile: Option<&tcl_dialect::DialectProfile>,
+    profile: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Option<TclValue> {
     eval_tcl_expr_with_policy(node, env, FoldPolicy::for_profile(octal, profile))
 }
@@ -224,6 +239,10 @@ pub struct FoldPolicy {
     /// `Some(false)` = the 9.0 decimal rule, `None` = decline to fold a
     /// dialect-ambiguous leading-zero operand.
     pub octal: Option<bool>,
+    /// The active dialect's profile, for the passes that re-parse a nested
+    /// `[expr …]` while folding: the parse must use the same grammar the
+    /// document was lexed under, never the ambient one.
+    pub dialect: Option<&'static tcl_dialect::DialectProfile>,
     /// Whether the active dialect's `expr` grammar has the iRules word
     /// operators.  `false` (the default) declines that fold, which is always
     /// safe — see [`FoldOps::is_irules`].
@@ -242,6 +261,12 @@ pub struct FoldPolicy {
     /// does (9.0+), and whether `_` separators do (9.0+) — so folding `0o17`
     /// for an 8.4 target correctly yields nothing.
     pub numbers: Option<NumberSyntax>,
+    /// The active dialect's word-value rules — how a word-shaped list of this
+    /// document divides, and whether a braced `\<newline>` folds.  Carried
+    /// beside the numeral axis for the same reason: a fold that re-splits a
+    /// literal list must split it the way the document's own list parser
+    /// does.  Defaults to C Tcl for a caller with no dialect.
+    pub word_rules: tcl_syntax::word_rules::WordValueRules,
 }
 
 impl FoldPolicy {
@@ -250,10 +275,12 @@ impl FoldPolicy {
     #[must_use]
     pub const fn from_octal(octal: Option<bool>) -> Self {
         Self {
+            dialect: None,
             octal,
             is_irules: false,
             characters: None,
             numbers: None,
+            word_rules: tcl_syntax::word_rules::WordValueRules::TCL,
         }
     }
 
@@ -261,12 +288,17 @@ impl FoldPolicy {
     /// alias handling happen before this point, so every fact comes from one
     /// canonical profile.
     #[must_use]
-    pub fn for_profile(octal: Option<bool>, profile: Option<&tcl_dialect::DialectProfile>) -> Self {
+    pub fn for_profile(
+        octal: Option<bool>,
+        profile: Option<&'static tcl_dialect::DialectProfile>,
+    ) -> Self {
         Self {
             octal,
+            dialect: profile,
             is_irules: profile.is_some_and(tcl_dialect::DialectProfile::is_irules),
             characters: profile.and_then(tcl_dialect::DialectProfile::character_model),
             numbers: profile.map(|p| NumberSyntax::of_profile(Some(p))),
+            word_rules: tcl_syntax::word_rules::WordValueRules::of_profile(profile),
         }
     }
 
@@ -277,11 +309,13 @@ impl FoldPolicy {
     pub fn from_registry(registry: &tcl_registry::CommandRegistry) -> Self {
         Self {
             octal: registry.octal_fold_policy(),
+            dialect: registry.profile(),
             is_irules: registry
                 .profile()
                 .is_some_and(tcl_dialect::DialectProfile::is_irules),
             characters: registry.character_model(),
             numbers: Some(registry.numbers()),
+            word_rules: tcl_syntax::word_rules::WordValueRules::of_profile(registry.profile()),
         }
     }
 }
@@ -294,7 +328,14 @@ pub fn eval_tcl_expr_with_policy(
     env: &Env,
     policy: FoldPolicy,
 ) -> Option<TclValue> {
-    eval_with_config(node, env, policy.octal, None, policy.is_irules)
+    eval_with_config(
+        node,
+        env,
+        policy.octal,
+        None,
+        policy.is_irules,
+        policy.word_rules,
+    )
 }
 
 /// Parse one Tcl expression arithmetic operand as an integer under `policy`.
@@ -394,6 +435,7 @@ fn eval_with_config(
     octal: Option<bool>,
     math_since: Option<tcl_syntax::expr::mathfunc::MathFuncSince>,
     is_irules: bool,
+    word_rules: tcl_syntax::word_rules::WordValueRules,
 ) -> Option<TclValue> {
     let mut ops = FoldOps {
         env,
@@ -409,6 +451,7 @@ fn eval_with_config(
         },
         math_since,
         is_irules,
+        word_rules,
     };
     // The final value must reduce to a number (a bare string like `expr {"x"}`
     // doesn't fold) — `to_number` maps a `Str` result through `parse_literal`.
@@ -503,6 +546,10 @@ struct FoldOps<'a> {
     /// `false` — including when the dialect is genuinely unknown — declines
     /// the fold; that is always safe, it just forgoes an optimisation.
     is_irules: bool,
+    /// The active dialect's word-value rules — how a list-shaped value
+    /// divides.  `in` / `ni` membership and the `llength` folds split a list
+    /// here, so they must split it the way the document's own runtime does.
+    word_rules: tcl_syntax::word_rules::WordValueRules,
 }
 
 /// A comparison operand's numeric classification under the active dialect.
@@ -736,7 +783,7 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
     }
     fn in_list(&mut self, needle: &FoldValue, list: &FoldValue) -> Result<bool, ()> {
         let n = needle.to_string_val();
-        Ok(split_tcl_list(&list.to_string_val()).contains(&n))
+        Ok(split_tcl_list(&list.to_string_val(), self.word_rules).contains(&n))
     }
 
     fn to_bool(&mut self, value: &FoldValue) -> Result<bool, ()> {
@@ -1306,14 +1353,22 @@ fn tcl_pow(a: &TclValue, b: &TclValue) -> Option<TclValue> {
 
 /// Split a Tcl list string into its decoded element values.
 ///
-/// A thin wrapper over the shared list grammar
-/// [`tcl_syntax::list::split_list_lenient`]: membership (`in` / `ni`) compares
-/// against decoded element values, and element *counts* (`llength` folds) need
-/// the full grammar so an escaped separator like `a\ b` counts as one element.
-/// Tolerant of a malformed tail so folding a partial list still yields a
-/// best-effort element list rather than nothing.
-pub(crate) fn split_tcl_list(text: &str) -> Vec<String> {
-    tcl_syntax::list::split_list_lenient(text)
+/// A thin wrapper over the word-value owner's tolerant split
+/// ([`tcl_syntax::word_rules::WordValueRules::split_list_tolerant`]):
+/// membership (`in` / `ni`) compares against decoded element values, and
+/// element *counts* (`llength` folds) need the full grammar so an escaped
+/// separator like `a\ b` counts as one element.  Tolerant of a malformed tail
+/// so folding a partial list still yields a best-effort element list rather
+/// than nothing.
+///
+/// `rules` are the document dialect's word-value rules, so a `JimTcl`
+/// document's list divides the way its own runtime divides it.
+pub(crate) fn split_tcl_list(
+    text: &str,
+    rules: tcl_syntax::word_rules::WordValueRules,
+) -> Vec<String> {
+    rules
+        .split_list_tolerant(text)
         .into_iter()
         .map(std::borrow::Cow::into_owned)
         .collect()
@@ -2186,12 +2241,21 @@ mod tests {
 
     #[test]
     fn split_tcl_list_handles_braces_and_quotes() {
-        assert_eq!(split_tcl_list("a b c"), vec!["a", "b", "c"]);
         assert_eq!(
-            split_tcl_list("{hello world} foo"),
+            split_tcl_list("a b c", tcl_syntax::word_rules::WordValueRules::default()),
+            vec!["a", "b", "c"]
+        );
+        assert_eq!(
+            split_tcl_list(
+                "{hello world} foo",
+                tcl_syntax::word_rules::WordValueRules::default()
+            ),
             vec!["hello world", "foo"]
         );
-        assert_eq!(split_tcl_list(""), Vec::<String>::new());
+        assert_eq!(
+            split_tcl_list("", tcl_syntax::word_rules::WordValueRules::default()),
+            Vec::<String>::new()
+        );
     }
 
     #[test]

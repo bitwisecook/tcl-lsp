@@ -194,7 +194,13 @@ fn analyse_file(
         let ns = NsContext::from_result(&result);
         // Resolve against the merged (cross-file) index — matches the FULL
         // config that produced the 81 % ⊤-rate.
-        let values = class_values(&cu, merged, &ns, &AblationConfig::full());
+        let values = class_values(
+            &cu,
+            merged,
+            &ns,
+            &AblationConfig::full(),
+            tcl_lexer::LexerConfig::default(),
+        );
         // Build proc + method scopes.
         let mut scopes = Vec::new();
         for (qname, pd) in &result.all_procs {
@@ -468,8 +474,14 @@ fn receiver_taxonomy(
 
     for u in units {
         // Resolve every site in the file once (not per-site).
-        let (reports, _stats) =
-            analyse_dispatch(&u.cu, merged, &u.sites, &u.ns, &AblationConfig::full());
+        let (reports, _stats) = analyse_dispatch(
+            &u.cu,
+            merged,
+            &u.sites,
+            &u.ns,
+            &AblationConfig::full(),
+            tcl_lexer::LexerConfig::default(),
+        );
         for rep in &reports {
             if !matches!(rep.verdict, DispatchVerdict::Abstain(TopReason::Unknown)) {
                 continue;

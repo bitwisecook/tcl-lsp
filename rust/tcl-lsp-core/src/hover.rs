@@ -275,8 +275,12 @@ fn ensemble_subcommand_hover(
     analysis: &AnalysisResult,
     ctx: crate::definition::CallResolution<'_>,
 ) -> Option<Hover> {
-    let (head, sub, is_dollar) =
-        crate::definition::instance_method_at_cursor(source, line, character)?;
+    let (head, sub, is_dollar) = crate::definition::instance_method_at_cursor(
+        source,
+        line,
+        character,
+        crate::definition::dialect_config(analysis),
+    )?;
     if is_dollar {
         return None;
     }
@@ -3696,10 +3700,13 @@ fn method_dispatch_hover(
     // instance's class is known, render the method summary.
     // Checked before the proc lookup so a method call wins over
     // a same-named proc.
-    if let Some((inst, method, is_dollar)) =
-        crate::definition::instance_method_at_cursor(source, line, character)
-        && let Some(class_q) =
-            crate::definition::receiver_instance_class(analysis, &inst, is_dollar)
+    if let Some((inst, method, is_dollar)) = crate::definition::instance_method_at_cursor(
+        source,
+        line,
+        character,
+        tcl_lexer::LexerConfig::for_profile(Some(profile)),
+    ) && let Some(class_q) =
+        crate::definition::receiver_instance_class(analysis, &inst, is_dollar)
         && let Some(text) =
             obj_method_hover_text(analysis, class_q, &method, true, registry, profile)
     {
@@ -3719,9 +3726,12 @@ fn method_dispatch_hover(
     // there — but tracing it uncovered this genuinely CONFIRMED gap on the
     // exact same class, reproducing identically whether or not the class
     // is split across a separate `oo::define` block).
-    if let Some((inst, method, _)) =
-        crate::definition::instance_method_at_cursor(source, line, character)
-        && crate::definition::is_self_dispatch_keyword(&inst)
+    if let Some((inst, method, _)) = crate::definition::instance_method_at_cursor(
+        source,
+        line,
+        character,
+        tcl_lexer::LexerConfig::for_profile(Some(profile)),
+    ) && crate::definition::is_self_dispatch_keyword(&inst)
         && let Some(class_q) = crate::definition::enclosing_class_at(analysis, cursor_offset)
         && let Some(text) =
             obj_method_hover_text(analysis, class_q, &method, false, registry, profile)

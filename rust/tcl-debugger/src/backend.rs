@@ -33,7 +33,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use tcl_compiler::cfg_builder::build_cfg_codegen as build_cfg;
+use tcl_compiler::cfg_builder::build_cfg_codegen_with_config;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect as lower_to_ir;
 use tcl_compiler::lowering::lower_to_ir_traced_with_dialect;
@@ -167,7 +167,7 @@ impl CompileService for Svc {
     type Module = tcl_bytecode::ModuleAsm;
     fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
         let ir = lower_to_ir(src, self.registry, self.config, self.dialect);
-        let cfg = build_cfg(&ir, false);
+        let cfg = build_cfg_codegen_with_config(&ir, false, self.config);
         Ok(codegen_module(&cfg, &ir, self.registry))
     }
     fn compile_for_profile(
@@ -179,7 +179,7 @@ impl CompileService for Svc {
     }
     fn compile_traced(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
         let ir = lower_to_ir_traced_with_dialect(src, self.registry, self.config, self.dialect);
-        let cfg = build_cfg(&ir, false);
+        let cfg = build_cfg_codegen_with_config(&ir, false, self.config);
         Ok(codegen_module(&cfg, &ir, self.registry))
     }
     fn compile_traced_for_profile(

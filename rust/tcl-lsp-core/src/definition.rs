@@ -257,6 +257,17 @@ pub fn definition(
     definition_with(source, line, character, analysis, None)
 }
 
+/// The document's own lexing configuration, from the analysis result's
+/// resolved dialect.
+///
+/// The cursor-shape helpers below re-read a slice of the document (a `[…]`
+/// receiver, a dispatch head), and that re-read must draw the word
+/// boundaries the document's grammar draws — `}{` breaks a word under the
+/// iRules grammar and does not under plain Tcl.
+pub(crate) fn dialect_config(analysis: &AnalysisResult) -> tcl_lexer::LexerConfig {
+    tcl_lexer::LexerConfig::for_profile(Some(crate::profile_for_dialect(&analysis.dialect)))
+}
+
 /// [`definition`] with the caller's whole-program export view attached.
 ///
 /// `program` is `None` for a host with no workspace index (a single-document
@@ -315,14 +326,15 @@ pub fn definition_with(
     // `<ensemble> <subcommand>` — a static `namespace ensemble create
     // -map`/`-subcommands` mapping (issue #923 idx 106).  Checked before the
     // generic "otherwise it is a CALL" resolution below: real Tcl never
-    // independently looks up `make` as a command (only the pair `widget
-    // make` dispatches), so a coincidental same-named proc elsewhere in the
+    // independently looks up `make` as a command (only the pair `widget make`
+    // dispatches), so a coincidental same-named proc elsewhere in the
     // workspace must never win.
-    if let Some((head, sub, false)) = instance_method_at_cursor(source, line, character) {
-        let cursor_offset = byte_offset_at(&line_index, source, line, character);
+    let config = dialect_config(analysis);
+    if let Some((head, sub, false)) = instance_method_at_cursor(source, line, character, config) {
+        // The cursor offset here is `decl_byte_offset`, already computed above.
         let namespace = namespace_context_at(
             &analysis.global_scope,
-            cursor_offset,
+            decl_byte_offset,
             &analysis.namespace_overrides,
         );
         if let Some(target) = ensemble_subcommand_target(analysis, &namespace, &head, &sub)
@@ -331,7 +343,7 @@ pub fn definition_with(
                 source,
                 "::",
                 target,
-                cursor_offset,
+                decl_byte_offset,
                 view.with_registry(crate::registry_for_dialect(&analysis.dialect)),
             )
         {
@@ -710,7 +722,8 @@ fn instance_method_definition(
     line: u32,
     character: u32,
 ) -> Option<Vec<LspRange>> {
-    let (inst, method, is_dollar) = instance_method_at_cursor(source, line, character)?;
+    let (inst, method, is_dollar) =
+        instance_method_at_cursor(source, line, character, dialect_config(analysis))?;
     // The folded per-object member state for this receiver binding, when
     // `oo::objdefine` gave it one (issue #1170) — carries the per-object
     // visibility flips the throwaway walk used to drop.
@@ -737,7 +750,14 @@ fn instance_method_definition(
     // `my m` / `[self] m` / `[self object] m` — an internal call: dispatch
     // starts at the *enclosing* class and reaches unexported methods too
     // (issue #945 fault 4; issue #1322 for the `[self]` spellings).
-    if is_self_dispatch_keyword(&inst) || is_self_receiver_call(&inst) {
+    if is_self_dispatch_keyword(&inst)
+        || is_self_receiver_call(
+            &inst,
+            tcl_lexer::LexerConfig::for_profile(Some(crate::profile_for_dialect(
+                &analysis.dialect,
+            ))),
+        )
+    {
         let cursor = byte_offset_at(line_index, source, line, character);
         if let Some(class_q) = enclosing_class_at(analysis, cursor) {
             return Some(method_dispatch_definition(
@@ -949,11 +969,19 @@ pub fn object_masks_external_dispatch(
     line: u32,
     character: u32,
 ) -> bool {
-    let Some((inst, method, _is_dollar)) = instance_method_at_cursor(source, line, character)
+    let Some((inst, method, _is_dollar)) =
+        instance_method_at_cursor(source, line, character, dialect_config(analysis))
     else {
         return false;
     };
-    if is_self_dispatch_keyword(&inst) || is_self_receiver_call(&inst) {
+    if is_self_dispatch_keyword(&inst)
+        || is_self_receiver_call(
+            &inst,
+            tcl_lexer::LexerConfig::for_profile(Some(crate::profile_for_dialect(
+                &analysis.dialect,
+            ))),
+        )
+    {
         return false;
     }
     let Some(st) = object_member_state_at(analysis, source, &inst, line, character) else {
@@ -1138,8 +1166,10 @@ pub(crate) fn is_self_dispatch_keyword(word: &str) -> bool {
 /// than matching `receiver` by name — `receiver` is parsed generically as a
 /// command substitution first, so this answers `false` for any receiver
 /// that isn't even bracket-shaped without special-casing that here either.
-pub(crate) fn is_self_receiver_call(receiver: &str) -> bool {
-    let Some((cmd, args)) = tcl_compiler::value_shapes::parse_command_substitution(receiver) else {
+pub(crate) fn is_self_receiver_call(receiver: &str, config: tcl_lexer::LexerConfig) -> bool {
+    let Some((cmd, args)) =
+        tcl_compiler::value_shapes::parse_command_substitution_with_config(receiver, config)
+    else {
         return false;
     };
     crate::registry_for_dialect("").is_self_receiver_call(&cmd, args.first().map(String::as_str))
@@ -1332,6 +1362,7 @@ pub(crate) fn instance_method_at_cursor(
     source: &str,
     line: u32,
     character: u32,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<(String, String, bool)> {
     let line_text = source.split('\n').nth(line as usize)?;
     let chars: Vec<char> = line_text.chars().collect();
@@ -1375,15 +1406,18 @@ pub(crate) fn instance_method_at_cursor(
     // `split_whitespace`, which would otherwise split it in two.
     let prefix: String = chars[seg_start..wstart].iter().collect();
     let trimmed = prefix.trim();
-    let head = if tcl_compiler::value_shapes::parse_command_substitution(trimmed).is_some() {
-        trimmed
-    } else {
-        let head_tokens: Vec<&str> = prefix.split_whitespace().collect();
-        if head_tokens.len() != 1 {
-            return None;
-        }
-        head_tokens[0]
-    };
+    let head =
+        if tcl_compiler::value_shapes::parse_command_substitution_with_config(trimmed, config)
+            .is_some()
+        {
+            trimmed
+        } else {
+            let head_tokens: Vec<&str> = prefix.split_whitespace().collect();
+            if head_tokens.len() != 1 {
+                return None;
+            }
+            head_tokens[0]
+        };
     if head.starts_with('$') {
         // `$var` / `${var}` receiver — a variable holding an object.
         // `var_reference` deliberately leaves an unclosed `${x` decorated,
@@ -1393,7 +1427,9 @@ pub(crate) fn instance_method_at_cursor(
             return None;
         }
         Some((inst.to_string(), method, true))
-    } else if tcl_compiler::value_shapes::parse_command_substitution(head).is_some() {
+    } else if tcl_compiler::value_shapes::parse_command_substitution_with_config(head, config)
+        .is_some()
+    {
         // A well-formed single command substitution (`[cmd ?args?]`) — e.g.
         // `TclOO`'s `[self]`/`[self object]`, a receiver the registry
         // resolves at compile time regardless of the object's runtime name
@@ -2492,8 +2528,11 @@ pub(crate) fn parameter_list_position_at(
     source: &str,
     off: u32,
 ) -> ParamListPosition {
+    // The parameter-list word divides under the document's own grammar, the
+    // same one every other provider in this module reads off the analysis.
+    let config = dialect_config(analysis);
     let classify = |name_span: tcl_lexer::Span, body_span: tcl_lexer::Span| {
-        param_word_position(source, name_span.end(), body_span.start(), off)
+        param_word_position(source, name_span.end(), body_span.start(), off, config)
     };
     let routines = analysis
         .all_procs
@@ -2521,6 +2560,7 @@ fn param_word_position(
     region_start: u32,
     region_end: u32,
     off: u32,
+    config: tcl_lexer::LexerConfig,
 ) -> ParamListPosition {
     let (start, end, off) = (region_start as usize, region_end as usize, off as usize);
     if start > end || off < start || off >= end || end > source.len() {
@@ -2548,7 +2588,7 @@ fn param_word_position(
     // character scan this replaced called the substitution-free quoted list
     // `proc r "m n" {…}` computed, while the analyser — correctly, per the
     // oracle (`info args r` → `m n`) — treated it as literal.
-    if tcl_compiler::signature_scan::params::param_word_text_is_literal(word) {
+    if tcl_compiler::signature_scan::params::param_word_text_is_literal(word, config) {
         ParamListPosition::LiteralData
     } else {
         ParamListPosition::Computed
@@ -6902,30 +6942,30 @@ mod tests {
     #[test]
     fn instance_method_at_cursor_detects_dollar_head() {
         let src = "$d bark\n";
-        let got = instance_method_at_cursor(src, 0, 4);
+        let got = instance_method_at_cursor(src, 0, 4, tcl_lexer::LexerConfig::default());
         assert_eq!(got, Some(("d".to_string(), "bark".to_string(), true)));
     }
 
     #[test]
     fn instance_method_var_decoration_vectors_keep_unclosed_braces() {
         assert_eq!(
-            instance_method_at_cursor("${x} bark\n", 0, 5),
+            instance_method_at_cursor("${x} bark\n", 0, 5, tcl_lexer::LexerConfig::default()),
             Some(("x".to_string(), "bark".to_string(), true))
         );
         assert_eq!(
-            instance_method_at_cursor("$x bark\n", 0, 3),
+            instance_method_at_cursor("$x bark\n", 0, 3, tcl_lexer::LexerConfig::default()),
             Some(("x".to_string(), "bark".to_string(), true))
         );
         assert_eq!(
-            instance_method_at_cursor("$arr(idx) bark\n", 0, 10),
+            instance_method_at_cursor("$arr(idx) bark\n", 0, 10, tcl_lexer::LexerConfig::default()),
             Some(("arr(idx)".to_string(), "bark".to_string(), true))
         );
         assert_eq!(
-            instance_method_at_cursor("$::a:::b bark\n", 0, 9),
+            instance_method_at_cursor("$::a:::b bark\n", 0, 9, tcl_lexer::LexerConfig::default()),
             Some(("::a:::b".to_string(), "bark".to_string(), true))
         );
         assert_eq!(
-            instance_method_at_cursor("$foo::: bark\n", 0, 9),
+            instance_method_at_cursor("$foo::: bark\n", 0, 9, tcl_lexer::LexerConfig::default()),
             Some(("foo:::".to_string(), "bark".to_string(), true))
         );
         // The malformed source is tokenised before this feature sees it;
@@ -6952,7 +6992,7 @@ mod tests {
         // class is decided later by `receiver_instance_class`.
         let src = "foo bark\n";
         assert_eq!(
-            instance_method_at_cursor(src, 0, 5),
+            instance_method_at_cursor(src, 0, 5, tcl_lexer::LexerConfig::default()),
             Some(("foo".to_string(), "bark".to_string(), false))
         );
     }
@@ -6968,7 +7008,7 @@ mod tests {
         // TclOO's own same-object dispatch spelling.
         let src = "[x] bark\n";
         assert_eq!(
-            instance_method_at_cursor(src, 0, 5),
+            instance_method_at_cursor(src, 0, 5, tcl_lexer::LexerConfig::default()),
             Some(("[x]".to_string(), "bark".to_string(), false))
         );
     }
@@ -6980,7 +7020,7 @@ mod tests {
         // `is_self_receiver_call`) requires them.
         let src = "[self] mrun\n";
         assert_eq!(
-            instance_method_at_cursor(src, 0, 8),
+            instance_method_at_cursor(src, 0, 8, tcl_lexer::LexerConfig::default()),
             Some(("[self]".to_string(), "mrun".to_string(), false))
         );
     }
@@ -6991,7 +7031,10 @@ mod tests {
         // well-formed command substitution and not a bare identifier
         // either — still rejected exactly as before this change.
         let src = "x] bark\n";
-        assert_eq!(instance_method_at_cursor(src, 0, 4), None);
+        assert_eq!(
+            instance_method_at_cursor(src, 0, 4, tcl_lexer::LexerConfig::default()),
+            None
+        );
     }
 
     // Method names with non-identifier characters (issue #1019 idx 16).
@@ -7003,7 +7046,7 @@ mod tests {
         // TP — `-` is part of the method word, not a boundary.
         let src = "$d with-dash\n";
         assert_eq!(
-            instance_method_at_cursor(src, 0, 8),
+            instance_method_at_cursor(src, 0, 8, tcl_lexer::LexerConfig::default()),
             Some(("d".to_string(), "with-dash".to_string(), true))
         );
     }
@@ -7013,7 +7056,7 @@ mod tests {
         // TP — the TIP 558 property-accessor shape, cursor inside the name.
         let src = "my <ReadProp-colour>\n";
         assert_eq!(
-            instance_method_at_cursor(src, 0, 8),
+            instance_method_at_cursor(src, 0, 8, tcl_lexer::LexerConfig::default()),
             Some(("my".to_string(), "<ReadProp-colour>".to_string(), false))
         );
     }
@@ -7023,7 +7066,7 @@ mod tests {
         // TP — `method a.b` dispatches in real Tcl; `.` is not a boundary.
         let src = "$d a.b\n";
         assert_eq!(
-            instance_method_at_cursor(src, 0, 4),
+            instance_method_at_cursor(src, 0, 4, tcl_lexer::LexerConfig::default()),
             Some(("d".to_string(), "a.b".to_string(), true))
         );
     }
@@ -7033,8 +7076,14 @@ mod tests {
         // TN — `$x-1` is arithmetic. The whole `x-1` run is one word whose
         // head slice is a bare `$`, so nothing dispatches.
         let src = "expr {$x-1}\n";
-        assert_eq!(instance_method_at_cursor(src, 0, 8), None);
-        assert_eq!(instance_method_at_cursor(src, 0, 9), None);
+        assert_eq!(
+            instance_method_at_cursor(src, 0, 8, tcl_lexer::LexerConfig::default()),
+            None
+        );
+        assert_eq!(
+            instance_method_at_cursor(src, 0, 9, tcl_lexer::LexerConfig::default()),
+            None
+        );
     }
 
     #[test]
@@ -7042,7 +7091,10 @@ mod tests {
         // TN — `expr {$a < $b}` must not read as `$a` dispatching `<`:
         // the word carries no alphanumeric content.
         let src = "expr {$a < $b}\n";
-        assert_eq!(instance_method_at_cursor(src, 0, 9), None);
+        assert_eq!(
+            instance_method_at_cursor(src, 0, 9, tcl_lexer::LexerConfig::default()),
+            None
+        );
     }
 
     #[test]

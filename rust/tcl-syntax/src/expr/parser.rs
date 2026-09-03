@@ -1276,7 +1276,7 @@ mod tests {
     #[test]
     fn vars_in_binary() {
         let node = parse("$a + $b");
-        let vars = node.vars();
+        let vars = node.vars_with_grammar(tcl_dialect::LexerGrammar::default());
         assert_eq!(vars.len(), 2);
         assert!(vars.contains("a"));
         assert!(vars.contains("b"));
@@ -1285,7 +1285,7 @@ mod tests {
     #[test]
     fn vars_in_ternary() {
         let node = parse("$x ? $y : $z");
-        let vars = node.vars();
+        let vars = node.vars_with_grammar(tcl_dialect::LexerGrammar::default());
         assert_eq!(vars.len(), 3);
         assert!(vars.contains("x"));
         assert!(vars.contains("y"));
@@ -1295,7 +1295,7 @@ mod tests {
     #[test]
     fn vars_in_function() {
         let node = parse("max($a, $b)");
-        let vars = node.vars();
+        let vars = node.vars_with_grammar(tcl_dialect::LexerGrammar::default());
         assert_eq!(vars.len(), 2);
         assert!(vars.contains("a"));
         assert!(vars.contains("b"));

@@ -517,7 +517,10 @@ pub fn command_prefix_head(
     registry: &tcl_registry::CommandRegistry,
     prefix: &str,
 ) -> Option<String> {
-    if let Some((builder, built)) = crate::value_shapes::parse_command_substitution(prefix) {
+    if let Some((builder, built)) = crate::value_shapes::parse_command_substitution_with_config(
+        prefix,
+        tcl_lexer::LexerConfig::for_profile(registry.profile()),
+    ) {
         let bare = builder.strip_prefix("::").unwrap_or(builder.as_str());
         if registry.get(bare).is_some_and(|spec| {
             spec.traits
@@ -592,7 +595,7 @@ static EMPTY_OBJECT_TYPES: std::sync::LazyLock<HashMap<String, HashSet<String>>>
 pub fn build_interprocedural_analysis(
     ir_module: &crate::ir::Module,
     registry: &tcl_registry::CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     object_types: ObjectTypeMap<'_>,
     identities: &crate::realm::CommandBindingRealm,
 ) -> InterproceduralAnalysis {
@@ -816,7 +819,11 @@ pub(crate) fn tainted_global_writes(
     registry: &tcl_registry::CommandRegistry,
     global_classes: &HashMap<String, crate::taint::InstanceClassState>,
 ) -> HashMap<String, HashSet<String>> {
-    let mut cfg_module = crate::cfg_builder::build_cfg(ir_module, false);
+    let mut cfg_module = crate::cfg_builder::build_cfg_with_config(
+        ir_module,
+        false,
+        tcl_lexer::LexerConfig::for_profile(registry.profile()),
+    );
     let writes = direct_instance_option_writes(&mut cfg_module, registry, global_classes);
     close_tainted_global_writes(ir_module, writes)
 }
@@ -972,7 +979,7 @@ fn build_method_summaries(
     ir_module: &crate::ir::Module,
     known: &HashSet<String>,
     registry: &tcl_registry::CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     identities: &crate::realm::CommandBindingRealm,
     procs: ProcFixpoints<'_>,
 ) -> HashMap<String, MethodSummary> {
@@ -1113,7 +1120,7 @@ struct MethodScan<'a> {
     mqname: &'a str,
     method_known: &'a HashSet<String>,
     registry: &'a tcl_registry::CommandRegistry,
-    dialect: Option<&'a tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     identities: &'a crate::realm::CommandBindingRealm,
 }
 
@@ -1303,7 +1310,7 @@ fn scan_all_procs(
     ir_module: &crate::ir::Module,
     known: &HashSet<String>,
     registry: &tcl_registry::CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     object_types: &HashMap<String, HashSet<String>>,
     identities: &crate::realm::CommandBindingRealm,
 ) -> HashMap<String, LocalFacts> {
@@ -1333,7 +1340,7 @@ struct ProcScan<'a> {
     proc: &'a crate::ir::Procedure,
     known: &'a HashSet<String>,
     registry: &'a tcl_registry::CommandRegistry,
-    dialect: Option<&'a tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     object_types: &'a HashMap<String, HashSet<String>>,
     identities: &'a crate::realm::CommandBindingRealm,
 }
@@ -1606,7 +1613,7 @@ struct ScanCtx<'a> {
     caller: &'a str,
     known: &'a HashSet<String>,
     registry: &'a tcl_registry::CommandRegistry,
-    dialect: Option<&'a tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     params: &'a HashSet<String>,
     /// Object-handle → candidate class names for this module
     /// ([`crate::object_types::object_handle_classes`]), so a `$g walk …
@@ -2258,7 +2265,7 @@ fn scan_value_substitutions(text: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts
     }
     let lexer = tcl_lexer::Lexer::with_source_map(
         tcl_lexer::SourceMap::new(text),
-        tcl_lexer::LexerConfig::for_dialect(dialect.map_or("", |profile| profile.name)),
+        tcl_lexer::LexerConfig::for_profile(dialect),
     );
     let Ok(tokens) = lexer.tokenise_all() else {
         return;
@@ -2303,7 +2310,7 @@ fn scan_source_for_calls(source: &str, ctx: ScanCtx<'_>, facts: &mut LocalFacts,
     let commands = crate::segmenter::segment_commands_with_offset_and_config(
         source,
         0,
-        tcl_lexer::LexerConfig::for_dialect(dialect.map_or("", |profile| profile.name)),
+        tcl_lexer::LexerConfig::for_profile(dialect),
     );
     for cmd in commands {
         // Skip empty / non-literal command names — they're not

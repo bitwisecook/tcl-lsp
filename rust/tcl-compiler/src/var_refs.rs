@@ -31,7 +31,7 @@
 
 use std::collections::{BTreeSet, HashMap, VecDeque};
 
-use tcl_lexer::{Lexer, SourceMap, Span, Token, TokenType};
+use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 
 use crate::segmenter::SegmentedCommand;
@@ -349,7 +349,10 @@ fn scan_tokens(
 ) -> BTreeSet<String> {
     let mut vars_found = BTreeSet::new();
     let source_map = SourceMap::new(source);
-    let mut lexer = Lexer::new(source);
+    // The document's grammar comes from the dialect-selected registry's own
+    // profile (the route `dynamic_names::lexer_config_for` takes): a name
+    // recovered under the wrong word grammar tracks the wrong cell.
+    let mut lexer = Lexer::with_config(source, LexerConfig::for_profile(registry.profile()));
     if quoted_body {
         lexer = lexer.as_quoted_body();
     }
@@ -413,7 +416,7 @@ fn scan_var_read_role_names(
 ) -> BTreeSet<String> {
     let mut result = BTreeSet::new();
     let source_map = SourceMap::new(source);
-    let lexer = Lexer::new(source);
+    let lexer = Lexer::with_config(source, LexerConfig::for_profile(registry.profile()));
 
     let Ok(tokens) = lexer.tokenise_all() else {
         return result;
@@ -504,12 +507,17 @@ pub fn vars_in_word(text: &str, registry: &CommandRegistry) -> BTreeSet<String> 
     scanner.scan_word(text, registry)
 }
 
-/// Extract variable names from an expression AST node.
+/// Extract variable names from an expression AST node, reading any `Raw`
+/// operand text under the document's own lexer `grammar`.
 ///
-/// Delegates to [`ExprNode::vars()`](crate::expr_ast::ExprNode::vars).
+/// Delegates to
+/// [`ExprNode::vars_with_grammar()`](crate::expr_ast::ExprNode::vars_with_grammar).
 #[must_use]
-pub fn vars_in_expr(expr: &crate::expr_ast::ExprNode) -> BTreeSet<String> {
-    expr.vars().into_iter().collect()
+pub fn vars_in_expr(
+    expr: &crate::expr_ast::ExprNode,
+    grammar: tcl_dialect::LexerGrammar,
+) -> BTreeSet<String> {
+    expr.vars_with_grammar(grammar).into_iter().collect()
 }
 
 /// De-sigil a `VAR`-token's source text, keeping any array-index suffix.
@@ -525,12 +533,12 @@ fn deref_form(text: &str) -> &str {
     }
 }
 
-fn collect_ref_forms(text: &str, out: &mut Vec<(String, bool)>) {
+fn collect_ref_forms(text: &str, out: &mut Vec<(String, bool)>, config: LexerConfig) {
     if text.is_empty() {
         return;
     }
     let source_map = SourceMap::new(text);
-    let Ok(tokens) = Lexer::new(text).tokenise_all() else {
+    let Ok(tokens) = Lexer::with_config(text, config).tokenise_all() else {
         return;
     };
     for tok in &tokens {
@@ -556,7 +564,7 @@ fn collect_ref_forms(text: &str, out: &mut Vec<(String, bool)>) {
             TokenType::Cmd | TokenType::ExprSugar => {
                 let inner = source_map.token_text(*tok);
                 if !inner.is_empty() {
-                    collect_ref_forms(inner, out);
+                    collect_ref_forms(inner, out, config);
                 }
             }
             _ => {}
@@ -571,15 +579,17 @@ fn collect_ref_forms(text: &str, out: &mut Vec<(String, bool)>) {
 /// Recurses into `[...]` command substitutions.  Unlike the name-set scanners,
 /// this preserves enough structure for `var_resolve::resolve_place` to
 /// distinguish a scalar from an array element from a dynamic ref.
+/// `config` is the document's own [`LexerConfig`], so the `$`/`[…]`
+/// boundaries this reports are the ones the document's grammar draws.
 #[must_use]
-pub fn scan_var_ref_forms(text: &str) -> Vec<String> {
-    scan_var_ref_forms_braced(text)
+pub fn scan_var_ref_forms_with_config(text: &str, config: LexerConfig) -> Vec<String> {
+    scan_var_ref_forms_braced_with_config(text, config)
         .into_iter()
         .map(|(f, _)| f)
         .collect()
 }
 
-/// [`scan_var_ref_forms`], also reporting whether each reference used the
+/// [`scan_var_ref_forms_with_config`], also reporting whether each reference used the
 /// `${…}` **brace form**, whose content is a literal name — `${$n}` reads the
 /// variable called `$n`, `${arr($i)}` the element whose key is the two
 /// characters `$i` (issue #1078).
@@ -587,24 +597,30 @@ pub fn scan_var_ref_forms(text: &str) -> Vec<String> {
 /// A consumer that canonicalises the form must pass the flag on to
 /// [`crate::naming::element_var_name_braced`] rather than re-stripping a `$`
 /// that is part of the name.
+/// `config` is the document's own [`LexerConfig`].
 #[must_use]
-pub fn scan_var_ref_forms_braced(text: &str) -> Vec<(String, bool)> {
+pub fn scan_var_ref_forms_braced_with_config(
+    text: &str,
+    config: LexerConfig,
+) -> Vec<(String, bool)> {
     let mut out = Vec::new();
-    collect_ref_forms(text, &mut out);
+    collect_ref_forms(text, &mut out, config);
     out
 }
 
 /// Return the inner text of every top-level `[...]` command substitution in
 /// *text* (without the surrounding brackets).  Used by the place bridge to
 /// recover the reads of commands nested in an argument word.
+/// `config` is the document's own [`LexerConfig`], so the `[…]` boundaries it
+/// reports are the ones the document's grammar draws.
 #[must_use]
-pub fn command_subst_texts(text: &str) -> Vec<String> {
+pub fn command_subst_texts_with_config(text: &str, config: LexerConfig) -> Vec<String> {
     let mut out = Vec::new();
     if !text.contains('[') {
         return out;
     }
     let source_map = SourceMap::new(text);
-    let Ok(tokens) = Lexer::new(text).tokenise_all() else {
+    let Ok(tokens) = Lexer::with_config(text, config).tokenise_all() else {
         return out;
     };
     for tok in &tokens {
@@ -634,27 +650,35 @@ mod tests {
         assert!(vars.contains("x"), "should find $x; got {vars:?}");
     }
 
+    fn scan_var_ref_forms_cfg(text: &str) -> Vec<String> {
+        scan_var_ref_forms_with_config(text, LexerConfig::default())
+    }
+
+    fn command_subst_texts_cfg(text: &str) -> Vec<String> {
+        command_subst_texts_with_config(text, LexerConfig::default())
+    }
+
     #[test]
     fn scan_var_ref_forms_keeps_array_index() {
         // Unlike the name scanner, forms preserve the `(idx)` suffix.
-        assert_eq!(scan_var_ref_forms("$a(k)"), vec!["a(k)".to_owned()]);
-        assert_eq!(scan_var_ref_forms("${a(k)}"), vec!["a(k)".to_owned()]);
-        assert_eq!(scan_var_ref_forms("$x"), vec!["x".to_owned()]);
+        assert_eq!(scan_var_ref_forms_cfg("$a(k)"), vec!["a(k)".to_owned()]);
+        assert_eq!(scan_var_ref_forms_cfg("${a(k)}"), vec!["a(k)".to_owned()]);
+        assert_eq!(scan_var_ref_forms_cfg("$x"), vec!["x".to_owned()]);
         assert_eq!(
-            scan_var_ref_forms("$x + $a($i)"),
+            scan_var_ref_forms_cfg("$x + $a($i)"),
             vec!["x".to_owned(), "a($i)".to_owned()]
         );
         // recurses into command substitutions
-        assert_eq!(scan_var_ref_forms("[foo $b]"), vec!["b".to_owned()]);
+        assert_eq!(scan_var_ref_forms_cfg("[foo $b]"), vec!["b".to_owned()]);
     }
 
     #[test]
     fn command_subst_texts_extracts_inner() {
         assert_eq!(
-            command_subst_texts("foo [bar $x] baz"),
+            command_subst_texts_cfg("foo [bar $x] baz"),
             vec!["bar $x".to_owned()]
         );
-        assert!(command_subst_texts("no subst here").is_empty());
+        assert!(command_subst_texts_cfg("no subst here").is_empty());
     }
 
     #[test]
@@ -894,7 +918,7 @@ mod tests {
             start: 0,
             end: 2,
         };
-        let vars = vars_in_expr(&expr);
+        let vars = vars_in_expr(&expr, tcl_dialect::LexerGrammar::default());
         assert!(vars.contains("x"));
     }
 }

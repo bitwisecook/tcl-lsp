@@ -266,7 +266,7 @@ fn command_context_with_args(
         line_index.offset_at_utf16(line, Utf16Col::new(character), source)
     };
 
-    let config = LexerConfig::for_file_dialect(profile.name);
+    let config = LexerConfig::for_file_grammar(profile.grammar);
     let identities =
         tcl_compiler::realm::document_realm_bindings_with_config(source, config, registry);
     let region = crate::executable_regions::innermost_executable_region_at(

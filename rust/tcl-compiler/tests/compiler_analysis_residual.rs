@@ -943,13 +943,14 @@ fn rebased_units(base: &str, shifted: &str) -> (CompilationUnit, CompilationUnit
                 if let Some(fu) = cache.get(&key) {
                     return fu.clone();
                 }
-                let cfg = tcl_compiler::cfg_builder::build_cfg_function_with_upvars(
+                let cfg = tcl_compiler::cfg_builder::build_cfg_function_with_upvars_and_config(
                     req.qname,
                     req.body,
                     true,
                     req.upvar_procs.clone(),
                     req.proc_params.clone(),
                     req.global_write_procs.clone(),
+                    tcl_lexer::LexerConfig::default(),
                 );
                 let pc =
                     tcl_compiler::compilation_unit::decode_param_constants(req.param_constants);
@@ -959,6 +960,7 @@ fn rebased_units(base: &str, shifted: &str) -> (CompilationUnit, CompilationUnit
                     req.params,
                     &registry,
                     pc.as_ref(),
+                    tcl_lexer::LexerConfig::default(),
                 );
                 cache.insert(key, fu.clone());
                 fu

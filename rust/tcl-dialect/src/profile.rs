@@ -1265,21 +1265,7 @@ static PLAIN_TCL: DialectProfile = DialectProfile {
 /// family — Jim and the F5 forks have no `TclVersion`, exactly as the
 /// permissive fallback has none.
 fn tcl_version_of(release: crate::model::Release) -> Option<TclVersion> {
-    use crate::model::Release;
-    if release.family() != Family::Tcl {
-        return None;
-    }
-    Some(if release == Release::TCL_8_4 {
-        TclVersion::V8_4
-    } else if release == Release::TCL_8_5 {
-        TclVersion::V8_5
-    } else if release == Release::TCL_8_6 {
-        TclVersion::V8_6
-    } else if release == Release::TCL_9_0 {
-        TclVersion::V9_0
-    } else {
-        TclVersion::V9_1
-    })
+    crate::model::DialectPoint::tcl_version_of_release(release)
 }
 
 /// The one-provider grammar union of a family's own core.

@@ -196,7 +196,7 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
-use tcl_compiler::cfg_builder::build_cfg_function_with_upvars;
+use tcl_compiler::cfg_builder::build_cfg_function_with_upvars_and_config;
 use tcl_compiler::cfg_builder::global_write_info::GlobalWriteInfo;
 use tcl_compiler::cfg_builder::upvar_info::UpvarInfo;
 use tcl_compiler::compilation_unit::{
@@ -1660,7 +1660,7 @@ pub struct FnLatticeKey<'db> {
 /// offset-0 body + context.  A body-only edit changes only that procedure's
 /// `FnLatticeKey`, so salsa reuses every other procedure's lattice; a shifted
 /// body interns to the same key (cache hit).  Rebuilds the CFG via the same
-/// `build_cfg_function_with_upvars` call `build_cfg` makes per procedure, so the
+/// `build_cfg_function_with_upvars_and_config` call `build_cfg` makes per procedure, so the
 /// result equals the whole-module build's unit (modulo offset).  SCCP is seeded
 /// with the key's interprocedural `param_constants` (caller-uniform-literal
 /// folds), decoded back to the seed map `build_for_inner` would pass on the
@@ -1679,13 +1679,14 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
     let global_write_procs: HashMap<String, GlobalWriteInfo> =
         context.global_write_ctx(db).iter().cloned().collect();
     let registry = db.registry(key.dialect(db));
-    let cfg = build_cfg_function_with_upvars(
+    let cfg = build_cfg_function_with_upvars_and_config(
         key.qname(db),
         key.body(db),
         true,
         upvar,
         proc_params,
         global_write_procs,
+        tcl_lexer::LexerConfig::for_profile(registry.profile()),
     );
     let param_constants =
         tcl_compiler::compilation_unit::decode_param_constants(key.param_constants(db));
@@ -1700,7 +1701,12 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
             key.qname(db),
             cfg,
             key.params(db),
-            registry,
+            tcl_compiler::compilation_unit::UnitDialect {
+                registry,
+                config: tcl_lexer::LexerConfig::from_grammar(
+                    tcl_lsp_core::environment_for_dialect(key.dialect(db)).grammar(),
+                ),
+            },
             param_constants.as_ref(),
             &known_classes,
             trace_facts,
@@ -1761,7 +1767,9 @@ pub fn lower_proc_body<'db>(db: &'db dyn TclDb, key: ProcBodyKey<'db>) -> Arc<Sc
     // The body's own environment grammar — the key already carries the
     // dialect, so the three truncated `LexerConfig` fields the key used to
     // duplicate are derived rather than interned (redesign §11.4 E1).
-    let config = tcl_lexer::LexerConfig::for_dialect(key.dialect(db));
+    let config = tcl_lexer::LexerConfig::from_grammar(
+        tcl_lsp_core::environment_for_dialect(key.dialect(db)).grammar(),
+    );
     Arc::new(tcl_compiler::lowering::lower_proc_body_isolated(
         key.body_text(db),
         key.namespace(db),
@@ -2174,7 +2182,11 @@ fn summary_deps_key<'db>(
         // The root's own `.calls` field above is left as the real `root.calls` so
         // the reconstructed `ia` still matches the whole-module projection.
         let mut callee_set = calls.clone();
-        callee_set.extend(tcl_compiler::taint_interproc::resolved_callees(fu, known));
+        callee_set.extend(tcl_compiler::taint_interproc::resolved_callees(
+            fu,
+            known,
+            tcl_lexer::LexerConfig::for_profile(tcl_lsp_core::stated_profile_for_dialect(dialect)),
+        ));
         if let Some(src) = body_source {
             callee_set.extend(tcl_compiler::taint_interproc::command_subst_callees(
                 src, qname, known,
@@ -2796,7 +2808,15 @@ pub fn function_optimisations<'db>(
         has_dynamic_variable_trace: false,
     };
     let empty_cfg = tcl_compiler::cfg::Function::new("::", "entry");
-    let top_fu = FunctionUnit::build("::", empty_cfg.clone(), &[], registry);
+    let top_fu = FunctionUnit::build(
+        "::",
+        empty_cfg.clone(),
+        &[],
+        registry,
+        tcl_lexer::LexerConfig::from_grammar(
+            tcl_lsp_core::environment_for_dialect(&dialect).grammar(),
+        ),
+    );
     let mut cfg_procs = HashMap::new();
     cfg_procs.insert(qname.clone(), fu.cfg.clone());
     let mut fu_procs = HashMap::new();
@@ -2861,7 +2881,7 @@ fn solve_optimisations<'db>(
     cu: &CompilationUnit,
     lattice_keys: &HashMap<String, FnLatticeKey<'db>>,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Vec<Optimisation> {
     let mutations =
         tcl_compiler::command_binding::scan_module_command_mutations(&cu.ir_module, registry);
@@ -3051,7 +3071,9 @@ impl LexerCfgKey<'_> {
     /// The full [`tcl_lexer::LexerConfig`] this key represents: the
     /// environment's own grammar plus the invariant call-site knobs.
     fn to_config(self, db: &dyn TclDb) -> tcl_lexer::LexerConfig {
-        tcl_lexer::LexerConfig::for_dialect(self.environment(db))
+        tcl_lexer::LexerConfig::from_grammar(
+            tcl_lsp_core::environment_for_dialect(self.environment(db)).grammar(),
+        )
     }
 }
 
@@ -3201,7 +3223,7 @@ pub struct CompilerDiagnostics {
 fn compiler_diagnostics_from_unit(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     generic_patterns: Option<&[String]>,
 ) -> CompilerDiagnostics {
     let dialect_opt = dialect;
@@ -3283,7 +3305,9 @@ pub fn compiler_check_diagnostics_uncached(
         UnitBuildOptions {
             registry,
             defer_top_level: false,
-            config: tcl_lexer::LexerConfig::for_dialect(dialect),
+            config: tcl_lexer::LexerConfig::from_grammar(
+                tcl_lsp_core::environment_for_dialect(dialect).grammar(),
+            ),
             dialect: tcl_lsp_core::optional_profile_for_dialect(dialect),
             external_call_sites,
         },

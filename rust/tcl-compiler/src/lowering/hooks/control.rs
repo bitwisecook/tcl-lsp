@@ -38,7 +38,7 @@ use crate::alias::{CommandAliasMap, expr_alias_names};
 use crate::expr_parser::parse_expr_for_profile;
 use crate::ir::Statement;
 use crate::lowering_hooks::{
-    ArgTokenKind, LoweringCommand, extract_single_expr_arg, has_expansion,
+    ArgTokenKind, LoweringCommand, extract_single_expr_arg_with_config, has_expansion,
 };
 
 /// Lower `expr` to [`Statement::ExprEval`] when the call is the
@@ -128,8 +128,22 @@ pub fn try_lower_return(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) ->
                     .and_then(|s| s.strip_suffix(']'))
                     .unwrap_or(&cmd.args[0]);
                 let alias_names = expr_alias_names(aliases);
-                if let Some((expr_arg, _)) = extract_single_expr_arg(inner, &alias_names) {
+                if let Some((expr_arg, _)) = extract_single_expr_arg_with_config(
+                    inner,
+                    &alias_names,
+                    tcl_lexer::LexerConfig::for_profile(cmd.dialect),
+                ) {
                     expr = Some(parse_expr_for_profile(&expr_arg, cmd.dialect));
+                }
+            }
+            ArgTokenKind::ExprSugar => {
+                // JimTcl `$(…)`: `return $($a*2)` returns the expression's
+                // value, as `return [expr {$a*2}]` does.
+                if let Some(body) = cmd.args[0]
+                    .strip_prefix("$(")
+                    .and_then(|s| s.strip_suffix(')'))
+                {
+                    expr = Some(parse_expr_for_profile(body, cmd.dialect));
                 }
             }
             _ => {}

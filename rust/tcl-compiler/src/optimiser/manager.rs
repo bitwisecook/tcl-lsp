@@ -82,7 +82,7 @@ pub fn optimise_with_dialect(
 pub fn optimise_unit(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Vec<Optimisation> {
     let raw = optimise_unit_raw(cu, registry, dialect);
     finalise_optimisations(&raw, cu, registry, dialect)
@@ -131,7 +131,7 @@ fn sort_optimisations(opts: &mut [Optimisation]) {
 fn build_pass_context<'a>(
     cu: &'a CompilationUnit,
     registry: &'a CommandRegistry,
-    dialect: Option<&'a tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> PassContext<'a> {
     let ia = cu.interproc.clone().unwrap_or_default();
     let mut ctx = PassContext::with_dialect(&cu.source, ia, dialect);
@@ -174,7 +174,7 @@ fn build_pass_context<'a>(
 pub fn optimise_unit_raw(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Vec<Optimisation> {
     let mut ctx = build_pass_context(cu, registry, dialect);
     run_passes(&mut ctx, cu, &PassId::all());
@@ -200,7 +200,7 @@ pub fn finalise_optimisations(
     raw: &[Optimisation],
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Vec<Optimisation> {
     let mut selected = select_non_overlapping(raw);
     // Couple constant propagation with dead-store removal: a `set x <const>`
@@ -412,7 +412,7 @@ fn in_string_or_braces(bytes: &[u8], pos: usize) -> bool {
 fn couple_propagated_const_dead_stores(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     selected: &mut Vec<Optimisation>,
 ) {
     if crate::taint::is_irules_dialect(dialect) {
@@ -622,6 +622,7 @@ fn couple_const_dead_store_chain(
         interproc_pure: &empty,
         pure_methods: &empty,
         enclosing_class: None,
+        config: tcl_lexer::LexerConfig::for_profile(registry.profile()),
     };
     if !super::elimination::assignment_safe_to_delete(def_stmt, purity) {
         return None;
@@ -790,7 +791,7 @@ fn renumber_groups(opts: &mut [Optimisation]) {
 pub fn find_dead_stores(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Vec<DeadStore> {
     let mut ctx = build_pass_context(cu, registry, dialect);
     run_passes(&mut ctx, cu, &PassId::all());
@@ -808,7 +809,7 @@ pub fn find_dead_stores(
 pub fn optimise_by_pass(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Vec<(PassId, Vec<Optimisation>)> {
     let mut ctx = build_pass_context(cu, registry, dialect);
     let mut by_pass = Vec::new();
@@ -844,7 +845,7 @@ pub fn optimise_raw(
 pub fn optimise_raw_for_profile(
     source: &str,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Vec<Optimisation> {
     // Split the raw CU build to avoid `with_interprocedural`'s taint
     // re-run (irrelevant for `optimise_raw`'s test callers) — but `cu.interproc`
@@ -857,12 +858,12 @@ pub fn optimise_raw_for_profile(
         source,
         registry,
         false,
-        tcl_lexer::LexerConfig::for_dialect(dialect.map_or("", |profile| profile.name)),
+        tcl_lexer::LexerConfig::for_profile(dialect),
     );
     let object_types = crate::object_types::object_handle_classes(&cu, registry);
     let identities = crate::realm::document_realm_bindings_with_config(
         &cu.source,
-        tcl_lexer::LexerConfig::for_dialect(dialect.map_or("", |profile| profile.name)),
+        tcl_lexer::LexerConfig::for_profile(dialect),
         registry,
     );
     let ia = build_interprocedural_analysis(

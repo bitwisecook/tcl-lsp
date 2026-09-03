@@ -119,11 +119,12 @@ fn settle_one_site(
         return;
     }
     let fu = cu.function_unit_at(site.span.start());
-    let Some(contributors) = const_contributors(fu, site.span.start(), &site.var_name) else {
+    let call_off = site.span.start();
+    let config = analyser.lexer_config();
+    let Some(contributors) = const_contributors(fu, call_off, &site.var_name, config) else {
         return;
     };
     let result = &analyser.result;
-    let call_off = site.span.start();
     // A candidate qualified name is "user-defined" only when its own fact
     // — the proc/class definition, or the establishing `interp alias` /
     // `rename` — is still live at this dispatch site: renamed away or

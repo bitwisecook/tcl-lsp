@@ -39,7 +39,7 @@ use tcl_compiler::gvn::{
     find_loop_invariants_for_cu, find_partial_redundancies_for_cu, find_redundancies_for_cu,
 };
 use tcl_compiler::interprocedural::InterproceduralAnalysis;
-use tcl_compiler::interval_bounds::{find_divide_by_zero, find_interval_bounds};
+use tcl_compiler::interval_bounds::{find_divide_by_zero_with, find_interval_bounds_with};
 use tcl_compiler::intervals::compute_intervals;
 use tcl_compiler::ir::{Module, Script, Statement};
 use tcl_compiler::irules_checks::{
@@ -2226,15 +2226,20 @@ pub fn serialise_loops(result: &ExplorerResult) -> Value {
 /// function.
 ///
 /// Both interval-driven passes share the same SCCP-executable-block filter:
-/// `find_interval_bounds` (W230/W231/W232 out-of-range index access) and
-/// `find_divide_by_zero` (W233 provably-`[0,0]` divisor).
+/// `find_interval_bounds_with` (W230/W231/W232 out-of-range index access) and
+/// `find_divide_by_zero_with` (W233 provably-`[0,0]` divisor).
 #[must_use]
 pub fn serialise_bounds(result: &ExplorerResult) -> Value {
+    // The document's own grammar and numerals: the bounds view re-lexes
+    // list and index text and must read it as the unit did.
+    let profile = crate::environment::profile_for_dialect(&result.dialect);
+    let numbers = tcl_dialect::NumberSyntax::of_profile(Some(profile));
+    let grammar = profile.grammar;
     let funcs: Vec<Value> = result
         .all_snapshots()
         .iter()
         .map(|snap| {
-            let findings: Vec<Value> = find_interval_bounds(
+            let findings: Vec<Value> = find_interval_bounds_with(
                 &snap.unit.cfg,
                 &snap.unit.ssa,
                 &snap.unit.sccp.values,
@@ -2245,6 +2250,7 @@ pub fn serialise_bounds(result: &ExplorerResult) -> Value {
                     .map(tcl_registry::model::semantic::SemanticContext::environment_id)
                     .and_then(crate::environment::catalogue_profile_for_dialect)
                     .and_then(tcl_dialect::DialectProfile::character_model),
+             numbers, grammar,
             )
             .iter()
             .map(|f| {
@@ -2259,11 +2265,12 @@ pub fn serialise_bounds(result: &ExplorerResult) -> Value {
                 })
             })
             .collect();
-            let divzero: Vec<Value> = find_divide_by_zero(
+            let divzero: Vec<Value> = find_divide_by_zero_with(
                 &snap.unit.cfg,
                 &snap.unit.ssa,
                 &snap.unit.sccp.values,
                 &snap.unit.sccp.executable_blocks,
+             numbers, grammar,
             )
             .iter()
             .map(|d| json!({ "code": "W233", "op": d.op }))
@@ -3035,8 +3042,12 @@ pub fn serialise_result(result: &ExplorerResult) -> Value {
     out.insert("worldSsa".to_owned(), serialise_world_ssa(result));
     out.insert("types".to_owned(), serialise_types(result));
     // Honour the document's dialect so the CST and segment views tokenise
-    // `{*}` / iRules braces the same way the rest of the pipeline does.
-    let lexer_config = LexerConfig::for_dialect(&result.dialect);
+    // `{*}` / iRules braces the same way the rest of the pipeline does. The
+    // grammar comes off the same ingress-resolved profile `run_pipeline`
+    // built the unit against, never a second by-name resolution.
+    let lexer_config = LexerConfig::for_file_grammar(
+        crate::environment::profile_for_dialect(&result.dialect).grammar,
+    );
     out.insert(
         "cst".to_owned(),
         crate::cst::serialise_cst(&result.source, lexer_config),

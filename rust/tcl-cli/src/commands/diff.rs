@@ -42,8 +42,10 @@ use tcl_cli_support::{
     read_input_documents, registry_for_dialect, write_text_output,
 };
 use tcl_compiler::compilation_unit::CompilationUnit;
-use tcl_compiler::segmenter::{SegmentedCommand, UnclosedDelimiter, segment_commands};
-use tcl_lexer::LineIndex;
+use tcl_compiler::segmenter::{
+    SegmentedCommand, UnclosedDelimiter, segment_commands_with_offset_and_config,
+};
+use tcl_lexer::{LexerConfig, LineIndex};
 use tcl_registry::CommandRegistry;
 use tcl_registry::snapshot::Json;
 
@@ -142,8 +144,9 @@ fn serialise_command_ast(
     source: &str,
     registry: &CommandRegistry,
     line_index: &LineIndex,
+    config: LexerConfig,
 ) -> String {
-    let commands: Vec<Json> = segment_commands(source)
+    let commands: Vec<Json> = segment_commands_with_offset_and_config(source, 0, config)
         .iter()
         .map(|cmd| {
             let mut m = BTreeMap::new();
@@ -212,9 +215,10 @@ fn layer_payload(
     dialect: &str,
     registry: &CommandRegistry,
     line_index: &LineIndex,
+    config: LexerConfig,
 ) -> anyhow::Result<String> {
     match layer {
-        "ast" => Ok(serialise_command_ast(src, registry, line_index)),
+        "ast" => Ok(serialise_command_ast(src, registry, line_index, config)),
         "ir" => {
             // The diff reads `serialise_result(compiled)["ir"]`; the
             // native `tcl-explorer` serialiser reproduces that view, so reuse
@@ -327,11 +331,28 @@ pub fn run_diff(
     let registry = registry_for_dialect(dialect.name);
     let left_index = LineIndex::new(&left_src);
     let right_index = LineIndex::new(&right_src);
+    // Both sides are the same whole-document kind (a combined `--left`/
+    // `--right` source), so both lex under the one resolved grammar.
+    let config = LexerConfig::for_file_grammar(dialect.grammar);
 
     let mut results: Vec<(String, bool, Vec<String>)> = Vec::new();
     for layer in &layers {
-        let lp = layer_payload(layer, &left_src, dialect.name, &registry, &left_index)?;
-        let rp = layer_payload(layer, &right_src, dialect.name, &registry, &right_index)?;
+        let lp = layer_payload(
+            layer,
+            &left_src,
+            dialect.name,
+            &registry,
+            &left_index,
+            config,
+        )?;
+        let rp = layer_payload(
+            layer,
+            &right_src,
+            dialect.name,
+            &registry,
+            &right_index,
+            config,
+        )?;
         let (equal, lines) = compute_layer_diff(layer, &lp, &rp, &left_name, &right_name);
         results.push(((*layer).to_owned(), equal, lines));
     }

@@ -473,7 +473,10 @@ fn scan_deep<'p>(
             else {
                 continue;
             };
-            let lambda_param_defs = crate::signature_scan::params::parse_param_list(params_text);
+            let lambda_param_defs = crate::signature_scan::params::parse_param_list(
+                params_text,
+                tcl_syntax::word_rules::WordValueRules::from_config(&ctx.config),
+            );
             let lambda_param_names: Vec<&str> =
                 lambda_param_defs.iter().map(|p| p.name.as_str()).collect();
             if lambda_param_names.is_empty() {

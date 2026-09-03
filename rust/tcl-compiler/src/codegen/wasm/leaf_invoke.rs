@@ -197,6 +197,10 @@ impl WasmLeafInvokeDecline {
 #[derive(Debug, Clone, Copy)]
 struct LeafSelectionContext<'a> {
     words: &'a [WordExpr],
+    /// The document's own lexer config — a nested `[…]` word is re-segmented
+    /// while planning, so it must be read under the grammar the document was
+    /// lexed with.
+    config: tcl_lexer::LexerConfig,
 }
 
 /// The prebuilt-argv selector for one leaf command invocation.
@@ -210,7 +214,7 @@ impl<'a> BackendSelector<WasmLeafInvokePlan, LeafSelectionContext<'a>, WasmLeafI
         &self,
         request: &SelectorRequest<'_, LeafSelectionContext<'a>>,
     ) -> SelectorDecision<WasmLeafInvokePlan, WasmLeafInvokeDecline> {
-        match plan_leaf_invocation(request.context().words) {
+        match plan_leaf_invocation(request.context().words, request.context().config) {
             Ok(plan) => SelectorDecision::Selected(plan),
             Err(decline) => SelectorDecision::Declined(decline),
         }
@@ -230,6 +234,7 @@ pub(super) fn select_leaf_invocation(
     words: &[WordExpr],
     operation: SemanticOperationId,
     facts: SelectionFacts<'_>,
+    config: tcl_lexer::LexerConfig,
 ) -> Result<WasmLeafInvokePlan, BackendDeclineReason<WasmLeafInvokeDecline>> {
     let mut registry: BackendRegistry<
         WasmLeafInvokePlan,
@@ -251,7 +256,7 @@ pub(super) fn select_leaf_invocation(
     {
         return Err(BackendDeclineReason::MissingOperation(operation));
     }
-    let context = LeafSelectionContext { words };
+    let context = LeafSelectionContext { words, config };
     match registry.select_with_context(
         SelectionInput::with_facts(operation, SelectionRegion::PrebuiltArgvInvocation, facts),
         &context,
@@ -303,10 +308,11 @@ impl FrameAllocator {
 /// Plan the compiled evaluation and frame layout for one leaf invocation.
 pub(super) fn plan_leaf_invocation(
     words: &[WordExpr],
+    config: tcl_lexer::LexerConfig,
 ) -> Result<WasmLeafInvokePlan, WasmLeafInvokeDecline> {
     let mut allocator = FrameAllocator::default();
     let result_slot = allocator.object();
-    let root = plan_invoke(words, result_slot, &mut allocator, 0)?;
+    let root = plan_invoke(words, result_slot, &mut allocator, 0, config)?;
     let object_bytes = i32::try_from(allocator.objects)
         .ok()
         .and_then(|slots| slots.checked_mul(WASM32_POINTER_BYTES))
@@ -332,6 +338,7 @@ fn plan_invoke(
     result_slot: usize,
     allocator: &mut FrameAllocator,
     depth: u32,
+    config: tcl_lexer::LexerConfig,
 ) -> Result<WasmInvokeNode, WasmLeafInvokeDecline> {
     if depth > MAX_WORD_DEPTH {
         return Err(WasmLeafInvokeDecline::WordNestingTooDeep);
@@ -344,7 +351,13 @@ fn plan_invoke(
     let completion = allocator.completion();
     let mut plans = Vec::with_capacity(words.len());
     for (index, word) in words.iter().enumerate() {
-        plans.push(plan_word(word, argv_slot + index, allocator, depth)?);
+        plans.push(plan_word(
+            word,
+            argv_slot + index,
+            allocator,
+            depth,
+            config,
+        )?);
     }
     Ok(WasmInvokeNode {
         argv_slot,
@@ -360,6 +373,7 @@ fn plan_word(
     slot: usize,
     allocator: &mut FrameAllocator,
     depth: u32,
+    config: tcl_lexer::LexerConfig,
 ) -> Result<WasmWordPlan, WasmLeafInvokeDecline> {
     match word {
         // A bare literal is exactly its own value: the word model only reports
@@ -381,15 +395,16 @@ fn plan_word(
         }
         WordExpr::Variable { spelling, source } => plan_variable(spelling, source, slot),
         WordExpr::CommandSubstitution { spelling, source } => {
-            let inner = nested_words(spelling, source)?;
+            let inner = nested_words(spelling, source, config)?;
             Ok(WasmWordPlan::Invoke(Box::new(plan_invoke(
                 &inner,
                 slot,
                 allocator,
                 depth + 1,
+                config,
             )?)))
         }
-        WordExpr::Template { parts, .. } => plan_template(parts, slot, allocator, depth),
+        WordExpr::Template { parts, .. } => plan_template(parts, slot, allocator, depth, config),
         WordExpr::Expand { .. } => Err(WasmLeafInvokeDecline::ArgumentExpansion),
         WordExpr::Opaque { .. } => Err(WasmLeafInvokeDecline::OpaqueWord),
     }
@@ -400,6 +415,7 @@ fn plan_template(
     slot: usize,
     allocator: &mut FrameAllocator,
     depth: u32,
+    config: tcl_lexer::LexerConfig,
 ) -> Result<WasmWordPlan, WasmLeafInvokeDecline> {
     if parts.is_empty() {
         return Err(WasmLeafInvokeDecline::OpaqueWord);
@@ -410,7 +426,13 @@ fn plan_template(
     let parts_slot = allocator.objects(parts.len());
     let mut plans = Vec::with_capacity(parts.len());
     for (index, part) in parts.iter().enumerate() {
-        plans.push(plan_part(part, parts_slot + index, allocator, depth + 1)?);
+        plans.push(plan_part(
+            part,
+            parts_slot + index,
+            allocator,
+            depth + 1,
+            config,
+        )?);
     }
     Ok(WasmWordPlan::Concat {
         slot,
@@ -424,6 +446,7 @@ fn plan_part(
     slot: usize,
     allocator: &mut FrameAllocator,
     depth: u32,
+    config: tcl_lexer::LexerConfig,
 ) -> Result<WasmWordPlan, WasmLeafInvokeDecline> {
     match part {
         WordPart::Text { text, .. } => {
@@ -437,12 +460,13 @@ fn plan_part(
         }
         WordPart::Variable { spelling, source } => plan_variable(spelling, source, slot),
         WordPart::CommandSubstitution { spelling, source } => {
-            let inner = nested_words(spelling, source)?;
+            let inner = nested_words(spelling, source, config)?;
             Ok(WasmWordPlan::Invoke(Box::new(plan_invoke(
                 &inner,
                 slot,
                 allocator,
                 depth + 1,
+                config,
             )?)))
         }
         WordPart::Opaque { .. } => Err(WasmLeafInvokeDecline::OpaqueWord),
@@ -516,6 +540,7 @@ fn split_element(name: &str) -> Option<(&str, &str)> {
 fn nested_words(
     spelling: &str,
     source: &SourceSite,
+    config: tcl_lexer::LexerConfig,
 ) -> Result<Vec<WordExpr>, WasmLeafInvokeDecline> {
     let inner = spelling
         .strip_prefix('[')
@@ -529,7 +554,7 @@ fn nested_words(
     } else {
         0
     };
-    let segments = crate::segmenter::segment_commands_with_offset(inner, base);
+    let segments = crate::segmenter::segment_commands_with_offset_and_config(inner, base, config);
     let [segment] = segments.as_slice() else {
         return Err(WasmLeafInvokeDecline::UnmodelledCommandSubstitution);
     };
@@ -555,7 +580,7 @@ mod tests {
     }
 
     fn plan(source: &str) -> Result<WasmLeafInvokePlan, WasmLeafInvokeDecline> {
-        plan_leaf_invocation(&words(source))
+        plan_leaf_invocation(&words(source), tcl_lexer::LexerConfig::default())
     }
 
     #[test]
@@ -718,6 +743,7 @@ mod tests {
                 &words,
                 SemanticOperationId::Invoke,
                 SelectionFacts::unavailable(),
+                tcl_lexer::LexerConfig::default(),
             )
             .is_ok()
         );
@@ -730,6 +756,7 @@ mod tests {
             &words,
             SemanticOperationId::Invoke,
             SelectionFacts::unavailable(),
+            tcl_lexer::LexerConfig::default(),
         ) else {
             panic!("expected a typed backend decline");
         };

@@ -50,7 +50,6 @@ use crate::depth_guard::{MAX_BRACKET_TEXT_DEPTH, MAX_EXPR_NODE_DEPTH};
 use crate::expr_ast::ExprNode;
 use crate::ir::Statement;
 use crate::sccp::{SccpResult, cfg_order};
-use crate::segmenter::segment_commands;
 use crate::side_effects::classify_side_effects;
 
 use super::helpers::spans::full_rewrite_span;
@@ -80,6 +79,12 @@ pub(crate) struct PurityCtx<'a> {
     pub(crate) interproc_pure: &'a HashSet<String>,
     pub(crate) pure_methods: &'a HashSet<String>,
     pub(crate) enclosing_class: Option<&'a str>,
+    /// The document's lexer configuration.  The purity walk re-lexes an
+    /// already-extracted word to find its `[…]` substitutions and segments
+    /// each one into a head plus arguments, so it must read the bytes under
+    /// the grammar the document was lexed with — an iRules `}{`, a Jim
+    /// `$(…)` or an 8.4 `{*}` puts the head in a different place.
+    pub(crate) config: tcl_lexer::LexerConfig,
 }
 
 fn word_has_observable_side_effect(text: &str, purity: PurityCtx<'_>, depth: u32) -> bool {
@@ -105,7 +110,7 @@ fn word_has_observable_side_effect(text: &str, purity: PurityCtx<'_>, depth: u32
         return true;
     };
     let sm = tcl_lexer::SourceMap::new(text);
-    let Ok(tokens) = tcl_lexer::Lexer::new(text).tokenise_all() else {
+    let Ok(tokens) = tcl_lexer::Lexer::with_config(text, purity.config).tokenise_all() else {
         return true; // unparseable → conservative
     };
     for tok in &tokens {
@@ -114,7 +119,11 @@ fn word_has_observable_side_effect(text: &str, purity: PurityCtx<'_>, depth: u32
         }
         // `token_text` yields the command substitution's inner text
         // (brackets stripped); segment it to get name + args.
-        let cmds = segment_commands(sm.token_text(*tok));
+        let cmds = crate::segmenter::segment_commands_with_offset_and_config(
+            sm.token_text(*tok),
+            0,
+            purity.config,
+        );
         if cmds.len() != 1 || cmds[0].texts.is_empty() {
             // Multi-command substitution or empty → conservative.
             return true;
@@ -269,6 +278,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         interproc_pure: &interproc_pure,
         pure_methods: &pure_methods,
         enclosing_class: None,
+        config: tcl_lexer::LexerConfig::for_profile(ctx.dialect),
     };
     let baseline = emit_dead_stores_and_unused(
         ctx,
@@ -303,6 +313,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             interproc_pure: &interproc_pure,
             pure_methods: &pure_methods,
             enclosing_class: None,
+            config: tcl_lexer::LexerConfig::for_profile(ctx.dialect),
         };
         let baseline = emit_dead_stores_and_unused(ctx, fu, false, purity, &proc_index);
         emit_adce(ctx, fu, &baseline, &interproc_pure, &pure_methods, None);
@@ -329,6 +340,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             interproc_pure: &interproc_pure,
             pure_methods: &pure_methods,
             enclosing_class,
+            config: tcl_lexer::LexerConfig::for_profile(ctx.dialect),
         };
         let baseline = emit_dead_stores_and_unused(ctx, fu, false, purity, &proc_index);
         emit_adce(
@@ -672,6 +684,7 @@ fn emit_adce(
         interproc_pure,
         pure_methods,
         enclosing_class,
+        config: tcl_lexer::LexerConfig::for_profile(ctx.dialect),
     };
     let (consumer_stmt_keys, keep_forever) = build_adce_consumers(fu);
     let stmt_to_defs = build_stmt_to_defs(fu);
@@ -1095,6 +1108,9 @@ pub(crate) fn collect_rmw_hidden_reads(
         element_qualified: false,
     });
     let mut shallow = VarReferenceScanner::new(VarScanOptions::default());
+    // The document's grammar, from the dialect-selected registry's own
+    // profile — the same route `dynamic_names::lexer_config_for` takes.
+    let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
     let mut out: HashSet<String> = HashSet::new();
     let mut scan = |word: &str| {
         if !word.contains('[') {
@@ -1111,7 +1127,7 @@ pub(crate) fn collect_rmw_hidden_reads(
         // safe for the dead-store / unused suppression: it only ever silences a
         // warning, matching the analyser's correctness-first (err-toward-silence)
         // bias.
-        out.extend(dollar_reads_in_cmd_subs(word, registry));
+        out.extend(dollar_reads_in_cmd_subs(word, registry, config));
     };
     let mut terminator_values: Vec<String> = Vec::new();
     for block in fu.cfg.blocks.values() {
@@ -1181,9 +1197,13 @@ pub(crate) fn collect_rmw_hidden_reads(
 ///
 /// Everything else keeps abstaining toward silence: an `[expr {…}]` brace, a
 /// word that merely *contains* a substitution, an unresolvable head.
-fn dollar_reads_in_cmd_subs(word: &str, registry: &CommandRegistry) -> Vec<String> {
+fn dollar_reads_in_cmd_subs(
+    word: &str,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
-    push_substituted_script_reads(word, registry, &mut out, 0);
+    push_substituted_script_reads(word, registry, &mut out, 0, config);
     out
 }
 
@@ -1197,12 +1217,13 @@ fn push_substituted_script_reads(
     registry: &CommandRegistry,
     out: &mut Vec<String>,
     depth: u32,
+    config: tcl_lexer::LexerConfig,
 ) {
     if depth >= MAX_SUBST_DEPTH || !text.contains('[') {
         return;
     }
-    for inner in crate::var_refs::command_subst_texts(text) {
-        push_script_dollar_reads(&inner, registry, out, depth + 1);
+    for inner in crate::var_refs::command_subst_texts_with_config(text, config) {
+        push_script_dollar_reads(&inner, registry, out, depth + 1, config);
     }
 }
 
@@ -1213,8 +1234,9 @@ fn push_script_dollar_reads(
     registry: &CommandRegistry,
     out: &mut Vec<String>,
     depth: u32,
+    config: tcl_lexer::LexerConfig,
 ) {
-    for cmd in crate::segmenter::segment_commands_with_offset(script, 0) {
+    for cmd in crate::segmenter::segment_commands_with_offset_and_config(script, 0, config) {
         let literal_names: HashSet<usize> =
             crate::var_refs::variable_name_role_words(&cmd, registry)
                 .into_iter()
@@ -1234,10 +1256,10 @@ fn push_script_dollar_reads(
                     .strip_prefix('[')
                     .and_then(|t| t.strip_suffix(']'))
                     .unwrap_or(text);
-                push_script_dollar_reads(inner, registry, out, depth + 1);
+                push_script_dollar_reads(inner, registry, out, depth + 1, config);
             } else {
                 scan_dollar_names(text, out);
-                push_substituted_script_reads(text, registry, out, depth);
+                push_substituted_script_reads(text, registry, out, depth, config);
             }
         }
     }
@@ -1456,6 +1478,7 @@ mod tests {
             interproc_pure: &interproc_pure,
             pure_methods: &pure_methods,
             enclosing_class: None,
+            config: tcl_lexer::LexerConfig::default(),
         };
 
         // Tier 1B: `[a [a [a … [a x] … ]]]` nested substitutions.

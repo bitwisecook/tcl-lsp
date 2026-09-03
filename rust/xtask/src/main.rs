@@ -68,6 +68,7 @@ mod callback_inventory;
 mod command_backing;
 mod diag_emission;
 mod diag_tables;
+mod dialect_drift;
 mod editor_extensions;
 mod environment;
 mod f5query_builtins_doc;
@@ -278,6 +279,16 @@ enum Command {
         check: bool,
     },
 
+    /// Flag a default-grammar re-lex, a grammar re-resolved from a dialect
+    /// name, or a bare list split of document text: a document's grammar is
+    /// resolved once at the ingress and threaded (dialect-drift gate).
+    #[command(name = "dialect-drift")]
+    DialectDrift {
+        /// Accepted for symmetry with the other gates (the lint always
+        /// verifies; it never rewrites).
+        #[arg(long)]
+        check: bool,
+    },
     /// Flag hand-rolled Tcl radix-prefix recognition outside the value parser,
     /// and verify the single expression-number boundary scanner.
     #[command(name = "number-drift")]
@@ -430,6 +441,7 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::GenJetbrainsCatalog { check } => gen_jetbrains::run(check),
         Command::GenAiDiagnostics { check } => gen_ai::run(check),
         Command::WorkflowSync { check } => workflow_sync::run(check),
+        Command::DialectDrift { check } => Ok(dialect_drift::run(check)),
         Command::NumberDrift { check } => Ok(number_drift::run(check)),
         Command::ResolutionDrift { check } => Ok(resolution_drift::run(check)),
         Command::RetiredApiGate { check } => Ok(retired_api_gate::run(check)),

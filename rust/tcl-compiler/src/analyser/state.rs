@@ -391,6 +391,14 @@ pub struct Analyser {
     /// under the `tk` environment's 8.6 core, so a walk that read
     /// `profile.grammar` would lex a `tk` document under 9.x rules.
     pub(super) ingress_grammar: Option<tcl_dialect::LexerGrammar>,
+    /// The **unit** profile the ingress resolved — the promoting form a
+    /// compilation unit is built under (`tk`'s own row, a projection for
+    /// `jim`), set beside [`Self::ingress_grammar`]. The CFG/SSA unit the
+    /// diagnostics walk builds takes its dialect from here so it agrees with
+    /// the unit the LSP builds for the same document, rather than from a
+    /// catalogue lookup of the name (which sinks `jim` and `tk` to the
+    /// fallback).
+    pub(super) unit_profile: Option<&'static tcl_dialect::DialectProfile>,
     /// The resolved document environment (centralisation R-a): set beside
     /// [`Self::profile`] at each `analyse*` ingress by
     /// [`crate::environment_ingress::resolve_environment`]. The profile
@@ -1293,17 +1301,24 @@ impl Analyser {
         self.ingress_grammar.unwrap_or(self.profile.grammar)
     }
 
-    /// The lexer config for this document's dialect.
-    ///
-    /// `LexerConfig::for_dialect` resolves the dialect-dependent
-    /// tokenisation flags — `expand_syntax` (`{*}` expansion, off for
-    /// Tcl 8.4 and iRules) and `irules_brace_separator` (`}{` ghost SEP,
-    /// iRules-only).  Threaded into every analyser re-segmentation so
-    /// tokenisation honours the workspace folder's dialect rather than
-    /// always assuming the Tcl-8.5+ default.  Reads `self.dialect()`, set at
-    /// the top of [`Self::analyse`].
+    /// The body-lexing config for this document: [`Self::grammar`] — the
+    /// ingress-resolved grammar, else the profile's — carrying the
+    /// dialect-dependent tokenisation flags (`{*}` expansion, the iRules
+    /// `}{` word break, numerals, escapes, Jim's axes). Threaded into every
+    /// analyser re-segmentation so a body is read under the document's
+    /// grammar, never the default's. [`Self::file_lexer_config`] is the
+    /// whole-file form.
     pub(super) fn lexer_config(&self) -> tcl_lexer::LexerConfig {
         tcl_lexer::LexerConfig::from_grammar(self.grammar())
+    }
+
+    /// This document dialect's word-value rules: how a braced word's
+    /// `\<newline>` folds and how list text divides. The [`Self::grammar`]
+    /// twin for the re-parses that split a *word* rather than re-lex a
+    /// script — a proc's parameter list, an OO member's — so they cannot
+    /// answer C Tcl's question about a `JimTcl` document.
+    pub(super) fn word_rules(&self) -> tcl_syntax::word_rules::WordValueRules {
+        tcl_syntax::word_rules::WordValueRules::from_grammar(&self.grammar())
     }
 
     /// [`Self::lexer_config`] for the **whole-file** segmentation at the top of
@@ -1478,6 +1493,7 @@ impl Analyser {
             source: String::new(),
             profile: tcl_dialect::DialectProfile::plain_tcl(),
             ingress_grammar: None,
+            unit_profile: None,
             environment: None,
             context: None,
             pack_overlay: 0,
@@ -1639,6 +1655,7 @@ impl Analyser {
         let environment = crate::environment_ingress::resolve_environment(dialect);
         self.profile = environment.analyser_profile();
         self.ingress_grammar = Some(environment.grammar());
+        self.unit_profile = Some(environment.unit_profile());
         let keyed =
             crate::environment_ingress::DocumentEnvironment::keyed_versions(&self.library_versions);
         let generation = environment.context_registry(&keyed, self.pack_overlay);
@@ -2543,8 +2560,16 @@ impl Analyser {
         if !tcl_lexer::script_is_complete(new_text) || new_text.contains("tcl-lsp: stub") {
             return self.analyse(new_text, dialect);
         }
-        let cmds =
-            crate::segmenter::segment_commands_incremental(prev_text, prev_commands, new_text);
+        let cmds = crate::segmenter::segment_commands_incremental(
+            prev_text,
+            prev_commands,
+            new_text,
+            // The document's whole-file grammar, resolved once through the
+            // ingress exactly as `analyse` resolves it for the full walk.
+            tcl_lexer::LexerConfig::for_file_grammar(
+                crate::environment_ingress::resolve_environment(dialect).grammar(),
+            ),
+        );
         // `analyse` segments with *error recovery*; the fast path uses plain
         // incremental segmentation.  `script_is_complete` only checks overall
         // delimiter balance, so a locally-unbalanced brace (a stray `}` matched

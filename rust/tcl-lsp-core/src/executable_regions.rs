@@ -301,9 +301,13 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool>
         // marks a substitution-free quoted action as `Str`; dynamic and
         // backslash-built actions remain opaque, so this traversal cannot
         // invent a statically executable body.
-        for (_, (body_text, body_token)) in
-            tcl_compiler::segmenter::flatten_case_list_clauses(self.source, list, token, spec)
-        {
+        for (_, (body_text, body_token)) in tcl_compiler::segmenter::flatten_case_list_clauses(
+            self.source,
+            list,
+            token,
+            spec,
+            self.config,
+        ) {
             if spec.fallthrough_body == Some(body_text.as_str()) {
                 continue;
             }

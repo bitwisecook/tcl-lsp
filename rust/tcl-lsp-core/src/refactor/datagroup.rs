@@ -22,8 +22,8 @@
 
 use std::net::{Ipv4Addr, Ipv6Addr};
 
-use tcl_compiler::segmenter::segment_commands_with_offset;
-use tcl_lexer::LineIndex;
+use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+use tcl_lexer::{LexerConfig, LineIndex};
 use tcl_registry::CommandRegistry;
 
 use super::{
@@ -270,8 +270,10 @@ enum SetOrReturn {
 }
 
 /// Parse a single-command arm body via the tokeniser.
-fn parse_set_or_return(text: &str) -> Option<SetOrReturn> {
-    let commands = segment_commands_with_offset(text, 0);
+///
+/// `config` is the document's [`LexerConfig`].
+fn parse_set_or_return(text: &str, config: LexerConfig) -> Option<SetOrReturn> {
+    let commands = segment_commands_with_offset_and_config(text, 0, config);
     if commands.len() != 1 || commands[0].texts.is_empty() {
         return None;
     }
@@ -290,7 +292,10 @@ fn parse_set_or_return(text: &str) -> Option<SetOrReturn> {
 }
 
 /// Extract `(target_var, use_return, values)` from arm bodies.
-fn extract_set_or_return_values(pairs: &[(String, String)]) -> Option<(String, bool, Vec<String>)> {
+fn extract_set_or_return_values(
+    pairs: &[(String, String)],
+    config: LexerConfig,
+) -> Option<(String, bool, Vec<String>)> {
     let mut target_var: Option<String> = None;
     let mut use_return: Option<bool> = None;
     let mut values = Vec::new();
@@ -299,7 +304,7 @@ fn extract_set_or_return_values(pairs: &[(String, String)]) -> Option<(String, b
         if text.starts_with('{') && text.ends_with('}') && text.len() >= 2 {
             text = text[1..text.len() - 1].trim();
         }
-        match parse_set_or_return(text) {
+        match parse_set_or_return(text, config) {
             Some(SetOrReturn::Set(var, val)) => {
                 match &target_var {
                     None => {
@@ -333,12 +338,17 @@ fn extract_set_or_return_values(pairs: &[(String, String)]) -> Option<(String, b
 }
 
 /// Extract the value from a single arm body.
-fn extract_single_value(body: &str, use_return: bool, target_var: &str) -> Option<String> {
+fn extract_single_value(
+    body: &str,
+    use_return: bool,
+    target_var: &str,
+    config: LexerConfig,
+) -> Option<String> {
     let mut text = body.trim();
     if text.starts_with('{') && text.ends_with('}') && text.len() >= 2 {
         text = text[1..text.len() - 1].trim();
     }
-    match parse_set_or_return(text)? {
+    match parse_set_or_return(text, config)? {
         SetOrReturn::Return(val) if use_return => Some(val),
         SetOrReturn::Set(var, val) if !use_return && var == target_var => Some(val),
         _ => None,
@@ -355,8 +365,9 @@ pub fn extract_to_datagroup_from_if(
     dg_name: &str,
     registry: &CommandRegistry,
     line_index: &LineIndex,
+    config: LexerConfig,
 ) -> Option<Refactoring> {
-    let cmd = find_command_at(source, cursor, Some("if"), registry)?;
+    let cmd = find_command_at(source, cursor, Some("if"), registry, config)?;
     let chain = parse_if_chain(&cmd.texts)?;
     if chain.values.len() < 2 {
         return None;
@@ -393,7 +404,7 @@ pub fn extract_to_datagroup_from_if(
             .cloned()
             .zip(chain.bodies.iter().cloned())
             .collect();
-        let (set_var, use_return, value_entries) = extract_set_or_return_values(&pairs)?;
+        let (set_var, use_return, value_entries) = extract_set_or_return_values(&pairs, config)?;
         let records = zip_records(&stripped_values, &value_entries);
         let dg = DataGroupDefinition {
             name: dg_name.clone(),
@@ -580,8 +591,9 @@ pub fn extract_to_datagroup_from_switch(
     dg_name: &str,
     registry: &CommandRegistry,
     line_index: &LineIndex,
+    config: LexerConfig,
 ) -> Option<Refactoring> {
-    let cmd = find_command_at(source, cursor, Some("switch"), registry)?;
+    let cmd = find_command_at(source, cursor, Some("switch"), registry, config)?;
     let (subject, pairs) = super::parse_exact_switch(&cmd.texts)?;
     let subject_var = extract_var_name(&subject)?;
     if pairs.len() < 3 {
@@ -636,6 +648,7 @@ pub fn extract_to_datagroup_from_switch(
             &dg_name,
             default_body.as_deref(),
             &indent,
+            config,
         )?
     };
 
@@ -657,8 +670,10 @@ fn switch_mapping_extraction(
     dg_name: &str,
     default_body: Option<&str>,
     indent: &str,
+    config: LexerConfig,
 ) -> Option<(DataGroupDefinition, String)> {
-    let (target_var, use_return, value_entries) = extract_set_or_return_values(regular_pairs)?;
+    let (target_var, use_return, value_entries) =
+        extract_set_or_return_values(regular_pairs, config)?;
     let records = zip_records(keys, &value_entries);
     let dg = DataGroupDefinition {
         name: dg_name.to_owned(),
@@ -672,7 +687,7 @@ fn switch_mapping_extraction(
         // `default { set other zzz }` would become `set h { set other zzz }`,
         // assigning the literal string instead of running the command. Decline
         // the refactor rather than emit a lossy, semantics-changing edit.
-        let default_val = extract_single_value(default, use_return, &target_var)?;
+        let default_val = extract_single_value(default, use_return, &target_var, config)?;
         if use_return {
             format!(
                 "if {{ [class match ${subject_var} equals {dg_name}] }} {{\n{indent}    return [class lookup ${subject_var} {dg_name}]\n{indent}}} else {{\n{indent}    return {default_val}\n{indent}}}"
@@ -699,9 +714,11 @@ pub fn extract_to_datagroup(
     dg_name: &str,
     registry: &CommandRegistry,
     line_index: &LineIndex,
+    config: LexerConfig,
 ) -> Option<Refactoring> {
-    extract_to_datagroup_from_if(source, cursor, dg_name, registry, line_index)
-        .or_else(|| extract_to_datagroup_from_switch(source, cursor, dg_name, registry, line_index))
+    extract_to_datagroup_from_if(source, cursor, dg_name, registry, line_index, config).or_else(
+        || extract_to_datagroup_from_switch(source, cursor, dg_name, registry, line_index, config),
+    )
 }
 
 #[cfg(test)]
@@ -715,16 +732,23 @@ mod tests {
         r
     }
 
+    /// This module's transforms only ever fire meaningfully over iRules
+    /// text (`class match` / `class lookup` are iRules-only), so the tests
+    /// lex under the iRules grammar, matching `reg()`.
+    fn config() -> LexerConfig {
+        LexerConfig::from_grammar(tcl_registry::model::resolve_environment("f5-irules").grammar())
+    }
+
     fn if_dg(source: &str, name: &str) -> Option<Refactoring> {
         let r = reg();
         let li = LineIndex::new(source);
-        extract_to_datagroup_from_if(source, 0, name, &r, &li)
+        extract_to_datagroup_from_if(source, 0, name, &r, &li, config())
     }
 
     fn switch_dg(source: &str, name: &str) -> Option<Refactoring> {
         let r = reg();
         let li = LineIndex::new(source);
-        extract_to_datagroup_from_switch(source, 0, name, &r, &li)
+        extract_to_datagroup_from_switch(source, 0, name, &r, &li, config())
     }
 
     fn dg(r: &Refactoring) -> &DataGroupDefinition {
@@ -817,7 +841,7 @@ mod tests {
         let source = "switch -exact -- $uri {\n    /api { set pool api_pool }\n    /web { set pool web_pool }\n    /cdn { set pool cdn_pool }\n}";
         let r = reg();
         let li = LineIndex::new(source);
-        assert!(extract_to_datagroup(source, 0, "uri_pool", &r, &li).is_some());
+        assert!(extract_to_datagroup(source, 0, "uri_pool", &r, &li, config()).is_some());
     }
 
     #[test]
@@ -856,7 +880,8 @@ mod tests {
         let r = reg();
         let li = LineIndex::new(source);
         let cursor = u32::try_from(source.find("if {").unwrap()).unwrap();
-        let res = extract_to_datagroup(source, cursor, "", &r, &li).expect("nested result");
+        let res =
+            extract_to_datagroup(source, cursor, "", &r, &li, config()).expect("nested result");
         let g = dg(&res);
         assert_eq!(g.value_type, "string");
         assert_eq!(g.records.len(), 3);

@@ -25,7 +25,7 @@
 //! The per-command logic lives in [`crate::lowering::hooks`] (one
 //! file per command); this module retains the dispatcher, the
 //! [`LoweringCommand`] context type, and the shared helpers
-//! (`make_call`, `extract_single_expr_arg`, `parse_decimal_int`).
+//! (`make_call`, `extract_single_expr_arg_with_config`, `parse_decimal_int`).
 
 use std::collections::HashSet;
 
@@ -116,6 +116,11 @@ pub enum ArgTokenKind {
     Cmd,
     /// Variable reference `$...`.
     Var,
+    /// `JimTcl`'s `$(…)` sugar. The segmenter spells the word `$(body)` and
+    /// the body is an **expression**, not a script — `set x $($a*2)` is
+    /// `set x [expr {$a*2}]` — so the hooks that lower a bracketed `expr`
+    /// lower this the same way instead of leaving the word opaque.
+    ExprSugar,
     /// Any other token type.
     Other,
 }
@@ -360,30 +365,31 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
                 };
             }
             ArgTokenKind::Cmd => {
-                // The segmenter wraps CMD tokens as [text]; strip the
-                // brackets so extract_single_expr_arg sees "expr {arg}".
-                let inner = value
-                    .strip_prefix('[')
-                    .and_then(|s| s.strip_suffix(']'))
-                    .unwrap_or(value);
-                let alias_names = expr_alias_names(aliases);
-                if let Some((expr_arg, rel_base)) = extract_single_expr_arg(inner, &alias_names) {
-                    let expr = parse_expr_for_profile(&expr_arg, cmd.dialect);
-                    // Anchor the expression text absolutely when both the
-                    // `[...]` value word's content and the expr word within
-                    // it are verbatim slices: absolute = the bracketed
-                    // word's content start + the expr word's offset in it.
-                    let inner_base = cmd.tokens.as_ref().and_then(|t| {
-                        word_content_base(
-                            *t.argv.get(2)?,
-                            t.single_token_word.get(2).copied().unwrap_or(false),
-                            inner,
-                        )
+                if let Some(stmt) =
+                    set_expr_from_command_value(cmd, aliases, value, name, name_braced)
+                {
+                    return stmt;
+                }
+            }
+            ArgTokenKind::ExprSugar => {
+                // JimTcl `$(…)`: the body is an expression, so this is the
+                // `AssignExpr` a `[expr {…}]` value produces — dataflow,
+                // taint and typing then see the operands instead of an
+                // opaque word. The body is anchored absolutely when the
+                // value word is a single verbatim token: the lexer's span
+                // for the sugar covers the `$(` opener plus the body and
+                // ends before the closer, so the body starts two bytes in.
+                if let Some(body) = value.strip_prefix("$(").and_then(|s| s.strip_suffix(')')) {
+                    let expr = parse_expr_for_profile(body, cmd.dialect);
+                    let expr_base = cmd.tokens.as_ref().and_then(|t| {
+                        let span = *t.argv.get(2)?;
+                        if !t.single_token_word.get(2).copied().unwrap_or(false) {
+                            return None;
+                        }
+                        let span_len = span.end().checked_sub(span.start())?;
+                        let body_len = u32::try_from(body.len()).ok()?;
+                        (span_len == body_len.checked_add(2)?).then(|| span.start() + 2)
                     });
-                    let expr_base = match (inner_base, rel_base) {
-                        (Some(b), Some(r)) => Some(b + r),
-                        _ => None,
-                    };
                     return Statement::AssignExpr {
                         span: cmd.span,
                         name: name.clone(),
@@ -405,6 +411,55 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
         value_needs_backsubst: false,
         tokens: cmd.tokens.clone(),
     }
+}
+
+/// The `AssignExpr` a `set x [expr {…}]` value word lowers to, or `None` when
+/// the bracketed word is not a single-argument `expr` (or an alias of one).
+///
+/// Extracted from [`lower_set`]'s `Cmd` arm so that walker stays inside the
+/// per-function line budget; the logic is unchanged.
+fn set_expr_from_command_value(
+    cmd: &LoweringCommand<'_>,
+    aliases: &CommandAliasMap,
+    value: &str,
+    name: &str,
+    name_braced: bool,
+) -> Option<Statement> {
+    // The segmenter wraps CMD tokens as [text]; strip the brackets so
+    // `extract_single_expr_arg_with_config` sees "expr {arg}".
+    let inner = value
+        .strip_prefix('[')
+        .and_then(|s| s.strip_suffix(']'))
+        .unwrap_or(value);
+    let alias_names = expr_alias_names(aliases);
+    let (expr_arg, rel_base) = extract_single_expr_arg_with_config(
+        inner,
+        &alias_names,
+        tcl_lexer::LexerConfig::for_profile(cmd.dialect),
+    )?;
+    let expr = parse_expr_for_profile(&expr_arg, cmd.dialect);
+    // Anchor the expression text absolutely when both the `[...]` value
+    // word's content and the expr word within it are verbatim slices:
+    // absolute = the bracketed word's content start + the expr word's
+    // offset in it.
+    let inner_base = cmd.tokens.as_ref().and_then(|t| {
+        word_content_base(
+            *t.argv.get(2)?,
+            t.single_token_word.get(2).copied().unwrap_or(false),
+            inner,
+        )
+    });
+    let expr_base = match (inner_base, rel_base) {
+        (Some(b), Some(r)) => Some(b + r),
+        _ => None,
+    };
+    Some(Statement::AssignExpr {
+        span: cmd.span,
+        name: name.to_owned(),
+        name_braced,
+        expr,
+        expr_base,
+    })
 }
 
 // incr
@@ -636,14 +691,18 @@ pub(crate) fn make_call(cmd: &LoweringCommand<'_>) -> Statement {
 /// `pub(crate)` so per-command hook modules under
 /// [`crate::lowering::hooks`] (e.g. `control::try_lower_return`) can
 /// share the same single-arg-extraction logic as `lower_set` here.
-pub(crate) fn extract_single_expr_arg(
+/// `config` is the document's own [`tcl_lexer::LexerConfig`], so the
+/// `[expr …]` interior is re-lexed under the grammar the document was lexed
+/// with rather than the Tcl 9.x default.
+pub(crate) fn extract_single_expr_arg_with_config(
     text: &str,
     expr_aliases: &HashSet<String>,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<(String, Option<u32>)> {
     use tcl_lexer::{Lexer, SourceMap, TokenType};
 
     let sm = SourceMap::new(text);
-    let lexer = Lexer::new(text);
+    let lexer = Lexer::with_config(text, config);
     let Ok(tokens) = lexer.tokenise_all() else {
         return None;
     };
@@ -932,13 +991,20 @@ mod tests {
         assert_eq!(parse_decimal_int("007"), None); // leading zeros rejected
     }
 
+    fn extract_single_expr_arg_cfg(
+        text: &str,
+        aliases: &HashSet<String>,
+    ) -> Option<(String, Option<u32>)> {
+        extract_single_expr_arg_with_config(text, aliases, tcl_lexer::LexerConfig::default())
+    }
+
     #[test]
     fn extract_expr_arg_basic() {
         let aliases = HashSet::new();
         // token_text strips braces from Str tokens; the content base is the
         // offset just past the `{` (the expr text's first byte in `text`).
         assert_eq!(
-            extract_single_expr_arg("expr {$a + $b}", &aliases),
+            extract_single_expr_arg_cfg("expr {$a + $b}", &aliases),
             Some(("$a + $b".into(), Some(6)))
         );
     }
@@ -946,7 +1012,7 @@ mod tests {
     #[test]
     fn extract_expr_arg_too_many_words() {
         let aliases = HashSet::new();
-        assert_eq!(extract_single_expr_arg("expr $a + $b", &aliases), None);
+        assert_eq!(extract_single_expr_arg_cfg("expr $a + $b", &aliases), None);
     }
 
     #[test]
@@ -954,9 +1020,42 @@ mod tests {
         let mut aliases = HashSet::new();
         aliases.insert("=".into());
         assert_eq!(
-            extract_single_expr_arg("= {1+2}", &aliases),
+            extract_single_expr_arg_cfg("= {1+2}", &aliases),
             Some(("1+2".into(), Some(3)))
         );
+    }
+
+    /// `JimTcl` `set x $($a*2)` is `set x [expr {$a*2}]`: the sugar lowers to
+    /// the same `AssignExpr`, with the body parsed as an expression whose
+    /// operand is the variable `a` — not an opaque `AssignValue`.
+    #[test]
+    fn lower_set_jim_expr_sugar_is_an_expression() {
+        let args = vec!["x".to_string(), "$($a*2)".to_string()];
+        let single = vec![true, true, true];
+        let kinds = vec![ArgTokenKind::Esc, ArgTokenKind::ExprSugar];
+        let aliases = CommandAliasMap::new();
+        let jim = tcl_registry::model::resolve_environment("jim").unit_profile();
+        let cmd = LoweringCommand {
+            span: Span::new(0, 13),
+            name: "set",
+            args: &args,
+            single_token_word: &single,
+            expand_word: None,
+            tokens: None,
+            arg_kinds: &kinds,
+            dialect: Some(jim),
+        };
+        match lower_set(&cmd, &aliases) {
+            Statement::AssignExpr { name, expr, .. } => {
+                assert_eq!(name, "x");
+                let rendered = format!("{expr:?}");
+                assert!(
+                    rendered.contains('a'),
+                    "operand `a` missing from {rendered}"
+                );
+            }
+            other => panic!("expected AssignExpr; got {other:?}"),
+        }
     }
 
     #[test]

@@ -1175,8 +1175,14 @@ fn is_safe_literal_expr_classifies() {
     assert!(is_safe_literal("42"));
     assert!(is_safe_literal("true"));
     assert!(!is_safe_literal("$x"));
-    assert!(is_safe_literal_expr("1 + 2", "tcl8.6"));
-    assert!(!is_safe_literal_expr("$a + $b", "tcl8.6"));
+    assert!(is_safe_literal_expr(
+        "1 + 2",
+        tcl_dialect::DialectProfile::find("tcl8.6").expect("tcl8.6 profile")
+    ));
+    assert!(!is_safe_literal_expr(
+        "$a + $b",
+        tcl_dialect::DialectProfile::find("tcl8.6").expect("tcl8.6 profile")
+    ));
 }
 
 fn w212_count(src: &str) -> usize {
@@ -1339,47 +1345,99 @@ fn first_nested_expr_finds_bracketed_expr() {
 
 #[test]
 fn body_references_param_bare_dollar() {
-    assert!(body_references_param("set y $x", "x"));
-    assert!(body_references_param("return [expr {$a + $b}]", "a"));
-    assert!(body_references_param("return [expr {$a + $b}]", "b"));
-    assert!(body_references_param("puts [list $val 1]", "val"));
+    assert!(body_references_param(
+        "set y $x",
+        "x",
+        tcl_lexer::LexerConfig::default()
+    ));
+    assert!(body_references_param(
+        "return [expr {$a + $b}]",
+        "a",
+        tcl_lexer::LexerConfig::default()
+    ));
+    assert!(body_references_param(
+        "return [expr {$a + $b}]",
+        "b",
+        tcl_lexer::LexerConfig::default()
+    ));
+    assert!(body_references_param(
+        "puts [list $val 1]",
+        "val",
+        tcl_lexer::LexerConfig::default()
+    ));
 }
 
 #[test]
 fn body_references_param_braced_dollar() {
-    assert!(body_references_param("set y ${x}", "x"));
-    assert!(body_references_param("puts \"got ${val}!\"", "val"));
+    assert!(body_references_param(
+        "set y ${x}",
+        "x",
+        tcl_lexer::LexerConfig::default()
+    ));
+    assert!(body_references_param(
+        "puts \"got ${val}!\"",
+        "val",
+        tcl_lexer::LexerConfig::default()
+    ));
 }
 
 #[test]
 fn body_references_param_no_match_for_substring_only() {
     // ``$abc`` must not match ``ab`` (boundary check).
-    assert!(!body_references_param("set y $abc", "ab"));
-    assert!(!body_references_param("puts $foobar", "foo"));
+    assert!(!body_references_param(
+        "set y $abc",
+        "ab",
+        tcl_lexer::LexerConfig::default()
+    ));
+    assert!(!body_references_param(
+        "puts $foobar",
+        "foo",
+        tcl_lexer::LexerConfig::default()
+    ));
 }
 
 #[test]
 fn body_references_param_skips_backslash_escape() {
     // ``\$x`` is a literal dollar — not a substitution.
-    assert!(!body_references_param("puts \\$x", "x"));
+    assert!(!body_references_param(
+        "puts \\$x",
+        "x",
+        tcl_lexer::LexerConfig::default()
+    ));
 }
 
 #[test]
 fn body_references_param_handles_multiple_uses() {
-    assert!(body_references_param("set y $x; set z $x", "x"));
+    assert!(body_references_param(
+        "set y $x; set z $x",
+        "x",
+        tcl_lexer::LexerConfig::default()
+    ));
 }
 
 #[test]
 fn body_references_param_misses_when_unused() {
-    assert!(!body_references_param("puts hello", "x"));
-    assert!(!body_references_param("return 42", "y"));
+    assert!(!body_references_param(
+        "puts hello",
+        "x",
+        tcl_lexer::LexerConfig::default()
+    ));
+    assert!(!body_references_param(
+        "return 42",
+        "y",
+        tcl_lexer::LexerConfig::default()
+    ));
 }
 
 #[test]
 fn body_references_param_braced_with_punct_after() {
     // ``${x}foo`` is a valid substitution — boundary not
     // required inside braces.
-    assert!(body_references_param("set y ${x}foo", "x"));
+    assert!(body_references_param(
+        "set y ${x}foo",
+        "x",
+        tcl_lexer::LexerConfig::default()
+    ));
 }
 
 #[test]
@@ -1389,7 +1447,11 @@ fn body_references_param_namespace_qualified() {
     // OK — both are part of the qualified name; the W214
     // emitter passes the bare param so this is a non-issue
     // in practice.  Test pins the boundary semantics.
-    assert!(!body_references_param("set y $ns::var", "ns"));
+    assert!(!body_references_param(
+        "set y $ns::var",
+        "ns",
+        tcl_lexer::LexerConfig::default()
+    ));
 }
 
 fn diag(code: DiagCode, span: Span, msg: &str) -> Diagnostic {
@@ -4677,13 +4739,14 @@ fn memoized_compilation_unit_diagnostics_match_whole_file() {
                     if let Some(fu) = cache.get(&key) {
                         return fu.clone();
                     }
-                    let cfg = crate::cfg_builder::build_cfg_function_with_upvars(
+                    let cfg = crate::cfg_builder::build_cfg_function_with_upvars_and_config(
                         req.qname,
                         req.body,
                         true,
                         req.upvar_procs.clone(),
                         req.proc_params.clone(),
                         req.global_write_procs.clone(),
+                        tcl_lexer::LexerConfig::default(),
                     );
                     let pc = crate::compilation_unit::decode_param_constants(req.param_constants);
                     let known_classes: std::collections::HashSet<String> =
@@ -4698,7 +4761,10 @@ fn memoized_compilation_unit_diagnostics_match_whole_file() {
                         req.qname,
                         cfg,
                         req.params,
-                        &registry,
+                        crate::compilation_unit::UnitDialect {
+                            registry: &registry,
+                            config: tcl_lexer::LexerConfig::default(),
+                        },
                         pc.as_ref(),
                         &known_classes,
                         trace_facts,
@@ -4785,13 +4851,14 @@ fn memoized_compilation_unit_shift_correctness() {
                 if let Some(fu) = cache.get(&key) {
                     return fu.clone();
                 }
-                let cfg = crate::cfg_builder::build_cfg_function_with_upvars(
+                let cfg = crate::cfg_builder::build_cfg_function_with_upvars_and_config(
                     req.qname,
                     req.body,
                     true,
                     req.upvar_procs.clone(),
                     req.proc_params.clone(),
                     req.global_write_procs.clone(),
+                    tcl_lexer::LexerConfig::default(),
                 );
                 let pc = crate::compilation_unit::decode_param_constants(req.param_constants);
                 let fu = FunctionUnit::build_with_param_constants(
@@ -4800,6 +4867,7 @@ fn memoized_compilation_unit_shift_correctness() {
                     req.params,
                     &registry,
                     pc.as_ref(),
+                    tcl_lexer::LexerConfig::default(),
                 );
                 cache.insert(key, fu.clone());
                 fu

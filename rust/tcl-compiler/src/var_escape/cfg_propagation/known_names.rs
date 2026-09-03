@@ -61,7 +61,12 @@ mod tests {
     fn ssa_of(src: &str) -> SsaFunction {
         let registry = CommandRegistry::build_default();
         let m = lower_to_ir(src, &registry);
-        let cfg = build_cfg_function("::top", &m.top_level, true);
+        let cfg = build_cfg_function(
+            "::top",
+            &m.top_level,
+            true,
+            tcl_lexer::LexerConfig::default(),
+        );
         build_ssa(&cfg, &registry)
     }
 

@@ -28,7 +28,7 @@
 use std::fmt::Write as _;
 
 use tcl_compiler::analyser::Analyser;
-use tcl_lexer::highlight_ranges;
+use tcl_lexer::highlight_ranges_with_config;
 use tcl_lsp_core::formatting::{FormatterConfig, format_tcl};
 
 /// Format an iRule body with the F5 iRules Style Guide formatter in the
@@ -132,7 +132,7 @@ pub fn analyze_irule(source: &str) -> String {
 /// spans per segment keeps the HTML well-nested even when token and diagnostic
 /// ranges cross, and when diagnostics overlap each other.
 fn render_annotated(source: &str, findings: &[Finding]) -> String {
-    let hl = highlight_ranges(source);
+    let hl = highlight_ranges_with_config(source, irules_file_config());
 
     // Collect and sort unique cut points.
     let mut cuts: Vec<usize> = Vec::with_capacity(hl.len() * 2 + findings.len() * 2 + 2);
@@ -402,4 +402,13 @@ mod tests {
         assert!(json.contains("\"severity\":\"hint\""));
         assert!(json.contains("tk-event"));
     }
+}
+
+/// The whole-file lexer config for an iRule, resolved once through the
+/// ingress: `}{` splits words and `{*}` is inert, so highlighting reads the
+/// rule as TMM does rather than as Tcl 9.
+pub(crate) fn irules_file_config() -> tcl_lexer::LexerConfig {
+    tcl_lexer::LexerConfig::for_file_grammar(
+        tcl_registry::model::resolve_environment("f5-irules").grammar(),
+    )
 }

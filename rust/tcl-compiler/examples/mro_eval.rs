@@ -319,7 +319,14 @@ fn run_pass_b(ablations: &[Ablation], pa: &PassA) -> PassB {
                 &a.classes
             };
             let t0 = Instant::now();
-            let (reports, stats) = analyse_dispatch(&a.cu, index, &a.sites, &a.ns, &ab.cfg);
+            let (reports, stats) = analyse_dispatch(
+                &a.cu,
+                index,
+                &a.sites,
+                &a.ns,
+                &ab.cfg,
+                tcl_lexer::LexerConfig::default(),
+            );
             resolve_time += t0.elapsed();
             agg.merge(&stats);
             // Sample from the FULL ablation only.

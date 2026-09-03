@@ -480,6 +480,8 @@ fn tcl_commands(src: &str) -> Result<Vec<Vec<String>>, String> {
     // report, rather than a silently truncated word.
     let config = LexerConfig {
         strict_quoting: true,
+        // dialect-drift-ok: an architecture-manifest DSL, not a Tcl document —
+        // a fixed declarative vocabulary with no dialect axis.
         ..LexerConfig::default()
     };
     let tokens = Lexer::with_source_map(SourceMap::new(src), config)

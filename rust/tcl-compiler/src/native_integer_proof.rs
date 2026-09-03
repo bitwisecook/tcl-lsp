@@ -487,8 +487,12 @@ fn collect_caller_ranges(
         if direct.callee.qualified_name != function {
             continue;
         }
-        let (caller, statement, args) = direct_actuals(unit, id)
-            .ok_or(NativeIntegerDeclineReason::MissingDirectProcEvidence)?;
+        let (caller, statement, args) = direct_actuals(
+            unit,
+            id,
+            tcl_lexer::LexerConfig::for_profile(registry.profile()),
+        )
+        .ok_or(NativeIntegerDeclineReason::MissingDirectProcEvidence)?;
         if args.len() != params.len() {
             return Err(NativeIntegerDeclineReason::MissingDirectProcEvidence);
         }
@@ -575,6 +579,7 @@ fn collect_caller_ranges(
 fn direct_actuals<'a>(
     unit: &'a CompilationUnit,
     id: &DirectCallSiteId,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<(&'a FunctionUnit, &'a SsaStatement, Vec<String>)> {
     let caller = unit.function(&id.function)?;
     let block = caller.ssa.blocks.get(&id.block)?;
@@ -584,7 +589,7 @@ fn direct_actuals<'a>(
     };
     let actuals = if let Some(argument_index) = id.nested_argument {
         let argument = args.get(argument_index as usize)?;
-        crate::value_shapes::parse_command_substitution(argument)?.1
+        crate::value_shapes::parse_command_substitution_with_config(argument, config)?.1
     } else {
         args.clone()
     };

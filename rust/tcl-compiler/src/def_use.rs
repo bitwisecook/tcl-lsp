@@ -189,7 +189,11 @@ impl DefUseResult {
 /// Pass 2 collects uses (from statement operands, phi incoming
 /// edges, and, when `cfg` is provided, branch-condition reads).
 #[must_use]
-pub fn build_def_use_chains(ssa: &SsaFunction, cfg: Option<&CfgFunction>) -> DefUseResult {
+pub fn build_def_use_chains(
+    ssa: &SsaFunction,
+    cfg: Option<&CfgFunction>,
+    grammar: tcl_dialect::LexerGrammar,
+) -> DefUseResult {
     let mut chains: HashMap<SsaValueKey, DefUseChain> = HashMap::new();
 
     // Pass 1: definitions
@@ -277,7 +281,7 @@ pub fn build_def_use_chains(ssa: &SsaFunction, cfg: Option<&CfgFunction>) -> Def
         if let Some(cfg) = cfg
             && let Some(cfg_block) = cfg.blocks.get(bn)
         {
-            add_terminator_uses(&mut chains, entry_name, ssa, block, cfg_block);
+            add_terminator_uses(&mut chains, entry_name, ssa, block, cfg_block, grammar);
         }
     }
 
@@ -294,10 +298,13 @@ pub fn build_def_use_chains(ssa: &SsaFunction, cfg: Option<&CfgFunction>) -> Def
 /// string may still be `eval`-ed by the caller) but never a read here.
 /// tclsh-proof: tclsh8.6.14 — `proc f {} { return {$y} }; puts [f]` prints
 /// `$y` with `y` undefined.
-fn terminator_read_vars(terminator: Option<&Terminator>) -> Vec<(String, UseClass)> {
+fn terminator_read_vars(
+    terminator: Option<&Terminator>,
+    grammar: tcl_dialect::LexerGrammar,
+) -> Vec<(String, UseClass)> {
     match terminator {
         Some(Terminator::Branch { condition, .. }) => condition
-            .vars_element_qualified()
+            .vars_element_qualified_with_grammar(grammar)
             .into_iter()
             .map(|n| (n, UseClass::Substituted))
             .collect(),
@@ -316,22 +323,25 @@ fn terminator_read_vars(terminator: Option<&Terminator>) -> Vec<(String, UseClas
             };
             if let Some(v) = value {
                 set.extend(
-                    crate::var_refs::scan_var_ref_forms_braced(v)
-                        .into_iter()
-                        // A `${…}` read's content is a literal name — `${$n}`
-                        // reads the variable called `$n` — so its `$` must
-                        // survive canonicalisation (issue #1078).
-                        .map(|(n, braced)| {
-                            (
-                                crate::naming::element_var_name_braced(&n, braced).to_string(),
-                                value_class,
-                            )
-                        }),
+                    crate::var_refs::scan_var_ref_forms_braced_with_config(
+                        v,
+                        tcl_lexer::LexerConfig::from_grammar(grammar),
+                    )
+                    .into_iter()
+                    // A `${…}` read's content is a literal name — `${$n}`
+                    // reads the variable called `$n` — so its `$` must
+                    // survive canonicalisation (issue #1078).
+                    .map(|(n, braced)| {
+                        (
+                            crate::naming::element_var_name_braced(&n, braced).to_string(),
+                            value_class,
+                        )
+                    }),
                 );
             }
             if let Some(e) = expr {
                 set.extend(
-                    e.vars_element_qualified()
+                    e.vars_element_qualified_with_grammar(grammar)
                         .into_iter()
                         .map(|n| (n, UseClass::Substituted)),
                 );
@@ -384,8 +394,9 @@ fn add_terminator_uses(
     ssa: &SsaFunction,
     block: &crate::ssa::SsaBlock,
     cfg_block: &crate::cfg::Block,
+    grammar: tcl_dialect::LexerGrammar,
 ) {
-    for (var_name, class) in terminator_read_vars(cfg_block.terminator.as_ref()) {
+    for (var_name, class) in terminator_read_vars(cfg_block.terminator.as_ref(), grammar) {
         let fanned: Vec<String> = ssa
             .var_names()
             .iter()
@@ -520,7 +531,7 @@ mod tests {
     #[test]
     fn empty_function_has_no_chains() {
         let ssa = empty_ssa("f", "entry");
-        let r = build_def_use_chains(&ssa, None);
+        let r = build_def_use_chains(&ssa, None, tcl_dialect::LexerGrammar::default());
         assert_eq!(r.total_defs(), 0);
         assert_eq!(r.total_uses(), 0);
     }
@@ -531,7 +542,7 @@ mod tests {
         let entry = bid(&ssa, "entry");
         let s = assign_stmt(&mut ssa, "x", "1", 1);
         ssa.blocks.get_mut(&entry).unwrap().statements.push(s);
-        let r = build_def_use_chains(&ssa, None);
+        let r = build_def_use_chains(&ssa, None, tcl_dialect::LexerGrammar::default());
         assert_eq!(r.total_defs(), 1);
         assert!(r.is_dead("x", 1));
         assert_eq!(r.dead_chains().len(), 1);
@@ -546,7 +557,7 @@ mod tests {
         let blk = ssa.blocks.get_mut(&entry).unwrap();
         blk.statements.push(s1);
         blk.statements.push(s2);
-        let r = build_def_use_chains(&ssa, None);
+        let r = build_def_use_chains(&ssa, None, tcl_dialect::LexerGrammar::default());
         assert!(!r.is_dead("x", 1));
         assert_eq!(r.uses_of("x", 1).len(), 1);
         assert_eq!(r.uses_of("x", 1)[0].kind, UseKind::Operand);
@@ -601,7 +612,7 @@ mod tests {
                 exit_versions: HashMap::new(),
             },
         );
-        let r = build_def_use_chains(&ssa, None);
+        let r = build_def_use_chains(&ssa, None, tcl_dialect::LexerGrammar::default());
         // x@3 is the phi def.
         let phi_chain = r.chain_for("x", 3).expect("phi def chain");
         assert_eq!(phi_chain.definition.kind, DefKind::Phi);
@@ -623,7 +634,7 @@ mod tests {
         blk.statements.push(s1);
         blk.statements.push(s2);
         blk.statements.push(s3);
-        let r = build_def_use_chains(&ssa, None);
+        let r = build_def_use_chains(&ssa, None, tcl_dialect::LexerGrammar::default());
         let mut defs = r.reaching_defs("x");
         defs.sort_by_key(|(_, v)| *v);
         assert_eq!(
@@ -640,7 +651,7 @@ mod tests {
         let entry = bid(&ssa, "entry");
         let s = assign_uses_stmt(&mut ssa, "y", 1, &[("x", 0)]);
         ssa.blocks.get_mut(&entry).unwrap().statements.push(s);
-        let r = build_def_use_chains(&ssa, None);
+        let r = build_def_use_chains(&ssa, None, tcl_dialect::LexerGrammar::default());
         let chain = r.chain_for("x", 0).expect("synthesised param chain");
         assert_eq!(chain.definition.kind, DefKind::Parameter);
         assert_eq!(chain.uses.len(), 1);

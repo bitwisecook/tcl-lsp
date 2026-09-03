@@ -561,7 +561,12 @@ impl CfgBuilder {
         // stay real edges, so partial-def exits remain sound.
         let body_id = self.bid(&body_block);
         let end_id = self.bid(&end_block);
-        if self.faithful_exceptions && crate::cfg_builder::foreach_runs_at_least_once(stmt) {
+        if self.faithful_exceptions
+            && crate::cfg_builder::foreach_runs_at_least_once(
+                stmt,
+                tcl_syntax::word_rules::WordValueRules::from_config(&self.config),
+            )
+        {
             let latch_block = self.new_block("foreach_latch");
             // Entry guard: the list is a non-empty literal, so the body always
             // runs at least once. A statically-true condition SCCP folds, so the
@@ -1138,7 +1143,7 @@ mod tests {
             condition_base: None,
         }]);
 
-        let func = build_cfg_function("::test", &script, true);
+        let func = build_cfg_function("::test", &script, true, tcl_lexer::LexerConfig::default());
         // Should have blocks for: entry, for_header, for_body, for_step, for_end, exit
         assert!(func.blocks.len() >= 5, "got {} blocks", func.blocks.len());
         // A for_header block should have a Branch terminator.
@@ -1167,7 +1172,7 @@ mod tests {
             condition_base: None,
         }]);
 
-        let func = build_cfg_function("::test", &script, true);
+        let func = build_cfg_function("::test", &script, true, tcl_lexer::LexerConfig::default());
         let header = func
             .blocks
             .values()
@@ -1194,7 +1199,7 @@ mod tests {
             raw_tokens: None,
         }]);
 
-        let func = build_cfg_function("::test", &script, true);
+        let func = build_cfg_function("::test", &script, true, tcl_lexer::LexerConfig::default());
         let header = func
             .blocks
             .values()
@@ -1237,7 +1242,7 @@ mod tests {
             patterns_braced: true,
         }]);
 
-        let func = build_cfg_function("::test", &script, true);
+        let func = build_cfg_function("::test", &script, true, tcl_lexer::LexerConfig::default());
         // Entry should have a Branch (first arm test).
         let entry = &func.blocks[&func.entry];
         assert!(matches!(entry.terminator, Some(Terminator::Branch { .. })));
@@ -1281,7 +1286,12 @@ mod tests {
         // Glob/regexp switches are kept opaque (a single `Statement::Switch` in
         // the block, no expanded arm blocks / branches). Codegen emits a generic
         // `switch` invoke for them.
-        let func = build_cfg_function("::test", &glob_regexp_switch(SwitchMode::Glob), true);
+        let func = build_cfg_function(
+            "::test",
+            &glob_regexp_switch(SwitchMode::Glob),
+            true,
+            tcl_lexer::LexerConfig::default(),
+        );
         let entry = &func.blocks[&func.entry];
         assert_eq!(entry.statements.len(), 1, "opaque switch is one statement");
         assert!(
@@ -1301,12 +1311,22 @@ mod tests {
 
     #[test]
     fn switch_regexp_stays_opaque() {
-        let func = build_cfg_function("::test", &glob_regexp_switch(SwitchMode::Regexp), true);
+        let func = build_cfg_function(
+            "::test",
+            &glob_regexp_switch(SwitchMode::Regexp),
+            true,
+            tcl_lexer::LexerConfig::default(),
+        );
         let entry = &func.blocks[&func.entry];
         assert!(matches!(entry.statements[0], Statement::Switch { .. }));
         assert!(matches!(entry.terminator, Some(Terminator::Goto { .. })));
         // Exact switches without fall-through keep the real expanded jump table.
-        let exact = build_cfg_function("::test", &glob_regexp_switch(SwitchMode::Exact), true);
+        let exact = build_cfg_function(
+            "::test",
+            &glob_regexp_switch(SwitchMode::Exact),
+            true,
+            tcl_lexer::LexerConfig::default(),
+        );
         assert!(
             matches!(
                 exact.blocks[&exact.entry].terminator,
@@ -1339,7 +1359,7 @@ mod tests {
             raw_args: vec![],
         }]);
 
-        let func = build_cfg_function("::test", &script, true);
+        let func = build_cfg_function("::test", &script, true, tcl_lexer::LexerConfig::default());
         // Should have a try_finally block.
         assert!(
             func.blocks
@@ -1370,7 +1390,7 @@ mod tests {
             raw_args: vec![],
         }]);
 
-        let func = build_cfg_function("::test", &script, true);
+        let func = build_cfg_function("::test", &script, true, tcl_lexer::LexerConfig::default());
         assert!(
             func.blocks
                 .values()

@@ -43,6 +43,7 @@
 
 use crate::LexerGrammar;
 use crate::model::{BuildProfileId, Family, Release, grammar};
+use crate::version::TclVersion;
 
 /// One resolved point on one family's ladder.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -84,6 +85,56 @@ impl DialectPoint {
     #[must_use]
     pub const fn release(self) -> Release {
         self.release
+    }
+
+    /// The `TclVersion` this point's release is, when it is a Tcl release
+    /// — the runtime base a projected profile, the guarded-intrinsic
+    /// selection and the VM's pin read. `None` for a non-Tcl family
+    /// (`JimTcl`), which has no rung on the Tcl ladder: those consumers then
+    /// take the fallback's (Tcl 9), the boundary
+    /// `docs/design/dialect-profile-model.md` §2.5 records as an eventual.
+    #[must_use]
+    pub fn tcl_version(self) -> Option<TclVersion> {
+        Self::tcl_version_of_release(self.release())
+    }
+
+    /// [`Self::tcl_version`] for a bare release.
+    ///
+    /// A release on the Tcl ladder is its own answer. A release on a
+    /// **forked** family's ladder answers with the release its trunk forked
+    /// from, walking the fork edges [`Family::ancestry`] records: the F5
+    /// trunk (`f5-tcl`) forked from Tcl 8.4.6, and the `f5-irules` offshoot
+    /// forked from the trunk, so both are Tcl 8.4 at runtime — which is
+    /// what their catalogue rows have always said and what
+    /// `the_point_names_the_catalogue_runtime_base` pins. A
+    /// **reimplementation** edge stops the walk: Jim targets Tcl 8.6's
+    /// command set but is not Tcl 8.6 at runtime, so it has no Tcl
+    /// runtime base.
+    #[must_use]
+    pub fn tcl_version_of_release(release: Release) -> Option<TclVersion> {
+        use super::family::Lineage;
+        let mut release = release;
+        loop {
+            if release.family() == Family::Tcl {
+                return Some(if release == Release::TCL_8_4 {
+                    TclVersion::V8_4
+                } else if release == Release::TCL_8_5 {
+                    TclVersion::V8_5
+                } else if release == Release::TCL_8_6 {
+                    TclVersion::V8_6
+                } else if release == Release::TCL_9_0 {
+                    TclVersion::V9_0
+                } else if release == Release::TCL_9_1 {
+                    TclVersion::V9_1
+                } else {
+                    unreachable!("a Tcl release with no TclVersion rung: {release:?}")
+                });
+            }
+            match release.family().ancestry() {
+                Some(ancestry) if ancestry.lineage == Lineage::Fork => release = ancestry.release,
+                _ => return None,
+            }
+        }
     }
 
     /// The build profile, which capability questions read.
@@ -222,6 +273,24 @@ mod tests {
                 profile.grammar,
                 "`{}` disagrees",
                 profile.name
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod tcl_version_tests {
+    use super::*;
+
+    /// Every rung of the Tcl ladder maps to a `TclVersion` — the `else`
+    /// that once mapped any unknown rung to 9.1 is gone, so a new release
+    /// must be named here rather than silently becoming the newest.
+    #[test]
+    fn every_tcl_release_names_its_version() {
+        for release in Family::Tcl.releases() {
+            assert!(
+                DialectPoint::tcl_version_of_release(*release).is_some(),
+                "{release:?}"
             );
         }
     }

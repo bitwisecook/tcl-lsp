@@ -224,7 +224,10 @@ impl LoopFacts {
             Statement::Call { command, args, .. } => record(command, args),
             Statement::AssignValue { value, .. } => {
                 if let Some((command, args)) =
-                    crate::value_shapes::parse_command_substitution(value.trim())
+                    crate::value_shapes::parse_command_substitution_with_config(
+                        value.trim(),
+                        tcl_lexer::LexerConfig::for_profile(registry.profile()),
+                    )
                 {
                     record(&command, &args);
                 }
@@ -478,6 +481,7 @@ fn check_argument(
             expected,
             ctx.values.get(&(sym, ver)),
             ctx.commit.numbers(),
+            ctx.commit.word_rules(),
         )
     {
         return;
@@ -643,7 +647,10 @@ fn check_statement(ctx: &mut UseSiteCtx<'_>, stmt: &Statement, uses: &HashMap<Sy
                 .map(|sp| sp.start());
             if let (Some(base), Some((command, args_with_spans))) = (
                 value_base,
-                crate::value_shapes::parse_command_substitution_with_spans(value),
+                crate::value_shapes::parse_command_substitution_with_spans_and_config(
+                    value,
+                    tcl_lexer::LexerConfig::for_profile(ctx.registry.profile()),
+                ),
             ) {
                 let args: Vec<String> = args_with_spans.iter().map(|(a, _)| a.clone()).collect();
                 let arg_spans: Vec<Span> = args_with_spans
@@ -663,7 +670,10 @@ fn check_statement(ctx: &mut UseSiteCtx<'_>, stmt: &Statement, uses: &HashMap<Sy
                     uses,
                 );
             } else if let Some((command, args)) =
-                crate::value_shapes::parse_command_substitution(value.trim())
+                crate::value_shapes::parse_command_substitution_with_config(
+                    value.trim(),
+                    tcl_lexer::LexerConfig::for_profile(ctx.registry.profile()),
+                )
             {
                 // Fallback for shapes the span-aware lexer-based parser
                 // rejects (no `tokens`, or an embedded `;`/newline second
@@ -748,6 +758,7 @@ fn check_incr_var(ctx: &mut UseSiteCtx<'_>, var: &str, span: Span, uses: &HashMa
             TclType::Int,
             ctx.values.get(&(sym, ver)),
             ctx.commit.numbers(),
+            ctx.commit.word_rules(),
         ) {
             return;
         }

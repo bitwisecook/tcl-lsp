@@ -175,12 +175,15 @@ pub fn is_braced_whole_name_array_ref(text: &str) -> bool {
 /// `[read` and `$fd]` (which would hide a taint source nested in an
 /// argument). Callers that need full Tcl list quoting handle it upstream.
 #[must_use]
-pub fn parse_command_substitution(text: &str) -> Option<(String, Vec<String>)> {
-    let (command, args) = parse_command_substitution_with_spans(text)?;
+pub fn parse_command_substitution_with_config(
+    text: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<(String, Vec<String>)> {
+    let (command, args) = parse_command_substitution_with_spans_and_config(text, config)?;
     Some((command, args.into_iter().map(|(text, _)| text).collect()))
 }
 
-/// Like [`parse_command_substitution`], but additionally returns each
+/// Like [`parse_command_substitution_with_config`], but additionally returns each
 /// argument's byte span *within `text`* (the caller adds its own base
 /// offset to get an absolute source position) — for diagnostics that need
 /// to anchor on the specific offending argument rather than the whole
@@ -191,17 +194,20 @@ pub fn parse_command_substitution(text: &str) -> Option<(String, Vec<String>)> {
 /// also makes it correct on inputs a naive counter gets wrong, e.g. a
 /// `#` comment or an escaped delimiter at the top level). Returns `None`
 /// for the same shapes as
-/// [`parse_command_substitution`], plus when the bracket body doesn't lex
+/// [`parse_command_substitution_with_config`], plus when the bracket body doesn't lex
 /// as a single command (an embedded `;`/newline followed by more words).
 #[must_use]
-pub fn parse_command_substitution_with_spans(text: &str) -> Option<(String, Vec<(String, Span)>)> {
+pub fn parse_command_substitution_with_spans_and_config(
+    text: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<(String, Vec<(String, Span)>)> {
     let leading_ws = u32::try_from(text.len() - text.trim_start().len()).unwrap_or(u32::MAX);
     let stripped = text.trim();
     let inner = stripped.strip_prefix('[')?.strip_suffix(']')?;
     // Offset of `inner`'s first byte within `text`: leading whitespace + `[`.
     let base = leading_ws + 1;
 
-    let tokens = Lexer::new(inner).tokenise_all().ok()?;
+    let tokens = Lexer::with_config(inner, config).tokenise_all().ok()?;
     // One `SourceMap` for the whole scan — `widened_token_text` needs the
     // lexer's content geometry to widen a word over its closing delimiter,
     // and building a map per token would re-index `inner`'s lines each time.
@@ -384,28 +390,47 @@ mod tests {
 
     #[test]
     fn parse_command_substitution_basic() {
-        let (cmd, args) = parse_command_substitution("[llength $x]").unwrap();
+        let (cmd, args) = parse_command_substitution_with_config(
+            "[llength $x]",
+            tcl_lexer::LexerConfig::default(),
+        )
+        .unwrap();
         assert_eq!(cmd, "llength");
         assert_eq!(args, vec!["$x".to_string()]);
     }
 
     #[test]
     fn parse_command_substitution_with_whitespace() {
-        let (cmd, args) = parse_command_substitution("  [ set x 42 ]  ").unwrap();
+        let (cmd, args) = parse_command_substitution_with_config(
+            "  [ set x 42 ]  ",
+            tcl_lexer::LexerConfig::default(),
+        )
+        .unwrap();
         assert_eq!(cmd, "set");
         assert_eq!(args, vec!["x".to_string(), "42".into()]);
     }
 
     #[test]
     fn parse_command_substitution_rejects_non_bracketed() {
-        assert!(parse_command_substitution("llength $x").is_none());
-        assert!(parse_command_substitution("[empty ").is_none());
-        assert!(parse_command_substitution("[]").is_none());
+        assert!(
+            parse_command_substitution_with_config("llength $x", tcl_lexer::LexerConfig::default())
+                .is_none()
+        );
+        assert!(
+            parse_command_substitution_with_config("[empty ", tcl_lexer::LexerConfig::default())
+                .is_none()
+        );
+        assert!(
+            parse_command_substitution_with_config("[]", tcl_lexer::LexerConfig::default())
+                .is_none()
+        );
     }
 
     #[test]
     fn parse_command_substitution_no_args() {
-        let (cmd, args) = parse_command_substitution("[pwd]").unwrap();
+        let (cmd, args) =
+            parse_command_substitution_with_config("[pwd]", tcl_lexer::LexerConfig::default())
+                .unwrap();
         assert_eq!(cmd, "pwd");
         assert!(args.is_empty());
     }
@@ -413,7 +438,11 @@ mod tests {
     #[test]
     fn spans_basic_arg_offsets_are_exact() {
         let text = "[lindex $x 0]";
-        let (cmd, args) = parse_command_substitution_with_spans(text).unwrap();
+        let (cmd, args) = parse_command_substitution_with_spans_and_config(
+            text,
+            tcl_lexer::LexerConfig::default(),
+        )
+        .unwrap();
         assert_eq!(cmd, "lindex");
         assert_eq!(args.len(), 2);
         let (x_text, x_span) = &args[0];
@@ -430,7 +459,11 @@ mod tests {
     #[test]
     fn spans_account_for_leading_whitespace_and_inner_padding() {
         let text = "  [ set x 42 ]  ";
-        let (cmd, args) = parse_command_substitution_with_spans(text).unwrap();
+        let (cmd, args) = parse_command_substitution_with_spans_and_config(
+            text,
+            tcl_lexer::LexerConfig::default(),
+        )
+        .unwrap();
         assert_eq!(cmd, "set");
         let (x_text, x_span) = &args[0];
         assert_eq!(x_text, "x");
@@ -442,21 +475,43 @@ mod tests {
 
     #[test]
     fn spans_none_for_non_bracketed_or_empty() {
-        assert!(parse_command_substitution_with_spans("llength $x").is_none());
-        assert!(parse_command_substitution_with_spans("[]").is_none());
+        assert!(
+            parse_command_substitution_with_spans_and_config(
+                "llength $x",
+                tcl_lexer::LexerConfig::default()
+            )
+            .is_none()
+        );
+        assert!(
+            parse_command_substitution_with_spans_and_config(
+                "[]",
+                tcl_lexer::LexerConfig::default()
+            )
+            .is_none()
+        );
     }
 
     #[test]
     fn spans_none_for_multiple_top_level_commands() {
         // A second command after a newline/`;` inside the substitution body
         // is not a single-command shape this helper models.
-        assert!(parse_command_substitution_with_spans("[set x 1; set y 2]").is_none());
+        assert!(
+            parse_command_substitution_with_spans_and_config(
+                "[set x 1; set y 2]",
+                tcl_lexer::LexerConfig::default()
+            )
+            .is_none()
+        );
     }
 
     #[test]
     fn spans_nested_command_substitution_keeps_full_bracket_text() {
         let text = "[list [read $fd]]";
-        let (cmd, args) = parse_command_substitution_with_spans(text).unwrap();
+        let (cmd, args) = parse_command_substitution_with_spans_and_config(
+            text,
+            tcl_lexer::LexerConfig::default(),
+        )
+        .unwrap();
         assert_eq!(cmd, "list");
         assert_eq!(args.len(), 1);
         let (nested_text, nested_span) = &args[0];
@@ -470,7 +525,11 @@ mod tests {
     #[test]
     fn spans_braced_arg_keeps_full_brace_text() {
         let text = "[list {a b c}]";
-        let (cmd, args) = parse_command_substitution_with_spans(text).unwrap();
+        let (cmd, args) = parse_command_substitution_with_spans_and_config(
+            text,
+            tcl_lexer::LexerConfig::default(),
+        )
+        .unwrap();
         assert_eq!(cmd, "list");
         let (braced_text, braced_span) = &args[0];
         assert_eq!(braced_text, "{a b c}");
@@ -483,7 +542,11 @@ mod tests {
     #[test]
     fn spans_empty_group_arg_not_overwidened() {
         let text = "[list {} x]";
-        let (cmd, args) = parse_command_substitution_with_spans(text).unwrap();
+        let (cmd, args) = parse_command_substitution_with_spans_and_config(
+            text,
+            tcl_lexer::LexerConfig::default(),
+        )
+        .unwrap();
         assert_eq!(cmd, "list");
         assert_eq!(args.len(), 2);
         let (empty_text, empty_span) = &args[0];
@@ -505,7 +568,11 @@ mod tests {
     #[test]
     fn spans_braced_var_keeps_closing_brace() {
         let text = "[file normalize ${p}]";
-        let (cmd, args) = parse_command_substitution_with_spans(text).unwrap();
+        let (cmd, args) = parse_command_substitution_with_spans_and_config(
+            text,
+            tcl_lexer::LexerConfig::default(),
+        )
+        .unwrap();
         assert_eq!(cmd, "file");
         assert_eq!(args[1].0, "${p}");
         assert_eq!(
@@ -519,7 +586,11 @@ mod tests {
     #[test]
     fn spans_unbraced_var_unaffected() {
         let text = "[file normalize $p]";
-        let (cmd, args) = parse_command_substitution_with_spans(text).unwrap();
+        let (cmd, args) = parse_command_substitution_with_spans_and_config(
+            text,
+            tcl_lexer::LexerConfig::default(),
+        )
+        .unwrap();
         assert_eq!(cmd, "file");
         assert_eq!(args[1].0, "$p");
     }
@@ -533,7 +604,11 @@ mod tests {
     #[test]
     fn spans_quoted_word_keeps_closing_quote() {
         let text = r#"[string match "/api/*" $uri]"#;
-        let (cmd, args) = parse_command_substitution_with_spans(text).unwrap();
+        let (cmd, args) = parse_command_substitution_with_spans_and_config(
+            text,
+            tcl_lexer::LexerConfig::default(),
+        )
+        .unwrap();
         assert_eq!(cmd, "string");
         assert_eq!(args[1].0, "\"/api/*\"");
         assert_eq!(
@@ -547,7 +622,11 @@ mod tests {
     #[test]
     fn spans_quoted_word_with_nested_command_sub_keeps_closing_quote() {
         let text = r#"[string match "a[foo]b" $c]"#;
-        let (cmd, args) = parse_command_substitution_with_spans(text).unwrap();
+        let (cmd, args) = parse_command_substitution_with_spans_and_config(
+            text,
+            tcl_lexer::LexerConfig::default(),
+        )
+        .unwrap();
         assert_eq!(cmd, "string");
         assert_eq!(args[1].0, "\"a[foo]b\"");
         assert_eq!(
@@ -563,7 +642,11 @@ mod tests {
     #[test]
     fn spans_quoted_word_after_var_substitution_keeps_closing_quote() {
         let text = r#"[string match "a$b" $c]"#;
-        let (cmd, args) = parse_command_substitution_with_spans(text).unwrap();
+        let (cmd, args) = parse_command_substitution_with_spans_and_config(
+            text,
+            tcl_lexer::LexerConfig::default(),
+        )
+        .unwrap();
         assert_eq!(cmd, "string");
         assert_eq!(args[1].0, "\"a$b\"");
         assert_eq!(

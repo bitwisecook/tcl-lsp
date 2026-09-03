@@ -234,9 +234,7 @@ impl DocumentEnvironment {
     /// the BIG-IP config surface).
     #[must_use]
     pub fn point(&self) -> Option<DialectPoint> {
-        self.definition
-            .core
-            .map(|core| DialectPoint::new(core.default_release, core.build))
+        self.definition.point()
     }
 
     /// The grammar this environment's documents are lexed under — **the one
@@ -524,6 +522,53 @@ pub fn irules_context() -> Arc<ContextRegistry> {
 mod tests {
 
     use super::*;
+
+    /// The runtime base the semantic handle reads is now derived from the
+    /// environment's point (`EnvironmentId::runtime_version`), not looked up
+    /// on the catalogue row. For every catalogue dialect the two must be one
+    /// answer, or the point-derived base would silently move the
+    /// guarded-intrinsic semantics of a dialect whose row says otherwise.
+    #[test]
+    fn the_point_names_the_catalogue_runtime_base() {
+        let mut disagreements = Vec::new();
+        for profile in DialectProfile::all() {
+            let environment = resolve_environment(profile.name);
+            assert!(
+                !environment.is_lenient(),
+                "{} has no environment",
+                profile.name
+            );
+            let from_point = environment.point().and_then(DialectPoint::tcl_version);
+            if from_point != profile.runtime_version() {
+                disagreements.push(format!(
+                    "{}: point {:?} (core {:?}) vs catalogue runtime base {:?}",
+                    profile.name,
+                    from_point,
+                    environment.point().map(DialectPoint::release),
+                    profile.runtime_version()
+                ));
+            }
+        }
+        assert!(
+            disagreements.is_empty(),
+            "point-derived runtime base disagrees with the catalogue row:\n  {}",
+            disagreements.join("\n  ")
+        );
+        // `tk` has no catalogue row `find` admits; its point is its 8.6 core.
+        assert_eq!(
+            resolve_environment("tk")
+                .point()
+                .and_then(DialectPoint::tcl_version),
+            Some(tcl_dialect::TclVersion::V8_6)
+        );
+        // A non-Tcl family has no rung on the Tcl ladder.
+        assert_eq!(
+            resolve_environment("jim")
+                .point()
+                .and_then(DialectPoint::tcl_version),
+            None
+        );
+    }
 
     #[test]
     fn names_resolve_as_the_old_ingress_did() {

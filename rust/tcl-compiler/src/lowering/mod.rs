@@ -37,9 +37,7 @@ use crate::ir::{
 };
 use crate::lowering_hooks::{ArgTokenKind, LoweringCommand, try_lower_hook};
 use crate::naming::normalise_var_name;
-use crate::segmenter::{
-    SegmentedCommand, segment_commands, segment_commands_with_offset_and_config,
-};
+use crate::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_dialect::model::surface_admits;
 use tcl_syntax::word_rules::WordValueRules;
 
@@ -69,6 +67,7 @@ fn arg_token_kind(kind: TokenType) -> ArgTokenKind {
         TokenType::Str => ArgTokenKind::Str,
         TokenType::Esc => ArgTokenKind::Esc,
         TokenType::Cmd => ArgTokenKind::Cmd,
+        TokenType::ExprSugar => ArgTokenKind::ExprSugar,
         TokenType::Var => ArgTokenKind::Var,
         _ => ArgTokenKind::Other,
     }
@@ -476,8 +475,8 @@ fn set_literal_body(seg: &SegmentedCommand) -> Option<(String, String)> {
 /// re-braced in the synthesised body so list-canonicalisation
 /// stays correct (we trust the segmenter's `single_token_word`
 /// flag plus the absence of `$` / `[` in `Esc` text).
-fn eval_list_literal_body(cmd_text: &str) -> Option<String> {
-    let inner = segment_commands(cmd_text);
+fn eval_list_literal_body(cmd_text: &str, config: tcl_lexer::LexerConfig) -> Option<String> {
+    let inner = segment_commands_with_offset_and_config(cmd_text, 0, config);
     if inner.len() != 1 {
         return None;
     }
@@ -557,10 +556,14 @@ fn eval_list_literal_body(cmd_text: &str) -> Option<String> {
 /// Returns `true` when the body contains a nested dynamic-shape
 /// barrier (the caller should fall back to [`Statement::Barrier`]); `false`
 /// when the body is safe to relax.
-fn body_has_dynamic_barrier(body_text: &str, registry: &CommandRegistry) -> bool {
+fn body_has_dynamic_barrier(
+    body_text: &str,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+) -> bool {
     use tcl_lexer::TokenType;
     use tcl_registry::prelude::Traits;
-    let commands = segment_commands(body_text);
+    let commands = segment_commands_with_offset_and_config(body_text, 0, config);
     for sc in &commands {
         if sc.argv.is_empty() || sc.texts.is_empty() {
             continue;
@@ -590,7 +593,7 @@ fn body_has_dynamic_barrier(body_text: &str, registry: &CommandRegistry) -> bool
                     continue;
                 }
                 let arg_text = sc.texts.get(i).map_or("", String::as_str);
-                if body_has_dynamic_barrier(arg_text, registry) {
+                if body_has_dynamic_barrier(arg_text, registry, config) {
                     return true;
                 }
             }
@@ -626,7 +629,7 @@ fn body_has_dynamic_barrier(body_text: &str, registry: &CommandRegistry) -> bool
                 return true;
             }
             // Recurse into the literal nested script word.
-            if body_has_dynamic_barrier(text, registry) {
+            if body_has_dynamic_barrier(text, registry, config) {
                 return true;
             }
         }
@@ -876,6 +879,10 @@ impl<'r> Lowerer<'r> {
     /// Create a new lowerer with the default (Tcl-8.5+) lexer config.
     #[must_use]
     pub fn new(registry: &'r CommandRegistry) -> Self {
+        // dialect-drift-ok: the test-only constructor — every production
+        // construction now goes through `Lowerer::with_config` with the
+        // unit's own config; the crate's (and downstream crates') test
+        // fixtures still spell the plain-Tcl default this way.
         Self::with_config(registry, tcl_lexer::LexerConfig::default())
     }
 
@@ -2209,7 +2216,7 @@ impl<'r> Lowerer<'r> {
         // relax to inline IR with a still-dynamic `eval`; reject.
         if body_tok.kind == TokenType::Str {
             let body_text = &args[body_tok_idx];
-            if body_has_dynamic_barrier(body_text, self.registry) {
+            if body_has_dynamic_barrier(body_text, self.registry, self.config) {
                 return None;
             }
         }
@@ -2327,7 +2334,7 @@ impl<'r> Lowerer<'r> {
         // default Statement::Barrier dispatch.
         if body_tok.kind == TokenType::Str {
             let body_text = &args[0];
-            if body_has_dynamic_barrier(body_text, self.registry) {
+            if body_has_dynamic_barrier(body_text, self.registry, self.config) {
                 return None;
             }
         }
@@ -2337,7 +2344,7 @@ impl<'r> Lowerer<'r> {
             self.lower_body(body_text, body_offset, namespace)
         } else if body_tok.kind == TokenType::Var {
             let literal = self.const_map_lookup(&args[0])?;
-            if body_has_dynamic_barrier(&literal, self.registry) {
+            if body_has_dynamic_barrier(&literal, self.registry, self.config) {
                 return None;
             }
             self.lower_script(&literal, namespace)
@@ -2354,7 +2361,7 @@ impl<'r> Lowerer<'r> {
             } else {
                 args[0].trim_start_matches('[').trim_end_matches(']')
             };
-            let synthesised = eval_list_literal_body(inner_text)?;
+            let synthesised = eval_list_literal_body(inner_text, self.config)?;
             self.lower_script(&synthesised, namespace)
         } else {
             return None;
@@ -3541,6 +3548,10 @@ fn declared_member_vars(
 /// use [`lower_to_ir_with_dialect`] to honour a document's dialect.
 #[must_use]
 pub fn lower_to_ir(source: &str, registry: &CommandRegistry) -> Module {
+    // dialect-drift-ok: the test-only entry point — every production caller
+    // now goes through `lower_to_ir_with_config` / `_with_dialect` with the
+    // document's own config; the test fixtures across the workspace still
+    // spell the plain-Tcl default this way.
     lower_to_ir_with_config(source, registry, tcl_lexer::LexerConfig::default())
 }
 
@@ -6298,42 +6309,79 @@ mod tests {
     #[test]
     fn body_has_dynamic_barrier_clean() {
         // No barriers at all.
-        assert!(!body_has_dynamic_barrier("set x 1", &reg()));
+        assert!(!body_has_dynamic_barrier(
+            "set x 1",
+            &reg(),
+            tcl_lexer::LexerConfig::default()
+        ));
         // Barrier with a fully literal body.
-        assert!(!body_has_dynamic_barrier("eval { set x 1 }", &reg()));
+        assert!(!body_has_dynamic_barrier(
+            "eval { set x 1 }",
+            &reg(),
+            tcl_lexer::LexerConfig::default()
+        ));
         // Nested literal.
         assert!(!body_has_dynamic_barrier(
             "if { 1 } { eval { set x 1 } }",
-            &reg()
+            &reg(),
+            tcl_lexer::LexerConfig::default()
         ));
     }
 
     #[test]
     fn body_has_dynamic_barrier_dynamic_eval_body() {
         // ``eval $x`` inside the outer body — dynamic.
-        assert!(body_has_dynamic_barrier("eval $x", &reg()));
+        assert!(body_has_dynamic_barrier(
+            "eval $x",
+            &reg(),
+            tcl_lexer::LexerConfig::default()
+        ));
         // Same shape nested.
-        assert!(body_has_dynamic_barrier("if { 1 } { eval $x }", &reg()));
+        assert!(body_has_dynamic_barrier(
+            "if { 1 } { eval $x }",
+            &reg(),
+            tcl_lexer::LexerConfig::default()
+        ));
     }
 
     #[test]
     fn body_has_dynamic_barrier_dynamic_uplevel_body() {
-        assert!(body_has_dynamic_barrier("uplevel 1 $body", &reg()));
-        assert!(body_has_dynamic_barrier("uplevel #0 $b", &reg()));
+        assert!(body_has_dynamic_barrier(
+            "uplevel 1 $body",
+            &reg(),
+            tcl_lexer::LexerConfig::default()
+        ));
+        assert!(body_has_dynamic_barrier(
+            "uplevel #0 $b",
+            &reg(),
+            tcl_lexer::LexerConfig::default()
+        ));
     }
 
     #[test]
     fn body_has_dynamic_barrier_uplevel_with_literal_body_clean() {
         // ``uplevel $lvl {body}`` with a literal body is OK — the
         // gate only poisons when the BODY is substitution-bearing.
-        assert!(!body_has_dynamic_barrier("uplevel $lvl {set x 1}", &reg()));
+        assert!(!body_has_dynamic_barrier(
+            "uplevel $lvl {set x 1}",
+            &reg(),
+            tcl_lexer::LexerConfig::default()
+        ));
     }
 
     #[test]
     fn body_has_dynamic_barrier_qualified_eval_uplevel() {
         // ``::eval`` and ``::uplevel`` are also caught.
-        assert!(body_has_dynamic_barrier("::eval $x", &reg()));
-        assert!(body_has_dynamic_barrier("::uplevel 1 $body", &reg()));
+        assert!(body_has_dynamic_barrier(
+            "::eval $x",
+            &reg(),
+            tcl_lexer::LexerConfig::default()
+        ));
+        assert!(body_has_dynamic_barrier(
+            "::uplevel 1 $body",
+            &reg(),
+            tcl_lexer::LexerConfig::default()
+        ));
     }
 
     /// Issue #1055 — the gate resolves `uplevel`'s script word through the
@@ -6352,7 +6400,7 @@ mod tests {
             "uplevel [expr {$n - 1}] {set x 1}",
         ] {
             assert!(
-                !body_has_dynamic_barrier(clean, &r),
+                !body_has_dynamic_barrier(clean, &r, tcl_lexer::LexerConfig::default()),
                 "{clean} must not poison"
             );
         }
@@ -6364,18 +6412,37 @@ mod tests {
             "uplevel $lvl $body",
             "uplevel 1 [gen]",
         ] {
-            assert!(body_has_dynamic_barrier(dirty, &r), "{dirty} must poison");
+            assert!(
+                body_has_dynamic_barrier(dirty, &r, tcl_lexer::LexerConfig::default()),
+                "{dirty} must poison"
+            );
         }
         // FN guard — the words after the script word concatenate into it
         // (`SCRIPT_CONCATENATES_ARGS`), so a dynamic tail is still dynamic
         // even though the marked body word is a braced literal.
-        assert!(body_has_dynamic_barrier("uplevel 1 {set x} $tail", &reg()));
-        assert!(body_has_dynamic_barrier("eval {set x} $tail", &reg()));
+        assert!(body_has_dynamic_barrier(
+            "uplevel 1 {set x} $tail",
+            &reg(),
+            tcl_lexer::LexerConfig::default()
+        ));
+        assert!(body_has_dynamic_barrier(
+            "eval {set x} $tail",
+            &reg(),
+            tcl_lexer::LexerConfig::default()
+        ));
         // …and an all-literal multi-word tail stays clean.
-        assert!(!body_has_dynamic_barrier("uplevel 1 {set x} {1}", &reg()));
+        assert!(!body_has_dynamic_barrier(
+            "uplevel 1 {set x} {1}",
+            &reg(),
+            tcl_lexer::LexerConfig::default()
+        ));
         // A bodyless `uplevel 1` is a wrong-#args error the registry exposes
         // no body word for — poison rather than guess.
-        assert!(body_has_dynamic_barrier("uplevel 1", &reg()));
+        assert!(body_has_dynamic_barrier(
+            "uplevel 1",
+            &reg(),
+            tcl_lexer::LexerConfig::default()
+        ));
         // The deleted local sniff accepted `-N` as a level (it stripped a
         // leading `-` before the digit test); the registry does not, and the
         // registry is right.  Oracle, tclsh8.6.14: with `proc -1 {args} {…}`
@@ -6383,7 +6450,11 @@ mod tests {
         // word is the script's first word, not a level.  tclsh9.0.4 instead
         // errors `bad level "-1"`.  Under either reading the word is an
         // unbraced script word, so the gate poisons.
-        assert!(body_has_dynamic_barrier("uplevel -1 {set x 1}", &reg()));
+        assert!(body_has_dynamic_barrier(
+            "uplevel -1 {set x 1}",
+            &reg(),
+            tcl_lexer::LexerConfig::default()
+        ));
     }
 
     /// Issue #1055, the generalisation dividend: the eval-family *subcommand*
@@ -6396,17 +6467,45 @@ mod tests {
     fn body_has_dynamic_barrier_covers_compound_eval_family() {
         let r = reg();
         // TP — the script is substituted.
-        assert!(body_has_dynamic_barrier("namespace eval ns $body", &r));
-        assert!(body_has_dynamic_barrier("namespace inscope ns $body", &r));
-        assert!(body_has_dynamic_barrier("interp eval slave $body", &r));
+        assert!(body_has_dynamic_barrier(
+            "namespace eval ns $body",
+            &r,
+            tcl_lexer::LexerConfig::default()
+        ));
+        assert!(body_has_dynamic_barrier(
+            "namespace inscope ns $body",
+            &r,
+            tcl_lexer::LexerConfig::default()
+        ));
+        assert!(body_has_dynamic_barrier(
+            "interp eval slave $body",
+            &r,
+            tcl_lexer::LexerConfig::default()
+        ));
         // TN — a braced literal script relaxes, and its own contents are
         // still recursed.
-        assert!(!body_has_dynamic_barrier("namespace eval ns {set x 1}", &r));
-        assert!(body_has_dynamic_barrier("namespace eval ns {eval $x}", &r));
+        assert!(!body_has_dynamic_barrier(
+            "namespace eval ns {set x 1}",
+            &r,
+            tcl_lexer::LexerConfig::default()
+        ));
+        assert!(body_has_dynamic_barrier(
+            "namespace eval ns {eval $x}",
+            &r,
+            tcl_lexer::LexerConfig::default()
+        ));
         // TN — a `namespace` subcommand that evaluates nothing is not a
         // barrier, however dynamic its arguments are.
-        assert!(!body_has_dynamic_barrier("namespace delete $ns", &r));
-        assert!(!body_has_dynamic_barrier("namespace current", &r));
+        assert!(!body_has_dynamic_barrier(
+            "namespace delete $ns",
+            &r,
+            tcl_lexer::LexerConfig::default()
+        ));
+        assert!(!body_has_dynamic_barrier(
+            "namespace current",
+            &r,
+            tcl_lexer::LexerConfig::default()
+        ));
     }
 
     /// TN for the barrier test itself: an ordinary command with a
@@ -6415,11 +6514,27 @@ mod tests {
     #[test]
     fn body_has_dynamic_barrier_non_body_command_is_clean() {
         let r = reg();
-        assert!(!body_has_dynamic_barrier("set x $y", &r));
-        assert!(!body_has_dynamic_barrier("puts [format %s $x]", &r));
-        assert!(!body_has_dynamic_barrier("lappend acc $item", &r));
+        assert!(!body_has_dynamic_barrier(
+            "set x $y",
+            &r,
+            tcl_lexer::LexerConfig::default()
+        ));
+        assert!(!body_has_dynamic_barrier(
+            "puts [format %s $x]",
+            &r,
+            tcl_lexer::LexerConfig::default()
+        ));
+        assert!(!body_has_dynamic_barrier(
+            "lappend acc $item",
+            &r,
+            tcl_lexer::LexerConfig::default()
+        ));
         // A user command the registry does not know at all is not a barrier.
-        assert!(!body_has_dynamic_barrier("mycmd $script", &r));
+        assert!(!body_has_dynamic_barrier(
+            "mycmd $script",
+            &r,
+            tcl_lexer::LexerConfig::default()
+        ));
     }
 
     #[test]
@@ -6923,5 +7038,94 @@ mod tests {
         // 10 real nested `If`s, not a single opaque barrier standing in for
         // all of them.
         assert_eq!(if_chain_depth(&m.top_level), 10);
+    }
+
+    /// Regression (JimTcl/iRules dialect drift): every re-lex of a *body*
+    /// this lowering performs takes its grammar from the document's own
+    /// [`tcl_lexer::LexerConfig`], not the Tcl 9.x default.
+    ///
+    /// `body_has_dynamic_barrier` re-segments a braced body to find a nested
+    /// dynamic `eval`/`uplevel`.  Under `f5-irules` the lexer treats `}{` as a
+    /// word separator, so `foo {a}{eval $x}` is **three** words and its third
+    /// is a braced script containing a dynamic `eval`; under the default
+    /// grammar the two braces weld into one compound word whose text is
+    /// `aeval $x`, whose head `aeval` is nobody's barrier.  Before the config
+    /// was threaded, the iRules document was re-segmented under Tcl rules and
+    /// the barrier was missed — the outer `eval` relaxed to inline IR that
+    /// runs a still-dynamic inner `eval`.
+    #[test]
+    fn body_relex_follows_the_document_dialect_not_the_default() {
+        let irules = tcl_dialect::DialectProfile::irules();
+        let irules_config = tcl_lexer::LexerConfig::from_grammar(irules.grammar);
+        let registry = tcl_registry::model::ingress::static_context_for_profile(irules).commands();
+
+        let body = "foo {a}{eval $x}";
+        assert!(
+            !body_has_dynamic_barrier(body, registry, tcl_lexer::LexerConfig::default()),
+            "under the default grammar `}}{{` welds one word, so no nested barrier is visible"
+        );
+        assert!(
+            body_has_dynamic_barrier(body, registry, irules_config),
+            "under f5-irules `}}{{` separates words, exposing the nested dynamic `eval`"
+        );
+
+        // End to end: the same fact decides whether the outer `eval` relaxes
+        // to an inline `Block` or stays a runtime `Barrier`.
+        let source = "eval {foo {a}{eval $x}}";
+        let irules_module = lower_to_ir_with_config(source, registry, irules_config);
+        assert!(
+            matches!(
+                irules_module.top_level.statements.as_slice(),
+                [Statement::Barrier { .. }]
+            ),
+            "an iRules document keeps the runtime barrier: {:?}",
+            irules_module.top_level.statements
+        );
+
+        let tcl_module =
+            lower_to_ir_with_config(source, registry, tcl_lexer::LexerConfig::default());
+        assert!(
+            matches!(
+                tcl_module.top_level.statements.as_slice(),
+                [Statement::Block { .. }]
+            ),
+            "the default grammar sees no nested barrier and relaxes to a Block: {:?}",
+            tcl_module.top_level.statements
+        );
+    }
+
+    /// `JimTcl`'s `$(…)` lowers as the expression it is, end to end from the
+    /// lexer: `set x $($a*2)` becomes the `AssignExpr` a `[expr {$a*2}]`
+    /// value produces, with the body anchored two bytes past the `$(` so
+    /// expression diagnostics land on the right source; `return $($a+1)`
+    /// carries its expression the same way.
+    #[test]
+    fn jim_expr_sugar_lowers_as_an_anchored_expression() {
+        let jim = tcl_registry::model::resolve_environment("jim").unit_profile();
+        let registry = tcl_registry::model::ingress::static_context_for_profile(jim).commands();
+        let config = tcl_lexer::LexerConfig::from_grammar(jim.grammar);
+        let module = lower_to_ir_with_config("set x $($a*2)\nreturn $($a+1)\n", registry, config);
+        let statements = module.top_level.statements.as_slice();
+        match statements {
+            [
+                Statement::AssignExpr {
+                    name,
+                    expr,
+                    expr_base,
+                    ..
+                },
+                Statement::Return {
+                    expr: return_expr, ..
+                },
+            ] => {
+                assert_eq!(name, "x");
+                let rendered = format!("{expr:?}");
+                assert!(rendered.contains('a'), "operand missing from {rendered}");
+                // `set x ` is six bytes, `$(` two more: the body starts at 8.
+                assert_eq!(*expr_base, Some(8), "the sugar body's absolute anchor");
+                assert!(return_expr.is_some(), "return $(…) carries its expression");
+            }
+            other => panic!("expected AssignExpr + Return; got {other:?}"),
+        }
     }
 }

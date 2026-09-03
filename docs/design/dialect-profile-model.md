@@ -522,6 +522,70 @@ field against a grammar in which every axis is non-default — the
 `..Self::default()` tail is where `list_parse` was once declared and carried
 by nothing.
 
+**The `dialect-drift` gate** (`rust/xtask/src/dialect_drift.rs`, in
+`make xtask-check`) keeps the settlement from being bypassed again. It bans
+the four spellings that give a document a second grammar: a
+default-grammar re-lex (`Lexer::new(`, `LexerConfig::default()`) in
+production code outside `tcl-lexer`; a grammar re-resolved from a dialect
+name *variable* (`LexerConfig::for_dialect(profile.name)`,
+`for_file_dialect(&result.dialect)`) outside the resolution owners — a
+fixed string literal such as `for_file_dialect("f5-irules")` in
+iRules-only tooling is an ingress, not a re-resolution, and passes; a bare
+list split of document text (`split_list*(`,
+`collapse_brace_continuations_str(` called as free functions, not as
+`WordValueRules` methods) in the document crates; and a **dialect-blind
+segmenter entry** (`segment_commands(source)` and its `_with_recovery` /
+`_with_offset` forms outside `segmenter.rs`), which lex under the default
+config internally — the rule that closes the hole the first three leave,
+since a caller that never spells `Lexer::new` but segments a body through a
+blind entry gets a second grammar all the same; and an **ambient
+expression parse** (`parse_expr(text, None)`, `tokenise_expr(text, None)`,
+`LexerConfig::for_profile(None)`, `LexerGrammar::default()`), because "no
+dialect" is a choice a document walk never gets to make. Text that is
+genuinely not the document's Tcl — a spec DSL, a `tclpkg` manifest, a
+BIG-IP config extraction, the dialect *detector* itself — carries
+`// dialect-drift-ok: <reason>`. The gate's test-module exemption ends the
+scan only at a `#[cfg(test)]` that annotates a `mod`; a `#[cfg(test)]` on a
+single item does not, which is how a dozen large files once went unscanned.
+The gate found ~150 re-lex sites and ~30 blind-entry callers when first
+run; every one now takes its config from the nearest context
+(`State::lexer_config()`, `LexerConfig::for_profile`, `CfgBuilder::config`,
+`FunctionBuildInputs::config`, `TaintCtx::lexer_config()`,
+`FoldPolicy::dialect` / `word_rules`, `ScanCtx::rules`, `IlxCtx::config`,
+…) or carries a reason.
+
+**The analyser's own unit agrees with the LSP's.** The CFG/SSA unit the
+diagnostics walk builds takes its grammar from `State::file_lexer_config()`
+(the ingress grammar, whole-file form) and its dialect from the ingress's
+`unit_profile()`, the same two values the LSP's unit for that document is
+built from — not from a `LexerConfig::for_dialect(name)` re-resolution and
+a `DialectProfile::find(name)` that sank `jim` and `tk` to the fallback. For
+`tk` this is also what makes the two faces agree: the unit's `FoldPolicy`
+carries `tk`'s own row and the guarded-intrinsic selection reads the
+point's 8.6, where before one face said "unknown dialect" and the other
+"8.6".
+
+**The profile currency is `Option<&'static DialectProfile>`.** Every
+profile a layer can hold is a static — a catalogue row or an interned
+projection — and saying so lets `FoldPolicy` and `PassContext` carry the
+profile a nested `[expr …]` re-parse needs without a lifetime on every
+pass. The retype to a `DialectPoint` (above) remains unnecessary.
+
+**The point is the runtime base too.** `EnvironmentDefinition::point()` is
+the one derivation of a point from an environment; the ingress delegates to
+it, and the semantic handle's `runtime_version` reads it instead of looking
+the catalogue row up by id. `DialectPoint::tcl_version` walks the family's
+fork ancestry, so the F5 trunk and the iRules offshoot answer Tcl 8.4 (what
+their rows always said) and a reimplementation (Jim) answers none.
+`the_point_names_the_catalogue_runtime_base` pins the two agree for every
+row.
+
+**`$(…)` lowers as the expression it is.** `ArgTokenKind::ExprSugar` reaches
+the `set` and `return` hooks, which lower `set x $($a*2)` to the same
+`AssignExpr` as `set x [expr {$a*2}]`, so dataflow, taint and typing see
+the operands. In any other word position the sugar is still an opaque
+dynamic word — correct, just less analysed.
+
 **The backends are Tcl 9, by decision.** The resolved point now reaches the
 front half of every backend — the VM's and CLI's ingress adapters resolve
 through `resolve_environment`, so a Jim unit is *read* as Jim all the way
@@ -537,20 +601,16 @@ surprise. What this work guarantees for that future is the shape: every
 backend consumes the point-derived grammar and profile and never a name, so
 the change is a new rung on the same ladder, not a second resolution.
 
-**Deliberately not done here**, each a follow-up rather than a quiet
-omission: the VM's list conversions (`Value::as_list`, `cmd_prefix`,
-`interp`, `expr`) and `signature_scan::parse_param_list` are public APIs with
-no dialect parameter and still split strictly — the VM is Tcl-only and should
-say so; the ~30 `Lexer::new` sites outside `tcl-lexer` re-lex bodies under the
-default config regardless of the document's dialect (wrong for F5 today, not
-only for Jim); the `Option<&DialectProfile>` currency in taint, GVN and the
-optimiser cannot name `jim`/`tk` and should become a `DialectPoint`;
-`ExprSugar` (`$(…)`) is reconstructed by the segmenter, formatter and
-minifier but not yet lowered to an expression evaluation; and a
-`dialect-drift` xtask gate, modelled on `number-drift`, should ban the
-bypass spellings (`DialectProfile::find(…).grammar`, bare `split_list` /
-`collapse_brace_continuations_str` outside their owners, new
-`Option<&DialectProfile>` signatures) so the next axis cannot repeat this.
+**Deliberately not done here.** The VM's list conversions
+(`Value::as_list`, `cmd_prefix`, `interp`, `expr`) still split strictly:
+the VM executes Tcl 9 by decision (above) and its inputs are Tcl lists.
+The `Option<&DialectProfile>` currency in taint, GVN and the optimiser
+stays: with the ingress projecting a profile for every cored environment,
+a profile *can* name `jim` (and `tk` reaches those passes through
+`unit_profile()`, its own row), so the currency now carries the right
+grammar everywhere the agreement test walks; retyping it to a
+`DialectPoint` would be churn without a behavioural gain, and the gate
+keeps a new consumer from re-resolving the name it carries.
 
 ---
 

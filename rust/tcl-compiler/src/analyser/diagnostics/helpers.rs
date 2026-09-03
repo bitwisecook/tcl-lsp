@@ -776,6 +776,7 @@ fn harvest_dict_with_suppression(
     fu: &crate::compilation_unit::FunctionUnit,
     considered: &HashSet<BlockId>,
     s: &mut UndefSuppression,
+    rules: tcl_syntax::word_rules::WordValueRules,
 ) {
     use crate::ir::Statement;
     for &bn in considered {
@@ -844,7 +845,7 @@ fn harvest_dict_with_suppression(
             }
             match literal {
                 Some(v) => {
-                    let elems = crate::tcl_expr_eval::split_tcl_list(&v);
+                    let elems = crate::tcl_expr_eval::split_tcl_list(&v, rules);
                     if args.first().map(String::as_str) == Some("update") {
                         // `dict update d k1 v1 k2 v2 … BODY` binds each value-var
                         // vN to the value of key kN *inside the body* — but only
@@ -887,6 +888,7 @@ pub(super) fn build_undef_suppression(
     initial_global: bool,
     global_aliases: &HashSet<String>,
     dialect: Option<SurfaceQuery<'_>>,
+    rules: tcl_syntax::word_rules::WordValueRules,
 ) -> UndefSuppression {
     let (phi_def, phi_block, killed) = build_phi_undef_index(&fu.ssa, considered);
     // Phi versions that can reach an undef origin on some executable path —
@@ -912,7 +914,7 @@ pub(super) fn build_undef_suppression(
             can_undef.insert(key.clone());
         }
     }
-    let loop_entry_only_undef = build_loop_entry_only_undef(fu, &can_undef, &undef_ctx);
+    let loop_entry_only_undef = build_loop_entry_only_undef(fu, &can_undef, &undef_ctx, rules);
     let mut s = UndefSuppression {
         cmd_sub_writes: collect_expr_cmd_sub_writes(fu, considered),
         script_concat_writes: collect_script_concat_writes(fu, considered),
@@ -921,7 +923,7 @@ pub(super) fn build_undef_suppression(
         loop_entry_only_undef,
         ..Default::default()
     };
-    harvest_dict_with_suppression(fu, considered, &mut s);
+    harvest_dict_with_suppression(fu, considered, &mut s, rules);
 
     // Names with a concrete (version > 0) statement or phi definition — a
     // dict-with scope never suppresses these (they are genuinely set).
@@ -965,6 +967,7 @@ fn build_loop_entry_only_undef(
     fu: &crate::compilation_unit::FunctionUnit,
     can_undef: &FxHashSet<(String, crate::ssa::Version)>,
     ctx: &PhiUndefCtx<'_>,
+    rules: tcl_syntax::word_rules::WordValueRules,
 ) -> FxHashMap<(String, crate::ssa::Version), FxHashSet<String>> {
     let mut out: FxHashMap<(String, crate::ssa::Version), FxHashSet<String>> = FxHashMap::default();
     if can_undef.is_empty() {
@@ -985,7 +988,7 @@ fn build_loop_entry_only_undef(
             };
             // A provably-empty `foreach` runs zero times: its body-assigned
             // variables are never set, so tclsh always errors — keep firing.
-            if foreach_header_provably_empty(fu, header_id) {
+            if foreach_header_provably_empty(fu, header_id, rules) {
                 continue;
             }
             let body_blocks: FxHashSet<String> = natural.blocks.iter().cloned().collect();
@@ -1042,6 +1045,7 @@ fn build_loop_entry_only_undef(
 fn foreach_header_provably_empty(
     fu: &crate::compilation_unit::FunctionUnit,
     header_id: BlockId,
+    rules: tcl_syntax::word_rules::WordValueRules,
 ) -> bool {
     use crate::ir::Statement;
     let Some(block) = fu.cfg.blocks.get(&header_id) else {
@@ -1054,7 +1058,7 @@ fn foreach_header_provably_empty(
                 if !args.is_empty()
                     && args
                         .iter()
-                        .all(|a| crate::tcl_expr_eval::split_tcl_list(a).is_empty())
+                        .all(|a| crate::tcl_expr_eval::split_tcl_list(a, rules).is_empty())
         )
     })
 }

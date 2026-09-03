@@ -54,7 +54,7 @@ use crate::taint::{
     LocalInstanceClasses, TaintColour, TaintCtx, TaintGraph, TaintLattice,
     instance_classes_for_function, propagate_taints, word_taint,
 };
-use crate::value_shapes::parse_command_substitution;
+use crate::value_shapes::parse_command_substitution_with_config;
 
 // Basis lattices
 
@@ -279,10 +279,11 @@ fn word_uses_from_versions(
     text: &str,
     versions: &HashMap<Symbol, u32>,
     ssa: &SsaFunction,
+    config: tcl_lexer::LexerConfig,
 ) -> HashMap<Symbol, u32> {
     let mut uses: HashMap<Symbol, u32> = HashMap::new();
     let source_map = SourceMap::new(text);
-    let Ok(tokens) = Lexer::new(text).tokenise_all() else {
+    let Ok(tokens) = Lexer::with_config(text, config).tokenise_all() else {
         return uses;
     };
     for tok in tokens {
@@ -355,7 +356,8 @@ fn collect_return_taint(
         let Some(ssa_block) = fu.ssa.blocks.get(bn) else {
             continue;
         };
-        let uses = word_uses_from_versions(value, &ssa_block.exit_versions, &fu.ssa);
+        let uses =
+            word_uses_from_versions(value, &ssa_block.exit_versions, &fu.ssa, ctx.lexer_config());
         ret = ret.join(word_taint(
             value,
             &uses,
@@ -379,7 +381,7 @@ fn run_propagation(
     instance_classes: &LocalInstanceClasses,
     registry: &CommandRegistry,
     interproc: Option<&crate::interprocedural::InterproceduralAnalysis>,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     param_taints: Option<&HashMap<String, TaintLattice>>,
     summaries: &HashMap<String, ProcTaintSummary>,
 ) -> HashMap<ValueKey, TaintLattice> {
@@ -400,7 +402,7 @@ fn return_ctx<'a>(
     fu: &'a FunctionUnit,
     registry: &'a CommandRegistry,
     interproc: Option<&'a crate::interprocedural::InterproceduralAnalysis>,
-    dialect: Option<&'a tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     known: &'a HashSet<String>,
     summaries: &'a HashMap<String, ProcTaintSummary>,
     instance_classes: &'a LocalInstanceClasses,
@@ -485,7 +487,7 @@ pub fn infer_proc_summary(
     fu: &FunctionUnit,
     registry: &CommandRegistry,
     interproc: Option<&crate::interprocedural::InterproceduralAnalysis>,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     known: &HashSet<String>,
     summaries: &HashMap<String, ProcTaintSummary>,
 ) -> ProcTaintSummary {
@@ -573,7 +575,7 @@ fn resolve_call_flows(
     instance_classes: &LocalInstanceClasses,
     registry: &CommandRegistry,
     interproc: Option<&crate::interprocedural::InterproceduralAnalysis>,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     known: &HashSet<String>,
     summaries: &HashMap<String, ProcTaintSummary>,
 ) -> Vec<(String, Vec<TaintLattice>)> {
@@ -606,7 +608,10 @@ fn resolve_call_flows(
                     Some((command.clone(), args.clone()))
                 }
                 crate::ir::Statement::AssignValue { value, .. } => {
-                    parse_command_substitution(value)
+                    parse_command_substitution_with_config(
+                        value,
+                        tcl_lexer::LexerConfig::for_profile(dialect),
+                    )
                 }
                 _ => None,
             };
@@ -652,7 +657,11 @@ fn resolve_call_flows(
 /// callee clean and under-tainting the result.
 #[must_use]
 #[allow(clippy::implicit_hasher)]
-pub fn resolved_callees(fu: &FunctionUnit, known: &HashSet<String>) -> Vec<String> {
+pub fn resolved_callees(
+    fu: &FunctionUnit,
+    known: &HashSet<String>,
+    config: tcl_lexer::LexerConfig,
+) -> Vec<String> {
     let caller_qname = fu.ssa.name.as_str();
     let mut out: Vec<String> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
@@ -666,7 +675,7 @@ pub fn resolved_callees(fu: &FunctionUnit, known: &HashSet<String>) -> Vec<Strin
                     Some((command.clone(), args.clone()))
                 }
                 crate::ir::Statement::AssignValue { value, .. } => {
-                    parse_command_substitution(value)
+                    parse_command_substitution_with_config(value, config)
                 }
                 _ => None,
             };
@@ -868,7 +877,7 @@ pub fn converge_summaries_with(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
     interproc: Option<&crate::interprocedural::InterproceduralAnalysis>,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     infer_fn: &mut InferProcSummaryFn<'_>,
 ) -> HashMap<String, ProcTaintSummary> {
     let mut proc_names: Vec<&String> = cu.ir_module.procedures.keys().collect();
@@ -909,7 +918,8 @@ pub fn converge_summaries_with(
             let Some(fu) = cu.procedures.get(*qname) else {
                 continue;
             };
-            for callee in resolved_callees(fu, &known) {
+            for callee in resolved_callees(fu, &known, tcl_lexer::LexerConfig::for_profile(dialect))
+            {
                 // `resolved_callees` returns owned names; the map borrows from
                 // `known`'s keys, which outlive it and hold the same strings.
                 if let Some(interned) = known.get(&callee) {
@@ -1017,7 +1027,7 @@ pub fn converge_summaries_with(
 pub fn solve_interprocedural_taints(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> InterprocTaintResult {
     solve_interprocedural_taints_with_seed_option(cu, registry, dialect, None)
 }
@@ -1038,7 +1048,7 @@ pub fn solve_interprocedural_taints(
 pub fn solve_interprocedural_taints_with_external_variable_seeds(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     external_variable_seeds: &HashMap<String, TaintLattice>,
 ) -> InterprocTaintResult {
     solve_interprocedural_taints_with_seed_option(
@@ -1052,7 +1062,7 @@ pub fn solve_interprocedural_taints_with_external_variable_seeds(
 fn solve_interprocedural_taints_with_seed_option(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     external_variable_seeds: Option<&HashMap<String, TaintLattice>>,
 ) -> InterprocTaintResult {
     // `find_taint_warnings_for_cu` is also a public entry point on a freshly
@@ -1103,7 +1113,7 @@ fn solve_interprocedural_taints_with_seed_option(
 pub fn solve_interprocedural_taints_with(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     infer_fn: &mut InferProcSummaryFn<'_>,
 ) -> InterprocTaintResult {
     let interproc = cu.interproc.as_ref();
@@ -1113,7 +1123,7 @@ pub fn solve_interprocedural_taints_with(
 fn solve_interprocedural_taints_with_context(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     interproc: Option<&crate::interprocedural::InterproceduralAnalysis>,
     infer_fn: &mut InferProcSummaryFn<'_>,
     external_variable_seeds: Option<&HashMap<String, TaintLattice>>,

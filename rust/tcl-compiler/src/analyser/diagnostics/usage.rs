@@ -176,7 +176,6 @@ Use braces: {{ \u{2026} }}"
             s.traits
                 .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
         });
-        let dialect = self.dialect();
         // The whole-`expr` argument span (used when the command is
         // `expr`, whose expression is the remaining words).
         let expr_full_span = (!arg_tokens.is_empty()).then(|| {
@@ -218,7 +217,7 @@ Use braces: {{ \u{2026} }}"
             };
             let stripped = text.trim();
             let safe = if is_expr {
-                is_safe_literal_expr(stripped, dialect)
+                is_safe_literal_expr(stripped, self.profile)
             } else {
                 is_safe_literal(stripped)
             };
@@ -521,7 +520,7 @@ Use braces: {{ \u{2026} }}"
                 // and shift the regions back into slice coordinates.
                 let coff = usize::from(tok.content_offset);
                 slice.get(coff..).map_or_else(Vec::new, |content| {
-                    comment_regions_recursive(content)
+                    comment_regions_recursive(content, self.lexer_config())
                         .into_iter()
                         .map(|r| r.start + coff..r.end + coff)
                         .collect()
@@ -1154,7 +1153,7 @@ literal text `({inner})`; did you mean `{corrected}` for array element access?"
             return;
         }
         let trimmed = expr_text.trim();
-        let parsed = crate::parse_expr(trimmed, Some(self.dialect()));
+        let parsed = crate::parse_expr_for_profile(trimmed, Some(self.profile));
         // ``ExprNode::Raw`` means the expression was unparseable.
         if matches!(parsed, ExprNode::Raw { .. }) {
             return;
@@ -1403,12 +1402,20 @@ pub(super) fn is_review_hazard_unicode(ch: char) -> bool {
 /// no regions (conservative: everything stays scanned).  A braced plain
 /// string whose content merely *looks* like a comment under-flags — the
 /// acceptable cost of not knowing which braced words are scripts.
-fn comment_regions_recursive(slice: &str) -> Vec<std::ops::Range<usize>> {
-    fn collect(slice: &str, base: usize, out: &mut Vec<std::ops::Range<usize>>) {
+fn comment_regions_recursive(
+    slice: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Vec<std::ops::Range<usize>> {
+    fn collect(
+        slice: &str,
+        base: usize,
+        config: tcl_lexer::LexerConfig,
+        out: &mut Vec<std::ops::Range<usize>>,
+    ) {
         if !slice.contains('#') {
             return;
         }
-        let Ok(tokens) = tcl_lexer::Lexer::new(slice).tokenise_all() else {
+        let Ok(tokens) = tcl_lexer::Lexer::with_config(slice, config).tokenise_all() else {
             return;
         };
         for tok in &tokens {
@@ -1421,7 +1428,7 @@ fn comment_regions_recursive(slice: &str) -> Vec<std::ops::Range<usize>> {
                     // the opener, which would unbalance a nested lex.
                     let coff = usize::from(tok.content_offset);
                     if let Some(inner) = slice.get(start + coff..end) {
-                        collect(inner, base + start + coff, out);
+                        collect(inner, base + start + coff, config, out);
                     }
                 }
                 _ => {}
@@ -1429,7 +1436,7 @@ fn comment_regions_recursive(slice: &str) -> Vec<std::ops::Range<usize>> {
         }
     }
     let mut out = Vec::new();
-    collect(slice, 0, &mut out);
+    collect(slice, 0, config, &mut out);
     out
 }
 
@@ -1535,7 +1542,10 @@ pub(super) fn is_safe_literal(text: &str) -> bool {
 
 /// True when an expr string is substitution-free numeric / boolean /
 /// operator text (safe to leave unbraced).
-pub(super) fn is_safe_literal_expr(text: &str, dialect: &str) -> bool {
+pub(super) fn is_safe_literal_expr(
+    text: &str,
+    profile: &'static tcl_dialect::DialectProfile,
+) -> bool {
     use tcl_lexer::ExprTokenType as T;
     if is_safe_literal(text) {
         return true;
@@ -1543,7 +1553,7 @@ pub(super) fn is_safe_literal_expr(text: &str, dialect: &str) -> bool {
     if text.contains('$') || text.contains('[') {
         return false;
     }
-    let tokens = tcl_lexer::tokenise_expr(text, Some(dialect));
+    let tokens = tcl_lexer::tokenise_expr_for_profile(text, profile);
     if tokens.is_empty() {
         return false;
     }

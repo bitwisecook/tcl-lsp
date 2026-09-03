@@ -74,10 +74,11 @@
 use std::collections::BTreeSet;
 
 use tcl_compiler::analyser::AnalysisResult;
-use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset};
+use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
 use tcl_dialect::BracedVarStyle;
+use tcl_lexer::LexerConfig;
 
 use super::{RefactorEdit, Refactoring, command_span_offsets};
 use crate::code_actions::{ActionCommand, ActionKind};
@@ -106,12 +107,17 @@ pub fn extract_proc(
     if sel_end <= sel_start {
         return None;
     }
-    let scope = enclosing_scope(source, sel_start, registry);
+    // The document's own lexing grammar — `analysis.dialect` carries the
+    // name the host analysed this document under (issue: dialect-drift).
+    let config =
+        LexerConfig::from_grammar(crate::environment_for_dialect(&analysis.dialect).grammar());
+    let scope = enclosing_scope(source, sel_start, registry, config);
     let scope_text = source.get(scope.start as usize..scope.end as usize)?;
-    let commands: Vec<SegmentedCommand> = segment_commands_with_offset(scope_text, scope.start)
-        .into_iter()
-        .filter(|command| !command.name().is_empty())
-        .collect();
+    let commands: Vec<SegmentedCommand> =
+        segment_commands_with_offset_and_config(scope_text, scope.start, config)
+            .into_iter()
+            .filter(|command| !command.name().is_empty())
+            .collect();
     let selected: Vec<&SegmentedCommand> = commands
         .iter()
         .filter(|command| {
@@ -123,7 +129,9 @@ pub fn extract_proc(
         return None;
     }
     let title = "Extract selection into proc".to_string();
-    match plan_extraction(source, &selected, &commands, scope, analysis, registry) {
+    match plan_extraction(
+        source, &selected, &commands, scope, analysis, registry, config,
+    ) {
         Ok(plan) => Some(Refactoring {
             title,
             edits: plan.edits,
@@ -199,8 +207,9 @@ fn plan_extraction(
     scope: Scope,
     analysis: &AnalysisResult,
     registry: &CommandRegistry,
+    config: LexerConfig,
 ) -> Result<Plan, String> {
-    reject_enclosing_definition_body(source, scope, registry)?;
+    reject_enclosing_definition_body(source, scope, registry, config)?;
     reject_frame_sensitive_selection(source, selected, registry)?;
     // The document's own `${…}` close rule — a brace-bearing name read by
     // the wrong release's rule produces a proc built for a variable that
@@ -220,10 +229,11 @@ fn plan_extraction(
     let tail = source
         .get(block_end as usize..scope.end as usize)
         .unwrap_or("");
-    let tail_commands: Vec<SegmentedCommand> = segment_commands_with_offset(tail, 0)
-        .into_iter()
-        .filter(|command| !command.name().is_empty())
-        .collect();
+    let tail_commands: Vec<SegmentedCommand> =
+        segment_commands_with_offset_and_config(tail, 0, config)
+            .into_iter()
+            .filter(|command| !command.name().is_empty())
+            .collect();
     let mut used_after: BTreeSet<String> = variable_references(tail, style);
     for command in &tail_commands {
         used_after.extend(role_named_variables(command, registry));
@@ -251,7 +261,7 @@ fn plan_extraction(
     // command, so it lands after the file's `package require` / `namespace`
     // prologue rather than at line 0 — and, when the selection is inside a
     // proc, before that proc rather than inside it.
-    let insert_at = top_level_command_start(source, scope_commands, scope, block_start);
+    let insert_at = top_level_command_start(source, scope_commands, scope, block_start, config);
     Ok(Plan {
         edits: vec![
             RefactorEdit {
@@ -373,13 +383,14 @@ fn reject_enclosing_definition_body(
     source: &str,
     scope: Scope,
     registry: &CommandRegistry,
+    config: LexerConfig,
 ) -> Result<(), String> {
     if scope.start == 0 {
         return Ok(());
     }
     // Walk the top-level commands to find the one whose body the scope sits
     // in, then check what kind of body it is.
-    for command in segment_commands_with_offset(source, 0) {
+    for command in segment_commands_with_offset_and_config(source, 0, config) {
         let (start, end) = command_span_offsets(source, &command);
         if scope.start < start || scope.end > end {
             continue;
@@ -414,7 +425,12 @@ fn reject_enclosing_definition_body(
 /// scoped to that body rather than to the whole file — which is what makes
 /// "is this variable read after the selection?" a question about the right
 /// piece of code.
-fn enclosing_scope(source: &str, offset: u32, registry: &CommandRegistry) -> Scope {
+fn enclosing_scope(
+    source: &str,
+    offset: u32,
+    registry: &CommandRegistry,
+    config: LexerConfig,
+) -> Scope {
     let mut scope = Scope {
         start: 0,
         end: u32::try_from(source.len()).unwrap_or(u32::MAX),
@@ -424,7 +440,7 @@ fn enclosing_scope(source: &str, offset: u32, registry: &CommandRegistry) -> Sco
             return scope;
         };
         let mut descended = false;
-        for command in segment_commands_with_offset(text, scope.start) {
+        for command in segment_commands_with_offset_and_config(text, scope.start, config) {
             let head = command.name();
             if head.is_empty() {
                 continue;
@@ -465,6 +481,7 @@ fn top_level_command_start(
     scope_commands: &[SegmentedCommand],
     scope: Scope,
     offset: u32,
+    config: LexerConfig,
 ) -> u32 {
     // A selection already at top level inserts before its own first command.
     let anchor = if scope.start == 0 {
@@ -475,7 +492,7 @@ fn top_level_command_start(
             .max()
             .unwrap_or(offset)
     } else {
-        segment_commands_with_offset(source, 0)
+        segment_commands_with_offset_and_config(source, 0, config)
             .into_iter()
             .filter(|command| {
                 let (start, end) = command_span_offsets(source, command);
@@ -936,6 +953,67 @@ mod tests {
     fn tn_no_action_for_a_whitespace_only_selection() {
         let src = "set x 1\n\n\nputs $x\n";
         assert!(at(src, "\n\n\n").is_none());
+    }
+
+    // -- Dialect-drift regression -------------------------------------------
+
+    /// iRules' `}{` ghost word separator (no space between an `if`'s
+    /// condition and its body — the idiom every real iRule uses) must be
+    /// read under the document's own grammar, never the segmenter's
+    /// default.  Under the default grammar `{$x}{ … }` reads as one
+    /// *composite* word (`{cond}` welded to `{body}`), so `if` sees a single
+    /// argument instead of the required condition + body pair and
+    /// `enclosing_scope`'s `ArgRole::Body` descent cannot find a body to
+    /// descend into at all; under `f5-irules` it splits at the `}{`
+    /// boundary into the ordinary two-word `if {cond} {body}` shape.  If
+    /// `extract_proc` ever again resolved its scope through a dialect-blind
+    /// segmenter call, this selection would find no enclosing `if` body and
+    /// the extraction would run against the whole `proc`'s scope instead —
+    /// wrong, though not `None` (the top-level `proc` body still exists),
+    /// so the two grammars must be told apart to catch the drift.
+    #[test]
+    fn extracts_an_irule_selection_across_the_brace_separator_idiom() {
+        let snippet = "if {$x}{ set y 1 }";
+        // Document the drift this test guards: the same text really does
+        // segment differently under the two grammars.
+        let default_cmds = tcl_compiler::segmenter::segment_commands(snippet);
+        assert_eq!(
+            default_cmds[0].argv.len(),
+            2, // `if` + one composite `{$x}{ set y 1 }` argument
+            "default grammar must weld `}}{{` into one word: {:?}",
+            default_cmds[0].texts
+        );
+        let irules_cmds = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+            snippet,
+            0,
+            tcl_lexer::LexerConfig::for_dialect("f5-irules"),
+        );
+        assert_eq!(
+            irules_cmds[0].argv.len(),
+            3, // `if` + condition + body, split at `}{`
+            "iRules grammar must split `}}{{` into two words: {:?}",
+            irules_cmds[0].texts
+        );
+
+        // The end-to-end refactor: a selection inside the if-body only
+        // resolves to that body's scope when `extract_proc` threads the
+        // document's own (iRules) grammar into its own segmentation.
+        let src = "proc handler {} {\n    if {$x}{\n        set y 1\n        set y 2\n    }\n    puts done\n}\n";
+        let result = at_dialect(src, "set y 1\n        set y 2", "f5-irules").expect("a selection");
+        assert!(
+            result.disabled.is_none(),
+            "must not decline: {:?}",
+            result.disabled
+        );
+        let applied = result.apply(src);
+        assert!(
+            applied.contains("proc extracted_proc {} {\n    set y 1\n    set y 2\n}"),
+            "the extracted proc must be exactly the if-body's two commands: {applied}"
+        );
+        assert!(
+            applied.contains("if {$x}{\n        extracted_proc\n    }"),
+            "the call must replace only the if-body's contents, in place: {applied}"
+        );
     }
 
     // -- Unit-level helpers ------------------------------------------------

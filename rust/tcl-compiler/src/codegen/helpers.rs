@@ -67,8 +67,12 @@ pub fn split_list_simple(text: &str) -> Vec<String> {
 /// list must split it with Tcl list semantics — `{a {b c} d}` is three
 /// elements (`a`, `b c`, `d`), not four whitespace runs — so the loop variable
 /// folds to the right CONSTSET.
-pub(crate) fn split_list_values(text: &str) -> Vec<String> {
-    tcl_syntax::list::split_list_lenient(text)
+pub(crate) fn split_list_values(
+    text: &str,
+    rules: tcl_syntax::word_rules::WordValueRules,
+) -> Vec<String> {
+    rules
+        .split_list_tolerant(text)
         .into_iter()
         .map(std::borrow::Cow::into_owned)
         .collect()
@@ -417,13 +421,17 @@ pub fn regexp_to_glob(pattern: &str) -> Option<String> {
 /// `"list "` or `"dict create "`.  Returns `None` when the value
 /// doesn't match or contains substitutions.
 #[must_use]
-pub fn fold_cmd_args(value: &str, prefix: &str) -> Option<String> {
+pub fn fold_cmd_args(
+    value: &str,
+    prefix: &str,
+    rules: tcl_syntax::word_rules::WordValueRules,
+) -> Option<String> {
     // `Tcl_Merge`, not a per-element `Tcl_ConvertElement` loop: a leading `#`
     // is comment-unsafe only in list position 0, so mapping the single-element
     // quoter over every argument rendered `[list a #]` as `a {#}` where both
     // tclsh oracles print `a #` (issues #1439 / #1608).
     Some(tcl_syntax::list::join_list(fold_cmd_arg_values(
-        value, prefix,
+        value, prefix, rules,
     )?))
 }
 
@@ -434,7 +442,11 @@ pub fn fold_cmd_args(value: &str, prefix: &str) -> Option<String> {
 /// collapse duplicate keys first (issue #1427), which is a decision about
 /// values, not about rendered list elements.
 #[must_use]
-fn fold_cmd_arg_values(value: &str, prefix: &str) -> Option<Vec<String>> {
+fn fold_cmd_arg_values(
+    value: &str,
+    prefix: &str,
+    rules: tcl_syntax::word_rules::WordValueRules,
+) -> Option<Vec<String>> {
     let full_prefix = format!("[{prefix}");
     let inner = value
         .strip_prefix(&full_prefix)
@@ -444,7 +456,7 @@ fn fold_cmd_arg_values(value: &str, prefix: &str) -> Option<Vec<String>> {
     // following spaces/tabs → one space) — UTF-8-safe, unlike the retired
     // local byte-by-byte copy, which pushed each byte through `char::from`
     // and mangled multi-byte characters.
-    let inner = tcl_syntax::backslash::collapse_brace_continuations_str(inner);
+    let inner = rules.collapse_braced_word(inner);
     let inner = inner.as_ref();
 
     // Cannot fold across a `{*}` argument expansion: it turns one braced word
@@ -469,7 +481,7 @@ fn fold_cmd_arg_values(value: &str, prefix: &str) -> Option<Vec<String>> {
     // argument's *value* is what `list` quotes: braced words are verbatim, while
     // quoted and bare words are backslash-decoded first (so `"\x00"` becomes a
     // NUL byte and `"a\tb"` an embedded tab, not the literal escape text).
-    Some(split_list_values(inner))
+    Some(split_list_values(inner, rules))
 }
 
 /// Whether `s` contains a `{*}` argument-expansion operator: a `{*}` at a word
@@ -504,8 +516,8 @@ fn has_expand_marker(s: &str) -> bool {
 
 /// Constant-fold `[list arg1 arg2 ...]` to the result string.
 #[must_use]
-pub fn fold_list_cmd(value: &str) -> Option<String> {
-    fold_cmd_args(value, "list ")
+pub fn fold_list_cmd(value: &str, rules: tcl_syntax::word_rules::WordValueRules) -> Option<String> {
+    fold_cmd_args(value, "list ", rules)
 }
 
 /// Constant-fold `[dict create k v ...]` to the result string.
@@ -534,8 +546,11 @@ pub fn fold_list_cmd(value: &str) -> Option<String> {
 /// An odd argument count is `wrong # args`, which only the runtime should
 /// report, so it declines to fold.
 #[must_use]
-pub fn fold_dict_create_cmd(value: &str) -> Option<String> {
-    let args = fold_cmd_arg_values(value, "dict create ")?;
+pub fn fold_dict_create_cmd(
+    value: &str,
+    rules: tcl_syntax::word_rules::WordValueRules,
+) -> Option<String> {
+    let args = fold_cmd_arg_values(value, "dict create ", rules)?;
     if args.len() % 2 != 0 {
         return None;
     }
@@ -1125,13 +1140,19 @@ mod tests {
 
     #[test]
     fn fold_list_cmd_basic() {
-        assert_eq!(fold_list_cmd("[list a b c]"), Some("a b c".into()));
+        assert_eq!(
+            fold_list_cmd("[list a b c]", tcl_syntax::word_rules::WordValueRules::TCL),
+            Some("a b c".into())
+        );
     }
 
     #[test]
     fn fold_list_cmd_braced() {
         assert_eq!(
-            fold_list_cmd("[list {hello world} b]"),
+            fold_list_cmd(
+                "[list {hello world} b]",
+                tcl_syntax::word_rules::WordValueRules::TCL
+            ),
             Some("{hello world} b".into())
         );
     }
@@ -1139,18 +1160,27 @@ mod tests {
     #[test]
     fn fold_list_cmd_substitution() {
         // Contains $ → cannot fold
-        assert_eq!(fold_list_cmd("[list $x b]"), None);
+        assert_eq!(
+            fold_list_cmd("[list $x b]", tcl_syntax::word_rules::WordValueRules::TCL),
+            None
+        );
     }
 
     #[test]
     fn fold_list_cmd_no_match() {
-        assert_eq!(fold_list_cmd("not a list"), None);
+        assert_eq!(
+            fold_list_cmd("not a list", tcl_syntax::word_rules::WordValueRules::TCL),
+            None
+        );
     }
 
     #[test]
     fn fold_dict_create_basic() {
         assert_eq!(
-            fold_dict_create_cmd("[dict create a 1 b 2]"),
+            fold_dict_create_cmd(
+                "[dict create a 1 b 2]",
+                tcl_syntax::word_rules::WordValueRules::TCL
+            ),
             Some("a 1 b 2".into())
         );
     }

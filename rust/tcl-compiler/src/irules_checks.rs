@@ -45,12 +45,12 @@ use tcl_registry::events::{
 use tcl_registry::side_effects::{ConnectionSide, SideEffectTarget};
 use tcl_registry::{CommandRegistry, Traits};
 
-use crate::cfg_builder::build_cfg;
+use crate::cfg_builder::build_cfg_with_config;
 use crate::compilation_unit::CompilationUnit;
 use crate::ir::{Script, Statement};
 use crate::lowering::lower_to_ir_with_config;
 use crate::sccp::cfg_order;
-use crate::value_shapes::parse_command_substitution;
+use crate::value_shapes::parse_command_substitution_with_config;
 use tcl_dialect::model::SurfaceQuery;
 
 /// Process-wide iRules command registry, used to derive the HTTP-flow command
@@ -349,6 +349,7 @@ pub fn find_unnormalised_getter_warnings(
     if !is_irules(dialect) {
         return out;
     }
+    let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
 
     for fu in cu.analysable_functions() {
         for bn in cfg_order(&fu.cfg) {
@@ -390,7 +391,9 @@ pub fn find_unnormalised_getter_warnings(
                             if !trimmed.starts_with('[') {
                                 continue;
                             }
-                            let Some((cmd, sub_args)) = parse_command_substitution(trimmed) else {
+                            let Some((cmd, sub_args)) =
+                                parse_command_substitution_with_config(trimmed, config)
+                            else {
                                 continue;
                             };
                             if is_unnormalised_getter(registry, &cmd, &sub_args) {
@@ -409,7 +412,9 @@ pub fn find_unnormalised_getter_warnings(
                         }
                     }
                     Statement::AssignValue { value, span, .. } => {
-                        let Some((cmd, sub_args)) = parse_command_substitution(value.trim()) else {
+                        let Some((cmd, sub_args)) =
+                            parse_command_substitution_with_config(value.trim(), config)
+                        else {
                             continue;
                         };
                         if is_unnormalised_getter(registry, &cmd, &sub_args) {
@@ -820,7 +825,10 @@ fn classify_stmt_for_collect_flow(
             }
         }
         Statement::AssignValue { value, span, .. } => {
-            if let Some((cmd, sub_args)) = parse_command_substitution(value.trim()) {
+            if let Some((cmd, sub_args)) = parse_command_substitution_with_config(
+                value.trim(),
+                tcl_lexer::LexerConfig::for_profile(registry.profile()),
+            ) {
                 classify_collect_command(&cmd, &sub_args, event, side, abs(*span), state, registry);
             }
         }
@@ -841,13 +849,13 @@ fn scan_side_switch_body(
     base_offset: i64,
 ) {
     // iRules side-switch flow — lower under the iRules dialect so `{*}` is
-    // literal and `}{` splits words.
-    let module = lower_to_ir_with_config(
-        body_text,
-        registry,
-        tcl_lexer::LexerConfig::for_dialect("f5-irules"),
-    );
-    let cfg_module = build_cfg(&module, false);
+    // literal and `}{` splits words.  The grammar comes from the iRules
+    // profile itself (this whole module only runs on an iRules document),
+    // never re-resolved from the name.
+    let irules_config =
+        tcl_lexer::LexerConfig::from_grammar(tcl_dialect::DialectProfile::irules().grammar);
+    let module = lower_to_ir_with_config(body_text, registry, irules_config);
+    let cfg_module = build_cfg_with_config(&module, false, irules_config);
     for bn in cfg_order(&cfg_module.top_level) {
         let Some(block) = cfg_module.top_level.blocks.get(&bn) else {
             continue;
