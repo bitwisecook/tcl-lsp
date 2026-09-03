@@ -231,7 +231,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: release release-tag release-sums
 .PHONY: release-perf release-notes-perf release-verify release-prepare release-rust-tag
 # Rust runtime port
-.PHONY: runtime-rust-test runtime-rust-lint zed-query-check vm-test vm-lint
+.PHONY: runtime-rust-test runtime-rust-test-no-tommath runtime-rust-lint zed-query-check vm-test vm-lint
 # Screenshots
 .PHONY: screenshot screenshots clean-screenshots
 # Cleanup
@@ -2361,6 +2361,46 @@ runtime-rust-test: ## Run the Rust runtime port's cargo test (leak round-trip + 
 		tommath=""; \
 	fi; \
 	cd $(RUNTIME_RUST_DIR) && TCL_TOMMATH_DIR="$$tommath" cargo test --locked
+
+# The companion no-bignum gate. `runtime-rust-test` above exists precisely
+# because CI's own fetch step means the standalone suite ALWAYS builds with
+# `have_tommath` set — the degraded fallback build.rs takes when libtommath's
+# source is absent (no bignum tower, and `expr`/`if`/the `mathfunc`/`mathop`
+# ensembles un-registered, since control flow needs `expr` to evaluate a
+# condition) had never once been compiled, let alone tested, in CI. Two real
+# bugs were found in exactly that fallback by running it by hand (a
+# `read_double` that widened every bignum to infinity, and an `incr` that
+# bypassed the read-trace chokepoint) — this target is what stops that
+# regressing silently again. Tests whose subject is `expr`/`if` are
+# `#[cfg(have_tommath)]`-gated so they compile out here; everything else runs.
+#
+# Forcing absence takes two things, per `locate_libtommath()` in build.rs:
+# unset $$TCL_TOMMATH_DIR (never pass it, unlike the target above) AND make
+# sure its fallback path — tmp/tcl9.0.4/libtommath — does not exist, since the
+# build script probes that path itself when the variable is unset. On a fresh
+# checkout that never fetched the tree (the normal CI shape: this target runs
+# BEFORE the Tcl-source fetch step) the fallback path is simply absent
+# already. On a machine where it WAS fetched (e.g. `make ensure-tcl90-reference`
+# already ran), the tree is renamed out of the way for the duration of the run
+# and restored — via a trap, so a failing `cargo test` still restores it —
+# rather than deleted, since re-fetching is neither instant nor guaranteed
+# offline.
+runtime-rust-test-no-tommath: ## Run the Rust runtime port's cargo test with libtommath deliberately absent (the no-bignum/no-expr fallback build)
+	@set -eu; \
+	tommath_dir="$(ROOT)tmp/tcl9.0.4/libtommath"; \
+	hidden="$${tommath_dir}.hidden-for-no-tommath-test"; \
+	restore() { \
+		if [ -d "$$hidden" ]; then \
+			rm -rf "$$tommath_dir"; \
+			mv "$$hidden" "$$tommath_dir"; \
+		fi; \
+	}; \
+	trap restore EXIT INT TERM HUP; \
+	if [ -d "$$tommath_dir" ]; then \
+		mv "$$tommath_dir" "$$hidden"; \
+	fi; \
+	unset TCL_TOMMATH_DIR; \
+	cd $(RUNTIME_RUST_DIR) && cargo test --locked
 
 runtime-rust-lint: ## Rust runtime port: cargo fmt --check + locked clippy -D warnings
 	cd $(RUNTIME_RUST_DIR) && cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings
