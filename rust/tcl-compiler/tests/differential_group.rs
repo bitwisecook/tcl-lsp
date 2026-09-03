@@ -60,6 +60,18 @@
 //! post-pass on the owner's side for the `f5-irules` config, using the
 //! segmenter's own predicate (`word_piece` texts + `single_newline_gap`).
 //! Every other boundary question is compared unadapted.
+//!
+//! # Nested bodies
+//!
+//! `Lexer::tokenise_all` is flat.  A `proc p {} { … }` body is a single
+//! `Str` token, so a corpus walk that only groups the *top* level compares
+//! almost none of the Tcl in the corpus: measured over `samples/`, the Tcl
+//! 9.0.4 library and tcllib 2.0 — 965 files — top-level grouping yields
+//! **zero** `{*}` markers, even though `{*}` is written in many of them.
+//! That is exactly the boundary #1786 next changes in `runtime/rust`, so
+//! the corpus walk also descends [`NEST_DEPTH`] levels of `{…}` bodies and
+//! `[…]` command substitutions ([`walk_region`]), driving *both* sides over
+//! the identical inner text under the identical [`LexerConfig`].
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -118,22 +130,44 @@ fn owner_word_text(sm: &SourceMap<'_>, tokens: &[Token], word: &tcl_lexer::WordS
         .collect()
 }
 
-/// Run the owner over `src` and reduce it to the comparable view, applying
-/// the two adaptations documented at the top of this file.
-fn owner(src: &str, config: LexerConfig) -> Vec<CmdView> {
-    let config = LexerConfig {
+/// The region-local view of `config`: both engines group and segment in the
+/// `base_offset == 0` space (`group_commands` is documented to require it,
+/// and `segment_commands_with_offset_and_config` reaches a nonzero base only
+/// by shifting its local result), so every comparison here is driven at zero.
+fn local_config(config: LexerConfig) -> LexerConfig {
+    LexerConfig {
         base_offset: 0,
         base_line: 0,
         base_col: 0,
         ..config
-    };
-    let sm = SourceMap::new(src);
-    let Ok(tokens) = Lexer::with_source_map(SourceMap::new(src), config).tokenise_all() else {
-        // The segmenter degrades to an empty document on a hard LexError
-        // (only reachable under `strict_quoting`, which it never sets).
+    }
+}
+
+/// Lex `src` the way [`owner`] does — the token stream `check` compares from.
+fn owner_lex(src: &str, config: LexerConfig) -> Option<Vec<Token>> {
+    Lexer::with_source_map(SourceMap::new(src), local_config(config))
+        .tokenise_all()
+        .ok()
+}
+
+/// Run the owner over `src` and reduce it to the comparable view, applying
+/// the two adaptations documented at the top of this file.
+fn owner(src: &str, config: LexerConfig) -> Vec<CmdView> {
+    // The segmenter degrades to an empty document on a hard LexError (only
+    // reachable under `strict_quoting`, which it never sets).
+    let Some(tokens) = owner_lex(src, config) else {
         return Vec::new();
     };
-    let grouped = group_commands(&tokens, src, config);
+    owner_views(src, config, &tokens)
+}
+
+/// [`owner`] over an already-lexed stream.  The corpus walk holds the lex
+/// it needs for descent anyway, so reusing it keeps the deepened walk from
+/// lexing every nested body a third time.
+fn owner_views(src: &str, config: LexerConfig, tokens: &[Token]) -> Vec<CmdView> {
+    let config = local_config(config);
+    let sm = SourceMap::new(src);
+    let grouped = group_commands(tokens, src, config);
 
     let mut views: Vec<CmdView> = grouped
         .iter()
@@ -150,13 +184,13 @@ fn owner(src: &str, config: LexerConfig) -> Vec<CmdView> {
                     expand: w.expand,
                 })
                 .collect(),
-            comment: cmd.comment_text(&tokens, src),
+            comment: cmd.comment_text(tokens, src),
         })
         .collect();
 
     if config.brace_line_continuation.continues() {
         // Adaptation 2: replay the compiler's N5 `else` lookahead post-pass.
-        views = merge_f5_if_else(src, &sm, &tokens, &grouped, views);
+        views = merge_f5_if_else(src, &sm, tokens, &grouped, views);
     }
     views
 }
@@ -285,8 +319,24 @@ fn seg_word(src: &str, cmd: &SegmentedCommand, i: usize) -> WordView {
 // The comparison
 // ---------------------------------------------------------------------
 
-fn check(src: &str, config: LexerConfig, ctx: &str) -> Result<(), String> {
-    let o = owner(src, config);
+/// Compare both sides over `src` under `config`.
+///
+/// `tokens` is the owner-side lex of `src`, when the caller already holds
+/// one (the corpus walk does — it lexes each region to find the nested
+/// regions inside it); `None` lexes here.  Either way both sides see the
+/// same `src` and the same `config`: the segmenter is always driven through
+/// `segment_commands_with_offset_and_config` on that same text, so there is
+/// no third path.
+fn check(
+    src: &str,
+    config: LexerConfig,
+    ctx: &str,
+    tokens: Option<&[Token]>,
+) -> Result<(), String> {
+    let o = match tokens {
+        Some(tokens) => owner_views(src, config, tokens),
+        None => owner(src, config),
+    };
     let s = segmenter(src, config);
     if o.len() != s.len() {
         return Err(format!(
@@ -428,7 +478,7 @@ fn owner_matches_segmenter_on_edge_cases() {
         for (name, make) in CONFIGS {
             let config = make();
             let ctx = format!("{name}:{src:?}");
-            if let Err(msg) = check(src, config, &ctx) {
+            if let Err(msg) = check(src, config, &ctx, None) {
                 panic!("{msg}");
             }
         }
@@ -486,6 +536,144 @@ fn expand_after_close_brace_takes_the_segmenter_boundary() {
 // Corpus walk
 // ---------------------------------------------------------------------
 
+/// How many levels of `{…}` / `[…]` the corpus walk descends below the
+/// top level.
+///
+/// `Lexer::tokenise_all` is flat: a `proc p {} { … }` body is one `Str`
+/// token and nothing inside it is ever grouped, so a top-level-only corpus
+/// walk compares almost none of the real Tcl in the corpus — measurably,
+/// **zero** `{*}` expansions across all 965 files, even though `{*}` is
+/// written in many of them.  Descending three levels is what puts a
+/// `proc` body, a `foreach`/`if` body inside it, and one more level under
+/// that in front of both engines.
+const NEST_DEPTH: usize = 3;
+
+/// Stop after this many divergences so a systematic break does not print a
+/// megabyte of near-identical failures.
+const MAX_FAILURES: usize = 20;
+
+/// What one nesting level of the corpus walk compared.
+#[derive(Default, Debug, Clone, Copy)]
+struct Tally {
+    /// Regions compared (files at level 0, nested bodies below).
+    regions: usize,
+    commands: usize,
+    words: usize,
+    /// `{*}` markers the lexer produced in this level's regions — the
+    /// number this walk exists to move off zero.
+    expands: usize,
+}
+
+impl Tally {
+    fn add(self, other: Self) -> Self {
+        Self {
+            regions: self.regions + other.regions,
+            commands: self.commands + other.commands,
+            words: self.words + other.words,
+            expands: self.expands + other.expands,
+        }
+    }
+}
+
+/// Compare one region with [`check`], tally it, and descend.
+///
+/// `sm` maps the region and carries the base offset of its first byte, so
+/// `range_positions` resolves an inner token to its position in the
+/// *original file* and a failure names where to look.  The comparison
+/// itself runs in the region-local (`base_offset == 0`) space both engines
+/// require: `group_commands` is documented to take a local token stream,
+/// and `segment_commands_with_offset_and_config` reaches a nonzero base
+/// only by shifting its local result, so a nonzero base would add the same
+/// constant to both sides and prove nothing extra.  Both sides therefore
+/// get the identical inner `&str` and the identical `LexerConfig` — no
+/// third path, exactly as at the top level.
+///
+/// A descended region is a `{…}` or `[…]` token's inner text, taken as
+/// `SourceMap::token_text` — a verbatim slice of the region, delimiters
+/// excluded, anchored `content_offset` bytes past the opener, the same
+/// anchor `parsing::syntax::descend::descend_token` uses.  It is taken from
+/// the *token*, never from a reconstructed word value, so the
+/// `contiguous_prefix` / `body_text_in_region` clamp a compound `{body}x`
+/// word needs does not arise here: a token's text is a source slice by
+/// construction.
+///
+/// Every braced group is descended, not just registry-resolved bodies: a
+/// differential harness only needs both engines to see the same text, and
+/// a `switch` clause list or a braced list is as good a boundary exercise
+/// as a `proc` body.
+fn walk_region(
+    sm: &SourceMap<'_>,
+    config: LexerConfig,
+    ctx: &str,
+    level: usize,
+    max_depth: usize,
+    tallies: &mut [Tally],
+    failures: &mut Vec<String>,
+) {
+    let src = sm.source();
+    let Some(tokens) = owner_lex(src, config) else {
+        return;
+    };
+    if let Err(msg) = check(src, config, ctx, Some(&tokens)) {
+        failures.push(msg);
+    }
+    let grouped = group_commands(&tokens, src, local_config(config));
+    let tally = &mut tallies[level];
+    tally.regions += 1;
+    tally.commands += grouped.len();
+    tally.words += grouped.iter().map(|c| c.words.len()).sum::<usize>();
+    tally.expands += tokens
+        .iter()
+        .filter(|t| t.kind == TokenType::Expand)
+        .count();
+
+    if level >= max_depth || failures.len() >= MAX_FAILURES {
+        return;
+    }
+    for &tok in &tokens {
+        // A real `{…}` / `[…]`: the lexer sets `content_offset == 1` for
+        // the opener it stripped.  Anything else (a bare word, a `"…"`
+        // fragment, a recovery token) is not a delimited script region.
+        if !matches!(tok.kind, TokenType::Str | TokenType::Cmd) || tok.content_offset != 1 {
+            continue;
+        }
+        let inner = sm.token_text(tok);
+        if inner.trim().is_empty() {
+            continue;
+        }
+        let (start, _) = sm.range_positions(tok.span);
+        let child = SourceMap::new(inner).with_base(
+            start.offset + 1,
+            start.line,
+            start.character.get() + 1,
+        );
+        let child_ctx = format!(
+            "{ctx} <{}@L{} line {} col {} offset {}>",
+            if tok.kind == TokenType::Cmd {
+                "[…]"
+            } else {
+                "{…}"
+            },
+            level + 1,
+            start.line + 1,
+            start.character.get() + 2,
+            child.base_offset(),
+        );
+        walk_region(
+            &child,
+            config,
+            &child_ctx,
+            level + 1,
+            max_depth,
+            tallies,
+            failures,
+        );
+        if failures.len() >= MAX_FAILURES {
+            return;
+        }
+    }
+}
+
 fn gather(dir: &Path, exts: &[&str], out: &mut Vec<PathBuf>) {
     let Ok(rd) = fs::read_dir(dir) else { return };
     for entry in rd.flatten() {
@@ -502,11 +690,10 @@ fn gather(dir: &Path, exts: &[&str], out: &mut Vec<PathBuf>) {
     }
 }
 
-/// Walk `samples/`, the Tcl 9.0.4 script library, and the tcllib modules
-/// under all three dialects.  Skips silently when a corpus is absent.
-#[test]
-fn owner_matches_segmenter_over_corpora() {
-    let root = repo_root();
+/// Corpus roots. `tcllib` is by far the largest (56M vs 7.5M for the other
+/// two together) and dominates the cost of a nested walk, so the two tiers
+/// below differ only in whether it is descended into.
+fn corpus_files(root: &std::path::Path, with_tcllib: bool) -> Vec<PathBuf> {
     let mut files = Vec::new();
     gather(
         &root.join("samples"),
@@ -514,38 +701,128 @@ fn owner_matches_segmenter_over_corpora() {
         &mut files,
     );
     gather(&root.join("tmp/tcl9.0.4/library"), &["tcl"], &mut files);
-    gather(&root.join("tmp/tcllib-2.0/modules"), &["tcl"], &mut files);
-    if files.is_empty() {
-        eprintln!("[differential_group] skipped: no corpus present");
-        return;
+    if with_tcllib {
+        gather(&root.join("tmp/tcllib-2.0/modules"), &["tcl"], &mut files);
     }
     files.sort();
+    files
+}
 
+/// Compare every file in `files` at every dialect, descending `max_depth`
+/// levels into `{…}` / `[…]` bodies.
+fn run_corpus(files: &[PathBuf], max_depth: usize) -> (usize, Vec<Tally>) {
     let mut checked = 0usize;
     let mut failures: Vec<String> = Vec::new();
-    for path in &files {
+    let mut tallies = vec![Tally::default(); max_depth + 1];
+    for path in files {
         let Ok(src) = fs::read_to_string(path) else {
             continue;
         };
         checked += 1;
         for (name, make) in CONFIGS {
+            // Level 0 is the original top-level comparison, unchanged —
+            // same `check`, same context string.  Levels 1..=max_depth are
+            // the added nested coverage.
             let ctx = format!("{name}:{}", path.display());
-            if let Err(msg) = check(&src, make(), &ctx) {
-                failures.push(msg);
-            }
+            walk_region(
+                &SourceMap::new(&src),
+                make(),
+                &ctx,
+                0,
+                max_depth,
+                &mut tallies,
+                &mut failures,
+            );
         }
-        if failures.len() >= 20 {
+        if failures.len() >= MAX_FAILURES {
             break;
         }
     }
-    assert!(checked > 0, "corpus present but no readable files");
     assert!(
         failures.is_empty(),
         "owner/segmenter divergence over {checked} corpus files:\n{}",
         failures.join("\n")
     );
+    (checked, tallies)
+}
+
+fn report(label: &str, checked: usize, tallies: &[Tally]) {
+    let top = tallies[0];
+    let nested = tallies[1..]
+        .iter()
+        .fold(Tally::default(), |acc, t| acc.add(*t));
+    eprintln!("[differential_group] {label}: {checked} files x 3 dialects: owner == segmenter");
     eprintln!(
-        "[differential_group] {checked} corpus files x {} dialects: owner == segmenter",
-        CONFIGS.len()
+        "[differential_group]   top level: {} regions, {} commands, {} words, {} {{*}}",
+        top.regions, top.commands, top.words, top.expands
     );
+    for (i, t) in tallies[1..].iter().enumerate() {
+        eprintln!(
+            "[differential_group]   nested L{}: {} bodies, {} commands, {} words, {} {{*}}",
+            i + 1,
+            t.regions,
+            t.commands,
+            t.words,
+            t.expands
+        );
+    }
+    eprintln!(
+        "[differential_group]   nested total: {} bodies, {} commands, {} words, {} {{*}}",
+        nested.regions, nested.commands, nested.words, nested.expands
+    );
+}
+
+/// The CI tier: top-level grouping over **every** corpus exactly as before,
+/// plus nested bodies in `samples/` and the Tcl 9.0.4 library.
+///
+/// Nested coverage is what makes this harness able to see `{*}` at all — at
+/// top level the corpus contains **zero** `Expand` tokens, because
+/// `tokenise_all` does not descend into braced bodies. Dropping it from CI
+/// would leave the `{*}` behaviour change in `runtime/rust::parse.rs`
+/// guarded only by this file's literal edge-case table.
+///
+/// tcllib is descended into only by
+/// [`owner_matches_segmenter_over_corpora_deep`]: it is 56M against 7.5M for
+/// the other two and dominates the cost, while the `{*}` shapes it adds are
+/// the same ones `samples/` and the 9.0.4 library already cover.
+#[test]
+fn owner_matches_segmenter_over_corpora() {
+    let root = repo_root();
+    let all = corpus_files(&root, true);
+    if all.is_empty() {
+        eprintln!("[differential_group] skipped: no corpus present");
+        return;
+    }
+    // Unchanged from before the nested walk existed: every corpus, top level.
+    let (checked, top_tallies) = run_corpus(&all, 0);
+    assert!(checked > 0, "corpus present but no readable files");
+    report("top level, all corpora", checked, &top_tallies);
+
+    // The added coverage, on the two corpora that are cheap to descend.
+    let (nested_checked, tallies) = run_corpus(&corpus_files(&root, false), NEST_DEPTH);
+    assert!(
+        tallies[1..].iter().any(|t| t.expands > 0),
+        "the nested walk must exercise `{{*}}` from the corpus (top level saw 0)"
+    );
+    report("nested, samples + tcl9.0.4", nested_checked, &tallies);
+}
+
+/// The exhaustive tier: the same walk with tcllib included.
+///
+/// `docs/design/contracts/test-tiers-and-ci-gates.md` rule 2 — a permanently
+/// expensive corpus sweep over `tmp/tcl*` and tcllib belongs behind
+/// `--ignored`, never in `prep-pr`, `test`, `check-all` or CI. Measured: 58s
+/// for this test against 8s for the CI tier above, and 629 `{*}` sites
+/// against 55 — tcllib is 92% of the cost for shapes already covered.
+#[test]
+#[ignore = "corpus sweep over tcllib; run explicitly with --ignored"]
+fn owner_matches_segmenter_over_corpora_deep() {
+    let files = corpus_files(&repo_root(), true);
+    if files.is_empty() {
+        eprintln!("[differential_group] skipped: no corpus present");
+        return;
+    }
+    let (checked, tallies) = run_corpus(&files, NEST_DEPTH);
+    assert!(checked > 0, "corpus present but no readable files");
+    report("samples + tcl9.0.4 + tcllib", checked, &tallies);
 }
