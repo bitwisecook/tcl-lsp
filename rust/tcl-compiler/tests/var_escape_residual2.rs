@@ -111,7 +111,12 @@ fn escape_ir(src: &str) -> HashMap<String, ProcEscapeSummary> {
 /// collapsed into a `ProcEscapeSummary`).
 fn cfg_result(src: &str) -> CfgEscapeResult {
     let m = lower_to_ir(src, registry());
-    let cfg = build_cfg_function("::top", &m.top_level, true);
+    let cfg = build_cfg_function(
+        "::top",
+        &m.top_level,
+        true,
+        tcl_lexer::LexerConfig::default(),
+    );
     let ssa = build_ssa(&cfg, registry());
     analyse_cfg_function(&cfg, &ssa, std::iter::empty::<String>())
 }

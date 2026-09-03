@@ -342,7 +342,8 @@ fn try_fold_chain_at(
                 if elements.is_none() {
                     // First lappend after the set — reinterpret the current
                     // string value as a list (bail if it is not one).
-                    let Ok(base) = tcl_syntax::list::split_list(&chain_value) else {
+                    let rules = tcl_syntax::word_rules::WordValueRules::of_profile(ctx.dialect);
+                    let Ok(base) = rules.split_list(&chain_value) else {
                         break;
                     };
                     elements = Some(base.into_iter().map(std::borrow::Cow::into_owned).collect());

@@ -38,7 +38,7 @@ use std::collections::{HashMap, HashSet};
 use super::ctx::{FactoryCandidate, ScanCtx};
 use super::handlers::qualify;
 use super::types::SignatureProc;
-use crate::segmenter::segment_commands;
+use crate::segmenter::segment_commands_with_offset_and_config;
 
 /// Return `true` when `body_text` contains a top-level
 /// `proc $p1 $p2 $p3` command using exactly the wrapper's three
@@ -50,7 +50,11 @@ use crate::segmenter::segment_commands;
 /// equality check). Wrappers with fewer than three parameters
 /// cannot match the canonical `proc $name $args $body` shape.
 #[must_use]
-pub(super) fn is_factory_body(body_text: &str, params: &[String]) -> bool {
+pub(super) fn is_factory_body(
+    body_text: &str,
+    params: &[String],
+    config: tcl_lexer::LexerConfig,
+) -> bool {
     if params.len() < 3 {
         return false;
     }
@@ -59,7 +63,7 @@ pub(super) fn is_factory_body(body_text: &str, params: &[String]) -> bool {
         param_vars.insert(format!("${p}"));
         param_vars.insert(format!("${{{p}}}"));
     }
-    let commands = segment_commands(body_text);
+    let commands = segment_commands_with_offset_and_config(body_text, 0, config);
     for cmd in commands {
         if cmd.is_partial || cmd.texts.is_empty() {
             continue;
@@ -125,7 +129,7 @@ pub(super) fn resolve_factory_defs(ctx: &mut ScanCtx) {
     }
     let mut factories: HashMap<String, String> = HashMap::new();
     for info in &ctx.proc_bodies {
-        if !is_factory_body(&info.body_text, &info.params) {
+        if !is_factory_body(&info.body_text, &info.params, ctx.config) {
             continue;
         }
         factories.insert(info.qname.clone(), info.ns_prefix.clone());
@@ -178,7 +182,11 @@ mod tests {
     fn canonical_factory_body_matches() {
         let body = "proc $name $args $body";
         let params = vec!["name".to_string(), "args".to_string(), "body".to_string()];
-        assert!(is_factory_body(body, &params));
+        assert!(is_factory_body(
+            body,
+            &params,
+            tcl_lexer::LexerConfig::default()
+        ));
     }
 
     #[test]
@@ -186,7 +194,11 @@ mod tests {
         // `proc $name $args` only — three tokens, not four.
         let body = "proc $name $args";
         let params = vec!["name".to_string(), "args".to_string(), "body".to_string()];
-        assert!(!is_factory_body(body, &params));
+        assert!(!is_factory_body(
+            body,
+            &params,
+            tcl_lexer::LexerConfig::default()
+        ));
     }
 
     #[test]
@@ -194,21 +206,33 @@ mod tests {
         // The middle arg is a literal `foo`, not a variable.
         let body = "proc $name foo $body";
         let params = vec!["name".to_string(), "args".to_string(), "body".to_string()];
-        assert!(!is_factory_body(body, &params));
+        assert!(!is_factory_body(
+            body,
+            &params,
+            tcl_lexer::LexerConfig::default()
+        ));
     }
 
     #[test]
     fn no_proc_statement_no_match() {
         let body = "set x 1; return $x";
         let params = vec!["name".to_string(), "args".to_string(), "body".to_string()];
-        assert!(!is_factory_body(body, &params));
+        assert!(!is_factory_body(
+            body,
+            &params,
+            tcl_lexer::LexerConfig::default()
+        ));
     }
 
     #[test]
     fn fewer_than_three_params_no_match() {
         let body = "proc $name $args $body";
         let params = vec!["name".to_string(), "args".to_string()];
-        assert!(!is_factory_body(body, &params));
+        assert!(!is_factory_body(
+            body,
+            &params,
+            tcl_lexer::LexerConfig::default()
+        ));
     }
 
     use tcl_lexer::{Span, Token, TokenType};

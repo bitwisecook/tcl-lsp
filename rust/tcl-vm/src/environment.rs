@@ -43,6 +43,18 @@
 //! retires with ledger C1's re-type, and the VM's pin then carries a
 //! [`tcl_registry::model::DocumentEnvironment`] instead.
 //!
+//! **Scope: the VM executes Tcl 9 semantics.** The closed set above is a
+//! set of *Tcl releases*; a dialect with no Tcl ladder rung (`jim`) never
+//! reaches [`Vm::set_runtime_version`] — its projected profile
+//! (`DialectProfile::projected_from_point`) carries
+//! `vm_runtime_version = V9_0`, so a Jim unit is *compiled* under Jim's
+//! grammar and *executed* as Tcl 9. That is the intended boundary today.
+//! The eventual, recorded in `docs/design/dialect-profile-model.md` §2.5,
+//! is a pin that is a `tcl_dialect::DialectPoint` rather than a
+//! `TclVersion`, at which point this module resolves it the same way and
+//! nothing upstream changes: every consumer here already derives from the
+//! resolved environment, never from the name.
+//!
 //! [`Vm::set_runtime_version`]: crate::Vm::set_runtime_version
 //! [`TclVersion`]: tcl_dialect::TclVersion
 //! [`TclVersion::dialect_name`]: tcl_dialect::TclVersion::dialect_name

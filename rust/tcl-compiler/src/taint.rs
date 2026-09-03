@@ -121,7 +121,8 @@ use crate::rendered_properties::{RenderedProperties, RenderedValueProps};
 use crate::sccp::{SccpResult, cfg_order};
 use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey, Version};
 use crate::value_shapes::{
-    is_pure_var_ref, parse_command_substitution, parse_command_substitution_with_spans,
+    is_pure_var_ref, parse_command_substitution_with_config,
+    parse_command_substitution_with_spans_and_config,
 };
 use tcl_dialect::model::SurfaceQuery;
 
@@ -373,7 +374,7 @@ fn source_colour(
     registry: &CommandRegistry,
     command: &str,
     args: &[&str],
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     instance_classes: Option<&LocalInstanceClasses>,
     source_position: Option<u32>,
 ) -> Option<TaintLattice> {
@@ -453,7 +454,7 @@ fn instance_taints_var_write(
     registry: &CommandRegistry,
     command: &str,
     args: &[&str],
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     instance_classes: Option<&LocalInstanceClasses>,
     source_position: Option<u32>,
     variable: &str,
@@ -568,8 +569,10 @@ fn transfer_instance_statement(
         Statement::AssignValue { name, value, .. } => {
             let name = normalise_var_name(name);
             state.remove(name);
-            if let Some((head, args)) = parse_command_substitution(value.trim())
-                && let Some(class) = factory_class(registry, &head, &args)
+            if let Some((head, args)) = parse_command_substitution_with_config(
+                value.trim(),
+                tcl_lexer::LexerConfig::for_profile(registry.profile()),
+            ) && let Some(class) = factory_class(registry, &head, &args)
                 && let Some(name) = literal_receiver(name)
             {
                 state.insert(name.to_owned(), HashSet::from([class.to_owned()]));
@@ -890,11 +893,13 @@ fn double_encode_label(colour: TaintColour) -> &'static str {
 /// Exposed so adjacent check modules (`compiler_checks`, `irules_checks`)
 /// can gate their iRules-only diagnostics on the same predicate.
 #[must_use]
-pub fn is_irules_dialect(dialect: Option<&tcl_dialect::DialectProfile>) -> bool {
+pub fn is_irules_dialect(dialect: Option<&'static tcl_dialect::DialectProfile>) -> bool {
     dialect.is_some_and(tcl_dialect::DialectProfile::is_irules)
 }
 
-fn dialect_to_point(dialect: Option<&tcl_dialect::DialectProfile>) -> Option<SurfaceQuery<'_>> {
+fn dialect_to_point(
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+) -> Option<SurfaceQuery<'static>> {
     // The profile's own point: the family alone for iRules (aliases
     // canonicalise), a release plus its package for the additive vendor
     // shells — so version-gated taint/side-effect hints reach a vendor
@@ -929,7 +934,7 @@ pub(crate) struct TaintCtx<'a> {
     pub(crate) interproc: Option<&'a InterproceduralAnalysis>,
     pub(crate) known_procs: Option<&'a HashSet<String>>,
     pub(crate) caller_qname: Option<&'a str>,
-    pub(crate) dialect: Option<&'a tcl_dialect::DialectProfile>,
+    pub(crate) dialect: Option<&'static tcl_dialect::DialectProfile>,
     /// Colour-aware return summaries from the interprocedural taint
     /// solve (`taint_interproc::solve_interprocedural_taints`). When
     /// present, calls to a known proc apply the full
@@ -956,6 +961,15 @@ impl TaintCtx<'_> {
     /// under [`tcl_dialect::BracedVarStyle::default`] (issue #1604).
     pub(crate) fn braced_var(self) -> tcl_dialect::BracedVarStyle {
         tcl_dialect::BracedVarStyle::of_profile(self.dialect)
+    }
+
+    /// The document's lexer configuration, for the helpers that re-lex a
+    /// word's own text (`interpolation_carve_out`'s literal-fragment scans).
+    /// Same reason as [`Self::braced_var`]: a re-lex under the default
+    /// grammar reads the document's bytes under rules it was not written
+    /// in, and the colour that falls out is about a different word.
+    pub(crate) fn lexer_config(self) -> tcl_lexer::LexerConfig {
+        tcl_lexer::LexerConfig::for_profile(self.dialect)
     }
 
     pub(crate) const fn at(self, source_position: u32) -> Self {
@@ -1009,7 +1023,8 @@ fn word_taint_at<S: std::hash::BuildHasher>(
     }
 
     // Bracketed command substitution.
-    if let Some((cmd, args)) = parse_command_substitution(stripped) {
+    if let Some((cmd, args)) = parse_command_substitution_with_config(stripped, ctx.lexer_config())
+    {
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
         if is_sanitiser(ctx.registry, &cmd, &arg_refs) {
             return TaintLattice::clean();
@@ -1120,7 +1135,7 @@ fn word_taint_at<S: std::hash::BuildHasher>(
                 t = t.join(var_taint(name, uses, taints, ctx.ssa));
             }
         }
-        return interpolation_carve_out(word, t);
+        return interpolation_carve_out(word, t, ctx.lexer_config());
     }
 
     TaintLattice::clean()
@@ -1135,7 +1150,11 @@ fn word_taint_at<S: std::hash::BuildHasher>(
 /// fragment contains CR/LF, and the leading literal character controls
 /// option-prefix safety (`PATH_PREFIXED` / `NON_DASH_PREFIXED`). A clean
 /// join is returned unchanged.
-fn interpolation_carve_out(value: &str, joined: TaintLattice) -> TaintLattice {
+fn interpolation_carve_out(
+    value: &str,
+    joined: TaintLattice,
+    config: tcl_lexer::LexerConfig,
+) -> TaintLattice {
     if !joined.is_tainted() {
         return TaintLattice::clean();
     }
@@ -1148,10 +1167,10 @@ fn interpolation_carve_out(value: &str, joined: TaintLattice) -> TaintLattice {
         | TaintColour::URL_ENCODED
         | TaintColour::REGEX_LITERAL
         | TaintColour::SHELL_ATOM);
-    if literal_contains_crlf(value) {
+    if literal_contains_crlf(value, config) {
         colour &= !TaintColour::CRLF_FREE;
     }
-    match leading_literal_prefix_char(value) {
+    match leading_literal_prefix_char(value, config) {
         Some('/') => colour |= TaintColour::PATH_PREFIXED | TaintColour::NON_DASH_PREFIXED,
         Some('-') => colour &= !(TaintColour::NON_DASH_PREFIXED | TaintColour::PATH_PREFIXED),
         Some(_) => {
@@ -1172,9 +1191,9 @@ fn interpolation_carve_out(value: &str, joined: TaintLattice) -> TaintLattice {
 /// `\x2f` → `/`); the first `Str` (braced) token contributes its literal
 /// first char; a leading `Var` or `Cmd` token means the prefix is
 /// dynamic.
-fn leading_literal_prefix_char(value: &str) -> Option<char> {
+fn leading_literal_prefix_char(value: &str, config: tcl_lexer::LexerConfig) -> Option<char> {
     let source_map = SourceMap::new(value);
-    let tokens = Lexer::new(value).tokenise_all().ok()?;
+    let tokens = Lexer::with_config(value, config).tokenise_all().ok()?;
     for tok in tokens {
         match tok.kind {
             // End of input, or a dynamic (variable/command) prefix — no
@@ -1206,9 +1225,9 @@ fn leading_literal_prefix_char(value: &str) -> Option<char> {
 /// CR or LF.: `Esc` fragments are
 /// `backslash_subst`-rendered (so `\n` resolves to a real newline) before
 /// the scan.
-fn literal_contains_crlf(value: &str) -> bool {
+fn literal_contains_crlf(value: &str, config: tcl_lexer::LexerConfig) -> bool {
     let source_map = SourceMap::new(value);
-    let Ok(tokens) = Lexer::new(value).tokenise_all() else {
+    let Ok(tokens) = Lexer::with_config(value, config).tokenise_all() else {
         return false;
     };
     for tok in tokens {
@@ -1722,7 +1741,7 @@ pub(crate) fn propagate_taints(
     registry: &CommandRegistry,
     rendered_props: Option<&HashMap<ValueKey, RenderedValueProps>>,
     interproc: Option<&InterproceduralAnalysis>,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     param_taints: Option<&HashMap<String, TaintLattice>>,
     taint_summaries: Option<&HashMap<String, crate::taint_interproc::ProcTaintSummary>>,
     instance_classes: &LocalInstanceClasses,
@@ -1785,7 +1804,7 @@ fn seed_entry_taints(
     cfg: &CfgFunction,
     interproc: Option<&InterproceduralAnalysis>,
     param_taints: Option<&HashMap<String, TaintLattice>>,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) {
     // Seed entry taints for tainted parameters (interprocedural solve).
     // Only tainted params seed a slot; clean params leave the version-0
@@ -1996,7 +2015,7 @@ fn classify_sink(
     registry: &CommandRegistry,
     command: &str,
     args: &[String],
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Option<(DiagCode, String)> {
     let canonical_command = registry.get(command).map_or(command, |spec| spec.name);
     // A call whose own option flags disable this command's hazard for
@@ -2094,7 +2113,7 @@ pub fn find_destructive_file_warnings<S: std::hash::BuildHasher, E: std::hash::B
     taints: &HashMap<ValueKey, TaintLattice, S>,
     executable_blocks: &HashSet<BlockId, E>,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Vec<TaintWarning> {
     let destructive = destructive_file_subs(registry);
     if destructive.is_empty() {
@@ -2193,7 +2212,12 @@ pub fn find_destructive_file_warnings<S: std::hash::BuildHasher, E: std::hash::B
                     // Anchor at the offending path argument's own token span
                     // (mirroring T102's per-argument targeting); the whole
                     // statement span is the tokens-unavailable fallback.
-                    span: arg_index_span(&ssa_stmt.statement, *arg_idx).unwrap_or(*span),
+                    span: arg_index_span(
+                        &ssa_stmt.statement,
+                        *arg_idx,
+                        tcl_lexer::LexerConfig::for_profile(dialect),
+                    )
+                    .unwrap_or(*span),
                     variable: name.clone(),
                     sink_command: format!("file {sub}"),
                     code: DiagCode::W313,
@@ -2318,6 +2342,7 @@ fn compute_branch_guard_map(
     cfg: &CfgFunction,
     registry: &CommandRegistry,
 ) -> HashMap<BlockId, HashSet<String>> {
+    let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
     let mut guarded: HashMap<BlockId, HashSet<String>> = HashMap::new();
     for block in cfg.blocks.values() {
         let Some(Terminator::Branch {
@@ -2329,7 +2354,7 @@ fn compute_branch_guard_map(
         else {
             continue;
         };
-        let (negated, var) = extract_guard_var(condition, false, 0);
+        let (negated, var) = extract_guard_var(condition, false, 0, config);
         let Some(var) = var else {
             continue;
         };
@@ -2353,7 +2378,12 @@ fn compute_branch_guard_map(
 /// Extract `(negated, path-var)` from a branch condition: a unary
 /// operator flips negation; a binary operator checks both sides; a
 /// `[string …]` command sub yields the bounds-checked variable.
-fn extract_guard_var(expr: &ExprNode, negated: bool, depth: u32) -> (bool, Option<String>) {
+fn extract_guard_var(
+    expr: &ExprNode,
+    negated: bool,
+    depth: u32,
+    config: tcl_lexer::LexerConfig,
+) -> (bool, Option<String>) {
     // Native-stack safety net (issue #996): this walks the `ExprNode` tree,
     // one native frame per level. Past the cap, report "no guard variable
     // found" — the same conservative result as the leaf `_` arm, so no
@@ -2362,23 +2392,23 @@ fn extract_guard_var(expr: &ExprNode, negated: bool, depth: u32) -> (bool, Optio
         return (negated, None);
     }
     match expr {
-        ExprNode::Unary { operand, .. } => extract_guard_var(operand, !negated, depth + 1),
+        ExprNode::Unary { operand, .. } => extract_guard_var(operand, !negated, depth + 1, config),
         ExprNode::Binary { left, right, .. } => {
-            let (n, r) = extract_guard_var(left, negated, depth + 1);
+            let (n, r) = extract_guard_var(left, negated, depth + 1, config);
             if r.is_some() {
                 return (n, r);
             }
-            extract_guard_var(right, negated, depth + 1)
+            extract_guard_var(right, negated, depth + 1, config)
         }
-        ExprNode::Command { text, .. } => (negated, guard_var_from_string_command(text)),
+        ExprNode::Command { text, .. } => (negated, guard_var_from_string_command(text, config)),
         _ => (negated, None),
     }
 }
 
 /// Parse `[string match|first|equal … $var]` and return the path
 /// variable it bounds-checks.
-fn guard_var_from_string_command(text: &str) -> Option<String> {
-    let (command, args) = parse_command_substitution(text.trim())?;
+fn guard_var_from_string_command(text: &str, config: tcl_lexer::LexerConfig) -> Option<String> {
+    let (command, args) = parse_command_substitution_with_config(text.trim(), config)?;
     if command != "string" || args.is_empty() {
         return None;
     }
@@ -2703,7 +2733,7 @@ pub fn apply_module_variable_traces(
 pub fn find_taint_warnings_for_cu(
     cu: &crate::compilation_unit::CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Vec<TaintWarning> {
     let mut out = find_taint_warnings_for_cu_base(cu, registry, dialect);
     let callback_warnings = find_callback_substitution_warnings(cu, registry, dialect, &out);
@@ -2718,7 +2748,7 @@ pub fn find_taint_warnings_for_cu(
 fn find_taint_warnings_for_cu_base(
     cu: &crate::compilation_unit::CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Vec<TaintWarning> {
     find_taint_warnings_for_cu_base_with_external_variable_seeds(cu, registry, dialect, None)
 }
@@ -2731,7 +2761,7 @@ fn find_taint_warnings_for_cu_base(
 fn find_taint_warnings_for_cu_base_with_external_variable_seeds(
     cu: &crate::compilation_unit::CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     external_variable_seeds: Option<&HashMap<String, TaintLattice>>,
 ) -> Vec<TaintWarning> {
     let mut out = Vec::new();
@@ -2933,7 +2963,7 @@ fn callback_taint_inputs_at_call(
 fn find_callback_substitution_warnings(
     cu: &crate::compilation_unit::CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     baseline: &[TaintWarning],
 ) -> Vec<TaintWarning> {
     let mut candidates = Vec::new();
@@ -2991,7 +3021,11 @@ fn find_callback_substitution_warnings(
                     let materialised_callback = if source_is_command_substitution {
                         command_substitution.unwrap_or(callback).to_owned()
                     } else if let Some(word) = callback_word {
-                        let Some(value) = static_word_expr_value(word, lexer_config.escapes) else {
+                        let Some(value) = static_word_expr_value(
+                            word,
+                            lexer_config.escapes,
+                            tcl_syntax::word_rules::WordValueRules::from_config(&lexer_config),
+                        ) else {
                             continue;
                         };
                         value
@@ -3187,7 +3221,7 @@ fn callback_replay_source(
     source_is_command_substitution: bool,
     input_var: &str,
     proc_name: &str,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     builder_context: Option<(&crate::realm::CommandBindingRealm, u32)>,
 ) -> Option<String> {
     let callback = callback.trim().strip_prefix('+').unwrap_or(callback.trim());
@@ -3221,7 +3255,7 @@ fn callback_replay_list_prefix(
     callback: &str,
     inputs: &[tcl_registry::CallbackTaintInput],
     input_var: &str,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     builder_context: Option<(&crate::realm::CommandBindingRealm, u32)>,
 ) -> Option<String> {
     let inner = callback.strip_prefix('[')?.strip_suffix(']')?;
@@ -3243,10 +3277,16 @@ fn callback_replay_list_prefix(
         .zip(&command.word_fragments)
         .enumerate()
     {
-        let value = callback_static_word_value(word, fragments, config.escapes)?;
+        let value = callback_static_word_value(
+            word,
+            fragments,
+            config.escapes,
+            tcl_syntax::word_rules::WordValueRules::from_config(&config),
+        )?;
         if expand.get(index).copied().unwrap_or(false) {
             values.extend(
-                tcl_syntax::list::split_list(&value)
+                tcl_syntax::word_rules::WordValueRules::from_config(&config)
+                    .split_list(&value)
                     .ok()?
                     .into_iter()
                     .map(std::borrow::Cow::into_owned),
@@ -3292,7 +3332,7 @@ fn callback_replay_script(
     callback: &str,
     inputs: &[tcl_registry::CallbackTaintInput],
     input_var: &str,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Option<String> {
     let config = dialect.map_or_else(tcl_lexer::LexerConfig::default, |profile| {
         tcl_lexer::LexerConfig::from_grammar(profile.grammar)
@@ -3321,7 +3361,12 @@ fn callback_replay_script(
                 // Preserve dynamic substitutions for the ordinary compiler
                 // pipeline (including a phase-correct `$command` head), while
                 // reducing static words to their exact runtime value.
-                callback_replay_script_word(word, fragments, config.escapes)?
+                callback_replay_script_word(
+                    word,
+                    fragments,
+                    config.escapes,
+                    tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                )?
             };
             // `{*}` is an argv operation outside the word itself. Canonical
             // word rendering must retain that marker or a callback whose
@@ -3405,12 +3450,13 @@ fn callback_replay_script_word(
     word: &str,
     fragments: &[crate::segmenter::WordFragment],
     escapes: tcl_dialect::EscapeSyntax,
+    rules: tcl_syntax::word_rules::WordValueRules,
 ) -> Option<String> {
     if !fragments
         .iter()
         .any(|fragment| matches!(fragment.token.kind, TokenType::Var | TokenType::Cmd))
     {
-        return callback_static_word_value(word, fragments, escapes)
+        return callback_static_word_value(word, fragments, escapes, rules)
             .map(|value| tcl_syntax::list::list_element(&value));
     }
 
@@ -3445,10 +3491,11 @@ fn callback_static_word_value(
     word: &str,
     fragments: &[crate::segmenter::WordFragment],
     escapes: tcl_dialect::EscapeSyntax,
+    rules: tcl_syntax::word_rules::WordValueRules,
 ) -> Option<String> {
     match fragments {
         [fragment] if fragment.token.kind == TokenType::Str => {
-            Some(tcl_syntax::backslash::collapse_brace_continuations_str(word).into_owned())
+            Some(rules.collapse_braced_word(word).into_owned())
         }
         fragments
             if fragments
@@ -3592,7 +3639,7 @@ pub fn find_taint_warnings<
     taints: &HashMap<ValueKey, TaintLattice, S>,
     executable_blocks: &HashSet<BlockId, E>,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     shadowed_builtins: &HashSet<String, H>,
 ) -> Vec<TaintWarning> {
     find_taint_warnings_impl(
@@ -3626,7 +3673,7 @@ pub fn find_taint_warnings_for_function<
     taints: &HashMap<ValueKey, TaintLattice, S>,
     executable_blocks: &HashSet<BlockId, E>,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     shadowed_builtins: &HashSet<String, H>,
     module_traces: crate::compilation_unit::ModuleTraceFacts<'_>,
 ) -> Vec<TaintWarning> {
@@ -3652,7 +3699,7 @@ fn find_taint_warnings_for_function_with_identities<
     taints: &HashMap<ValueKey, TaintLattice, S>,
     executable_blocks: &HashSet<BlockId, E>,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     shadowed_builtins: &HashSet<String, H>,
     module_traces: crate::compilation_unit::ModuleTraceFacts<'_>,
     identities: &crate::realm::CommandBindingRealm,
@@ -3685,8 +3732,17 @@ struct CommandHeadContext<'a> {
 #[derive(Clone, Copy)]
 struct SinkWarningContext<'a, H> {
     registry: &'a CommandRegistry,
-    dialect: Option<&'a tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     shadowed_builtins: &'a HashSet<String, H>,
+}
+
+impl<H> SinkWarningContext<'_, H> {
+    /// The document's lexer grammar, read off the resolved profile — the
+    /// expression AST's `Raw` fallback text is re-lexed under it.
+    fn grammar(&self) -> tcl_dialect::LexerGrammar {
+        self.dialect
+            .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar)
+    }
 }
 
 fn find_taint_warnings_impl<
@@ -3749,7 +3805,7 @@ fn emit_statement_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>
     context: &SinkWarningContext<'_, H>,
     command_head_ctx: Option<CommandHeadContext<'_>>,
 ) {
-    if emit_expr_statement_warnings(ssa_stmt, taints, warnings, ssa) {
+    if emit_expr_statement_warnings(ssa_stmt, taints, warnings, ssa, context.grammar()) {
         return;
     }
 
@@ -3932,9 +3988,13 @@ impl StaticInvocation {
 fn static_invocation(
     tokens: &CommandTokens,
     call_args: &[String],
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Option<StaticInvocation> {
-    let head = static_command_head(tokens, tcl_dialect::EscapeSyntax::of_profile(dialect))?;
+    let head = static_command_head(
+        tokens,
+        tcl_dialect::EscapeSyntax::of_profile(dialect),
+        tcl_syntax::word_rules::WordValueRules::of_profile(dialect),
+    )?;
     let effective_args = head.effective_args(call_args);
     Some(StaticInvocation {
         head,
@@ -3949,20 +4009,22 @@ fn static_invocation(
 fn static_command_head(
     tokens: &CommandTokens,
     escapes: tcl_dialect::EscapeSyntax,
+    rules: tcl_syntax::word_rules::WordValueRules,
 ) -> Option<StaticCommandHead> {
-    static_command_head_from(tokens, escapes, 0)
+    static_command_head_from(tokens, escapes, rules, 0)
 }
 
 fn static_command_head_from(
     tokens: &CommandTokens,
     escapes: tcl_dialect::EscapeSyntax,
+    rules: tcl_syntax::word_rules::WordValueRules,
     start: usize,
 ) -> Option<StaticCommandHead> {
     for (source_index, word) in tokens.word_exprs.iter().enumerate().skip(start) {
         match word {
             WordExpr::Expand { word, .. } => {
-                let value = static_word_expr_value(word, escapes)?;
-                let elements = tcl_syntax::list::split_list(&value).ok()?;
+                let value = static_word_expr_value(word, escapes, rules)?;
+                let elements = rules.split_list(&value).ok()?;
                 let Some((command, rest)) = elements.split_first() else {
                     continue;
                 };
@@ -3975,7 +4037,7 @@ fn static_command_head_from(
             }
             _ => {
                 return Some(StaticCommandHead {
-                    command: static_word_expr_value(word, escapes)?,
+                    command: static_word_expr_value(word, escapes, rules)?,
                     prepended_args: Vec::new(),
                     consumed_source_args: source_index,
                     expanded: false,
@@ -3989,12 +4051,14 @@ fn static_command_head_from(
 /// Exact static value of a command-head word retained by semantic IR.
 /// Variable/command substitutions abstain; literal, braced, quoted, and
 /// backslash-built heads reduce under Tcl's shared decoder.
-fn static_word_expr_value(word: &WordExpr, escapes: tcl_dialect::EscapeSyntax) -> Option<String> {
+fn static_word_expr_value(
+    word: &WordExpr,
+    escapes: tcl_dialect::EscapeSyntax,
+    rules: tcl_syntax::word_rules::WordValueRules,
+) -> Option<String> {
     match word {
         WordExpr::Literal { text, .. } => Some(text.clone()),
-        WordExpr::BracedLiteral { text, .. } => {
-            Some(tcl_syntax::backslash::collapse_brace_continuations_str(text).into_owned())
-        }
+        WordExpr::BracedLiteral { text, .. } => Some(rules.collapse_braced_word(text).into_owned()),
         WordExpr::Template { parts, .. } => {
             let mut value = String::new();
             for part in parts {
@@ -4148,7 +4212,12 @@ fn emit_isolated_script_warnings<S: std::hash::BuildHasher, H: std::hash::BuildH
         )
     });
     let constant_setup = command_head_ctx.map_or_else(String::new, |head_context| {
-        ambient_constant_setup(&outer_uses, head_context, ssa)
+        ambient_constant_setup(
+            &outer_uses,
+            head_context,
+            ssa,
+            tcl_lexer::LexerConfig::for_profile(context.dialect),
+        )
     });
     let (replay, seeds) = nested_script_replay(
         script,
@@ -4183,7 +4252,7 @@ fn expand_constant_outer_uses(
     statement: &SsaStatement,
     ssa: &SsaFunction,
     context: CommandHeadContext<'_>,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) {
     const MAX_NAMES: usize = 128;
     for _ in 0..16 {
@@ -4195,9 +4264,12 @@ fn expand_constant_outer_uses(
             {
                 continue;
             }
-            let Some(contributors) =
-                crate::value_provenance::const_contributors_for_version(context.fu, name, version)
-            else {
+            let Some(contributors) = crate::value_provenance::const_contributors_for_version(
+                context.fu,
+                name,
+                version,
+                tcl_lexer::LexerConfig::for_profile(dialect),
+            ) else {
                 continue;
             };
             for contributor in contributors {
@@ -4294,6 +4366,7 @@ fn ambient_constant_setup(
     uses: &HashMap<Symbol, Version>,
     context: CommandHeadContext<'_>,
     ssa: &SsaFunction,
+    config: tcl_lexer::LexerConfig,
 ) -> String {
     let mut values = Vec::new();
     for (&symbol, &version) in uses {
@@ -4303,9 +4376,9 @@ fn ambient_constant_setup(
         {
             continue;
         }
-        let Some(contributors) =
-            crate::value_provenance::const_contributors_for_version(context.fu, name, version)
-        else {
+        let Some(contributors) = crate::value_provenance::const_contributors_for_version(
+            context.fu, name, version, config,
+        ) else {
             continue;
         };
         let Some(first) = contributors.first() else {
@@ -4402,6 +4475,7 @@ fn emit_expr_statement_warnings<S: std::hash::BuildHasher>(
     taints: &HashMap<ValueKey, TaintLattice, S>,
     warnings: &mut Vec<TaintWarning>,
     ssa: &SsaFunction,
+    grammar: tcl_dialect::LexerGrammar,
 ) -> bool {
     let stmt = &ssa_stmt.statement;
     let (Statement::AssignExpr { expr, .. } | Statement::ExprEval { expr, .. }) = stmt else {
@@ -4412,7 +4486,7 @@ fn emit_expr_statement_warnings<S: std::hash::BuildHasher>(
         let ver = *ssa_stmt.uses.get(&sym)?;
         Some((sym, ver))
     };
-    emit_expr_coercion_warnings(expr, None, stmt.span(), resolve, taints, warnings);
+    emit_expr_coercion_warnings(expr, None, stmt.span(), resolve, taints, warnings, grammar);
     true
 }
 
@@ -4424,13 +4498,13 @@ fn emit_expr_statement_warnings<S: std::hash::BuildHasher>(
 /// handled conservatively by command-head provenance.
 fn parse_taint_command_substitution(
     text: &str,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Option<(String, Vec<String>)> {
-    let (written_head, args) = parse_command_substitution(text)?;
-    let inner = text.trim().strip_prefix('[')?.strip_suffix(']')?;
     let config = dialect.map_or_else(tcl_lexer::LexerConfig::default, |profile| {
         tcl_lexer::LexerConfig::from_grammar(profile.grammar)
     });
+    let (written_head, args) = parse_command_substitution_with_config(text, config)?;
+    let inner = text.trim().strip_prefix('[')?.strip_suffix(']')?;
     let commands = crate::segmenter::segment_commands_with_offset_and_config(inner, 0, config);
     let [command] = commands.as_slice() else {
         return None;
@@ -4442,7 +4516,14 @@ fn parse_taint_command_substitution(
         .texts
         .first()
         .zip(command.word_fragments.first())
-        .and_then(|(word, fragments)| callback_static_word_value(word, fragments, config.escapes))
+        .and_then(|(word, fragments)| {
+            callback_static_word_value(
+                word,
+                fragments,
+                config.escapes,
+                tcl_syntax::word_rules::WordValueRules::from_config(&config),
+            )
+        })
         .unwrap_or(written_head);
     Some((semantic_head, args))
 }
@@ -4518,7 +4599,7 @@ fn resolve_taint_command_heads(
     written_command: &str,
     stmt: &Statement,
     tokens: Option<&CommandTokens>,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     ctx: Option<CommandHeadContext<'_>>,
 ) -> Vec<StaticCommandHead> {
     if !is_pure_var_ref(written_command) {
@@ -4544,8 +4625,12 @@ fn resolve_taint_command_heads(
         return Vec::new();
     }
     let absolute_offset = ctx.fu.abs_span(stmt.span()).start();
-    let contributors =
-        crate::value_provenance::known_const_contributors(ctx.fu, absolute_offset, var_name);
+    let contributors = crate::value_provenance::known_const_contributors(
+        ctx.fu,
+        absolute_offset,
+        var_name,
+        tcl_lexer::LexerConfig::for_profile(dialect),
+    );
     if contributors.is_empty() {
         return Vec::new();
     }
@@ -4553,10 +4638,11 @@ fn resolve_taint_command_heads(
         .and_then(|tokens| tokens.word_exprs.first())
         .is_some_and(|word| matches!(word, WordExpr::Expand { .. }));
     let escapes = tcl_dialect::EscapeSyntax::of_profile(dialect);
+    let rules = tcl_syntax::word_rules::WordValueRules::of_profile(dialect);
     let mut heads = Vec::with_capacity(contributors.len());
     for contributor in contributors {
         let head = if expanded {
-            let Ok(elements) = tcl_syntax::list::split_list(&contributor.value) else {
+            let Ok(elements) = rules.split_list(&contributor.value) else {
                 // This reaching arm raises while expanding and never invokes a
                 // command. It must not erase other arms that do reach a sink.
                 continue;
@@ -4572,7 +4658,8 @@ fn resolve_taint_command_heads(
                 let Some(tokens) = tokens else {
                     continue;
                 };
-                let Some(mut following) = static_command_head_from(tokens, escapes, 1) else {
+                let Some(mut following) = static_command_head_from(tokens, escapes, rules, 1)
+                else {
                     // This arm's command remains dynamic. Retain any other
                     // reaching arm already proven to invoke a concrete sink.
                     continue;
@@ -4606,7 +4693,7 @@ fn emit_resolved_statement_warnings<S: std::hash::BuildHasher, H: std::hash::Bui
     uses: &HashMap<Symbol, Version>,
     taints: &HashMap<ValueKey, TaintLattice, S>,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     shadowed_builtins: &HashSet<String, H>,
     warnings: &mut Vec<TaintWarning>,
     ssa: &SsaFunction,
@@ -4851,6 +4938,7 @@ fn collect_coercion_operands(
     in_context: bool,
     out: &mut Vec<CoercionOperand>,
     depth: u32,
+    grammar: tcl_dialect::LexerGrammar,
 ) {
     // Native-stack safety net (issue #996): this walks the `ExprNode` tree,
     // one native frame per level. Past the cap, stop descending — a collector
@@ -4874,28 +4962,28 @@ fn collect_coercion_operands(
         ExprNode::Literal { .. } | ExprNode::String { .. } | ExprNode::Command { .. } => {}
         ExprNode::Binary { op, left, right } => {
             let child_ctx = binop_coerces(*op);
-            collect_coercion_operands(left, child_ctx, out, depth + 1);
-            collect_coercion_operands(right, child_ctx, out, depth + 1);
+            collect_coercion_operands(left, child_ctx, out, depth + 1, grammar);
+            collect_coercion_operands(right, child_ctx, out, depth + 1, grammar);
         }
         ExprNode::Unary { operand, .. } => {
-            collect_coercion_operands(operand, true, out, depth + 1);
+            collect_coercion_operands(operand, true, out, depth + 1, grammar);
         }
         ExprNode::Ternary {
             condition,
             true_branch,
             false_branch,
         } => {
-            collect_coercion_operands(condition, true, out, depth + 1);
-            collect_coercion_operands(true_branch, in_context, out, depth + 1);
-            collect_coercion_operands(false_branch, in_context, out, depth + 1);
+            collect_coercion_operands(condition, true, out, depth + 1, grammar);
+            collect_coercion_operands(true_branch, in_context, out, depth + 1, grammar);
+            collect_coercion_operands(false_branch, in_context, out, depth + 1, grammar);
         }
         ExprNode::Call { args, .. } => {
             for arg in args {
-                collect_coercion_operands(arg, true, out, depth + 1);
+                collect_coercion_operands(arg, true, out, depth + 1, grammar);
             }
         }
         ExprNode::Raw { text } => {
-            for name in (ExprNode::Raw { text: text.clone() }).vars() {
+            for name in (ExprNode::Raw { text: text.clone() }).vars_with_grammar(grammar) {
                 out.push(CoercionOperand {
                     name,
                     rel_span: None,
@@ -4923,9 +5011,10 @@ fn emit_expr_coercion_warnings<S: std::hash::BuildHasher>(
     resolve: impl Fn(&str) -> Option<(Symbol, u32)>,
     taints: &HashMap<ValueKey, TaintLattice, S>,
     warnings: &mut Vec<TaintWarning>,
+    grammar: tcl_dialect::LexerGrammar,
 ) {
     let mut hits = Vec::new();
-    collect_coercion_operands(expr, true, &mut hits, 0);
+    collect_coercion_operands(expr, true, &mut hits, 0, grammar);
     let mut emitted: FxHashSet<Symbol> = FxHashSet::default();
     for hit in hits {
         let Some((sym, ver)) = resolve(&hit.name) else {
@@ -4973,7 +5062,7 @@ struct BranchTaintCtx<'a, S> {
     ssa: &'a SsaFunction,
     taints: &'a HashMap<ValueKey, TaintLattice, S>,
     registry: &'a CommandRegistry,
-    dialect: Option<&'a tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 }
 
 /// Emit taint warnings for a block's `if`/`while`/`for` branch condition:
@@ -5025,6 +5114,8 @@ fn emit_branch_condition_warnings<S: std::hash::BuildHasher>(
         resolve,
         ctx.taints,
         warnings,
+        ctx.dialect
+            .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar),
     );
     emit_branch_condition_nested_command_warnings(condition, ctx, *fallback_span, warnings);
 }
@@ -5053,7 +5144,10 @@ fn emit_branch_condition_nested_command_warnings<S: std::hash::BuildHasher>(
     warnings: &mut Vec<TaintWarning>,
 ) {
     for text in condition.command_texts() {
-        let Some((command, call_args)) = parse_command_substitution(&text) else {
+        let Some((command, call_args)) = parse_command_substitution_with_config(
+            &text,
+            tcl_lexer::LexerConfig::for_profile(ctx.dialect),
+        ) else {
             continue;
         };
         let Some((code, sink_label)) =
@@ -5334,6 +5428,7 @@ fn split_top_level_cmd_subs(arg: &str) -> (String, Vec<&str>) {
 /// already applies, which `emit_sink_warnings` (iterating raw SSA uses) lacked.
 fn var_consumed_by_sanitiser(call: &SinkCall<'_>, name: &str) -> bool {
     let (registry, args, braced_var) = (call.registry, call.args, call.braced_var);
+    let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
     let mut seen = false;
     for arg in args {
         if !arg_var_names(arg, braced_var).contains(name) {
@@ -5351,7 +5446,7 @@ fn var_consumed_by_sanitiser(call: &SinkCall<'_>, name: &str) -> bool {
             if !arg_var_names(sub, braced_var).contains(name) {
                 continue;
             }
-            let Some((cmd, sub_args)) = parse_command_substitution(sub) else {
+            let Some((cmd, sub_args)) = parse_command_substitution_with_config(sub, config) else {
                 return false;
             };
             let refs: Vec<&str> = sub_args.iter().map(String::as_str).collect();
@@ -5621,7 +5716,11 @@ fn option_scan_region(
 /// the whole-statement span in that case. A tight span is a
 /// highlighting nicety, never a correctness requirement, so this never
 /// panics or guesses.
-fn arg_index_span(stmt: &Statement, arg_index: usize) -> Option<Span> {
+fn arg_index_span(
+    stmt: &Statement,
+    arg_index: usize,
+    config: tcl_lexer::LexerConfig,
+) -> Option<Span> {
     match stmt {
         Statement::Call {
             tokens: Some(t), ..
@@ -5635,7 +5734,7 @@ fn arg_index_span(stmt: &Statement, arg_index: usize) -> Option<Span> {
             ..
         } => {
             let value_span = t.argv.get(2)?;
-            let (_cmd, args) = parse_command_substitution_with_spans(value)?;
+            let (_cmd, args) = parse_command_substitution_with_spans_and_config(value, config)?;
             let (_text, arg_span) = args.get(arg_index)?;
             Some(Span::new(
                 value_span.start() + arg_span.start(),
@@ -5663,7 +5762,7 @@ fn emit_option_injection<S: std::hash::BuildHasher>(
     sink_call: &SinkCall<'_>,
     env: &TaintScan<'_, S>,
     span: Span,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     warnings: &mut Vec<TaintWarning>,
     stmt: &Statement,
 ) {
@@ -5749,20 +5848,21 @@ fn emit_option_injection<S: std::hash::BuildHasher>(
             // fix in that case — a fabricated span could misplace the
             // insertion, e.g. before the command name rather than the
             // argument).
-            let (warn_span, fixes) = match arg_index_span(stmt, i) {
-                Some(tight) => (
-                    tight,
-                    vec![CodeFix {
-                        span: Span::new(tight.start(), tight.start()),
-                        new_text: "-- ".to_owned(),
-                        description: "Insert '--' option terminator".to_owned(),
-                        // T102: `--` stops a tainted value being read as an option — the
-                        // fix, and a change for a call that meant it as one.
-                        safety: crate::irules_checks::FixSafety::BehaviourHardening,
-                    }],
-                ),
-                None => (span, Vec::new()),
-            };
+            let (warn_span, fixes) =
+                match arg_index_span(stmt, i, tcl_lexer::LexerConfig::for_profile(dialect)) {
+                    Some(tight) => (
+                        tight,
+                        vec![CodeFix {
+                            span: Span::new(tight.start(), tight.start()),
+                            new_text: "-- ".to_owned(),
+                            description: "Insert '--' option terminator".to_owned(),
+                            // T102: `--` stops a tainted value being read as an option — the
+                            // fix, and a change for a call that meant it as one.
+                            safety: crate::irules_checks::FixSafety::BehaviourHardening,
+                        }],
+                    ),
+                    None => (span, Vec::new()),
+                };
             warnings.push(TaintWarning {
                 span: warn_span,
                 variable: var.clone(),
@@ -5804,7 +5904,7 @@ pub fn find_setter_constraint_warnings<S: std::hash::BuildHasher, E: std::hash::
     ssa: &SsaFunction,
     taints: &HashMap<ValueKey, TaintLattice, S>,
     executable_blocks: &HashSet<BlockId, E>,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Vec<TaintWarning> {
     let mut out: Vec<TaintWarning> = Vec::new();
     if !is_irules_dialect(dialect) {
@@ -6072,9 +6172,15 @@ mod tests {
                 operand: Box::new(node),
             };
         }
-        let _ = extract_guard_var(&node, false, 0);
+        let _ = extract_guard_var(&node, false, 0, tcl_lexer::LexerConfig::default());
         let mut out = Vec::new();
-        collect_coercion_operands(&node, true, &mut out, 0);
+        collect_coercion_operands(
+            &node,
+            true,
+            &mut out,
+            0,
+            tcl_dialect::LexerGrammar::default(),
+        );
     }
 
     #[test]
@@ -6651,11 +6757,19 @@ mod tests {
         assert_eq!(extract_var_name("$p").as_deref(), Some("p"));
         assert_eq!(extract_var_name("${p}").as_deref(), Some("p"));
         assert_eq!(
-            guard_var_from_string_command("[string match \"$base/*\" $p]").as_deref(),
+            guard_var_from_string_command(
+                "[string match \"$base/*\" $p]",
+                tcl_lexer::LexerConfig::default()
+            )
+            .as_deref(),
             Some("p")
         );
         assert_eq!(
-            guard_var_from_string_command("[string equal -length 4 $a $p]").as_deref(),
+            guard_var_from_string_command(
+                "[string equal -length 4 $a $p]",
+                tcl_lexer::LexerConfig::default()
+            )
+            .as_deref(),
             Some("a")
         );
     }
@@ -7790,7 +7904,7 @@ mod tests {
 
     fn setter_warnings_for_dialect(
         source: &str,
-        dialect: Option<&tcl_dialect::DialectProfile>,
+        dialect: Option<&'static tcl_dialect::DialectProfile>,
     ) -> Vec<TaintWarning> {
         use crate::compilation_unit::CompilationUnit;
         let mut registry = CommandRegistry::build_default();

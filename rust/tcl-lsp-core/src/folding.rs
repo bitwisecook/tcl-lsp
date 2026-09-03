@@ -42,7 +42,7 @@ use rustc_hash::FxHashSet;
 use tcl_compiler::analyser::{Analyser, Scope, ScopeKind};
 use tcl_compiler::lambda_literal::split_lambda_literal;
 use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-use tcl_lexer::{Lexer, LineIndex, TokenType};
+use tcl_lexer::{Lexer, LexerConfig, LineIndex, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 
 use crate::oo_body::{HeadWords, is_member, member_block_indices_in, next_definition_grammar};
@@ -128,7 +128,13 @@ pub fn folding_ranges(
         &mut seen,
         &mut ranges,
     );
-    collect_continuation_folds(source, &line_index, &mut seen, &mut ranges);
+    collect_continuation_folds(
+        source,
+        tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
+        &line_index,
+        &mut seen,
+        &mut ranges,
+    );
     let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
     let mut ctx = FoldCtx {
         registry,
@@ -319,11 +325,12 @@ pub(crate) fn collect_comment_folds_from_facts(
 /// first continued line through the line after the last continuation.
 fn collect_continuation_folds(
     source: &str,
+    config: LexerConfig,
     line_index: &LineIndex,
     seen: &mut FxHashSet<(u32, u32)>,
     ranges: &mut Vec<FoldingRange>,
 ) {
-    let Ok(tokens) = Lexer::new(source).tokenise_all() else {
+    let Ok(tokens) = Lexer::with_config(source, config).tokenise_all() else {
         return;
     };
     let bytes = source.as_bytes();

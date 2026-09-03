@@ -629,7 +629,10 @@ where
 /// rewriter. Used by the `ParamBody` rewrite path to materialise
 /// the callsite's brace-literal body before splicing.
 fn lower_literal_script(literal: &str, namespace: &str, registry: &CommandRegistry) -> Script {
-    let mut lowerer = Lowerer::new(registry);
+    let mut lowerer = Lowerer::with_config(
+        registry,
+        tcl_lexer::LexerConfig::for_profile(registry.profile()),
+    );
     lowerer.lower_into_script(literal, namespace)
 }
 

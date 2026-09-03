@@ -130,6 +130,19 @@ fn decode_escape(text: &str, i: usize, escapes: EscapeSyntax) -> (usize, char) {
                 (end, scalar(value & 0xFF, escapes))
             }
         }
+        // `JimTcl`'s `\u{…}`: any number of hex digits, delimited rather than
+        // width-limited. Measured identical on jimsh 0.76 and 0.84. A run that
+        // is empty (`\u{}`) or unclosed (`\u{41`, `\u{ 41}`) is not the
+        // braced form at all — the escape is a literal `u` and the brace is
+        // ordinary text, so only `u` is consumed.
+        b'u' if escapes.has_braced_unicode() && b.get(i + 2) == Some(&b'{') => {
+            let (end, value) = hex_run(b, i + 3, None, true);
+            if end > i + 3 && b.get(end) == Some(&b'}') {
+                (end + 1, scalar(value, escapes))
+            } else {
+                (i + 2, 'u')
+            }
+        }
         b'u' => {
             let (end, value) = hex_run(b, i + 2, Some(4), true);
             if end == i + 2 {
@@ -915,5 +928,72 @@ mod split_escape_tests {
             }
             assert_eq!(at, text.len(), "does not reach the end of {text:?}");
         }
+    }
+}
+
+/// `JimTcl`'s brace-delimited `\u{…}`, which no build of the Tcl core has.
+///
+/// Every expectation was measured on jimsh 0.76 and 0.84 against tclsh
+/// 8.6 / 9.0, which read each of these as a literal `u` plus its braces.
+#[cfg(test)]
+mod jim_braced_unicode_tests {
+    use super::{backslash_escape_end_in, backslash_subst_in};
+    use tcl_dialect::EscapeSyntax;
+
+    #[test]
+    fn braced_scalar_decodes_only_for_jim() {
+        assert_eq!(backslash_subst_in(r"\u{41}", EscapeSyntax::Jim), "A");
+        assert_eq!(
+            backslash_subst_in(r"\u{1F600}", EscapeSyntax::Jim),
+            "\u{1F600}"
+        );
+        for escapes in [
+            EscapeSyntax::Tcl84,
+            EscapeSyntax::Tcl86,
+            EscapeSyntax::Tcl90,
+        ] {
+            assert_eq!(
+                backslash_subst_in(r"\u{41}", escapes),
+                "u{41}",
+                "{escapes:?} has no braced form"
+            );
+        }
+    }
+
+    /// An empty or unclosed run is not the braced form: the escape is a
+    /// literal `u` and the brace stays ordinary text.
+    #[test]
+    fn a_malformed_run_is_a_literal_u() {
+        assert_eq!(backslash_subst_in(r"\u{}", EscapeSyntax::Jim), "u{}");
+        assert_eq!(backslash_subst_in(r"\u{41", EscapeSyntax::Jim), "u{41");
+        assert_eq!(backslash_subst_in(r"\u{ 41}", EscapeSyntax::Jim), "u{ 41}");
+    }
+
+    /// The unbraced forms are untouched by the new arm.
+    #[test]
+    fn unbraced_forms_still_decode() {
+        assert_eq!(backslash_subst_in(r"A", EscapeSyntax::Jim), "A");
+        assert_eq!(
+            backslash_subst_in(r"\U0001F600", EscapeSyntax::Jim),
+            "\u{1F600}"
+        );
+    }
+
+    /// Extent and value come from one scan, so the width function agrees.
+    #[test]
+    fn the_extent_matches_the_decode() {
+        assert_eq!(
+            backslash_escape_end_in(r"\u{1F600}", 0, EscapeSyntax::Jim),
+            9
+        );
+        assert_eq!(backslash_escape_end_in(r"\u{41}", 0, EscapeSyntax::Jim), 6);
+        // Malformed: only the `u` is consumed.
+        assert_eq!(backslash_escape_end_in(r"\u{41", 0, EscapeSyntax::Jim), 2);
+        // No braced form elsewhere, so `\u` takes its 4-hex-digit reading and
+        // `{41}` is left as text.
+        assert_eq!(
+            backslash_escape_end_in(r"\u{41}", 0, EscapeSyntax::Tcl90),
+            2
+        );
     }
 }

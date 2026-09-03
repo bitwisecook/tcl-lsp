@@ -32,7 +32,7 @@ use tcl_compiler::analyser::Analyser;
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::ir::Statement;
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
-use tcl_compiler::value_shapes::parse_command_substitution;
+use tcl_compiler::value_shapes::parse_command_substitution_with_config;
 use tcl_lexer::{LexerConfig, TokenType};
 use tcl_registry::CommandRegistry;
 
@@ -233,7 +233,10 @@ fn binding_categories(
                     consider(name, "literal");
                     continue;
                 }
-                let Some((cmd, cargs)) = parse_command_substitution(v) else {
+                let Some((cmd, cargs)) = parse_command_substitution_with_config(
+                    v,
+                    LexerConfig::for_profile(registry.profile()),
+                ) else {
                     consider(name, "cmd-return");
                     continue;
                 };
@@ -289,7 +292,8 @@ fn collect_sites(source: &str, base: u32, dialect: &str, out: &mut Vec<Site>, de
     for seg in segment_commands_with_offset_and_config(source, 0, LexerConfig::for_dialect(dialect))
     {
         if let (Some(head), Some(method_tok)) = (seg.argv.first(), seg.argv.get(1))
-            && let Some((form, receiver)) = receiver_form(head, &seg)
+            && let Some((form, receiver)) =
+                receiver_form(head, &seg, LexerConfig::for_dialect(dialect))
         {
             out.push(Site {
                 form,
@@ -329,6 +333,7 @@ fn collect_sites(source: &str, base: u32, dialect: &str, out: &mut Vec<Site>, de
 fn receiver_form(
     head: &tcl_lexer::Token,
     seg: &SegmentedCommand,
+    config: LexerConfig,
 ) -> Option<(&'static str, String)> {
     match head.kind {
         TokenType::Var => {
@@ -344,7 +349,7 @@ fn receiver_form(
         TokenType::Cmd => {
             // Inner command head of the `[…]` receiver.
             let text = seg.texts.first()?;
-            let (cmd, _) = parse_command_substitution(text)?;
+            let (cmd, _) = parse_command_substitution_with_config(text, config)?;
             Some(("[cmd]", cmd))
         }
         TokenType::Esc if seg.texts.first().map(String::as_str) == Some("my") => {

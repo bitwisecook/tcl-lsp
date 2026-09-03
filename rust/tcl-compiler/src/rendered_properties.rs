@@ -52,7 +52,7 @@ use crate::ir::Statement;
 use crate::naming::normalise_var_name;
 use crate::sccp::{SccpResult, cfg_order};
 use crate::ssa::{SsaFunction, Symbol, ValueKey};
-use crate::value_shapes::{is_pure_var_ref, parse_command_substitution};
+use crate::value_shapes::{is_pure_var_ref, parse_command_substitution_with_config};
 
 bitflags! {
     /// Properties of a rendered (post-backslash-subst) SSA value.
@@ -583,7 +583,10 @@ fn evaluate_value(
     // registry hints.
     // (a minimal baseline, not the conservative lattice top — using `top`
     // here over-reported every may-flag for command-substitution values).
-    if let Some((cmd, args)) = parse_command_substitution(stripped) {
+    if let Some((cmd, args)) = parse_command_substitution_with_config(
+        stripped,
+        tcl_lexer::LexerConfig::for_profile(registry.profile()),
+    ) {
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
         let mut may = RenderedProperties::HAS_INTERPOLATION;
         if is_path_returning(registry, &cmd, &arg_refs) {

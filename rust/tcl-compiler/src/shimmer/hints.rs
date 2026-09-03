@@ -30,7 +30,6 @@ use std::borrow::Cow;
 
 use tcl_registry::{CommandRegistry, TclType};
 use tcl_syntax::boolean::parse_boolean_word;
-use tcl_syntax::list::split_list;
 use tcl_syntax::number::{self, NumberSyntax, ParseFlags};
 
 use crate::analyses::{ConstValue, LatticeValue};
@@ -191,8 +190,10 @@ pub fn is_uncommitted_first_conversion(
     expected: TclType,
     const_value: Option<&LatticeValue>,
     numbers: NumberSyntax,
+    rules: tcl_syntax::word_rules::WordValueRules,
 ) -> bool {
-    is_pure_intrep(current, const_value) && is_valid_instance_of(expected, const_value, numbers)
+    is_pure_intrep(current, const_value)
+        && is_valid_instance_of(expected, const_value, numbers, rules)
 }
 
 /// Whether a value of lattice type `current` (with SCCP constant `const_value`,
@@ -228,12 +229,13 @@ pub fn is_valid_instance_of(
     expected: TclType,
     const_value: Option<&LatticeValue>,
     numbers: NumberSyntax,
+    rules: tcl_syntax::word_rules::WordValueRules,
 ) -> bool {
     match const_value.and_then(const_string_forms) {
         Some(forms) => forms
             .iter()
-            .all(|s| string_is_valid_instance(Some(s), expected, numbers)),
-        None => string_is_valid_instance(None, expected, numbers),
+            .all(|s| string_is_valid_instance(Some(s), expected, numbers, rules)),
+        None => string_is_valid_instance(None, expected, numbers, rules),
     }
 }
 
@@ -270,12 +272,17 @@ fn const_value_string(value: &ConstValue) -> Cow<'_, str> {
 /// value is presumed a valid (free) list promotion; the stricter targets — a
 /// [`TclType::Dict`]'s even length and the numeric tower — need the constant to
 /// prove validity, and a value that cannot be proven valid keeps its warning.
-fn string_is_valid_instance(s: Option<&str>, expected: TclType, numbers: NumberSyntax) -> bool {
+fn string_is_valid_instance(
+    s: Option<&str>,
+    expected: TclType,
+    numbers: NumberSyntax,
+    rules: tcl_syntax::word_rules::WordValueRules,
+) -> bool {
     let is_number =
         |s: &str| number::parse_whole_with(s, number::ParseFlags::for_syntax(numbers)).is_some();
     match expected {
-        TclType::List => s.is_none_or(|s| split_list(s).is_ok()),
-        TclType::Dict => s.is_some_and(|s| split_list(s).is_ok_and(|els| els.len() % 2 == 0)),
+        TclType::List => s.is_none_or(|s| rules.split_list(s).is_ok()),
+        TclType::Dict => s.is_some_and(|s| rules.split_list(s).is_ok_and(|els| els.len() % 2 == 0)),
         TclType::Int => s.is_some_and(|s| is_valid_integer(s, numbers)),
         TclType::Double | TclType::Numeric => s.is_some_and(is_number),
         TclType::Boolean => s.is_some_and(|s| parse_boolean_word(s).is_some() || is_number(s)),
@@ -584,7 +591,8 @@ mod tests {
                     TclType::String,
                     TclType::List,
                     Some(&s(lit)),
-                    NumberSyntax::Tcl90
+                    NumberSyntax::Tcl90,
+                    tcl_syntax::word_rules::WordValueRules::TCL
                 ),
                 "pure string {lit:?} used as a list must be a free conversion"
             );
@@ -598,7 +606,8 @@ mod tests {
             TclType::String,
             TclType::Dict,
             Some(&s("a 1 b 2")),
-            NumberSyntax::Tcl90
+            NumberSyntax::Tcl90,
+            tcl_syntax::word_rules::WordValueRules::TCL
         ));
     }
 
@@ -611,7 +620,8 @@ mod tests {
             TclType::Int,
             TclType::List,
             Some(&v),
-            NumberSyntax::Tcl90
+            NumberSyntax::Tcl90,
+            tcl_syntax::word_rules::WordValueRules::TCL
         ));
     }
 
@@ -623,7 +633,8 @@ mod tests {
             TclType::String,
             TclType::List,
             None,
-            NumberSyntax::Tcl90
+            NumberSyntax::Tcl90,
+            tcl_syntax::word_rules::WordValueRules::TCL
         ));
     }
 
@@ -636,7 +647,8 @@ mod tests {
             TclType::Int,
             TclType::List,
             Some(&v),
-            NumberSyntax::Tcl90
+            NumberSyntax::Tcl90,
+            tcl_syntax::word_rules::WordValueRules::TCL
         ));
     }
 
@@ -652,7 +664,8 @@ mod tests {
                     current,
                     TclType::String,
                     Some(&s("1 2 3")),
-                    NumberSyntax::Tcl90
+                    NumberSyntax::Tcl90,
+                    tcl_syntax::word_rules::WordValueRules::TCL
                 ),
                 "committed {current:?} must not be treated as a free conversion"
             );
@@ -667,20 +680,23 @@ mod tests {
             TclType::String,
             TclType::Int,
             Some(&s("hello")),
-            NumberSyntax::Tcl90
+            NumberSyntax::Tcl90,
+            tcl_syntax::word_rules::WordValueRules::TCL
         ));
         assert!(!is_uncommitted_first_conversion(
             TclType::String,
             TclType::Numeric,
             Some(&s("hello")),
-            NumberSyntax::Tcl90
+            NumberSyntax::Tcl90,
+            tcl_syntax::word_rules::WordValueRules::TCL
         ));
         // An odd-length list is not a valid dict.
         assert!(!is_uncommitted_first_conversion(
             TclType::String,
             TclType::Dict,
             Some(&s("a 1 b")),
-            NumberSyntax::Tcl90
+            NumberSyntax::Tcl90,
+            tcl_syntax::word_rules::WordValueRules::TCL
         ));
     }
 
@@ -692,13 +708,15 @@ mod tests {
             TclType::Int,
             TclType::List,
             None,
-            NumberSyntax::Tcl90
+            NumberSyntax::Tcl90,
+            tcl_syntax::word_rules::WordValueRules::TCL
         ));
         assert!(!is_uncommitted_first_conversion(
             TclType::Numeric,
             TclType::List,
             Some(&LatticeValue::Overdefined),
-            NumberSyntax::Tcl90
+            NumberSyntax::Tcl90,
+            tcl_syntax::word_rules::WordValueRules::TCL
         ));
     }
 
@@ -709,7 +727,8 @@ mod tests {
             TclType::String,
             TclType::List,
             Some(&s("oops {unbalanced")),
-            NumberSyntax::Tcl90
+            NumberSyntax::Tcl90,
+            tcl_syntax::word_rules::WordValueRules::TCL
         ));
     }
 
@@ -725,7 +744,8 @@ mod tests {
             TclType::String,
             TclType::List,
             Some(&v),
-            NumberSyntax::Tcl90
+            NumberSyntax::Tcl90,
+            tcl_syntax::word_rules::WordValueRules::TCL
         ));
     }
 

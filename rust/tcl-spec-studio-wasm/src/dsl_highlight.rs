@@ -198,9 +198,11 @@ fn collect(src: &str, depth: usize, base: usize, mode: Mode, out: &mut Vec<Highl
     if src.is_empty() || depth >= MAX_DEPTH {
         return;
     }
-    let Ok(tokens) =
-        Lexer::with_source_map(SourceMap::new(src), LexerConfig::default()).tokenise_all()
-    else {
+    let source_map = SourceMap::new(src);
+    // dialect-drift-ok: the `.tclspec` DSL's own grammar, not the Tcl the pack
+    // describes — this module paints the pack file itself.
+    let config = LexerConfig::default();
+    let Ok(tokens) = Lexer::with_source_map(source_map, config).tokenise_all() else {
         return;
     };
 
@@ -217,7 +219,10 @@ fn collect(src: &str, depth: usize, base: usize, mode: Mode, out: &mut Vec<Highl
             TokenType::Comment => {
                 push(out, base + s, base + e, "comment", text);
             }
-            TokenType::Var => {
+            // `ExprSugar` is Jim's `$(…)`; the pack DSL is read under the
+            // default grammar, which never emits it, so it is painted as the
+            // substitution it is rather than given a class of its own.
+            TokenType::Var | TokenType::ExprSugar => {
                 push(out, base + s, base + e, "variable", text);
                 after_flag = false;
                 at_stmt_start = false;

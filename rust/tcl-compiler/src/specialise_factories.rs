@@ -91,12 +91,16 @@ pub fn specialise_factories(module: &mut Module, registry: &CommandRegistry) {
 /// Same as [`specialise_factories`] but with an explicit per-factory
 /// specialisation cap.
 pub fn specialise_factories_with_cap(module: &mut Module, registry: &CommandRegistry, cap: usize) {
+    // The registry carries the environment's profile, so the factory body's
+    // `[subst -nocommands {…}]` interior is segmented under the document's own
+    // grammar.
+    let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
     let mut factories: HashMap<String, FactoryShape> = HashMap::new();
     for (qname, proc) in &module.procedures {
         if module.redefined_procedures.contains(qname) {
             continue;
         }
-        if let Some(shape) = detect_factory_shape(proc) {
+        if let Some(shape) = detect_factory_shape(proc, config) {
             factories.insert(qname.clone(), shape);
         }
     }
@@ -191,7 +195,10 @@ fn resolve_target<'a>(
 /// `Statement::Barrier { reason: "dynamic proc name", command:
 /// "proc", … }` whose tokens match the gate, or `None` otherwise.
 #[must_use]
-pub fn detect_factory_shape(proc: &Procedure) -> Option<FactoryShape> {
+pub fn detect_factory_shape(
+    proc: &Procedure,
+    config: tcl_lexer::LexerConfig,
+) -> Option<FactoryShape> {
     let stmts = &proc.body.statements;
     if stmts.len() != 1 {
         return None;
@@ -269,7 +276,7 @@ pub fn detect_factory_shape(proc: &Procedure) -> Option<FactoryShape> {
         return None;
     }
     let inner = &body_text[1..body_text.len() - 1];
-    let template = extract_subst_nocommands_template(inner)?;
+    let template = extract_subst_nocommands_template(inner, config)?;
 
     Some(FactoryShape {
         qualified_name: proc.qualified_name.clone(),
@@ -284,8 +291,11 @@ pub fn detect_factory_shape(proc: &Procedure) -> Option<FactoryShape> {
 /// {template}` (or `subst -nocommands -nobackslashes {template}`)
 /// command-substitution body. Returns `None` for any non-matching
 /// shape. Used by [`detect_factory_shape`].
-fn extract_subst_nocommands_template(inner: &str) -> Option<String> {
-    let segments = crate::segmenter::segment_commands(inner);
+fn extract_subst_nocommands_template(
+    inner: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Option<String> {
+    let segments = crate::segmenter::segment_commands_with_offset_and_config(inner, 0, config);
     if segments.len() != 1 {
         return None;
     }
@@ -421,7 +431,10 @@ fn try_specialise_call(
         return None;
     }
     // Lower the materialised body as a fresh script.
-    let mut lowerer = Lowerer::new(registry);
+    let mut lowerer = Lowerer::with_config(
+        registry,
+        tcl_lexer::LexerConfig::for_profile(registry.profile()),
+    );
     let body = lowerer.lower_into_script(&materialised, "::");
     *count += 1;
     // Replace the call site with a no-op Block (the synthesised
@@ -452,7 +465,8 @@ mod tests {
             &reg(),
         );
         let proc = m.procedures.get("::Configure").expect("registered");
-        let shape = detect_factory_shape(proc).expect("expected factory");
+        let shape = detect_factory_shape(proc, tcl_lexer::LexerConfig::default())
+            .expect("expected factory");
         assert_eq!(shape.qualified_name, "::Configure");
         assert_eq!(shape.name_param, "name");
         assert_eq!(shape.child_params, "x");
@@ -468,7 +482,7 @@ mod tests {
             &reg(),
         );
         let proc = m.procedures.get("::Configure").expect("registered");
-        assert!(detect_factory_shape(proc).is_none());
+        assert!(detect_factory_shape(proc, tcl_lexer::LexerConfig::default()).is_none());
     }
 
     #[test]
@@ -480,7 +494,7 @@ mod tests {
             &reg(),
         );
         let proc = m.procedures.get("::Configure").expect("registered");
-        assert!(detect_factory_shape(proc).is_none());
+        assert!(detect_factory_shape(proc, tcl_lexer::LexerConfig::default()).is_none());
     }
 
     #[test]

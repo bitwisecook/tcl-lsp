@@ -37,9 +37,9 @@ use tcl_lexer::{Span, TokenType};
 use crate::compilation_unit::CompilationUnit;
 use crate::depth_guard::MAX_BRACKET_TEXT_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode};
-use crate::expr_parser::parse_expr;
+use crate::expr_parser::parse_expr_for_profile;
 use crate::ir::{Script, Statement};
-use crate::segmenter::{SegmentedCommand, segment_commands_with_offset};
+use crate::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 
 use super::{Optimisation, PassContext};
 
@@ -57,6 +57,9 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     // Copy the source reference so the immutable slice borrow does not
     // conflict with the `&mut ctx` report calls below.
     let source = ctx.source;
+    // The document's own grammar, threaded from the pass context's resolved
+    // profile — the segmenter re-reads statement source here.
+    let config = tcl_lexer::LexerConfig::for_profile(ctx.dialect);
     let mut spans: Vec<Span> = Vec::new();
     collect_statement_spans(&cu.ir_module.top_level, &mut spans, 0);
     for proc in cu.ir_module.procedures.values() {
@@ -66,7 +69,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         let Some(slice) = source.get(span.start() as usize..span.end() as usize) else {
             continue;
         };
-        for cmd in segment_commands_with_offset(slice, span.start()) {
+        for cmd in segment_commands_with_offset_and_config(slice, span.start(), config) {
             apply_to_command(ctx, &cmd, 0);
         }
     }
@@ -160,7 +163,11 @@ fn apply_to_command(ctx: &mut PassContext<'_>, cmd: &SegmentedCommand, depth: u3
             continue;
         };
         let base = tok.span.start() + 1;
-        for nested in segment_commands_with_offset(inner, base) {
+        for nested in segment_commands_with_offset_and_config(
+            inner,
+            base,
+            tcl_lexer::LexerConfig::for_profile(ctx.dialect),
+        ) {
             apply_to_command(ctx, &nested, depth + 1);
         }
     }
@@ -197,10 +204,16 @@ fn emit_for_command(ctx: &mut PassContext<'_>, cmd: &SegmentedCommand) {
         if idx_tok.kind != TokenType::Cmd {
             continue;
         }
-        let Some(expr_arg) = expr_arg_from_command_word(&cmd.texts[pos], ctx.registry) else {
+        let Some(expr_arg) = expr_arg_from_command_word(
+            &cmd.texts[pos],
+            ctx.registry,
+            tcl_lexer::LexerConfig::for_profile(ctx.dialect),
+        ) else {
             continue;
         };
-        let Some((kind, length_arg, offset)) = try_end_offset_from_length_expr(&expr_arg) else {
+        let Some((kind, length_arg, offset)) =
+            try_end_offset_from_length_expr(&expr_arg, ctx.dialect)
+        else {
             continue;
         };
         if kind != expected || length_arg.trim() != container_repr {
@@ -257,9 +270,10 @@ fn end_offset_command_shape(texts: &[String]) -> Option<(Vec<usize>, usize, Leng
 fn expr_arg_from_command_word(
     word: &str,
     registry: Option<&tcl_registry::CommandRegistry>,
+    config: tcl_lexer::LexerConfig,
 ) -> Option<String> {
     let inner = word.strip_prefix('[').and_then(|s| s.strip_suffix(']'))?;
-    let cmds = segment_commands_with_offset(inner, 0);
+    let cmds = segment_commands_with_offset_and_config(inner, 0, config);
     let [cmd] = cmds.as_slice() else {
         return None;
     };
@@ -282,8 +296,12 @@ fn expr_arg_from_command_word(
 /// into `(kind, container_word, end_offset)` where the Tcl end-offset is
 /// `N - 1` (`[llength $L] - 1` → `end`). A bare `[llength $L]` (no
 /// subtraction) is one past the last index and is rejected.
-fn try_end_offset_from_length_expr(expr_text: &str) -> Option<(LengthKind, String, i64)> {
-    let node = parse_expr(expr_text.trim(), None);
+fn try_end_offset_from_length_expr(
+    expr_text: &str,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+) -> Option<(LengthKind, String, i64)> {
+    let config = tcl_lexer::LexerConfig::for_profile(dialect);
+    let node = parse_expr_for_profile(expr_text.trim(), dialect);
     let ExprNode::Binary {
         op: BinOp::Sub,
         left,
@@ -302,10 +320,10 @@ fn try_end_offset_from_length_expr(expr_text: &str) -> Option<(LengthKind, Strin
     if n < 1 {
         return None;
     }
-    if let Some(arg) = parse_length_arg(cmd_text, &["llength"]) {
+    if let Some(arg) = parse_length_arg(cmd_text, &["llength"], config) {
         return Some((LengthKind::Llength, arg, n - 1));
     }
-    if let Some(arg) = parse_length_arg(cmd_text, &["string", "length"]) {
+    if let Some(arg) = parse_length_arg(cmd_text, &["string", "length"], config) {
         return Some((LengthKind::Strlen, arg, n - 1));
     }
     None
@@ -315,13 +333,17 @@ fn try_end_offset_from_length_expr(expr_text: &str) -> Option<(LengthKind, Strin
 /// where the leading words equal `head`, return the trailing `<arg>` as
 /// it segments (so the spelling matches the container word). Covers both
 /// `llength $L` (one head word) and `string length $s` (two).
-fn parse_length_arg(cmd_text: &str, head: &[&str]) -> Option<String> {
+fn parse_length_arg(
+    cmd_text: &str,
+    head: &[&str],
+    config: tcl_lexer::LexerConfig,
+) -> Option<String> {
     let inner = cmd_text
         .strip_prefix('[')
         .and_then(|s| s.strip_suffix(']'))
         .unwrap_or(cmd_text)
         .trim();
-    let cmds = segment_commands_with_offset(inner, 0);
+    let cmds = segment_commands_with_offset_and_config(inner, 0, config);
     let [cmd] = cmds.as_slice() else {
         return None;
     };
@@ -428,7 +450,9 @@ mod tests {
         let source = format!("foo [{deep}]");
         let mut ctx = PassContext::new(&source, InterproceduralAnalysis::default());
         ctx.registry = Some(&reg);
-        for cmd in segment_commands_with_offset(&source, 0) {
+        for cmd in
+            segment_commands_with_offset_and_config(&source, 0, tcl_lexer::LexerConfig::default())
+        {
             apply_to_command(&mut ctx, &cmd, 0);
         }
     }

@@ -226,13 +226,7 @@ fn is_single_op(ch: u8) -> bool {
 /// Internal typed callers should use [`tokenise_expr_for_profile`].
 #[must_use]
 pub fn tokenise_expr(source: &str, dialect: Option<&str>) -> Vec<ExprToken> {
-    let mut lex = Inner::new(
-        source,
-        dialect
-            .and_then(tcl_dialect::DialectProfile::find)
-            .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),
-    );
-    lex.run()
+    tokenise_expr_checked(source, dialect).0
 }
 
 /// Tokenise under an already-resolved dialect profile.
@@ -250,12 +244,28 @@ pub fn tokenise_expr_for_profile(
 /// Internal typed callers should use [`tokenise_expr_checked_for_profile`].
 #[must_use]
 pub fn tokenise_expr_checked(source: &str, dialect: Option<&str>) -> (Vec<ExprToken>, bool) {
-    tokenise_expr_checked_for_profile(
-        source,
-        dialect
-            .and_then(tcl_dialect::DialectProfile::find)
-            .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),
-    )
+    match dialect.map(|name| (name, tcl_dialect::DialectProfile::find(name))) {
+        None => tokenise_expr_checked_for_profile(source, tcl_dialect::DialectProfile::plain_tcl()),
+        Some((_, Some(profile))) => tokenise_expr_checked_for_profile(source, profile),
+        // A name with no catalogue row still names a grammar — `jim` — and
+        // the central resolution is where it is found.
+        Some((name, None)) => tokenise_expr_checked_with_grammar(
+            source,
+            &tcl_dialect::grammar_of_dialect_name(Some(name)),
+        ),
+    }
+}
+
+/// Tokenise under a bare grammar and report skipped characters — for a
+/// caller that holds the document's grammar but no profile.
+#[must_use]
+pub fn tokenise_expr_checked_with_grammar(
+    source: &str,
+    grammar: &tcl_dialect::LexerGrammar,
+) -> (Vec<ExprToken>, bool) {
+    let mut lex = Inner::from_grammar(source, grammar, None, None);
+    let tokens = lex.run();
+    (tokens, lex.unknown)
 }
 
 /// Tokenise under an already-resolved profile and report skipped characters.
@@ -324,16 +334,34 @@ struct Inner<'s> {
 
 impl<'s> Inner<'s> {
     fn new(s: &'s str, profile: &tcl_dialect::DialectProfile) -> Self {
+        Self::from_grammar(
+            s,
+            &profile.grammar,
+            profile.expr_grammar_base,
+            profile.f5_core_expr_grammar(),
+        )
+    }
+
+    /// The grammar-keyed constructor every other one reduces to: the four
+    /// lexical axes the expression lexer reads all live on the
+    /// [`tcl_dialect::LexerGrammar`], so a caller holding only a grammar
+    /// (an environment with no catalogue profile) loses nothing.
+    fn from_grammar(
+        s: &'s str,
+        grammar: &tcl_dialect::LexerGrammar,
+        expr_grammar_base: Option<tcl_dialect::TclVersion>,
+        f5_word_grammar: Option<&'static tcl_dialect::model::ExprGrammar>,
+    ) -> Self {
         Self {
             b: s.as_bytes(),
             s,
             i: 0,
-            f5_word_grammar: profile.f5_core_expr_grammar(),
-            expr_comments: profile.grammar.expr_comments.comments(),
-            numbers: profile.grammar.numbers,
-            braced_var: profile.grammar.braced_var,
-            array_index: profile.grammar.array_index,
-            expr_grammar_base: profile.expr_grammar_base,
+            f5_word_grammar,
+            expr_comments: grammar.expr_comments.comments(),
+            numbers: grammar.numbers,
+            braced_var: grammar.braced_var,
+            array_index: grammar.array_index,
+            expr_grammar_base,
             numeric_suffix_probe: false,
             unknown: false,
         }

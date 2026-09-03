@@ -231,7 +231,7 @@ pub struct PassContext<'a> {
     /// context is built so gated passes (e.g. O124) can check
     /// for `"f5-irules"` without threading it through every
     /// entry point.
-    pub dialect: Option<&'a tcl_dialect::DialectProfile>,
+    pub dialect: Option<&'static tcl_dialect::DialectProfile>,
     /// Accumulator for produced optimisations.
     pub optimisations: Vec<Optimisation>,
     /// Accumulator for the **O109 dead stores** the elimination pass
@@ -299,7 +299,7 @@ impl<'a> PassContext<'a> {
     pub fn with_dialect(
         source: &'a str,
         interproc: InterproceduralAnalysis,
-        dialect: Option<&'a tcl_dialect::DialectProfile>,
+        dialect: Option<&'static tcl_dialect::DialectProfile>,
     ) -> Self {
         Self {
             source,

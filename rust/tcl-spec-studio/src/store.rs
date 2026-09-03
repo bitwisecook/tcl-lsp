@@ -1975,6 +1975,8 @@ struct WordSpan {
 /// same statements.
 fn segments(source: &str) -> Vec<Segmented> {
     let source_map = SourceMap::new(source);
+    // dialect-drift-ok: `.tclspec` pack DSL text, not a document's Tcl — this
+    // must read exactly what the SpecTcl loader reads, under its own grammar.
     let (document, _warnings) = build_document(source, LexerConfig::default());
     segments_from_document(document, &source_map)
         .into_iter()

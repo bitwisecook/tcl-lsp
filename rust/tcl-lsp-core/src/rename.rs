@@ -309,10 +309,13 @@ pub fn prepare_rename_in_program(
     // rename UI on `prepare_rename` should still see it as
     // renameable.  Resolve `$obj`'s class and confirm a method
     // of that name exists.
-    if let Some((inst, method, is_dollar)) =
-        crate::definition::instance_method_at_cursor(source, line, character)
-        && let Some(class_q) =
-            crate::definition::receiver_instance_class_at(analysis, &inst, is_dollar, cursor_offset)
+    if let Some((inst, method, is_dollar)) = crate::definition::instance_method_at_cursor(
+        source,
+        line,
+        character,
+        crate::definition::dialect_config(analysis),
+    ) && let Some(class_q) =
+        crate::definition::receiver_instance_class_at(analysis, &inst, is_dollar, cursor_offset)
         && let Some(class_def) = analysis.all_classes.get(class_q)
     {
         let member = class_def
@@ -525,9 +528,12 @@ pub fn rename_in_program(
     // on the method-name token of an instance-method call and
     // `$obj`'s class is known, rename the method across its
     // declaration + all call sites (intra-class + external).
-    if let Some((inst, method, is_dollar)) =
-        crate::definition::instance_method_at_cursor(source, line, character)
-        && method == word
+    if let Some((inst, method, is_dollar)) = crate::definition::instance_method_at_cursor(
+        source,
+        line,
+        character,
+        tcl_lexer::LexerConfig::for_profile(Some(dialect)),
+    ) && method == word
         && let Some(class_q) = crate::definition::receiver_instance_class_at(
             analysis,
             &inst,
@@ -1152,9 +1158,12 @@ pub fn method_target_with_access_in_workspace(
             enclosing_body: analysis.innermost_definition_body_span(cursor),
         },
     });
-    if let Some((inst, method, is_dollar)) =
-        crate::definition::instance_method_at_cursor(source, line, character)
-        && method == word
+    if let Some((inst, method, is_dollar)) = crate::definition::instance_method_at_cursor(
+        source,
+        line,
+        character,
+        crate::definition::dialect_config(analysis),
+    ) && method == word
     {
         // `my method` — an internal call from inside the enclosing class.
         // Always instance-context: `my` never reaches a classmethod.

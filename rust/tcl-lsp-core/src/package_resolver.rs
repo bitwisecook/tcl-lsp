@@ -188,6 +188,9 @@ pub struct AutoIndexEntry {
 /// non-separator tokens between `Sep` / `Eol` boundaries (so `a$b[c]` is one
 /// word). `{*}` expansion markers and comments are word/command boundaries.
 pub(super) fn walk_command_words(text: &str) -> Vec<Vec<Vec<Token>>> {
+    // dialect-drift-ok: on-disk `pkgIndex.tcl` / `tclIndex` auto-load index
+    // content from `auto_path`, read as C Tcl's own loader reads it — not the
+    // open document's Tcl, and no document dialect reaches this walk.
     let tokens = Lexer::new(text).tokenise_all().unwrap_or_default();
     let mut commands: Vec<Vec<Vec<Token>>> = Vec::new();
     let mut words: Vec<Vec<Token>> = Vec::new();

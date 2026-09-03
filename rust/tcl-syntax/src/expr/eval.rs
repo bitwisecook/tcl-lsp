@@ -137,7 +137,7 @@ pub fn eval<O: ExprOps>(node: &ExprNode, ops: &mut O) -> Result<O::Value, O::Err
         ExprNode::String { text, .. } => ops.string(strip_delims(text)),
         // Pass the index-preserving reference (`arr(idx)`), not the base name,
         // so an evaluator can read array elements; the base `name` field stays
-        // for analysis (`.vars()`).
+        // for analysis (`.vars_with_grammar(...)`).
         ExprNode::Var { text, .. } => ops.var(crate::naming::var_reference(text)),
         ExprNode::Command { text, .. } => ops.command(strip_brackets(text)),
         ExprNode::Unary { op, operand } => {

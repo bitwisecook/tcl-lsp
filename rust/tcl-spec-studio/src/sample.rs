@@ -103,13 +103,20 @@ impl Word {
 ///
 /// `base` is `source`'s own offset inside the whole sample, so every emitted
 /// span is absolute no matter how deep the recursion went.
-fn walk(registry: &CommandRegistry, whole: &str, base: usize, depth: usize, out: &mut Vec<Word>) {
+fn walk(
+    registry: &CommandRegistry,
+    config: LexerConfig,
+    whole: &str,
+    base: usize,
+    depth: usize,
+    out: &mut Vec<Word>,
+) {
     if depth > MAX_DEPTH {
         return;
     }
     let source = &whole[base..];
     let source_map = SourceMap::new(source);
-    let (document, _warnings) = build_document(source, LexerConfig::default());
+    let (document, _warnings) = build_document(source, config);
     for segment in segments_from_document(document, &source_map) {
         let head = segment.texts.first().cloned().unwrap_or_default();
         let args: Vec<String> = segment.texts.iter().skip(1).cloned().collect();
@@ -151,7 +158,14 @@ fn walk(registry: &CommandRegistry, whole: &str, base: usize, depth: usize, out:
             if inner_end <= inner_start {
                 continue;
             }
-            walk(registry, &whole[..inner_end], inner_start, depth + 1, out);
+            walk(
+                registry,
+                config,
+                &whole[..inner_end],
+                inner_start,
+                depth + 1,
+                out,
+            );
         }
     }
 }
@@ -399,13 +413,29 @@ impl<'a> Bench<'a> {
         &self.registry
     }
 
+    /// The grammar a sample is read under: the one belonging to the
+    /// environment this bench's built-ins were resolved for, so the sample
+    /// tokenises exactly as a document of that dialect would.
+    fn lexer_config(&self) -> LexerConfig {
+        LexerConfig::for_profile(Some(crate::environment::profile_for_dialect(
+            self.merged.builtins().dialect(),
+        )))
+    }
+
     /// Analyse `sample` and return everything the tab paints: the render
     /// chunks, one entry per word, and the analyser's diagnostics.
     #[must_use]
     pub fn analyse(&self, sample: &str) -> Value {
         let diagnostics = self.diagnostics(sample);
         let mut words = Vec::new();
-        walk(&self.registry, sample, 0, 0, &mut words);
+        walk(
+            &self.registry,
+            self.lexer_config(),
+            sample,
+            0,
+            0,
+            &mut words,
+        );
         words.sort_by_key(|w| (w.start, w.end));
         words.dedup_by_key(|w| (w.start, w.end));
 
@@ -501,7 +531,14 @@ impl<'a> Bench<'a> {
     #[must_use]
     pub fn inspect(&self, sample: &str, offset: usize) -> Option<Value> {
         let mut words = Vec::new();
-        walk(&self.registry, sample, 0, 0, &mut words);
+        walk(
+            &self.registry,
+            self.lexer_config(),
+            sample,
+            0,
+            0,
+            &mut words,
+        );
         // The innermost word wins: a body's own statements are pushed after
         // the body word that holds them, and are strictly narrower.
         let word = words

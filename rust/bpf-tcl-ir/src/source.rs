@@ -29,7 +29,9 @@ pub(crate) fn lower_bpf_source(source: &str, registry: &CommandRegistry) -> Modu
     lower_to_ir_with_dialect(
         source,
         registry,
-        LexerConfig::for_dialect("bpf"),
+        // The same profile the lowering is given, so the re-segmentation
+        // grammar and the dialect axis can never disagree.
+        LexerConfig::for_profile(registry.profile()),
         // The BPF profile as the registry itself resolved it — this crate
         // deliberately has no compile-time path to `tcl-dialect`, and reaches a
         // profile only through `CommandRegistry::profile()`.

@@ -114,6 +114,19 @@ pub(super) struct ScanCtx<'r> {
     /// as command invocations.  `None` in `Default` (focused unit tests
     /// that bypass registry dispatch).
     pub(super) registry: Option<&'r tcl_registry::CommandRegistry>,
+    /// The document dialect's word-value rules — how a braced word's
+    /// `\<newline>` folds and how list text divides — used by every
+    /// re-parse of a scanned word (a proc's parameter list, an OO member's).
+    /// Threaded from the scan's entry point so the scanner reads a word the
+    /// way the document's own runtime reads it, rather than re-deriving C
+    /// Tcl's answer at each site.
+    pub(super) rules: tcl_syntax::word_rules::WordValueRules,
+    /// The document dialect's lexer config — every segmentation the walk
+    /// performs (the top-level stream, a recursed body, a factory-wrapper
+    /// body) reads the source under this grammar rather than the default
+    /// one.  Threaded from the scan's entry point, which derives it from
+    /// the registry's own profile.
+    pub(super) config: tcl_lexer::LexerConfig,
 }
 
 /// Factory-skip heads that are **not** registered commands and so

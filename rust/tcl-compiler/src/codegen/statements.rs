@@ -195,7 +195,7 @@ impl CodegenCtx<'_> {
         // 4-byte name `z1 y` (hex `7a312079`).
         if name_braced {
             return StoreTarget {
-                name: tcl_syntax::backslash::collapse_brace_continuations_str(name).into_owned(),
+                name: self.word_rules.collapse_braced_word(name).into_owned(),
                 key_is_literal: true,
             };
         }

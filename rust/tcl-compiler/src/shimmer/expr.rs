@@ -398,6 +398,7 @@ fn check_numeric_operand(
             to_type,
             ctx.values.get(&(sym, ver)),
             ctx.commit.numbers(),
+            ctx.commit.word_rules(),
         ) {
             return;
         }
@@ -479,6 +480,7 @@ fn check_list_operand(ctx: &mut ExprShimmerCtx<'_>, node: &ExprNode, op: BinOp) 
             TclType::List,
             ctx.values.get(&(sym, ver)),
             ctx.commit.numbers(),
+            ctx.commit.word_rules(),
         ) {
             return;
         }

@@ -287,7 +287,7 @@ pub struct BuiltinFoldInputs<'a> {
     /// Whole-module `rename` / `interp alias` / shadowing-`proc` trust scan.
     pub mutations: &'a crate::command_binding::ModuleCommandMutations,
     /// Resolved dialect profile for versioned folds; `None` when unavailable.
-    pub dialect: Option<&'a tcl_dialect::DialectProfile>,
+    pub dialect: Option<&'static tcl_dialect::DialectProfile>,
     /// Proven defining class of the enclosing `TclOO` instance-method frame
     /// (enables `[self class]`-style frame-fact folds); `None` elsewhere.
     pub defining_class: Option<&'a str>,
@@ -379,7 +379,11 @@ pub fn sccp_with_builtin_folds(
         }
     }
 
-    seed_live_in_roots(cfg, ssa, &mut values);
+    let grammar = trace
+        .registry
+        .profile()
+        .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar);
+    seed_live_in_roots(cfg, ssa, &mut values, grammar);
 
     // Global / namespace / upvar-aliased / traced variables are shared mutable
     // state observable and writable from other scopes, traces, and source
@@ -456,6 +460,7 @@ pub fn sccp_with_builtin_folds(
                     ssa,
                     values: &values,
                     policy,
+                    grammar,
                 };
                 if sccp_process_terminator(
                     *bn,
@@ -474,8 +479,15 @@ pub fn sccp_with_builtin_folds(
         finalizing = true;
     }
 
-    let constant_branches =
-        collect_constant_branches(cfg, ssa, &values, &executable_blocks, &order, policy);
+    let constant_branches = collect_constant_branches(
+        cfg,
+        ssa,
+        &values,
+        &executable_blocks,
+        &order,
+        policy,
+        grammar,
+    );
 
     SccpResult {
         values,
@@ -495,6 +507,7 @@ fn seed_live_in_roots<S: std::hash::BuildHasher>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
     values: &mut HashMap<ValueKey, LatticeValue, S>,
+    grammar: tcl_dialect::LexerGrammar,
 ) {
     let mut defined_keys: FxHashSet<ValueKey> = FxHashSet::default();
     let mut used_keys: FxHashSet<ValueKey> = FxHashSet::default();
@@ -526,7 +539,7 @@ fn seed_live_in_roots<S: std::hash::BuildHasher>(
         if let Some(Terminator::Branch { condition, .. }) = &block.terminator
             && let Some(sb) = ssa.blocks.get(bn)
         {
-            for var in crate::var_refs::vars_in_expr(condition) {
+            for var in crate::var_refs::vars_in_expr(condition, grammar) {
                 let Some(sym) = ssa.var_symbol(&var) else {
                     continue;
                 };
@@ -556,10 +569,11 @@ fn branch_deferrable(
     condition: &ExprNode,
     values: &HashMap<ValueKey, LatticeValue>,
     ssa: &SsaFunction,
+    grammar: tcl_dialect::LexerGrammar,
 ) -> bool {
     let mut any_operand = false;
     let mut any_unknown = false;
-    for name in crate::var_refs::vars_in_expr(condition) {
+    for name in crate::var_refs::vars_in_expr(condition, grammar) {
         let Some(sym) = ssa.var_symbol(&name) else {
             continue;
         };
@@ -751,6 +765,9 @@ struct TerminatorInputs<'a> {
     ssa: &'a SsaFunction,
     values: &'a HashMap<ValueKey, LatticeValue>,
     policy: FoldPolicy,
+    /// The document's lexer grammar — the branch condition's `Raw` operand
+    /// texts are re-read under it when their variables are collected.
+    grammar: tcl_dialect::LexerGrammar,
 }
 
 /// Process a block's terminator: mark the matching outgoing edges
@@ -768,6 +785,7 @@ fn sccp_process_terminator(
         ssa,
         values,
         policy,
+        grammar,
     } = *inputs;
     let mut changed = false;
     let Some(block) = cfg.blocks.get(&bn) else {
@@ -796,7 +814,15 @@ fn sccp_process_terminator(
             let Some(ssa_block) = ssa.blocks.get(&bn) else {
                 return changed;
             };
-            let decision = branch_decision(cfg, ssa, bn, ssa_block, condition, values, policy);
+            let decision = branch_decision(
+                cfg,
+                ssa,
+                bn,
+                ssa_block,
+                condition,
+                values,
+                BranchFold { policy, grammar },
+            );
             let targets: Vec<BlockId> = match decision {
                 Some(true) => vec![*true_target],
                 Some(false) => vec![*false_target],
@@ -807,7 +833,9 @@ fn sccp_process_terminator(
                 // conditions instead of pessimistically opening both arms
                 // forever. The finalising pass forces both arms for any
                 // branch still stuck this way.
-                None if !finalizing && branch_deferrable(ssa_block, condition, values, ssa) => {
+                None if !finalizing
+                    && branch_deferrable(ssa_block, condition, values, ssa, grammar) =>
+                {
                     Vec::new()
                 }
                 None => vec![*true_target, *false_target],
@@ -852,6 +880,7 @@ fn collect_constant_branches(
     executable_blocks: &HashSet<BlockId>,
     order: &[BlockId],
     policy: FoldPolicy,
+    grammar: tcl_dialect::LexerGrammar,
 ) -> Vec<ConstantBranch> {
     let mut constant_branches: Vec<ConstantBranch> = Vec::new();
     for bn in order {
@@ -874,7 +903,15 @@ fn collect_constant_branches(
         let Some(ssa_block) = ssa.blocks.get(bn) else {
             continue;
         };
-        let decision = branch_decision(cfg, ssa, *bn, ssa_block, condition, values, policy);
+        let decision = branch_decision(
+            cfg,
+            ssa,
+            *bn,
+            ssa_block,
+            condition,
+            values,
+            BranchFold { policy, grammar },
+        );
         let cond_text = crate::expr_ast::expr_text(condition);
         let (true_name, false_name) = (
             cfg.block_name(*true_target).to_owned(),
@@ -1330,8 +1367,16 @@ pub fn evaluate_def_with_folds<S: std::hash::BuildHasher>(
             // (`[list a b c]`, `[format …]`) that folds to a
             // constant list. Multi-variable and multi-list
             // foreaches are left as Overdefined.
-            let elements = extract_foreach_elements(&args[0])
-                .or_else(|| resolve_foreach_list_via_lattice(&args[0], &stmt_ssa.uses, values, ssa))
+            let elements = extract_foreach_elements(&args[0], policy.word_rules)
+                .or_else(|| {
+                    resolve_foreach_list_via_lattice(
+                        &args[0],
+                        &stmt_ssa.uses,
+                        values,
+                        ssa,
+                        policy.word_rules,
+                    )
+                })
                 .or_else(|| {
                     // `foreach v [list a b c]` — fold the command substitution
                     // to a constant list string, then split into elements.
@@ -1341,7 +1386,7 @@ pub fn evaluate_def_with_folds<S: std::hash::BuildHasher>(
                         && let Some(LatticeValue::Const(ConstValue::String(s))) =
                             try_fold_cmd_subst(arg, &stmt_ssa.uses, values, ssa, policy, folds)
                     {
-                        return Some(split_list_values(&s));
+                        return Some(split_list_values(&s, policy.word_rules));
                     }
                     None
                 });
@@ -1454,6 +1499,16 @@ fn resolve_simple_var_ref<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher
 /// following `if {$i == 10}` folds. The summary is conservative: it bails to
 /// `None` on non-constant bounds, side effects, or runaway iteration, falling
 /// back to the lattice fold.
+/// The two dialect facts a branch fold needs: what the target release folds
+/// (`policy`) and the grammar its condition text was written under
+/// (`grammar`). Bundled so the fold entry points stay inside clippy's
+/// argument budget and neither fact can be threaded without the other.
+#[derive(Clone, Copy)]
+struct BranchFold {
+    policy: FoldPolicy,
+    grammar: tcl_dialect::LexerGrammar,
+}
+
 fn branch_decision(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
@@ -1461,10 +1516,11 @@ fn branch_decision(
     ssa_block: &crate::ssa::SsaBlock,
     condition: &ExprNode,
     values: &HashMap<ValueKey, LatticeValue>,
-    policy: FoldPolicy,
+    fold: BranchFold,
 ) -> Option<bool> {
+    let BranchFold { policy, grammar } = fold;
     loop_summary_decision(cfg, ssa, bn, condition, values, policy)
-        .or_else(|| evaluate_branch(ssa_block, condition, values, policy, ssa))
+        .or_else(|| evaluate_branch(ssa_block, condition, values, policy, ssa, grammar))
 }
 
 /// Convert an SCCP [`ConstValue`] to the static simulator's
@@ -1520,6 +1576,7 @@ pub fn evaluate_branch<S: std::hash::BuildHasher>(
     values: &HashMap<ValueKey, LatticeValue, S>,
     policy: FoldPolicy,
     ssa: &SsaFunction,
+    grammar: tcl_dialect::LexerGrammar,
 ) -> Option<bool> {
     let mut env = env_from_uses(&ssa_block.exit_versions, values, ssa);
     // A parameter read in a branch condition without a local redefinition
@@ -1527,7 +1584,7 @@ pub fn evaluate_branch<S: std::hash::BuildHasher>(
     // its caller-provided version-0 seed never reaches the fold. Bind it
     // here — but only when version 0 is still live (the param is not
     // redefined to another value before the branch).
-    for name in crate::var_refs::vars_in_expr(condition) {
+    for name in crate::var_refs::vars_in_expr(condition, grammar) {
         if env.contains_key(&name) {
             continue;
         }
@@ -1628,7 +1685,10 @@ pub(crate) fn tcl_value_to_const(v: TclValue) -> ConstValue {
 ///   callers fall through to
 ///   [`resolve_foreach_list_via_lattice`].
 #[must_use]
-pub fn extract_foreach_elements(list_text: &str) -> Option<Vec<String>> {
+pub fn extract_foreach_elements(
+    list_text: &str,
+    rules: tcl_syntax::word_rules::WordValueRules,
+) -> Option<Vec<String>> {
     let stripped = list_text.trim();
     if stripped.is_empty() {
         return Some(Vec::new());
@@ -1639,7 +1699,7 @@ pub fn extract_foreach_elements(list_text: &str) -> Option<Vec<String>> {
     // List-aware split (Tcl_SplitList semantics): a nested-brace list like
     // `a {b c} d` yields the three elements `a`, `b c`, `d` — not the four
     // whitespace runs `a`, `{b`, `c}`, `d` a naive split would produce.
-    Some(split_list_values(stripped))
+    Some(split_list_values(stripped, rules))
 }
 
 /// Resolve `$var` / `${var}` to a `Vec<String>` of list elements
@@ -1652,6 +1712,7 @@ pub fn resolve_foreach_list_via_lattice<S1, S2>(
     uses: &HashMap<Symbol, crate::ssa::Version, S1>,
     values: &HashMap<ValueKey, LatticeValue, S2>,
     ssa: &SsaFunction,
+    rules: tcl_syntax::word_rules::WordValueRules,
 ) -> Option<Vec<String>>
 where
     S1: std::hash::BuildHasher,
@@ -1680,7 +1741,7 @@ where
         // The lattice value is the variable's runtime string; splitting it as a
         // `foreach` list uses Tcl list semantics (nested-brace aware), not a
         // whitespace split.
-        LatticeValue::Const(ConstValue::String(s)) => Some(split_list_values(s)),
+        LatticeValue::Const(ConstValue::String(s)) => Some(split_list_values(s, rules)),
         _ => None,
     }
 }
@@ -1848,7 +1909,7 @@ fn try_fold_cmd_subst<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
 
     // `[list ...]` — reuse the codegen fold.
     if trusted("list")
-        && let Some(folded) = crate::codegen::helpers::fold_list_cmd(value)
+        && let Some(folded) = crate::codegen::helpers::fold_list_cmd(value, policy.word_rules)
     {
         return Some(LatticeValue::Const(ConstValue::String(folded)));
     }
@@ -1873,11 +1934,13 @@ fn try_fold_cmd_subst<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         // `[...]` command substitution, so it still carries its own
         // `{…}`/`"…"` wrapping that `extract_foreach_elements` no longer
         // strips — peel exactly one level before splitting.
-        if let Some(elements) = extract_foreach_elements(strip_one_level(arg)) {
+        if let Some(elements) = extract_foreach_elements(strip_one_level(arg), policy.word_rules) {
             let n = i64::try_from(elements.len()).unwrap_or(i64::MAX);
             return Some(LatticeValue::Const(ConstValue::Int(n)));
         }
-        if let Some(items) = resolve_foreach_list_via_lattice(arg, uses, values, ssa) {
+        if let Some(items) =
+            resolve_foreach_list_via_lattice(arg, uses, values, ssa, policy.word_rules)
+        {
             let n = i64::try_from(items.len()).unwrap_or(i64::MAX);
             return Some(LatticeValue::Const(ConstValue::Int(n)));
         }
@@ -1927,7 +1990,7 @@ fn try_fold_cmd_subst<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
         // matching Tcl.
         let braced = arg.starts_with('{');
         let expr_text = strip_one_level(arg);
-        let expr = crate::expr_parser::parse_expr(expr_text, None);
+        let expr = crate::expr_parser::parse_expr_for_profile(expr_text, policy.dialect);
         let env = if braced {
             env_from_uses(uses, values, ssa)
         } else {
@@ -2869,15 +2932,21 @@ mod tests {
         // the shape `foreach v {a b c}`'s `list_arg` is built in: the word's
         // own `{…}` is gone, leaving plain whitespace-separated text.
         assert_eq!(
-            extract_foreach_elements("a b c"),
+            extract_foreach_elements("a b c", tcl_syntax::word_rules::WordValueRules::TCL),
             Some(vec!["a".into(), "b".into(), "c".into()])
         );
     }
 
     #[test]
     fn extract_foreach_elements_rejects_substitutions() {
-        assert_eq!(extract_foreach_elements("$lst"), None);
-        assert_eq!(extract_foreach_elements("[list a b c]"), None);
+        assert_eq!(
+            extract_foreach_elements("$lst", tcl_syntax::word_rules::WordValueRules::TCL),
+            None
+        );
+        assert_eq!(
+            extract_foreach_elements("[list a b c]", tcl_syntax::word_rules::WordValueRules::TCL),
+            None
+        );
     }
 
     #[test]
@@ -2886,20 +2955,23 @@ mod tests {
         // four whitespace runs `a`, `{b`, `c}`, `d`. A naive `split_ascii_whitespace`
         // corrupted the CONSTSET; the list-aware split fixes it.
         assert_eq!(
-            extract_foreach_elements("a {b c} d"),
+            extract_foreach_elements("a {b c} d", tcl_syntax::word_rules::WordValueRules::TCL),
             Some(vec!["a".into(), "b c".into(), "d".into()])
         );
         // Backslash-escaped whitespace groups an element too: `a\ b c` is two
         // elements `a b` and `c`.
         assert_eq!(
-            extract_foreach_elements("a\\ b c"),
+            extract_foreach_elements("a\\ b c", tcl_syntax::word_rules::WordValueRules::TCL),
             Some(vec!["a b".into(), "c".into()])
         );
     }
 
     #[test]
     fn extract_foreach_elements_empty_list_returns_empty() {
-        assert_eq!(extract_foreach_elements(""), Some(Vec::new()));
+        assert_eq!(
+            extract_foreach_elements("", tcl_syntax::word_rules::WordValueRules::TCL),
+            Some(Vec::new())
+        );
     }
 
     // Regression tests for issue #1433: `list_text` already has its outer
@@ -2915,7 +2987,7 @@ mod tests {
         // `a b c`, not the three whitespace-separated words `a`, `b`, `c`
         // a second brace-strip-then-split would wrongly produce.
         assert_eq!(
-            extract_foreach_elements("{a b c}"),
+            extract_foreach_elements("{a b c}", tcl_syntax::word_rules::WordValueRules::TCL),
             Some(vec!["a b c".into()])
         );
     }
@@ -2927,7 +2999,7 @@ mod tests {
         // yielding the corrupted split `a`, `b}`, `{c`, `d` (lenient split of
         // `a b} {c d`). The correct split is the two nested-list elements.
         assert_eq!(
-            extract_foreach_elements("{a b} {c d}"),
+            extract_foreach_elements("{a b} {c d}", tcl_syntax::word_rules::WordValueRules::TCL),
             Some(vec!["a b".into(), "c d".into()])
         );
     }
@@ -2938,7 +3010,7 @@ mod tests {
         // `"…"` delimiters the same way it strips `{…}`, so `list_text` is
         // plain `a b c` — no quote handling is needed (or wanted) here.
         assert_eq!(
-            extract_foreach_elements("a b c"),
+            extract_foreach_elements("a b c", tcl_syntax::word_rules::WordValueRules::TCL),
             Some(vec!["a".into(), "b".into(), "c".into()])
         );
     }
@@ -3226,7 +3298,7 @@ mod tests {
         // decline when no release is selected, leaving the width ambiguous.
         let mut ssa = bare_ssa();
         let stmt = assign_value_stmt(&mut ssa, "n", "[string length \"\u{1D11E}\"]", 1);
-        let fold = |dialect: Option<&tcl_dialect::DialectProfile>| {
+        let fold = |dialect: Option<&'static tcl_dialect::DialectProfile>| {
             evaluate_def(
                 &stmt,
                 &HashMap::new(),
@@ -3548,25 +3620,55 @@ mod tests {
         let mut values: HashMap<ValueKey, LatticeValue> = HashMap::new();
 
         // Defined operand (version 1) not yet computed → defer.
-        assert!(branch_deferrable(&sb, &cond, &values, &ssa));
+        assert!(branch_deferrable(
+            &sb,
+            &cond,
+            &values,
+            &ssa,
+            tcl_dialect::LexerGrammar::default()
+        ));
         values.insert((x, 1), LatticeValue::Unknown);
-        assert!(branch_deferrable(&sb, &cond, &values, &ssa));
+        assert!(branch_deferrable(
+            &sb,
+            &cond,
+            &values,
+            &ssa,
+            tcl_dialect::LexerGrammar::default()
+        ));
 
         // An `Overdefined` operand proves the condition genuinely
         // non-constant → never defer.
         values.insert((x, 1), LatticeValue::Overdefined);
-        assert!(!branch_deferrable(&sb, &cond, &values, &ssa));
+        assert!(!branch_deferrable(
+            &sb,
+            &cond,
+            &values,
+            &ssa,
+            tcl_dialect::LexerGrammar::default()
+        ));
 
         // A constant operand folds via `evaluate_branch`, so the `None`
         // arm is never reached → not deferrable here.
         values.insert((x, 1), LatticeValue::Const(ConstValue::Int(1)));
-        assert!(!branch_deferrable(&sb, &cond, &values, &ssa));
+        assert!(!branch_deferrable(
+            &sb,
+            &cond,
+            &values,
+            &ssa,
+            tcl_dialect::LexerGrammar::default()
+        ));
 
         // Version-0 operands (parameters / globals / live-in roots) are
         // already `Overdefined` and excluded from the deferral test.
         let mut sb0 = empty_ssa_block("b");
         sb0.exit_versions.insert(x, 0);
-        assert!(!branch_deferrable(&sb0, &cond, &HashMap::new(), &ssa));
+        assert!(!branch_deferrable(
+            &sb0,
+            &cond,
+            &HashMap::new(),
+            &ssa,
+            tcl_dialect::LexerGrammar::default()
+        ));
     }
 
     #[test]

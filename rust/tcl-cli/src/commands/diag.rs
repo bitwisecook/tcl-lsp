@@ -249,7 +249,7 @@ fn collect_rows(
         UnitBuildOptions {
             registry: &registry,
             defer_top_level: false,
-            config: tcl_lexer::LexerConfig::for_dialect(dialect.name),
+            config: tcl_lexer::LexerConfig::for_profile(Some(dialect)),
             dialect: Some(dialect),
             external_call_sites,
         },

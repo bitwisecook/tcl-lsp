@@ -1074,6 +1074,7 @@ or use explicit I/O commands."
             cmd_name,
             args,
             arg_tokens,
+            self.lexer_config(),
         );
         if patterns.is_empty() {
             return;
@@ -1556,7 +1557,10 @@ fn catch_body_is_fire_and_forget(
     let Some(registry) = registry else {
         return false;
     };
-    let segs: Vec<_> = crate::segmenter::segment_commands(body)
+    // The registry carries the environment's profile, so the caught body is
+    // segmented under the document's own grammar.
+    let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+    let segs: Vec<_> = crate::segmenter::segment_commands_with_offset_and_config(body, 0, config)
         .into_iter()
         .filter(|c| !c.texts.is_empty())
         .collect();
@@ -1888,13 +1892,14 @@ fn parse_subst_flags(args: &[String]) -> (Option<usize>, bool, bool) {
 /// its first positional (option-skipping) argument; `switch -regexp`
 /// contributes every non-`default` pattern arm — inline pairs (form 1)
 /// or a single braced case list (form 2, split with list offsets via
-/// [`crate::segmenter::flatten_clause_list_elements`]).
+/// [`crate::segmenter::flatten_clause_list_elements_with_config`]).
 fn find_regex_patterns_in_command(
     source: &str,
     takes_regex_pattern: bool,
     cmd_name: &str,
     args: &[String],
     arg_tokens: &[tcl_lexer::Token],
+    config: tcl_lexer::LexerConfig,
 ) -> Vec<(String, tcl_lexer::Token)> {
     if args.is_empty() || arg_tokens.is_empty() {
         return Vec::new();
@@ -1933,8 +1938,9 @@ fn find_regex_patterns_in_command(
             if i < args.len() && i == args.len() - 1 {
                 // Form 2: single braced case list.
                 if let Some(case_tok) = arg_tokens.get(i) {
-                    let elements =
-                        crate::segmenter::flatten_clause_list_elements(source, &args[i], *case_tok);
+                    let elements = crate::segmenter::flatten_clause_list_elements_with_config(
+                        source, &args[i], *case_tok, config,
+                    );
                     let mut j = 0;
                     while j + 1 < elements.len() {
                         let (text, tok) = &elements[j];

@@ -359,6 +359,108 @@ pub fn split_list_raw(s: &str) -> Result<Vec<&str>, ListError> {
     Ok(out)
 }
 
+/// [`split_list`] under `JimTcl`'s list grammar, which never raises.
+///
+/// Distinct from [`split_list_lenient`], which returns the elements parsed
+/// *before* a malformed tail and drops the rest — a best-effort partial for
+/// consumers that would rather see something than nothing. Jim does not
+/// truncate: it produces a complete list in which the malformed construct is
+/// simply an element. All four [`ListError`] cases become values, and the two
+/// shapes differ:
+///
+/// * **Unterminated `{` or `"`** — the element runs to the end of the string.
+///   `a {b c` is `a` + `b c`, and `a {` is `a` + the empty element.
+/// * **Junk after a closing delimiter** — the junk *begins the next element*
+///   rather than being an error, so `a {b}c` is three elements, `a` `b` `c`.
+///
+/// Backslashes follow the same rule as a well-formed element, unterminated or
+/// not: a braced value is verbatim (`a {b\nc` keeps the two characters), a
+/// quoted one is substituted (`a "b\nc` yields a real newline).
+///
+/// Every expectation above was measured on jimsh 0.76 and 0.84 against
+/// tclsh 8.6 / 9.0, which raise on each of them.
+#[must_use]
+pub fn split_list_jim(s: &str) -> Vec<Cow<'_, str>> {
+    let bytes = s.as_bytes();
+    let len = bytes.len();
+    let mut out = Vec::new();
+    let mut pos = 0;
+
+    while pos < len {
+        while pos < len && is_list_space(bytes[pos]) {
+            pos += 1;
+        }
+        if pos >= len {
+            break;
+        }
+
+        match bytes[pos] {
+            b'{' => {
+                let start = pos + 1;
+                let mut depth = 1usize;
+                let mut i = start;
+                let mut close = None;
+                while i < len {
+                    match bytes[i] {
+                        b'\\' => i += 1,
+                        b'{' => depth += 1,
+                        b'}' => {
+                            depth -= 1;
+                            if depth == 0 {
+                                close = Some(i);
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                    i += 1;
+                }
+                // A braced value is never backslash-collapsed, terminated or
+                // not; an unterminated one simply reaches the end.
+                let (end, next) = close.map_or((len, len), |c| (c, c + 1));
+                out.push(Cow::Borrowed(&s[start..end]));
+                pos = next;
+            }
+            b'"' => {
+                let start = pos + 1;
+                let mut i = start;
+                let mut close = None;
+                while i < len {
+                    match bytes[i] {
+                        b'\\' => i += 1,
+                        b'"' => {
+                            close = Some(i);
+                            break;
+                        }
+                        _ => {}
+                    }
+                    i += 1;
+                }
+                let (end, next) = close.map_or((len, len), |c| (c, c + 1));
+                out.push(Cow::Owned(
+                    backslash_subst(&s[start..end.min(len)]).into_owned(),
+                ));
+                pos = next;
+            }
+            _ => {
+                let start = pos;
+                let mut i = pos;
+                while i < len && !is_list_space(bytes[i]) {
+                    if bytes[i] == b'\\' {
+                        i += 1;
+                    }
+                    i += 1;
+                }
+                let end = i.min(len);
+                out.push(Cow::Owned(backslash_subst(&s[start..end]).into_owned()));
+                pos = end;
+            }
+        }
+    }
+
+    out
+}
+
 /// [`split_list`] that never fails: on a malformed tail (unmatched brace/quote,
 /// junk after a delimiter) it returns the elements parsed *before* the error
 /// rather than `Err`. For best-effort consumers (constant folding, `llength` /
@@ -1033,5 +1135,96 @@ mod tests {
         // The quoted form truncates to 50 bytes, no ellipsis.
         let long = "x".repeat(60);
         assert_eq!(describe_bad_value(&long), format!("\"{}\"", "x".repeat(50)));
+    }
+}
+
+/// `JimTcl`'s list grammar, asserted against the C-Tcl splitter.
+///
+/// Every case was measured on jimsh 0.76 and 0.84 against tclsh 8.6 / 9.0 by
+/// building the string with `\173` / `\042` (so the probe script itself stays
+/// well-formed) and reading `llength` plus each `lindex`.
+#[cfg(test)]
+mod jim_list_tests {
+    use super::*;
+
+    fn jim(s: &str) -> Vec<String> {
+        split_list_jim(s)
+            .into_iter()
+            .map(std::borrow::Cow::into_owned)
+            .collect()
+    }
+
+    /// The cases where Jim and C Tcl agree: Jim's leniency must not change a
+    /// well-formed list.
+    #[test]
+    fn well_formed_lists_match_the_strict_splitter() {
+        for src in [
+            "a b",
+            "a  b",
+            "{a b} c",
+            "a\\ b c",
+            "\"a b\" c",
+            "{}",
+            "a {} b",
+            "a {b} c",
+            "a b{c",
+            "",
+            "   ",
+        ] {
+            let strict: Vec<String> = split_list(src)
+                .expect("well-formed")
+                .into_iter()
+                .map(std::borrow::Cow::into_owned)
+                .collect();
+            assert_eq!(jim(src), strict, "{src:?}");
+        }
+    }
+
+    /// An unterminated `{` or `"` runs to the end of the string rather than
+    /// raising. Each expectation is jimsh 0.84's; tclsh 8.6 errors on all of
+    /// them.
+    #[test]
+    fn unterminated_element_runs_to_end_of_string() {
+        assert_eq!(jim("a {b"), ["a", "b"]);
+        assert_eq!(jim("a {b c"), ["a", "b c"]);
+        assert_eq!(jim("a \"b"), ["a", "b"]);
+        assert_eq!(jim("a \"b c"), ["a", "b c"]);
+        assert_eq!(jim("{a"), ["a"]);
+        assert_eq!(jim("a {"), ["a", ""]);
+        assert_eq!(jim("a \""), ["a", ""]);
+        // Nesting is honoured while scanning, so an inner `{…}` does not
+        // satisfy the outer one: the value is the raw remainder.
+        assert_eq!(jim("a {b {c"), ["a", "b {c"]);
+        assert_eq!(jim("a {b {c} "), ["a", "b {c} "]);
+        // `\}` is escaped and so never closes the brace.
+        assert_eq!(jim("a {b\\} c"), ["a", "b\\} c"]);
+        for src in ["a {b", "a \"b", "{a", "a {b {c"] {
+            assert!(split_list(src).is_err(), "C Tcl raises on {src:?}");
+        }
+    }
+
+    /// Junk after a closing delimiter starts the next element instead of
+    /// raising `BraceFollowedByJunk` / `QuoteFollowedByJunk`.
+    #[test]
+    fn junk_after_a_close_delimiter_begins_the_next_element() {
+        assert_eq!(jim("a {b}c"), ["a", "b", "c"]);
+        assert_eq!(jim("a \"b\"c"), ["a", "b", "c"]);
+        assert!(matches!(
+            split_list("a {b}c"),
+            Err(ListError::BraceFollowedByJunk)
+        ));
+        assert!(matches!(
+            split_list("a \"b\"c"),
+            Err(ListError::QuoteFollowedByJunk)
+        ));
+    }
+
+    /// Backslashes follow the element's shape, terminated or not: braced
+    /// values are verbatim, quoted values are substituted.
+    #[test]
+    fn backslashes_follow_the_element_shape() {
+        assert_eq!(jim("a {b\\nc"), ["a", "b\\nc"], "braced: verbatim");
+        assert_eq!(jim("a \"b\\nc"), ["a", "b\nc"], "quoted: substituted");
+        assert_eq!(jim("a \"b\\\\c"), ["a", "b\\c"]);
     }
 }

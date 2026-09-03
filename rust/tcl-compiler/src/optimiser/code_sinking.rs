@@ -187,7 +187,13 @@ fn consider_sink_at(ctx: &mut PassContext<'_>, stmts: &[Statement], i: usize, de
     // computation would observe a different value — a miscompile. The
     // earlier guards only protect the assigned variable itself, not its
     // read-set.
-    if sink_rhs_clobbered_by_decision(stmt, decision, braced_var) {
+    if sink_rhs_clobbered_by_decision(
+        stmt,
+        decision,
+        braced_var,
+        ctx.dialect
+            .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar),
+    ) {
         return;
     }
     let targets = decision_sink_targets(decision, &var, braced_var);
@@ -414,8 +420,9 @@ fn sink_rhs_clobbered_by_decision(
     sink: &Statement,
     decision: &Statement,
     braced_var: tcl_dialect::BracedVarStyle,
+    grammar: tcl_dialect::LexerGrammar,
 ) -> bool {
-    if assignment_reads_any_var(sink) && decision_condition_has_command_subst(decision) {
+    if assignment_reads_any_var(sink, grammar) && decision_condition_has_command_subst(decision) {
         return true;
     }
     decision_branch_bodies(decision)
@@ -424,10 +431,10 @@ fn sink_rhs_clobbered_by_decision(
 }
 
 /// Whether the assignment `sink` reads at least one variable in its RHS.
-fn assignment_reads_any_var(sink: &Statement) -> bool {
+fn assignment_reads_any_var(sink: &Statement, grammar: tcl_dialect::LexerGrammar) -> bool {
     match sink {
         Statement::AssignValue { value, .. } => value.contains('$'),
-        Statement::AssignExpr { expr, .. } => !expr.vars().is_empty(),
+        Statement::AssignExpr { expr, .. } => !expr.vars_with_grammar(grammar).is_empty(),
         // A constant assignment (and anything else) reads nothing.
         _ => false,
     }

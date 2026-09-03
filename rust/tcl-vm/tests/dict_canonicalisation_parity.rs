@@ -129,7 +129,10 @@ fn compiler_dict_create_fold(args: &[&str]) -> Option<String> {
         source.push_str(&tcl_syntax::list::list_element(arg));
     }
     source.push(']');
-    tcl_compiler::codegen::helpers::fold_dict_create_cmd(&source)
+    tcl_compiler::codegen::helpers::fold_dict_create_cmd(
+        &source,
+        tcl_syntax::word_rules::WordValueRules::TCL,
+    )
 }
 
 /// Leg 4 — real C Tcl, when it is installed. `None` means "not available", not

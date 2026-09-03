@@ -359,8 +359,6 @@ impl Analyser {
         }
         // The profile name is `&'static str`, so no borrow of `self` is held
         // across the firewall closure below (which needs `&mut self`).
-        let dialect_owned: Option<String> =
-            (!self.dialect().is_empty()).then(|| self.dialect().to_string());
         // AN-H1: firewall the lowering→CFG→SSA→interprocedural build (and the
         // emission that consumes it). A panic on adversarial input is contained
         // to "no CFG/SSA diagnostics for this document" instead of crashing the
@@ -369,9 +367,7 @@ impl Analyser {
         // overflow is separately bounded by the lowering depth guards;
         // `catch_unwind` cannot contain a SIGABRT.)
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let dialect_opt = dialect_owned
-                .as_deref()
-                .and_then(tcl_dialect::DialectProfile::find);
+            let dialect_opt = self.unit_profile;
             // Build under the analyser's own dialect, not a blind default: the
             // lowering needs it to parse a dialect-only operator (an iRules
             // `contains` condition) as an operator, and the lattice pipeline
@@ -392,9 +388,7 @@ impl Analyser {
                 crate::compilation_unit::UnitBuildOptions {
                     registry,
                     defer_top_level: false,
-                    config: tcl_lexer::LexerConfig::for_dialect(
-                        dialect_owned.as_deref().unwrap_or_default(),
-                    ),
+                    config: self.file_lexer_config(),
                     dialect: dialect_opt,
                     external_call_sites: None,
                 },
@@ -887,7 +881,7 @@ impl Analyser {
                 &self.source,
                 &function_unit.cfg,
                 function_unit.base_offset,
-                self.profile.grammar.braced_var,
+                self.grammar().braced_var,
             );
         // A var read in another iRule event, or consumed *by name* via a
         // call-by-name upvar callee, is "used" — suppress
@@ -937,6 +931,7 @@ impl Analyser {
             initial_global,
             &global_aliases,
             Some(self.analysis_context().context().authoring_query()),
+            self.word_rules(),
         );
         let exists_guards = collect_existence_guards(function_unit);
         let rbs_params: HashSet<&str> = ir_proc

@@ -379,10 +379,25 @@ impl ExprNode {
     ///
     /// This is the structured replacement for the scattered
     /// `tokenise_expr()` -> scan-for-variables patterns.
+    ///
+    /// The `Raw` fallback text is re-lexed under the **default** grammar:
+    /// this form is for callers that genuinely carry no document grammar.
+    /// A caller that has one must use [`Self::vars_with_grammar`].
+    /// Test-only: the default-grammar form. Production callers hold the
+    /// document's grammar and use [`Self::vars_with_grammar`].
+    #[cfg(test)]
     #[must_use]
     pub fn vars(&self) -> HashSet<String> {
+        self.vars_with_grammar(tcl_dialect::LexerGrammar::default()) // dialect-drift-ok: #[cfg(test)] convenience
+    }
+
+    /// [`Self::vars`] with the document's grammar, used to re-lex the `Raw`
+    /// fallback text (unparsed Tcl preserved verbatim) the way the rest of
+    /// the document is read.
+    #[must_use]
+    pub fn vars_with_grammar(&self, grammar: tcl_dialect::LexerGrammar) -> HashSet<String> {
         let mut result = HashSet::new();
-        self.collect_vars(&mut result);
+        self.collect_vars(grammar, &mut result);
         result
     }
 
@@ -571,18 +586,36 @@ impl ExprNode {
     }
 
     /// Recursive variable collection helper.
-    fn collect_vars(&self, out: &mut HashSet<String>) {
-        self.collect_vars_with(&|_text, name| name.to_owned(), out);
+    fn collect_vars(&self, grammar: tcl_dialect::LexerGrammar, out: &mut HashSet<String>) {
+        self.collect_vars_with(grammar, &|_text, name| name.to_owned(), out);
     }
 
+    /// Test-only: the default-grammar form. Production callers hold the
+    /// document's grammar and use the `_with_grammar` sibling.
+    #[cfg(test)]
     /// Every variable read in this expression, **element-qualified**: a
     /// constant-keyed array element reports as its own variable `base(key)`,
     /// a dynamic one as the bare base — the SSA-side counterpart of
     /// [`Self::vars`], which normalises every reference to its base.
+    /// The `Raw` fallback text is re-lexed under the **default** grammar:
+    /// this form is for callers that genuinely carry no document grammar.
+    /// A caller that has one must use
+    /// [`Self::vars_element_qualified_with_grammar`].
     #[must_use]
     pub fn vars_element_qualified(&self) -> HashSet<String> {
+        self.vars_element_qualified_with_grammar(tcl_dialect::LexerGrammar::default()) // dialect-drift-ok: #[cfg(test)] convenience
+    }
+
+    /// [`Self::vars_element_qualified`] with the document's grammar, used to
+    /// re-lex the `Raw` fallback text.
+    #[must_use]
+    pub fn vars_element_qualified_with_grammar(
+        &self,
+        grammar: tcl_dialect::LexerGrammar,
+    ) -> HashSet<String> {
         let mut result = HashSet::new();
         self.collect_vars_with(
+            grammar,
             &|text, _name| crate::naming::element_var_name(text).to_owned(),
             &mut result,
         );
@@ -591,7 +624,12 @@ impl ExprNode {
 
     /// The shared walk under [`Self::vars`] / [`Self::vars_element_qualified`]:
     /// `pick` maps a `Var` node's `(text, name)` to the reported name.
-    fn collect_vars_with(&self, pick: &dyn Fn(&str, &str) -> String, out: &mut HashSet<String>) {
+    fn collect_vars_with(
+        &self,
+        grammar: tcl_dialect::LexerGrammar,
+        pick: &dyn Fn(&str, &str) -> String,
+        out: &mut HashSet<String>,
+    ) {
         match self {
             Self::Var { text, name, .. } => {
                 let picked = pick(text, name);
@@ -600,24 +638,24 @@ impl ExprNode {
                 }
             }
             Self::Binary { left, right, .. } => {
-                left.collect_vars_with(pick, out);
-                right.collect_vars_with(pick, out);
+                left.collect_vars_with(grammar, pick, out);
+                right.collect_vars_with(grammar, pick, out);
             }
             Self::Unary { operand, .. } => {
-                operand.collect_vars_with(pick, out);
+                operand.collect_vars_with(grammar, pick, out);
             }
             Self::Ternary {
                 condition,
                 true_branch,
                 false_branch,
             } => {
-                condition.collect_vars_with(pick, out);
-                true_branch.collect_vars_with(pick, out);
-                false_branch.collect_vars_with(pick, out);
+                condition.collect_vars_with(grammar, pick, out);
+                true_branch.collect_vars_with(grammar, pick, out);
+                false_branch.collect_vars_with(grammar, pick, out);
             }
             Self::Call { args, .. } => {
                 for arg in args {
-                    arg.collect_vars_with(pick, out);
+                    arg.collect_vars_with(grammar, pick, out);
                 }
             }
             // Command substitutions may contain variable references,
@@ -631,7 +669,7 @@ impl ExprNode {
             // detection (W214) sees the read. Nested vars inside command
             // substitutions are left to the SSA layer, matching the
             // `Self::Command` policy above.
-            Self::Raw { text } => collect_raw_vars_with(text, pick, out),
+            Self::Raw { text } => collect_raw_vars_with(text, grammar, pick, out),
         }
     }
 }
@@ -640,11 +678,14 @@ impl ExprNode {
 /// `pick` (the same `(text, base-name)` mapping as the AST walk).
 fn collect_raw_vars_with(
     text: &str,
+    grammar: tcl_dialect::LexerGrammar,
     pick: &dyn Fn(&str, &str) -> String,
     out: &mut HashSet<String>,
 ) {
     let source_map = SourceMap::new(text);
-    let Ok(tokens) = Lexer::new(text).tokenise_all() else {
+    let Ok(tokens) =
+        Lexer::with_config(text, tcl_lexer::LexerConfig::from_grammar(grammar)).tokenise_all()
+    else {
         return;
     };
     for tok in &tokens {

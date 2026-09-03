@@ -528,7 +528,7 @@ fn no_heavy_fields() {
 fn param_list_defaults_and_args() {
     // Same param shape as the proc-with-defaults-and-args case, but
     // against the standalone parser entry point.
-    let params = parse_param_list("a {b 2} args");
+    let params = parse_param_list("a {b 2} args", tcl_syntax::word_rules::WordValueRules::TCL);
     let names: Vec<&str> = params.iter().map(|p| p.name.as_str()).collect();
     assert_eq!(names, ["a", "b", "args"]);
     assert!(!params[0].has_default);
@@ -539,8 +539,8 @@ fn param_list_defaults_and_args() {
 
 #[test]
 fn param_list_empty() {
-    assert!(parse_param_list("").is_empty());
-    assert!(parse_param_list("   \t\n ").is_empty());
+    assert!(parse_param_list("", tcl_syntax::word_rules::WordValueRules::TCL).is_empty());
+    assert!(parse_param_list("   \t\n ", tcl_syntax::word_rules::WordValueRules::TCL).is_empty());
 }
 
 // Registry-driven class-definer recognition (walker `definer_family`)
@@ -708,4 +708,40 @@ fn interp_alias_ambiguous_abbreviation_skipped() {
     assert!(r.command_aliases.is_empty());
     let r = run("interp alias {} myalias {} puts");
     assert!(r.command_aliases.contains_key("::myalias"));
+}
+
+/// The scan segments under the **document's** grammar, not C Tcl's.
+///
+/// iRules' implicit `}{` word break (`LexerGrammar::irules_brace_separator`)
+/// makes `if {1}{ … }` a two-word `if` whose second word is a real body, so
+/// the walker descends it and records the proc defined inside.  Under C Tcl's
+/// grammar the same bytes are one *compound* word (`{1}{…}`, "extra
+/// characters after close-brace"), the `if` has no body token, and the proc
+/// is never seen.  Before `extract_signatures` derived its `LexerConfig` /
+/// `WordValueRules` from the registry's own profile, an f5-irules workspace
+/// index got C Tcl's answer here.
+#[test]
+fn irules_brace_separator_body_is_scanned_for_signatures() {
+    let src = "if {1}{\n    proc inner {} { return 1 }\n}\n";
+
+    let profile = tcl_dialect::DialectProfile::find("f5-irules").expect("f5-irules profile");
+    let irules = tcl_registry::registry_for_profile_with_overlay(profile, 0, |_| {});
+    assert!(
+        profile.grammar.irules_brace_separator,
+        "the f5-irules grammar is the one carrying the `}}{{` break"
+    );
+
+    let irules_result = extract_signatures(src, &irules);
+    assert!(
+        irules_result.procs.contains_key("::inner"),
+        "f5-irules `}}{{` splits the body word, so `proc inner` is recorded: {:?}",
+        irules_result.procs.keys().collect::<Vec<_>>()
+    );
+
+    let default_result = run(src);
+    assert!(
+        !default_result.procs.contains_key("::inner"),
+        "C Tcl reads `{{1}}{{…}}` as one compound word, so the body is not a script: {:?}",
+        default_result.procs.keys().collect::<Vec<_>>()
+    );
 }

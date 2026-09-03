@@ -35,7 +35,6 @@ use tcl_registry::CommandRegistry;
 use tcl_registry::model::semantic::SemanticContext;
 
 use crate::cfg::{CfgModule, Function as CfgFunction};
-use crate::cfg_builder::build_cfg;
 use crate::def_use::{DefUseResult, build_def_use_chains};
 use crate::interprocedural::InterproceduralAnalysis;
 use crate::ir::Module as IrModule;
@@ -353,6 +352,20 @@ pub struct ModuleTraceFacts<'a> {
     pub has_dynamic_variable_trace: bool,
 }
 
+/// The two document-level facts a unit build always reads together: the
+/// command registry (which carries the document's profile and specs) and
+/// the lexer config its text is re-read under. Carried as one value so the
+/// pair cannot be split — a registry holding one document's profile beside
+/// a config holding another's is exactly the two-grammar drift the ingress
+/// settlement forbids (`docs/design/dialect-profile-model.md` §2.5).
+#[derive(Clone, Copy)]
+pub struct UnitDialect<'a> {
+    /// The document's command registry.
+    pub registry: &'a CommandRegistry,
+    /// The document's body-lexing config.
+    pub config: tcl_lexer::LexerConfig,
+}
+
 /// The analysis inputs threaded into a [`FunctionUnit`] build beyond the
 /// unit's own `name` / `cfg`, grouped into one parameter so the deep-build
 /// entry point stays under clippy's `too_many_arguments` ceiling — mirroring
@@ -361,6 +374,9 @@ pub struct ModuleTraceFacts<'a> {
 /// positional arguments.
 #[derive(Clone, Copy)]
 struct FunctionBuildInputs<'a> {
+    /// The document's body-lexing config: what every re-read of a `[…]`
+    /// text inside the build (the dynamic-name barrier) lexes under.
+    pub config: tcl_lexer::LexerConfig,
     /// Formal parameter names (seed `[info exists]` folds and param constants).
     params: &'a [String],
     /// The analysis dialect's command registry.
@@ -416,8 +432,9 @@ impl FunctionUnit {
         cfg: CfgFunction,
         params: &[String],
         registry: &CommandRegistry,
+        config: tcl_lexer::LexerConfig,
     ) -> Self {
-        Self::build_with_param_constants(name, cfg, params, registry, None)
+        Self::build_with_param_constants(name, cfg, params, registry, None, config)
     }
 
     /// Like [`Self::build`] but seeds SCCP with interprocedurally-collected
@@ -435,12 +452,13 @@ impl FunctionUnit {
                 crate::analyses::LatticeValue,
             >,
         >,
+        config: tcl_lexer::LexerConfig,
     ) -> Self {
         Self::build_with_param_constants_and_classes(
             name,
             cfg,
             params,
-            registry,
+            UnitDialect { registry, config },
             param_constants,
             &HashSet::new(),
             ModuleTraceFacts::none(),
@@ -468,7 +486,7 @@ impl FunctionUnit {
         name: impl Into<String>,
         cfg: CfgFunction,
         params: &[String],
-        registry: &CommandRegistry,
+        dialect: UnitDialect<'_>,
         param_constants: Option<
             &std::collections::HashMap<
                 (String, crate::ssa::Version),
@@ -479,10 +497,12 @@ impl FunctionUnit {
         trace_facts: ModuleTraceFacts<'_>,
     ) -> Self {
         let no_extra_escaping = HashSet::new();
+        let UnitDialect { registry, config } = dialect;
         Self::build_full(
             name,
             cfg,
             FunctionBuildInputs {
+                config,
                 params,
                 registry,
                 param_constants,
@@ -507,11 +527,13 @@ impl FunctionUnit {
         known_classes: &HashSet<String>,
         extra_global_escaping: &HashSet<String>,
         trace_facts: ModuleTraceFacts<'_>,
+        config: tcl_lexer::LexerConfig,
     ) -> Self {
         Self::build_full(
             "::top",
             cfg,
             FunctionBuildInputs {
+                config,
                 params: &[],
                 registry,
                 param_constants: None,
@@ -543,6 +565,7 @@ impl FunctionUnit {
         registry: &CommandRegistry,
         known_classes: &HashSet<String>,
         trace_facts: ModuleTraceFacts<'_>,
+        config: tcl_lexer::LexerConfig,
     ) -> Self {
         let facts = Arc::new(MethodBodyFacts::from_method(method));
         let no_extra_escaping = HashSet::new();
@@ -550,6 +573,7 @@ impl FunctionUnit {
             name,
             cfg,
             FunctionBuildInputs {
+                config,
                 params: &facts.params,
                 registry,
                 param_constants: None,
@@ -582,6 +606,7 @@ impl FunctionUnit {
         inputs: FunctionBuildInputs<'_>,
     ) -> Self {
         let FunctionBuildInputs {
+            config,
             params,
             registry,
             param_constants,
@@ -601,7 +626,13 @@ impl FunctionUnit {
             return Self::trivial_guarded(name, cfg);
         }
         let ssa = build_ssa(&cfg, registry);
-        let def_use = build_def_use_chains(&ssa, Some(&cfg));
+        let def_use = build_def_use_chains(
+            &ssa,
+            Some(&cfg),
+            registry
+                .profile()
+                .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar),
+        );
         // The registry carries its dialect profile's fold policy: the octal
         // rule, which fixes how a bare leading-zero literal (`08`, `010`) is
         // read when SCCP folds `==`/`!=` — octal in the 8.x runtimes (tcl8.x /
@@ -624,15 +655,12 @@ impl FunctionUnit {
         // chokepoint — so O100 / O101 / branch folds never propagate a value
         // across the barrier. A dynamic *read* only observes, so it leaves
         // the value lattice alone.
-        // Split the `[…]` texts this walk re-reads under the same dialect the
-        // lowering used, so the barrier and the IR agree on word boundaries —
-        // `registry` is the document's own profile-built registry here, and
-        // its profile is what `LexerConfig::for_dialect` reads (issue #1393).
-        let dynamic_names = crate::dynamic_names::dynamic_name_barrier(
-            &cfg,
-            registry,
-            crate::dynamic_names::lexer_config_for(registry),
-        );
+        // Split the `[…]` texts this walk re-reads under the very config the
+        // lowering used, so the barrier and the IR agree on word boundaries
+        // (issue #1393) — the unit's own, not one derived from the registry's
+        // profile, which is not the document's grammar for a pack-layered
+        // registry or `tk`.
+        let dynamic_names = crate::dynamic_names::dynamic_name_barrier(&cfg, registry, config);
         let mut sccp = sccp_with_extra_escaping(
             &cfg,
             &ssa,
@@ -863,7 +891,7 @@ impl FunctionUnit {
         &self,
         registry: &CommandRegistry,
         ia: &InterproceduralAnalysis,
-        dialect: Option<&tcl_dialect::DialectProfile>,
+        dialect: Option<&'static tcl_dialect::DialectProfile>,
     ) -> HashMap<ValueKey, TaintLattice> {
         let instance_classes = instance_classes_for_function(&self.cfg, registry, Some(ia), true);
         propagate_taints(
@@ -1028,7 +1056,11 @@ fn lower_and_build_cfg(
     // every passthrough callsite is replaced with a Statement::Block
     // that splices the body inline.
     crate::inline_uplevel::inline_uplevel_passthrough(&mut ir_module, registry);
-    let mut cfg_module = build_cfg(&ir_module, options.defer_top_level);
+    let mut cfg_module = crate::cfg_builder::build_cfg_with_config(
+        &ir_module,
+        options.defer_top_level,
+        options.config,
+    );
     let tainted_global_writes =
         crate::interprocedural::enrich_instance_taint_cfg(&ir_module, &mut cfg_module, registry);
     (ir_module, cfg_module, tainted_global_writes)
@@ -1061,7 +1093,7 @@ fn resolve_unit_scope(
     // `None`): a call from inside one of these bodies to an ordinary user proc
     // is a real call site whose argument can vary between call sites, exactly
     // like a bare top-level/proc-body call.
-    let extra_callers = build_extra_call_site_scan_contexts(ir_module, cfg_context);
+    let extra_callers = build_extra_call_site_scan_contexts(ir_module, cfg_context, options.config);
     // Collect call-site literal arg values per user proc so each callee's SCCP
     // can fold a param every caller passes the same literal for
     // (interprocedural constant propagation).
@@ -1112,7 +1144,9 @@ fn resolve_unit_scope(
 /// per-item unit build reads the **same** projection instead of resolving the
 /// environment itself (P1-F wave 2).
 #[must_use]
-pub fn semantic_context(dialect: Option<&tcl_dialect::DialectProfile>) -> Option<SemanticContext> {
+pub fn semantic_context(
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+) -> Option<SemanticContext> {
     dialect.map(SemanticContext::for_profile)
 }
 
@@ -1147,6 +1181,7 @@ struct ProcedureBuildContext<'a> {
 fn build_procedure_units(
     ctx: &ProcedureBuildContext<'_>,
     mut cache: Option<&mut ProcLatticeCache<'_>>,
+    config: tcl_lexer::LexerConfig,
 ) -> BuiltProcedureUnits {
     let mut procedures: HashMap<String, FunctionUnit> = HashMap::new();
     let mut param_constants_by_proc: BTreeMap<String, Vec<(String, u32, String)>> = BTreeMap::new();
@@ -1246,7 +1281,10 @@ fn build_procedure_units(
                 qname,
                 cfg.clone(),
                 params,
-                ctx.registry,
+                UnitDialect {
+                    registry: ctx.registry,
+                    config,
+                },
                 param_constants.as_ref(),
                 ctx.known_class_set,
                 ctx.trace_facts,
@@ -1305,6 +1343,11 @@ impl CompilationUnit {
             source,
             registry,
             defer_top_level,
+            // dialect-drift-ok: `build_for` is now a test-only entry point —
+            // every production build goes through `build_for_with_config` /
+            // `build_for_profile` / `build_for_dialect` with the document's
+            // own config; the workspace's test fixtures still spell the
+            // plain-Tcl default this way.
             tcl_lexer::LexerConfig::default(),
         )
     }
@@ -1511,6 +1554,7 @@ impl CompilationUnit {
             &known_class_set,
             &top_level_extra_escaping,
             trace_facts,
+            options.config,
         )
         .with_top_level_semantic_analysis(registry, semantic_context, &ir_module.top_level);
         let built = build_procedure_units(
@@ -1529,6 +1573,7 @@ impl CompilationUnit {
                 tainted_global_writes: &tainted_global_writes,
             },
             cache,
+            options.config,
         );
         let mut procedures = built.procedures;
         let methods = Self::build_method_units(
@@ -1538,6 +1583,7 @@ impl CompilationUnit {
             registry,
             trace_facts,
             semantic_context,
+            options.config,
         );
         let body_units = Self::build_body_units(
             &ir_module,
@@ -1546,6 +1592,7 @@ impl CompilationUnit {
             registry,
             trace_facts,
             semantic_context,
+            options.config,
         );
         let connection_scope = Self::build_connection_scope(&procedures);
         Self::drop_cross_event_existence_folds(&mut procedures, connection_scope.as_ref());
@@ -1581,6 +1628,7 @@ impl CompilationUnit {
         registry: &CommandRegistry,
         trace_facts: ModuleTraceFacts<'_>,
         semantic_context: Option<SemanticContext>,
+        config: tcl_lexer::LexerConfig,
     ) -> HashMap<String, FunctionUnit> {
         if ir_module.methods.is_empty() {
             return HashMap::new();
@@ -1615,13 +1663,14 @@ impl CompilationUnit {
                 } else {
                     &widened_upvar_procs
                 };
-                let cfg = crate::cfg_builder::build_cfg_function_with_upvars(
+                let cfg = crate::cfg_builder::build_cfg_function_with_upvars_and_config(
                     mqname,
                     &method.body,
                     true,
                     method_upvar_procs.clone(),
                     proc_params.clone(),
                     global_write_procs.clone(),
+                    tcl_lexer::LexerConfig::for_profile(registry.profile()),
                 );
                 // Body-byte half of the complexity guard (the block-count
                 // half is applied inside `build`); skip an oversized
@@ -1645,6 +1694,7 @@ impl CompilationUnit {
                         registry,
                         known_class_set,
                         trace_facts,
+                        config,
                     )
                 }
                 .with_semantic_analysis(
@@ -1692,6 +1742,7 @@ impl CompilationUnit {
         registry: &CommandRegistry,
         trace_facts: ModuleTraceFacts<'_>,
         semantic_context: Option<SemanticContext>,
+        config: tcl_lexer::LexerConfig,
     ) -> HashMap<String, FunctionUnit> {
         if ir_module.body_units.is_empty() {
             return HashMap::new();
@@ -1702,13 +1753,14 @@ impl CompilationUnit {
             .body_units
             .iter()
             .map(|(qname, proc)| {
-                let cfg = crate::cfg_builder::build_cfg_function_with_upvars(
+                let cfg = crate::cfg_builder::build_cfg_function_with_upvars_and_config(
                     qname,
                     &proc.body,
                     true,
                     upvar_procs.clone(),
                     proc_params.clone(),
                     global_write_procs.clone(),
+                    tcl_lexer::LexerConfig::for_profile(registry.profile()),
                 );
                 // Same body-byte complexity guard as procs/methods: a huge
                 // generated lambda body contributes trivial lattices instead of
@@ -1721,7 +1773,7 @@ impl CompilationUnit {
                         qname,
                         cfg,
                         &proc.params,
-                        registry,
+                        UnitDialect { registry, config },
                         None,
                         known_class_set,
                         trace_facts,
@@ -1788,7 +1840,7 @@ impl CompilationUnit {
     pub fn with_interprocedural(
         mut self,
         registry: &CommandRegistry,
-        dialect: Option<&tcl_dialect::DialectProfile>,
+        dialect: Option<&'static tcl_dialect::DialectProfile>,
     ) -> Self {
         // Object-handle → class map (SSA/VTA-derived) so a `$g walk … -command
         // cb` instance-method callback becomes a call-graph / reachability edge.
@@ -1797,7 +1849,7 @@ impl CompilationUnit {
         // classifies a rebound head as the command it is (issue #1275).
         let identities = crate::realm::document_realm_bindings_with_config(
             &self.source,
-            tcl_lexer::LexerConfig::for_dialect(dialect.map_or("", |profile| profile.name)),
+            tcl_lexer::LexerConfig::for_profile(dialect),
             registry,
         );
         let interproc = crate::interprocedural::build_interprocedural_analysis(
@@ -1864,7 +1916,7 @@ impl CompilationUnit {
     pub fn with_interprocedural_memoized(
         mut self,
         registry: &CommandRegistry,
-        dialect: Option<&tcl_dialect::DialectProfile>,
+        dialect: Option<&'static tcl_dialect::DialectProfile>,
         taint_cb: &mut TaintCascadeCallback<'_>,
     ) -> Self {
         let object_types = crate::object_types::object_handle_classes(&self, registry);
@@ -1872,7 +1924,7 @@ impl CompilationUnit {
         // classifies a rebound head as the command it is (issue #1275).
         let identities = crate::realm::document_realm_bindings_with_config(
             &self.source,
-            tcl_lexer::LexerConfig::for_dialect(dialect.map_or("", |profile| profile.name)),
+            tcl_lexer::LexerConfig::for_profile(dialect),
             registry,
         );
         let interproc = crate::interprocedural::build_interprocedural_analysis(
@@ -3849,5 +3901,41 @@ mod smoke {
             !unit.top_level.cfg.blocks.is_empty(),
             "top-level script must lower to a non-empty CFG"
         );
+    }
+}
+
+/// The property the review found missing: a unit built for the *string*
+/// `"jim"` is built under Jim's grammar and hands codegen the name `jim` —
+/// not the permissive fallback's grammar and the name `tcl`, which is what
+/// every ingress produced before the projected profile existed, so the
+/// centralised resolution was never asked about Jim at all.
+#[cfg(test)]
+mod jim_ingress_tests {
+    use super::*;
+
+    #[test]
+    fn a_jim_unit_is_built_as_jim_end_to_end() {
+        let registry = CommandRegistry::build_default();
+        let unit = CompilationUnit::build_for_dialect("set x 1\n", &registry, false, "jim");
+        assert_eq!(
+            unit.ir_module.dialect.as_deref(),
+            Some("jim"),
+            "lowering hands codegen the document's own dialect name"
+        );
+        // (the unit does not expose its lexer config; the ingress test pins it)
+        // And codegen, resolving that name, lands on Jim's grammar.
+        let grammar = tcl_dialect::grammar_of_dialect_name(unit.ir_module.dialect.as_deref());
+        assert_eq!(grammar.numbers, tcl_dialect::NumberSyntax::Jim080);
+        assert_eq!(grammar.list_parse, tcl_dialect::ListParse::Lenient);
+    }
+
+    /// The alias spellings reach the same place.
+    #[test]
+    fn jim_aliases_build_the_same_unit() {
+        let registry = CommandRegistry::build_default();
+        for spelling in ["jimsh", "jimtcl"] {
+            let unit = CompilationUnit::build_for_dialect("set x 1\n", &registry, false, spelling);
+            assert_eq!(unit.ir_module.dialect.as_deref(), Some("jim"), "{spelling}");
+        }
     }
 }

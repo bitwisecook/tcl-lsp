@@ -25225,6 +25225,7 @@ fn document_auto_path_dirs(uri: &Uri, analysis: &AnalysisResult) -> Vec<PathBuf>
             entry,
             file_path.to_str(),
             &constants,
+            Some(tcl_lsp_core::profile_for_dialect(&analysis.dialect)),
         ) {
             if dirs.len() >= DOCUMENT_AUTO_PATH_DIR_CAP {
                 break;

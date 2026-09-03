@@ -133,7 +133,7 @@ use tcl_compiler::lambda_literal::split_lambda_literal_decoded;
 use tcl_compiler::ssa::Version;
 use tcl_compiler::taint::{TaintColour, TaintLattice};
 use tcl_compiler::{BinOp, ExprNode, UnaryOp, parse_expr_for_profile};
-use tcl_lexer::{Lexer, SourceMap, Span, Token, TokenType, close_quote_offset};
+use tcl_lexer::{Lexer, LexerConfig, SourceMap, Span, Token, TokenType, close_quote_offset};
 use tcl_registry::abbrev::{KeywordTable, PrefixMatching};
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
@@ -609,9 +609,9 @@ pub fn minify_tcl_aggressive_with(
     let (renamed, cmd_aliases) =
         alias_repeated_commands(&renamed, dialect, &mut claimed_names, registry);
     symbol_map.command_aliases = cmd_aliases;
-    let (renamed, arg_aliases) = alias_repeated_arguments(&renamed, &mut claimed_names);
+    let (renamed, arg_aliases) = alias_repeated_arguments(&renamed, dialect, &mut claimed_names);
     symbol_map.argument_aliases = arg_aliases;
-    let (renamed, str_aliases) = alias_string_literals(&renamed, &mut claimed_names);
+    let (renamed, str_aliases) = alias_string_literals(&renamed, dialect, &mut claimed_names);
     symbol_map.string_aliases = str_aliases;
 
     // Phase 2.8: emit unique-prefix keyword abbreviations.
@@ -718,7 +718,9 @@ fn minify_body(source: &str, env: MinifyEnv<'_>, depth: u32) -> String {
         return source.to_owned();
     }
     let sm = SourceMap::new(source);
-    let Ok(tokens) = Lexer::new(source).tokenise_all() else {
+    let Ok(tokens) =
+        Lexer::with_config(source, LexerConfig::for_profile(Some(dialect))).tokenise_all()
+    else {
         return source.to_owned();
     };
 
@@ -1697,7 +1699,9 @@ fn abbreviate_keywords(
     let later = later_core_registries(dialect);
     while let Some((text, base)) = stack.pop() {
         let sm = SourceMap::new(&text);
-        let Ok(tokens) = Lexer::new(&text).tokenise_all() else {
+        let Ok(tokens) =
+            Lexer::with_config(&text, LexerConfig::for_profile(Some(dialect))).tokenise_all()
+        else {
             continue;
         };
         for command in command_word_runs(&sm, &tokens) {
@@ -1947,6 +1951,7 @@ fn shortest_spelling(
 /// Phase 2.6: alias repeated literal arguments (`-normalized` → `$a`).
 fn alias_repeated_arguments(
     source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     claimed: &mut HashSet<String>,
 ) -> (String, BTreeMap<String, String>) {
     let mut order: Vec<String> = Vec::new();
@@ -1954,7 +1959,9 @@ fn alias_repeated_arguments(
     let mut stack: Vec<(String, u32)> = vec![(source.to_owned(), 0)];
     while let Some((text, base)) = stack.pop() {
         let sm = SourceMap::new(&text);
-        let Ok(tokens) = Lexer::new(&text).tokenise_all() else {
+        let Ok(tokens) =
+            Lexer::with_config(&text, LexerConfig::for_profile(Some(dialect))).tokenise_all()
+        else {
             continue;
         };
         let mut is_command_word = true;
@@ -2062,8 +2069,11 @@ fn build_lcp_array(text: &[u8], sa: &[usize]) -> Vec<usize> {
 /// occurrences) across the quoted-string segments of `source`,
 /// returning `substring -> source byte offsets`.  Steps 1–5 of
 /// `_alias_string_literals`.
-fn string_alias_candidates(source: &str) -> BTreeMap<Vec<u8>, Vec<usize>> {
-    let segments = collect_string_literals(source);
+fn string_alias_candidates(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+) -> BTreeMap<Vec<u8>, Vec<usize>> {
+    let segments = collect_string_literals(source, dialect);
     if segments.is_empty() {
         return BTreeMap::new();
     }
@@ -2130,9 +2140,10 @@ fn string_alias_candidates(source: &str) -> BTreeMap<Vec<u8>, Vec<usize>> {
 /// strings. (+ `_collect_string_literals`).
 fn alias_string_literals(
     source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     claimed: &mut HashSet<String>,
 ) -> (String, BTreeMap<String, String>) {
-    let occ = string_alias_candidates(source);
+    let occ = string_alias_candidates(source, dialect);
     if occ.is_empty() {
         return (source.to_owned(), BTreeMap::new());
     }
@@ -2223,12 +2234,17 @@ fn alias_string_literals(
 /// Collect `(abs_offset, text)` of `ESC` segments inside
 /// double-quoted strings, descending into braced / command-subst
 /// tokens.
-fn collect_string_literals(top_source: &str) -> Vec<(usize, String)> {
+fn collect_string_literals(
+    top_source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+) -> Vec<(usize, String)> {
     let mut segments: Vec<(usize, String)> = Vec::new();
     let mut stack: Vec<(String, u32)> = vec![(top_source.to_owned(), 0)];
     while let Some((text, base)) = stack.pop() {
         let sm = SourceMap::new(&text);
-        let Ok(tokens) = Lexer::new(&text).tokenise_all() else {
+        let Ok(tokens) =
+            Lexer::with_config(&text, LexerConfig::for_profile(Some(dialect))).tokenise_all()
+        else {
             continue;
         };
         let mut is_command_word = true;
@@ -2977,6 +2993,7 @@ fn reconstruct_raw(
             format!("${name}")
         }
         TokenType::Expand => "{*}".to_owned(),
+        TokenType::ExprSugar => format!("$({})", sm.token_text(tok)),
         _ => sm.token_text(tok).to_owned(),
     }
 }

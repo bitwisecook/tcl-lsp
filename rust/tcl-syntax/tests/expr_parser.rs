@@ -326,15 +326,36 @@ fn malformed_expression_is_raw() {
 
 #[test]
 fn vars_extraction() {
-    assert_eq!(p("$x").vars().into_iter().collect::<Vec<_>>(), ["x"]);
-    let mut v: Vec<String> = p("$a + $b * $c").vars().into_iter().collect();
+    assert_eq!(
+        p("$x")
+            .vars_with_grammar(tcl_dialect::LexerGrammar::default())
+            .into_iter()
+            .collect::<Vec<_>>(),
+        ["x"]
+    );
+    let mut v: Vec<String> = p("$a + $b * $c")
+        .vars_with_grammar(tcl_dialect::LexerGrammar::default())
+        .into_iter()
+        .collect();
     v.sort();
     assert_eq!(v, ["a", "b", "c"]);
-    assert!(p("1 + 2").vars().is_empty());
+    assert!(
+        p("1 + 2")
+            .vars_with_grammar(tcl_dialect::LexerGrammar::default())
+            .is_empty()
+    );
     // A repeated var appears once (set semantics).
-    assert_eq!(p("$x + $x").vars().len(), 1);
+    assert_eq!(
+        p("$x + $x")
+            .vars_with_grammar(tcl_dialect::LexerGrammar::default())
+            .len(),
+        1
+    );
     // Ternary and function args contribute their vars.
-    let mut tv: Vec<String> = p("$a ? $b : $c").vars().into_iter().collect();
+    let mut tv: Vec<String> = p("$a ? $b : $c")
+        .vars_with_grammar(tcl_dialect::LexerGrammar::default())
+        .into_iter()
+        .collect();
     tv.sort();
     assert_eq!(tv, ["a", "b", "c"]);
 }

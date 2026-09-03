@@ -180,7 +180,10 @@ impl Analyser {
                     let trimmed = value.trim();
                     let mut class_qn = None;
                     if let Some((head, args)) =
-                        crate::value_shapes::parse_command_substitution(trimmed)
+                        crate::value_shapes::parse_command_substitution_with_config(
+                            trimmed,
+                            self.lexer_config(),
+                        )
                         && let Some(manufacturer_word) = args.first()
                     {
                         // The constructor call must still be live at this
@@ -256,8 +259,12 @@ impl Analyser {
             return None;
         }
         let value_start = tokens?.argv.get(2)?.start();
-        let contributors =
-            crate::value_provenance::const_contributors(fu, value_start + offset, &class_var)?;
+        let contributors = crate::value_provenance::const_contributors(
+            fu,
+            value_start + offset,
+            &class_var,
+            self.lexer_config(),
+        )?;
         let mut resolved: Option<String> = None;
         for c in &contributors {
             let v = c.value.trim();
@@ -1213,6 +1220,7 @@ impl Analyser {
                 &is_object_returning_head,
                 &is_user_proc,
                 &mut maps,
+                self.lexer_config(),
             );
         }
         let FactoryMaps {
@@ -1302,7 +1310,7 @@ impl Analyser {
 
         // Aggregate constant-string knowledge (var name → flat CONST/CONSTSET
         // value set) across every function in the CompilationUnit.
-        let all_constsets = aggregate_constsets(cu);
+        let all_constsets = aggregate_constsets(cu, self.word_rules());
 
         // Build the "known commands" universe — registry + user procs + class
         // tail names.
@@ -1984,6 +1992,7 @@ impl Analyser {
                         .is_some_and(|grammar| grammar.manufacturer(word).is_some())
                 })
         };
+        let config = self.lexer_config();
         let mut diags: Vec<super::types::Diagnostic> = Vec::new();
         let mut flag = |span: tcl_lexer::Span, class: &str| {
             diags.push(crate::analyser::types::Diagnostic::new(
@@ -2018,7 +2027,10 @@ impl Analyser {
                         // `set o [Foo new …]`
                         Statement::AssignValue { value, span, .. } => {
                             if let Some((head, cargs)) =
-                                crate::value_shapes::parse_command_substitution(value.trim())
+                                crate::value_shapes::parse_command_substitution_with_config(
+                                    value.trim(),
+                                    config,
+                                )
                                 && is_forbidden_manufacturer(&head, cargs.first())
                             {
                                 flag(*span, &head);
@@ -2677,6 +2689,7 @@ fn harvest_array_element_set_constants(
 fn harvest_array_set_constants(
     cu: &crate::compilation_unit::CompilationUnit,
     out: &mut HashMap<String, HashSet<String>>,
+    rules: tcl_syntax::word_rules::WordValueRules,
 ) {
     use crate::ir::Statement;
     let units = std::iter::once(&cu.top_level).chain(cu.procedures.values());
@@ -2694,7 +2707,7 @@ fn harvest_array_set_constants(
                     continue;
                 }
                 let arr_name = &args[1];
-                let items = crate::tcl_expr_eval::split_tcl_list(&args[2]);
+                let items = crate::tcl_expr_eval::split_tcl_list(&args[2], rules);
                 if !items.len().is_multiple_of(2) {
                     continue;
                 }
@@ -2715,6 +2728,7 @@ fn harvest_array_set_constants(
 fn harvest_dict_with_constants(
     cu: &crate::compilation_unit::CompilationUnit,
     out: &mut HashMap<String, HashSet<String>>,
+    rules: tcl_syntax::word_rules::WordValueRules,
 ) {
     use crate::ir::Statement;
     let units = std::iter::once(&cu.top_level).chain(cu.procedures.values());
@@ -2744,7 +2758,7 @@ fn harvest_dict_with_constants(
                 else {
                     continue;
                 };
-                let items = crate::tcl_expr_eval::split_tcl_list(dict_text);
+                let items = crate::tcl_expr_eval::split_tcl_list(dict_text, rules);
                 if !items.len().is_multiple_of(2) {
                     continue;
                 }
@@ -2825,6 +2839,7 @@ fn build_tainted_by_scope(
 /// by the W307 non-literal-command-name check.
 fn aggregate_constsets(
     cu: &crate::compilation_unit::CompilationUnit,
+    rules: tcl_syntax::word_rules::WordValueRules,
 ) -> std::collections::HashMap<String, HashSet<String>> {
     let mut all_constsets: std::collections::HashMap<String, HashSet<String>> =
         std::collections::HashMap::new();
@@ -2852,9 +2867,9 @@ fn aggregate_constsets(
         collect_from(fu, &mut all_constsets);
     }
 
-    harvest_array_set_constants(cu, &mut all_constsets);
+    harvest_array_set_constants(cu, &mut all_constsets, rules);
     harvest_array_element_set_constants(cu, &mut all_constsets);
-    harvest_dict_with_constants(cu, &mut all_constsets);
+    harvest_dict_with_constants(cu, &mut all_constsets, rules);
     all_constsets
 }
 
@@ -2881,6 +2896,7 @@ fn seed_factory_maps(
     is_object_returning_head: &impl Fn(&str) -> bool,
     is_user_proc: &impl Fn(&str) -> bool,
     maps: &mut FactoryMaps,
+    config: tcl_lexer::LexerConfig,
 ) {
     use crate::ir::Statement;
     let mut names = HashSet::new();
@@ -2890,7 +2906,8 @@ fn seed_factory_maps(
             let Statement::AssignValue { name, value, .. } = stmt else {
                 continue;
             };
-            let Some((head, _)) = crate::value_shapes::parse_command_substitution(value.trim())
+            let Some((head, _)) =
+                crate::value_shapes::parse_command_substitution_with_config(value.trim(), config)
             else {
                 continue;
             };
@@ -2910,7 +2927,7 @@ fn seed_factory_maps(
     let rvs = return_values_of(&fu.cfg);
     if !rvs.is_empty()
         && rvs.iter().all(|rv| {
-            crate::value_shapes::parse_command_substitution(rv.trim())
+            crate::value_shapes::parse_command_substitution_with_config(rv.trim(), config)
                 .is_some_and(|(head, _)| is_object_returning_head(&head))
         })
     {

@@ -56,8 +56,10 @@ pub use expr_number::{
     scan_expr_number, scan_nan_payload,
 };
 pub use grammar::{
-    ArrayIndexSyntax, BraceLineContinuation, BracedVarStyle, EXPR_WORD_OPERATORS, EscapeSyntax,
-    ExprCommentStyle, LexerGrammar, NumberSyntax, expr_word_operator_since, is_expr_word_operator,
+    ArrayIndexSyntax, BraceBackslashNewline, BraceLineContinuation, BracedVarStyle,
+    EXPR_WORD_OPERATORS, EscapeSyntax, ExprCommentStyle, LexerGrammar, ListParse, NumberSyntax,
+    QuoteTermination, VarSyntax, WordSeparators, expr_word_operator_since, grammar_of_dialect_name,
+    is_expr_word_operator,
 };
 pub use library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
 pub use profile::{DialectFileExtension, DialectProfile};

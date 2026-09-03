@@ -30,8 +30,8 @@
 //! axis.
 
 use crate::grammar::{
-    BraceLineContinuation, BracedVarStyle, EscapeSyntax, ExprCommentStyle, LexerGrammar,
-    NumberSyntax,
+    BraceBackslashNewline, BraceLineContinuation, BracedVarStyle, EscapeSyntax, ExprCommentStyle,
+    LexerGrammar, ListParse, NumberSyntax, QuoteTermination, VarSyntax, WordSeparators,
 };
 use crate::library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
 use crate::model::{Family, SpecProvider, SurfaceLayer, SurfaceQuery};
@@ -85,6 +85,11 @@ const GRAMMAR_TCL84: LexerGrammar = LexerGrammar {
     expr_comments: ExprCommentStyle::None,
     numbers: NumberSyntax::Tcl84,
     escapes: EscapeSyntax::Tcl84,
+    word_separators: WordSeparators::Tcl,
+    brace_backslash_newline: BraceBackslashNewline::Folds,
+    quote_termination: QuoteTermination::Strict,
+    var_syntax: VarSyntax::Tcl,
+    list_parse: ListParse::Strict,
 };
 
 /// The Tcl 8.5 lexing grammar (plain 8.5, iApps, tmsh, the 8.5-based EDA
@@ -100,6 +105,11 @@ const GRAMMAR_TCL85: LexerGrammar = LexerGrammar {
     expr_comments: ExprCommentStyle::None,
     numbers: NumberSyntax::Tcl85,
     escapes: EscapeSyntax::Tcl84,
+    word_separators: WordSeparators::Tcl,
+    brace_backslash_newline: BraceBackslashNewline::Folds,
+    quote_termination: QuoteTermination::Strict,
+    var_syntax: VarSyntax::Tcl,
+    list_parse: ListParse::Strict,
 };
 
 /// The Tcl 8.6 lexing grammar (plain 8.6, Expect, the 8.6-based EDA shells):
@@ -122,6 +132,11 @@ const GRAMMAR_TCL9X: LexerGrammar = LexerGrammar {
     expr_comments: ExprCommentStyle::Hash,
     numbers: NumberSyntax::Tcl90,
     escapes: EscapeSyntax::Tcl90,
+    word_separators: WordSeparators::Tcl,
+    brace_backslash_newline: BraceBackslashNewline::Folds,
+    quote_termination: QuoteTermination::Strict,
+    var_syntax: VarSyntax::Tcl,
+    list_parse: ListParse::Strict,
 };
 
 /// The `f5-tcl` **trunk** lexing grammar: a Tcl 8.4 base (no `{*}`, no
@@ -144,6 +159,11 @@ const GRAMMAR_F5_TCL: LexerGrammar = LexerGrammar {
     expr_comments: ExprCommentStyle::None,
     numbers: NumberSyntax::Tcl84,
     escapes: EscapeSyntax::Tcl84,
+    word_separators: WordSeparators::Tcl,
+    brace_backslash_newline: BraceBackslashNewline::Folds,
+    quote_termination: QuoteTermination::Strict,
+    var_syntax: VarSyntax::Tcl,
+    list_parse: ListParse::Strict,
 };
 
 /// One filename extension a dialect owns, with its human-facing name —
@@ -1285,7 +1305,31 @@ static PLAIN_TCL: DialectProfile = DialectProfile {
     help_terms: &[],
 };
 
-/// Set-only `tk` ingress: modern Tcl behaviour, plus Tk in the point.
+/// The `TclVersion` a Tcl-family release is, and `None` for every other
+/// family — Jim and the F5 forks have no `TclVersion`, exactly as the
+/// permissive fallback has none.
+fn tcl_version_of(release: crate::model::Release) -> Option<TclVersion> {
+    crate::model::DialectPoint::tcl_version_of_release(release)
+}
+
+/// The one-provider grammar union of a family's own core.
+const fn core_provider(family: Family) -> &'static [SpecProvider] {
+    match family {
+        Family::Tcl => &[SpecProvider::Core(Family::Tcl)],
+        Family::F5Tcl => &[SpecProvider::Core(Family::F5Tcl)],
+        Family::F5Irules => &[SpecProvider::Core(Family::F5Irules)],
+        Family::Jim => &[SpecProvider::Core(Family::Jim)],
+    }
+}
+
+/// Set-only `tk` ingress: Tcl **8.6** behaviour, plus Tk in the point.
+///
+/// The grammar is the `tk` environment's core (`Release::TCL_8_6`), the
+/// same release its library pins (`LIBS_TCL86_PLUS`) and its version gating
+/// already answer for. It used to say 9.x while everything else about the
+/// row said 8.6, which the centralised resolution then exposed as the lexer
+/// and codegen disagreeing about one document; the agreement test in
+/// `grammar.rs` now includes this row so the two cannot drift again.
 /// This is deliberately not part of [`DialectProfile::all`] or
 /// [`DialectProfile::find`].
 static TK_PROFILE: DialectProfile = DialectProfile {
@@ -1305,16 +1349,70 @@ static TK_PROFILE: DialectProfile = DialectProfile {
     runtime_base: None,
     leading_zero_is_octal: Ternary::Inert,
     expr_grammar_base: None,
-    grammar: GRAMMAR_TCL9X,
+    grammar: GRAMMAR_TCL86,
     operators_as_commands: true,
     tcloo: true,
     has_fixed_ensembles: false,
-    vm_runtime_version: TclVersion::V9_0,
+    vm_runtime_version: TclVersion::V8_6,
     libraries: LIBS_TCL86_PLUS,
     help_terms: &["tk"],
 };
 
 impl DialectProfile {
+    /// A profile **projected from a resolved point** — the interop handed to
+    /// consumers that still carry `&'static DialectProfile` for an
+    /// environment the catalogue has no row for.
+    ///
+    /// `jim` is such an environment, deliberately: P6 made a grammar a
+    /// function of `(family, release, build)`, so an environment names its
+    /// family and ladder rather than owning a resolved-grammar row. But the
+    /// compiler, the analyser, every LSP provider and the VM still thread a
+    /// `&'static DialectProfile`, and until this existed the ingress could
+    /// only hand them the permissive fallback — so a `jim` document was
+    /// lexed, lowered, analysed and compiled as Tcl 9.0 end to end, and the
+    /// centralised grammar resolution was never actually asked about it.
+    ///
+    /// Identity (name, aliases, display name) is the environment's; the
+    /// grammar and the version bases are the point's; every *policy* field
+    /// keeps the permissive fallback's value, which is exactly what such an
+    /// environment received before. Nothing downstream gains a new opinion
+    /// — it gains the right grammar, under the right name, so a consumer
+    /// that later resolves by `profile.name` reaches the same point.
+    #[must_use]
+    pub fn projected_from_point(
+        name: &'static str,
+        aliases: &'static [&'static str],
+        display_name: &'static str,
+        point: crate::model::DialectPoint,
+    ) -> Self {
+        let tcl_version = tcl_version_of(point.release());
+        Self {
+            name,
+            aliases,
+            display_name,
+            short_name: display_name,
+            editor_language_id: None,
+            filenames: &[],
+            file_extensions: &[],
+            vendor_surface: None,
+            surface_packages: &[],
+            base_layers: &[],
+            grammar_union: core_provider(point.family()),
+            version_ceiling: None,
+            signature_base: None,
+            runtime_base: tcl_version,
+            leading_zero_is_octal: Ternary::Inert,
+            expr_grammar_base: tcl_version,
+            grammar: point.grammar(),
+            operators_as_commands: PLAIN_TCL.operators_as_commands,
+            tcloo: PLAIN_TCL.tcloo,
+            has_fixed_ensembles: PLAIN_TCL.has_fixed_ensembles,
+            vm_runtime_version: tcl_version.unwrap_or(PLAIN_TCL.vm_runtime_version),
+            libraries: &[],
+            help_terms: &[],
+        }
+    }
+
     /// Whether `name` denotes the F5 iRules dialect — resolved through the
     /// profile catalogue, so the canonical `f5-irules` and every registered
     /// alias (`irules`, `tcl-irule`) agree with the profile predicates by

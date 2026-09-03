@@ -474,7 +474,11 @@ fn guard_constraint(
 /// each `Branch` block, the names in its condition resolved against the
 /// block's exit version of each.
 #[must_use]
-pub fn build_guard_index(cfg: &CfgFunction, ssa: &SsaFunction) -> HashMap<ValueKey, Vec<BlockId>> {
+pub fn build_guard_index(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    grammar: tcl_dialect::LexerGrammar,
+) -> HashMap<ValueKey, Vec<BlockId>> {
     let mut index: HashMap<ValueKey, Vec<BlockId>> = HashMap::new();
     for (dn, dblock) in &cfg.blocks {
         let Some(Terminator::Branch { condition, .. }) = &dblock.terminator else {
@@ -483,7 +487,7 @@ pub fn build_guard_index(cfg: &CfgFunction, ssa: &SsaFunction) -> HashMap<ValueK
         let Some(sb) = ssa.blocks.get(dn) else {
             continue;
         };
-        for name in condition.vars() {
+        for name in condition.vars_with_grammar(grammar) {
             // `name` is a raw IR scan; only an interned SSA variable can carry
             // a guard fact (an un-interned name is not a tracked value).
             let Some(sym) = ssa.var_symbol(&name) else {
@@ -693,10 +697,8 @@ fn loop_headers(cfg: &CfgFunction, ssa: &SsaFunction) -> HashSet<BlockId> {
 /// profile, whose grammar is `Tcl90`: the same default
 /// [`crate::codegen::CodegenCtx::numbers`] takes for its hand-built contexts.
 #[must_use]
-pub fn numbers_for_dialect(dialect: Option<&tcl_dialect::DialectProfile>) -> NumberSyntax {
-    dialect.map_or(tcl_dialect::NumberSyntax::Tcl90, |profile| {
-        profile.grammar.numbers
-    })
+pub fn numbers_for_dialect(dialect: Option<&'static tcl_dialect::DialectProfile>) -> NumberSyntax {
+    tcl_dialect::NumberSyntax::of_profile(dialect)
 }
 
 /// [`compute_intervals_with`] under the Tcl 9.0 numeral grammar.

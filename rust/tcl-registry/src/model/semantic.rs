@@ -138,13 +138,21 @@ impl SemanticContext {
     /// The environment's runtime release, when its core names one — the
     /// premise the guarded-intrinsic selection reads.
     ///
-    /// Still projected through the interned catalogue profile: the runtime
-    /// base is a [`DialectProfile`] field with no environment-model twin yet
-    /// (redesign §11.2 D5's remaining boundary). The projection is id-keyed,
-    /// so it answers for exactly the environment this handle names.
+    /// Derived from the environment's own point
+    /// (`EnvironmentDefinition::point`), the same derivation the ingress and
+    /// the projected profile read, so a dialect with no catalogue row (`tk`,
+    /// whose core is 8.6) answers with its core rather than `None`, and a
+    /// non-Tcl family (`jim`) answers `None` because it has no rung on the
+    /// Tcl ladder. This closed redesign §11.2 D5's remaining boundary: the
+    /// runtime base no longer has to be looked up on a catalogue row, and
+    /// `the_point_names_the_catalogue_runtime_base` pins that the two agree
+    /// for every row that has one.
     #[must_use]
     pub fn runtime_version(self) -> Option<TclVersion> {
-        DialectProfile::find(self.environment_id()).and_then(DialectProfile::runtime_version)
+        super::ingress::environments()
+            .resolve(self.environment_id())
+            .and_then(|definition| definition.point())
+            .and_then(tcl_dialect::model::DialectPoint::tcl_version)
     }
 }
 

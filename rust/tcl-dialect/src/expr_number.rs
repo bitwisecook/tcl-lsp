@@ -110,6 +110,8 @@ pub fn scan_expr_number(
         || (first == b'.' && source.get(start + 1).is_some_and(u8::is_ascii_digit))
     {
         scan_digit_number(source, start, numbers, expr_grammar_base)
+    } else if matches!(numbers, NumberSyntax::Jim | NumberSyntax::Jim080) {
+        scan_jim_special_float(source, start, expr_grammar_base)?
     } else {
         scan_special_float(source, start, expr_grammar_base, true, true)?
     };
@@ -409,6 +411,43 @@ fn scan_tcl84_decimal(source: &[u8], start: usize) -> usize {
     end
 }
 
+/// `JimTcl`'s special-float spellings, which are a strict and differently
+/// cased subset of C Tcl's.
+///
+/// Jim's `JimParseExprNumber` recognises exactly `Inf`, `inf`, `INF`, `NaN`,
+/// `nan` and `NAN` — six literal spellings, not a case-insensitive match —
+/// and has no `Infinity` form and no `NaN(payload)` grammar at all.
+///
+/// | input | Jim | C Tcl 8.5+ |
+/// |---|---|---|
+/// | `Inf` | infinity | infinity |
+/// | `InF` | bareword | infinity |
+/// | `Infinity` | **syntax error** | infinity |
+/// | `NaN(1)` | **syntax error** | NaN with payload |
+///
+/// Measured on jimsh 0.84: `expr {Infinity}` is
+/// `syntax error in expression: "Infinity"` where tclsh 9.0 answers `Inf`.
+fn scan_jim_special_float(
+    source: &[u8],
+    start: usize,
+    expr_grammar_base: Option<TclVersion>,
+) -> Option<usize> {
+    const SPELLINGS: [&[u8]; 6] = [b"Inf", b"inf", b"INF", b"NaN", b"nan", b"NAN"];
+    let end = SPELLINGS.into_iter().find_map(|spelling| {
+        source
+            .get(start..start + spelling.len())
+            .is_some_and(|window| window == spelling)
+            .then_some(start + spelling.len())
+    })?;
+    if source
+        .get(end)
+        .is_some_and(|byte| is_expr_bareword_byte(*byte))
+    {
+        expr_binary_word_operator_at(source, end, expr_grammar_base)?;
+    }
+    Some(end)
+}
+
 fn scan_special_float(
     source: &[u8],
     start: usize,
@@ -616,6 +655,45 @@ mod tests {
         assert_eq!(scan("0b2ne 1", new.0, new.1), Some("0b2ne"));
     }
 
+    /// `JimTcl` accepts exactly six special-float spellings and has neither
+    /// `Infinity` nor a `NaN(payload)` grammar. Measured on interpreters
+    /// built from every tag 0.76-0.84.
+    #[test]
+    fn jim_special_floats_are_the_measured_subset() {
+        for (numbers, base) in [
+            (NumberSyntax::Jim, Some(TclVersion::V8_5)),
+            (NumberSyntax::Jim080, Some(TclVersion::V9_0)),
+        ] {
+            for accepted in ["Inf", "inf", "INF", "NaN", "nan", "NAN"] {
+                assert_eq!(scan(accepted, numbers, base), Some(accepted), "{accepted}");
+            }
+            // Arbitrary case is NOT accepted, where C Tcl's scan is fully
+            // case-insensitive.
+            for rejected in ["iNf", "nAn", "InF"] {
+                assert_eq!(scan(rejected, numbers, base), None, "{rejected}");
+            }
+            // No `Infinity` spelling: the scan stops after `Inf`, and the
+            // trailing `inity` is a bareword byte run with no word operator
+            // at its start, so there is no lexeme at all.
+            assert_eq!(scan("Infinity", numbers, base), None);
+            // No `NaN(payload)` grammar: the `(` simply ends the lexeme.
+            assert_eq!(scan("NaN(1)", numbers, base), Some("NaN"));
+            // The shared bareword-junction rule still applies.
+            assert_eq!(scan("Inf eq 1", numbers, base), Some("Inf"));
+            assert_eq!(scan("NaNx", numbers, base), None);
+        }
+        // `lt` is a word operator only from 0.80, so the junction after a
+        // special float follows the same release boundary as everywhere else.
+        assert_eq!(
+            scan("Inflt 1", NumberSyntax::Jim080, Some(TclVersion::V9_0)),
+            Some("Inf")
+        );
+        assert_eq!(
+            scan("Inflt 1", NumberSyntax::Jim, Some(TclVersion::V8_5)),
+            None
+        );
+    }
+
     /// Tcl's special floats are parsed case-insensitively. `Infinityeq` is
     /// `Infinity eq` (tclsh 8.6.17 / 9.0.3 return 0), while `Infinityx` is a
     /// bareword/function name rather than a numeric prefix. `TclParseNumber`'s
@@ -624,10 +702,17 @@ mod tests {
     #[test]
     fn special_floats_follow_numeric_junction_rules() {
         for syntax in NumberSyntax::ALL {
+            // JimTcl's special-float grammar is a different shape, not a
+            // point on this line — it is covered by
+            // `jim_special_floats_are_the_measured_subset` below.
+            if matches!(syntax, NumberSyntax::Jim | NumberSyntax::Jim080) {
+                continue;
+            }
             let base = match syntax {
                 NumberSyntax::Tcl84 => Some(TclVersion::V8_4),
                 NumberSyntax::Tcl85 => Some(TclVersion::V8_5),
                 NumberSyntax::Tcl90 => Some(TclVersion::V9_0),
+                NumberSyntax::Jim | NumberSyntax::Jim080 => unreachable!("skipped above"),
             };
             assert_eq!(scan("iNf", *syntax, base), Some("iNf"));
             let nan = if *syntax == NumberSyntax::Tcl84 {

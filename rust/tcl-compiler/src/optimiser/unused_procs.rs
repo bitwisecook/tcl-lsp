@@ -285,7 +285,7 @@ mod tests {
 
     fn run_pass(
         source: &str,
-        dialect: Option<&tcl_dialect::DialectProfile>,
+        dialect: Option<&'static tcl_dialect::DialectProfile>,
         ip: InterproceduralAnalysis,
     ) -> Vec<Optimisation> {
         // `when` (and any other dialect-gated structured command)

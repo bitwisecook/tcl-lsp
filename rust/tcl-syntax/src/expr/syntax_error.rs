@@ -209,9 +209,8 @@ impl ExprSyntaxError {
     /// Diagnose under an already-resolved dialect profile.
     #[must_use]
     pub fn diagnose_for_profile(source: &str, profile: Option<&DialectProfile>) -> Self {
-        let resolved = profile.map_or_else(DialectProfile::plain_tcl, |profile| {
-            DialectProfile::find(profile.name).unwrap_or_else(DialectProfile::plain_tcl)
-        });
+        // The profile handed in is the resolution (see `parse_expr_for_profile`).
+        let resolved = profile.unwrap_or_else(|| DialectProfile::plain_tcl());
         let (raw, has_unknown) = tcl_lexer::tokenise_expr_checked_for_profile(source, resolved);
         if has_unknown && let Some(error) = Self::first_invalid_character(source, &raw) {
             return error;

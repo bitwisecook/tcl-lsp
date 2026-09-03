@@ -243,7 +243,11 @@ impl CodegenCtx<'_> {
             return false;
         }
         // The body must be a straight-line sequence of simple commands.
-        let body_ir = crate::lowering::lower_to_ir(body_text, self.registry);
+        let body_ir = crate::lowering::lower_to_ir_with_config(
+            body_text,
+            self.registry,
+            tcl_lexer::LexerConfig::for_profile(self.registry.profile()),
+        );
         if !body_ir.procedures.is_empty()
             || !body_ir.methods.is_empty()
             || !is_straight_line_body(&body_ir.top_level, self.registry)
@@ -347,7 +351,11 @@ impl CodegenCtx<'_> {
         if !self.is_proc {
             return false;
         }
-        let body_ir = crate::lowering::lower_to_ir(body_text, self.registry);
+        let body_ir = crate::lowering::lower_to_ir_with_config(
+            body_text,
+            self.registry,
+            tcl_lexer::LexerConfig::for_profile(self.registry.profile()),
+        );
         if !body_ir.procedures.is_empty()
             || !body_ir.methods.is_empty()
             || body_ir.top_level.statements.is_empty()
@@ -482,7 +490,11 @@ impl CodegenCtx<'_> {
         if vars.iter().any(|v| is_qualified(v) || v.contains('(')) {
             return false;
         }
-        let body_ir = crate::lowering::lower_to_ir(body_text, self.registry);
+        let body_ir = crate::lowering::lower_to_ir_with_config(
+            body_text,
+            self.registry,
+            tcl_lexer::LexerConfig::for_profile(self.registry.profile()),
+        );
         if !body_ir.procedures.is_empty()
             || !body_ir.methods.is_empty()
             || body_ir.top_level.statements.is_empty()
@@ -582,7 +594,11 @@ impl CodegenCtx<'_> {
         if !self.is_proc || is_qualified(dict_var) || dict_var.contains('(') {
             return false;
         }
-        let body_ir = crate::lowering::lower_to_ir(body_text, self.registry);
+        let body_ir = crate::lowering::lower_to_ir_with_config(
+            body_text,
+            self.registry,
+            tcl_lexer::LexerConfig::for_profile(self.registry.profile()),
+        );
         if !body_ir.procedures.is_empty()
             || !body_ir.methods.is_empty()
             || body_ir.top_level.statements.is_empty()
@@ -825,7 +841,7 @@ impl CodegenCtx<'_> {
                 let expr_text = &body_args[0].0;
                 // Parsed under the compile's dialect, as lowering parses a
                 // statement-position `expr` (issue #1435).
-                let node = crate::expr_parser::parse_expr_for_profile(expr_text, self.dialect);
+                let node = self.parse_compile_expr(expr_text);
                 if let Some((msg, opts)) = detect_const_expr_error(&node) {
                     self.push_lit(&msg);
                     self.push_lit(&opts);

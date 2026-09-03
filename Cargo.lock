@@ -4363,6 +4363,7 @@ dependencies = [
  "tcl-bytecode",
  "tcl-compiler",
  "tcl-dialect",
+ "tcl-lexer",
  "tcl-registry",
  "tcl-vm",
  "wasmtime",

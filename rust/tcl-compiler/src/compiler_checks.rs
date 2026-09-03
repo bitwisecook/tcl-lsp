@@ -256,7 +256,7 @@ fn shift(fu: &FunctionUnit, mut d: Diagnostic) -> Diagnostic {
 pub fn run_all_checks(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Vec<Diagnostic> {
     run_all_checks_with_generic_patterns(cu, registry, dialect, None)
 }
@@ -269,7 +269,7 @@ pub fn run_all_checks(
 pub fn run_all_checks_with_generic_patterns(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     generic_patterns: Option<&[String]>,
 ) -> Vec<Diagnostic> {
     let solved = crate::taint_interproc::solve_interprocedural_taints(cu, registry, dialect);
@@ -283,7 +283,7 @@ pub fn run_all_checks_with_generic_patterns(
 pub fn run_all_checks_with_solved(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     solved: &crate::taint_interproc::InterprocTaintResult,
 ) -> Vec<Diagnostic> {
     run_all_checks_with_solved_and_patterns(cu, registry, dialect, solved, None)
@@ -295,7 +295,7 @@ pub fn run_all_checks_with_solved(
 pub fn run_all_checks_with_solved_and_patterns(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     solved: &crate::taint_interproc::InterprocTaintResult,
     generic_patterns: Option<&[String]>,
 ) -> Vec<Diagnostic> {
@@ -348,7 +348,7 @@ pub fn run_all_checks_with_solved_and_patterns(
 pub fn function_nontaint_checks<S: std::hash::BuildHasher>(
     fu: &FunctionUnit,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     instance_vars: Option<&std::collections::HashSet<String, S>>,
 ) -> Vec<Diagnostic> {
     let mut out: Vec<Diagnostic> = Vec::new();
@@ -384,7 +384,7 @@ pub fn function_nontaint_checks<S: std::hash::BuildHasher>(
 pub fn shimmer_family_checks<S: std::hash::BuildHasher>(
     fu: &FunctionUnit,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     instance_vars: Option<&std::collections::HashSet<String, S>>,
 ) -> Vec<Diagnostic> {
     let mut out: Vec<Diagnostic> = Vec::new();
@@ -443,7 +443,7 @@ pub fn shimmer_family_checks<S: std::hash::BuildHasher>(
 pub fn push_taint_and_module_checks(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     solved: &crate::taint_interproc::InterprocTaintResult,
     generic_patterns: Option<&[String]>,
     out: &mut Vec<Diagnostic>,
@@ -521,6 +521,7 @@ pub fn push_taint_and_module_checks(
             &fu.rendered_props,
             &taints,
             &fu.sccp.executable_blocks,
+            tcl_lexer::LexerConfig::for_profile(dialect),
         ) {
             out.push(shift(fu, Diagnostic::from_path_concat(&w)));
         }
@@ -559,7 +560,7 @@ pub fn push_taint_and_module_checks(
 fn push_irules_flow_checks(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     generic_patterns: Option<&[String]>,
     out: &mut Vec<Diagnostic>,
 ) {

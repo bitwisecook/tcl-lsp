@@ -34,9 +34,11 @@ use crate::cfg::{Function, Terminator};
 use crate::ir::{CommandTokens, Statement};
 use crate::naming::{normalise_qualified_name, normalise_var_name};
 use crate::place::{self, Place, PlaceKind, overlap, places_read_to_form};
-use crate::segmenter::segment_commands;
+use crate::segmenter::segment_commands_with_offset_and_config;
 use crate::ssa::structural_body_indices;
-use crate::var_refs::{command_subst_texts, scan_var_ref_forms, vars_in_expr};
+use crate::var_refs::{
+    command_subst_texts_with_config, scan_var_ref_forms_with_config, vars_in_expr,
+};
 use crate::var_resolve::{ResolveContext, resolve_place};
 use crate::var_scoping::{
     global_declaration_indices, upvar_local_declaration_indices, variable_declaration_indices,
@@ -240,7 +242,13 @@ fn command_reads(
     out: &mut Vec<Place>,
     registry: &CommandRegistry,
 ) {
-    for cmd in segment_commands(script_text) {
+    // The registry carries the environment's profile, so the embedded script
+    // is segmented under the document's own grammar.
+    for cmd in segment_commands_with_offset_and_config(
+        script_text,
+        0,
+        tcl_lexer::LexerConfig::for_profile(registry.profile()),
+    ) {
         let name = cmd.name();
         if name.is_empty() {
             continue;
@@ -273,12 +281,15 @@ fn word_reads(text: &str, ctx: &ResolveContext, out: &mut Vec<Place>, registry: 
     if text.is_empty() {
         return;
     }
+    // The registry carries the environment's profile, so the `$`/`[…]`
+    // boundaries this word is read at are the document's own.
+    let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
     if text.contains('$') {
-        for r in scan_var_ref_forms(text) {
+        for r in scan_var_ref_forms_with_config(text, config) {
             out.push(resolve_place(&r, ctx, false, registry));
         }
     }
-    for inner in command_subst_texts(text) {
+    for inner in command_subst_texts_with_config(text, config) {
         command_reads(&inner, ctx, out, registry);
     }
 }
@@ -296,6 +307,9 @@ pub fn read_places(
     registry: &CommandRegistry,
 ) -> Vec<Place> {
     let mut out: Vec<Place> = Vec::new();
+    let grammar = registry
+        .profile()
+        .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar);
 
     match stmt {
         Statement::AssignValue { value, .. } => word_reads(value, ctx, &mut out, registry),
@@ -307,7 +321,7 @@ pub fn read_places(
             }
         }
         Statement::AssignExpr { expr, .. } | Statement::ExprEval { expr, .. } => {
-            for nm in vars_in_expr(expr) {
+            for nm in vars_in_expr(expr, grammar) {
                 out.push(resolve_place(&nm, ctx, false, registry));
             }
             for cmd_text in expr.command_texts() {
@@ -319,7 +333,7 @@ pub fn read_places(
                 word_reads(v, ctx, &mut out, registry);
             }
             if let Some(e) = expr {
-                for nm in vars_in_expr(e) {
+                for nm in vars_in_expr(e, grammar) {
                     out.push(resolve_place(&nm, ctx, false, registry));
                 }
             }
@@ -418,9 +432,12 @@ pub fn terminator_read_places(
     registry: &CommandRegistry,
 ) -> Vec<Place> {
     let mut out: Vec<Place> = Vec::new();
+    let grammar = registry
+        .profile()
+        .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar);
     match term {
         Terminator::Branch { condition, .. } => {
-            for nm in vars_in_expr(condition) {
+            for nm in vars_in_expr(condition, grammar) {
                 out.push(resolve_place(&nm, ctx, false, registry));
             }
             for cmd_text in condition.command_texts() {
@@ -439,7 +456,7 @@ pub fn terminator_read_places(
                     word_reads(v, ctx, &mut out, registry);
                 }
                 if let Some(e) = expr {
-                    for nm in vars_in_expr(e) {
+                    for nm in vars_in_expr(e, grammar) {
                         out.push(resolve_place(&nm, ctx, false, registry));
                     }
                     for cmd_text in e.command_texts() {

@@ -160,7 +160,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
 fn statement_may_have_untracked_effects(
     stmt: &Statement,
     registry: &tcl_registry::CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     traced: &std::collections::BTreeSet<String>,
     has_dynamic_trace: bool,
 ) -> bool {
@@ -1587,7 +1587,13 @@ fn evaluate_proc_with_constants(
             has_dynamic_variable_trace,
         },
     );
-    resolve_return_constant(callee, &result, policy)
+    resolve_return_constant(
+        callee,
+        &result,
+        policy,
+        ctx.dialect
+            .map_or_else(tcl_dialect::LexerGrammar::default, |p| p.grammar),
+    )
 }
 
 /// Bind each of `params` to its constant call argument for the
@@ -1666,6 +1672,7 @@ fn resolve_return_constant(
     fu: &FunctionUnit,
     result: &crate::sccp::SccpResult,
     policy: FoldPolicy,
+    grammar: tcl_dialect::LexerGrammar,
 ) -> Option<ConstValue> {
     use crate::cfg::Terminator;
     let preds = fu.cfg.predecessors();
@@ -1675,10 +1682,16 @@ fn resolve_return_constant(
             continue;
         }
         let folded = match &block.terminator {
-            Some(Terminator::Return { value, expr, .. }) => {
-                fold_return_under_lattice(fu, *bn, value.as_deref(), expr.as_ref(), result, policy)?
-            }
-            None => resolve_fallthrough_value(fu, *bn, result, &preds, policy)?,
+            Some(Terminator::Return { value, expr, .. }) => fold_return_under_lattice(
+                fu,
+                *bn,
+                value.as_deref(),
+                expr.as_ref(),
+                result,
+                policy,
+                grammar,
+            )?,
+            None => resolve_fallthrough_value(fu, *bn, result, &preds, policy, grammar)?,
             Some(_) => continue, // Goto / Branch — not an exit point
         };
         match &found {
@@ -1720,6 +1733,7 @@ fn resolve_fallthrough_value(
         std::collections::HashSet<crate::cfg::BlockId>,
     >,
     policy: FoldPolicy,
+    grammar: tcl_dialect::LexerGrammar,
 ) -> Option<ConstValue> {
     let mut executable_preds = preds
         .get(&bn)
@@ -1732,7 +1746,7 @@ fn resolve_fallthrough_value(
     }
     let block = fu.cfg.blocks.get(pred)?;
     let last = block.statements.last()?;
-    fold_tail_statement_under_lattice(fu, *pred, last, result, policy)
+    fold_tail_statement_under_lattice(fu, *pred, last, result, policy, grammar)
 }
 
 /// Resolve the value Tcl's "result of the last executed command" rule
@@ -1750,9 +1764,12 @@ fn fold_tail_statement_under_lattice(
     stmt: &Statement,
     result: &crate::sccp::SccpResult,
     policy: FoldPolicy,
+    grammar: tcl_dialect::LexerGrammar,
 ) -> Option<ConstValue> {
     match stmt {
-        Statement::ExprEval { expr, .. } => fold_expr_under_lattice(fu, bn, expr, result, policy),
+        Statement::ExprEval { expr, .. } => {
+            fold_expr_under_lattice(fu, bn, expr, result, policy, grammar)
+        }
         Statement::AssignConst { name, .. }
         | Statement::AssignExpr { name, .. }
         | Statement::AssignValue { name, .. }
@@ -1771,6 +1788,7 @@ fn fold_return_under_lattice(
     expr: Option<&crate::expr_ast::ExprNode>,
     result: &crate::sccp::SccpResult,
     policy: FoldPolicy,
+    grammar: tcl_dialect::LexerGrammar,
 ) -> Option<ConstValue> {
     let value = value?.trim();
 
@@ -1785,7 +1803,7 @@ fn fold_return_under_lattice(
     }
 
     // Path 3 — `return [expr {…}]`.
-    fold_expr_under_lattice(fu, bn, expr?, result, policy)
+    fold_expr_under_lattice(fu, bn, expr?, result, policy, grammar)
 }
 
 /// Resolve a simple `$name` variable reference to its SCCP-proved constant
@@ -1846,12 +1864,13 @@ fn fold_expr_under_lattice(
     expr: &crate::expr_ast::ExprNode,
     result: &crate::sccp::SccpResult,
     policy: FoldPolicy,
+    grammar: tcl_dialect::LexerGrammar,
 ) -> Option<ConstValue> {
     use crate::tcl_expr_eval::{Env, eval_tcl_expr_with_policy};
 
     let mut env: Env = Env::new();
     if let Some(ssa_block) = fu.ssa.blocks.get(&bn) {
-        for name in crate::var_refs::vars_in_expr(expr) {
+        for name in crate::var_refs::vars_in_expr(expr, grammar) {
             let Some(sym) = fu.ssa.var_symbol(&name) else {
                 continue;
             };
@@ -2078,8 +2097,7 @@ fn try_fold_return_terminator(
                 .strip_prefix('{')
                 .and_then(|b| b.strip_suffix('}'))
                 .unwrap_or(body);
-            let body_node =
-                crate::expr_parser::parse_expr(body, ctx.dialect.map(|profile| profile.name));
+            let body_node = crate::expr_parser::parse_expr_for_profile(body, ctx.dialect);
             if !super::helpers::expr_simplify::expr_uses_shadowed_mathfunc(&body_node, procedures)
                 && let Some(folded) =
                     super::helpers::expr_simplify::try_fold_expr(body, ctx.dialect)
@@ -2150,7 +2168,7 @@ fn try_substitute_assign_expr(
         substitute_expr_constants,
     };
     use super::helpers::spans::full_rewrite_span;
-    use crate::expr_parser::parse_expr;
+    use crate::expr_parser::parse_expr_for_profile;
     use crate::tcl_expr_eval::{
         Env, eval_tcl_expr_with_octal_and_dialect, format_tcl_value, leading_zero_is_octal,
     };
@@ -2185,7 +2203,7 @@ fn try_substitute_assign_expr(
     // the substituted expression is fully constant we can emit
     // the unwrapped ``set name VALUE`` form directly. Otherwise
     // keep the expression wrapper around the substituted text.
-    let parsed = parse_expr(&result.text, ctx.dialect.map(|profile| profile.name));
+    let parsed = parse_expr_for_profile(&result.text, ctx.dialect);
     let env = Env::new();
     let octal = ctx.dialect.and_then(leading_zero_is_octal);
     if let Some(val) = eval_tcl_expr_with_octal_and_dialect(&parsed, &env, octal, ctx.dialect) {
@@ -2207,7 +2225,7 @@ fn try_substitute_assign_expr(
     // Not fully constant; try one pass of instcombine on the
     // substituted expression to pick up identity simplifications
     // (e.g. ``$a + 0`` after ``$a`` folds to ``3``).
-    let (simplified, _changed) = instcombine_expr_typed(&result.text, false, numeric);
+    let (simplified, _changed) = instcombine_expr_typed(&result.text, false, numeric, ctx.dialect);
     let final_text = if simplified.trim().is_empty() {
         result.text.clone()
     } else {
@@ -2279,7 +2297,7 @@ fn try_o101_expr_arg_fold(
     // `::tcl::mathfunc::<name>` proc anywhere in the module means folding
     // it would use builtin semantics that no longer apply.
     if super::helpers::expr_simplify::expr_uses_shadowed_mathfunc(
-        &crate::expr_parser::parse_expr(body, ctx.dialect.map(|profile| profile.name)),
+        &crate::expr_parser::parse_expr_for_profile(body, ctx.dialect),
         procedures,
     ) {
         return None;
@@ -2499,7 +2517,7 @@ fn try_o129_fold(
     mutations: &crate::command_binding::ModuleCommandMutations,
     constants: &std::collections::HashMap<String, String>,
     inner: &str,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     oo: Option<&OoFrame>,
 ) -> Option<String> {
     let folded = fold_builtin_cmd_subst_raw(registry, mutations, constants, inner, dialect, oo)?;
@@ -2526,7 +2544,7 @@ fn fold_builtin_cmd_subst_raw(
     mutations: &crate::command_binding::ModuleCommandMutations,
     constants: &std::collections::HashMap<String, String>,
     inner: &str,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     oo: Option<&OoFrame>,
 ) -> Option<String> {
     let trusts = |name: &str| mutations.trusts(name);
@@ -2551,7 +2569,7 @@ fn literal_words(
     constants: &std::collections::HashMap<String, String>,
     registry: &tcl_registry::CommandRegistry,
     mutations: &crate::command_binding::ModuleCommandMutations,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     oo: Option<&OoFrame>,
 ) -> Option<Vec<String>> {
     let trusts = |name: &str| mutations.trusts(name);

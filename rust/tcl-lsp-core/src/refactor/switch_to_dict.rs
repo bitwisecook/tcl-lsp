@@ -18,8 +18,8 @@
 
 //! Convert a constant-mapping `switch` to a `dict` lookup.
 
-use tcl_compiler::segmenter::segment_commands_with_offset;
-use tcl_lexer::LineIndex;
+use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+use tcl_lexer::{LexerConfig, LineIndex};
 use tcl_registry::CommandRegistry;
 
 use super::{RefactorEdit, Refactoring, find_command_at, token_end_offset};
@@ -36,8 +36,10 @@ enum BranchBody {
 /// Parse a single-command switch-branch body via the tokeniser: the
 /// value keeps its original source span (quotes / braces intact) so the
 /// generated dict preserves the literal.
-fn parse_branch_assignment(body_text: &str) -> Option<BranchBody> {
-    let commands = segment_commands_with_offset(body_text, 0);
+///
+/// `config` is the document's [`LexerConfig`].
+fn parse_branch_assignment(body_text: &str, config: LexerConfig) -> Option<BranchBody> {
+    let commands = segment_commands_with_offset_and_config(body_text, 0, config);
     if commands.len() != 1 || commands[0].texts.is_empty() {
         return None;
     }
@@ -57,14 +59,18 @@ fn parse_branch_assignment(body_text: &str) -> Option<BranchBody> {
 
 /// Convert a `switch` where every arm sets the same variable / returns a
 /// constant into a `dict` lookup at byte offset `cursor`.
+///
+/// `config` is the document's [`LexerConfig`], threaded into every
+/// re-segmentation this transform performs.
 #[must_use]
 pub fn switch_to_dict(
     source: &str,
     cursor: u32,
     registry: &CommandRegistry,
     line_index: &LineIndex,
+    config: LexerConfig,
 ) -> Option<Refactoring> {
-    let cmd = find_command_at(source, cursor, Some("switch"), registry)?;
+    let cmd = find_command_at(source, cursor, Some("switch"), registry, config)?;
     let texts = &cmd.texts;
     if texts.len() < 3 {
         return None;
@@ -77,7 +83,7 @@ pub fn switch_to_dict(
         return None;
     }
 
-    let arms = parse_arms(&pairs)?;
+    let arms = parse_arms(&pairs, config)?;
     if arms.dict_entries.len() < 2 {
         return None;
     }
@@ -118,7 +124,7 @@ struct ParsedArms {
 /// Parse every arm, requiring a single uniform `set VAR …` / `return …`
 /// shape.  Returns `None` on a fallthrough marker, a body that is neither
 /// form, or a mixed shape.
-fn parse_arms(pairs: &[(String, String)]) -> Option<ParsedArms> {
+fn parse_arms(pairs: &[(String, String)], config: LexerConfig) -> Option<ParsedArms> {
     let mut target_var: Option<String> = None;
     let mut use_return = false;
     let mut dict_entries: Vec<(String, String)> = Vec::new();
@@ -132,7 +138,7 @@ fn parse_arms(pairs: &[(String, String)]) -> Option<ParsedArms> {
         if body_text == "-" {
             return None; // fallthrough marker
         }
-        let value = match parse_branch_assignment(body_text)? {
+        let value = match parse_branch_assignment(body_text, config)? {
             BranchBody::Set(var, value) => {
                 match &target_var {
                     None => {
@@ -226,7 +232,7 @@ mod tests {
     fn run(source: &str, cursor: u32) -> Option<Refactoring> {
         let reg = super::super::test_registry();
         let li = LineIndex::new(source);
-        switch_to_dict(source, cursor, &reg, &li)
+        switch_to_dict(source, cursor, &reg, &li, LexerConfig::default())
     }
 
     #[test]
@@ -296,7 +302,8 @@ mod tests {
         reg.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
         let li = LineIndex::new(source);
         let cursor = u32::try_from(source.find("switch").unwrap()).unwrap();
-        let r = switch_to_dict(source, cursor, &reg, &li).expect("nested result");
+        let r = switch_to_dict(source, cursor, &reg, &li, LexerConfig::default())
+            .expect("nested result");
         assert!(r.title.to_lowercase().contains("dict"));
     }
 }

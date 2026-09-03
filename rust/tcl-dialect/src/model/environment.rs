@@ -302,6 +302,21 @@ pub struct EnvironmentDefinition {
     pub provenance: Provenance,
 }
 
+impl EnvironmentDefinition {
+    /// The environment's resolved [`DialectPoint`](crate::model::DialectPoint)
+    /// — its core's default release under the core's build — when it has a
+    /// ladder core. `None` for a ladder-less environment (`f5-bigip`, the
+    /// BIG-IP *config* surface). This is the one derivation of a point from
+    /// an environment; the ingress, the semantic handle's runtime base and
+    /// the projected profile all read it, so they cannot disagree about
+    /// which release an environment is.
+    #[must_use]
+    pub fn point(&self) -> Option<crate::model::DialectPoint> {
+        self.core
+            .map(|core| crate::model::DialectPoint::new(core.default_release, core.build))
+    }
+}
+
 /// Target adjustments an overlay applies.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TargetChanges {

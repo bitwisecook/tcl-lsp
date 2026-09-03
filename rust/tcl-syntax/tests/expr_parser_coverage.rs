@@ -813,7 +813,10 @@ fn command_and_var_mixed() {
 // 9. vars() and command_texts() walkers over every node kind.
 
 fn sorted_vars(n: &ExprNode) -> Vec<String> {
-    let mut v: Vec<String> = n.vars().into_iter().collect();
+    let mut v: Vec<String> = n
+        .vars_with_grammar(tcl_dialect::LexerGrammar::default())
+        .into_iter()
+        .collect();
     v.sort();
     v
 }
@@ -832,20 +835,29 @@ fn vars_collected_through_all_node_kinds() {
 #[test]
 fn vars_are_a_set_no_duplicates() {
     // $x + $x * $x ⇒ {"x"} (set semantics).
-    let s: HashSet<String> = p("$x + $x * $x").vars();
+    let s: HashSet<String> =
+        p("$x + $x * $x").vars_with_grammar(tcl_dialect::LexerGrammar::default());
     assert_eq!(s.len(), 1);
     assert!(s.contains("x"));
 }
 
 #[test]
 fn vars_empty_for_pure_arithmetic() {
-    assert!(p("1 + 2 * 3").vars().is_empty());
+    assert!(
+        p("1 + 2 * 3")
+            .vars_with_grammar(tcl_dialect::LexerGrammar::default())
+            .is_empty()
+    );
 }
 
 #[test]
 fn vars_stop_at_command_boundary() {
     // A command substitution is opaque to the pure-AST var scan.
-    assert!(p("[set y $x]").vars().is_empty());
+    assert!(
+        p("[set y $x]")
+            .vars_with_grammar(tcl_dialect::LexerGrammar::default())
+            .is_empty()
+    );
 }
 
 #[test]
@@ -1184,6 +1196,6 @@ fn parser_never_panics_on_fuzzy_inputs() {
         let n = parse_expr(s, None);
         // Any node kind is acceptable; the contract is "did not panic".
         let _ = render_expr(&n);
-        let _ = n.vars();
+        let _ = n.vars_with_grammar(tcl_dialect::LexerGrammar::default());
     }
 }
