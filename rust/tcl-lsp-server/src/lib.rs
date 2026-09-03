@@ -429,6 +429,14 @@ impl SnapshotCensus {
     /// one instead of asserting on a counter every other test in the binary is
     /// also moving.
     fn take(&'static self, db: &tcl_lsp_db::TclDatabase, site: &'static str) -> DbSnapshot {
+        self.track(db.clone(), site)
+    }
+
+    /// Put an owned value behind the same census lifetime as a database clone.
+    ///
+    /// Generic only so the destructor ordering can be proved with a drop probe;
+    /// production calls this through [`Self::take`] with `TclDatabase`.
+    fn track<T>(&'static self, value: T, site: &'static str) -> DbSnapshot<T> {
         let id = self
             .next_id
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -437,7 +445,7 @@ impl SnapshotCensus {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .insert(id, (site, crate::rt::Instant::now()));
         DbSnapshot {
-            db: db.clone(),
+            db: Some(value),
             census: self,
             id,
         }
@@ -480,22 +488,31 @@ impl SnapshotCensus {
 /// read `&snapshot` and is otherwise unchanged. Move it into the worker it was
 /// cloned for and let it drop there — see [`Backend::db_set_source`] for what
 /// holding one across an unrelated `await` costs.
-struct DbSnapshot {
-    db: tcl_lsp_db::TclDatabase,
+struct DbSnapshot<T = tcl_lsp_db::TclDatabase> {
+    // `Option` lets `Drop` destroy the value explicitly before retiring its
+    // census entry. Rust otherwise runs `Drop::drop` before dropping fields,
+    // which left a small false-zero window while the Salsa clone still lived.
+    db: Option<T>,
     census: &'static SnapshotCensus,
     id: u64,
 }
 
-impl std::ops::Deref for DbSnapshot {
-    type Target = tcl_lsp_db::TclDatabase;
+impl<T> std::ops::Deref for DbSnapshot<T> {
+    type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        &self.db
+        self.db
+            .as_ref()
+            .expect("a tracked snapshot is never accessed while dropping")
     }
 }
 
-impl Drop for DbSnapshot {
+impl<T> Drop for DbSnapshot<T> {
     fn drop(&mut self) {
+        // The census is also a publication-safety barrier (#1800), not merely
+        // telemetry: zero means a Salsa setter cannot enter `cancel_others`.
+        // Destroy the clone synchronously before making that assertion true.
+        drop(self.db.take());
         self.census.retire(self.id);
     }
 }
@@ -36337,6 +36354,49 @@ mod tests {
         let third = census.take(&db, "test-deref");
         let _: &tcl_lsp_db::TclDatabase = &third;
         drop(third);
+    }
+
+    /// A zero census is now a publication precondition (#1800), so it must
+    /// mean more than "the snapshot wrapper started dropping": the wrapped
+    /// Salsa clone must already be destroyed. Drive the exact generic drop
+    /// implementation with a probe whose destructor samples the census.
+    #[test]
+    fn snapshot_census_retires_only_after_the_wrapped_clone_drops_1800() {
+        struct DropProbe {
+            census: &'static SnapshotCensus,
+            saw_itself_registered: Arc<std::sync::atomic::AtomicBool>,
+        }
+
+        impl Drop for DropProbe {
+            fn drop(&mut self) {
+                self.saw_itself_registered.store(
+                    self.census.report().outstanding == 1,
+                    std::sync::atomic::Ordering::SeqCst,
+                );
+            }
+        }
+
+        let census: &'static SnapshotCensus = Box::leak(Box::new(SnapshotCensus::default()));
+        let saw_itself_registered = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let snapshot = census.track(
+            DropProbe {
+                census,
+                saw_itself_registered: Arc::clone(&saw_itself_registered),
+            },
+            "drop-order-proof-1800",
+        );
+
+        assert_eq!(census.report().outstanding, 1);
+        drop(snapshot);
+        assert!(
+            saw_itself_registered.load(std::sync::atomic::Ordering::SeqCst),
+            "the wrapped clone's destructor must still see its census entry"
+        );
+        assert_eq!(
+            census.report().outstanding,
+            0,
+            "the entry must retire immediately after the wrapped clone is gone"
+        );
     }
 
     /// A stalled turn must name the `await` it is suspended at, not merely the
