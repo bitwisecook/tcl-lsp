@@ -9490,7 +9490,7 @@
     "@types/glob": "^9.0.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "^26.4.0",
-    "@types/vscode": "~1.134.0",
+    "@types/vscode": "~1.95.0",
     "@typescript-eslint/eslint-plugin": "^8.68.0",
     "@typescript-eslint/parser": "^8.67.0",
     "@vscode/test-electron": "^3.1.0",
@@ -9504,7 +9504,7 @@
     "mocha": "^11.8.0",
     "ovsx": "^1.1.1",
     "prettier": "^3.9.6",
-    "typescript": "^7.0.2",
+    "typescript": "^6.0.3",
     "vscode-oniguruma": "^2.0.1",
     "vscode-textmate": "^9.3.2"
   },
