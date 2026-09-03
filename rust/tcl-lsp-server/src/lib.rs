@@ -429,6 +429,14 @@ impl SnapshotCensus {
     /// one instead of asserting on a counter every other test in the binary is
     /// also moving.
     fn take(&'static self, db: &tcl_lsp_db::TclDatabase, site: &'static str) -> DbSnapshot {
+        self.track(db.clone(), site)
+    }
+
+    /// Put an owned value behind the same census lifetime as a database clone.
+    ///
+    /// Generic only so the destructor ordering can be proved with a drop probe;
+    /// production calls this through [`Self::take`] with `TclDatabase`.
+    fn track<T>(&'static self, value: T, site: &'static str) -> DbSnapshot<T> {
         let id = self
             .next_id
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -437,7 +445,7 @@ impl SnapshotCensus {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .insert(id, (site, crate::rt::Instant::now()));
         DbSnapshot {
-            db: db.clone(),
+            db: Some(value),
             census: self,
             id,
         }
@@ -480,22 +488,31 @@ impl SnapshotCensus {
 /// read `&snapshot` and is otherwise unchanged. Move it into the worker it was
 /// cloned for and let it drop there — see [`Backend::db_set_source`] for what
 /// holding one across an unrelated `await` costs.
-struct DbSnapshot {
-    db: tcl_lsp_db::TclDatabase,
+struct DbSnapshot<T = tcl_lsp_db::TclDatabase> {
+    // `Option` lets `Drop` destroy the value explicitly before retiring its
+    // census entry. Rust otherwise runs `Drop::drop` before dropping fields,
+    // which left a small false-zero window while the Salsa clone still lived.
+    db: Option<T>,
     census: &'static SnapshotCensus,
     id: u64,
 }
 
-impl std::ops::Deref for DbSnapshot {
-    type Target = tcl_lsp_db::TclDatabase;
+impl<T> std::ops::Deref for DbSnapshot<T> {
+    type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        &self.db
+        self.db
+            .as_ref()
+            .expect("a tracked snapshot is never accessed while dropping")
     }
 }
 
-impl Drop for DbSnapshot {
+impl<T> Drop for DbSnapshot<T> {
     fn drop(&mut self) {
+        // The census is also a publication-safety barrier (#1800), not merely
+        // telemetry: zero means a Salsa setter cannot enter `cancel_others`.
+        // Destroy the clone synchronously before making that assertion true.
+        drop(self.db.take());
         self.census.retire(self.id);
     }
 }
@@ -715,6 +732,28 @@ impl DocumentStore {
             Ok(docs) => docs,
             Err(_) => self.lock_contended(site).await,
         };
+        self.record_acquisition(docs, site)
+    }
+
+    /// Try to take the open-document map without joining its waiter queue.
+    ///
+    /// Background index publication uses this only after it has optimistically
+    /// acquired every downstream write lock.  Failing instead of waiting is
+    /// what prevents that low-priority work from inverting the foreground
+    /// `documents -> db -> workspace_index` order used by document sync.
+    fn try_lock(&self, site: &'static str) -> Option<DocumentsGuard<'_>> {
+        self.docs
+            .try_lock()
+            .ok()
+            .map(|docs| self.record_acquisition(docs, site))
+    }
+
+    /// Attach holder telemetry to an already-acquired map guard.
+    fn record_acquisition<'a>(
+        &'a self,
+        docs: tokio::sync::MutexGuard<'a, HashMap<Uri, DocumentState>>,
+        site: &'static str,
+    ) -> DocumentsGuard<'a> {
         // One clock reading for both ages, so a hold still in its first phase
         // reports them equal rather than a sub-millisecond difference to squint
         // at. Count and holder are set under the same lock, so no reader can
@@ -5521,6 +5560,31 @@ struct PublishedPackSet {
     packs: Arc<tcl_spectcl::PackSet>,
 }
 
+/// Every mutable store a background disk publication changes, acquired as one
+/// optimistic bundle before it inspects the open-document map.
+///
+/// The bundle is deliberately built with `try_*` calls: background indexing
+/// never queues for one lock while retaining another.  That makes foreground
+/// document sync the priority path and keeps the final no-`await` commit small.
+struct DiskPublicationLocks<'a> {
+    db: tokio::sync::MutexGuard<'a, tcl_lsp_db::TclDatabase>,
+    files: tokio::sync::MutexGuard<'a, HashMap<Uri, tcl_lsp_db::SourceFile>>,
+    tombstones: tokio::sync::MutexGuard<'a, HashMap<Uri, tcl_lsp_db::SourceFile>>,
+    project: tokio::sync::MutexGuard<'a, Option<tcl_lsp_db::Project>>,
+    index: tokio::sync::RwLockWriteGuard<'a, core_workspace_index::WorkspaceIndex>,
+    seeds: tokio::sync::MutexGuard<'a, HashMap<String, Vec<String>>>,
+}
+
+/// Whether a disk-side removal is allowed to retire an editor-open URI.
+#[derive(Clone, Copy)]
+enum DiskRemovalPolicy {
+    /// Folder removal and stale scans preserve live, possibly-unsaved buffers.
+    ClosedOnly,
+    /// A filesystem `DELETED` event retires the dead path even if its buffer is
+    /// still open; the document remains usable but is marked orphaned.
+    IncludeOpen,
+}
+
 /// LSP server backend.
 ///
 /// Holds the LSP `Client` for outbound notifications, a document
@@ -7190,6 +7254,64 @@ impl Backend {
         })
     }
 
+    /// Apply source replacements with all salsa maps already locked, returning
+    /// whether the `Project` membership changed.
+    ///
+    /// This is the single mutation primitive shared by foreground edits and
+    /// background disk publication.  Keeping normalisation, tombstone revival
+    /// and class-factory seeding here prevents the optimistic background path
+    /// from becoming a subtly different salsa writer.
+    fn set_db_sources_locked<'a>(
+        db: &mut tcl_lsp_db::TclDatabase,
+        files: &mut HashMap<Uri, tcl_lsp_db::SourceFile>,
+        tombstones: &mut HashMap<Uri, tcl_lsp_db::SourceFile>,
+        entries: impl IntoIterator<Item = (&'a Uri, &'a str, &'a str)>,
+    ) -> bool {
+        use salsa::Setter as _;
+
+        let oracle = Self::published_class_factories(db, files);
+        let mut membership_changed = false;
+        for (uri, text, dialect) in entries {
+            // Salsa's `SourceFile.text` is the analyser's input, so it stores
+            // the analysis form on every ingress path.
+            let text = tcl_lexer::normalise_lone_cr(text).into_owned();
+            if let Some(&file) = files.get(uri) {
+                file.set_text(db).to(text);
+                file.set_dialect(db).to(dialect.to_owned());
+            } else {
+                let file = Self::revive_or_create_db_source(
+                    db,
+                    tombstones,
+                    uri,
+                    text,
+                    dialect.to_owned(),
+                    oracle.clone(),
+                );
+                files.insert(uri.clone(), file);
+                membership_changed = true;
+            }
+        }
+        membership_changed
+    }
+
+    /// Retire sources with all salsa maps already locked, returning whether
+    /// the `Project` membership changed.
+    fn remove_db_sources_locked<'a>(
+        db: &mut tcl_lsp_db::TclDatabase,
+        files: &mut HashMap<Uri, tcl_lsp_db::SourceFile>,
+        tombstones: &mut HashMap<Uri, tcl_lsp_db::SourceFile>,
+        uris: impl IntoIterator<Item = &'a Uri>,
+    ) -> bool {
+        let mut membership_changed = false;
+        for uri in uris {
+            // Do not short-circuit: every URI must be retired even after the
+            // first one proves that the project membership changed.
+            membership_changed =
+                Self::retire_db_source(db, files, tombstones, uri) || membership_changed;
+        }
+        membership_changed
+    }
+
     /// Create or update the salsa `SourceFile` input for `uri`.  Called by
     /// `did_open` / `did_change` so the query graph always reads current text.
     /// Lock order is always `db` → `db_files` → `db_tombstones` → `db_project`.
@@ -7229,35 +7351,19 @@ impl Backend {
     /// released the instant the clone is made, so it is invisible to a
     /// lock-guard analysis; it is the *clone* salsa waits on.
     async fn db_set_source(&self, uri: &Uri, text: &str, dialect: String) {
-        use salsa::Setter as _;
-        // Salsa's `SourceFile.text` is the analyser's input, so it stores the
-        // analysis form of the document (lone `\r` → `\n`) regardless of which
-        // path — `didOpen`/`didChange`, a folder scan, a watched-file change —
-        // produced it.  Doing it here rather than at each caller is what keeps
-        // the interactive and background-indexing paths from disagreeing.
-        let text = tcl_lexer::normalise_lone_cr(text).into_owned();
         let mut db = self.db.lock().await;
         let mut files = self.db_files.lock().await;
-        if let Some(&file) = files.get(uri) {
-            // Text/dialect edit: membership unchanged, so the `Project` input is
-            // untouched (a body edit then backdates `project_proc_names`).
-            file.set_text(&mut *db).to(text);
-            file.set_dialect(&mut *db).to(dialect);
-        } else {
-            let oracle = Self::published_class_factories(&db, &files);
-            let file = {
-                let mut tombstones = self.db_tombstones.lock().await;
-                Self::revive_or_create_db_source(
-                    &mut db,
-                    &mut tombstones,
-                    uri,
-                    text,
-                    dialect,
-                    oracle,
-                )
-            };
-            files.insert(uri.clone(), file);
-            // Membership changed — re-set the `Project` file set.
+        let mut tombstones = self.db_tombstones.lock().await;
+        let membership_changed = Self::set_db_sources_locked(
+            &mut db,
+            &mut files,
+            &mut tombstones,
+            std::iter::once((uri, text, dialect.as_str())),
+        );
+        drop(tombstones);
+        if membership_changed {
+            // Membership changed — re-set the `Project` file set. A text-only
+            // edit leaves it untouched (and does not backdate its aggregates).
             let mut project = self.db_project.lock().await;
             Self::sync_db_project(&mut db, &files, &mut project);
         }
@@ -7389,69 +7495,152 @@ impl Backend {
             .max_by_key(|index| index.len())
     }
 
-    /// Add/update many salsa `SourceFile` inputs at once (disk-backed workspace
-    /// files from the startup scan), re-setting the [`tcl_lsp_db::Project`] **once**
-    /// if membership changed — not once per file (which would be O(files²) over a
-    /// large tree).  Used so cross-file diagnostics resolve against the *whole*
-    /// workspace (matching `workspace_index`), not only open documents.  Lock order
-    /// is `db` → `db_files` → `db_tombstones` → `db_project`, as everywhere.
-    async fn db_set_sources_batch(&self, entries: &[(Uri, String, String)]) {
-        use salsa::Setter as _;
-        if entries.is_empty() {
-            return;
-        }
-        let mut db = self.db.lock().await;
-        let mut files = self.db_files.lock().await;
-        let mut tombstones = self.db_tombstones.lock().await;
-        let oracle = Self::published_class_factories(&db, &files);
-        let mut membership_changed = false;
-        for (uri, text, dialect) in entries {
-            // Same analysis-form invariant `db_set_source` enforces; the disk
-            // scanners already normalise, so this is a borrow in practice.
-            let text = tcl_lexer::normalise_lone_cr(text).into_owned();
-            if let Some(&file) = files.get(uri) {
-                file.set_text(&mut *db).to(text.clone());
-                file.set_dialect(&mut *db).to(dialect.clone());
-            } else {
-                let file = Self::revive_or_create_db_source(
-                    &mut db,
-                    &mut tombstones,
-                    uri,
-                    text.clone(),
-                    dialect.clone(),
-                    oracle.clone(),
-                );
-                files.insert(uri.clone(), file);
-                membership_changed = true;
-            }
-        }
-        drop(tombstones);
-        if membership_changed {
-            let mut project = self.db_project.lock().await;
-            Self::sync_db_project(&mut db, &files, &mut project);
-        }
+    /// Optimistically acquire the complete background-publication write set.
+    ///
+    /// Returning `None` drops every partial acquisition.  In particular, disk
+    /// work never parks on `workspace_index` while retaining `db`, or parks on
+    /// `db` while retaining the open-document map (#1800).
+    fn try_disk_publication_locks(&self) -> Option<DiskPublicationLocks<'_>> {
+        Some(DiskPublicationLocks {
+            db: self.db.try_lock().ok()?,
+            files: self.db_files.try_lock().ok()?,
+            tombstones: self.db_tombstones.try_lock().ok()?,
+            project: self.db_project.try_lock().ok()?,
+            index: self.workspace_index.try_write().ok()?,
+            seeds: self.rehomed_source_seeds.try_lock().ok()?,
+        })
     }
 
-    /// Retire many salsa `SourceFile` inputs at once (files under a removed
-    /// workspace folder), re-setting the `Project` once if membership changed.
-    /// Lock order is `db` → `db_files` → `db_tombstones` → `db_project`.
-    async fn db_remove_sources_batch(&self, uris: &[Uri]) {
-        if uris.is_empty() {
-            return;
+    /// Atomically publish disk-backed analyses to salsa and the workspace
+    /// index without letting background work become a foreground lock holder.
+    ///
+    /// The expensive file reads and analyses happen before this function. It
+    /// then waits for the rehoming transaction gate while holding nothing, and
+    /// repeatedly *tries* the entire downstream write set. Any contention
+    /// drops the partial set before yielding, so document sync always gets
+    /// priority. Once all downstream stores are available, `documents` is only
+    /// try-locked for the closed-file currency check and is released before
+    /// any salsa or index mutation.
+    ///
+    /// The final commit contains no `await`. It also begins only while the
+    /// tracked salsa snapshot census is empty. Because the db mutex is already
+    /// held at that check, no new snapshot can start between it and the salsa
+    /// setters; `cancel_others` therefore cannot turn this bounded commit into
+    /// the synchronous multi-second wait observed in #1657/#1800.
+    async fn publish_disk_results(
+        &self,
+        replacements: &[(Uri, String, String, AnalysisResult)],
+        removals: &[Uri],
+        removal_policy: DiskRemovalPolicy,
+        site: &'static str,
+    ) -> Vec<Uri> {
+        if replacements.is_empty() && removals.is_empty() {
+            return Vec::new();
         }
-        let mut db = self.db.lock().await;
-        let mut files = self.db_files.lock().await;
-        let mut tombstones = self.db_tombstones.lock().await;
-        let mut membership_changed = false;
-        for uri in uris {
-            if Self::retire_db_source(&mut db, &mut files, &mut tombstones, uri) {
-                membership_changed = true;
+
+        let rehoming_guard = self.rehoming_gate.lock().await;
+        self.publish_disk_results_while_rehoming_locked(
+            &rehoming_guard,
+            replacements,
+            removals,
+            removal_policy,
+            site,
+        )
+        .await
+    }
+
+    /// [`Self::publish_disk_results`] with the rehoming gate already held.
+    ///
+    /// Taking the guard by reference makes the transactional precondition
+    /// explicit for folder removal, which must derive its removal set from the
+    /// protected index before publishing it through the same low-priority path.
+    async fn publish_disk_results_while_rehoming_locked(
+        &self,
+        _rehoming_guard: &tokio::sync::MutexGuard<'_, ()>,
+        replacements: &[(Uri, String, String, AnalysisResult)],
+        removals: &[Uri],
+        removal_policy: DiskRemovalPolicy,
+        site: &'static str,
+    ) -> Vec<Uri> {
+        loop {
+            let Some(locks) = self.try_disk_publication_locks() else {
+                crate::rt::sleep(std::time::Duration::from_millis(1)).await;
+                continue;
+            };
+
+            // A salsa setter blocks the worker thread inside `cancel_others`
+            // while any clone lives. Do not enter that synchronous wait from a
+            // background transaction. Holding `db` makes this zero stable.
+            if SNAPSHOT_CENSUS.report().outstanding != 0 {
+                drop(locks);
+                crate::rt::sleep(std::time::Duration::from_millis(1)).await;
+                continue;
             }
-        }
-        drop(tombstones);
-        if membership_changed {
-            let mut project = self.db_project.lock().await;
-            Self::sync_db_project(&mut db, &files, &mut project);
+
+            let Some(docs) = self.documents.try_lock(site) else {
+                drop(locks);
+                crate::rt::sleep(std::time::Duration::from_millis(1)).await;
+                continue;
+            };
+            let replacements: Vec<_> = replacements
+                .iter()
+                .filter(|(uri, _, _, _)| !docs.contains_key(uri))
+                .collect();
+            let removals: Vec<_> = removals
+                .iter()
+                .filter(|uri| {
+                    matches!(removal_policy, DiskRemovalPolicy::IncludeOpen)
+                        || !docs.contains_key(*uri)
+                })
+                .collect();
+            // This is the crucial #1800 boundary: all potentially slow work is
+            // below, after the global map is available to every handler again.
+            drop(docs);
+
+            if replacements.is_empty() && removals.is_empty() {
+                return Vec::new();
+            }
+
+            let DiskPublicationLocks {
+                mut db,
+                mut files,
+                mut tombstones,
+                mut project,
+                mut index,
+                mut seeds,
+            } = locks;
+            let removed_members = Self::remove_db_sources_locked(
+                &mut db,
+                &mut files,
+                &mut tombstones,
+                removals.iter().copied(),
+            );
+            let added_members = Self::set_db_sources_locked(
+                &mut db,
+                &mut files,
+                &mut tombstones,
+                replacements
+                    .iter()
+                    .map(|entry| (&entry.0, entry.1.as_str(), entry.2.as_str())),
+            );
+            if removed_members || added_members {
+                Self::sync_db_project(&mut db, &files, &mut project);
+            }
+
+            for uri in &removals {
+                index.remove_document(uri.as_str());
+                seeds.remove(uri.as_str());
+            }
+            for entry in &replacements {
+                index.replace_document(entry.0.as_str(), &entry.3);
+                seeds.remove(entry.0.as_str());
+            }
+
+            return removals
+                .into_iter()
+                .chain(replacements.into_iter().map(|entry| &entry.0))
+                .cloned()
+                .collect();
         }
     }
 
@@ -8817,9 +9006,11 @@ impl Backend {
     /// server restarts.  Falls back to removing the entry when the
     /// URI isn't a readable file (untitled buffer, deleted file).
     ///
-    /// Disk IO and analysis deliberately run before taking any lock; the final
-    /// index update holds the `documents` lock across the still-closed re-check
-    /// so a slow disk read cannot overwrite a newly reopened unsaved buffer.
+    /// Disk IO and analysis deliberately run before taking any lock. The final
+    /// publication optimistically acquires its complete write set, briefly
+    /// try-locks `documents` to re-check that the file is still closed, and
+    /// releases that map before the no-`await` commit; a newly reopened unsaved
+    /// buffer still wins without background work pinning every handler (#1800).
     /// Remove from the cross-document index every entry whose URI sits under
     /// one of `folders` and is not currently open in the editor.  Used when a
     /// workspace folder is removed (`did_change_workspace_folders`) so its
@@ -8841,38 +9032,32 @@ impl Backend {
         }
         let folder_strs: Vec<String> = folders.iter().map(|u| u.as_str().to_owned()).collect();
         // Keep source-site reconciliation/query snapshots atomic with the
-        // removal, then hold `documents` across the open-set read + index
-        // removals. Global order: rehoming_gate → documents → workspace_index.
+        // removal. Derive candidates under the gate, then let the shared
+        // publication transaction re-check the open set without ever waiting
+        // while it owns that map (#1800).
         let rehoming_guard = self.rehoming_gate.lock().await;
-        let docs = self.documents.lock("drop_index_under_folders").await;
-        let open: HashSet<String> = docs.keys().map(|u| u.as_str().to_owned()).collect();
-        let mut index = self.workspace_index.write().await;
-        let to_remove: Vec<String> = index
+        let candidates: Vec<Uri> = self
+            .workspace_index
+            .read()
+            .await
             .document_uris()
             .into_iter()
             .filter(|uri| {
-                !open.contains(uri)
-                    && folder_strs
-                        .iter()
-                        .any(|folder| uri_under_folder(uri, folder))
+                folder_strs
+                    .iter()
+                    .any(|folder| uri_under_folder(uri, folder))
             })
+            .filter_map(|uri| Uri::from_str(&uri).ok())
             .collect();
-        for uri in &to_remove {
-            index.remove_document(uri);
-        }
-        // Release workspace_index before taking the db locks (never hold
-        // workspace_index while acquiring db), but keep `documents` held so the
-        // open-file filter above stays current across the db removal too.
-        drop(index);
-        // Drop the same files from the salsa `Project` so their procs stop
-        // resolving cross-file.  Lock order: documents (held) → db → db_files →
-        // db_project, matching `did_open`.
-        let removed_urls: Vec<Uri> = to_remove
-            .iter()
-            .filter_map(|u| Uri::from_str(u).ok())
-            .collect();
-        self.db_remove_sources_batch(&removed_urls).await;
-        drop(docs);
+        let removed_urls = self
+            .publish_disk_results_while_rehoming_locked(
+                &rehoming_guard,
+                &[],
+                &candidates,
+                DiskRemovalPolicy::ClosedOnly,
+                "drop_index_under_folders",
+            )
+            .await;
         // Batched so each cache is locked once for the whole folder, not once
         // per file.  Still inside the rehoming gate, so a reconciliation pass
         // cannot observe the index entries gone while their seed records stand.
@@ -8931,8 +9116,7 @@ impl Backend {
     /// `did_change_watched_files` CREATED/CHANGED set (#1161): reads and
     /// analyses every URI in `uris` across the bounded worker pool
     /// [`run_bounded`] drives (shared with `scan_workspace_folders`, #1151),
-    /// then applies one batched `db_set_sources_batch` / `db_remove_sources_batch`
-    /// pair and one batched `workspace_index` mutation instead of
+    /// then applies one atomic salsa/workspace-index publication instead of
     /// `uris.len()` sequential full analyses.
     ///
     /// Currency: `documents` is re-checked once, right before the batched
@@ -8969,54 +9153,23 @@ impl Backend {
             .collect();
         let results = run_bounded(futures, concurrency).await;
 
-        // Serialise this standalone replacement with source-site reconciliation
-        // and navigation snapshots, then hold `documents` across the
-        // still-closed re-check and both updates. Global order:
-        // rehoming_gate → documents → db → workspace_index.
-        let _rehoming_guard = self.rehoming_gate.lock().await;
-        let docs = self.documents.lock("batch_reindex_from_disk").await;
-        let mut applied: Vec<(Uri, String, String, AnalysisResult)> = Vec::new();
+        let mut replacements: Vec<(Uri, String, String, AnalysisResult)> = Vec::new();
         let mut to_remove: Vec<Uri> = Vec::new();
         for (uri, scanned) in results {
-            if docs.contains_key(&uri) {
-                continue;
-            }
             match scanned {
                 Some((uri, text, dialect, analysis)) => {
-                    applied.push((uri, text, dialect, analysis));
+                    replacements.push((uri, text, dialect, analysis));
                 }
                 None => to_remove.push(uri),
             }
         }
-        // Salsa db first (locks db → db_files → db_project, all *before* the
-        // workspace_index lock) to preserve the global lock order.
-        let db_entries: Vec<(Uri, String, String)> = applied
-            .iter()
-            .map(|(uri, text, dialect, _)| (uri.clone(), text.clone(), dialect.clone()))
-            .collect();
-        self.db_set_sources_batch(&db_entries).await;
-        self.db_remove_sources_batch(&to_remove).await;
-        {
-            let mut index = self.workspace_index.write().await;
-            for uri in &to_remove {
-                index.remove_document(uri.as_str());
-            }
-            for (uri, _, _, analysis) in &applied {
-                index.replace_document(uri.as_str(), analysis);
-            }
-        }
-        drop(docs);
-        // Every applied/removed URI is now indexed standalone (or gone):
-        // invalidate its M9 applied-seed record so the next cross-document
-        // query re-applies the source-site views, matching the single-file
-        // path.
-        let mut seeds = self.rehomed_source_seeds.lock().await;
-        for (uri, _, _, _) in &applied {
-            seeds.remove(uri.as_str());
-        }
-        for uri in &to_remove {
-            seeds.remove(uri.as_str());
-        }
+        self.publish_disk_results(
+            &replacements,
+            &to_remove,
+            DiskRemovalPolicy::ClosedOnly,
+            "batch_reindex_from_disk",
+        )
+        .await;
     }
 
     async fn reindex_index_from_disk(&self, uri: &Uri) {
@@ -9030,35 +9183,28 @@ impl Backend {
         let default_dialect = Arc::new(self.session_dialect().await);
         let scanned =
             Self::scan_disk_file(&self.store, uri.clone(), folder_dialects, default_dialect).await;
-        // Serialise the standalone replacement with source-site reconciliation,
-        // then hold `documents` across the still-closed re-check and both
-        // updates. Global order: rehoming_gate → documents → db →
-        // workspace_index.
-        let _rehoming_guard = self.rehoming_gate.lock().await;
-        let docs = self.documents.lock("reindex_index_from_disk").await;
-        if docs.contains_key(uri) {
-            return;
-        }
-        // Salsa db first (locks db → db_files → db_project, all *before* the
-        // workspace_index lock) to preserve the global lock order.
-        match &scanned {
-            Some((_, text, dialect, _)) => {
-                self.db_set_source(uri, text, dialect.clone()).await;
+        match scanned {
+            Some(scanned) => {
+                self.publish_disk_results(
+                    std::slice::from_ref(&scanned),
+                    &[],
+                    DiskRemovalPolicy::ClosedOnly,
+                    "reindex_index_from_disk",
+                )
+                .await;
             }
             // No readable on-disk copy (untitled / deleted) — drop it from the
             // project so a stale definition can't keep resolving cross-file.
-            None => self.db_remove_source(uri).await,
+            None => {
+                self.publish_disk_results(
+                    &[],
+                    std::slice::from_ref(uri),
+                    DiskRemovalPolicy::ClosedOnly,
+                    "reindex_index_from_disk",
+                )
+                .await;
+            }
         }
-        let mut index = self.workspace_index.write().await;
-        if let Some((_, _, _, analysis)) = &scanned {
-            index.replace_document(uri.as_str(), analysis);
-        } else {
-            index.remove_document(uri.as_str());
-        }
-        drop(index);
-        // Indexed standalone: invalidate the M9 applied-seed record so the
-        // next cross-document query re-applies the source-site views.
-        self.rehomed_source_seeds.lock().await.remove(uri.as_str());
     }
 
     /// Compute and publish a **closed** workspace file's diagnostics from its
@@ -17682,32 +17828,13 @@ impl Backend {
         &self,
         analysed: &[(Uri, String, String, AnalysisResult)],
     ) {
-        // Serialise each standalone merge with source-site reconciliation, then
-        // hold `documents` across the open-set read, salsa-db batch, and index
-        // merge. Global order: rehoming_gate → documents → db → workspace_index.
-        let _rehoming_guard = self.rehoming_gate.lock().await;
-        let docs = self.documents.lock("merge_workspace_scan_results").await;
-        let open: HashSet<String> = docs.keys().map(|u| u.as_str().to_owned()).collect();
-        // Salsa db first (db → db_files → db_project), before the workspace_index
-        // lock, to preserve the global lock order.
-        let db_entries: Vec<(Uri, String, String)> = analysed
-            .iter()
-            .filter(|(uri, _, _, _)| !open.contains(uri.as_str()))
-            .map(|(uri, text, dialect, _)| (uri.clone(), text.clone(), dialect.clone()))
-            .collect();
-        self.db_set_sources_batch(&db_entries).await;
-        let mut index = self.workspace_index.write().await;
-        for (uri, _, _, analysis) in analysed {
-            if open.contains(uri.as_str()) {
-                continue;
-            }
-            index.replace_document(uri.as_str(), analysis);
-        }
-        drop(index);
-        // Every scanned document is now indexed standalone: reset the M9
-        // applied-seed record so the next reconciliation re-applies the
-        // source-site views.
-        self.rehomed_source_seeds.lock().await.clear();
+        self.publish_disk_results(
+            analysed,
+            &[],
+            DiskRemovalPolicy::ClosedOnly,
+            "merge_workspace_scan_results",
+        )
+        .await;
     }
 
     /// Kick off a detached, concurrency-bounded parallel **warm** of the salsa
@@ -17721,7 +17848,7 @@ impl Backend {
     /// fed by the scan's own analyser pass, plus the light `file_decls` /
     /// `item_sigs` / `file_token_facts` tier salsa computes on demand from the
     /// `SourceFile`
-    /// inputs `db_set_sources_batch` sets). Warming the deep tier for every
+    /// inputs the disk-publication transaction sets). Warming the deep tier for every
     /// workspace file — the pre-#1151 behaviour — analysed the whole project a
     /// *second* time through salsa on top of the scan's own analyser walk, and
     /// materialised `file_analysis` for files nobody has open (measured: 786 MB
@@ -18885,23 +19012,19 @@ impl LanguageServer for Backend {
             )
         };
 
-        // DELETED: one batched index mutation, then one batched salsa retire —
-        // dropping each file's procs from the workspace index and the salsa
+        // DELETED: atomically retire the batch from the index and salsa
         // `Project` so a deleted file stops suppressing W123 / driving the
-        // arity error cross-file.
+        // arity error cross-file. Unlike scan/folder publication, deletion is
+        // authoritative even for an open path: the buffer remains usable but
+        // its dead filesystem identity must leave cross-file resolution.
         if !deleted.is_empty() {
-            let _rehoming_guard = self.rehoming_gate.lock().await;
-            {
-                let mut index = self.workspace_index.write().await;
-                for uri in &deleted {
-                    index.remove_document(uri.as_str());
-                }
-            }
-            self.db_remove_sources_batch(&deleted).await;
-            let mut seeds = self.rehomed_source_seeds.lock().await;
-            for uri in &deleted {
-                seeds.remove(uri.as_str());
-            }
+            self.publish_disk_results(
+                &[],
+                &deleted,
+                DiskRemovalPolicy::IncludeOpen,
+                "did_change_watched_files: deleted",
+            )
+            .await;
         }
         // CREATED / CHANGED: read + analyse every file across the bounded
         // worker pool, then one batched index/db merge.
@@ -34515,6 +34638,227 @@ mod tests {
         std::fs::remove_dir_all(&root).ok();
     }
 
+    /// #1800: a closed-file disk refresh is background work.  If its
+    /// workspace-index publication is delayed, it must not retain the global
+    /// open-document map and stop every diagnostics worker / document-sync
+    /// handler behind it.
+    ///
+    /// The interleaving is constructed rather than timed by load: hold the
+    /// exact downstream writer the reindex needs, wait until it has taken the
+    /// preceding rehoming gate, then prove an unrelated document-map reader can
+    /// still enter.  The pre-fix implementation deterministically times out
+    /// here because it takes `documents` before waiting for this writer.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn disk_reindex_waiting_for_the_index_never_holds_documents_1800() {
+        let root = unique_scratch_dir("reindex-lock-scope-1800");
+        let on_disk = root.join("closed.tcl");
+        std::fs::write(&on_disk, "proc disk_copy {} {}\n").unwrap();
+
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_file_path(&on_disk).unwrap();
+        let index_held = backend.workspace_index.write().await;
+        let reindexing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move { backend.reindex_index_from_disk(&uri).await }
+        });
+
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if backend.rehoming_gate.try_lock().is_err() {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the disk refresh must reach its publication transaction");
+        // Give the publisher ample time to observe the held writer and retry;
+        // this is synchronisation, not the assertion's deadline.
+        crate::rt::sleep(std::time::Duration::from_millis(50)).await;
+
+        let docs = crate::rt::timeout(
+            std::time::Duration::from_millis(250),
+            backend.documents.lock("issue-1800-unrelated-reader"),
+        )
+        .await
+        .expect(
+            "a disk refresh waiting on the workspace index must leave the \
+             open-document map available (#1800)",
+        );
+        drop(docs);
+
+        drop(index_held);
+        crate::rt::timeout(std::time::Duration::from_secs(30), reindexing)
+            .await
+            .expect("the refresh must finish once the index writer is released")
+            .expect("the refresh task must not panic");
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// The other blocking edge inside the captured #1800 critical section is
+    /// salsa's synchronous `cancel_others`: a setter waits for every database
+    /// snapshot to retire. Hold one deliberately and prove background reindex
+    /// waits asynchronously without owning `documents`, then finishes after
+    /// the snapshot drops.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn disk_reindex_waiting_for_a_salsa_snapshot_never_holds_documents_1800() {
+        let root = unique_scratch_dir("reindex-snapshot-1800");
+        let on_disk = root.join("closed.tcl");
+        std::fs::write(&on_disk, "proc disk_copy {} {}\n").unwrap();
+
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_file_path(&on_disk).unwrap();
+        // Production code must never retain a snapshot across an await. This
+        // test does so intentionally to make the setter's blocking precondition
+        // stable for the duration of the experiment.
+        let snapshot = {
+            let db = backend.db.lock().await;
+            SNAPSHOT_CENSUS.take(&db, "issue-1800-held-test-snapshot")
+        };
+        let reindexing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move { backend.reindex_index_from_disk(&uri).await }
+        });
+
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if backend.rehoming_gate.try_lock().is_err() {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the disk refresh must reach its publication transaction");
+        crate::rt::sleep(std::time::Duration::from_millis(50)).await;
+
+        let docs = crate::rt::timeout(
+            std::time::Duration::from_millis(250),
+            backend
+                .documents
+                .lock("issue-1800-snapshot-unrelated-reader"),
+        )
+        .await
+        .expect(
+            "a disk refresh waiting for a salsa snapshot must leave the \
+             open-document map available (#1800)",
+        );
+        drop(docs);
+
+        drop(snapshot);
+        crate::rt::timeout(std::time::Duration::from_secs(30), reindexing)
+            .await
+            .expect("the refresh must finish once the snapshot is released")
+            .expect("the refresh task must not panic");
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// A background scan that was read before `didOpen` must yield publication
+    /// to the new live buffer and must not later overwrite it. This constructs
+    /// that ordering at the index writer: reindex reaches the transaction
+    /// first, `didOpen` arrives while it is waiting, and foreground sync is
+    /// nevertheless the waiter that commits once the writer is released.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn disk_reindex_yields_to_a_racing_live_buffer_1800() {
+        let root = unique_scratch_dir("reindex-live-race-1800");
+        let on_disk = root.join("racing.tcl");
+        std::fs::write(&on_disk, "proc stale {} {}\n").unwrap();
+
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_file_path(&on_disk).unwrap();
+        let mut index_held = backend.workspace_index.write().await;
+        let stale_analysis = Analyser::new()
+            .analyse("proc stale {} {}\n", "tcl8.6")
+            .clone();
+        index_held.add_document(uri.as_str(), &stale_analysis);
+
+        let reindexing = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move { backend.reindex_index_from_disk(&uri).await }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if backend.rehoming_gate.try_lock().is_err() {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the disk refresh must reach its publication transaction");
+
+        let opening = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend
+                    .did_open(DidOpenTextDocumentParams {
+                        text_document: tower_lsp_server::ls_types::TextDocumentItem {
+                            uri,
+                            language_id: "tcl".to_owned(),
+                            version: 1,
+                            text: "proc fresh {} {}\n".to_owned(),
+                        },
+                    })
+                    .await;
+            }
+        });
+        crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let phase = backend
+                    .edit_order
+                    .holder
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .as_ref()
+                    .map(|holder| holder.phase);
+                if phase == Some("did_open: workspace_index.write") {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("foreground didOpen must pass the background publisher and reach the held index");
+
+        drop(index_held);
+        crate::rt::timeout(std::time::Duration::from_secs(30), opening)
+            .await
+            .expect("didOpen must finish once the index writer is released")
+            .expect("didOpen must not panic");
+        crate::rt::timeout(std::time::Duration::from_secs(30), reindexing)
+            .await
+            .expect("the superseded disk refresh must finish")
+            .expect("the disk refresh must not panic");
+
+        let live_dialect = {
+            let docs = backend.documents.lock("issue-1800-race-assertion").await;
+            let live = docs.get(&uri).expect("didOpen must retain its document");
+            assert_eq!(live.text.as_ref(), "proc fresh {} {}\n");
+            live.dialect.clone()
+        };
+        assert!(
+            backend
+                .db_source_matches(&uri, "proc fresh {} {}\n", &live_dialect)
+                .await,
+            "the live buffer must remain the salsa source of truth",
+        );
+        assert!(
+            backend
+                .workspace_index
+                .read()
+                .await
+                .proc_definitions("stale", "other")
+                .is_empty(),
+            "the pre-open disk analysis must not be published after didOpen",
+        );
+
+        std::fs::remove_dir_all(&root).ok();
+    }
+
     #[tokio::test]
     async fn reindex_from_disk_drops_entry_when_file_is_gone() {
         let backend = test_backend();
@@ -36010,6 +36354,49 @@ mod tests {
         let third = census.take(&db, "test-deref");
         let _: &tcl_lsp_db::TclDatabase = &third;
         drop(third);
+    }
+
+    /// A zero census is now a publication precondition (#1800), so it must
+    /// mean more than "the snapshot wrapper started dropping": the wrapped
+    /// Salsa clone must already be destroyed. Drive the exact generic drop
+    /// implementation with a probe whose destructor samples the census.
+    #[test]
+    fn snapshot_census_retires_only_after_the_wrapped_clone_drops_1800() {
+        struct DropProbe {
+            census: &'static SnapshotCensus,
+            saw_itself_registered: Arc<std::sync::atomic::AtomicBool>,
+        }
+
+        impl Drop for DropProbe {
+            fn drop(&mut self) {
+                self.saw_itself_registered.store(
+                    self.census.report().outstanding == 1,
+                    std::sync::atomic::Ordering::SeqCst,
+                );
+            }
+        }
+
+        let census: &'static SnapshotCensus = Box::leak(Box::new(SnapshotCensus::default()));
+        let saw_itself_registered = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let snapshot = census.track(
+            DropProbe {
+                census,
+                saw_itself_registered: Arc::clone(&saw_itself_registered),
+            },
+            "drop-order-proof-1800",
+        );
+
+        assert_eq!(census.report().outstanding, 1);
+        drop(snapshot);
+        assert!(
+            saw_itself_registered.load(std::sync::atomic::Ordering::SeqCst),
+            "the wrapped clone's destructor must still see its census entry"
+        );
+        assert_eq!(
+            census.report().outstanding,
+            0,
+            "the entry must retire immediately after the wrapped clone is gone"
+        );
     }
 
     /// A stalled turn must name the `await` it is suspended at, not merely the
