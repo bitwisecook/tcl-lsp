@@ -30,6 +30,9 @@ targets = [
     { triple = "x86_64-apple-darwin" },
     { triple = "aarch64-apple-darwin" },
     { triple = "x86_64-pc-windows-msvc" },
+    { triple = "wasm32-unknown-unknown" },
+    { triple = "wasm32-wasip1" },
+    { triple = "wasm32-wasip2" },
 ]
 all-features = true
 
