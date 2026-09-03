@@ -916,7 +916,17 @@ fn slot_name(interp: &Interp, slot: i32) -> Option<Vec<u8>> {
 /// the copy-on-write in-place growth, `const`, write traces, and every error
 /// message are exactly what interpreted Tcl produces.
 ///
-/// `value`, when given, is borrowed. Returns the Tcl completion code.
+/// Returns the Tcl completion code.
+///
+/// **Ownership.** The borrow guard's `+1` is released after the call, so a
+/// word's fate is decided by the reference it arrived with: the two words
+/// this function creates are `rc 0`, so that release is what frees them,
+/// while a caller-owned `value` (`rc >= 1`) survives it. A caller handing in
+/// a *fresh* `rc 0` value must therefore not release it again — that second
+/// release is a double free (`tcl_codegen_slot_incr_i64` pins its operand
+/// for exactly this reason). This is the same rule
+/// [`crate::codegen_native::run_named_cell_command`] states for the named
+/// spelling of the same call.
 ///
 /// # Safety
 /// `interp` must be the live current interpreter and `value` a live object.
@@ -939,12 +949,13 @@ unsafe fn slot_modify(
     let mut argv = vec![head_obj, name_obj];
     argv.extend(value);
     // The command borrows its argv; pin every word for the call exactly as the
-    // dispatcher does, then drop the two this function created.
+    // dispatcher does. The borrow's `+1` is the only reference `head_obj` and
+    // `name_obj` have, so releasing it also frees them; a `drop_fresh` here
+    // would be a second release of each.
     // SAFETY: every word is live for the whole call.
-    let _borrowed = unsafe { BorrowedArgv::retain(&argv) };
+    let borrowed = unsafe { BorrowedArgv::retain(&argv) };
     let code = command(interp, &argv);
-    drop_fresh(head_obj);
-    drop_fresh(name_obj);
+    drop(borrowed);
     code
 }
 
@@ -969,6 +980,12 @@ pub unsafe extern "C" fn tcl_codegen_slot_incr_i64(slot: i32, delta: i64, out: *
         return TCL_VALUE_GET_ERROR;
     }
     let delta_obj = obj::new_wide_int_obj(delta);
+    // Give the fresh operand a reference of its own before handing it over:
+    // `slot_modify` borrows its words and releases that borrow after the
+    // call, which would take a bare `rc 0` operand back to zero and free it
+    // here — leaving the release below a double free.
+    // SAFETY: `delta_obj` is a fresh live object.
+    unsafe { obj::incr_ref_count(delta_obj) };
     // SAFETY: `interp` is live; `delta_obj` is a fresh live object.
     let code = unsafe {
         slot_modify(
@@ -980,7 +997,8 @@ pub unsafe extern "C" fn tcl_codegen_slot_incr_i64(slot: i32, delta: i64, out: *
             crate::cmd_var::installed_incr(),
         )
     };
-    drop_fresh(delta_obj);
+    // SAFETY: releases exactly the reference taken above.
+    unsafe { obj::decr_ref_count(delta_obj) };
     if code != crate::interp::Code::Ok {
         return TCL_VALUE_GET_ERROR;
     }
