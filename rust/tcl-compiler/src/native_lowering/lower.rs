@@ -205,6 +205,18 @@ impl<'a> Lowerer<'a> {
             CellDemotion::procedure(input.escape, input.config)
         };
         let environment = input.context.map(SemanticContext::environment_id);
+        // The document's profile, taken from the ingress rather than found
+        // on a catalogue row by name. `DialectProfile::find` answers `None`
+        // for an environment with a Tcl ladder and no row — `jim` — so a
+        // name lookup here would hand this pass the permissive fallback and
+        // lower a Jim unit as Tcl 9.0, which is the hole #1731 closed. The
+        // context's id is already the ingress's canonical one, so this is a
+        // keyed lookup, not a second resolution of a user string, and
+        // `unit_profile` is the same door `CompilationUnit::build_for_dialect`
+        // uses (so `tk` keeps its typed profile).
+        let profile = environment.map(|id| {
+            crate::environment_ingress::resolve_environment(id).unit_profile()
+        });
         // `expr` resolves `abs(…)` through the command table, so a native
         // math function is only sound while nothing in the module can have
         // replaced one: no dynamic trace, no proc declaring one, and no
@@ -229,10 +241,11 @@ impl<'a> Lowerer<'a> {
             mutations,
             proofs: analyse_dispatch_stability(input.function, input.entry_assumption),
             numbers: Numbers::of_dialect_name(environment),
-            dialect: environment.and_then(DialectProfile::find),
-            lexer_config: tcl_lexer::LexerConfig::for_profile(
-                environment.and_then(DialectProfile::find),
-            ),
+            dialect: profile,
+            // `None` — no semantic context at all — keeps the permissive
+            // fallback grammar, matching what `parse_expr_for_profile` does
+            // with the same `None` on the line below.
+            lexer_config: tcl_lexer::LexerConfig::for_profile(profile),
             representation: input
                 .config
                 .is_enabled(SemanticOptimisationPassId::RepresentationInference),
