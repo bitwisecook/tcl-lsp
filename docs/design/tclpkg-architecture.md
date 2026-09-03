@@ -109,9 +109,22 @@ tclpkg.tcl (manifest)
     works without activation.
 23. Activation scripts are provided for bash/zsh and fish.
 
+### Source discovery
+
+24. `tcl pkg discover` is read-only by default and never accesses the network.
+    It inventories `package require` through the full registry-dispatched
+    analyser, then uses the optimiser's constant propagation and pure builtin
+    folds to refine dynamic words while retaining original file/line
+    provenance.
+25. `discover --add` changes only `tclpkg.tcl`. It adds deterministic,
+    unconditional requirements which the manifest's minimum-version model can
+    represent; ambiguous, guarded, exact, and bounded requirements remain
+    review findings. Installed, vendored, virtual-environment, build, and
+    generated trees are not scanned as direct project source.
+
 ## CLI surface
 
-`tcl pkg` — `init`, `install`, `list`, `tree`, `verify`, `info`, `add`,
+`tcl pkg` — `init`, `discover`, `install`, `list`, `tree`, `verify`, `info`, `add`,
 `remove`, `update`, `sync`, `outdated`, `why`, `vendor`, `run`, `freeze`,
 `search`, `show`, plus the security verbs `policy`, `hooks`, `audit`,
 `trust`, and `build` documented in

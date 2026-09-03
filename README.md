@@ -1791,7 +1791,8 @@ isolated virtual environments that pin a specific tclsh version.
 tcl venv create .venv            # create a virtual environment
 source .venv/bin/activate        # activate it
 tcl pkg init                     # create tclpkg.tcl manifest
-tcl pkg add json 1.0             # add a dependency
+tcl pkg discover --add           # find safe package requires in source
+tcl pkg add optional 1.0         # supplement discovery explicitly
 tcl pkg install                  # resolve, fetch, and lock
 tcl pkg tree                     # show dependency tree
 tcl pkg verify                   # check integrity hashes

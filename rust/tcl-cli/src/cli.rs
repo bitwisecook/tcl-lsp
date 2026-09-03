@@ -761,6 +761,24 @@ pub enum PkgCommand {
         #[arg(long)]
         json: bool,
     },
+    /// Discover package requirements in project Tcl source.
+    #[command(visible_alias = "scan")]
+    Discover {
+        /// Files or directories to scan (default: the manifest directory).
+        #[arg(value_name = "INPUT")]
+        inputs: Vec<PathBuf>,
+        /// Add safe, previously undeclared findings to tclpkg.tcl.
+        #[arg(long)]
+        add: bool,
+        /// Do not recurse into input directories.
+        #[arg(long = "no-recursive")]
+        no_recursive: bool,
+        /// Dialect profile override (default: detect per file).
+        #[arg(long, value_name = "DIALECT", value_parser = dialect_parser())]
+        dialect: Option<String>,
+        #[command(flatten)]
+        common: PkgCommon,
+    },
     /// Resolve + fetch + materialise packages.
     Install {
         #[command(flatten)]

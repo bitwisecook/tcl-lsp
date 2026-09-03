@@ -19,6 +19,16 @@ version and the same locked packages I develop against?
   downloads the `tcl` release binary during the build.
 - A `tclpkg.lock` in the project, if you want packages installed for you.
 
+To derive that lockfile from literal and statically-resolvable `package
+require` calls, run:
+
+```sh
+tcl pkg discover --add
+tcl pkg install
+```
+
+Review any dynamic or optional findings and supplement them with `tcl pkg add`.
+
 ## Answer
 
 `tcl docker create` writes a Dockerfile that installs Tcl, installs the

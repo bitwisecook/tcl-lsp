@@ -40,6 +40,7 @@ tcl help taint --json
 
 # Package management and virtual environments (tclpkg)
 tcl pkg init --name myapp --version 1.0.0
+tcl pkg discover --add
 tcl pkg install
 tcl pkg list --json
 tcl pkg tree
