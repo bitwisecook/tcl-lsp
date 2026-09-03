@@ -24,15 +24,17 @@ What does `tcl docker` do, and how do I use it?
 tcl docker info                          # families, Tcl versions, CLI targets
 tcl docker recipe debian:bookworm-slim --tcl-version 9.0   # the Tcl install layer
 tcl docker recipe debian:bookworm-slim --cli               # the tcl CLI install layer
-tcl docker create debian:bookworm-slim --tcl-version 8.6   # write a Dockerfile
+tcl docker create --tcl-version 8.6                         # Debian Dockerfile
 tcl docker create alpine:3.21 --tcl-version 8.6 --no-packages   # Tcl only
 tcl docker create ubuntu:24.04 --venv --entrypoint main.tcl --force
 ```
 
-`create` writes a Dockerfile that installs Tcl (the OS package manager for 8.6
-on Debian, Alpine, and RHEL families, a source build otherwise), downloads the
-`tcl` binary built for the image's architecture, checks it against the
-release's `SHA256SUMS`, and runs `tcl pkg install --frozen` when a
+`create` defaults to `debian:bookworm-slim`, because published Linux tcl-lsp
+binaries require glibc. The generated Dockerfile records that reason and tells
+Alpine/musl users to build tcl-lsp from source. It installs Tcl (the OS package
+manager for 8.6 on Debian, Alpine, and RHEL families, a source build otherwise),
+downloads the `tcl` binary built for the image's architecture, checks it
+against the release's `SHA256SUMS`, and runs `tcl pkg install --frozen` when a
 `tclpkg.lock` is present. No Python interpreter is installed or needed.
 
 ### Choosing the release
@@ -54,11 +56,13 @@ until something above it changes or you build with `--no-cache`.
 `tcl docker create alpine:…` fails as soon as it would install the CLI. Every
 published Linux `tcl` asset is glibc-linked, and Alpine's `gcompat` shim
 re-exports neither `fcntl64` nor `__res_init`, so the binary cannot start.
-Either use a glibc base image, or pass `--no-packages` (and no `--venv`) for a
+Use the default Debian image, or build tcl-lsp from source for musl if Alpine is
+required. Passing `--no-packages` (and no `--venv`) remains available for a
 Tcl-only image. `tcl docker info` lists which families can carry the CLI.
 
 ## Options
 
+- `[IMAGE]` — optional base image; defaults to `debian:bookworm-slim` for glibc.
 - `--tcl-version 8.4|8.5|8.6|9.0` — the Tcl to install (default 8.6).
 - `-o PATH` / `--force` — output path; overwrite an existing file.
 - `--workdir DIR` — container `WORKDIR` (default `/app`).
@@ -75,7 +79,7 @@ Tcl-only image. `tcl docker info` lists which families can carry the CLI.
 ## Example
 
 ```sh
-$ tcl docker create debian:bookworm-slim --tcl-version 8.6
+$ tcl docker create --tcl-version 8.6
   ✓ wrote Dockerfile
   base: debian:bookworm-slim  tcl: 8.6
   docker build -t myapp .

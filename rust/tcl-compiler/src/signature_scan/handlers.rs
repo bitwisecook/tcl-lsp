@@ -407,12 +407,12 @@ pub(super) fn handle_namespace_import(
     }
 }
 
-/// Handler for `package require ?-exact? NAME ?VERSION?`.
+/// Handler for `package require ?-exact? NAME ?requirement ...?`.
 ///
 /// Records a `SignaturePackageRequire`: the optional `-exact` flag is
 /// captured on the record's `exact` field (it turns the version into
 /// the degenerate range `V-V`, which selects a different release —
-/// issue #1090), and the optional `VERSION` is captured when present.
+/// issue #1090), and every alternative requirement is captured when present.
 /// The subcommand word resolves through the registry's ensemble rule,
 /// so C Tcl's accepted abbreviation (`package req Tcl`) records the
 /// requirement too.
@@ -433,17 +433,16 @@ pub(super) fn handle_package_require(
         return;
     }
     let pkg_name = texts[idx].clone();
-    let version = if texts.len() > idx + 1 {
-        Some(texts[idx + 1].clone())
-    } else {
-        None
-    };
+    let requirements = texts[idx + 1..].to_vec();
+    let version = requirements.first().cloned();
     result.package_requires.push(SignaturePackageRequire {
         name: pkg_name,
         version,
+        requirements,
         exact,
         range: argv[idx].span,
         conditional,
+        control_flow: conditional,
     });
 }
 

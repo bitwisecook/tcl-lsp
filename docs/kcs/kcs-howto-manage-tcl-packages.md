@@ -26,7 +26,20 @@ tcl pkg init --name myapp --version 1.0.0
 
 This writes `tclpkg.tcl` in the current directory.
 
-### 2. Add dependencies
+### 2. Discover dependencies from source
+
+```sh
+tcl pkg discover
+tcl pkg discover --add
+```
+
+The first command is read-only. The second adds requirements whose names and
+minimum versions the analyser and optimiser can prove. It scans procedure and
+nested-script bodies, resolves constant variables, interpolations, and safe
+builtin command substitutions, and reports dynamic, conditional,
+loop-contained, `-exact`, bounded, or alternative requirements for review.
+
+### 3. Add or override dependencies explicitly
 
 ```sh
 tcl pkg add json 1.0
@@ -34,9 +47,12 @@ tcl pkg add http 2.9 --source https://example.org/http.tar.gz
 tcl pkg add tcltest 2.5 --dev
 ```
 
-Each call appends a `require` (or `dev-require`) line to the manifest.
+Use `add` for optional/dynamic requirements discovery cannot prove, packages
+which do not appear in source, explicit source URLs, and development-only
+dependencies. Each call appends a `require` (or `dev-require`) line to the
+manifest.
 
-### 3. Resolve and install
+### 4. Resolve and install
 
 ```sh
 tcl pkg install
@@ -46,7 +62,7 @@ The resolver picks the highest version that satisfies every minimum in
 the graph (Go-style MVS). Results are written to `tclpkg.lock` and
 materialised into `./lib/<pkg>-<ver>/`.
 
-### 4. Verify
+### 5. Verify
 
 ```sh
 tcl pkg verify
@@ -54,7 +70,7 @@ tcl pkg verify
 
 Re-checks SHA-256 hashes of every package against the lockfile.
 
-### 5. Reproduce in CI
+### 6. Reproduce in CI
 
 ```sh
 tcl pkg sync
@@ -63,7 +79,7 @@ tcl pkg sync
 Installs from the lockfile without re-resolving — refuses to change the
 lock. Use this in CI and production builds.
 
-### 6. (Optional) Use a virtual environment
+### 7. (Optional) Use a virtual environment
 
 ```sh
 tcl venv create .venv

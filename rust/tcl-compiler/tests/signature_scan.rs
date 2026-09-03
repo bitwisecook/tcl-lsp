@@ -448,6 +448,13 @@ fn top_level_require_not_conditional() {
     assert!(!r.package_requires[0].conditional);
 }
 
+#[test]
+fn package_require_keeps_every_alternative_requirement() {
+    let r = run("package require Foo 1.0 2.0-2.5");
+    assert_eq!(r.package_requires[0].version.as_deref(), Some("1.0"));
+    assert_eq!(r.package_requires[0].requirements, ["1.0", "2.0-2.5"]);
+}
+
 // Command invocations
 
 #[test]

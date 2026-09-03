@@ -192,7 +192,10 @@ pub fn spec() -> CommandSpec {
         // Tcl 8.6+ only — see the doc comment above. Narrower than the
         // sibling `time`'s `surface: Some(SpecSurface::ALL_TCL)`.
         surface: Some(SpecSurface::TCL86_PLUS),
-        traits: Traits::BYTE_COMPILED | Traits::DYNAMIC_EVAL_BODY,
+        traits: Traits::BYTE_COMPILED
+            | Traits::CONTROL_FLOW
+            | Traits::DYNAMIC_EVAL_BODY
+            | Traits::HAS_LOOP_BODY,
         // The body's position varies with the leading options, so we
         // don't pin a fixed BODY index beyond arg 0; the option /
         // positional mix makes the upper arity bound unbounded (mirrors

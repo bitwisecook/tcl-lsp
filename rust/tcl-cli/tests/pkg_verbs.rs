@@ -60,6 +60,161 @@ fn temp_dir(tag: &str) -> PathBuf {
 }
 
 #[test]
+fn pkg_discover_uses_analysis_and_optimisation() {
+    let dir = temp_dir("pkg-discover-analysis");
+    std::fs::write(
+        dir.join("tclpkg.tcl"),
+        "package demo\nversion 1.0.0\nlicense MIT\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("main.tcl"),
+        "proc load_json {} { package require json 1.2 }\n\
+         proc load_tls {} {\n\
+             set dep [string cat t l s]\n\
+             set minimum 1.7\n\
+             package require $dep $minimum\n\
+         }\n\
+         if {$optional} { package require Tk 8.6 }\n\
+         set alternative 2.0-2.5\n\
+         package require alternatives 1.0 $alternative\n\
+         package require partial 1.0 $runtime_requirement\n\
+         package require $runtime_package\n",
+    )
+    .unwrap();
+
+    let (stdout, stderr, code) = run_in(&dir, &["pkg", "discover", "--json"]);
+    assert_eq!(code, 0, "{stderr}");
+    let output: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(output["scanned_files"], 1);
+    let requirements = output["requirements"].as_array().unwrap();
+    assert!(requirements.iter().any(|requirement| {
+        requirement["name"] == "json"
+            && requirement["minimum"] == "1.2"
+            && requirement["resolution"] == "literal"
+            && requirement["status"] == "candidate"
+    }));
+    assert!(requirements.iter().any(|requirement| {
+        requirement["name"] == "tls"
+            && requirement["minimum"] == "1.7"
+            && requirement["version_expression"] == "${minimum}"
+            && requirement["resolution"] == "optimiser"
+            && requirement["status"] == "candidate"
+    }));
+    assert!(requirements.iter().any(|requirement| {
+        requirement["name"] == "Tk"
+            && requirement["conditional"] == true
+            && requirement["status"] == "review"
+    }));
+    assert!(requirements.iter().any(|requirement| {
+        requirement["name"] == "alternatives"
+            && requirement["requirements"] == serde_json::json!(["1.0", "2.0-2.5"])
+            && requirement["requirement_expressions"]
+                == serde_json::json!(["1.0", "${alternative}"])
+            && requirement["resolution"] == "optimiser"
+            && requirement["status"] == "review"
+    }));
+    assert!(requirements.iter().any(|requirement| {
+        requirement["name"] == "partial"
+            && requirement["requirements"] == serde_json::json!(["1.0", null])
+            && requirement["requirement_expressions"]
+                == serde_json::json!(["1.0", "${runtime_requirement}"])
+            && requirement["resolution"] == "unresolved"
+            && requirement["status"] == "review"
+    }));
+    assert!(requirements.iter().any(|requirement| {
+        requirement["expression"] == "${runtime_package}"
+            && requirement["name"].is_null()
+            && requirement["status"] == "unresolved"
+    }));
+    assert!(output["added"].as_array().unwrap().is_empty());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn pkg_discover_add_is_idempotent_and_skips_dependency_trees() {
+    let dir = temp_dir("pkg-discover-add");
+    std::fs::write(
+        dir.join("tclpkg.tcl"),
+        "package demo\nversion 1.0.0\nlicense MIT\nrequire json 1.0\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("main.tcl"),
+        "package require json 1.2\n\
+         package require tls 1.7\n\
+         package require -exact pinned 2.0\n\
+         package require ranged 1.0-2.0\n\
+         package require alternatives 1.0 2.0-2.5\n\
+         while {$optional} { package require looped 3.0 }\n\
+         package require Tcl 8.6\n\
+         package require demo 1.0\n",
+    )
+    .unwrap();
+    std::fs::create_dir_all(dir.join("vendor/dep")).unwrap();
+    std::fs::write(
+        dir.join("vendor/dep/dep.tcl"),
+        "package require should_not_be_direct 9.0\n",
+    )
+    .unwrap();
+
+    let (stdout, stderr, code) = run_in(&dir, &["pkg", "discover", "--add", "--json"]);
+    assert_eq!(code, 0, "{stderr}");
+    let output: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    assert_eq!(output["added"].as_array().unwrap().len(), 1);
+    assert_eq!(output["added"][0]["name"], "tls");
+    assert_eq!(output["added"][0]["minimum"], "1.7");
+    let requirements = output["requirements"].as_array().unwrap();
+    assert!(requirements.iter().any(|requirement| {
+        requirement["name"] == "pinned" && requirement["status"] == "review"
+    }));
+    assert!(requirements.iter().any(|requirement| {
+        requirement["name"] == "ranged" && requirement["status"] == "review"
+    }));
+    assert!(requirements.iter().any(|requirement| {
+        requirement["name"] == "alternatives"
+            && requirement["requirement_expressions"] == serde_json::json!(["1.0", "2.0-2.5"])
+            && requirement["requirements"] == serde_json::json!(["1.0", "2.0-2.5"])
+            && requirement["minimum"].is_null()
+            && requirement["resolution"] == "literal"
+            && requirement["status"] == "review"
+    }));
+    assert!(requirements.iter().any(|requirement| {
+        requirement["name"] == "looped"
+            && requirement["control_flow"] == true
+            && requirement["status"] == "review"
+    }));
+    assert!(
+        requirements.iter().any(|requirement| {
+            requirement["name"] == "Tcl" && requirement["status"] == "runtime"
+        })
+    );
+    assert!(
+        requirements.iter().any(|requirement| {
+            requirement["name"] == "demo" && requirement["status"] == "self"
+        })
+    );
+
+    let manifest = std::fs::read_to_string(dir.join("tclpkg.tcl")).unwrap();
+    assert_eq!(manifest.matches("require json").count(), 1);
+    assert_eq!(manifest.matches("require tls").count(), 1);
+    assert!(!manifest.contains("require pinned"));
+    assert!(!manifest.contains("require ranged"));
+    assert!(!manifest.contains("require alternatives"));
+    assert!(!manifest.contains("require looped"));
+    assert!(!manifest.contains("require Tcl"));
+    assert!(!manifest.contains("require demo"));
+    assert!(!manifest.contains("should_not_be_direct"));
+    assert!(!dir.join("tclpkg.lock").exists());
+
+    let (_stdout, stderr, code) = run_in(&dir, &["pkg", "discover", "--add"]);
+    assert_eq!(code, 0, "{stderr}");
+    let manifest = std::fs::read_to_string(dir.join("tclpkg.tcl")).unwrap();
+    assert_eq!(manifest.matches("require tls").count(), 1);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn docker_recipe_alpine_86() {
     let dir = temp_dir("docker-recipe");
     let (stdout, _stderr, code) = run_in(
@@ -114,18 +269,13 @@ fn docker_create_writes_dockerfile() {
     let dir = temp_dir("docker-create");
     let (_stdout, _stderr, code) = run_in(
         &dir,
-        &[
-            "docker",
-            "create",
-            "debian:bookworm-slim",
-            "--tcl-version",
-            "8.6",
-            "--no-packages",
-        ],
+        &["docker", "create", "--tcl-version", "8.6", "--no-packages"],
     );
     assert_eq!(code, 0);
     let content = std::fs::read_to_string(dir.join("Dockerfile")).unwrap();
-    assert!(content.starts_with("FROM debian:bookworm-slim\n"));
+    assert!(content.contains("require glibc, so Debian is the safe default"));
+    assert!(content.contains("Alpine/musl is required, build tcl-lsp from source"));
+    assert!(content.contains("FROM debian:bookworm-slim\n"));
     assert!(content.contains("# Install Tcl 8.6"));
     assert!(content.contains("WORKDIR /app"));
     assert!(content.trim_end().ends_with("CMD [\"tclsh\"]"));
@@ -168,6 +318,7 @@ fn docker_create_rejects_the_cli_on_musl() {
     let (_stdout, stderr, code) = run_in(&dir, &["docker", "create", "alpine:3.19"]);
     assert_eq!(code, 1);
     assert!(stderr.contains("musl"), "{stderr}");
+    assert!(stderr.contains("build tcl-lsp from source"), "{stderr}");
     assert!(!dir.join("Dockerfile").exists());
 
     // Without the CLI verbs an alpine image is still generated.

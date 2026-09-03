@@ -185,6 +185,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "for",
+        traits: Traits::CONTROL_FLOW.union(Traits::HAS_LOOP_BODY),
         arity: Arity::exact(3),
         detail: "Iterate over dictionary key/value pairs.",
         synopsis: "dict for {keyVar valueVar} dictionaryValue body",
@@ -294,6 +295,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "map",
+        traits: Traits::CONTROL_FLOW.union(Traits::HAS_LOOP_BODY),
         arity: Arity::exact(3),
         detail: "Apply a transformation to each dictionary entry.",
         synopsis: "dict map {keyVar valueVar} dictionaryValue body",
@@ -812,11 +814,12 @@ pub fn qualified_specs() -> Vec<CommandSpec> {
             let &(_, summary, synopsis) = QUALIFIED_HOVER.iter().find(|&&(n, _, _)| n == bare)?;
             Some(CommandSpec {
                 name: qualified,
-                traits: if sub.pure {
-                    Traits::PURE
-                } else {
-                    Traits::empty()
-                },
+                traits: sub.traits
+                    | if sub.pure {
+                        Traits::PURE
+                    } else {
+                        Traits::empty()
+                    },
                 surface: sub.surface.or(parent_surface),
                 arity: sub.arity,
                 return_type: sub.return_type,
@@ -905,6 +908,17 @@ mod tests {
         assert!(
             for_.analyser_hook.is_some(),
             "::tcl::dict::for must carry the DictFor analyser hook",
+        );
+        assert!(
+            for_.traits
+                .contains(Traits::CONTROL_FLOW | Traits::HAS_LOOP_BODY),
+            "::tcl::dict::for must carry its loop traits",
+        );
+        let map = get("::tcl::dict::map");
+        assert!(
+            map.traits
+                .contains(Traits::CONTROL_FLOW | Traits::HAS_LOOP_BODY),
+            "::tcl::dict::map must carry its loop traits",
         );
     }
 

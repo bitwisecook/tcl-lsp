@@ -156,6 +156,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "for",
+        traits: Traits::CONTROL_FLOW.union(Traits::HAS_LOOP_BODY),
         arity: Arity::exact(3),
         detail: "Iterates over array entries. The first argument is a two-element list of variable names for the key and value of each entry.",
         synopsis: "array for {keyVariable valueVariable} arrayName body",
@@ -359,5 +360,22 @@ pub fn spec() -> CommandSpec {
         inline_codegen_hook: Some(InlineCodegenHookId::Array),
         forms: FORMS,
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn array_for_carries_loop_traits() {
+        let for_ = SUBCOMMANDS
+            .iter()
+            .find(|sub| sub.name == "for")
+            .expect("array for subcommand");
+        assert!(
+            for_.traits
+                .contains(Traits::CONTROL_FLOW | Traits::HAS_LOOP_BODY),
+        );
     }
 }
