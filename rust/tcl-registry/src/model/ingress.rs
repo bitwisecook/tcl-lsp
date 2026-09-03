@@ -523,6 +523,34 @@ mod tests {
 
     use super::*;
 
+    /// The VM's pin and the point must name the same release. `tk` had them
+    /// split — its profile grammar and core said 8.6 while
+    /// `vm_runtime_version` still said 9.0 — so a document analysed as 8.6
+    /// executed under Tcl 9 semantics in the VM and the debugger. Where an
+    /// environment's point names a Tcl release, the profile the VM is
+    /// pinned from must carry it.
+    #[test]
+    fn the_vm_pin_agrees_with_the_point() {
+        let mut split = Vec::new();
+        for profile in DialectProfile::all().iter().chain([DialectProfile::tk()]) {
+            let environment = resolve_environment(profile.name);
+            let Some(release) = environment.point().and_then(DialectPoint::tcl_version) else {
+                continue;
+            };
+            if profile.vm_runtime_version != release {
+                split.push(format!(
+                    "{}: vm pin {:?} vs point {release:?}",
+                    profile.name, profile.vm_runtime_version
+                ));
+            }
+        }
+        assert!(
+            split.is_empty(),
+            "vm pin disagrees with the point:\n  {}",
+            split.join("\n  ")
+        );
+    }
+
     /// The runtime base the semantic handle reads is now derived from the
     /// environment's point (`EnvironmentId::runtime_version`), not looked up
     /// on the catalogue row. For every catalogue dialect the two must be one

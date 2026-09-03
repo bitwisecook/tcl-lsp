@@ -1353,7 +1353,7 @@ static TK_PROFILE: DialectProfile = DialectProfile {
     operators_as_commands: true,
     tcloo: true,
     has_fixed_ensembles: false,
-    vm_runtime_version: TclVersion::V9_0,
+    vm_runtime_version: TclVersion::V8_6,
     libraries: LIBS_TCL86_PLUS,
     help_terms: &["tk"],
 };

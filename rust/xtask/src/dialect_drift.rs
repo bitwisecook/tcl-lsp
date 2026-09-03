@@ -240,10 +240,14 @@ fn scan<'a>(rel: &str, text: &'a str) -> Vec<(usize, &'a str, &'static str)> {
             {
                 continue;
             }
+            // An expression call rustfmt has wrapped puts its `None` on a
+            // later line, so those rules read a window that spans the whole
+            // argument list rather than this line alone.
+            let window = code_window(&lines, idx, test_tail);
             let hit = rule
                 .needles
                 .iter()
-                .any(|n| needle_hits(rel, text, &code, n));
+                .any(|n| needle_hits(rel, text, &code, &window, n));
             if hit && !is_waived(&lines, idx) {
                 out.push((idx + 1, trimmed, rule.why));
                 break;
@@ -258,7 +262,7 @@ fn scan<'a>(rel: &str, text: &'a str) -> Vec<(usize, &'a str, &'static str)> {
 /// segmenter and the CFG builder own their own blind entries, a `build_cfg`
 /// that is not the CFG builder's is some other function of that name, and an
 /// expression parse is only ambient when it is actually handed `None`.
-fn needle_hits(rel: &str, text: &str, code: &str, needle: &str) -> bool {
+fn needle_hits(rel: &str, text: &str, code: &str, window: &str, needle: &str) -> bool {
     if !calls_free(code, needle) {
         return false;
     }
@@ -271,7 +275,7 @@ fn needle_hits(rel: &str, text: &str, code: &str, needle: &str) -> bool {
     if needle == "build_cfg(" && (rel == CFG_OWNER || !text.contains("cfg_builder::build_cfg")) {
         return false;
     }
-    if EXPR_NEEDLES.contains(&needle) && !ambient_none_argument(code, needle) {
+    if EXPR_NEEDLES.contains(&needle) && !ambient_none_argument(window, needle) {
         return false;
     }
     true
@@ -297,6 +301,32 @@ fn calls_free(code: &str, needle: &str) -> bool {
         from = at + needle.len();
     }
     false
+}
+
+/// This line's code plus enough following lines to close the call it opens:
+/// rustfmt wraps a long `parse_expr(…)` across lines, and a rule that read
+/// only the opening line would never see the `None` on the next one. Stops
+/// once parentheses balance, at the test tail, or after a bounded lookahead.
+fn code_window(lines: &[&str], idx: usize, limit: usize) -> String {
+    const LOOKAHEAD: usize = 12;
+    let mut window = String::new();
+    let mut depth: i32 = 0;
+    for line in lines.iter().take(limit.min(idx + LOOKAHEAD)).skip(idx) {
+        let code = code_only(line.trim());
+        for ch in code.chars() {
+            match ch {
+                '(' => depth += 1,
+                ')' => depth -= 1,
+                _ => {}
+            }
+        }
+        window.push_str(&code);
+        window.push(' ');
+        if depth <= 0 && !window.trim().is_empty() {
+            break;
+        }
+    }
+    window
 }
 
 /// The expression-parse entries whose *last* argument is the dialect; only a
@@ -534,6 +564,18 @@ mod tests {
         assert!(scan(REL, "let m = build_cfg(&module);\n").is_empty());
         assert!(scan(CFG_OWNER, "let m = build_cfg(&module);\n").is_empty());
         assert!(scan(REL, "let m = build_cfg_with_config(&module, cfg);\n").is_empty());
+    }
+
+    #[test]
+    fn a_wrapped_expression_call_is_still_a_hit() {
+        // The rustfmt form: the needle and its `None` are on different lines.
+        let src = "fn f() {\n    let e = parse_expr(\n        text,\n        None,\n    );\n}\n";
+        let hits = scan(REL, src);
+        assert_eq!(hits.len(), 1, "{hits:?}");
+        assert_eq!(hits[0].0, 2, "flagged at the call, not the argument");
+        // Wrapped but dialect-carrying is still fine.
+        let ok = "fn f() {\n    let e = parse_expr(\n        text,\n        Some(profile.name),\n    );\n}\n";
+        assert!(scan(REL, ok).is_empty(), "{:?}", scan(REL, ok));
     }
 
     #[test]

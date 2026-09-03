@@ -1679,6 +1679,14 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
     let global_write_procs: HashMap<String, GlobalWriteInfo> =
         context.global_write_ctx(db).iter().cloned().collect();
     let registry = db.registry(key.dialect(db));
+    // The **environment's** grammar, not the store's profile: the model
+    // store stamps a registry by catalogue lookup, so for an environment
+    // with no catalogue row (`jim`) `registry.profile()` is the permissive
+    // fallback and this CFG would be segmented as Tcl 9 while the unit
+    // below is built as Jim. One value for both (§2.5).
+    let config = tcl_lexer::LexerConfig::from_grammar(
+        tcl_lsp_core::environment_for_dialect(key.dialect(db)).grammar(),
+    );
     let cfg = build_cfg_function_with_upvars_and_config(
         key.qname(db),
         key.body(db),
@@ -1686,7 +1694,7 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
         upvar,
         proc_params,
         global_write_procs,
-        tcl_lexer::LexerConfig::for_profile(registry.profile()),
+        config,
     );
     let param_constants =
         tcl_compiler::compilation_unit::decode_param_constants(key.param_constants(db));
@@ -1701,12 +1709,7 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
             key.qname(db),
             cfg,
             key.params(db),
-            tcl_compiler::compilation_unit::UnitDialect {
-                registry,
-                config: tcl_lexer::LexerConfig::from_grammar(
-                    tcl_lsp_core::environment_for_dialect(key.dialect(db)).grammar(),
-                ),
-            },
+            tcl_compiler::compilation_unit::UnitDialect { registry, config },
             param_constants.as_ref(),
             &known_classes,
             trace_facts,
