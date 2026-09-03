@@ -37,8 +37,6 @@
 
 use tcl_runtime_api::Code;
 
-use tcl_dialect::{ArrayIndexSyntax, BracedVarStyle};
-
 use crate::error::TclError;
 use crate::interp::Vm;
 use crate::value::Value;
@@ -57,12 +55,16 @@ use crate::value::Value;
 ///
 /// The owner reports one byte *past* the `]`; the callers here index the `]`
 /// itself, so this adapter steps back.
-fn command_end(b: &[u8], start: usize) -> Option<usize> {
+///
+/// `config` is the VM's own grammar ([`Vm::lexer_config`]): the substituted
+/// text is a script, so where a `]` stops is a release/dialect question
+/// (`docs/design/dialect-profile-model.md` §2.5), not the default grammar's.
+fn command_end(b: &[u8], start: usize, config: tcl_lexer::LexerConfig) -> Option<usize> {
     tcl_lexer::word_parts::command_subst_close(
         b,
         start,
         tcl_lexer::word_parts::SubstFlags::default(),
-        tcl_lexer::LexerConfig::default(),
+        config,
     )
     .ok()
     .map(|end| end - 1)
@@ -169,8 +171,8 @@ pub fn subst_command(
             b'[' if commands => {
                 // An unclosed `[` is a parse error reported before the bracket
                 // body would run (subst-5.5/5.6/5.7).
-                let end =
-                    command_end(b, i).ok_or_else(|| TclError::new("missing close-bracket"))?;
+                let end = command_end(b, i, vm.lexer_config())
+                    .ok_or_else(|| TclError::new("missing close-bracket"))?;
                 let c = vm.eval_source(&s[i + 1..end])?;
                 match c.code {
                     // `return` / a custom code substitutes its result and resumes.
@@ -277,7 +279,7 @@ pub(crate) fn subst_scan_step(vm: &mut Vm, st: &mut SubstState) -> SubstStep {
                 i = end;
             }
             b'[' if st.commands => {
-                let Some(end) = command_end(b, i) else {
+                let Some(end) = command_end(b, i, vm.lexer_config()) else {
                     st.out = out;
                     st.cursor = i;
                     return SubstStep::Error("missing close-bracket".to_owned());
@@ -328,8 +330,7 @@ enum VarFlow {
 
 /// Substitute one `$name` / `${name}` / `$name(index)` reference at `s[at]`.
 fn subst_var(vm: &mut Vm, s: &str, at: usize) -> Result<VarFlow, TclError> {
-    let Some(vr) = parse_var_ref_parts(s, at, vm.braced_var_style(), vm.array_index_syntax())?
-    else {
+    let Some(vr) = parse_var_ref_parts(s, at, vm.lexer_config())? else {
         return Ok(VarFlow::Literal);
     };
     let Some(raw_index) = vr.index else {
@@ -381,8 +382,8 @@ fn subst_index(vm: &mut Vm, idx: &str) -> Result<IndexFlow, TclError> {
                 i = end;
             }
             b'[' => {
-                let end =
-                    command_end(b, i).ok_or_else(|| TclError::new("missing close-bracket"))?;
+                let end = command_end(b, i, vm.lexer_config())
+                    .ok_or_else(|| TclError::new("missing close-bracket"))?;
                 let c = vm.eval_source(&idx[i + 1..end])?;
                 match c.code {
                     Code::Ok => {
@@ -398,9 +399,7 @@ fn subst_index(vm: &mut Vm, idx: &str) -> Result<IndexFlow, TclError> {
                 }
             }
             b'$' if i + 1 < n => {
-                if let Some(vr) =
-                    parse_var_ref_parts(idx, i, vm.braced_var_style(), vm.array_index_syntax())?
-                {
+                if let Some(vr) = parse_var_ref_parts(idx, i, vm.lexer_config())? {
                     let v = match vr.index {
                         None => read_var(vm, vr.base)?,
                         // A nested array index recurses; control flow from it
@@ -466,14 +465,8 @@ struct VarRef<'a> {
 fn parse_var_ref_parts(
     s: &str,
     at: usize,
-    braced_var: BracedVarStyle,
-    array_index: ArrayIndexSyntax,
+    config: tcl_lexer::LexerConfig,
 ) -> Result<Option<VarRef<'_>>, TclError> {
-    let config = tcl_lexer::LexerConfig {
-        braced_var,
-        array_index,
-        ..tcl_lexer::LexerConfig::default()
-    };
     match tcl_lexer::word_parts::scan_var_ref(s.as_bytes(), at, config) {
         Ok(None) => Ok(None),
         // The owner returns byte sub-slices of the same buffer; `s` is a
@@ -509,7 +502,7 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
 
     // Fast path: the whole word is one command substitution.
     if b.first() == Some(&b'[')
-        && let Some(end) = command_end(b, 0)
+        && let Some(end) = command_end(b, 0, vm.lexer_config())
         && end == n - 1
     {
         return eval_subst(vm, &word[1..end]);
@@ -573,12 +566,7 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
     // (the `${…}` close rule, #1568; the escape grammar, #1479) ride on the
     // `LexerConfig`. The scan replaces a hand-rolled loop that carried its own
     // second copy of the `${…}` close rule and its own bracket search.
-    let config = tcl_lexer::LexerConfig {
-        braced_var,
-        array_index: vm.array_index_syntax(),
-        escapes: vm.escape_syntax(),
-        ..tcl_lexer::LexerConfig::default()
-    };
+    let config = vm.lexer_config();
     let flags = tcl_lexer::word_parts::SubstFlags::compiled_word();
     let parts = match tcl_lexer::word_parts::decompose(b, flags, config) {
         tcl_lexer::word_parts::WordBody::Literal(bytes) => {
@@ -620,11 +608,30 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        ArrayIndexSyntax, BracedVarStyle, command_end, parse_var_ref_parts, subst_command,
-        whole_braced,
-    };
+    use super::{command_end, parse_var_ref_parts, subst_command, whole_braced};
     use crate::interp::Vm;
+    use tcl_dialect::{ArrayIndexSyntax, BracedVarStyle};
+
+    /// A config pinning just the two axes a var-reference scan turns on,
+    /// over the default grammar — these tests exercise the release axes
+    /// themselves, not a document's resolved grammar.
+    /// [`command_end`] under the default grammar — these rows pin the
+    /// bracket search itself (brace/quote/comment awareness), which no
+    /// modelled grammar varies.
+    fn command_end_default(b: &[u8], start: usize) -> Option<usize> {
+        command_end(b, start, tcl_lexer::LexerConfig::default()) // dialect-drift-ok: grammar-invariant rule under test
+    }
+
+    fn var_config(
+        braced_var: BracedVarStyle,
+        array_index: ArrayIndexSyntax,
+    ) -> tcl_lexer::LexerConfig {
+        tcl_lexer::LexerConfig {
+            braced_var,
+            array_index,
+            ..tcl_lexer::LexerConfig::default() // dialect-drift-ok: axis-under-test, not document text
+        }
+    }
 
     /// `subst_command` with only backslash substitution enabled.
     fn subst_backslashes(template: &str) -> String {
@@ -663,8 +670,7 @@ mod tests {
             let parsed = parse_var_ref_parts(
                 source,
                 0,
-                BracedVarStyle::Tcl9Nesting,
-                ArrayIndexSyntax::Tcl9,
+                var_config(BracedVarStyle::Tcl9Nesting, ArrayIndexSyntax::Tcl9),
             )
             .expect("parses")
             .expect("variable reference");
@@ -674,8 +680,7 @@ mod tests {
         let parsed = parse_var_ref_parts(
             "$a:::b(k)",
             0,
-            BracedVarStyle::Tcl9Nesting,
-            ArrayIndexSyntax::Tcl9,
+            var_config(BracedVarStyle::Tcl9Nesting, ArrayIndexSyntax::Tcl9),
         )
         .expect("parses")
         .expect("array reference");
@@ -688,8 +693,7 @@ mod tests {
         let legacy = parse_var_ref_parts(
             "$a({key})",
             0,
-            BracedVarStyle::FirstClose,
-            ArrayIndexSyntax::Tcl8,
+            var_config(BracedVarStyle::FirstClose, ArrayIndexSyntax::Tcl8),
         )
         .expect("Tcl 8 accepts raw braces")
         .expect("array reference");
@@ -697,8 +701,7 @@ mod tests {
         let modern = parse_var_ref_parts(
             "$a({key})",
             0,
-            BracedVarStyle::Tcl9Nesting,
-            ArrayIndexSyntax::Tcl9,
+            var_config(BracedVarStyle::Tcl9Nesting, ArrayIndexSyntax::Tcl9),
         );
         let Err(modern) = modern else {
             panic!("Tcl 9 rejects raw braces");
@@ -709,24 +712,24 @@ mod tests {
     #[test]
     fn command_end_finds_matching_bracket() {
         // Flat: the lone `]` closes the substitution.
-        assert_eq!(command_end(b"[set x]", 0), Some(6));
+        assert_eq!(command_end_default(b"[set x]", 0), Some(6));
         // Nested `[...]` raises/lowers depth; the outer `]` matches.
-        assert_eq!(command_end(b"[a [b] c]", 0), Some(8));
+        assert_eq!(command_end_default(b"[a [b] c]", 0), Some(8));
     }
 
     #[test]
     fn command_end_ignores_brackets_inside_braces() {
         // A `]` inside a brace group is literal and must not close the subst.
         // `[set x {]}]`: the `]` at index 8 is brace-protected; index 10 closes.
-        assert_eq!(command_end(b"[set x {]}]", 0), Some(10));
+        assert_eq!(command_end_default(b"[set x {]}]", 0), Some(10));
     }
 
     #[test]
     fn command_end_skips_backslash_escapes_and_reports_unbalanced() {
         // `\]` is an escaped bracket, not the closer; the real `]` is at 5.
-        assert_eq!(command_end(br"[a\]b]", 0), Some(5));
+        assert_eq!(command_end_default(br"[a\]b]", 0), Some(5));
         // No closing bracket at all.
-        assert_eq!(command_end(b"[a b", 0), None);
+        assert_eq!(command_end_default(b"[a b", 0), None);
     }
 
     #[test]

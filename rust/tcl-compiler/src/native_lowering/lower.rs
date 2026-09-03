@@ -170,6 +170,10 @@ struct Lowerer<'a> {
     proofs: DispatchProofAnalysis,
     numbers: Numbers,
     dialect: Option<&'static DialectProfile>,
+    /// The document's lexer grammar, resolved once with `dialect` and
+    /// threaded into every re-read of source text this pass makes
+    /// (`docs/design/dialect-profile-model.md` §2.5).
+    lexer_config: tcl_lexer::LexerConfig,
     representation: bool,
     mathfunc_native: bool,
     declined_nodes: BTreeMap<NodeId, NativeLoweringDecline>,
@@ -226,6 +230,9 @@ impl<'a> Lowerer<'a> {
             proofs: analyse_dispatch_stability(input.function, input.entry_assumption),
             numbers: Numbers::of_dialect_name(environment),
             dialect: environment.and_then(DialectProfile::find),
+            lexer_config: tcl_lexer::LexerConfig::for_profile(
+                environment.and_then(DialectProfile::find),
+            ),
             representation: input
                 .config
                 .is_enabled(SemanticOptimisationPassId::RepresentationInference),
@@ -1097,7 +1104,7 @@ impl<'a> Lowerer<'a> {
             }
             WordExpr::Variable { spelling, source } => variable_place(spelling, source).map(|_| ()),
             WordExpr::CommandSubstitution { spelling, source } => {
-                let inner = nested_words(spelling, source)?;
+                let inner = nested_words(spelling, source, self.lexer_config)?;
                 self.words_lowerable(&inner, depth + 1)
             }
             WordExpr::Template { parts, .. } => {
@@ -1115,7 +1122,7 @@ impl<'a> Lowerer<'a> {
                             variable_place(spelling, source)?;
                         }
                         WordPart::CommandSubstitution { spelling, source } => {
-                            let inner = nested_words(spelling, source)?;
+                            let inner = nested_words(spelling, source, self.lexer_config)?;
                             self.words_lowerable(&inner, depth + 1)?;
                         }
                         WordPart::Opaque { .. } => return Err(NativeLoweringDecline::OpaqueWord),
@@ -1201,7 +1208,7 @@ impl<'a> Lowerer<'a> {
         source: &SourceSite,
         depth: u32,
     ) -> Result<NativeValueId, NativeLoweringDecline> {
-        let inner = nested_words(spelling, source)?;
+        let inner = nested_words(spelling, source, self.lexer_config)?;
         if let Ok(RegistryInvocationResolution::Resolved(facts)) =
             resolve_word_exprs(self.input.registry, self.input.context, &inner)
             && let Some(spec) = self.input.registry.get(&facts.canonical_command)
@@ -1927,6 +1934,7 @@ fn extent(span: Span) -> usize {
 fn nested_words(
     spelling: &str,
     source: &SourceSite,
+    config: tcl_lexer::LexerConfig,
 ) -> Result<Vec<WordExpr>, NativeLoweringDecline> {
     let inner = spelling
         .strip_prefix('[')
@@ -1940,7 +1948,7 @@ fn nested_words(
     } else {
         0
     };
-    let segments = crate::segmenter::segment_commands_with_offset(inner, base);
+    let segments = crate::segmenter::segment_commands_with_offset_and_config(inner, base, config);
     let [segment] = segments.as_slice() else {
         return Err(NativeLoweringDecline::UnmodelledCommandSubstitution);
     };

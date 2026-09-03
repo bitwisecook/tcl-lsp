@@ -124,11 +124,27 @@ impl OperandSide {
 /// second one. A caller that *does* hold a release passes it explicitly to
 /// [`illegal_operand_message`].
 #[must_use]
+// The Jim arms answer 9.0 for a different reason than the `Tcl90` arm does
+// (a backend decision, not a release identity), and each carries its own
+// evidence; folding them together would lose that.
+#[allow(clippy::match_same_arms)]
 pub fn ambient_release() -> TclVersion {
     match crate::number::runtime_syntax() {
         tcl_dialect::NumberSyntax::Tcl90 => TclVersion::V9_0,
         tcl_dialect::NumberSyntax::Tcl85 => TclVersion::V8_6,
         tcl_dialect::NumberSyntax::Tcl84 => TclVersion::V8_4,
+        // JimTcl names no C release: it is a `Lineage::Reimplementation`,
+        // so `DialectPoint::tcl_version_of_release` answers `None` for it
+        // and a projected `jim` profile carries `runtime_base: None`. What
+        // it does carry is a `vm_runtime_version`, and the model settles
+        // that at Tcl 9.0 — "a Jim unit is read as Jim into codegen and
+        // executed as Tcl 9" (`dialect-profile-model.md` §2.5). The wording
+        // of a runtime error is the executing engine's, not the source
+        // grammar's, so a Jim ambient takes the release its backend runs
+        // as. (Unreachable through the VM today, which installs this
+        // ambient from `TclVersion::number_syntax` — but
+        // `set_runtime_syntax` is public and this match must be total.)
+        tcl_dialect::NumberSyntax::Jim | tcl_dialect::NumberSyntax::Jim080 => TclVersion::V9_0,
     }
 }
 
@@ -209,6 +225,29 @@ pub const DOMAIN_CODE: &str = "ARITH DOMAIN {domain error: argument not in valid
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every numeral grammar answers a wording release, and each answers
+    /// the release whose engine actually raises the error: the C grammars
+    /// their own, `JimTcl` the Tcl 9.0 backend the model executes it as.
+    #[test]
+    fn every_numeral_grammar_names_its_wording_release() {
+        use tcl_dialect::NumberSyntax;
+        let restore = crate::number::runtime_syntax();
+        for (syntax, expected) in [
+            (NumberSyntax::Tcl84, TclVersion::V8_4),
+            (NumberSyntax::Tcl85, TclVersion::V8_6),
+            (NumberSyntax::Tcl90, TclVersion::V9_0),
+            (NumberSyntax::Jim, TclVersion::V9_0),
+            (NumberSyntax::Jim080, TclVersion::V9_0),
+        ] {
+            crate::number::set_runtime_syntax(syntax);
+            assert_eq!(ambient_release(), expected, "{syntax:?}");
+        }
+        // `NumberSyntax::ALL` is the list a new grammar joins; this fails
+        // the moment one lands without a row above.
+        assert_eq!(NumberSyntax::ALL.len(), 5);
+        crate::number::set_runtime_syntax(restore);
+    }
 
     /// Every row measured on tclsh 9.0.4 and tclsh 8.6.16 with
     /// `catch {expr {...}} m o; list $m [dict get $o -errorcode]`.

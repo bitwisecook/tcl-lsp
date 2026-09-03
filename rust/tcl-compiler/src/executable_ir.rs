@@ -3618,11 +3618,18 @@ fn operand_text_footprint(text: &str) -> OperandFootprint {
 }
 
 /// The footprint of a parsed Tcl expression.
+///
+/// The walk stops at an unparsed `Raw` node rather than re-lexing its text:
+/// a `Raw` node already makes the footprint unbounded, so enumerating the
+/// variables inside it would change nothing — and this projection is
+/// recomputed by validation from the statement alone
+/// ([`lowered_operation_footprint`]), which carries no document grammar to
+/// re-lex under.
 fn expr_footprint(expr: &ExprNode) -> OperandFootprint {
     let unparsed = expr_has_raw(expr);
     let runs_commands = unparsed || !expr.command_texts().is_empty();
     let mut reads: Vec<CellReference> = expr
-        .vars()
+        .vars_parsed_only()
         .into_iter()
         .map(|name| CellReference::from_name(&name, false))
         .collect();

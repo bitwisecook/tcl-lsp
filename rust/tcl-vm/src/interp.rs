@@ -1408,10 +1408,18 @@ impl Vm {
         self.dialect_profile.grammar.braced_var
     }
 
-    /// The release's source-level `$name(index)` grammar.
+    /// The whole lexer grammar this VM emulates, as one `LexerConfig`.
+    ///
+    /// The pinned profile's `LexerGrammar` is the *same* value the compile
+    /// path lexes the document under, so every re-read of script text on the
+    /// interpreted side (`subst`, a compiled word, a `[…]` body) reads it
+    /// under that one grammar rather than assembling a few axes over the
+    /// default (`docs/design/dialect-profile-model.md` §2.5). Picking axes
+    /// one at a time is how a Jim VM kept C's `$(…)` reading and an iRules
+    /// VM kept C's `}{`.
     #[must_use]
-    pub(crate) fn array_index_syntax(&self) -> tcl_dialect::ArrayIndexSyntax {
-        self.dialect_profile.grammar.array_index
+    pub(crate) fn lexer_config(&self) -> tcl_lexer::LexerConfig {
+        tcl_lexer::LexerConfig::from_grammar(self.dialect_profile.grammar)
     }
 
     /// Generation of the dialect profile used to compile dynamic bytecode.
