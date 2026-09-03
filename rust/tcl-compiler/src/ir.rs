@@ -411,6 +411,9 @@ pub enum WordOpacity {
     /// The snapshot was synthetically constructed or retained only its legacy
     /// representative-token fields.
     LossySnapshot,
+    /// C Tcl's parser rejects the word; the payload is its exact message
+    /// (`missing close-bracket`, `missing )`, …) for diagnostics.
+    ParseError(&'static str),
 }
 
 /// A statement the CFG builder **synthesised**: it models an analysis effect
