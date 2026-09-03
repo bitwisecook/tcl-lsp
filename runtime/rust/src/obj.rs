@@ -325,6 +325,8 @@ pub(crate) fn double_of(obj: *mut TclObj) -> f64 {
 /// A type whose `update_string_proc` is `None` can only be attached to an
 /// object that has one, since there would otherwise be no way back to a
 /// spelling.
+// The only caller is `expr`, which is `have_tommath`-gated.
+#[cfg(have_tommath)]
 pub(crate) fn has_string_rep(obj: *mut TclObj) -> bool {
     // SAFETY: `obj` is a live object.
     !unsafe { (*obj).bytes }.is_null()

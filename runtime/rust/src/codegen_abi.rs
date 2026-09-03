@@ -2467,7 +2467,9 @@ mod tests {
         });
     }
 
-    /// Ask the trace barrier about a name.
+    /// Ask the trace barrier about a name. Only the `have_tommath` tests
+    /// below reach it.
+    #[cfg(have_tommath)]
     unsafe fn var_traced(name: &[u8]) -> i32 {
         // SAFETY: `name` is a valid readable slice.
         unsafe { tcl_codegen_var_traced(name.as_ptr(), name.len() as i32) }

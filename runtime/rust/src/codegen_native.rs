@@ -36,7 +36,10 @@
 use core::ptr;
 
 use crate::codegen_abi::{current_interp, TclCompletionAbi};
-use crate::interp::{obj_bytes, Code, Interp};
+use crate::interp::{Code, Interp};
+// Only the `have_tommath` arms read an object's bytes.
+#[cfg(have_tommath)]
+use crate::interp::obj_bytes;
 use crate::obj::{self, TclObj};
 
 /// `tcl_codegen_value_try_*`: the value has the native representation.
@@ -356,8 +359,10 @@ fn expr_eval_impl(interp: &mut Interp, _expr: *mut TclObj) -> Code {
 
 /// A no-op expression context: operator operands are already evaluated, so
 /// variable, command, and function resolution is never reached.
+#[cfg(have_tommath)]
 struct NoCtx;
 
+#[cfg(have_tommath)]
 impl crate::expr::ExprCtx for NoCtx {
     fn read_var(&mut self, _: &str) -> Result<crate::expr::Owned, crate::expr::ExprError> {
         unreachable!("operator operands are pre-evaluated")
@@ -392,7 +397,6 @@ pub unsafe extern "C" fn tcl_codegen_mathop(
     argc: i32,
     out: *mut TclCompletionAbi,
 ) -> i32 {
-    use tcl_cmd_core::mathop::MathopError;
     let interp = current_interp();
     if interp.is_null() || out.is_null() {
         return TCL_NATIVE_ABI_INVALID;
@@ -415,12 +419,26 @@ pub unsafe extern "C" fn tcl_codegen_mathop(
     if words.iter().any(|word| word.is_null()) {
         return TCL_NATIVE_ABI_INVALID;
     }
+    let code = mathop_eval_impl(interp, op, words);
+    // SAFETY: `out` is writable per the contract.
+    unsafe { write_completion(interp, code, out) };
+    TCL_NATIVE_ABI_OK
+}
+
+/// Apply the operator through the runtime's own `::tcl::mathop`.
+///
+/// Split out so the whole intrinsic keeps its ABI without the bignum backend,
+/// exactly as [`expr_eval_impl`] does: `crate::expr` is `have_tommath`-gated,
+/// so a build without libtommath has no operator evaluator to call.
+#[cfg(have_tommath)]
+fn mathop_eval_impl(interp: &mut Interp, op: &[u8], words: &[*mut TclObj]) -> Code {
+    use tcl_cmd_core::mathop::MathopError;
     let op_str = core::str::from_utf8(op).unwrap_or("");
     let args: Vec<crate::expr::Owned> = words
         .iter()
         .map(|&word| crate::expr::Owned::retain(word))
         .collect();
-    let code = match crate::expr::eval_mathop(op_str, args, &mut NoCtx) {
+    match crate::expr::eval_mathop(op_str, args, &mut NoCtx) {
         Ok(result) => {
             interp.set_result(result.as_ptr());
             Code::Ok
@@ -437,10 +455,12 @@ pub unsafe extern "C" fn tcl_codegen_mathop(
             Some(code) => interp.error_with_code(&error.msg, &code),
             None => interp.set_error(&error.msg),
         },
-    };
-    // SAFETY: `out` is writable per the contract.
-    unsafe { write_completion(interp, code, out) };
-    TCL_NATIVE_ABI_OK
+    }
+}
+
+#[cfg(not(have_tommath))]
+fn mathop_eval_impl(interp: &mut Interp, _op: &[u8], _words: &[*mut TclObj]) -> Code {
+    interp.set_error(b"arithmetic support is not available")
 }
 
 /// `tcl_codegen_mathfunc(name, argv, argc, out) -> status` — call the math
@@ -503,6 +523,7 @@ mod tests {
     use crate::capi::{tcl_runtime_create_interp, tcl_runtime_delete_interp};
     use crate::codegen_abi::tcl_runtime_set_current_interp;
     use crate::counters;
+    use crate::interp::obj_bytes;
 
     fn leak_free(body: impl FnOnce(&mut Interp)) {
         counters::reset();
@@ -549,6 +570,7 @@ mod tests {
         }
     }
 
+    #[cfg(have_tommath)]
     fn release_completion(completion: &mut TclCompletionAbi) {
         // SAFETY: the intrinsic gave the test one owned reference to each.
         unsafe {

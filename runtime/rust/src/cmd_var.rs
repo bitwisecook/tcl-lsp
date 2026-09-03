@@ -40,9 +40,14 @@
 use tcl_syntax::naming::is_qualified;
 
 use crate::frame::{split_array_ref, Link, VarHome};
-use crate::interp::{drop_fresh, obj_bytes, Code, Interp};
+use crate::interp::{obj_bytes, Code, Interp};
+// `incr`'s tower add — the only user — is `have_tommath`-gated.
+#[cfg(have_tommath)]
+use crate::interp::drop_fresh;
 use crate::namespace::GLOBAL;
-use crate::obj::{self, TclObj};
+#[cfg(have_tommath)]
+use crate::obj;
+use crate::obj::TclObj;
 
 /// Register `global`, `variable`, and `upvar`; also re-registers `set` (and,
 /// where the numeric tower is linked, `incr`) to fix their return value after
